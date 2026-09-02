@@ -122,15 +122,20 @@ There's no linter config, so match what's already there:
 ## Before you open a PR
 
 1. `npm run build && npm run typecheck` — must be clean.
-2. `env -u VITEST_LIVE -u ABAP_URL npx vitest run` — must pass offline.
-3. `npm run check:leaks` — must pass; this scans every tracked file for a
+2. `npm run bundle`, then commit the result — required whenever you change
+   `src/`, a dependency range, or the package version. `bundle/` is a
+   generated build that is committed on purpose: Claude Code performs no
+   build step when it installs this repository as a plugin, so `bundle/` is
+   the code users actually run. Step 3 fails until it is rebuilt.
+3. `env -u VITEST_LIVE -u ABAP_URL npx vitest run` — must pass offline.
+4. `npm run check:leaks` — must pass; this scans every tracked file for a
    routable IPv4 or real SAP hostname pattern before it can leak into
    history.
-4. If you touched anything under `src/safety.ts`, the mode ladder, or an
+5. If you touched anything under `src/safety.ts`, the mode ladder, or an
    allowlist, read [doc/SAFETY/safety-gate.md](doc/SAFETY/safety-gate.md) first and explain in the
    PR description which check in the gate your change affects and why it's
    still fail-closed.
-5. Keep the PR scoped to one change. This project favors small, named,
+6. Keep the PR scoped to one change. This project favors small, named,
    single-purpose commits over large mixed ones — match that.
 
 ## PR process
@@ -139,7 +144,7 @@ There's no linter config, so match what's already there:
   not just what. If you validated something against a live system, say
   which system class (e.g. "on a personal A4H trial") and what you saw —
   don't claim live verification you didn't actually perform.
-- CI-equivalent expectations are the four commands under "Before you open a
+- CI-equivalent expectations are the commands under "Before you open a
   PR" above; there's no separate CI config to read, so if those pass
   locally you're in good shape.
 - Be explicit about anything you could not test (most commonly: the live

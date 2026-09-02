@@ -44,6 +44,26 @@ the rest.
 
 ## Install
 
+### Claude Code
+
+This repository is a plugin marketplace, so there is nothing to clone and nothing to build:
+
+```
+/plugin marketplace add Freight-Art/abapsmith
+/plugin install abapsmith@abapsmith
+```
+
+That installs the MCP server together with the task-shaped skills in `skills/`, which carry the
+wire lore an agent needs before it calls a tool. The server runs from `bundle/` — a committed,
+dependency-free build, because plugin installation performs no build step.
+
+The plugin deliberately declares no `env` block, so configure the connection the way the next
+section describes: a `.env` in the directory you start Claude Code from, or exported shell
+variables. Both reach the server. [Wire it into an MCP
+client](#wire-it-into-an-mcp-client) is then only for other clients.
+
+### Any other MCP client
+
 Not published to a registry — build from a clone.
 
 ```bash
@@ -81,6 +101,8 @@ is in **[doc/CONFIGURATION/README.md](doc/CONFIGURATION/README.md)**.
 
 ## Wire it into an MCP client
 
+For clients other than Claude Code, which the plugin install above already wires up:
+
 ```jsonc
 {
   "mcpServers": {
@@ -103,9 +125,6 @@ is in **[doc/CONFIGURATION/README.md](doc/CONFIGURATION/README.md)**.
 working directory supplies, so the secret never lands in a JSON file that is easy to commit or
 sync alongside the rest of an editor config. Start on `ABAP_MODE=read` and opt into `edit` once
 you intend to write.
-
-For Claude Code the repository is also a plugin, which additionally installs task-shaped skills
-(`skills/`) carrying the wire lore an agent needs before it calls a tool.
 
 ## Documentation
 

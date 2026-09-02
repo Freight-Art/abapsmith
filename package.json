@@ -22,12 +22,14 @@
   },
   "main": "./dist/index.js",
   "files": [
+    "bundle",
     "dist",
     "bin",
     "THIRD-PARTY-NOTICES.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "bundle": "node scripts/bundle.mjs",
     "start": "node dist/index.js",
     "dev": "tsc -p tsconfig.json --watch",
     "test": "vitest run",
@@ -51,6 +53,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "esbuild": "^0.28.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
   }

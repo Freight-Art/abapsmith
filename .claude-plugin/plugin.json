@@ -15,5 +15,11 @@
     "mcp",
     "bopf",
     "sap-development"
-  ]
+  ],
+  "mcpServers": {
+    "abap": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bundle/index.js"]
+    }
+  }
 }

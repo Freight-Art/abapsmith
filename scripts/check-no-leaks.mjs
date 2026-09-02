@@ -44,7 +44,17 @@ const RULES = [
   },
   {
     name: "SAP appliance hostname (vhcal* naming)",
-    find: (line) => [...line.matchAll(/\bvhcal[a-z0-9_]*/gi)].map((m) => m[0]),
+    // `vhcalnplci` is exempt: it is the published hostname of SAP's NPL ABAP
+    // Developer Edition appliance, and `abap-adt-api` uses it as the example
+    // URL in a JSDoc comment that the committed `bundle/` inlines verbatim. It
+    // names a public sample appliance documented by a third-party library, not
+    // any system this project connects to. The exemption is the exact literal
+    // only, so every other `vhcal*` name — including any real one — still
+    // fails here.
+    find: (line) =>
+      [...line.matchAll(/\bvhcal[a-z0-9_]*/gi)]
+        .map((m) => m[0])
+        .filter((h) => h.toLowerCase() !== "vhcalnplci"),
   },
   {
     name: "internal SAP hostname",

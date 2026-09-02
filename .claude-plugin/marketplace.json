@@ -1,0 +1,15 @@
+{
+  "name": "abapsmith",
+  "description": "SAP ABAP development tooling for Claude Code, published by Freight Art.",
+  "owner": {
+    "name": "Freight Art",
+    "url": "https://github.com/Freight-Art"
+  },
+  "plugins": [
+    {
+      "name": "abapsmith",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}
