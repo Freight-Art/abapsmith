@@ -2,10 +2,6 @@
 
 An MCP server that lets an LLM develop in SAP ABAP on a live system over ADT (`/sap/bc/adt/*`).
 
-No editor, no project tree, no UI — a gated catalogue of tool calls with an undo journal behind
-them. Writes are off by default: with no configuration the server is read-only, and no flag
-enables writes against a system that reports itself productive.
-
 ## Capabilities
 
 | Area | What the server does |
@@ -146,3 +142,12 @@ you intend to write.
 ## License
 
 MIT — see [LICENSE](LICENSE). Third-party attribution: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+## Thanks
+
+Big thanks to two projects whose ideas shaped this one:
+
+- [Vibing Steampunk](https://github.com/oisee/vibing-steampunk) — also the source of the ADT
+  debugger protocol knowledge behind `src/debug/`, credited in
+  [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+- [mcp-abap-adt](https://github.com/fr0ster/mcp-abap-adt)
