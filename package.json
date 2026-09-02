@@ -37,7 +37,6 @@
     "typecheck:cassettes": "tsc -p test/cassettes/tsconfig.json --noEmit",
     "check:cassettes": "npm run typecheck:cassettes && vitest run test/cassettes",
     "check:leaks": "node scripts/check-no-leaks.mjs",
-    "lint:guard": "node --check bin/abap-guard",
     "lint:hints": "node scripts/lint-hint-params.mjs"
   },
   "dependencies": {

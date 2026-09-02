@@ -26,7 +26,6 @@ npm run build
 npm test              # vitest run — see the gotcha below
 npm run typecheck
 npm run check:leaks   # asserts no secrets or live hostnames in tracked files
-npm run lint:guard    # node --check on bin/abap-guard
 npm run check:cassettes
 ```
 
@@ -131,13 +130,12 @@ There's no linter config, so match what's already there:
    allowlist, read [doc/SAFETY/safety-gate.md](doc/SAFETY/safety-gate.md) first and explain in the
    PR description which check in the gate your change affects and why it's
    still fail-closed.
-5. Keep the PR scoped to one change. This repo's history (see commit
-   messages on `master`) favors small, named, single-purpose commits over
-   large mixed ones — match that.
+5. Keep the PR scoped to one change. This project favors small, named,
+   single-purpose commits over large mixed ones — match that.
 
 ## PR process
 
-- Open the PR against `master` with a description of what changed and why,
+- Open the PR against `main` with a description of what changed and why,
   not just what. If you validated something against a live system, say
   which system class (e.g. "on a personal A4H trial") and what you saw —
   don't claim live verification you didn't actually perform.

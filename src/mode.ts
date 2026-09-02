@@ -2,13 +2,15 @@
  * `ABAP_MODE` — the single-env-var permission tier.
  *
  * Resolves `ABAP_MODE` (`"read"`|`"edit"`|`"admin"`) ONCE at startup into a
- * frozen {@link AbapCapabilities} object. Layer 1 of a 3-layer safety design:
+ * frozen {@link AbapCapabilities} object. Layer 1 of a 2-layer safety design:
  *   1. THIS FILE — env var → capability ceiling.
  *   2. `AuthorizedTarget` structural gate (landing separately) — type-level
  *      proof a mutating call was authorized; consumes whatever Layer 1
  *      decided but this file doesn't implement or know about it.
- *   3. `PreToolUse` hook — a standalone script outside this Node process,
- *      deliberately NOT importing this module (see "Decoupling" below).
+ *
+ * Both layers run inside this process, so this file is the only thing
+ * standing between a caller and a mutating call: there is no client-side
+ * pre-check behind it and none should be assumed.
  *
  * `capabilitiesForMode()` decides whether an operation is even ATTEMPTED,
  * not whether a specific target is safe — fine-grained per-target checks
@@ -21,10 +23,6 @@
  * argument — see the early return in the function body. The separate
  * `grants` argument ({@link AbapModeGrants}) IS consulted under `read`, but
  * can only switch on strictly non-mutating capabilities (today: data preview).
- *
- * Decoupling: the `PreToolUse` hook conceptually wants the same answer this
- * file computes but is a separate script that does not import this module —
- * if its notion of what a mode permits changes, it must be changed there too.
  */
 
 /** The three permission tiers `ABAP_MODE` may select. */

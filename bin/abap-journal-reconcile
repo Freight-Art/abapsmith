@@ -7,11 +7,11 @@
 // a `cmd-shim` `.cmd`/`.ps1` wrapper for them on Windows. That wrapper invokes
 // the target with its shebang interpreter — and stock Windows has no `bash`,
 // so this entry point was dead on arrival there. It is now `#!/usr/bin/env
-// node`, matching the other three entry points (`dist/index.js`, `bin/abap-
-// contract`, `bin/abap-guard`), all of which are already Node.
+// node`, matching the other entry points (`dist/index.js`, `bin/abap-
+// contract`), both of which are already Node.
 //
 // This does NOT amount to a claim that abapsmith runs on Windows. Nothing in
-// this repo has ever been executed on Windows (CI is ubuntu-latest only), so
+// this repo has ever been executed on Windows, so
 // Windows support remains UNVERIFIED; this change removes one known blocker
 // and nothing more.
 //

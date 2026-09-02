@@ -156,7 +156,7 @@ to overstate:
 ## Scope
 
 In scope: the safety gate and mode ladder (`src/safety.ts`, `src/mode.ts`),
-credential handling, the write journal, the ADT client and debugger
-transport, and the `bin/abap-guard` client-side hook. Out of scope: the
+credential handling, the write journal, and the ADT client and debugger
+transport. Out of scope: the
 underlying SAP system's own authorisation model (`S_TABU_DIS` etc.) — that's
 the operator's responsibility, as described above.

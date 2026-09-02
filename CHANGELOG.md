@@ -73,10 +73,8 @@ was last set to `0.3.0`.
   (fail-closed on inconclusive), evaluated before any connection is opened
   — later hardened further, see Security.
 - Claude Code plugin packaging: topic-oriented skills covering BAdI/BOPF
-  traps, DDIC write shapes, transport status, and debugger grammar, plus a
-  `PreToolUse` guard hook (`bin/abap-guard`) that re-checks mutating calls
-  client-side before the request is sent. (The skill set itself was later
-  replaced — see Changed.)
+  traps, DDIC write shapes, transport status, and debugger grammar. (The
+  skill set itself was later replaced — see Changed.)
 - An experimental consolidated tool surface (`ABAP_TOOL_SURFACE=v2`, six
   tools instead of the full per-tool set); kept opt-in after a live A/B
   found it more expensive and error-prone than `v1` at equivalent work.
@@ -98,14 +96,11 @@ was last set to `0.3.0`.
   rather than confirmed live; a captured live run later grounded
   several specific elements of it — see Changed.
 - `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md`.
-- GitHub Actions CI running typecheck, build, the offline test suite,
-  `check:leaks` and `lint:guard` on Node 20 and 22, plus pull-request and
-  issue templates.
+- Pull-request and issue templates.
 - `npm run lint:hints` (`scripts/lint-hint-params.mjs`) — a compiler-API
   lint that fails the build when a tool's caller-facing hint text names a
   parameter in camelCase while the schema actually accepts snake_case, the
   exact class of drift behind several of the hint-text fixes below.
-  Wired into CI immediately after `lint:guard`.
 - `ABAP_SESSION_COOKIE` — an alternative to `ABAP_PASSWORD`: connect with
   a pre-established session cookie instead of a password. Exactly one of
   `ABAP_PASSWORD` or `ABAP_SESSION_COOKIE` must be set; both or neither is

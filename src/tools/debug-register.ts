@@ -158,8 +158,7 @@ export function registerDebugTools(mcp: McpServer, deps: DebugRegistrationDeps):
 // src/tools/v2/handlers/debug.ts wraps it into a V2Response.
 //
 // Folds v1's abap_debug_vars/abap_debug_value into action values (K7) and
-// drops run.mode (K6, defaults to run.ts's "auto"), deliberately deviating
-// from bin/abap-guard's spec — see archive for full rationale.
+// drops run.mode (K6, defaults to run.ts's "auto").
 // ---------------------------------------------------------------------------
 
 const CORE_ACTIONS = ["start", "step", "stack", "frame", "keepalive", "stop", "status"] as const;

@@ -659,9 +659,8 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     // `safety` — `read` is outside `MUTATING_OPS` and always allowed.
     registerServiceTools(mcp, { pool, cfg, ensureConnected, errorResult });
   } else {
-    // The six v2 consolidated tools. `abapMode` falls back to the same
-    // fail-closed `"read"` `bin/abap-guard` applies to a missing/
-    // unrecognized ABAP_MODE, when on legacy per-flag config
+    // The six v2 consolidated tools. `abapMode` falls back, fail-closed, to
+    // `"read"` for a missing/unrecognized ABAP_MODE, when on legacy per-flag config
     // (`cfg.abapMode` unset) — only shapes which action names/descriptions
     // are listed, per `loadConfig`'s NOTE in src/config.ts.
     const v2Mode: AbapMode = cfg.abapMode ?? "read";

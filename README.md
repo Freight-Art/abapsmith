@@ -105,9 +105,7 @@ sync alongside the rest of an editor config. Start on `ABAP_MODE=read` and opt i
 you intend to write.
 
 For Claude Code the repository is also a plugin, which additionally installs task-shaped skills
-(`skills/`) carrying the wire lore an agent needs before it calls a tool, and a `PreToolUse`
-guard (`bin/abap-guard`, wired in `hooks/hooks.json`) that re-checks mutating calls at the
-client before the request is sent.
+(`skills/`) carrying the wire lore an agent needs before it calls a tool.
 
 ## Documentation
 

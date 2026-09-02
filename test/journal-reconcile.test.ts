@@ -379,12 +379,11 @@ describe("reconcile() — read-only discipline", () => {
 
 // ---------------------------------------------------------------------------
 // Optional polish: a thin smoke test that the compiled CLI actually runs.
-// Requires `npm run build` to have produced dist/bin/journal-reconcile.js.
-// CI DOES run these: .github/workflows/ci.yml runs `npm run build` before
-// `npm test`. They skip only in a local checkout that hasn't been built,
-// which is why they call `ctx.skip()` rather than `return`ing — a test that
-// returns early reports as PASSED, which is exactly how a broken entry point
-// stays invisible.
+// Requires `npm run build` to have produced dist/bin/journal-reconcile.js,
+// so run the build before the suite if you want these to execute. They skip
+// in a checkout that hasn't been built, which is why they call `ctx.skip()`
+// rather than `return`ing — a test that returns early reports as PASSED,
+// which is exactly how a broken entry point stays invisible.
 // ---------------------------------------------------------------------------
 const distPath = join(__dirname, "..", "dist", "bin", "journal-reconcile.js");
 const binPath = join(__dirname, "..", "bin", "abap-journal-reconcile");
@@ -434,9 +433,8 @@ describe("compiled CLI smoke test", () => {
 // defect was invisible. These two blocks close that gap.
 //
 // NOTE — this asserts the shim is portable. It asserts NOTHING about whether
-// abapsmith as a whole runs on Windows: CI is `ubuntu-latest` only, nothing in
-// this repo has ever been executed on Windows, and Windows support therefore
-// remains UNVERIFIED.
+// abapsmith as a whole runs on Windows: nothing in this repo has ever been
+// executed on Windows, and Windows support therefore remains UNVERIFIED.
 // ---------------------------------------------------------------------------
 describe("npm bin entry points are Node scripts", () => {
   it("every package.json bin target has a `#!/usr/bin/env node` shebang", async () => {
@@ -470,8 +468,7 @@ describe("npm bin entry points are Node scripts", () => {
   });
 
   it("bin/abap-journal-reconcile is syntactically valid, standalone Node", () => {
-    // `node --check` parses without executing. Mirrors `npm run lint:guard`,
-    // which does the same for bin/abap-guard.
+    // `node --check` parses without executing.
     expect(() => execFileSync(process.execPath, ["--check", binPath], { encoding: "utf8" })).not.toThrow();
   });
 });
