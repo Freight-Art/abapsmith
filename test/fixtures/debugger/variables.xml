@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+    <DATA>
+      <STPDA_ADT_VARIABLE>
+        <ID>LV_COUNT</ID>
+        <NAME>LV_COUNT</NAME>
+        <DECLARED_TYPE_NAME>I</DECLARED_TYPE_NAME>
+        <ACTUAL_TYPE_NAME>I</ACTUAL_TYPE_NAME>
+        <KIND>LOCAL</KIND>
+        <INSTANTIATION_KIND></INSTANTIATION_KIND>
+        <ACCESS_KIND></ACCESS_KIND>
+        <META_TYPE>simple</META_TYPE>
+        <PARAMETER_KIND></PARAMETER_KIND>
+        <VALUE>42</VALUE>
+        <HEX_VALUE>0000002A</HEX_VALUE>
+        <READ_ONLY></READ_ONLY>
+        <TECHNICAL_TYPE>I</TECHNICAL_TYPE>
+        <LENGTH>4</LENGTH>
+        <TABLE_BODY></TABLE_BODY>
+        <TABLE_LINES>0</TABLE_LINES>
+        <IS_VALUE_INCOMPLETE></IS_VALUE_INCOMPLETE>
+        <IS_EXCEPTION></IS_EXCEPTION>
+      </STPDA_ADT_VARIABLE>
+      <STPDA_ADT_VARIABLE>
+        <ID>LS_DATA</ID>
+        <NAME>LS_DATA</NAME>
+        <DECLARED_TYPE_NAME>TY_DATA</DECLARED_TYPE_NAME>
+        <ACTUAL_TYPE_NAME>TY_DATA</ACTUAL_TYPE_NAME>
+        <KIND>LOCAL</KIND>
+        <META_TYPE>structure</META_TYPE>
+        <VALUE></VALUE>
+        <READ_ONLY></READ_ONLY>
+        <TECHNICAL_TYPE>u</TECHNICAL_TYPE>
+        <LENGTH>100</LENGTH>
+        <IS_VALUE_INCOMPLETE>X</IS_VALUE_INCOMPLETE>
+      </STPDA_ADT_VARIABLE>
+    </DATA>
+  </asx:values>
+</asx:abap>

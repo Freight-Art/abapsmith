@@ -1,0 +1,32 @@
+{
+  "n": 839,
+  "label": "p5-ddic-ztmc-carrier-source",
+  "expect": "ground truth ZTMC_CARRIER",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/tables/ztmc_carrier/source/main",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "445",
+    "content-type": "text/plain; charset=utf-8",
+    "etag": "20260820101908001text/plain2",
+    "last-modified": "Thu, 20 Aug 2026 10:19:08 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "79728.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 445,
+  "zeroByteBody": false,
+  "sha256": "01e09992958e45322ccc967e528f39ec9edcfbdfd8a3a56eb79174e3050df3e0",
+  "utcTimestamp": "2026-08-20T16:15:15.415Z",
+  "durationMs": 338,
+  "sessionName": "LIVE-305"
+}

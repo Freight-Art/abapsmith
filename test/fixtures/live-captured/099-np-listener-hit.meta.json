@@ -1,0 +1,34 @@
+{
+  "n": 99,
+  "label": "np-listener-hit",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/listeners?debuggingMode=user&requestUser=DEVELOPER&terminalId=ZMCPCAPTURE000000000000000000001&ideId=ZMCPCAPTUREIDE000000000000000000&timeout=120&checkConflict=false&isNotifiedOnConflict=true",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "vGjVjD6Yj4yRPuQ7IhKclQ==",
+    "Accept": "application/vnd.sap.as+xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "613",
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.debugger.DebuggeesList",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "3253558.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1265,
+  "zeroByteBody": false,
+  "sha256": "9e8db0d5145767f24e7b8c831ef6adc17a56cd42299b3c18bf64a06d492c5024",
+  "utcTimestamp": "2026-07-31T23:54:51.597Z",
+  "durationMs": 3301,
+  "sessionName": "A"
+}

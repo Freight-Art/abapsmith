@@ -1,0 +1,40 @@
+{
+  "id": "ddic-svers-single-column-single-row",
+  "recordedAt": "2026-08-11T13:05:58Z",
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "Live capture against the A4H sandbox appliance (SID A4H, client 001) on 2026-08-11 at 2026-08-11T13:05:58Z. Raw capture artifacts (session scratchpad, not committed): wire39b/svers.body (766 B, sha256 23e54b937b5386458059e7390e6b827e2cd64d9c4165ac34fb59ae2d4c7e791f), wire39b/svers.hdr (verbatim response status line + headers), wire39b/svers.json (request sidecar), produced by wire39b/cap.sh.",
+    "notes": "POST /sap/bc/adt/datapreview/ddic?rowNumber=5&ddicEntityName=SVERS, empty request body, 200. THE SINGLETON-COLLAPSE CASE: SVERS is 1 column (VERSION) x 1 row (\"754\"), so under fast-xml-parser's array-collapsing defaults tableData.columns becomes an OBJECT rather than an array and dataSet.data becomes a BARE STRING rather than an array. Blind iteration breaks on both, and a hand-written fixture would almost certainly have been authored as the plural shape and hidden the bug. Pins that the isArray predicate must force both tableData.columns and tableData.columns.dataSet.data. Also pins that the metadata attribute set includes dataPreview:caseSensitive, which the design doc's attribute list does not enumerate — a parser that assumes a closed attribute set would be wrong. Anonymisation: appliance.server is the repo's standing pseudonym for the A4H ApplicationServerName. The appliance's real host name and its container IPv4 are deliberately absent from this file, as is the appliance URL; Authorization / Cookie / X-CSRF-Token request-header values are replaced with placeholders. Response bytes are unmodified. kernelRelease/kernelPatchLevel were read live from GET /sap/bc/adt/system/information on the same day as this capture, not copied from an earlier cassette."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/ddic?rowNumber=5&ddicEntityName=SVERS",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 3 cookies>",
+      "X-CSRF-Token": "<redacted>",
+      "Content-Type": "text/plain",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "content-length": "766",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "531074.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>0</dataPreview:totalRows><dataPreview:name>SVERS</dataPreview:name><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:queryExecutionTime>3.3520000</dataPreview:queryExecutionTime><dataPreview:columns><dataPreview:metadata dataPreview:name=\"VERSION\" dataPreview:type=\"C\" dataPreview:description=\"SAP release number\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\" dataPreview:length=\"72\" dataPreview:caseSensitive=\"false\"/><dataPreview:dataSet><dataPreview:data>754</dataPreview:data></dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>"
+  }
+}

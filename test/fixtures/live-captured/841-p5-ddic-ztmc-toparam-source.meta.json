@@ -1,0 +1,32 @@
+{
+  "n": 841,
+  "label": "p5-ddic-ztmc-toparam-source",
+  "expect": "ground truth ZTMC_TOPARAM",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/tables/ztmc_toparam/source/main",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "368",
+    "content-type": "text/plain; charset=utf-8",
+    "etag": "20260820101944001text/plain2",
+    "last-modified": "Thu, 20 Aug 2026 10:19:44 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "84575.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 368,
+  "zeroByteBody": false,
+  "sha256": "bc6afc7fc52a34f8790cef990b7f0d2f28754adce8644fd3d920aeb46159efdf",
+  "utcTimestamp": "2026-08-20T16:15:16.930Z",
+  "durationMs": 327,
+  "sessionName": "LIVE-305"
+}

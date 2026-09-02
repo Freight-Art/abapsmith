@@ -1,0 +1,42 @@
+{
+  "id": "listener-conflict-409",
+  "recordedAt": "2026-08-02T18:26:00Z",
+  "recordedDurationMs": 106,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-transcribed",
+    "citation": "Transcribed verbatim from a live concurrency experiment log, raw bytes of the listener-conflict 409",
+    "notes": "Transcribed from a human-readable experiment transcript rather than a raw meta.json/xml capture pair — hence source.type is 'live-capture-transcribed'. The source dates the experiment window as 2026-08-02, 18:26-19:51 UTC with no per-request clock timestamp for this exchange, so recordedAt above is the window's start, not a precise per-exchange timestamp; the wire timing that IS given is the response duration (106ms), preserved as recordedDurationMs. Response body transcribed exactly and independently byte-counted at build time: 633 bytes, matching the recorded content-length: 633. A second trial returned the identical 633 bytes in 76ms and reproduced an earlier capture of the same phenomenon exactly (same status, length, AdiFailed/conflictDetected/SY/530/conflictText). x-csrf-token and Cookie values were already <redacted> in the source; the placeholder is preserved as-is, not re-fabricated."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/debugger/listeners?debuggingMode=user&requestUser=DEVELOPER&terminalId=232700E0-BE01-419E-B4B3-A5654A4C0FDB&ideId=5A8FBB4A-D13B-4198-8497-C99A3307FA09&checkConflict=true&isNotifiedOnConflict=true&timeout=5",
+    "headers": {
+      "Accept": "application/vnd.sap.as+xml",
+      "Cache-Control": "no-cache",
+      "x-csrf-token": "<redacted>",
+      "X-sap-adt-sessiontype": "stateful",
+      "Cookie": "sap-usercontext=sap-client=001; MYSAPSSO2=<redacted>; SAP_SESSIONID_A4H_001=<redacted>; sap-contextid=<redacted>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 409,
+    "headers": {
+      "content-type": "application/xml",
+      "content-length": "633",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "54561.000000",
+      "set-cookie": "sap-contextid=<redacted>; path=/sap/bc/adt"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"com.sap.adt\"/><type id=\"AdiFailed\"/><message lang=\"EN\">An exception was raised</message><localizedMessage lang=\"EN\">An exception was raised</localizedMessage><properties><entry key=\"conflictText\">Another session already exists with global debugging scope for user DEVELOPER</entry><entry key=\"ideUser\">DEVELOPER</entry><entry key=\"com.sap.adt.communicationFramework.subType\">conflictDetected</entry><entry key=\"T100KEY-ID\">SY</entry><entry key=\"T100KEY-NO\">530</entry></properties></exc:exception>"
+  }
+}

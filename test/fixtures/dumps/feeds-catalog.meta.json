@@ -1,0 +1,29 @@
+{
+  "label": "feeds",
+  "what": "/sap/bc/adt/feeds catalog — declares the dumps feed and its feed:extendedData contract.",
+  "sourceCapture": "01-feeds.body.xml",
+  "sourceCaptureDir": "local capture session 2026-08-11 (not committed)",
+  "capturedUtc": "2026-08-11",
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/feeds",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "application/xml, application/atom+xml, application/atomsvc+xml, */*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "1726",
+    "content-type": "application/atom+xml;type=feed"
+  },
+  "byteLength": 18623,
+  "byteLengthAfterRedaction": 18623,
+  "zeroByteBody": false,
+  "sha256OfRedactedBody": "990f7b0326cc47d6ee2f0817be6caab0f956097dfee2cedd97fe6d727893d8f9",
+  "redactions": null,
+  "redactionPolicy": "Length-preserving substitution only. No other byte was altered: percent-encoding, %20 padding runs, attribute order, XML escaping and the absent trailing newline are as captured.",
+  "bodyFile": "feeds-catalog.xml",
+  "durationMs": 438
+}

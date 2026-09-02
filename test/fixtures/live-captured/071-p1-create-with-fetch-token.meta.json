@@ -1,0 +1,33 @@
+{
+  "n": 71,
+  "label": "p1-create-with-fetch-token",
+  "expect": "does a mutating POST honour x-csrf-token: fetch, does a fresh token come back in the response headers, and was the create applied or rejected?",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/programs/programs",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "x-csrf-token": "fetch",
+    "Content-Type": "application/vnd.sap.adt.programs.programs.v2+xml",
+    "Accept": "application/vnd.sap.adt.programs.programs.v2+xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><program:abapProgram xmlns:program=\"http://www.sap.com/adt/programs/programs\" xmlns:adtcore=\"http://www.sap.com/adt/core\" adtcore:description=\"ZMCP CSRF probe\" adtcore:name=\"ZMCP_CSRF_PROBE\" adtcore:type=\"PROG/P\" adtcore:responsible=\"DEVELOPER\"><adtcore:packageRef adtcore:name=\"$TMP\"/></program:abapProgram>",
+  "responseStatus": 403,
+  "responseStatusText": "Forbidden",
+  "responseHeaders": {
+    "content-length": "28",
+    "content-type": "text/plain; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "115230.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>",
+    "x-csrf-token": "Required"
+  },
+  "byteLength": 28,
+  "zeroByteBody": false,
+  "sha256": "e9f5b1cf7c2206472d0b9cd7d1a9b8b0c08c9c7c5ae6d8e2e34523c9a6cace17",
+  "utcTimestamp": "2026-07-31T23:49:55.422Z",
+  "durationMs": 283,
+  "sessionName": "C"
+}

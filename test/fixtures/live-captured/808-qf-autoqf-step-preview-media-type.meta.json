@@ -1,0 +1,26 @@
+{
+  "n": 808,
+  "label": "qf-autoqf-step-preview-media-type",
+  "note": "ATC autoqf step=preview refuses application/vnd.sap.adt.atc.objectreferences.v1+xml and names the type it wants: application/vnd.sap.adt.atc.autoqf.selection.v1+xml. Records the step vocabulary without executing a mass fix.",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/atc/autoqf/worklist?step=preview",
+  "requestHeaders": {
+    "Content-Type": "application/vnd.sap.adt.atc.objectreferences.v1+xml",
+    "Accept": "application/vnd.sap.adt.atc.autoqf.proposal.v1+xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<atcobjects:objectReferences xmlns:atcobjects=\"http://www.sap.com/adt/atc/objectreferences\" xmlns:adtcore=\"http://www.sap.com/adt/core\">\n  <atcobjects:objectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_qf_probe1\" adtcore:name=\"ZMCP_QF_PROBE1\" adtcore:type=\"PROG/P\"/>\n</atcobjects:objectReferences>",
+  "requestBodyBytes": 349,
+  "responseStatus": null,
+  "responseHeaders": {},
+  "byteLength": 105,
+  "zeroByteBody": false,
+  "sha256": "f34fbb0abcd0e7575fc6c9e3527463e85df7a4f6ab1fdeec64ecad57a9e7d00b",
+  "utcTimestamp": "2026-08-18T22:51:36.457Z",
+  "durationMs": 89,
+  "sessionName": "QF2",
+  "capturedBy": "scratchpad probes for the Phase 0 feasibility gate, driven through src/adt/connection.ts AbapConnection against the A4H sandbox appliance. REAL wire recording - not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the connection layer and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host/IP is deliberately not recorded.",
+  "baitSourceNote": "The ABAP source echoed inside requestBody is BAIT invented for this probe (program ZMCP_QF_PROBE1 in $TMP, created and deleted by the probe). It is not customer code and is not a repository artefact.",
+  "responseStatusNote": "The probe harness did not preserve the HTTP status for this error response; the connection layer raised before it was read. The body is the server's verbatim error text. Recorded as null rather than guessed."
+}

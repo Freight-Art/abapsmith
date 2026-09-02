@@ -1,0 +1,31 @@
+{
+  "n": 822,
+  "label": "p0b-quicksearch-t000-max100",
+  "expect": "establish full ground set of T000* objects and description multiset at large page size",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=T000*&maxResults=100",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "395",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "93796.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1345,
+  "zeroByteBody": false,
+  "sha256": "01006f325ba15046bc500391b06dc49cdbfba62c20bede7c72f5360837108c9e",
+  "utcTimestamp": "2026-08-20T16:10:38.353Z",
+  "durationMs": 276,
+  "sessionName": "LIVE-305"
+}

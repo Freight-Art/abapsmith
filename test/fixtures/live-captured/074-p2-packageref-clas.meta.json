@@ -1,0 +1,33 @@
+{
+  "n": 74,
+  "label": "p2-packageref-clas",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/oo/classes/zmcp_dbg_run",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "1181",
+    "content-type": "application/vnd.sap.adt.oo.classes.v3+xml; charset=utf-8",
+    "etag": "20260731151205001000015",
+    "last-modified": "Fri, 31 Jul 2026 15:12:05 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "297177.000000",
+    "sap-server": "true"
+  },
+  "byteLength": 7240,
+  "zeroByteBody": false,
+  "sha256": "1b9a482d4803cd6c72356fb237b6bf1291ed5b3102adbdf6b60b3b8194f7f6c5",
+  "utcTimestamp": "2026-07-31T23:49:56.397Z",
+  "durationMs": 337,
+  "sessionName": "D"
+}

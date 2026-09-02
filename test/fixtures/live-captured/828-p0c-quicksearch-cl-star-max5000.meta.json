@@ -1,0 +1,31 @@
+{
+  "n": 828,
+  "label": "p0c-quicksearch-cl-star-max5000",
+  "expect": "internal cap detection: broad query CL_* at maxResults=5000",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=CL_*&maxResults=5000",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "130184",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "5764627.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1185158,
+  "zeroByteBody": false,
+  "sha256": "fc25974382893204a4beea8d247b54f10e76100b92f8c0bd5544078dc266f5a2",
+  "utcTimestamp": "2026-08-20T16:12:02.485Z",
+  "durationMs": 6079,
+  "sessionName": "LIVE-305"
+}

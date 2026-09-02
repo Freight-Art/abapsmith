@@ -1,0 +1,1811 @@
+----------------------------------------------------------------------------------------------------
+Category               ABAP programming error                                                 
+Runtime Errors         SAPSQL_PARSE_ERROR                                                           
+Except.                CX_SY_DYNAMIC_OSQL_SEMANTICS                                                 
+ABAP Program           ZCL_ZMCP_DMP_SQL==============CP                                             
+Application Component  Not assigned                                                                 
+Date and Time          11.08.2026 12:34:47 (UTC)                                                 
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Short Text                                                                                        |
+|    An error has occurred while parsing a dynamic entry.                                          |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|What happened?                                                                                    |
+|    Error in the ABAP application program.                                                        |
+|                                                                                                  |
+|    The current ABAP program "ZCL_ZMCP_DMP_SQL==============CP" had to be                         |
+|     terminated because it found a                                                                |
+|    statement that could not be executed.                                                         |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|What can I do?                                                                                    |
+|    Note which actions and entries caused the error to occur.                                     |
+|                                                                                                  |
+|    Consult your SAP administrator.                                                               |
+|                                                                                                  |
+|    Using transaction ST22 for ABAP dump analysis, you can view, manage,                          |
+|    and retain termination messages for longer periods.                                           |
+|    Note which actions and entries caused the error to occur.                                     |
+|                                                                                                  |
+|    Consult your SAP administrator.                                                               |
+|                                                                                                  |
+|    Using transaction ST22 for ABAP dump analysis, you can view, manage,                          |
+|    and retain termination messages for longer periods.                                           |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Error analysis                                                                                    |
+|    An exception has occurred in class "CX_SY_DYNAMIC_OSQL_SEMANTICS". This                       |
+|     exception was not caught                                                                     |
+|    in procedure "IF_OO_ADT_CLASSRUN~MAIN" "(METHOD)" or propagated by a RAISING                  |
+|     clause.                                                                                      |
+|    Since the caller of the procedure could not have anticipated this                             |
+|    exception, the current program was terminated.                                                |
+|    The reason for the exception occurring was:                                                   |
+|    The reason for the exception is:                                                              |
+|    The current ABAP program attempted to execute an Open SQL statement                           |
+|    containing a dynamic entry. The parser returned the following error:                          |
+|                                                                                                  |
+|    "ZMCP_NO_SUCH_TABLE_XX" is not declared as a table, projection view, or                       |
+|     database view in ABAP Dictionary or does not exist in an active version.                     |
+|                                                                                                  |
+|    In the case of a FETCH NEXT CURSOR statement, this error message                              |
+|    possibly refers to a preceding OPEN CURSOR statement.                                         |
+|                                                                                                  |
+|    The error refers to program/include "ZCL_ZMCP_DMP_SQL==============CM001" and                 |
+|     row number "7".                                                                              |
+|                                                                                                  |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|How to correct the error                                                                          |
+|    If the exception cannot be prevented, "CX_SY_DYNAMIC_OSQL_SEMANTICS" must be                  |
+|     caught within                                                                                |
+|    procedure "IF_OO_ADT_CLASSRUN~MAIN" "(METHOD)" or declared in the procedure's                 |
+|     RAISING clause.                                                                              |
+|    To prevent the exception, note the following:                                                 |
+|                                                                                                  |
+|    If the error occurs in a non-modfied SAP program, you might be able to                        |
+|    find a solution in the SAP Notes system. If you have access to the SAP                        |
+|    Notes system, check there first using the following keywords:                                 |
+|                                                                                                  |
+|    "SAPSQL_PARSE_ERROR" CX_SY_DYNAMIC_OSQL_SEMANTICS                                             |
+|    "ZCL_ZMCP_DMP_SQL==============CP" bzw. ZCL_ZMCP_DMP_SQL==============CM001                   |
+|    "IF_OO_ADT_CLASSRUN~MAIN"                                                                     |
+|    If you cannot solve the problem yourself, please send the following                           |
+|    information to SAP:                                                                           |
+|                                                                                                  |
+|    1. The description of the problem (short dump)                                                |
+|    To do this, choose  System -> List -> Save -> Local File (unconverted)                        |
+|    on the screen you are in now.                                                                 |
+|                                                                                                  |
+|    2. The relevant system log                                                                    |
+|    To do this, call the system log in transaction SM21. Restrict the time                        |
+|    interval to ten minutes before the short dump and five minutes after                          |
+|    it. In the display, choose System -> List -> Save -> Local File                               |
+|    (unconverted).                                                                                |
+|                                                                                                  |
+|    3. If these are programs of your own, or modified SAP programs: The                           |
+|    source text of the programs                                                                   |
+|    To do this, please choose                                                                     |
+|    "Other Utilties -> Upload/Download -> Download".                                              |
+|                                                                                                  |
+|    4. Details regarding the conditionsunder which the error occurred or                          |
+|    which actions and input caused the error.                                                     |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|System environment                                                                                |
+|    SAP Release..... 754                                                                          |
+|    SAP Basis level 0007                                                                          |
+|                                                                                                  |
+|    Application server... a4hsandbox                                                              |
+|    Instance name....... a4hsandbox_A4H_00                                                        |
+|    Network address...... 172.17.0.2                                                              |
+|    Operating system... Linux                                                                     |
+|    Release.............. 5.15.0-173-generic                                                      |
+|    Hardware type....... x86_64                                                                   |
+|    Character length..... 16 Bits                                                                 |
+|    Pointer length........ 64 Bits                                                                |
+|    Work process number... 4                                                                      |
+|    ABAP load version.... 2597                                                                    |
+|    Shortdump setting. full                                                                       |
+|                                                                                                  |
+|    Database server... a4hsandbox                                                                 |
+|    Database type..... HDB                                                                        |
+|    Database name..... A4H                                                                        |
+|    Database user ID SAPA4H                                                                       |
+|                                                                                                  |
+|    Terminal.......... 198.51.100.163                                                             |
+|                                                                                                  |
+|    Character set C                                                                               |
+|                                                                                                  |
+|    SAP kernel....... 777                                                                         |
+|    Created on....... Jul  1 2022 21:54:53                                                        |
+|    Created at....... Linux GNU SLES-12 x86_64 cc4.8.5 use-pr220701                               |
+|    Database version SQLDBC 2.03.144.1551205008                                                   |
+|    Patch level....... 500                                                                        |
+|    Patch text.......                                                                             |
+|                                                                                                  |
+|    Database............. HANA 1.0, HANA 2.0                                                      |
+|    SAP database version. 777                                                                     |
+|    Operating system... Linux                                                                     |
+|                                                                                                  |
+|    Memory consumption                                                                            |
+|    EM...... 3626392                                                                              |
+|    Heap.... 0                                                                                    |
+|    Page.... 0                                                                                    |
+|    MM used. 2282232                                                                              |
+|    MM free. 1340424                                                                              |
+|    EM...... 3626392                                                                              |
+|    Heap.... 0                                                                                    |
+|    Page.... 0                                                                                    |
+|    MM used. 2282232                                                                              |
+|    MM free. 1340424                                                                              |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|User and Transaction                                                                              |
+|    Client................. 001                                                                   |
+|    User.................. DEVELOPER                                                              |
+|    Language key.......... E                                                                      |
+|    Transaction.........                                                                          |
+|    Transaction ID...... 4DD97CCD6B390040E006A26E33E52C90                                         |
+|                                                                                                  |
+|    EPP Root Context ID.... 1A2263E0A4E31FE1A5B02137D1691650                                      |
+|    EPP Connection ID...... 1A2263E0A4E31FE1A5B02137D1693650                                      |
+|    EPP Connection Counter. 1                                                                     |
+|    EPP Component Name..... A4H/a4hsandbox_A4H_00                                                 |
+|                                                                                                  |
+|    Program....................... ZCL_ZMCP_DMP_SQL==============CP                               |
+|    Screen......................... SAPMHTTP                                0010                  |
+|    Screen line.................... 2                                                             |
+|    Debugger interpretor loop... "none"                                                           |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Server-Side Connection Information                                                                |
+|    Information on caller of "HTTP" connection: Plug-in type.........  HTTP                       |
+|    Caller IP.............. 198.51.100.163                                                        |
+|    Caller port............  50000                                                                |
+|    Universal resource ID /sap/bc/adt/oo/classrun/ZCL_ZMCP_DMP_SQL                                |
+|                                                                                                  |
+|    Program.............. ZCL_ZMCP_DMP_SQL==============CP                                        |
+|    Screen.............. SAPMHTTP                                0010                             |
+|    Screen line.......... 2                                                                       |
+|                                                                                                  |
+|    Information on caller of "HTTP" connection: Plug-in type.........  HTTP                       |
+|    Caller IP.............. 198.51.100.163                                                        |
+|    Caller port............  50000                                                                |
+|    Universal resource ID "/sap/bc/adt/oo/classrun/ZCL_ZMCP_DMP_SQL"                              |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Chain of Exception Objects                                                                        |
+----------------------------------------------------------------------------------------------------
+|Level        Class                                                                                |
+|Attrib. Name                   Value                                                              |
+----------------------------------------------------------------------------------------------------
+|1            CX_SY_DYNAMIC_OSQL_SEMANTICS                                                         |
+|(Program)                      ZCL_ZMCP_DMP_SQL==============CP                                   |
+|(Include)                      ZCL_ZMCP_DMP_SQL==============CM001                                |
+|(Row)                          7                                                                  |
+|(Short Text)                   The database table 'ZMCP_NO_SUCH_TABLE_XX' is unknown              |
+|(Long Text)                    An unknown table name 'ZMCP_NO_SUCH_TABLE_XX' is used in an SQL    |
+|                               command. It is possible that the table name in the SQL statement is|
+|                               too long or the table has not been declared as a table or view in  |
+|                               the ABAP dictionary.                                               |
+|CLAUSE                         0                                                                  |
+|COLUMN                         0                                                                  |
+|IS_RESUMABLE                                                                                      |
+|KERNEL_ERRID                   SAPSQL_PARSE_ERROR                                                 |
+|KEYWORD                        MESSAGE                                                            |
+|MSGNUMBER                      GYB                                                                |
+|MSGTEXT                        "ZMCP_NO_SUCH_TABLE_XX" is not declared as a table,projection      |
+|                               view, or database view in ABAP Dictionary or does not exist in an  |
+|                               active version.                                                    |
+|PATTERN_LENGTH                 0                                                                  |
+|ROW                            1                                                                  |
+|SQLCODE                        0                                                                  |
+|SQLMSG                                                                                            |
+|SUBQUERY                       0                                                                  |
+|TOKEN                          ZMCP_NO_SUCH_TABLE_XX                                              |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Information on where terminated                                                                   |
+|    The termination occurred in ABAP program or include                                           |
+|     "ZCL_ZMCP_DMP_SQL==============CP", in "IF_OO_ADT_CLASSRUN~MAIN". The                        |
+|    main program was "SAPMHTTP".                                                                  |
+|                                                                                                  |
+|    In the source code, the termination point is in line 7 of include                             |
+|     "ZCL_ZMCP_DMP_SQL==============CM001".                                                       |
+|    include "ZCL_ZMCP_DMP_SQL==============CM001".                                                |
+|    The termination is due to exception "CX_SY_DYNAMIC_OSQL_SEMANTICS" occurring                  |
+|     in procedure "IF_OO_ADT_CLASSRUN~MAIN" "(METHOD)",                                           |
+|    but not being handled locally there or being declared in the RAISING                          |
+|    clause.                                                                                       |
+|    The procedure is in program "ZCL_ZMCP_DMP_SQL==============CP". Its source                    |
+|     code begins in line 1 of                                                                     |
+|    include "ZCL_ZMCP_DMP_SQL==============CM001".                                                |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Source Code Extract                                                                               |
+----------------------------------------------------------------------------------------------------
+|Line |Code                                                                                        |
+----------------------------------------------------------------------------------------------------
+|    1|  METHOD if_oo_adt_classrun~main.                                                           |
+|    2|*   Deliberate short dump: dynamic Open SQL against a table that does not exist.            |
+|    3|    DATA lv_tab TYPE string.                                                                |
+|    4|    DATA lv_cnt TYPE i.                                                                     |
+|    5|    out->write( 'ZMCP marker line 1 - before the dynamic SELECT' ).                         |
+|    6|    lv_tab = 'ZMCP_NO_SUCH_TABLE_XX'.                                                       |
+|>>>>>|    SELECT COUNT(*) FROM (lv_tab) INTO @lv_cnt.                                             |
+|    8|    out->write( lv_cnt ).                                                                   |
+|    9|  ENDMETHOD.                                                                                |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Contents of system fields                                                                         |
+----------------------------------------------------------------------------------------------------
+|Name    |Val.                                                                                     |
+----------------------------------------------------------------------------------------------------
+|SY-SUBRC|0                                                                                        |
+|SY-INDEX|1                                                                                        |
+|SY-TABIX|1                                                                                        |
+|SY-DBCNT|1                                                                                        |
+|SY-FDPOS|40                                                                                       |
+|SY-LSIND|0                                                                                        |
+|SY-PAGNO|0                                                                                        |
+|SY-LINNO|1                                                                                        |
+|SY-COLNO|1                                                                                        |
+|SY-PFKEY|                                                                                         |
+|SY-UCOMM|                                                                                         |
+|SY-TITLE|HTTP Control                                                                             |
+|SY-MSGTY|E                                                                                        |
+|SY-MSGID|DA                                                                                       |
+|SY-MSGNO|300                                                                                      |
+|SY-MSGV1|SZDM_SIMULATION                                                                          |
+|SY-MSGV2|                                                                                         |
+|SY-MSGV3|                                                                                         |
+|SY-MSGV4|                                                                                         |
+|SY-MODNO|0                                                                                        |
+|SY-DATUM|20260811                                                                                 |
+|SY-UZEIT|123447                                                                                   |
+|SY-XPROG|                                                                                         |
+|SY-XFORM|                                                                                         |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Active Calls/Events                                                                               |
+----------------------------------------------------------------------------------------------------
+|No.   Ty.          Program                             Include                Line                |
+|      Name                                                                                        |
+----------------------------------------------------------------------------------------------------
+|   12 METHOD       ZCL_ZMCP_DMP_SQL==============CP    ZCL_ZMCP_DMP_SQL==============CM001     7  |
+|      ZCL_ZMCP_DMP_SQL=>IF_OO_ADT_CLASSRUN~MAIN                                                   |
+|   11 METHOD       CL_OO_ADT_RES_CLASSRUN========CP    CL_OO_ADT_RES_CLASSRUN========CM003    71  |
+|      CL_OO_ADT_RES_CLASSRUN=>EXECUTE_CLAS                                                        |
+|   10 METHOD       CL_OO_ADT_RES_CLASSRUN========CP    CL_OO_ADT_RES_CLASSRUN========CM004    42  |
+|      CL_OO_ADT_RES_CLASSRUN=>POST                                                                |
+|    9 METHOD       CL_ADT_REST_RESOURCE==========CP    CL_ADT_REST_RESOURCE==========CM004    22  |
+|      CL_ADT_REST_RESOURCE=>IF_REST_HANDLER~HANDLE                                                |
+|    8 METHOD       CL_REST_ROUTER================CP    CL_REST_ROUTER================CM003    60  |
+|      CL_REST_ROUTER=>IF_REST_HANDLER~HANDLE                                                      |
+|    7 METHOD       CL_REST_HTTP_HANDLER==========CP    CL_REST_HTTP_HANDLER==========CM001    99  |
+|      CL_REST_HTTP_HANDLER=>IF_HTTP_EXTENSION~HANDLE_REQUEST                                      |
+|    6 METHOD       CL_ADT_WB_RES_APP=============CP    CL_ADT_WB_RES_APP=============CCIMP    19  |
+|      LCL_REQUEST_HANDLER=>LIF_REQUEST_HANDLER~HANDLE_REQUEST                                     |
+|    5 METHOD       CL_ADT_WB_RES_APP=============CP    CL_ADT_WB_RES_APP=============CCIMP   321  |
+|      LCL_HTTP_REQUEST_PROXY=>HANDLE_REQUEST                                                      |
+|    4 METHOD       CL_ADT_WB_RES_APP=============CP    CL_ADT_WB_RES_APP=============CM002    20  |
+|      CL_ADT_WB_RES_APP=>IF_HTTP_EXTENSION~HANDLE_REQUEST                                         |
+|    3 METHOD       CL_HTTP_SERVER================CP    CL_HTTP_SERVER================CM00I   808  |
+|      CL_HTTP_SERVER=>EXECUTE_REQUEST                                                             |
+|    2 FUNCTION     SAPLHTTP_RUNTIME                    LHTTP_RUNTIMEU02                     1596  |
+|      HTTP_DISPATCH_REQUEST                                                                       |
+|    1 MODULE (PBO) SAPMHTTP                            SAPMHTTP                   12              |
+|      %_HTTP_START                                                                                |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Selected Variables                                                                                |
+----------------------------------------------------------------------------------------------------
+|Name                                                                                              |
+|    Val.                                                                                          |
+----------------------------------------------------------------------------------------------------
+|No.      12 Ty.          METHOD                                                                   |
+|Name  ZCL_ZMCP_DMP_SQL=>IF_OO_ADT_CLASSRUN~MAIN                                                   |
+----------------------------------------------------------------------------------------------------
+|OUT                                                                                               |
+|    {O:107*\CLASS-POOL=CL_OO_ADT_RES_CLASSRUN\CLASS=LCL_CLASSRUN_OUTPUT}                          |
+|    90006000                                                                                      |
+|    4000B000                                                                                      |
+|    940000006B000000                                                                              |
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+|SYST-REPID                                                                                        |
+|    ZCL_ZMCP_DMP_SQL==============CP                                                              |
+|    5445544554455554333333333333334522222222                                                      |
+|    A3CFAD30F4D0F31CDDDDDDDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    5A0043004C005F005A004D00430050005F0044004D0050005F00530051004C003D003D003D003D003D003D003D003D|
+|LV_TAB                                                                                            |
+|    ZMCP_NO_SUCH_TABLE_XX                                                                         |
+|    544554455544554444555                                                                         |
+|    AD30FEFF3538F412C5F88                                                                         |
+|    000000000000000000000                                                                         |
+|    000000000000000000000                                                                         |
+|    5A004D00430050005F004E004F005F0053005500430048005F005400410042004C0045005F0058005800          |
+|%_ARCHIVE                                                                                         |
+|    {;;;;;;;;;;;;;;;;;;0}                                                                         |
+|    2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|LV_CNT                                                                                            |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+----------------------------------------------------------------------------------------------------
+|No.      11 Ty.          METHOD                                                                   |
+|Name  CL_OO_ADT_RES_CLASSRUN=>EXECUTE_CLAS                                                        |
+----------------------------------------------------------------------------------------------------
+|IV_OBJECTNAME                                                                                     |
+|    ZCL_ZMCP_DMP_SQL                                                                              |
+|    544554455445555422222222222222                                                                |
+|    A3CFAD30F4D0F31C00000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    5A0043004C005F005A004D00430050005F0044004D0050005F00530051004C00200020002000200020002000200020|
+|I_OUTPUT                                                                                          |
+|    {O:107*\CLASS-POOL=CL_OO_ADT_RES_CLASSRUN\CLASS=LCL_CLASSRUN_OUTPUT}                          |
+|    90006000                                                                                      |
+|    4000B000                                                                                      |
+|    940000006B000000                                                                              |
+|I_PROFILER_ID                                                                                     |
+|    <empty string>                                                                                |
+|    10000000                                                                                      |
+|    40000000                                                                                      |
+|    1400000000000000                                                                              |
+|SY-MSGV1                                                                                          |
+|    SZDM_SIMULATION                                                                               |
+|    55445544544544422222222222222222222222222222222222                                            |
+|    3A4DF39D5C149FE00000000000000000000000000000000000                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    53005A0044004D005F00530049004D0055004C004100540049004F004E002000200020002000200020002000200020|
+|SY-MSGV2                                                                                          |
+|                                                                                                  |
+|    22222222222222222222222222222222222222222222222222                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|SY-MSGV3                                                                                          |
+|                                                                                                  |
+|    22222222222222222222222222222222222222222222222222                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|SY-MSGV4                                                                                          |
+|                                                                                                  |
+|    22222222222222222222222222222222222222222222222222                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    00000000000000000000000000000000000000000000000000                                            |
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|LV_MESSAGE_ABPLNGVS                                                                               |
+|    <empty string>                                                                                |
+|    10000000                                                                                      |
+|    40000000                                                                                      |
+|    1400000000000000                                                                              |
+|SY-REPID                                                                                          |
+|    CL_OO_ADT_RES_CLASSRUN========CP                                                              |
+|    4454454455545544455554333333334522222222                                                      |
+|    3CFFFF144F253F3C13325EDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    43004C005F004F004F005F004100440054005F005200450053005F0043004C00410053005300520055004E003D003D|
+|ME->MV_OUTPUT                                                                                     |
+|    <empty string>                                                                                |
+|    10000000                                                                                      |
+|    40001000                                                                                      |
+|    1400000001000000                                                                              |
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+|CL_OO_ADT_RES_CLASSRUN=>CO_HEADER_REQUEST_ID                                                      |
+|    sap-adt-push-request-id                                                                       |
+|    76726672777627677677266                                                                       |
+|    310D144D0538D2515534D94                                                                       |
+|    00000000000000000000000                                                                       |
+|    00000000000000000000000                                                                       |
+|    7300610070002D006100640074002D0070007500730068002D0072006500710075006500730074002D0069006400  |
+|LO_CONSOLE_APP                                                                                    |
+|    {O:119*\CLASS=ZCL_ZMCP_DMP_SQL}                                                               |
+|    80007000                                                                                      |
+|    80007000                                                                                      |
+|    8800000077000000                                                                              |
+|%_PRINT                                                                                           |
+|    {;000;;;;;;0;0;0;;;;;;;;;;;0;;;0}                                                             |
+|    2020202030303020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000300030003000200020002000200020002000200020002000200020002000200020002000200020|
+|SYST-REPID                                                                                        |
+|    CL_OO_ADT_RES_CLASSRUN========CP                                                              |
+|    4454454455545544455554333333334522222222                                                      |
+|    3CFFFF144F253F3C13325EDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    43004C005F004F004F005F004100440054005F005200450053005F0043004C00410053005300520055004E003D003D|
+|CL_ATRADT_INSTANT_TRACING=>S_REF_TRACE_SESSION                                                    |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|SY-XFORM                                                                                          |
+|                                                                                                  |
+|    222222222222222222222222222222                                                                |
+|    000000000000000000000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|CL_ATRADT_INSTANT_TRACING=>S_REF_TRACE_SESSION->FLG_ON_OFF                                        |
+|    ???                                                                                           |
+|    ??????                                                                                        |
+|    ??????                                                                                        |
+|    ????????????                                                                                  |
+|%_SPACE                                                                                           |
+|                                                                                                  |
+|    2                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    2000                                                                                          |
+----------------------------------------------------------------------------------------------------
+|No.      10 Ty.          METHOD                                                                   |
+|Name  CL_OO_ADT_RES_CLASSRUN=>POST                                                                |
+----------------------------------------------------------------------------------------------------
+|REQUEST                                                                                           |
+|    {O:103*\CLASS=CL_ADT_REST_REQUEST}                                                            |
+|    90006000                                                                                      |
+|    80007000                                                                                      |
+|    9800000067000000                                                                              |
+|RESPONSE                                                                                          |
+|    {O:104*\CLASS=CL_ADT_REST_RESPONSE}                                                           |
+|    90006000                                                                                      |
+|    70008000                                                                                      |
+|    9700000068000000                                                                              |
+|CONTEXT                                                                                           |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|%_ARCHIVE                                                                                         |
+|    {;;;;;;;;;;;;;;;;;;0}                                                                         |
+|    2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|LCL_CLASSRUN_OUTPUT=>TEXT_MODE                                                                    |
+|    TEXT                                                                                          |
+|    5455                                                                                          |
+|    4584                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    5400450058005400                                                                              |
+|OUTPUT                                                                                            |
+|    {O:107*\CLASS-POOL=CL_OO_ADT_RES_CLASSRUN\CLASS=LCL_CLASSRUN_OUTPUT}                          |
+|    90006000                                                                                      |
+|    4000B000                                                                                      |
+|    940000006B000000                                                                              |
+|LV_OBJECTNAME                                                                                     |
+|    ZCL_ZMCP_DMP_SQL                                                                              |
+|    544554455445555422222222222222                                                                |
+|    A3CFAD30F4D0F31C00000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    5A0043004C005F005A004D00430050005F0044004D0050005F00530051004C00200020002000200020002000200020|
+|LS_DATA                                                                                           |
+|    {R3TR;CLAS;ZCL_ZMCP_DMP_SQL;$TMP}                                                             |
+|    5030505040404050504040505040405050404050505050402020202020202020202020202020202020202020202020|
+|    2030402030C01030A030C0F0A0D03000F040D000F03010C00000000000000000000000000000000000000000000000|
+|    520033005400520043004C00410053005A0043004C005F005A004D00430050005F0044004D0050005F00530051004C|
+|LS_DATA-OBJECT                                                                                    |
+|    CLAS                                                                                          |
+|    4445                                                                                          |
+|    3C13                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    43004C0041005300                                                                              |
+|ME                                                                                                |
+|    {O:102*\CLASS=CL_OO_ADT_RES_CLASSRUN}                                                         |
+|    90006000                                                                                      |
+|    90006000                                                                                      |
+|    9900000066000000                                                                              |
+|L_PROFILER_ID                                                                                     |
+|    <empty string>                                                                                |
+|    10000000                                                                                      |
+|    40000000                                                                                      |
+|    1400000000000000                                                                              |
+|SY-XPROG                                                                                          |
+|                                                                                                  |
+|    2222222222222222222222222222222222222222                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|SCREEN                                                                                            |
+|    {;;;;;;;;;;00;;;;;;0}                                                                         |
+|    2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|LS_DATA-DEVCLASS                                                                                  |
+|    $TMP                                                                                          |
+|    254522222222222222222222222222                                                                |
+|    44D000000000000000000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    240054004D005000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+----------------------------------------------------------------------------------------------------
+|No.       9 Ty.          METHOD                                                                   |
+|Name  CL_ADT_REST_RESOURCE=>IF_REST_HANDLER~HANDLE                                                |
+----------------------------------------------------------------------------------------------------
+|IO_REQUEST                                                                                        |
+|    {O:36*\CLASS=CL_REST_BASE_REQUEST}                                                            |
+|    D0002000                                                                                      |
+|    B0004000                                                                                      |
+|    DB00000024000000                                                                              |
+|IO_RESPONSE                                                                                       |
+|    {O:37*\CLASS=CL_REST_BASE_RESPONSE}                                                           |
+|    D0002000                                                                                      |
+|    A0005000                                                                                      |
+|    DA00000025000000                                                                              |
+|IO_CONTEXT                                                                                        |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+|REQUEST_METHOD                                                                                    |
+|    POST                                                                                          |
+|    5455                                                                                          |
+|    0F34                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    50004F0053005400                                                                              |
+|IF_REST_MESSAGE=>GC_METHOD_GET                                                                    |
+|    GET                                                                                           |
+|    445                                                                                           |
+|    754                                                                                           |
+|    000                                                                                           |
+|    000                                                                                           |
+|    470045005400                                                                                  |
+|SY-REPID                                                                                          |
+|    CL_ADT_REST_RESOURCE==========CP                                                              |
+|    4454455545555454554433333333334522222222                                                      |
+|    3CF144F2534F253F5235DDDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    43004C005F004100440054005F0052004500530054005F005200450053004F0055005200430045003D003D003D003D|
+|%_PRINT                                                                                           |
+|    {;000;;;;;;0;0;0;;;;;;;;;;;0;;;0}                                                             |
+|    2020202030303020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000300030003000200020002000200020002000200020002000200020002000200020002000200020|
+|SYST-REPID                                                                                        |
+|    CL_ADT_REST_RESOURCE==========CP                                                              |
+|    4454455545555454554433333333334522222222                                                      |
+|    3CF144F2534F253F5235DDDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    43004C005F004100440054005F0052004500530054005F005200450053004F0055005200430045003D003D003D003D|
+|ME                                                                                                |
+|    {O:102*\CLASS=CL_OO_ADT_RES_CLASSRUN}                                                         |
+|    90006000                                                                                      |
+|    90006000                                                                                      |
+|    9900000066000000                                                                              |
+|REQUEST                                                                                           |
+|    {O:103*\CLASS=CL_ADT_REST_REQUEST}                                                            |
+|    90006000                                                                                      |
+|    80007000                                                                                      |
+|    9800000067000000                                                                              |
+|RESPONSE                                                                                          |
+|    {O:104*\CLASS=CL_ADT_REST_RESPONSE}                                                           |
+|    90006000                                                                                      |
+|    70008000                                                                                      |
+|    9700000068000000                                                                              |
+|IF_REST_MESSAGE=>GC_METHOD_POST                                                                   |
+|    POST                                                                                          |
+|    5455                                                                                          |
+|    0F34                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    50004F0053005400                                                                              |
+|%_SPACE                                                                                           |
+|                                                                                                  |
+|    2                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    2000                                                                                          |
+|IF_REST_MESSAGE=>GC_METHOD_PUT                                                                    |
+|    PUT                                                                                           |
+|    555                                                                                           |
+|    054                                                                                           |
+|    000                                                                                           |
+|    000                                                                                           |
+|    500055005400                                                                                  |
+----------------------------------------------------------------------------------------------------
+|No.       8 Ty.          METHOD                                                                   |
+|Name  CL_REST_ROUTER=>IF_REST_HANDLER~HANDLE                                                      |
+----------------------------------------------------------------------------------------------------
+|IO_REQUEST                                                                                        |
+|    {O:36*\CLASS=CL_REST_BASE_REQUEST}                                                            |
+|    D0002000                                                                                      |
+|    B0004000                                                                                      |
+|    DB00000024000000                                                                              |
+|IO_RESPONSE                                                                                       |
+|    {O:37*\CLASS=CL_REST_BASE_RESPONSE}                                                           |
+|    D0002000                                                                                      |
+|    A0005000                                                                                      |
+|    DA00000025000000                                                                              |
+|IO_CONTEXT                                                                                        |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+|%_EXCP                                                                                            |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|LS_MATCH_INFO-ATTRIBUTES                                                                          |
+|    Table IT_144[1x16]                                                                            |
+|    \CLASS=CL_REST_ROUTER\METHOD=IF_REST_HANDLER~HANDLE\DATA=LS_MATCH_INFO-ATTRIBUTES             |
+|    Table reference: 53                                                                           |
+|    TABH+ 0(20) = D0741D9B467F00000000000000000000504E179B                                        |
+|    TABH+20(20) = 467F000000000000000000000100000044020000                                        |
+|    TABH+40(20) = 0000000035000000900000000100000010000000                                        |
+|    TABH+60(20) = FFFFFFFF04CC0000C0A800000400010602000000                                        |
+|    store                   = 0xD0741D9B467F0000                                                  |
+|    statScndKeyAdmin      = 0x0000000000000000                                                    |
+|    ext1                    = 0x504E179B467F0000                                                  |
+|    ----- Primary Key -----                                                                       |
+|    idxPtr                  = 0x0000000000000000                                                  |
+|      idxKind               = 0     (ItIndexNone)                                                 |
+|      accKind      = 1     (ItAccStandard)                                                        |
+|      uniKind               = 2     (ItUniNo)                                                     |
+|      keyKind (from pbag)   = 3     (user defined)                                                |
+|      cmpMode               = 4     (cmpSingleEq)                                                 |
+|    shmId                   = 0     (0x00000000)                                                  |
+|    id      = 53    (0x35000000)                                                                  |
+|    label                   = 144   (0x90000000)                                                  |
+|    fill                    = 1     (0x01000000)                                                  |
+|    leng                    = 16    (0x10000000)                                                  |
+|    loop                    = -1    (0xFFFFFFFF)                                                  |
+|    xtyp      = PROG#000204/TYPE#000013                                                           |
+|    occu                    = 4     (0x04000000)                                                  |
+|    occu0                   = 1                                                                   |
+|    stMode                  = 0                                                                   |
+|    groupCntl               = 0                                                                   |
+|    rfc      = 0                                                                                  |
+|    unShareable             = 0                                                                   |
+|    mightBeShared           = 0                                                                   |
+|    sharedWithShmTab        = 0                                                                   |
+|    isShmLockId             = 0                                                                   |
+|    isUsed      = 1                                                                               |
+|    isCtfyAble              = 1                                                                   |
+|    hasScndKeys             = 0                                                                   |
+|    hasRowId                = 0                                                                   |
+|    statScndKeysOutdated    = 0                                                                   |
+|    statScndUniKeysOutdated = 0                                                                   |
+|    primKeyIsEmpty          = ItPrimKeyIsEmptyNo                                                  |
+|    rtmSelectNoOrderBy      = 0                                                                   |
+|    tstForceExtSort         = 0                                                                   |
+|    ----- Shareable Table Header Data (Store) -----                                               |
+|    tabi      = 0x30751D9B467F0000                                                                |
+|    pgHook                  = 0x0000000000000000                                                  |
+|    uniqueNumber            = 94    (0x5E000000)                                                  |
+|    shmTabhSet              = 0x0000000000000000                                                  |
+|    refCount                = 0     (0x00000000)                                                  |
+|    tstRefCount      = 0     (0x00000000)                                                         |
+|    lineAdmin               = 4     (0x04000000)                                                  |
+|    lineAlloc               = 4     (0x04000000)                                                  |
+|    shmVersId               = 0     (0x00000000)                                                  |
+|    shmRefCount             = 1     (0x01000000)                                                  |
+|    rowId      = 18446744073709551615                                                             |
+|    ----- 1st level extension part -----                                                          |
+|    regHook                 = 0xC0721D9B467F0000                                                  |
+|    collHook                = 0x0000000000000000                                                  |
+|    ext2                    = 0x0000000000000000                                                  |
+|    {classname;ZCL_ZMCP_DMP_SQL}                                                                  |
+|    1000400410001008                                                                              |
+|    4000200040003000                                                                              |
+|    14000000420000401400000013000080                                                              |
+|LO_HANDLER                                                                                        |
+|    {O:102*\CLASS=CL_OO_ADT_RES_CLASSRUN}                                                         |
+|    90006000                                                                                      |
+|    90006000                                                                                      |
+|    9900000066000000                                                                              |
+|%_PRINT                                                                                           |
+|    {;000;;;;;;0;0;0;;;;;;;;;;;0;;;0}                                                             |
+|    2020202030303020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000300030003000200020002000200020002000200020002000200020002000200020002000200020|
+|SYST-REPID                                                                                        |
+|    CL_REST_ROUTER================CP                                                              |
+|    4455455554554533333333333333334522222222                                                      |
+|    3CF2534F2F5452DDDDDDDDDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    43004C005F0052004500530054005F0052004F0055005400450052003D003D003D003D003D003D003D003D003D003D|
+|SY-REPID                                                                                          |
+|    CL_REST_ROUTER================CP                                                              |
+|    4455455554554533333333333333334522222222                                                      |
+|    3CF2534F2F5452DDDDDDDDDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    43004C005F0052004500530054005F0052004F0055005400450052003D003D003D003D003D003D003D003D003D003D|
+|SYST                                                                                              |
+|    {1;0;1;190;0;0;10;0;0;0;1;40;1;0;1;0;0;0;0;8;0;0;0;0;92;0;0;0;0;0;0;0;0;0;0;0;0;0;22;84;0;46;0|
+|    000000000000B000000000000000000000000000000020000000000000000000000000000000000000000000000000|
+|    100000001000E00000000000A000000000000000100080001000000010000000000000000000800000000000000000|
+|    010000000000000001000000BE00000000000000000000000A00000000000000000000000000000001000000280000|
+|CL_REST_STATUS_CODE=>GC_CLIENT_ERROR_NOT_FOUND                                                    |
+|    404                                                                                           |
+|    9000                                                                                          |
+|    4100                                                                                          |
+|    94010000                                                                                      |
+|LV_MATCH_TYPE                                                                                     |
+|    1                                                                                             |
+|    0000                                                                                          |
+|    1000                                                                                          |
+|    01000000                                                                                      |
+----------------------------------------------------------------------------------------------------
+|No.       7 Ty.          METHOD                                                                   |
+|Name  CL_REST_HTTP_HANDLER=>IF_HTTP_EXTENSION~HANDLE_REQUEST                                      |
+----------------------------------------------------------------------------------------------------
+|SERVER                                                                                            |
+|    {O:2*\CLASS=CL_HTTP_SERVER_NET}                                                               |
+|    F0000000                                                                                      |
+|    D0002000                                                                                      |
+|    FD00000002000000                                                                              |
+|%_##TVREG_001                                                                                     |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+|SYST-REPID                                                                                        |
+|    CL_REST_HTTP_HANDLER==========CP                                                              |
+|    4455455545555444444533333333334522222222                                                      |
+|    3CF2534F8440F81E4C52DDDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    43004C005F0052004500530054005F0048005400540050005F00480041004E0044004C00450052003D003D003D003D|
+|ME                                                                                                |
+|    {O:35*\CLASS=CL_OO_ADT_RES_APP}                                                               |
+|    D0002000                                                                                      |
+|    C0003000                                                                                      |
+|    DC00000023000000                                                                              |
+|LO_REQUEST                                                                                        |
+|    {O:36*\CLASS=CL_REST_BASE_REQUEST}                                                            |
+|    D0002000                                                                                      |
+|    B0004000                                                                                      |
+|    DB00000024000000                                                                              |
+|LO_RESPONSE                                                                                       |
+|    {O:37*\CLASS=CL_REST_BASE_RESPONSE}                                                           |
+|    D0002000                                                                                      |
+|    A0005000                                                                                      |
+|    DA00000025000000                                                                              |
+|ME->MO_SERVER                                                                                     |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|LO_ROOT_HANDLER                                                                                   |
+|    {O:39*\CLASS=CL_REST_ROUTER}                                                                  |
+|    D0002000                                                                                      |
+|    80007000                                                                                      |
+|    D800000027000000                                                                              |
+|%_PRINT                                                                                           |
+|    {;000;;;;;;0;0;0;;;;;;;;;;;0;;;0}                                                             |
+|    2020202030303020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000300030003000200020002000200020002000200020002000200020002000200020002000200020|
+|ME->MO_CONTEXT                                                                                    |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|SY                                                                                                |
+|    {1;0;1;190;0;0;10;0;0;0;1;40;1;0;1;0;0;0;0;8;0;0;0;0;92;0;0;0;0;0;0;0;0;0;0;0;0;0;22;84;0;46;0|
+|    000000000000B000000000000000000000000000000020000000000000000000000000000000000000000000000000|
+|    100000001000E00000000000A000000000000000100080001000000010000000000000000000800000000000000000|
+|    010000000000000001000000BE00000000000000000000000A00000000000000000000000000000001000000280000|
+|%_EXCP                                                                                            |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|CX_REST_HANDLER_EXCEPTION=>NO_ROOT_HANDLER                                                        |
+|    {REST_CORE_TEXTS;010;;;;}                                                                     |
+|    5040505050404050405050405050502020202020303030004F0020004F0020004F0020004F002000              |
+|    20503040F030F02050F0405080403000000000000010000047608000476080004760800047608000              |
+|    52004500530054005F0043004F00520045005F00540045005800540053002000200020002000200030003100300000|
+----------------------------------------------------------------------------------------------------
+|No.       6 Ty.          METHOD                                                                   |
+|Name  LCL_REQUEST_HANDLER=>LIF_REQUEST_HANDLER~HANDLE_REQUEST                                     |
+----------------------------------------------------------------------------------------------------
+|HTTP_EXTENSION                                                                                    |
+|    {O:35*\CLASS=CL_OO_ADT_RES_APP}                                                               |
+|    D0002000                                                                                      |
+|    C0003000                                                                                      |
+|    DC00000023000000                                                                              |
+|SERVER                                                                                            |
+|    {O:2*\CLASS=CL_HTTP_SERVER_NET}                                                               |
+|    F0000000                                                                                      |
+|    D0002000                                                                                      |
+|    FD00000002000000                                                                              |
+|SY-REPID                                                                                          |
+|    CL_ADT_WB_RES_APP=============CP                                                              |
+|    4454455545545545533333333333334522222222                                                      |
+|    3CF144F72F253F100DDDDDDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    43004C005F004100440054005F00570042005F005200450053005F004100500050003D003D003D003D003D003D003D|
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+----------------------------------------------------------------------------------------------------
+|No.       5 Ty.   METHOD                                                                          |
+|Name  LCL_HTTP_REQUEST_PROXY=>HANDLE_REQUEST                                                      |
+----------------------------------------------------------------------------------------------------
+|ME                                                                                                |
+|    {O:25*\CLASS-POOL=CL_ADT_WB_RES_APP\CLASS=LCL_HTTP_REQUEST_PROXY}                             |
+|    E0001000                                                                                      |
+|    60009000                                                                                      |
+|    E600000019000000                                                                              |
+|HTTP_EXTENSION                                                                                    |
+|    {O:35*\CLASS=CL_OO_ADT_RES_APP}                                                               |
+|    D0002000                                                                                      |
+|    C0003000                                                                                      |
+|    DC00000023000000                                                                              |
+|APP                                                                                               |
+|    {O:35*\CLASS=CL_OO_ADT_RES_APP}                                                               |
+|    D0002000                                                                                      |
+|    C0003000                                                                                      |
+|    DC00000023000000                                                                              |
+|%_##TVREG_001                                                                                     |
+|    <empty string>                                                                                |
+|    10000000                                                                                      |
+|    40000000                                                                                      |
+|    1400000000000000                                                                              |
+|%_PRINT                                                                                           |
+|    {;000;;;;;;0;0;0;;;;;;;;;;;0;;;0}                                                             |
+|    2020202030303020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000300030003000200020002000200020002000200020002000200020002000200020002000200020|
+|SCREEN                                                                                            |
+|    {;;;;;;;;;;00;;;;;;0}                                                                         |
+|    2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|IF_HTTP_HEADER_FIELDS_SAP=>SCRIPT_NAME                                                            |
+|    ~script_name                                                                                  |
+|    776767756666                                                                                  |
+|    E332904FE1D5                                                                                  |
+|    000000000000                                                                                  |
+|    000000000000                                                                                  |
+|    7E007300630072006900700074005F006E0061006D006500                                              |
+|%_ARCHIVE                                                                                         |
+|    {;;;;;;;;;;;;;;;;;;0}                                                                         |
+|    2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|ME->M_SERVER                                                                                      |
+|    {O:2*\CLASS=CL_HTTP_SERVER_NET}                                                               |
+|    F0000000                                                                                      |
+|    D0002000                                                                                      |
+|    FD00000002000000                                                                              |
+|SY-XPROG                                                                                          |
+|                                                                                                  |
+|    2222222222222222222222222222222222222222                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|CX_ADT                                                                                            |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+----------------------------------------------------------------------------------------------------
+|No.       4 Ty.          METHOD                                                                   |
+|Name  CL_ADT_WB_RES_APP=>IF_HTTP_EXTENSION~HANDLE_REQUEST                                         |
+----------------------------------------------------------------------------------------------------
+|SERVER                                                                                            |
+|    {O:2*\CLASS=CL_HTTP_SERVER_NET}                                                               |
+|    F0000000                                                                                      |
+|    D0002000                                                                                      |
+|    FD00000002000000                                                                              |
+|%_SPACE                                                                                           |
+|                                                                                                  |
+|    2                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    2000                                                                                          |
+|TIME_START                                                                                        |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|IF_ADT_HEADER=>CO_HEADER_SERVER_INSTANCE                                                          |
+|    X-sap-adt-server-instance                                                                     |
+|    5276726672767767266776666                                                                     |
+|    8D310D144D352652D9E341E35                                                                     |
+|    0000000000000000000000000                                                                     |
+|    0000000000000000000000000                                                                     |
+|    58002D007300610070002D006100640074002D007300650072007600650072002D0069006E007300740061006E0063|
+|ME                                                                                                |
+|    {O:13*\CLASS=CL_ADT_WB_RES_APP}                                                               |
+|    F0000000                                                                                      |
+|    2000D000                                                                                      |
+|    F20000000D000000                                                                              |
+|HANDLER_PROXY                                                                                     |
+|    {O:25*\CLASS-POOL=CL_ADT_WB_RES_APP\CLASS=LCL_HTTP_REQUEST_PROXY}                             |
+|    E0001000                                                                                      |
+|    60009000                                                                                      |
+|    E600000019000000                                                                              |
+|SYST-REPID                                                                                        |
+|    CL_ADT_WB_RES_APP=============CP                                                              |
+|    4454455545545545533333333333334522222222                                                      |
+|    3CF144F72F253F100DDDDDDDDDDDDD3000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    43004C005F004100440054005F00570042005F005200450053005F004100500050003D003D003D003D003D003D003D|
+|CX_ADT                                                                                            |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+----------------------------------------------------------------------------------------------------
+|No.       3 Ty.          METHOD                                                                   |
+|Name  CL_HTTP_SERVER=>EXECUTE_REQUEST                                                             |
+----------------------------------------------------------------------------------------------------
+|SERVER                                                                                            |
+|    {O:2*\CLASS=CL_HTTP_SERVER_NET}                                                               |
+|    F0000000                                                                                      |
+|    D0002000                                                                                      |
+|    FD00000002000000                                                                              |
+|SERVTBL                                                                                           |
+|    Table IT_7[4x4608]                                                                            |
+|    \FUNCTION=HTTP_DISPATCH_REQUEST\DATA=<SERVTBL>                                                |
+|    Table reference: 0                                                                            |
+|    TABH+ 0(20) = 502E0D9B467F0000000000000000000000000000                                        |
+|    TABH+20(20) = 0000000000000000000000000400000044040000                                        |
+|    TABH+40(20) = 0000000000000000070000000400000000120000                                        |
+|    TABH+60(20) = 2000000004010000C08404000200010602000000                                        |
+|    store                   = 0x502E0D9B467F0000                                                  |
+|    statScndKeyAdmin      = 0x0000000000000000                                                    |
+|    ext1                    = 0x0000000000000000                                                  |
+|    ----- Primary Key -----                                                                       |
+|    idxPtr                  = 0x0000000000000000                                                  |
+|      idxKind               = 0     (ItIndexNone)                                                 |
+|      accKind      = 1     (ItAccStandard)                                                        |
+|      uniKind               = 2     (ItUniNo)                                                     |
+|      keyKind (from pbag)   = 1     (default)                                                     |
+|      cmpMode               = 8     (cmpManyEq)                                                   |
+|    shmId                   = 0     (0x00000000)                                                  |
+|    id      = 0     (0x00000000)                                                                  |
+|    label                   = 7     (0x07000000)                                                  |
+|    fill                    = 4     (0x04000000)                                                  |
+|    leng                    = 4608  (0x00120000)                                                  |
+|    loop                    = 32    (0x20000000)                                                  |
+|    xtyp      = PROG#000001/TYPE#000034                                                           |
+|    occu                    = 2     (0x02000000)                                                  |
+|    occu0                   = 1                                                                   |
+|    stMode                  = 0                                                                   |
+|    groupCntl               = 0                                                                   |
+|    rfc      = 0                                                                                  |
+|    unShareable             = 0                                                                   |
+|    mightBeShared           = 0                                                                   |
+|    sharedWithShmTab        = 0                                                                   |
+|    isShmLockId             = 0                                                                   |
+|    isUsed      = 1                                                                               |
+|    isCtfyAble              = 1                                                                   |
+|    hasScndKeys             = 0                                                                   |
+|    hasRowId                = 0                                                                   |
+|    statScndKeysOutdated    = 0                                                                   |
+|    statScndUniKeysOutdated = 0                                                                   |
+|    primKeyIsEmpty          = ItPrimKeyIsEmptyNo                                                  |
+|    rtmSelectNoOrderBy      = 0                                                                   |
+|    tstForceExtSort         = 0                                                                   |
+|    ----- Shareable Table Header Data (Store) -----                                               |
+|    tabi      = 0xE891129B467F0000                                                                |
+|    pgHook                  = 0x6046109B467F0000                                                  |
+|    uniqueNumber            = 7     (0x07000000)                                                  |
+|    shmTabhSet              = 0x0000000000000000                                                  |
+|    refCount                = 0     (0x00000000)                                                  |
+|    tstRefCount      = 0     (0x00000000)                                                         |
+|    lineAdmin               = 4     (0x04000000)                                                  |
+|    lineAlloc               = 4     (0x04000000)                                                  |
+|    shmVersId               = 0     (0x00000000)                                                  |
+|    shmRefCount             = 1     (0x01000000)                                                  |
+|    rowId      = 18446744073709551615                                                             |
+|                                                                                                  |
+|    {{DEFAULT_HOST;FFFFFFFFFFFFFFFFFFFFFFFFF;0000000000000000000000000;;0;0;;;;;;;;;;;;;;;;;;;0;;0|
+|    4040404050405050404050502020204040404040404040404040404040404040404040404040404030303030303030|
+|    4050601050C040F080F030400000006060606060606060606060606060606060606060606060606000000000000000|
+|    440045004600410055004C0054005F0048004F00530054002000200020004600460046004600460046004600460046|
+|                                                                                                  |
+|    {{SAP;0000000000000000000000000;DFFAEATGKMFLCDXQ04F0J7FXK;;0;0;;;;;;;;;;;;;;;;;;;0;;000000;;00|
+|    5040502020202020202020202020203030303030303030303030303030303030303030303030303040404040404050|
+|    3010000000000000000000000000000000000000000000000000000000000000000000000000000040606010501040|
+|    5300410050002000200020002000200020002000200020002000200020003000300030003000300030003000300030|
+|                                                                                                  |
+|    {{BC;DFFAEATGKMFLCDXQ04F0J7FXK;EEPI2GLFNOLHN7IW9R54I61RZ;;0;0;;;;;;;;;;;;;;;;;;;0;;000000;;000|
+|    4040202020202020202020202020204040404040405040404040404040505030304030403040504040405040304040|
+|    2030000000000000000000000000004060601050104070B0D060C03040801000406000A0706080B0505000902070C0|
+|    420043002000200020002000200020002000200020002000200020002000440046004600410045004100540047004B|
+|                                                                                                  |
+|    {{ADT;EEPI2GLFNOLHN7IW9R54I61RZ;00O2THWXHF6GGWJGY26FM7EFE;;0;0;;;;;;;;;;;;;;;;;;;0;;000000;;00|
+|    4040502020202020202020202020204040504030404040404040404030405030503030403030505030304030504050|
+|    104040000000000000000000000000505000902070C060E0F0C080E07090709020504090601020A00000F020408070|
+|    4100440054002000200020002000200020002000200020002000200020004500450050004900320047004C0046004E|
+|FIRSTALIAS                                                                                        |
+|    {;;;;;;;;;;;;;;;;;;;;;0;;000000;;00000000;;00000000;;0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|
+|    2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|URLSUFFIX                                                                                         |
+|    oo/classrun/ZCL_ZMCP_DMP_SQL                                                                  |
+|    6626667777625445544554455554                                                                  |
+|    FFF3C13325EFA3CFAD30F4D0F31C                                                                  |
+|    0000000000000000000000000000                                                                  |
+|    0000000000000000000000000000                                                                  |
+|    6F006F002F0063006C00610073007300720075006E002F005A0043004C005F005A004D00430050005F0044004D0050|
+|FLOW_RC                                                                                           |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|TIMEOUT                                                                                           |
+|    000000                                                                                        |
+|    333333                                                                                        |
+|    000000                                                                                        |
+|    000000                                                                                        |
+|    000000                                                                                        |
+|    300030003000300030003000                                                                      |
+|SEND_PAGE_RC                                                                                      |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|RUNTIME_MEMORY                                                                                    |
+|    {0;0;/sap/bc/adt/oo/classrun/ZCL_ZMCP_DMP_SQL;IT_39[1x4632];{;;;;;;;;;;;;;;;;;;;;;;;;;;0000000|
+|    000000001000000CC00010002020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000040002000E00010000000000000000000000000000000000000000000000000000000000000000000000000|
+|    000000000000000014000000020000C0CE000000110000002000200020002000200020002000200020002000200020|
+|IF_HTTP_SERVER=>CO_DISABLED                                                                       |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+|SYST                                                                                              |
+|    {1;0;1;190;0;0;10;0;0;0;1;40;1;0;1;0;0;0;0;8;0;0;0;0;92;0;0;0;0;0;0;0;0;0;0;0;0;0;22;84;0;46;0|
+|    000000000000B000000000000000000000000000000020000000000000000000000000000000000000000000000000|
+|    100000001000E00000000000A000000000000000100080001000000010000000000000000000800000000000000000|
+|    010000000000000001000000BE00000000000000000000000A00000000000000000000000000000001000000280000|
+|%_FSREG_001                                                                                       |
+|    ???                                                                                           |
+|    ??????                                                                                        |
+|    ??????                                                                                        |
+|    ????????????                                                                                  |
+|STIME                                                                                             |
+|    14633                                                                                         |
+|    2300                                                                                          |
+|    9900                                                                                          |
+|    29390000                                                                                      |
+|CL_HTTP_SERVER=>C_STATISTIC_STATE                                                                 |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|TRECORD_VALUE                                                                                     |
+|    :v=                                                                                           |
+|    373                                                                                           |
+|    A6D                                                                                           |
+|    000                                                                                           |
+|    000                                                                                           |
+|    3A0076003D00                                                                                  |
+|IHTTP_OPCODE_OPEN_INTERVAL                                                                        |
+|    #                                                                                             |
+|    1                                                                                             |
+|    1                                                                                             |
+|    11                                                                                            |
+|%_PRINT                                                                                           |
+|    {;000;;;;;;0;0;0;;;;;;;;;;;0;;;0}                                                             |
+|    2020202030303020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000300030003000200020002000200020002000200020002000200020002000200020002000200020|
+|SERVER_OBJ->M_CONNECTION_ERROR                                                                    |
+|    {;0;}                                                                                         |
+|    10000000000010000000                                                                          |
+|    40000000000040000000                                                                          |
+|    1400000000000000000000001400000000000000                                                      |
+|SY                                                                                                |
+|    {1;0;1;190;0;0;10;0;0;0;1;40;1;0;1;0;0;0;0;8;0;0;0;0;92;0;0;0;0;0;0;0;0;0;0;0;0;0;22;84;0;46;0|
+|    000000000000B000000000000000000000000000000020000000000000000000000000000000000000000000000000|
+|    100000001000E00000000000A000000000000000100080001000000010000000000000000000800000000000000000|
+|    010000000000000001000000BE00000000000000000000000A00000000000000000000000000000001000000280000|
+|IF_HTTP_ENTITY=>CO_REQUEST_METHOD_GET                                                             |
+|    GET                                                                                           |
+|    445                                                                                           |
+|    754                                                                                           |
+|    000                                                                                           |
+|    000                                                                                           |
+|    470045005400                                                                                  |
+|IF_HTTP_ENTITY=>CO_COMPRESS_BASED_ON_MIME_TYPE                                                    |
+|    2                                                                                             |
+|    0000                                                                                          |
+|    2000                                                                                          |
+|    02000000                                                                                      |
+|L_EXCEPTION                                                                                       |
+|    {O:initial}                                                                                   |
+|    F0000000                                                                                      |
+|    F0000000                                                                                      |
+|    FF00000000000000                                                                              |
+|%_SPACE                                                                                           |
+|                                                                                                  |
+|    2                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    2000                                                                                          |
+|CL_HTTP_SERVER=>IF_HTTP_SERVER~STATEFUL                                                           |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|EXTENSION->FLOW_RC                                                                                |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|OPCODE_VMC_GET_KERNEL_VERSION                                                                     |
+|    #                                                                                             |
+|    1                                                                                             |
+|    4                                                                                             |
+|    14                                                                                            |
+----------------------------------------------------------------------------------------------------
+|No.       2 Ty.          FUNCTION                                                                 |
+|Name  HTTP_DISPATCH_REQUEST                                                                       |
+----------------------------------------------------------------------------------------------------
+|CLIENT_NAME                                                                                       |
+|    <empty string>                                                                                |
+|    10000000                                                                                      |
+|    40000000                                                                                      |
+|    1400000000000000                                                                              |
+|DOCUMENT_IN                                                                                       |
+|    <empty string>                                                                                |
+|    10000000                                                                                      |
+|    40001000                                                                                      |
+|    1400000001000000                                                                              |
+|VIRTUAL_HOST                                                                                      |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|DOCUMENT_OUT                                                                                      |
+|    <empty string>                                                                                |
+|    10000000                                                                                      |
+|    40001000                                                                                      |
+|    1400000001000000                                                                              |
+|L_RM_FROM_BUFFER                                                                                  |
+|                                                                                                  |
+|    2                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    2000                                                                                          |
+|TTRACE_LEVEL                                                                                      |
+|    :l=                                                                                           |
+|    363                                                                                           |
+|    ACD                                                                                           |
+|    000                                                                                           |
+|    000                                                                                           |
+|    3A006C003D00                                                                                  |
+|PF_RFC_SRV_COLL_FUNC                                                                              |
+|    *RFC_SRV_COLLECTOR*                                                                           |
+|    2544555554444445452222222222222222222222222222222222222222222222                              |
+|    A263F326F3FCC534F2A000000000000000000000000000000000000000000000                              |
+|    0000000000000000000000000000000000000000000000000000000000000000                              |
+|    0000000000000000000000000000000000000000000000000000000000000000                              |
+|    2A005200460043005F005300520056005F0043004F004C004C004500430054004F0052002A00200020002000200020|
+|C_STATISTIC_STATE                                                                                 |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|PF_NORMAL_STAT                                                                                    |
+|    #                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    00                                                                                            |
+|PF_OPCODE_OPEN_INTERVAL                                                                           |
+|    #                                                                                             |
+|    1                                                                                             |
+|    1                                                                                             |
+|    11                                                                                            |
+|SPACE                                                                                             |
+|                                                                                                  |
+|    2                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    2000                                                                                          |
+|C_SERVER                                                                                          |
+|    {O:2*\CLASS=CL_HTTP_SERVER_NET}                                                               |
+|    F0000000                                                                                      |
+|    D0002000                                                                                      |
+|    FD00000002000000                                                                              |
+|STR_HOST                                                                                          |
+|                                                                                                  |
+|    2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|SERVTBL                                                                                           |
+|    Table IT_7[4x4608]                                                                            |
+|FIRSTALIAS                                                                                        |
+|    {;;;;;;;;;;;;;;;;;;;;;0;;000000;;00000000;;00000000;;0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|
+|    2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|URLSUFFIX                                                                                         |
+|    oo/classrun/ZCL_ZMCP_DMP_SQL                                                                  |
+|    6626667777625445544554455554                                                                  |
+|    FFF3C13325EFA3CFAD30F4D0F31C                                                                  |
+|    0000000000000000000000000000                                                                  |
+|    0000000000000000000000000000                                                                  |
+|    6F006F002F0063006C00610073007300720075006E002F005A0043004C005F005A004D00430050005F0044004D0050|
+|FLOW_RC                                                                                           |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|TIMEOUT                                                                                           |
+|    000000                                                                                        |
+|    333333                                                                                        |
+|    000000                                                                                        |
+|    000000                                                                                        |
+|    000000                                                                                        |
+|    300030003000300030003000                                                                      |
+|SEND_PAGE_RC                                                                                      |
+|    0                                                                                             |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    00000000                                                                                      |
+|L_RUNTIME_MEMORY                                                                                  |
+|    {0;0;/sap/bc/adt/oo/classrun/ZCL_ZMCP_DMP_SQL;IT_39[1x4632];{;;;;;;;;;;;;;;;;;;;;;;;;;;0000000|
+|    000000001000000CC00010002020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000040002000E00010000000000000000000000000000000000000000000000000000000000000000000000000|
+|    000000000000000014000000020000C0CE000000110000002000200020002000200020002000200020002000200020|
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+|SY-XPROG                                                                                          |
+|                                                                                                  |
+|    2222222222222222222222222222222222222222                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|PF_OPCODE_CLOSE_INTERVAL                                                                          |
+|    #                                                                                             |
+|    1                                                                                             |
+|    2                                                                                             |
+|    12                                                                                            |
+|ICF_ACTIVE                                                                                        |
+|    X                                                                                             |
+|    5                                                                                             |
+|    8                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    5800                                                                                          |
+----------------------------------------------------------------------------------------------------
+|No.       1 Ty.   MODULE (PBO)                                                                    |
+|Name  %_HTTP_START                                                                                |
+----------------------------------------------------------------------------------------------------
+|SY-REPID                                                                                          |
+|    SAPMHTTP                                                                                      |
+|    5454455522222222222222222222222222222222                                                      |
+|    310D844000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    5300410050004D00480054005400500020002000200020002000200020002000200020002000200020002000200020|
+|SYST-REPID                                                                                        |
+|    SAPMHTTP                                                                                      |
+|    5454455522222222222222222222222222222222                                                      |
+|    310D844000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    5300410050004D00480054005400500020002000200020002000200020002000200020002000200020002000200020|
+|SY-XPROG                                                                                          |
+|                                                                                                  |
+|    2222222222222222222222222222222222222222                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+|%_SPACE                                                                                           |
+|                                                                                                  |
+|    2                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    0                                                                                             |
+|    2000                                                                                          |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Application Calls                                                                                 |
+----------------------------------------------------------------------------------------------------
+|Index|Calls                                                                                       |
+----------------------------------------------------------------------------------------------------
+|    1|P=/sap/bc/adt/oo/classrun/ZCL_ZMCP_DMP_SQL                                                  |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Internal notes                                                                                    |
+|    The termination was triggered in function "AntlrErrorRunt::reportError" of the                |
+|     SAP kernel, in                                                                               |
+|    line 104 of module "//bas/777_STACK/src/krn/abap/runt/abantlr2rsynerr.cpp#2".                 |
+|    The internal operation just processed is "SQLN".                                              |
+|    Internal mode started at 20260811123447.                                                      |
+|    The error message in question is: "MESSAGE" "GYB".                                            |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Active Calls in SAP Kernel                                                                        |
+----------------------------------------------------------------------------------------------------
+|Lines of C stack in kernel (structure different on each platform)                                 |
+----------------------------------------------------------------------------------------------------
+|dw.sapA4H_D00[S](LinStackBacktrace(void**, int, int)+0xa9)[0x5630c97225ca,0x7225ca]               |
+|dw.sapA4H_D00[S](LinStack(_IO_FILE*)+0x4d)[0x5630c9726253,0x726253]                               |
+|dw.sapA4H_D00[S](CTrcStack2+0x4b)[0x5630c9722007,0x722007]                                        |
+|dw.sapA4H_D00[S](rabax_CStackSave()+0xa1)[0x5630c99160d3,0x9160d3]                                |
+|dw.sapA4H_D00[S](rabax(char16_t const*, char16_t const*, int, char16_t const*, void const*)+0x1575|
+|dw.sapA4H_D00[S](AntlrErrorRunt::reportError()+0x318)[0x5630caf4e8f8,0x1f4e8f8]                   |
+|dw.sapA4H_D00[S](OSqlCommonCompiler<(OSqlCompilerTypes)1, OSqlRuntAbapCompiler>::setEorW(AntlrErro|
+|dw.sapA4H_D00[S](OSqlRuntCommonCompiler<(OSqlCompilerTypes)1, OSqlRuntAbapCompiler>::RSYN_MSG(char|
+|dw.sapA4H_D00[S](OSqlCommonCompiler<(OSqlCompilerTypes)1, OSqlRuntAbapCompiler>::checkTable(dbi::a|
+|dw.sapA4H_D00[S](OSqlRuntAbapCompiler<(OSqlCompilerTypes)1>::parseFromStart(dbi::ast::Factory&, AB|
+|dw.sapA4H_D00[S](void DbSqlFactory::deserializeStatementBase<(OSqlCompilerTypes)1>(unsigned char c|
+|dw.sapA4H_D00[S](void DbSqlFactory::deserialize<(OSqlCompilerTypes)1>(unsigned char const*, unsign|
+|dw.sapA4H_D00[S](void DbSqlFactory::deserialize<(OSqlCompilerTypes)1>(unsigned char const*, unsign|
+|dw.sapA4H_D00[S](void DbSqlFactory::deserializeQuery<(OSqlCompilerTypes)1>(unsigned char const*, u|
+|dw.sapA4H_D00[S](void DbAbapStmtLoader::deserialize<(OSqlCompilerTypes)1>(DbAbapStmtLoad const&, d|
+|dw.sapA4H_D00[S](std::pair<dbi::ast::Query*, DbSymbolTable*> DbStmtLoad::deserialize<(OSqlCompiler|
+|dw.sapA4H_D00[S](a4rRuntExit(DbStmtLoad const&, DbDeserializationContext&, OSqlStmntDescr const&, |
+|dw.sapA4H_D00[S](OSqlSelectLoopEntry::getStmtAst(OSqlStmntDescr const&, DbStmtLoad const&, dbi::ba|
+|dw.sapA4H_D00[S](OSqlSelectLoopEntry::getStmt(DbStmtScopeObject&)+0x2dd)[0x5630cb76753d,0x276753d]|
+|dw.sapA4H_D00[S](ab_jsqln()+0x321)[0x5630cb76b0f1,0x276b0f1]                                      |
+|dw.sapA4H_D00[S](ab_extri()+0x222)[0x5630cb241262,0x2241262]                                      |
+|dw.sapA4H_D00[S](ab_xevent(char16_t const*)+0x36)[0x5630cb2a1d56,0x22a1d56]                       |
+|dw.sapA4H_D00[S](ab_dstep+0x122)[0x5630cb23bfe2,0x223bfe2]                                        |
+|dw.sapA4H_D00[S](dynpmcal(DINFDUMY*, STPDUMMY*)+0x5ca)[0x5630cb21a68a,0x221a68a]                  |
+|dw.sapA4H_D00[S](dynppbo0(DINFDUMY*)+0xc4)[0x5630cb21b114,0x221b114]                              |
+|dw.sapA4H_D00[S](dynprctl(DINFDUMY*)+0x159)[0x5630cb21b4e9,0x221b4e9]                             |
+|dw.sapA4H_D00[S](dynpen00+0x448)[0x5630cb211038,0x2211038]                                        |
+|dw.sapA4H_D00[S](ab_HttpRequestHandler(TH_PLUGIN_ROLE, TH_PLUGIN_ACTION, int, TH_PLUGIN_PROTOCOL, |
+|dw.sapA4H_D00[S](PluginHandler::handleRequest(REQUEST_BUF*, bool)+0x62f)[0x5630cb1f65bf,0x21f65bf]|
+|dw.sapA4H_D00[S](ThStart()+0x1fdb)[0x5630c95f0e56,0x5f0e56]                                       |
+|dw.sapA4H_D00[S](DpMain+0x3b1)[0x5630cb162681,0x2162681]                                          |
+|libc.so.6[S](__libc_start_main+0xef)[0x7f46e44a724d,0x3524d]                                      |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|List of ABAP Programs Affected                                                                    |
+----------------------------------------------------------------------------------------------------
+|Index |Ty.|Program                                 |Group |Date      |Time    |Size     |Lang.    |
+----------------------------------------------------------------------------------------------------
+|     0|Prg|SAPMHTTP                                |     0|23.02.2016|18:28:22|     8192|E        |
+|     1|Prg|SAPLHTTP_RUNTIME                        |     1|27.04.2022|22:29:29|   528384|E        |
+|     2|Prg|CL_HTTP_SERVER================CP        |     2|19.08.2019|15:51:16|   299008|E        |
+|     3|Prg|IF_HTTP_SERVER================IP        |     2|28.02.2019|15:54:03|    16384|E        |
+|     4|Prg|CL_HTTP_UTILITY===============CP        |     4|17.06.2019|12:45:50|    69632|E        |
+|     5|Prg|%_CIHTTP                                |     1|28.02.2019|15:53:52|    51200|E        |
+|     6|Typ|ICFALIAS                                |     0|28.05.2018|11:20:01|    18432|         |
+|     7|Typ|ICFHANDLST                              |     0|28.05.2018|11:20:02|    19456|         |
+|     8|Typ|ICFSERVICE                              |     0|28.05.2018|11:20:04|    19456|         |
+|     9|Typ|ICF_PATHFIELDS                          |     0|09.09.2011|20:54:35|     3072|         |
+|    10|Typ|ICFATTRIB                               |     0|22.10.2012|15:43:55|     6144|         |
+|    11|Typ|ICFLOGIN                                |     0|16.07.2014|19:37:41|    13312|         |
+|    12|Typ|IHTTPCKI                                |     0|09.09.2011|20:54:33|     3072|         |
+|    13|Prg|CL_ICF_RECORDER===============CP        |    13|09.09.2011|21:12:47|    11264|E        |
+|    14|Prg|CL_HTTP_SERVER_NET============CP        |    14|19.08.2019|15:51:16|   428032|E        |
+|    15|Prg|CL_ABAP_RUNTIME===============CP        |    15|28.05.2018|11:20:07|    10240|E        |
+|    16|Prg|CL_HTTP_REQUEST===============CP        |    16|28.02.2019|15:53:59|    23552|E        |
+|    17|Prg|CL_HTTP_ENTITY================CP        |    17|28.02.2019|15:53:59|    61440|E        |
+|    18|Prg|IF_HTTP_ENTITY================IP        |    17|28.10.2022|13:15:43|    14336|E        |
+|    19|Prg|CL_HTTP_RESPONSE==============CP        |    19|19.08.2019|15:51:16|    28672|E        |
+|    20|Typ|ICFRECORDER                             |     0|28.05.2018|11:20:02|    15360|         |
+|    21|Prg|CL_UCON_HELPER================CP        |    21|13.05.2019|08:32:38|    62464|E        |
+|    22|Prg|CL_ICF_SHM_AREA===============CP        |    22|23.04.2019|13:10:40|    46080|E        |
+|    23|Prg|CL_SHM_AREA===================CP        |    23|23.04.2019|13:21:40|    63488|E        |
+|    24|Prg|CL_ABAP_MEMORY_AREA===========CP        |    24|13.02.2015|19:57:24|    12288|E        |
+|    25|Prg|CL_SHM_SERVICE================CP        |    25|23.04.2019|13:10:40|    46080|E        |
+|    26|Typ|ICFHANDLER                              |     0|09.09.2011|20:54:25|     3072|         |
+|    27|Typ|ICFSHMHANDLST                           |     0|09.09.2011|20:54:33|     8192|         |
+|    28|Typ|ICF_SHMRUNT                             |     0|28.05.2018|11:20:04|    31744|         |
+|    29|Typ|ICFALIAS_SHMRUNT                        |     0|23.03.2022|17:35:06|     3072|         |
+|    30|Prg|CL_ICF_SHM_ROOT===============CP        |    30|23.03.2022|18:04:20|    40960|E        |
+|    31|Prg|CL_ICF_SAML_CONFIG============CP        |    31|09.09.2011|21:12:47|    16384|E        |
+|    32|Prg|CL_HTTP_USER_CONTEXT==========CP        |    32|09.09.2011|21:12:10|    11264|E        |
+|    33|Prg|SAPLLANG                                |    33|17.06.2019|12:45:54|    17408|E        |
+|    34|Typ|T002                                    |     0|22.10.2012|15:47:42|     3072|         |
+|    35|Typ|ABAPTEXT                                |     0|13.01.1995|10:57:31|     2048|         |
+|    36|Prg|SAPLSCP2                                |    36|17.06.2019|12:45:54|   188416|E        |
+|    37|Prg|IF_HTTP_HEADER_FIELDS=========IP        |    14|13.02.2015|19:47:03|    11264|E        |
+|    38|Prg|IF_HTTP_HEADER_FIELDS_SAP=====IP        |    14|16.05.2016|12:58:09|    10240|E        |
+|    39|Prg|CL_HTTP_SECURITY_SESSION_ICF==CP        |    39|16.05.2016|11:50:39|    84992|E        |
+|    40|Prg|CL_HTTP_SECURITY_SESSION======CP        |    40|13.05.2019|08:28:50|    19456|E        |
+|    41|Typ|BAPIALIAS                               |     0|09.09.2011|20:55:59|     2048|         |
+|    42|Prg|CL_ABAP_SYST==================CP        |    42|13.02.2015|19:49:42|    12288|E        |
+|    43|Prg|CL_ICF_CROSS_TOOLS============CP        |    43|17.02.2017|14:17:18|    14336|E        |
+|    44|Prg|CL_EPP_SYSTEM_FACTORY=========CP        |    44|17.06.2019|12:45:49|    13312|E        |
+|    45|Prg|IF_EPP_ABAP_TROUBLE_SHOOTING==IP        |    43|09.09.2011|22:02:40|     5120|E        |
+|    46|Prg|CL_EPP_SYSTEM=================CP        |    46|13.05.2019|08:39:25|    41984|E        |
+|    47|Prg|CL_EPP_CORE===================CP        |    47|17.06.2019|12:45:49|   104448|E        |
+|    48|Prg|CL_EPP_REGISTRY===============CP        |    48|17.06.2019|12:45:49|    31744|E        |
+|    49|Prg|IF_EPP_SYSTEM_SECTION=========IP        |    46|13.05.2019|08:39:26|    10240|E        |
+|    50|Prg|CX_EPP_ERROR==================CP        |    50|23.04.2019|13:21:48|    12288|E        |
+|    51|Prg|CX_DYNAMIC_CHECK==============CP        |    51|26.03.2018|12:57:35|     9216|E        |
+|    52|Prg|CX_ROOT=======================CP        |    52|26.03.2018|13:01:03|    14336|E        |
+|    53|Prg|CX_NO_CHECK===================CP        |    53|26.03.2018|12:57:35|     9216|E        |
+|    54|Prg|CL_MESSAGE_HELPER=============CP        |    54|17.06.2019|12:45:50|    40960|E        |
+|    55|Prg|IF_MESSAGE====================IP        |    52|13.02.2015|19:47:18|     5120|E        |
+|    56|Typ|SCX_T100KEY                             |     0|22.10.2012|15:47:03|     3072|         |
+|    57|Prg|IF_T100_MESSAGE===============IP        |    54|13.02.2015|19:57:24|     6144|E        |
+|    58|Prg|CX_SY_MOVE_CAST_ERROR=========CP        |    58|26.03.2018|12:57:35|    11264|E        |
+|    59|Prg|SAPLSOTR_DB_READ                        |    59|23.03.2015|19:28:05|    96256|E        |
+|    60|Prg|CL_ABAP_TYPEDESCR=============CP        |    60|13.05.2019|08:32:02|    29696|E        |
+|    61|Prg|CL_ABAP_CLASSDESCR============CP        |    61|13.05.2019|08:32:02|    30720|E        |
+|    62|Prg|CL_ABAP_OBJECTDESCR===========CP        |    62|13.05.2019|08:30:04|    32768|E        |
+|    63|Prg|%_CABAP                                 |    61|13.02.2015|19:57:24|    35840|E        |
+|    64|Prg|IF_SERIALIZABLE_OBJECT========IP        |    61|13.02.2015|19:49:42|     5120|E        |
+|    65|Prg|CL_ABAP_SOFT_REFERENCE========CP        |    65|23.11.2018|17:27:09|     9216|E        |
+|    66|Prg|CL_ABAP_REFERENCE=============CP        |    66|13.02.2015|19:49:42|     7168|E        |
+|    67|Prg|CX_SY_DYN_CALL_ILLEGAL_TYPE===CP        |    67|28.05.2018|11:20:09|    13312|E        |
+|    68|Prg|CX_SY_DYN_CALL_PARAMETER_ERRORCP        |    68|28.05.2018|11:20:09|    11264|E        |
+|    69|Prg|CX_SY_DYN_CALL_ERROR==========CP        |    69|26.03.2018|12:57:35|    11264|E        |
+|    70|Typ|SBTFR_PARAM                             |     0|24.06.2008|13:55:37|     2048|         |
+|    71|Prg|SAPLSOTR_SERVICES                       |    71|23.04.2019|13:10:59|    22528|E        |
+|    72|Prg|CL_SYSTEM_WIDE_DEBUGGING======CP        |    72|09.09.2011|21:34:45|     9216|E        |
+|    73|Typ|ICFRECSTRU                              |     0|21.08.2003|14:43:52|     3072|         |
+|    74|Prg|SAPLSAUTHTRACE                          |    74|20.03.2017|16:32:24|    97280|E        |
+|    75|Prg|SAPLSWLWPURI                            |    75|23.03.2022|18:40:48|    17408|E        |
+|    76|Prg|CL_ADT_WB_RES_APP=============CP        |    76|19.08.2019|15:51:16|    99328|E        |
+|    77|Prg|IF_HTTP_EXTENSION=============IP        |     2|09.09.2011|22:04:25|     6144|E        |
+|    78|Prg|CL_ADT_SAFE_MODE_BADI_ACCESS==CP        |    78|17.06.2019|12:45:47|    68608|E        |
+|    79|Typ|IHTTPNVP                                |     0|09.09.2011|20:54:39|     2048|         |
+|    80|Typ|IOPROP                                  |     0|28.05.2018|11:20:11|     2048|         |
+|    81|Prg|SAPLGW_RFC_DESTINATION                  |    81|23.02.2016|18:34:38|    14336|E        |
+|    82|Prg|/IWFND/CL_MGW_DEST_FINDER=====CP        |    82|19.08.2019|15:48:19|    60416|E        |
+|    83|Prg|/IWFND/CL_MGW_INST_MAN_DBA====CP        |    83|28.10.2022|13:02:27|   144384|E        |
+|    84|Prg|/IWFND/CL_DESTIN_FINDER=======CP        |    84|23.03.2022|17:55:55|    55296|E        |
+|    85|Prg|/IWFND/CL_DESTIN_FINDER_DBA===CP        |    85|23.03.2022|17:55:55|   147456|E        |
+|    86|Prg|/IWFND/CL_LOGGER==============CP        |    86|28.10.2022|13:02:06|   156672|E        |
+|    87|Prg|/IWFND/BD_SUP_MONITORING_CNTRLCP        |    87|19.08.2019|15:48:19|    13312|E        |
+|    88|Prg|CL_BADI_BASE==================CP        |    88|23.04.2019|13:18:41|    17408|E        |
+|    89|Prg|/IWFND/CL_SUTIL_RUNTIME=======CP        |    89|28.10.2022|13:02:33|   318464|E        |
+|    90|Prg|/IWBEP/CL_CLASS_UTIL==========CP        |    90|28.10.2022|12:59:52|    14336|E        |
+|    91|Prg|/IWBEP/IF_RT_UTILITY_755======IP        |    89|28.10.2022|13:02:34|     9216|E        |
+|    92|Typ|BAL_S_LOG                               |     0|09.09.2011|20:53:44|     8192|         |
+|    93|Prg|/IWFND/IF_SUTIL_CONSTANTS=====IP        |    89|28.10.2022|13:02:52|    12288|E        |
+|    94|Prg|/IWFND/CL_SUTIL_HELPER========CP        |    94|28.10.2022|13:02:28|   116736|E        |
+|    95|Typ|/IWFND/SU_CONFIG                        |     0|23.03.2022|17:33:16|     6144|         |
+|    96|Prg|SAPLTHFB2                               |    96|23.03.2022|18:00:05|   380928|E        |
+|    97|Prg|SAPLSALI                                |    97|17.06.2019|12:45:54|   219136|E        |
+|    98|Prg|SAPLSALC                                |    98|17.06.2019|12:45:54|   863232|E        |
+|    99|Prg|SAPLSRFC                                |    99|23.11.2018|17:21:21|    48128|E        |
+|   100|Prg|CL_COS_UTILITIES==============CP        |   100|23.11.2018|17:21:20|    26624|E        |
+|   101|Prg|CL_APCRFC_COMPRESSION_MODE====CP        |   101|16.01.2019|13:16:28|    36864|E        |
+|   102|Prg|SAPLSCSMROUTE                           |   102|23.11.2018|17:30:40|   591872|E        |
+|   103|Prg|SAPLSALS                                |   103|28.05.2018|11:20:10|   186368|E        |
+|   104|Typ|ALMONSE40B                              |     0|22.10.2012|15:40:01|    10240|         |
+|   105|Prg|SAPLSALJ                                |   105|28.05.2018|11:20:10|   154624|E        |
+|   106|Typ|BAPIREFUS                               |     0|09.09.2011|20:53:56|     2048|         |
+|   107|Typ|STR_AGRS                                |     0|22.10.2012|15:47:31|     3072|         |
+|   108|Prg|SAPLPRGN_EXCHANGE                       |   108|17.06.2019|12:05:07|   409600|E        |
+|   109|Typ|AGR_TEXTS                               |     0|22.10.2012|15:39:55|     3072|         |
+|   110|Typ|STR_USERS                               |     0|22.10.2012|15:47:32|     2048|         |
+|   111|Typ|AGR_USERS                               |     0|22.10.2012|15:39:55|     4096|         |
+|   112|Typ|BAPIRET2                                |     0|28.05.2018|11:19:02|     5120|         |
+|   113|Prg|SAPLSU_USER                             |   113|23.03.2022|18:11:55|   975872|E        |
+|   114|Typ|BAPIAGR                                 |     0|09.09.2011|20:56:02|     3072|         |
+|   115|Typ|BAPICOMREM                              |     0|22.10.2012|15:40:24|     3072|         |
+|   116|Typ|BAPIADFAX                               |     0|22.10.2012|15:40:22|     5120|         |
+|   117|Typ|BAPIADPAG                               |     0|22.10.2012|15:40:22|     4096|         |
+|   118|Typ|BAPIADPRT                               |     0|22.10.2012|15:40:22|     3072|         |
+|   119|Typ|BAPIADRFC                               |     0|22.10.2012|15:40:22|     4096|         |
+|   120|Typ|BAPIADRML                               |     0|22.10.2012|15:40:22|     4096|         |
+|   121|Typ|BAPIADSMTP                              |     0|22.10.2012|15:40:22|     5120|         |
+|   122|Typ|BAPIADSSF                               |     0|22.10.2012|15:40:22|    10240|         |
+|   123|Typ|BAPIADTEL                               |     0|22.10.2012|15:40:22|     4096|         |
+|   124|Typ|BAPIADTLX                               |     0|22.10.2012|15:40:22|     4096|         |
+|   125|Typ|BAPIADTTX                               |     0|22.10.2012|15:40:22|     4096|         |
+|   126|Typ|BAPIADURI                               |     0|22.10.2012|15:40:22|    10240|         |
+|   127|Typ|BAPIADX400                              |     0|22.10.2012|15:40:22|     9216|         |
+|   128|Typ|BAPIUSEXTIDHEAD                         |     0|09.09.2011|20:56:02|     4096|         |
+|   129|Typ|BAPIUSEXTIDPART                         |     0|09.09.2011|20:56:03|     3072|         |
+|   130|Typ|BAPIGROUPS                              |     0|09.09.2011|20:55:41|     2048|         |
+|   131|Typ|BAPIPARAM                               |     0|09.09.2011|20:56:00|     3072|         |
+|   132|Typ|BAPIPARAM1                              |     0|09.09.2011|20:56:00|     3072|         |
+|   133|Typ|BAPIPROF                                |     0|09.09.2011|20:53:55|     3072|         |
+|   134|Typ|BAPIUSERUUIDHIST                        |     0|23.03.2022|17:34:16|     2048|         |
+|   135|Typ|BAPIRCVSYS                              |     0|09.09.2011|20:53:55|     2048|         |
+|   136|Typ|BAPIUCLASSSYS                           |     0|22.10.2012|15:40:27|     4096|         |
+|   137|Typ|BAPILOGOND                              |     0|09.09.2011|20:55:41|     5120|         |
+|   138|Typ|BAPIDEFAUL                              |     0|09.09.2011|20:53:46|     4096|         |
+|   139|Typ|BAPIADDR3                               |     0|19.05.2017|20:01:46|    22528|         |
+|   140|Typ|BAPIUSCOMP                              |     0|15.02.2018|10:59:57|     2048|         |
+|   141|Typ|BAPISNCU                                |     0|09.09.2011|20:56:02|     3072|         |
+|   142|Typ|BAPIUCLASS                              |     0|22.10.2012|15:40:27|     3072|         |
+|   143|Typ|BAPIMODDAT                              |     0|09.09.2011|20:55:41|     2048|         |
+|   144|Typ|BAPISLOCKD                              |     0|09.09.2011|20:56:00|     3072|         |
+|   145|Typ|BAPIIDENTITY                            |     0|09.09.2011|20:56:00|     2048|         |
+|   146|Typ|BAPIUSERADMIN                           |     0|09.09.2011|20:56:00|     2048|         |
+|   147|Typ|BAPITECHUSER                            |     0|28.02.2019|15:30:26|     2048|         |
+|   148|Typ|SUID_ST_BNAME                           |     0|09.09.2011|20:55:34|     2048|         |
+|   149|Prg|CL_IDENTITY_FACTORY===========CP        |   149|23.03.2022|18:04:20|    80896|E        |
+|   150|Prg|CL_IDENTITY===================CP        |   150|28.10.2022|13:13:16|  1474560|E        |
+|   151|Prg|SAPLSUGS                                |   151|28.10.2022|08:33:36|   173056|E        |
+|   152|Prg|IF_IDENTITY===================IP        |   150|23.03.2022|18:12:28|    28672|E        |
+|   153|Prg|CL_IDENTITY_PERSISTENCE=======CP        |   153|07.12.2019|22:28:21|    17408|E        |
+|   154|Prg|CL_SUID_MSG_BUFFER============CP        |   154|25.03.2019|15:45:19|    33792|E        |
+|   155|Prg|CL_IDENTITY_DB_PERSISTENCE====CP        |   155|23.03.2022|18:04:20|   566272|E        |
+|   156|Prg|CL_SUID_CUA===================CP        |   156|25.03.2019|15:45:19|    50176|E        |
+|   157|Typ|USZBVLNDRC                              |     0|16.07.2014|19:38:36|     3072|         |
+|   158|Prg|SAPLSUU6                                |   158|17.06.2019|12:05:07|   678912|E        |
+|   159|Prg|CL_AUTH_CHECK_MASS_S_USER_SYS=CP        |   159|28.05.2018|11:19:03|    21504|E        |
+|   160|Typ|USBAPILINK                              |     0|16.07.2014|19:38:35|     3072|         |
+|   161|Typ|USZBVLNDSC                              |     0|16.07.2014|19:38:36|     2048|         |
+|   162|Typ|SYMSG                                   |     0|22.10.2012|15:47:41|     3072|         |
+|   163|Prg|CL_SUID_TOOLS=================CP        |   163|23.03.2022|18:04:33|   287744|E        |
+|   164|Typ|PRGN_CUST                               |     0|28.02.1998|12:50:39|     2048|         |
+|   165|Prg|CL_SUID_NOTIFICATION_HANDLER==CP        |   165|25.03.2019|15:45:19|    19456|E        |
+|   166|Prg|IF_IDENTITY_DEFINITION========IP        |   150|23.03.2022|18:12:28|    32768|E        |
+|   167|Typ|SUID_ST_NODE_ROOT                       |     0|09.09.2011|20:56:47|     3072|         |
+|   168|Typ|SUID_ST_IDENTITY                        |     0|09.09.2011|20:56:57|     2048|         |
+|   169|Typ|USR02                                   |     0|09.09.2011|20:47:08|    10240|         |
+|   170|Typ|USR21                                   |     0|15.02.2018|11:01:13|     5120|         |
+|   171|Prg|CL_IDENTITY_TOOLS=============CP        |   171|07.12.2019|22:28:21|   121856|E        |
+|   172|Typ|SUID_ST_NODE_REFERENCE_USER             |     0|09.09.2011|20:55:36|     2048|         |
+|   173|Typ|USREFUS                                 |     0|09.09.2011|20:47:08|     3072|         |
+|   174|Prg|/IWFND/CL_CONFIG_INFO=========CP        |   174|28.10.2022|13:02:04|    36864|E        |
+|   175|Prg|/IWFND/IF_CONFIG_INFO=========IP        |   174|28.10.2022|13:02:49|    10240|E        |
+|   176|Prg|/IWFND/BD_MGW_DEST_FINDER=====CP        |   176|19.08.2019|15:48:19|    14336|E        |
+|   177|Prg|/IWFND/CL_MED_INFO============CP        |   177|28.10.2022|13:02:12|    49152|E        |
+|   178|Prg|CL_ABAP_DYN_PRG===============CP        |   178|23.03.2022|17:51:50|    67584|E        |
+|   179|Prg|/IWFND/IF_MED_INFO============IP        |   177|16.01.2017|18:27:19|    17408|E        |
+|   180|Prg|/IWFND/CL_TRANSACTION_HANDLER=CP        |   180|28.10.2022|13:02:39|   104448|E        |
+|   181|Prg|/IWFND/CX_DESTIN_FINDER=======CP        |   181|23.03.2022|17:55:57|    45056|E        |
+|   182|Prg|/IWFND/CX_FW_BASE=============CP        |   182|13.02.2015|18:23:32|    12288|E        |
+|   183|Prg|/IWFND/CX_BASE================CP        |   183|13.02.2015|18:23:31|    27648|E        |
+|   184|Prg|CX_STATIC_CHECK===============CP        |   184|26.03.2018|12:57:35|     9216|E        |
+|   185|Prg|IF_ADT_HEADER=================IP        |    76|05.02.2018|19:11:33|     6144|E        |
+|   186|Prg|BADI_ADT_REST_AUTHORIZATION===CP        |   186|19.08.2019|15:48:33|    14336|E        |
+|   187|Prg|CL_ADT_REST_AUTHORIZATION_DEVLCP        |   187|17.06.2019|12:45:47|    16384|E        |
+|   188|Prg|CL_ADT_RES_APP_ACCESS=========CP        |   188|17.06.2019|12:45:47|    18432|E        |
+|   189|Prg|SAPLSADT_REST                           |   189|08.12.2019|01:18:27|    72704|E        |
+|   190|Prg|BADI_ADT_REST_RFC_APPLICATION=CP        |   190|19.08.2019|15:48:33|   123904|E        |
+|   191|Prg|CL_BADI_CACHE_HANDLER=========CP        |   191|17.06.2019|12:45:48|    15360|E        |
+|   192|Prg|CL_RSDRC_NCUM_GEN_TYPES=======CP        |   192|28.02.2019|15:59:39|     8192|E        |
+|   193|Prg|CL_OO_ADT_RES_APP=============CP        |   193|17.06.2019|12:45:50|    22528|E        |
+|   194|Prg|CL_ADT_DISC_RES_APP_BASE======CP        |   194|17.06.2019|12:45:47|    32768|E        |
+|   195|Prg|CL_ADT_RES_APP_BASE===========CP        |   195|28.02.2019|15:53:54|    13312|E        |
+|   196|Prg|CL_REST_HTTP_HANDLER==========CP        |   196|28.02.2019|15:54:03|    24576|E        |
+|   197|Prg|IF_ADT_REST_RFC_APPLICATION===IP        |    76|13.02.2015|19:45:29|     5120|E        |
+|   198|Prg|IF_ADT_URI_NAMESPACES=========IP        |   195|09.09.2011|22:01:07|     5120|E        |
+|   199|Prg|CL_REST_MESSAGE_BUILDER=======CP        |   199|22.10.2012|16:01:32|    41984|E        |
+|   200|Prg|CL_REST_BASE_REQUEST==========CP        |   200|22.10.2012|16:01:29|    49152|E        |
+|   201|Prg|IF_REST_MESSAGE===============IP        |   200|22.10.2012|16:14:46|     8192|E        |
+|   202|Prg|CL_REST_BASE_RESPONSE=========CP        |   202|22.10.2012|16:01:30|    24576|E        |
+|   203|Prg|IF_REST_REQUEST===============IP        |   196|22.10.2012|16:14:46|     9216|E        |
+|   204|Prg|CL_REST_ROUTER================CP        |   204|22.10.2012|16:01:33|    49152|E        |
+|   205|Prg|IF_OO_ADT_RES_CLASS_CO========IP        |   193|05.02.2018|19:13:08|     7168|E        |
+|   206|Prg|IF_OO_ADT_RES_INCLUDE_CO======IP        |   193|13.02.2015|19:47:21|     7168|E        |
+|   207|Prg|IF_SRC_ADT_RES_VERSION_CO=====IP        |   193|13.02.2015|19:48:13|     5120|E        |
+|   208|Prg|IF_SRC_ADT_RES_OBJ_STRUC_CO===IP        |   193|16.01.2017|18:59:46|     6144|E        |
+|   209|Prg|IF_SEEF_ADT_URI_BUILDER=======IP        |   193|13.05.2019|08:40:33|     6144|E        |
+|   210|Prg|IF_SEEF_ADT_RES_ENHMENTS_CO===IP        |   193|23.04.2019|13:33:54|     6144|E        |
+|   211|Prg|CL_SEDI_ADT_MODIFICATIONS=====CP        |   211|17.06.2019|12:45:51|    35840|E        |
+|   212|Prg|CL_ADT_REST_RESOURCE==========CP        |   212|17.06.2019|12:45:47|    20480|E        |
+|   213|Prg|IF_OO_ADT_RES_INTF_CO=========IP        |   193|22.04.2015|15:48:40|     6144|E        |
+|   214|Prg|IF_OO_ADT_RES_CHECK_SERVICE_COIP        |   193|23.11.2018|17:59:23|     6144|E        |
+|   215|Prg|IF_OO_ADT_RES_LINENUMBER_CO===IP        |   193|13.02.2015|19:47:21|     5120|E        |
+|   216|Prg|IF_OO_ADT_RES_CLASSRUN_CO=====IP        |   193|13.02.2015|19:47:21|     5120|E        |
+|   217|Prg|IF_REST_MEDIA_TYPE============IP        |   193|22.10.2012|16:14:46|    16384|E        |
+|   218|Prg|CL_ADT_URI_TPLT_ROUTER_UTILITYCP        |   218|13.02.2015|19:25:18|    11264|E        |
+|   219|Typ|MATCH_RESULT                            |     0|18.11.2005|14:35:11|     3072|         |
+|   220|Prg|CL_ABAP_MATCHER===============CP        |   220|23.11.2018|17:27:08|    30720|E        |
+|   221|Prg|CL_ABAP_REGEX=================CP        |   221|23.11.2018|17:27:09|    12288|E        |
+|   222|Typ|SUBMATCH_RESULT                         |     0|03.06.2004|11:21:25|     2048|         |
+|   223|Prg|CL_OO_ADT_RES_CLASSRUN========CP        |   223|17.06.2019|12:45:50|   129024|E        |
+|   224|Prg|IF_REST_HANDLER===============IP        |   204|22.10.2012|16:14:46|     5120|E        |
+|   225|Prg|CL_ADT_REST_REQUEST===========CP        |   225|13.02.2015|19:25:15|    27648|E        |
+|   226|Prg|CL_ADT_REST_RESPONSE==========CP        |   226|13.02.2015|18:53:13|    13312|E        |
+|   227|Prg|CL_REST_BASE_ENTITY===========CP        |   227|22.10.2012|16:01:29|    34816|E        |
+|   228|Prg|IF_REST_ENTITY================IP        |   202|22.10.2012|16:14:46|     9216|E        |
+|   229|Prg|CL_ATRADT_INSTANT_TRACING=====CP        |   229|23.11.2018|17:16:27|    53248|E        |
+|   230|Prg|CL_ABAP_LANGUAGE_VERSION======CP        |   230|17.06.2019|12:45:47|    48128|E        |
+|   231|Prg|CL_ABAP_LANGUAGE_VERSION_CFG==CP        |   231|17.06.2019|12:45:47|    49152|E        |
+|   232|Prg|CL_ARS_LANG_VRS_OBJTYP_FACTORYCP        |   232|17.06.2019|12:45:47|    30720|E        |
+|   233|Prg|IF_ABAP_LANGUAGE_VERSION======IP        |   223|28.02.2019|15:51:01|    10240|E        |
+|   234|Prg|IF_ARS_LANG_VRS_OBJTYPE=======IP        |   232|28.02.2019|15:51:01|     9216|E        |
+|   235|Prg|CL_ARS_LANG_VRS_OBJTYPE_SRC===CP        |   235|17.06.2019|12:45:47|    29696|E        |
+|   236|Prg|CL_ARS_LANG_VRS_OBJTYPE=======CP        |   236|23.04.2019|13:18:53|    14336|E        |
+|   237|Prg|CL_SEDI_ABAP_LANG_VERS_UTIL===CP        |   237|17.06.2019|12:45:51|    32768|E        |
+|   238|Prg|CL_OO_CLASSNAME_SERVICE=======CP        |   238|17.06.2019|12:45:50|    49152|E        |
+|   239|Prg|CL_SACF=======================CP        |   239|26.03.2020|18:48:24|    92160|E        |
+|   240|Typ|TOBJ_CHK_CTRL_RH                        |     0|16.07.2014|19:38:32|     3072|         |
+|   241|Prg|CL_AUTH_ZDM===================CP        |   241|15.02.2018|11:08:48|     9216|E        |
+|   242|Prg|SAPLSUNI                                |   242|17.06.2019|12:45:54|   285696|E        |
+|   243|Typ|TFDIR                                   |     0|26.03.2018|12:47:41|     4096|         |
+|   244|Prg|SAPLSUGZ                                |   244|03.03.2022|08:07:34|    84992|E        |
+|   245|Prg|CL_SOI_DEPLOY_PARAMETERS======CP        |   245|17.06.2019|12:45:52|    27648|E        |
+|   246|Prg|CL_SOI_LOGGER=================CP        |   246|08.02.2019|12:49:26|    41984|E        |
+|   247|Prg|CX_SY_DYN_CALL_ILLEGAL_FUNC===CP        |   247|26.03.2018|12:57:35|    11264|E        |
+|   248|Prg|SAPLRLFW                                |   248|23.04.2019|13:20:38|    48128|E        |
+|   249|Prg|CL_RLFW_SERVER_GROUP==========CP        |   249|17.06.2019|12:45:50|    32768|E        |
+|   250|Typ|UVERS                                   |     0|12.04.2001|09:51:15|     4096|         |
+|   251|Typ|CVERS                                   |     0|12.04.2001|09:48:51|     3072|         |
+|   252|Prg|SAPLSDIFRUNTIME                         |   252|17.06.2019|12:43:53|    39936|E        |
+|   253|Typ|DFIES                                   |     0|16.07.2014|19:37:33|    11264|         |
+|   254|Typ|X031L                                   |     0|09.09.2011|20:57:04|     7168|         |
+|   255|Prg|CL_DD_DFIES_PROVIDER==========CP        |   255|17.06.2019|12:44:30|    41984|E        |
+|   256|Prg|SAPLSDNT                                |   256|11.07.2019|12:45:46|   392192|E        |
+|   257|Prg|SABP_DD_CATALOG_ACCESS========CP        |   257|13.05.2019|08:41:23|    24576|E        |
+|   258|Prg|CX_SABP_DD_CATALOG_IO_NOT_FND=CP        |   258|16.01.2019|13:19:55|    13312|E        |
+|   259|Prg|CX_SABP_DD_CATALOG_IO_ERROR===CP        |   259|16.01.2019|13:19:54|    12288|E        |
+|   260|Prg|CX_DD_STATIC_CHECK============CP        |   260|17.06.2019|12:45:53|    20480|E        |
+|   261|Prg|CL_SU2X_TOOLS=================CP        |   261|28.10.2022|13:15:36|   516096|E        |
+|   262|Prg|SAPLPRGN_AUTH                           |   262|17.06.2019|12:43:58|   151552|E        |
+|   263|Prg|ZCL_ZMCP_DMP_SQL==============CP        |   263|11.08.2026|12:33:11|     9216|E        |
+|   264|Prg|IF_OO_ADT_CLASSRUN============IP        |   223|05.02.2018|19:13:08|     5120|E        |
+|   265|Prg|SAPLSYUT                                |   265|28.05.2018|11:32:00|    20480|E        |
+|   266|Typ|ABAP_CALLSTACK_LINE                     |     0|22.10.2012|15:39:46|     3072|         |
+|   267|Prg|CL_ABAP_FORMAT================CP        |   267|23.11.2018|17:20:33|    12288|E        |
+|   268|Prg|CX_SY_DYNAMIC_OSQL_SEMANTICS==CP        |   268|26.03.2020|18:48:34|    15360|E        |
+|   269|Prg|CX_SY_DYNAMIC_OSQL_ERROR======CP        |   269|26.03.2018|12:57:35|    13312|E        |
+|   270|Prg|CX_SY_OPEN_SQL_ERROR==========CP        |   270|26.03.2018|12:57:35|    10240|E        |
+|   271|Prg|CX_SY_SQL_ERROR===============CP        |   271|26.03.2018|12:57:35|    10240|E        |
+|   272|Prg|CX_SY_NO_HANDLER==============CP        |   272|26.03.2018|12:57:35|    10240|E        |
+|   273|Typ|ARC_PARAMS                              |     0|16.07.2014|19:37:18|     6144|         |
+|   274|Typ|SYST                                    |     0|16.07.2014|19:38:30|    32768|         |
+|   275|Typ|PRI_PARAMS                              |     0|04.03.2013|20:20:41|     6144|         |
+|   276|Prg|IF_ATRAPI_TRACE_SESSION=======IP        |   223|23.11.2018|17:53:32|     6144|E        |
+|   277|Typ|SCREEN                                  |     0|03.06.2004|11:20:48|     5120|         |
+|   278|Typ|ALRLRSNODE                              |     0|22.10.2012|15:40:06|     7168|         |
+|   279|Typ|DDXTT                                   |     0|23.04.2018|14:14:21|     8192|         |
+|   280|Prg|CL_REST_STATUS_CODE===========CP        |   280|22.10.2012|16:01:33|    15360|E        |
+|   281|Prg|CX_REST_HANDLER_EXCEPTION=====CP        |   281|22.10.2012|16:10:31|    24576|E        |
+|   282|Prg|CX_REST_EXCEPTION=============CP        |   282|22.10.2012|16:10:31|    10240|E        |
+|   283|Prg|CX_ICF_DO_NOT_CATCH===========CP        |   283|09.09.2011|21:51:16|    10240|E        |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Directory of Application Tables                                                                   |
+----------------------------------------------------------------------------------------------------
+|Name                                     Date       Time       Lngth                              |
+|    Val.                                                                                          |
+----------------------------------------------------------------------------------------------------
+|Program  GYB                                                                                      |
+----------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+|Program  SAPMHTTP                                                                                 |
+----------------------------------------------------------------------------------------------------
+|SYST                                       .  .       :  :     00004612                           |
+|    \x0001\0\0\0\x0001\0¾\0\0\0\0\0\x000A\0\0\0\0\0\0\0\x0001                                     |
+|SY                                         .  .       :  :     00004612                           |
+|    \x0001\0\0\0\x0001\0¾\0\0\0\0\0\x000A\0\0\0\0\0\0\0\x0001                                     |
+----------------------------------------------------------------------------------------------------
+|Program  SAPLLANG                                                                                 |
+----------------------------------------------------------------------------------------------------
+|T002                                       .  .       :  :     00000010                           |
+|         |                                                                                        |
+----------------------------------------------------------------------------------------------------
+|Program  SAPLSUNI                                                                                 |
+----------------------------------------------------------------------------------------------------
+|TFDIR                                      .  .       :  :     00000290                           |
+|    UPGRUNT_CHECK_ZDM_RUNNING     SAPLSUGZ                                                        |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|ABAP Control Blocks (CONT)                                                                        |
+----------------------------------------------------------------------------------------------------
+|Index|Name|Fl|PAR0|PAR1|PAR2|PAR3|PAR4|PAR5|PAR6|Source Code                            |Line     |
+----------------------------------------------------------------------------------------------------
+|   13|PERP|80|0001|    |    |    |    |    |    |<SYSINI>                                |      27|
+|   14|PERP|80|0002|    |    |    |    |    |    |<SYSINI>                                |      27|
+|   15|ENDM|00|0000|    |    |    |    |    |    |<SYSINI>                                |      28|
+|   16|----|00|0000|    |    |    |    |    |    |<SYSINI>                            |      28    |
+|   17|METH|04|0000|0001|0001|0000|0000|0000|0000|ZCL_ZMCP_DMP_SQL==============CM001     |       1|
+|   21|PAR2|04|0000|C000|0000|    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       1|
+|   23|METH|13|0003|0000|8000|0000|0000|0000|0000|ZCL_ZMCP_DMP_SQL==============CM001     |       5|
+|   27|PAR1|00|0013|    |    |    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       5|
+|   28|PAR1|00|0000|    |    |    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       5|
+|   29|PAR1|E0|0000|    |    |    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       5|
+|   30|PAR2|00|0000|0001|0000|    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       5|
+|   32|MOVL|00|0015|C002|000D|    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       6|
+|>>>>>|SQLN|00|0000|    |    |    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       7|
+|   35|SQLN|03|0000|    |    |    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       7|
+|   36|METH|13|0003|0000|8000|0000|0000|0000|0000|ZCL_ZMCP_DMP_SQL==============CM001     |       8|
+|   40|PAR1|00|C003|    |    |    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       8|
+|   41|PAR1|00|0000|    |    |    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       8|
+|   42|PAR1|E0|0000|    |    |    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       8|
+|   43|PAR2|00|0000|0001|0000|    |    |    |    |ZCL_ZMCP_DMP_SQL==============CM001     |       8|
+|   45|METH|01|0000|0000|0000|0000|0000|0000|0000|ZCL_ZMCP_DMP_SQL==============CM001     |       9|
+----------------------------------------------------------------------------------------------------

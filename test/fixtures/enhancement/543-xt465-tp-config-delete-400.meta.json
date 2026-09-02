@@ -1,0 +1,34 @@
+{
+  "n": 543,
+  "label": "w54-t6-req-delete",
+  "expect": null,
+  "note": null,
+  "requestMethod": "DELETE",
+  "requestPath": "/sap/bc/adt/enhancements/enhoxhh/zmcp_enh_t6?lockHandle=C0BEF411297AC343ABF9033913A5902E4A09B978&corrNr=A4HK900162",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "1lIHBssFDKGLhkKXYkqkgA=="
+  },
+  "requestBody": null,
+  "responseStatus": 400,
+  "responseStatusText": "Bad Request",
+  "responseHeaders": {
+    "content-length": "640",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "91619.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 640,
+  "zeroByteBody": false,
+  "sha256OfRawBody": "0f042a0c5ce2ee47851c868fdf00336c7eb36fc1bd06889a5144eeda51a59045",
+  "redactions": null,
+  "bodyFile": "543-w54-t6-req-delete.xml",
+  "utcTimestamp": "2026-08-05T16:20:13.135Z",
+  "durationMs": 143,
+  "sessionName": "A"
+}

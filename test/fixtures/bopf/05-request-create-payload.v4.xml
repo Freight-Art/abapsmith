@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<bo:businessObject xmlns:bo="http://www.sap.com/bopf/bo/BusinessObject" xmlns:adtcore="http://www.sap.com/adt/core" bo:objectCategory="businessProcessObject" bo:isExtensible="false" bo:objectModelGenerated="false" bo:thirdGenBO="true" bo:smartValidation="false" bo:rapBO="false" adtcore:name="ZBOPF_PRB1" adtcore:type="BOBF" adtcore:description="MCP probe BO 1" adtcore:masterLanguage="EN" adtcore:version="active">
+<adtcore:packageRef adtcore:uri="/sap/bc/adt/packages/%24tmp" adtcore:type="DEVC/K" adtcore:name="$TMP"/>
+<bo:nodes bo:name="ROOT" bo:nodeID="QHACVPZsO3cnnDR5I14Itg==" bo:xmlName="Root" bo:objectModelGenerated="false" bo:authorizationCheck="false" bo:isExtensible="false" bo:isDependentObjectNode="false" bo:textNode="false" bo:createEnabled="true" bo:updateEnabled="true" bo:deleteEnabled="true" bo:rootNode="true" bo:objectModelObsolete="false"/>
+</bo:businessObject>

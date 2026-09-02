@@ -1,0 +1,35 @@
+{
+  "n": 223,
+  "label": "np-vars-negative",
+  "expect": "THE unresolved wire fact: how does a NEGATIVE packed/integer render in <VALUE>? trailing minus, leading minus, or sign only in HEX_VALUE?",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=getVariables",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "q6QIYPYZpo8ebmZoCiK98A==",
+    "Content-Type": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.Variables",
+    "Accept": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.Variables"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><asx:abap xmlns:asx=\"http://www.sap.com/abapxml\" version=\"1.0\"><asx:values><DATA><STPDA_ADT_VARIABLE><ID>LV_ZMCP_NEG</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LV_ZMCP_NEGI</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LV_GRAND_TOTAL</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[1]-UNIT_PRICE</ID></STPDA_ADT_VARIABLE></DATA></asx:values></asx:abap>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "542",
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.debugger.Variables",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "16449.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 2757,
+  "zeroByteBody": false,
+  "sha256": "434d22cabb8b97e6da59d62c93ee1613cdb63986fa7e02b1f1e88c6aaefa9e65",
+  "utcTimestamp": "2026-08-01T01:02:18.524Z",
+  "durationMs": 116,
+  "sessionName": "A"
+}

@@ -1,0 +1,57 @@
+{
+  "name": "abapsmith",
+  "version": "0.3.0",
+  "description": "MCP server for SAP ABAP development via ADT — read, write, activate, run, debug, and undo via a local write journal (writes opt-in, package allowlist)",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Freight-Art/abapsmith.git"
+  },
+  "homepage": "https://github.com/Freight-Art/abapsmith#readme",
+  "bugs": {
+    "url": "https://github.com/Freight-Art/abapsmith/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "abapsmith": "./dist/index.js",
+    "abap-journal-reconcile": "./bin/abap-journal-reconcile"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "bin",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:live": "VITEST_LIVE=1 vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:cassettes": "tsc -p test/cassettes/tsconfig.json --noEmit",
+    "check:cassettes": "npm run typecheck:cassettes && vitest run test/cassettes",
+    "check:leaks": "node scripts/check-no-leaks.mjs",
+    "lint:hints": "node scripts/lint-hint-params.mjs"
+  },
+  "dependencies": {
+    "@abaplint/core": "^2.120.19",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "abap-adt-api": "^8.4.1",
+    "dotenv": "^17.4.2",
+    "fast-xml-parser": "^5.10.1",
+    "https-proxy-agent": "^5.0.1",
+    "proxy-from-env": "^2.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

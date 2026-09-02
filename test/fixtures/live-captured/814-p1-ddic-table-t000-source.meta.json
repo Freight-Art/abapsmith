@@ -1,0 +1,33 @@
+{
+  "n": 814,
+  "label": "p1-ddic-table-t000-source",
+  "expect": "independent ground truth: T000 table definition, EndUserText.label",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/tables/t000/source/main",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "473",
+    "content-type": "text/plain; charset=utf-8",
+    "etag": "20180528111426001text/plain2",
+    "last-modified": "Mon, 28 May 2018 11:14:26 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "956048.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1188,
+  "zeroByteBody": false,
+  "sha256": "e2a917b3dcd9e100aff9d2c3ec0edc073399ba8a3c4d39d8b8ef191f3dda1beb",
+  "utcTimestamp": "2026-08-20T16:09:47.693Z",
+  "durationMs": 1242,
+  "sessionName": "LIVE-305"
+}

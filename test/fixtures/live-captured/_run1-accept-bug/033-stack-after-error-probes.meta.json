@@ -1,0 +1,33 @@
+{
+  "n": 33,
+  "label": "stack-after-error-probes",
+  "expect": "sanity: is the session still alive after the out-of-range/unknown-name probes?",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/stack?method=getStack&emode=_&semanticURIs=true",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "M-O7p7Fl7HnhWnZGnJei-Q==",
+    "Accept": "application/vnd.sap.as+xml"
+  },
+  "requestBody": null,
+  "responseStatus": 406,
+  "responseStatusText": "Not Acceptable",
+  "responseHeaders": {
+    "content-length": "454",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "17902.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 454,
+  "zeroByteBody": false,
+  "sha256": "401108d202218029f7f3ce0963847eea0b67c3c1b87a5adaeae2945006fda747",
+  "utcTimestamp": "2026-07-31T23:38:58.279Z",
+  "durationMs": 127,
+  "sessionName": "A"
+}

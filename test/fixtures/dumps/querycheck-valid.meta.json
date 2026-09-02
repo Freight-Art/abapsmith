@@ -1,0 +1,29 @@
+{
+  "label": "qc-valid",
+  "what": "$queryCheck=true on a valid query — 91-byte self-closing atom:feed.",
+  "sourceCapture": "06-qc-valid.body.xml",
+  "sourceCaptureDir": "local capture session 2026-08-11 (not committed)",
+  "capturedUtc": "2026-08-11",
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/runtime/dumps?%24queryCheck=true&%24query=and%20(%20equals%20(%20user%20%2C%20DEVELOPER%20)%20)",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "*/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "91",
+    "content-type": "application/atom+xml;type=feed"
+  },
+  "byteLength": 91,
+  "byteLengthAfterRedaction": 91,
+  "zeroByteBody": false,
+  "sha256OfRedactedBody": "b60843a89620828f12f6f644f6d4f587a9a1a50163b2bffa9822bc19a2880f59",
+  "redactions": null,
+  "redactionPolicy": "Length-preserving substitution only. No other byte was altered: percent-encoding, %20 padding runs, attribute order, XML escaping and the absent trailing newline are as captured.",
+  "bodyFile": "querycheck-valid.xml",
+  "durationMs": 91
+}

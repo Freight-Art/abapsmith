@@ -1,0 +1,38 @@
+{
+  "id": "csrf-required-403-followup-verify",
+  "recordedAt": "2026-07-31T23:49:55.693Z",
+  "recordedDurationMs": 267,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/072-p1-verify-created.meta.json + test/fixtures/live-captured/072-p1-verify-created.xml",
+    "notes": "Companion follow-up to csrf-required-403 (071): GET /sap/bc/adt/programs/programs/zmcp_csrf_probe run immediately after the rejected create. Returns 404 ExceptionResourceNotFound ('ZMCP_CSRF_PROBE does not exist'), confirming the CSRF-rejected write in 071 genuinely had no side effect — the program was never created. Strengthens the csrf-required-403 scenario. Authorization/set-cookie header values were already redacted at the source (placeholders preserved as-is)."
+  },
+  "request": {
+    "method": "GET",
+    "path": "/sap/bc/adt/programs/programs/zmcp_csrf_probe",
+    "headers": {
+      "Authorization": "<redacted>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-length": "353",
+      "content-type": "application/xml",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "55702.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"com.sap.adt\"/><type id=\"ExceptionResourceNotFound\"/><message lang=\"EN\">ZMCP_CSRF_PROBE does not exist</message><localizedMessage lang=\"EN\">ZMCP_CSRF_PROBE does not exist</localizedMessage><properties/></exc:exception>"
+  }
+}

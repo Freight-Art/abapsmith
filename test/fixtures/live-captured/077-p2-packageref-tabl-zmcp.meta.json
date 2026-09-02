@@ -1,0 +1,33 @@
+{
+  "n": 77,
+  "label": "p2-packageref-tabl-zmcp",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/tables/zmcp_dbg_item",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "827",
+    "content-type": "application/vnd.sap.adt.tables.v2+xml; charset=utf-8",
+    "etag": "20260731150726001application/vnd.sap.adt.tables.v2+xmlu6DparhpEJc2jCay3OmQsgzjxcc=",
+    "last-modified": "Fri, 31 Jul 2026 15:07:26 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "104291.000000",
+    "sap-server": "true"
+  },
+  "byteLength": 2630,
+  "zeroByteBody": false,
+  "sha256": "6e7676d0e4a4d24a267470caabf583ed9c2a099338b8e8ebe9afbc8fedfaeaef",
+  "utcTimestamp": "2026-07-31T23:49:57.570Z",
+  "durationMs": 150,
+  "sessionName": "D"
+}

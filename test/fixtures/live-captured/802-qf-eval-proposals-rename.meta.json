@@ -1,0 +1,32 @@
+{
+  "n": 802,
+  "label": "qf-eval-proposals-rename",
+  "note": "HOP 1 at line 4 col 5 (an identifier): HTTP 200 with one evaluationResult, the INTERACTIVE qf_rename refactoring.",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/quickfixes/evaluation?uri=%2Fsap%2Fbc%2Fadt%2Fprograms%2Fprograms%2Fzmcp_qf_probe1%2Fsource%2Fmain%23start%3D4%2C5",
+  "requestHeaders": {
+    "Content-Type": "application/*",
+    "Accept": "application/*"
+  },
+  "requestBody": "REPORT zmcp_qf_probe1.\r\n\r\nDATA lv_text TYPE string.\r\nDATA lv_unused TYPE i.\r\n\r\nBREAK-POINT.\r\n\r\nMOVE 'abc' TO lv_text.\r\n\r\nTRANSLATE lv_text TO UPPER CASE.\r\n\r\nWRITE / lv_text.",
+  "requestBodyBytes": 173,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml; charset=utf-8",
+    "content-length": "676",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "961031.000000"
+  },
+  "byteLength": 676,
+  "zeroByteBody": false,
+  "sha256": "a2b17681a58287c8fd5eec4069a6990499f272dfd56153aeb9445121d8a7442b",
+  "utcTimestamp": "2026-08-18T22:51:35.112Z",
+  "durationMs": 1015,
+  "sessionName": "QF2",
+  "capturedBy": "scratchpad probes for the quick-fixes-as-a-gated-write Phase 0 feasibility gate, driven through src/adt/connection.ts AbapConnection against the A4H sandbox appliance. REAL wire recording - not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the connection layer and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host/IP is deliberately not recorded.",
+  "baitSourceNote": "The ABAP source echoed inside requestBody is BAIT invented for this probe (program ZMCP_QF_PROBE1 in $TMP, created and deleted by the probe). It is not customer code and is not a repository artefact."
+}

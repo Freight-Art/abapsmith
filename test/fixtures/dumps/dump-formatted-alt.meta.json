@@ -1,0 +1,35 @@
+{
+  "label": "rep-formatted (alt / second dump)",
+  "what": "The /formatted plain-text rendering of a DIFFERENT dump (key ...082715...6) — the same dump as dump-detail-406-textplain.xml. Kept as a size-variation fixture: 622 lines vs 1811 for dump-formatted.txt. NOT valid for chapter offset-alignment assertions against dump-detail-v1.xml.",
+  "sourceCapture": "01-rep-formatted.body.txt",
+  "sourceCaptureDir": "local capture session 2026-08-11 (not committed)",
+  "capturedUtc": "2026-08-11",
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/runtime/dump/20260811082715a4hsandbox_A4H_00%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20DEVELOPER%20%20%20001%20%20%20%20%20%20%20%206/formatted",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "*/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "8234",
+    "content-type": "text/plain; charset=utf-8"
+  },
+  "byteLength": 61536,
+  "byteLengthAfterRedaction": 61536,
+  "lineCount": 622,
+  "zeroByteBody": false,
+  "sha256OfRedactedBody": "93b3b182e94495b34426e6b8aa1b3dc3b5683bfcac9cff849cd2b69e738acd14",
+  "pairedWith": "dump-detail-406-textplain.xml (same dump key 20260811082715...6). No v1 detail XML was captured for this dump.",
+  "chapterOffsetAlignment": "0/20 against dump-detail-v1.xml — different dump; do not use for offset assertions",
+  "redactions": [
+    "hostname token -> \"a4hsandbox\" (4x, same 10-char length)",
+    "public IPv4 -> 198.51.100.163 (RFC 5737 TEST-NET-2, 3x, same 14-char length)"
+  ],
+  "redactionPolicy": "Length-preserving substitution only. No other byte was altered: percent-encoding, %20 padding runs, attribute order, XML escaping and the absent trailing newline are as captured.",
+  "bodyFile": "dump-formatted-alt.txt",
+  "durationMs": 566
+}

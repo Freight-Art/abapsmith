@@ -1,0 +1,32 @@
+{
+  "n": 202,
+  "label": "listener-probe-existing",
+  "expect": "404 expected = no listener held",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/listeners?debuggingMode=user&requestUser=DEVELOPER&checkConflict=false",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "Rp0oLX3M27sw-pJeNhFx_w=="
+  },
+  "requestBody": null,
+  "responseStatus": 404,
+  "responseStatusText": "Not Found",
+  "responseHeaders": {
+    "content-length": "345",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "23203.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 345,
+  "zeroByteBody": false,
+  "sha256": "b68a1eedab948612416c704d0d22b393a37261581eb99c244fe46810ec153da3",
+  "utcTimestamp": "2026-07-31T23:55:36.665Z",
+  "durationMs": 67,
+  "sessionName": "A"
+}

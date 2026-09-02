@@ -1,0 +1,33 @@
+{
+  "n": 832,
+  "label": "p4-fugr-object-seo-aunit-gen-wizard",
+  "expect": "independent ground truth: FUGR/F SEO_AUNIT_GEN_WIZARD own metadata description",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/functions/groups/seo_aunit_gen_wizard",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "854",
+    "content-type": "application/vnd.sap.adt.functions.groups.v2+xml; charset=utf-8",
+    "etag": "201907251047430016",
+    "last-modified": "Thu, 25 Jul 2019 10:47:43 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "508962.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 3135,
+  "zeroByteBody": false,
+  "sha256": "36cfefbe1aba577766e8048afbe670b05a38145295ecc2c91164ee56b7f72d26",
+  "utcTimestamp": "2026-08-20T16:14:01.299Z",
+  "durationMs": 823,
+  "sessionName": "LIVE-305"
+}

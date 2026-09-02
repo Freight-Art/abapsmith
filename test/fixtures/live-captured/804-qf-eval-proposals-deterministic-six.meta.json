@@ -1,0 +1,32 @@
+{
+  "n": 804,
+  "label": "qf-eval-proposals-deterministic-six",
+  "note": "HOP 1 on a local-class bait: SIX evaluationResults including the DETERMINISTIC unimplemented_methods / generate_constructor / generate_class_constructor / generate_table_type. Note the structured <userContent> generateConstructor document on two of them.",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/quickfixes/evaluation?uri=%2Fsap%2Fbc%2Fadt%2Fprograms%2Fprograms%2Fzmcp_qf_probe1%2Fsource%2Fmain%23start%3D3%2C0",
+  "requestHeaders": {
+    "Content-Type": "application/*",
+    "Accept": "application/*"
+  },
+  "requestBody": "REPORT zmcp_qf_probe1.\r\n\r\nCLASS lcl DEFINITION.\r\n  PUBLIC SECTION.\r\n    METHODS run.\r\nENDCLASS.\r\n\r\nCLASS lcl IMPLEMENTATION.\r\nENDCLASS.",
+  "requestBodyBytes": 135,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml; charset=utf-8",
+    "content-length": "659",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "1267497.000000"
+  },
+  "byteLength": 3976,
+  "zeroByteBody": false,
+  "sha256": "96373e3674cc87720779290eab9d609679e06126c6d60a6ec2ed0a482dcfbf2d",
+  "utcTimestamp": "2026-08-18T23:33:26.834Z",
+  "durationMs": 1329,
+  "sessionName": "QF4",
+  "capturedBy": "scratchpad probes for the quickfix-evaluation Phase 0 feasibility gate, driven through src/adt/connection.ts AbapConnection against the A4H sandbox appliance. REAL wire recording - not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the connection layer and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host/IP is deliberately not recorded.",
+  "baitSourceNote": "The ABAP source echoed inside requestBody is BAIT invented for this probe (program ZMCP_QF_PROBE1 in $TMP, created and deleted by the probe). It is not customer code and is not a repository artefact."
+}

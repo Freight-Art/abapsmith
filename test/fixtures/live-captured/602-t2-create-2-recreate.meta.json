@@ -1,0 +1,36 @@
+{
+  "n": 23,
+  "label": "t2-create-2-recreate",
+  "expect": "handover §3.5 predicts 403 ExceptionResourceNoAuthorization + 'currently editing' + EMPTY <properties/>",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/programs/programs",
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.adt.programs.programs.v2+xml",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<token length=24>",
+    "Content-Type": "application/vnd.sap.adt.programs.programs.v2+xml",
+    "X-sap-adt-sessiontype": "stateful",
+    "Cookie": "<redacted values: 4 cookies [sap-contextid, sap-usercontext, MYSAPSSO2, SAP_SESSIONID_A4H_001]>",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><program:abapProgram xmlns:program=\"http://www.sap.com/adt/programs/programs\" xmlns:adtcore=\"http://www.sap.com/adt/core\" adtcore:description=\"ZMCP lock envelope probe\" adtcore:name=\"ZMCP_LK_P\" adtcore:type=\"PROG/P\" adtcore:responsible=\"DEVELOPER\"><adtcore:packageRef adtcore:name=\"$TMP\"/></program:abapProgram>",
+  "responseStatus": 403,
+  "responseStatusText": "Forbidden",
+  "responseHeaders": {
+    "content-length": "390",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "36800.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 390,
+  "sha256": "3c4a53013ab45945b3745c8a8158d84f47d51d8dbd8d099732deed751e8ac8ed",
+  "sessionName": "task2",
+  "sessionType": "stateful",
+  "cookieJarSizeBeforeRequest": 4,
+  "utcTimestamp": "2026-08-01T09:03:31.221Z",
+  "durationMs": 79
+}

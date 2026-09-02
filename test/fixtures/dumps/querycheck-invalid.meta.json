@@ -1,0 +1,29 @@
+{
+  "label": "qc-invalid",
+  "what": "$queryCheck=true on an unknown attribute — ExceptionInvalidData, HTTP 400.",
+  "sourceCapture": "07-qc-invalid.body.xml",
+  "sourceCaptureDir": "local capture session 2026-08-11 (not committed)",
+  "capturedUtc": "2026-08-11",
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/runtime/dumps?%24queryCheck=true&%24query=and%20(%20equals%20(%20bogusAttr%20%2C%20X%20)%20)",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "*/*"
+  },
+  "requestBody": null,
+  "responseStatus": 400,
+  "responseStatusText": "Bad Request",
+  "responseHeaders": {
+    "content-length": "372",
+    "content-type": "application/xml"
+  },
+  "byteLength": 372,
+  "byteLengthAfterRedaction": 372,
+  "zeroByteBody": false,
+  "sha256OfRedactedBody": "ed2de6e9e25a6002cdcb4a91a51a050b83732671371cfbfc1b1e96f16e1a994d",
+  "redactions": null,
+  "redactionPolicy": "Length-preserving substitution only. No other byte was altered: percent-encoding, %20 padding runs, attribute order, XML escaping and the absent trailing newline are as captured.",
+  "bodyFile": "querycheck-invalid.xml",
+  "durationMs": 78
+}

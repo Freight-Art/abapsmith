@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SYNTHETIC. Hand-written from the OASIS OData 4.0 CSDL specification, NOT a
+     captured wire response, and NOT obtainable from this project's appliance:
+     SAP_BASIS 754 offers no OData V4 binding type at all. See README.md in this
+     directory. Everything the V4 branch of src/adt/edmx.ts does is INFERENCE.
+
+     The vocabulary aliases below are deliberately NOT the conventional
+     "Capabilities"/"Common": a reader that matches on the full term string
+     would pass on a document that used the usual aliases and fail on a real
+     service that chose different ones. Matching on the local name is what
+     makes this file parse. -->
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+ <edmx:Reference Uri="https://sap.invalid/odata/vocabularies/Org.OData.Capabilities.V1.xml">
+  <edmx:Include Namespace="Org.OData.Capabilities.V1" Alias="Cap"/>
+ </edmx:Reference>
+ <edmx:Reference Uri="https://sap.invalid/odata/vocabularies/com.sap.vocabularies.Common.v1.xml">
+  <edmx:Include Namespace="com.sap.vocabularies.Common.v1" Alias="Lbl"/>
+ </edmx:Reference>
+ <edmx:DataServices>
+  <Schema Namespace="com.sap.gateway.srvd.ztravel.v0001" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+   <EntityType Name="TravelType">
+    <Key>
+     <PropertyRef Name="TravelUUID"/>
+    </Key>
+    <Property Name="TravelUUID" Type="Edm.Guid" Nullable="false">
+     <Annotation Term="Lbl.Label" String="Travel UUID"/>
+    </Property>
+    <Property Name="TravelID" Type="Edm.String" MaxLength="8">
+     <Annotation Term="Lbl.Label" String="Travel Number"/>
+    </Property>
+    <Property Name="AgencyID" Type="Edm.String" MaxLength="6"/>
+    <Property Name="BeginDate" Type="Edm.Date"/>
+    <Property Name="EndDate" Type="Edm.Date"/>
+    <Property Name="TotalPrice" Type="Edm.Decimal" Precision="16" Scale="3"/>
+    <Property Name="CurrencyCode" Type="Edm.String" MaxLength="5"/>
+    <Property Name="Description" Type="Edm.String" MaxLength="Max"/>
+    <Property Name="LastChangedAt" Type="Edm.DateTimeOffset" Precision="7"/>
+    <NavigationProperty Name="_Booking" Type="Collection(com.sap.gateway.srvd.ztravel.v0001.BookingType)" Partner="_Travel"/>
+   </EntityType>
+   <EntityType Name="BookingType">
+    <Key>
+     <PropertyRef Name="TravelUUID"/>
+     <PropertyRef Name="BookingUUID"/>
+    </Key>
+    <Property Name="TravelUUID" Type="Edm.Guid" Nullable="false"/>
+    <Property Name="BookingUUID" Type="Edm.Guid" Nullable="false"/>
+    <Property Name="BookingID" Type="Edm.String" MaxLength="4"/>
+    <Property Name="FlightDate" Type="Edm.Date"/>
+    <Property Name="FlightPrice" Type="Edm.Decimal" Precision="16" Scale="3"/>
+    <NavigationProperty Name="_Travel" Type="com.sap.gateway.srvd.ztravel.v0001.TravelType" Nullable="false" Partner="_Booking"/>
+   </EntityType>
+   <Action Name="acceptTravel" IsBound="true">
+    <Parameter Name="_it" Type="com.sap.gateway.srvd.ztravel.v0001.TravelType"/>
+    <ReturnType Type="com.sap.gateway.srvd.ztravel.v0001.TravelType"/>
+   </Action>
+   <Action Name="rebuildIndex">
+    <Parameter Name="Force" Type="Edm.Boolean"/>
+   </Action>
+   <Function Name="travelPrice">
+    <Parameter Name="TravelUUID" Type="Edm.Guid"/>
+    <ReturnType Type="Edm.Decimal"/>
+   </Function>
+   <EntityContainer Name="EntityContainer">
+    <EntitySet Name="Travel" EntityType="com.sap.gateway.srvd.ztravel.v0001.TravelType">
+     <NavigationPropertyBinding Path="_Booking" Target="Booking"/>
+     <Annotation Term="Lbl.Label" String="Travel"/>
+     <Annotation Term="Cap.SearchRestrictions">
+      <Record>
+       <PropertyValue Property="Searchable" Bool="true"/>
+      </Record>
+     </Annotation>
+     <Annotation Term="Cap.DeleteRestrictions">
+      <Record>
+       <PropertyValue Property="Deletable" Bool="false"/>
+      </Record>
+     </Annotation>
+    </EntitySet>
+    <EntitySet Name="Booking" EntityType="com.sap.gateway.srvd.ztravel.v0001.BookingType">
+     <NavigationPropertyBinding Path="_Travel" Target="Travel"/>
+    </EntitySet>
+    <ActionImport Name="rebuildIndex" Action="com.sap.gateway.srvd.ztravel.v0001.rebuildIndex"/>
+    <FunctionImport Name="travelPrice" Function="com.sap.gateway.srvd.ztravel.v0001.travelPrice" IncludeInServiceDocument="true"/>
+   </EntityContainer>
+   <Annotations Target="com.sap.gateway.srvd.ztravel.v0001.EntityContainer/Booking">
+    <Annotation Term="Lbl.Label" String="Booking"/>
+    <Annotation Term="Cap.InsertRestrictions">
+     <Record>
+      <PropertyValue Property="Insertable" Bool="true"/>
+     </Record>
+    </Annotation>
+    <Annotation Term="Cap.UpdateRestrictions">
+     <Record>
+      <PropertyValue Property="Updatable" Bool="false"/>
+     </Record>
+    </Annotation>
+    <Annotation Term="Cap.TopSupported" Bool="false"/>
+   </Annotations>
+  </Schema>
+ </edmx:DataServices>
+</edmx:Edmx>

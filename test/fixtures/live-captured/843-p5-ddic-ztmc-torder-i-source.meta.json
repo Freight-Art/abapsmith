@@ -1,0 +1,32 @@
+{
+  "n": 843,
+  "label": "p5-ddic-ztmc-torder-i-source",
+  "expect": "ground truth ZTMC_TORDER_I",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/tables/ztmc_torder_i/source/main",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "596",
+    "content-type": "text/plain; charset=utf-8",
+    "etag": "20260820101936001text/plain2",
+    "last-modified": "Thu, 20 Aug 2026 10:19:36 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "75672.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 596,
+  "zeroByteBody": false,
+  "sha256": "0be40af5fbde3feb484c2607ed9d401a4bb5ce5b436440376bada91cef4c885e",
+  "utcTimestamp": "2026-08-20T16:15:18.615Z",
+  "durationMs": 301,
+  "sessionName": "LIVE-305"
+}

@@ -1,0 +1,37 @@
+{
+  "n": 128,
+  "label": "w2-create-full",
+  "expect": "full ENHO/XHH create in $TMP",
+  "note": null,
+  "requestMethod": "POST",
+  "requestPath": "/sap/bc/adt/enhancements/enhoxhh",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "_I44EZDvwEAYMj_I3AJjQQ==",
+    "Content-Type": "application/vnd.sap.adt.enh.enhoxhh.v2+xml",
+    "Accept": "application/vnd.sap.adt.enh.enhoxhh.v2+xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><enho:enhancement xmlns:enho=\"http://www.sap.com/adt/enhancements/enho\" xmlns:adtcore=\"http://www.sap.com/adt/core\" xmlns:abapsource=\"http://www.sap.com/adt/abapsource\" xmlns:atom=\"http://www.w3.org/2005/Atom\" adtcore:name=\"ZMCP_ENH_B\" adtcore:type=\"ENHO/XHH\" adtcore:description=\"ZMCP recon hook impl\" adtcore:masterLanguage=\"EN\" adtcore:language=\"EN\" adtcore:responsible=\"DEVELOPER\"><adtcore:packageRef adtcore:name=\"$TMP\"/><enho:contentCommon enho:toolType=\"HOOK_IMPL\" enho:adjustmentStatus=\"manual-adjustment\"><enho:usages><enho:referencedObject enho:program_id=\"R3TR\" enho:element_usage=\"REDO\" enho:upgrade=\"false\" enho:automatic_transport=\"false\"><enho:objectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST\"/><enho:mainObjectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST\"/></enho:referencedObject></enho:usages></enho:contentCommon><enho:contentSpecific><enho:hookTechnology enho:nextId=\"2\"><enho:enhancedObject adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST\"/><enho:hookImplementation enho:id=\"1\" enho:spotname=\"\" enho:programname=\"ZMCP_BADI_HOST\" enho:overwrite=\"\" enho:method=\"\" enho:enhmode=\"D\" enho:full_name=\"\\PR:ZMCP_BADI_HOST\\FO:COMPUTE\\SE:END\\EI\" enho:full_description=\"Form COMPUTE, End\"/></enho:hookTechnology></enho:contentSpecific></enho:enhancement>",
+  "responseStatus": 201,
+  "responseStatusText": "Created",
+  "responseHeaders": {
+    "content-length": "0",
+    "etag": "20260805153916000application/vnd.sap.adt.enh.enhoxhh.v2+xml",
+    "location": "/sap/bc/adt/enhancements/enhoxhh/zmcp_enh_b/source/main",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "1984270.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 0,
+  "zeroByteBody": true,
+  "sha256OfRawBody": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "redactions": null,
+  "bodyFile": "128-w2-create-full.txt",
+  "utcTimestamp": "2026-08-05T15:39:18.756Z",
+  "durationMs": 2118,
+  "sessionName": "A"
+}

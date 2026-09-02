@@ -1,0 +1,34 @@
+{
+  "n": 17,
+  "label": "attach",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=attach&debuggeeId=1A2263E0A4E31FE1A3A74D40077B3650&debuggingMode=user&requestUser=DEVELOPER&dynproDebugging=false",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "DiImM74G-dVI0t2U5VqRsQ==",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "674",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "35777.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1526,
+  "zeroByteBody": false,
+  "sha256": "8502d4ef77cf672b2f0006f3171a5b092ed8ad5ea3c41aacd57c7fc7790c2b0e",
+  "utcTimestamp": "2026-07-31T23:49:05.606Z",
+  "durationMs": 79,
+  "sessionName": "A"
+}

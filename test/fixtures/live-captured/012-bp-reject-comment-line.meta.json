@@ -1,0 +1,33 @@
+{
+  "n": 12,
+  "label": "bp-reject-comment-line",
+  "expect": "line 82 is a COMMENT; does the server return an errorMessage attribute or silently auto-correct?",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/breakpoints",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "DiImM74G-dVI0t2U5VqRsQ==",
+    "Content-Type": "application/xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dbg:breakpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\" scope=\"external\" debuggingMode=\"user\" requestUser=\"DEVELOPER\" terminalId=\"ZMCPCAPTURE000000000000000000001\" ideId=\"ZMCPCAPTUREIDE000000000000000000\" systemDebugging=\"false\" deactivated=\"false\"><syncScope mode=\"full\"></syncScope><breakpoint xmlns:adtcore=\"http://www.sap.com/adt/core\" kind=\"line\" clientId=\"bp82\" skipCount=\"0\" adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_dbg_demo/source/main#start=82\"/></dbg:breakpoints>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "235",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "186514.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 235,
+  "zeroByteBody": false,
+  "sha256": "48f4af05b173112bc1c65d8194c8ccb985d187bd7d19037ff00a0bf838b46901",
+  "utcTimestamp": "2026-07-31T23:49:01.700Z",
+  "durationMs": 293,
+  "sessionName": "A"
+}

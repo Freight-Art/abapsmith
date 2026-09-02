@@ -1,0 +1,31 @@
+{
+  "n": 452,
+  "label": "ver-quicksearch-ddls",
+  "expect": "a real DDLS name to use for the objectStructure leg",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=I_*&maxResults=5&objectType=DDLS",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "371",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "616234.000000",
+    "sap-server": "true"
+  },
+  "byteLength": 1292,
+  "zeroByteBody": false,
+  "sha256": "68b8b7a0cd5353293ceb5f23bc3937598cc386da8b67bd5c99838a103df4e563",
+  "utcTimestamp": "2026-08-01T08:19:32.764Z",
+  "durationMs": 663,
+  "sessionName": "A"
+}

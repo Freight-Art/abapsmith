@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><aunit:runResult xmlns:aunit="http://www.sap.com/adt/aunit"><alerts><alert kind="noTestClasses" severity="tolerable"><title>The task definition does not refer to any test</title></alert></alerts></aunit:runResult>

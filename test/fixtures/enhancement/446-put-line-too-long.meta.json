@@ -1,0 +1,35 @@
+{
+  "n": 446,
+  "label": "w44-put",
+  "expect": null,
+  "note": null,
+  "requestMethod": "PUT",
+  "requestPath": "/sap/bc/adt/oo/classes/zcl_mcp_badi_real/source/main?lockHandle=4AE9FFCB45F911A198AE7D65C40867578A39AC04",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "acmpEXNVJqD4MNl4oPDC7A==",
+    "Content-Type": "text/plain; charset=utf-8"
+  },
+  "requestBody": "CLASS zcl_mcp_badi_real DEFINITION PUBLIC FINAL CREATE PUBLIC.\n  PUBLIC SECTION.\n    INTERFACES if_oo_adt_classrun.\nENDCLASS.\n\nCLASS zcl_mcp_badi_real IMPLEMENTATION.\n  METHOD if_oo_adt_classrun~main.\n    DATA lo_tool TYPE REF TO if_enh_tool.\n    DATA lo_impl TYPE REF TO cl_enh_tool_badi_impl.\n    DATA lv_hits TYPE i.\n    SELECT DISTINCT enhname FROM enhheader UP TO 600 ROWS INTO TABLE @DATA(lt_enh).\n    out->write( |CANDIDATES { lines( lt_enh ) }| ).\n    LOOP AT lt_enh INTO DATA(ls_enh).\n      IF lv_hits >= 3. EXIT. ENDIF.\n      TRY.\n          lo_tool = cl_enh_factory=>get_enhancement( enhancement_id = ls_enh-enhname run_dark = abap_true ).\n          IF lo_tool->get_tool( ) <> cl_enh_tool_badi_impl=>tooltype. CONTINUE. ENDIF.\n          lo_impl ?= lo_tool.\n          LOOP AT lo_impl->get_implementations( ) INTO DATA(ls_i).\n            IF lines( ls_i-filter_values ) = 0. CONTINUE. ENDIF.\n            lv_hits = lv_hits + 1.\n            out->write( |=== { ls_enh-enhname } / { ls_i-badi_name } / { ls_i-impl_name }| ).\n            LOOP AT ls_i-filter_root INTO DATA(ls_r).\n              out->write( |  ROOT root={ ls_r-root } ids={ lines( ls_r-filters ) }| ).\n              LOOP AT ls_r-filters INTO DATA(lv_id).\n                out->write( |    rootfilter id={ lv_id }| ).\n              ENDLOOP.\n            ENDLOOP.\n            LOOP AT ls_i-filter_tree INTO DATA(ls_t).\n              out->write( |  TREE parent={ ls_t-parent } child={ ls_t-child }| ).\n            ENDLOOP.\n            LOOP AT ls_i-filter_values INTO DATA(ls_v).\n              out->write( |  VALUE id={ ls_v-id } name=[{ ls_v-filter_name }] type=[{ ls_v-filter_type }] cmp=[{ ls_v-compare }] c1=[{ ls_v-filter_char_value1 }] c2=[{ ls_v-filter_char_value2 }] g1=[{ ls_v-filter_general_value1 }] s1=[{ ls_v-filter_string_value1 }] len={ ls_v-check_length } ctype=[{ ls_v-check_type }] isdom=[{ ls_v-check_type_is_dom }]| ).\n            ENDLOOP.\n            LOOP AT ls_i-filters INTO DATA(ls_f).\n              out->write( |  FLAT name=[{ ls_f-filter_name }] cmp=[{ ls_f-compare }] c1=[{ ls_f-filter_char_value1 }] conj={ ls_f-conj_idx } disj={ ls_f-disj_idx }| ).\n            ENDLOOP.\n            EXIT.\n          ENDLOOP.\n        CATCH cx_root.\n          CONTINUE.\n      ENDTRY.\n    ENDLOOP.\n    out->write( |HITS { lv_hits }| ).\n  ENDMETHOD.\nENDCLASS.\n",
+  "responseStatus": 400,
+  "responseStatusText": "Bad Request",
+  "responseHeaders": {
+    "content-length": "663",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "14660.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 663,
+  "zeroByteBody": false,
+  "sha256OfRawBody": "51c152f2e6b042261e9d7112b3991b6d20eb0aa94eb521d595dde2b0ae338437",
+  "redactions": null,
+  "bodyFile": "446-w44-put.xml",
+  "utcTimestamp": "2026-08-05T16:15:17.619Z",
+  "durationMs": 66,
+  "sessionName": "A"
+}

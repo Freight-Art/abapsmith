@@ -1,0 +1,30 @@
+{
+  "method": "POST",
+  "url": "/sap/bc/adt/programs/programs/zmcp_cts_probe",
+  "qs": {
+    "_action": "LOCK",
+    "accessMode": "MODIFY"
+  },
+  "requestHeaders": {
+    "Accept": "application/*,application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.result",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateful",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "set-cookie": "<REDACTED>",
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.lock.Result",
+    "content-length": "397",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "174992.000000"
+  },
+  "threw": false,
+  "bodyFile": "lock-transportable-object.xml",
+  "bodyBytes": 397
+}

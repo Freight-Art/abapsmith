@@ -1,0 +1,13 @@
+{
+  "//": "Type-checks resolved-package.fixture.ts ALONE, in its own project separate from tsconfig.json's breaker-required.fixture.ts — a failure in one brand's compile-time law must not block or mask the other's. Same reason for a dedicated project as that file's header: the root tsconfig excludes test/. Driven from ../../resolved-package-types.test.ts.",
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../..",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["./resolved-package.fixture.ts", "../../src/types/proxy-from-env.d.ts"],
+  "exclude": []
+}

@@ -1,0 +1,30 @@
+{
+  "n": 826,
+  "label": "p4-quicksearch-view-v-t000-star",
+  "expect": "discover mixed-subtype VIEW group",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=V_T000*&maxResults=20",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "109",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "113017.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 109,
+  "zeroByteBody": false,
+  "sha256": "8bd71d71ab3d970db382497df6b579b1c03cc311f1f8d61d2762950f895f53fc",
+  "utcTimestamp": "2026-08-20T16:11:50.379Z",
+  "durationMs": 264,
+  "sessionName": "LIVE-305"
+}

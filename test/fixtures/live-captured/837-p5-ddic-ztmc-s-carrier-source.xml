@@ -1,0 +1,11 @@
+@EndUserText.label : 'Carrier (flat view with description)'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define structure ztmc_s_carrier {
+  carrier_id  : ztmc_e_carrid;
+  name        : ztmc_e_carrname;
+  address     : ztmc_e_addr;
+  phone       : ztmc_e_phone;
+  email       : ztmc_e_email;
+  description : ztmc_e_descr;
+
+}

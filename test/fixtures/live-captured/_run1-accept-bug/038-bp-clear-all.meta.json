@@ -1,0 +1,33 @@
+{
+  "n": 38,
+  "label": "bp-clear-all",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/breakpoints",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "M-O7p7Fl7HnhWnZGnJei-Q==",
+    "Content-Type": "application/xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dbg:breakpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\" scope=\"external\" debuggingMode=\"user\" requestUser=\"DEVELOPER\" terminalId=\"ZMCPCAPTURE000000000000000000001\" ideId=\"ZMCPCAPTUREIDE000000000000000000\" systemDebugging=\"false\" deactivated=\"false\"><syncScope mode=\"full\"></syncScope></dbg:breakpoints>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "100",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "158256.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 100,
+  "zeroByteBody": false,
+  "sha256": "2f37438a14e5238af3c4cf93a7e59d78e6a75c036581f96c231a3cb935415d86",
+  "utcTimestamp": "2026-07-31T23:38:59.275Z",
+  "durationMs": 336,
+  "sessionName": "A"
+}

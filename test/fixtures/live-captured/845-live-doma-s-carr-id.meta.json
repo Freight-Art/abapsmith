@@ -1,0 +1,34 @@
+{
+  "n": 845,
+  "label": "live-doma-s-carr-id",
+  "expect": null,
+  "note": "Live capture for the DOMA S_CARR_ID fixture-provenance verification against the A4H appliance. Captured via the MCP abap_read tool (format=\"raw\", object=\"S_CARR_ID\", type=\"DOMA\") from the built server under test, NOT via a raw HTTP wire-capture harness -- unlike 076-p2-packageref-tabl-t000.meta.json (captured at the HTTP layer), this tool interface does not expose the raw status line or header block. responseStatus is inferred from tool success (isError=false, complete non-error XML body); responseHeaders is left empty because it was never observed, not because it was empty on the wire. requestHeaders below is boilerplate (never captured, never sent by this harness beyond what ADT auth requires) shown only for shape-parity with the convention.",
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/domains/s_carr_id",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK (inferred, not observed -- see note)",
+  "responseHeaders": {},
+  "byteLength": 1780,
+  "zeroByteBody": false,
+  "sha256": "85dbbff5014b1b1e2e61a54839b897da7a7092d521adf0bbf7c40dcd1c399001",
+  "utcTimestamp": "2026-08-28T10:44:20.000Z",
+  "durationMs": 1093,
+  "sessionName": "live-test",
+  "toolCall": {
+    "tool": "abap_read",
+    "arguments": { "object": "S_CARR_ID", "type": "DOMA", "format": "raw", "limit": 200000 }
+  },
+  "toolReportedResponse": "complete (truncated=false hasMore=false returnedLines=1 totalLines=1)",
+  "buildUnderTest": {
+    "worktree": "<WORKTREE>",
+    "branch": "<BRANCH>",
+    "headCommit": "27b23be",
+    "headCommitNote": "The capture was taken under 2f9a8d4, a pre-rebase commit that exists on no ref and cannot be resolved. 27b23be is its rebased counterpart on the branch, same commit subject. `git diff 2f9a8d4 f00e2b4 -- src/adt/types.ts src/adt/ddic.ts` is empty, so the code that builds the request path is byte-identical between the two and the requestUrl recorded above is unaffected. Verified by diff, not assumed."
+  }
+}

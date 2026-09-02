@@ -1,0 +1,36 @@
+{
+  "n": 196,
+  "label": "w11-create-t4-task",
+  "expect": "same, but corrNr = the task rather than the request",
+  "note": null,
+  "requestMethod": "POST",
+  "requestPath": "/sap/bc/adt/enhancements/enhoxhh?corrNr=A4HK900161",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "rPZnuEQ1iEt3c5bcnBwqFA==",
+    "Content-Type": "application/vnd.sap.adt.enh.enhoxhh.v2+xml",
+    "Accept": "application/vnd.sap.adt.enh.enhoxhh.v2+xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><enho:enhancement xmlns:enho=\"http://www.sap.com/adt/enhancements/enho\" xmlns:adtcore=\"http://www.sap.com/adt/core\" adtcore:name=\"ZMCP_ENH_T4\" adtcore:type=\"ENHO/XHH\" adtcore:description=\"ZMCP transport probe\" adtcore:masterLanguage=\"EN\" adtcore:language=\"EN\" adtcore:responsible=\"DEVELOPER\"><adtcore:packageRef adtcore:name=\"ZMCP_BADI_T\"/><enho:contentCommon enho:toolType=\"HOOK_IMPL\" enho:adjustmentStatus=\"manual-adjustment\"><enho:usages><enho:referencedObject enho:program_id=\"R3TR\" enho:element_usage=\"REDO\" enho:upgrade=\"false\" enho:automatic_transport=\"false\"><enho:objectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host2\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST2\"/><enho:mainObjectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host2\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST2\"/></enho:referencedObject></enho:usages></enho:contentCommon><enho:contentSpecific><enho:hookTechnology enho:nextId=\"2\"><enho:enhancedObject adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host2\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST2\"/><enho:hookImplementation enho:id=\"1\" enho:spotname=\"\" enho:programname=\"ZMCP_BADI_HOST2\" enho:overwrite=\"\" enho:method=\"\" enho:enhmode=\"D\" enho:full_name=\"\\PR:ZMCP_BADI_HOST2\\FO:COMPUTE\\SE:END\\EI\" enho:full_description=\"Form COMPUTE, End\"/></enho:hookTechnology></enho:contentSpecific></enho:enhancement>",
+  "responseStatus": 400,
+  "responseStatusText": "Bad Request",
+  "responseHeaders": {
+    "content-length": "572",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "240665.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 572,
+  "zeroByteBody": false,
+  "sha256OfRawBody": "721ca7186f3be2f15685a482bb4b50ebd821721d0fb488b5e8cb602d289ae9c4",
+  "redactions": null,
+  "bodyFile": "196-w11-create-t4-task.xml",
+  "utcTimestamp": "2026-08-05T15:46:04.799Z",
+  "durationMs": 354,
+  "sessionName": "A"
+}

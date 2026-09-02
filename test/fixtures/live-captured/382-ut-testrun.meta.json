@@ -1,0 +1,35 @@
+{
+  "n": 382,
+  "label": "ut-testrun",
+  "expect": "synchronous run result envelope containing one pass and one failure",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/abapunit/testruns",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "rnldcLMouQYVzrm1IdBm_g==",
+    "Content-Type": "application/*",
+    "Accept": "application/*"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<aunit:runConfiguration xmlns:aunit=\"http://www.sap.com/adt/aunit\">\n  <external>\n    <coverage active=\"false\"/>\n  </external>\n  <options>\n    <uriType value=\"semantic\"/>\n    <testDeterminationStrategy sameProgram=\"true\" assignedTests=\"false\"/>\n    <testRiskLevels harmless=\"true\" dangerous=\"true\" critical=\"true\"/>\n    <testDurations short=\"true\" medium=\"true\" long=\"true\"/>\n    <withNavigationUri enabled=\"true\"/>\n  </options>\n  <adtcore:objectSets xmlns:adtcore=\"http://www.sap.com/adt/core\">\n    <objectSet kind=\"inclusive\">\n      <adtcore:objectReferences>\n        <adtcore:objectReference adtcore:uri=\"/sap/bc/adt/oo/classes/zcl_zmcp_ut_probe\"/>\n      </adtcore:objectReferences>\n    </objectSet>\n  </adtcore:objectSets>\n</aunit:runConfiguration>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "688",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "559383.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 2157,
+  "zeroByteBody": false,
+  "sha256": "81cfc7e2dec799e0b36aa74186097662fc1853ac31f2b9f35e20e61a1efd1f90",
+  "utcTimestamp": "2026-08-01T08:13:32.169Z",
+  "durationMs": 610,
+  "sessionName": "A"
+}

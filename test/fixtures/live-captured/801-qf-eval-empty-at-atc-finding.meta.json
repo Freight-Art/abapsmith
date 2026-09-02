@@ -1,0 +1,32 @@
+{
+  "n": 801,
+  "label": "qf-eval-empty-at-atc-finding",
+  "note": "HOP 1 at the ATC finding's own position (line 6 col 0, the BREAK-POINT line): HTTP 200 with an EMPTY qf:evaluationResults. The ATC finding advertises a quickfix; the source-position engine offers none.",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/quickfixes/evaluation?uri=%2Fsap%2Fbc%2Fadt%2Fprograms%2Fprograms%2Fzmcp_qf_probe1%2Fsource%2Fmain%23start%3D6%2C0",
+  "requestHeaders": {
+    "Content-Type": "application/*",
+    "Accept": "application/*"
+  },
+  "requestBody": "REPORT zmcp_qf_probe1.\r\n\r\nDATA lv_text TYPE string.\r\nDATA lv_unused TYPE i.\r\n\r\nBREAK-POINT.\r\n\r\nMOVE 'abc' TO lv_text.\r\n\r\nTRANSLATE lv_text TO UPPER CASE.\r\n\r\nWRITE / lv_text.",
+  "requestBodyBytes": 173,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml; charset=utf-8",
+    "content-length": "106",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "5983010.000000"
+  },
+  "byteLength": 106,
+  "zeroByteBody": false,
+  "sha256": "ca6f27fe0204795e54176b2eea2721dd609cd37ba31ba25f69fd49bee61c0fc6",
+  "utcTimestamp": "2026-08-18T22:47:50.893Z",
+  "durationMs": 6107,
+  "sessionName": "QF",
+  "capturedBy": "scratchpad probes for the quickfix Phase 0 feasibility gate, driven through src/adt/connection.ts AbapConnection against the A4H sandbox appliance. REAL wire recording - not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the connection layer and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host/IP is deliberately not recorded.",
+  "baitSourceNote": "The ABAP source echoed inside requestBody is BAIT invented for this probe (program ZMCP_QF_PROBE1 in $TMP, created and deleted by the probe). It is not customer code and is not a repository artefact."
+}

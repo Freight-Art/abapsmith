@@ -1,0 +1,35 @@
+{
+  "n": 273,
+  "label": "w17-verify-spot",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/enhancements/enhsxs/zmcp_spot",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "7wQPgdTwjQv-qU5gAukBmg==",
+    "Accept": "application/vnd.sap.adt.enh.enhs.v1+xml"
+  },
+  "requestBody": null,
+  "responseStatus": 400,
+  "responseStatusText": "Session timed out",
+  "responseHeaders": {
+    "connection": "close",
+    "content-type": "text/html",
+    "date": "Wed, 05 Aug 2026 15:51:34 GMT",
+    "pragma": "no-cache",
+    "sap-err-id": "ICMENOSESSION",
+    "set-cookie": "<redacted>",
+    "x-sap-icm-err-id": "ICMENOSESSION"
+  },
+  "byteLength": 45,
+  "zeroByteBody": false,
+  "sha256OfRawBody": "8628fce16875246082fc04b9ebdce5dfcbe4824caf63e13e7e055ebbccfdc1d9",
+  "redactions": null,
+  "bodyFile": "273-w17-verify-spot.txt",
+  "utcTimestamp": "2026-08-05T15:51:34.668Z",
+  "durationMs": 127,
+  "sessionName": "A"
+}

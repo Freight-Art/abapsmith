@@ -1,0 +1,32 @@
+{
+  "n": 811,
+  "label": "qf-proposal-factory-method-two-insertions",
+  "note": "HOP 2 for generate_factory_method, one of the two PARAMETERISED proposals (hop 1 returned a prefilled <userContent> for it). This request sent an EMPTY <userContent></userContent> and the server still produced a full valid two-unit delta, so echoing the prefilled userContent is not required for the default fix. Two insertion units at #start=4,17 and #start=8,25, ascending.",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/quickfixes/proposals/providers/refactoring/quickfixes/generate_factory_method",
+  "requestHeaders": {
+    "Content-Type": "application/*",
+    "Accept": "application/*"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n  <quickfixes:proposalRequest xmlns:quickfixes=\"http://www.sap.com/adt/quickfixes\"\n     xmlns:adtcore=\"http://www.sap.com/adt/core\">\n    <input>\n      <content>REPORT zmcp_qf_probe1.\r\n\r\nCLASS lcl DEFINITION.\r\n  PUBLIC SECTION.\r\n    METHODS run.\r\nENDCLASS.\r\n\r\nCLASS lcl IMPLEMENTATION.\r\nENDCLASS.</content>\n      <adtcore:objectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_qf_probe1/source/main#start=3,0\"/>\n    </input>\n    <userContent></userContent>\n  </quickfixes:proposalRequest>",
+  "requestBodyBytes": 535,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml; charset=utf-8",
+    "content-length": "891",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "96938.000000"
+  },
+  "byteLength": 891,
+  "zeroByteBody": false,
+  "sha256": "b8d0fdcb8671b38e7ac8ae00a8b6172557da8124229386a27e0f1cb181e598d1",
+  "utcTimestamp": "2026-08-18T23:33:30.808Z",
+  "durationMs": 176,
+  "sessionName": "QF4",
+  "capturedBy": "scratchpad probes for the quickfix-proposal multi-unit ordering feasibility gate, driven through src/adt/connection.ts AbapConnection against the A4H sandbox appliance. REAL wire recording - not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the connection layer and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host/IP is deliberately not recorded.",
+  "baitSourceNote": "The ABAP source echoed inside requestBody is BAIT invented for this probe (program ZMCP_QF_PROBE1 in $TMP, created and deleted by the probe). It is not customer code and is not a repository artefact."
+}

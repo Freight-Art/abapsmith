@@ -1,0 +1,28 @@
+{
+  "method": "POST",
+  "url": "/sap/bc/adt/cts/transportchecks",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.transport.service.checkData",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "Content-Type": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.transport.service.checkData",
+    "X-sap-adt-sessiontype": "stateful",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><asx:abap xmlns:asx=\"http://www.sap.com/abapxml\" version=\"1.0\"><asx:values><DATA><DEVCLASS>Z_FLIGHT_ADDITIONAL</DEVCLASS><OPERATION>U</OPERATION><URI>/sap/bc/adt/programs/programs/zmcp_d1_a01</URI></DATA></asx:values></asx:abap>",
+  "threw": false,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "set-cookie": "<REDACTED>",
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.transport.service.checkData",
+    "content-length": "567",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "57613.000000"
+  },
+  "bodyFile": "transport-info-after-create-with-corrnr.xml",
+  "bodyBytes": 1372
+}

@@ -1,0 +1,31 @@
+{
+  "n": 823,
+  "label": "p3-quicksearch-ddls-i-star",
+  "expect": "control: single-subtype group DDLS, expect correct descriptions",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=I_*&objectType=DDLS&maxResults=5",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "371",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "285107.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1292,
+  "zeroByteBody": false,
+  "sha256": "68b8b7a0cd5353293ceb5f23bc3937598cc386da8b67bd5c99838a103df4e563",
+  "utcTimestamp": "2026-08-20T16:11:45.004Z",
+  "durationMs": 579,
+  "sessionName": "LIVE-305"
+}

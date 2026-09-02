@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dbg:attach xmlns:dbg="http://www.sap.com/adt/debugger"
+  isRfc="false"
+  isSameSystem="true"
+  serverName="A4HSANDBOX_A4H_01"
+  debugSessionId="session123"
+  processId="42"
+  isPostMortem="false"
+  isUserAuthorizedForChanges="true"
+  debuggeeSessionId="debuggee456"
+  abapTraceState="OFF"
+  canAdvancedTableFeatures="true"
+  isNonExclusive="false"
+  isNonExclusiveToggled="false"
+  guiEditorGuid=""
+  sessionTitle="TESTUSER"
+  isSteppingPossible="true"
+  isTerminationPossible="true">
+  <dbg:actions>
+    <dbg:action name="stepInto" style="push" group="stepping" title="Step Into"/>
+    <dbg:action name="stepOver" style="push" group="stepping" title="Step Over"/>
+  </dbg:actions>
+  <dbg:reachedBreakpoints>
+    <dbg:breakpoint id="BP001" kind="line"/>
+  </dbg:reachedBreakpoints>
+</dbg:attach>

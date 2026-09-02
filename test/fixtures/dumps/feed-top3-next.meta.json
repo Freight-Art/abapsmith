@@ -1,0 +1,31 @@
+{
+  "label": "f-top3-next",
+  "what": "Dump feed, $top=3 — 3 entries plus rel=self and rel=next cursor links.",
+  "sourceCapture": "10-f-top3-next.body.xml",
+  "sourceCaptureDir": "local capture session 2026-08-11 (not committed)",
+  "capturedUtc": "2026-08-11",
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/runtime/dumps?%24top=3",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "*/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "4122",
+    "content-type": "application/atom+xml;type=feed"
+  },
+  "byteLength": 43562,
+  "byteLengthAfterRedaction": 43562,
+  "zeroByteBody": false,
+  "sha256OfRedactedBody": "530f729a84c95cd5a06d8778c5cf9517c972b2d6e809007af7d1f18c68a88a0e",
+  "redactions": [
+    "hostname token -> \"a4hsandbox\" (15x, same 10-char length)"
+  ],
+  "redactionPolicy": "Length-preserving substitution only. No other byte was altered: percent-encoding, %20 padding runs, attribute order, XML escaping and the absent trailing newline are as captured.",
+  "bodyFile": "feed-top3-next.xml",
+  "durationMs": 273
+}

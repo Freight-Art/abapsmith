@@ -1,0 +1,32 @@
+{
+  "n": 815,
+  "label": "p1-ddic-structure-t000-0001-source",
+  "expect": "independent ground truth: T000_0001 structure definition",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/structures/t000_0001/source/main",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "324",
+    "content-type": "text/plain; charset=utf-8",
+    "etag": "20180528111251001text/plain2",
+    "last-modified": "Mon, 28 May 2018 11:12:51 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "200122.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 324,
+  "zeroByteBody": false,
+  "sha256": "a1f4ffe6fa942843bffffe07fb1d2978a27bb1446718fa3e4e007f64d867fcef",
+  "utcTimestamp": "2026-08-20T16:09:49.438Z",
+  "durationMs": 422,
+  "sessionName": "LIVE-305"
+}

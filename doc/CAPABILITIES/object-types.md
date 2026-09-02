@@ -1,0 +1,148 @@
+## Object types
+
+This lists every ABAP object type abapsmith has a registry entry for, with
+what it can and cannot do to each. The table below is derived mechanically
+from `src/adt/capabilities.ts` and `src/adt/types.ts` and is pinned by
+`test/capability-matrix-doc.test.ts`: a registry change that is not
+reflected here fails the suite. See [legend.md](legend.md) for what `yes`,
+`partial`, `no`, `n/a`, `live`, `tests`, `mixed` and `unverified` mean.
+
+### How the object rows are derived
+
+- **Create** — `yes` when the type is in `VERIFIED_CREATABLE_TYPES`; `no` when
+  it is in `BRIDGE_CREATE_REFUSED_TYPES`, which wins over the bridge rule
+  below — the bridge is implemented and described, but abapsmith refuses to
+  run it for any package, so nothing is created;
+  `partial` when it is in `BRIDGE_CREATABLE_TYPES` (creation goes through a
+  generated `IF_OO_ADT_CLASSRUN` bridge class, not ADT REST); `partial` when
+  it has an out-of-registry create site (the enhancement types, which
+  `abap_enh` creates without a registry `create` field); otherwise `no`.
+- **Read** — `no` when the type has no `TypeSpec` in `src/adt/types.ts`, so no
+  URI can be built for it at all; `yes` when the spec's `mode` is `source`, or
+  when `mode` is `ddic` and `ddicStrategy(kind)` is not `unsupported`;
+  otherwise `partial`, meaning a non-default read mode is required
+  (`format: "raw"` or `enhancements: true`).
+- **Update** — `yes` when the registry entry has a `write` field, which is
+  what `abap_write` needs to resolve a change target; otherwise `no`.
+- **Delete** — `yes` when the type is in `DELETABLE_TYPES`; `partial` when it
+  is in `BRIDGE_DELETABLE_TYPES`; `partial` when it is one of the three
+  enhancement types, which `abap_enh` deletes on a path the registry has no
+  field for; otherwise `no`.
+- **Activate** — `yes` when `activate` is `true`; `n/a` when it is `false`,
+  which the registry uses for types that are born active; otherwise `no`.
+- **Evidence** — `live` when the registry carries a live-verification flag,
+  which includes a flag set to `false`: the registry uses `false` to mean
+  "tried against a live system and does not reliably work," so a `false` is
+  itself live evidence and the note says which way it went. Otherwise
+  `unverified` when the row claims any write route, and `tests` when the row
+  claims none, because a pure refusal row is exactly what the tests pin.
+
+The `unverified` marker means the registry carries no live-verification flag
+for that type — nothing more. It is not a claim that the type is known
+broken; it is an honest absence of evidence either way.
+
+Two facts the registry alone cannot express, because they are hand-maintained
+inputs to this derivation rather than registry fields:
+
+- `scripts/gen-capability-table.mjs` exports `OUT_OF_REGISTRY_CREATE`, naming
+  the three enhancement create sites the registry has no `create` field for.
+- Enhancement delete has no registry footprint at all. `deleteEnhancementObject`
+  in `src/adt/enhancement-write.ts` really deletes `ENHO/XH`, `ENHO/XHH` and
+  `ENHS/XS`, but none of the three appears in `DELETABLE_TYPES` or
+  `BRIDGE_DELETABLE_TYPES`, and `abap_write` with `op: "delete"` refuses them.
+  The `partial` in those cells comes from a hand-maintained list in the guard
+  test, labelled as such.
+
+### Table
+
+| Type | Object | Create | Read | Update | Delete | Activate | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `CLAS/OC` | Class | yes | yes | yes | yes | yes | live |
+| `INTF/OI` | Interface | yes | yes | yes | yes | yes | live |
+| `PROG/P` | Program | yes | yes | yes | yes | yes | live |
+| `PROG/I` | Include | no | yes | no | no | no | tests |
+| `FUGR/F` | Function group | yes | yes | yes | yes | yes | live |
+| `FUGR/FF` | Function module | yes | yes | yes | yes | yes | live |
+| `FUGR/I` | Function group include | no | yes | no | no | no | tests |
+| `DDLS/DF` | CDS view / DDL source | yes | yes | yes | yes | yes | live |
+| `DDLX/EX` | Metadata extension | yes | yes | yes | yes | yes | live |
+| `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
+| `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
+| `XSLT/VT` | Transformation | no | yes | no | no | no | tests |
+| `ENHO/XH` | BAdI implementation | partial | partial | no | partial | yes | tests |
+| `ENHO/XHH` | Enhancement source plug-in | partial | yes | yes | partial | no | unverified |
+| `ENHS/XS` | Enhancement spot | partial | partial | no | partial | yes | tests |
+| `TABL/DT` | Database table | yes | yes | yes | yes | yes | live |
+| `TABL/DS` | Structure | yes | yes | yes | yes | yes | live |
+| `DTEL/DE` | Data element | yes | yes | yes | yes | yes | live |
+| `DOMA/DD` | Domain | yes | yes | yes | yes | yes | live |
+| `TTYP/DA` | Table type | yes | yes | yes | yes | yes | live |
+| `MSAG/N` | Message class | yes | partial | yes | yes | n/a | live |
+| `ENQU/DL` | Lock object | no | partial | yes | no | yes | live |
+| `DEVC/K` | Package | partial | yes | no | partial | no | unverified |
+| `SRVB/SVB` | Service binding | yes | partial | yes | yes | yes | live |
+| `SHLP/DH` | Search help | no | no | no | no | no | tests |
+| `VIEW/DV` | Classic view | no | no | no | partial | no | unverified |
+| `TRAN/T` | Transaction | partial | no | no | partial | no | unverified |
+| `PROG/PS` | Screen (dynpro) | no | no | no | no | no | tests |
+| `PROG/PC` | GUI status (CUA status) | no | no | no | no | no | tests |
+| `PROG/PT` | GUI title (titlebar) | no | no | no | no | no | tests |
+| `SUSO/B` | Authorization object | no | no | no | no | no | tests |
+| `TABL/DI` | Table secondary index | no | no | no | no | no | tests |
+
+The `Object` column values are the registry `label` fields, unreworded.
+
+### Object row notes
+
+- `BDEF/BDO` — create is `yes`, delete is `no`, and the `no` is live-disproven
+  rather than unimplemented: the registry records `delete: false` after two
+  delete calls reported success on a live system and the object was still
+  there afterwards. The create verification rests on a raw-wire probe made
+  outside abapsmith, not on a tool call.
+- `ENQU/DL` — the registry records `create.verified: false`: creation was
+  attempted against a live system and does not reliably work, so the create
+  gate is shut. Update works. Delete is `"unverified"` in the registry, which
+  is why the cell is `no` rather than `partial` — nothing has established it
+  either way, and the gate stays shut until something does. Names are
+  restricted to the `EZ` and `EY` prefixes.
+- `MSAG/N` — activation is `n/a` because a message class is born active.
+  Reading needs `format: "raw"`; a single raw document has been observed in
+  the hundreds of thousands of characters, so the read is windowed by
+  character count rather than by line.
+- `DEVC/K` — a package can be created (through both an ADT create and a
+  bridge create) and can be deleted, but only while empty, and it can never
+  be rewritten: there is no `write` field, so `abap_write` cannot resolve a
+  change target for one. Create carries no live-verification flag.
+- `VIEW/DV` and `TRAN/T` — create and delete only, both through a generated
+  `IF_OO_ADT_CLASSRUN` bridge class. There is no `TypeSpec` for either, so
+  `abap_read` cannot build a URI and there is no read-back at all: after
+  creating one you cannot ask abapsmith what it looks like. There is no
+  source write either, so an existing one cannot be changed — only deleted
+  and recreated. Their `bridgeCreate.limits` text states this, and a test
+  requires it to. `VIEW/DV` is further restricted: its create is refused for
+  every package, `$TMP` and an omitted `package` included, so the Create cell
+  reads `no`. The bridge code and its recon stay in the tree behind that one
+  refusal — see the `createRefused` field on its registry entry, which is also
+  the single text `abap_read`'s hint and `abap_write`'s refusal both render.
+- `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
+  by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
+  Enhancement writes are double-gated on the `allowEnhancements` and
+  `allowEnhancementDelete` configuration, and a delete is refused outright
+  when any BAdI implementation involved is still active. Reading `ENHO/XH`
+  and `ENHS/XS` needs `enhancements: true`. Every enhancement mutation is
+  journalled irreversible and undo refuses it unconditionally, with no
+  `force` override.
+- `ENHO/XHH` create is restricted to a `PROG/P` host by literal string
+  equality. Hook anchors on a class are discoverable, but creating a hook
+  implementation on one is refused; a function group would be refused the
+  same way.
+- `SHLP/DH`, `PROG/PS`, `PROG/PC`, `PROG/PT`, `SUSO/B`, `TABL/DI` — carry an
+  `unsupported` entry: no read, no write, no URI. For `TABL/DI` the
+  registry's stated reason is abapsmith's own reach, explicitly not a proven
+  ADT limitation.
+- `PROG/I`, `FUGR/I`, `XSLT/VT` — readable, and nothing more: bare registry
+  entries with no create, write, delete, or activate field.
+- `SRVB/SVB` — reading needs `format: "raw"`; create, activate, read-back and
+  delete over the ADT business-services binding path are live-verified. This
+  is a different path from the OData metadata read described under RAP,
+  which is not.

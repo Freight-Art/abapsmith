@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SYNTHETIC. Hand-written, not a captured wire response. See README.md in this
+     directory. Modelled on the shape SAP's OData V2 runtime emits for a RAP
+     service binding, but no part of it was recorded from a live system. -->
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" xmlns:sap="http://www.sap.com/Protocols/SAPData">
+ <edmx:DataServices m:DataServiceVersion="2.0">
+  <Schema Namespace="ZTRAVEL_SRV" xml:lang="en" sap:schema-version="1" xmlns="http://schemas.microsoft.com/ado/2008/09/edm">
+   <EntityType Name="TravelType" sap:label="Travel" sap:content-version="1">
+    <Key>
+     <PropertyRef Name="TravelUUID"/>
+    </Key>
+    <Property Name="TravelUUID" Type="Edm.Guid" Nullable="false" sap:label="Travel UUID" sap:creatable="false" sap:updatable="false" sap:sortable="false" sap:filterable="false"/>
+    <Property Name="TravelID" Type="Edm.String" MaxLength="8" sap:label="Travel Number" sap:creatable="false" sap:updatable="false"/>
+    <Property Name="AgencyID" Type="Edm.String" MaxLength="6" sap:label="Agency" sap:required-in-filter="true" sap:text="AgencyName"/>
+    <Property Name="AgencyName" Type="Edm.String" MaxLength="80" sap:label="Agency Name" sap:creatable="false" sap:updatable="false" sap:sortable="false"/>
+    <Property Name="CustomerID" Type="Edm.String" MaxLength="6" sap:label="Customer"/>
+    <Property Name="BeginDate" Type="Edm.DateTime" Precision="0" sap:label="Start Date" sap:display-format="Date"/>
+    <Property Name="EndDate" Type="Edm.DateTime" Precision="0" sap:label="End Date" sap:display-format="Date"/>
+    <Property Name="BookingFee" Type="Edm.Decimal" Precision="16" Scale="3" sap:label="Booking Fee" sap:unit="CurrencyCode"/>
+    <Property Name="TotalPrice" Type="Edm.Decimal" Precision="16" Scale="3" sap:label="Total Price" sap:creatable="false" sap:updatable="false" sap:unit="CurrencyCode"/>
+    <Property Name="CurrencyCode" Type="Edm.String" MaxLength="5" sap:label="Currency" sap:semantics="currency-code"/>
+    <Property Name="Description" Type="Edm.String" MaxLength="1024" sap:label="Description" sap:filterable="false"/>
+    <Property Name="OverallStatus" Type="Edm.String" MaxLength="1" sap:label="Status" sap:creatable="false"/>
+    <Property Name="LastChangedAt" Type="Edm.DateTimeOffset" Precision="7" sap:label="Last Changed At" sap:creatable="false" sap:updatable="false"/>
+    <NavigationProperty Name="to_Booking" Relationship="ZTRAVEL_SRV.assoc_TravelToBooking" FromRole="FromRole_assoc_TravelToBooking" ToRole="ToRole_assoc_TravelToBooking"/>
+    <NavigationProperty Name="to_Agency" Relationship="ZTRAVEL_SRV.assoc_Missing" FromRole="FromRole_assoc_Missing" ToRole="ToRole_assoc_Missing"/>
+   </EntityType>
+   <EntityType Name="BookingType" sap:label="Booking" sap:content-version="1">
+    <Key>
+     <PropertyRef Name="TravelUUID"/>
+     <PropertyRef Name="BookingUUID"/>
+    </Key>
+    <Property Name="TravelUUID" Type="Edm.Guid" Nullable="false" sap:label="Travel UUID" sap:creatable="false" sap:updatable="false"/>
+    <Property Name="BookingUUID" Type="Edm.Guid" Nullable="false" sap:label="Booking UUID" sap:creatable="false" sap:updatable="false"/>
+    <Property Name="BookingID" Type="Edm.String" MaxLength="4" sap:label="Booking Number" sap:creatable="false" sap:updatable="false"/>
+    <Property Name="BookingDate" Type="Edm.DateTime" Precision="0" sap:label="Booking Date" sap:display-format="Date"/>
+    <Property Name="CustomerID" Type="Edm.String" MaxLength="6" sap:label="Customer"/>
+    <Property Name="CarrierID" Type="Edm.String" MaxLength="3" sap:label="Airline"/>
+    <Property Name="ConnectionID" Type="Edm.String" MaxLength="4" sap:label="Flight Number"/>
+    <Property Name="FlightDate" Type="Edm.DateTime" Precision="0" sap:label="Flight Date" sap:display-format="Date"/>
+    <Property Name="FlightPrice" Type="Edm.Decimal" Precision="16" Scale="3" sap:label="Flight Price" sap:unit="CurrencyCode"/>
+    <Property Name="CurrencyCode" Type="Edm.String" MaxLength="5" sap:label="Currency" sap:semantics="currency-code"/>
+    <NavigationProperty Name="to_Travel" Relationship="ZTRAVEL_SRV.assoc_TravelToBooking" FromRole="ToRole_assoc_TravelToBooking" ToRole="FromRole_assoc_TravelToBooking"/>
+   </EntityType>
+   <Association Name="assoc_TravelToBooking" sap:content-version="1">
+    <End Type="ZTRAVEL_SRV.TravelType" Multiplicity="1" Role="FromRole_assoc_TravelToBooking"/>
+    <End Type="ZTRAVEL_SRV.BookingType" Multiplicity="*" Role="ToRole_assoc_TravelToBooking"/>
+   </Association>
+   <EntityContainer Name="ZTRAVEL_SRV_Entities" m:IsDefaultEntityContainer="true" sap:supported-formats="atom json xlsx">
+    <EntitySet Name="Travel" EntityType="ZTRAVEL_SRV.TravelType" sap:label="Travel" sap:creatable="true" sap:updatable="true" sap:deletable="true" sap:pageable="true" sap:searchable="true" sap:content-version="1"/>
+    <EntitySet Name="Booking" EntityType="ZTRAVEL_SRV.BookingType" sap:label="Booking" sap:creatable="true" sap:updatable="true" sap:deletable="false" sap:pageable="true" sap:searchable="false" sap:addressable="false" sap:content-version="1"/>
+    <AssociationSet Name="assoc_TravelToBookingSet" Association="ZTRAVEL_SRV.assoc_TravelToBooking" sap:creatable="false" sap:updatable="false" sap:deletable="false" sap:content-version="1">
+     <End EntitySet="Travel" Role="FromRole_assoc_TravelToBooking"/>
+     <End EntitySet="Booking" Role="ToRole_assoc_TravelToBooking"/>
+    </AssociationSet>
+    <FunctionImport Name="acceptTravel" ReturnType="ZTRAVEL_SRV.TravelType" EntitySet="Travel" m:HttpMethod="POST" sap:action-for="ZTRAVEL_SRV.TravelType">
+     <Parameter Name="TravelUUID" Type="Edm.Guid" Mode="In"/>
+    </FunctionImport>
+    <FunctionImport Name="getTravelPrice" ReturnType="Edm.Decimal" m:HttpMethod="GET">
+     <Parameter Name="TravelUUID" Type="Edm.Guid" Mode="In"/>
+     <Parameter Name="CurrencyCode" Type="Edm.String" Mode="In" MaxLength="5"/>
+    </FunctionImport>
+   </EntityContainer>
+  </Schema>
+ </edmx:DataServices>
+</edmx:Edmx>

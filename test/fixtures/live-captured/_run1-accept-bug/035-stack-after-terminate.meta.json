@@ -1,0 +1,35 @@
+{
+  "n": 35,
+  "label": "stack-after-terminate",
+  "expect": "expect 500 noSessionAttached",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/stack?method=getStack&emode=_&semanticURIs=true",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "M-O7p7Fl7HnhWnZGnJei-Q==",
+    "Accept": "application/vnd.sap.as+xml"
+  },
+  "requestBody": null,
+  "responseStatus": 500,
+  "responseStatusText": "Internal Server Error",
+  "responseHeaders": {
+    "connection": "close",
+    "content-encoding": "gzip",
+    "content-length": "452",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "12917.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1290,
+  "zeroByteBody": false,
+  "sha256": "1de8b5619f9efc0020422b8a5b1a9cbf6cb2c99e5b36ffd5a5592849e865a183",
+  "utcTimestamp": "2026-07-31T23:38:58.456Z",
+  "durationMs": 59,
+  "sessionName": "A"
+}

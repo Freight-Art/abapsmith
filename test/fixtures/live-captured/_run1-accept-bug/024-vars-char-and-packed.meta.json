@@ -1,0 +1,35 @@
+{
+  "n": 24,
+  "label": "vars-char-and-packed",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=getVariables",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "M-O7p7Fl7HnhWnZGnJei-Q==",
+    "Content-Type": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.Variables",
+    "Accept": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.Variables"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><asx:abap xmlns:asx=\"http://www.sap.com/abapxml\" version=\"1.0\"><asx:values><DATA><STPDA_ADT_VARIABLE><ID>LT_ITEMS[1]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[1]-MATERIAL</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[1]-CATEGORY</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[1]-UNIT_PRICE</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LV_GRAND_TOTAL</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LV_AVERAGE</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LV_COUNTER</ID></STPDA_ADT_VARIABLE></DATA></asx:values></asx:abap>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "708",
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.debugger.Variables",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "15746.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 4984,
+  "zeroByteBody": false,
+  "sha256": "7ce73a61aa733499db2c47e5a4ca8e69d2b28d2284cc109fd2a3a610135cf194",
+  "utcTimestamp": "2026-07-31T23:38:56.866Z",
+  "durationMs": 52,
+  "sessionName": "A"
+}

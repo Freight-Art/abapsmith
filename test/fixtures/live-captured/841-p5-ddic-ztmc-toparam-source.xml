@@ -1,0 +1,11 @@
+@EndUserText.label : 'Transport order customizing parameters'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztmc_toparam {
+  key mandt      : mandt not null;
+  key trans_mode : ztmc_e_tmode not null;
+  def_carrier    : ztmc_e_carrid;
+
+}

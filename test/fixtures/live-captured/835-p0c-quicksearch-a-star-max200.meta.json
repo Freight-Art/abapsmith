@@ -1,0 +1,31 @@
+{
+  "n": 835,
+  "label": "p0c-quicksearch-a-star-max200",
+  "expect": "decisive cap test: does a broad A* query return exactly 200 rows at maxResults=200, the ceiling abap_search can actually request?",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=A*&maxResults=200",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "6122",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "433871.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 51696,
+  "zeroByteBody": false,
+  "sha256": "f1eecbab5f1f2f5c0dfa1d66872affb08e9c49a538cf818467404c5711352156",
+  "utcTimestamp": "2026-08-20T16:14:28.389Z",
+  "durationMs": 778,
+  "sessionName": "LIVE-305"
+}

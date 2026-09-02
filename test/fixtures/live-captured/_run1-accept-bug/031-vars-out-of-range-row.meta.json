@@ -1,0 +1,33 @@
+{
+  "n": 31,
+  "label": "vars-out-of-range-row",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=getVariables",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "M-O7p7Fl7HnhWnZGnJei-Q==",
+    "Content-Type": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.Variables",
+    "Accept": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.Variables"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><asx:abap xmlns:asx=\"http://www.sap.com/abapxml\" version=\"1.0\"><asx:values><DATA><STPDA_ADT_VARIABLE><ID>LT_ITEMS[99]-ITEM_ID</ID></STPDA_ADT_VARIABLE></DATA></asx:values></asx:abap>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "0",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "10770.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 0,
+  "zeroByteBody": true,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "utcTimestamp": "2026-07-31T23:38:58.044Z",
+  "durationMs": 54,
+  "sessionName": "A"
+}

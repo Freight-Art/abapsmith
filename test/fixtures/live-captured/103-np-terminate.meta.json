@@ -1,0 +1,35 @@
+{
+  "n": 103,
+  "label": "np-terminate",
+  "expect": "HTTP 500 is the SUCCESS shape here, do not treat as failure",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=terminateDebuggee",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "vGjVjD6Yj4yRPuQ7IhKclQ==",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 500,
+  "responseStatusText": "Internal Server Error",
+  "responseHeaders": {
+    "connection": "close",
+    "content-encoding": "gzip",
+    "content-length": "458",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "13140.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1300,
+  "zeroByteBody": false,
+  "sha256": "22089dea73fdb23e44198d4b4f8830f2157b0aecb6e919acd8702e08025f1f1a",
+  "utcTimestamp": "2026-07-31T23:54:51.916Z",
+  "durationMs": 146,
+  "sessionName": "A"
+}

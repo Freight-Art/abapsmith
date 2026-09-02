@@ -1,0 +1,36 @@
+{
+  "n": 138,
+  "label": "w3-put-objdoc",
+  "expect": "null round trip: is the whole-object lane writable?",
+  "note": null,
+  "requestMethod": "PUT",
+  "requestPath": "/sap/bc/adt/enhancements/enhoxhh/zmcp_enh_b?lockHandle=B686C0631B76AED3A7B9E6E38CBD7FAAD4CE2C55",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "PFnGlplRigzvwtJqtTp7HQ==",
+    "Content-Type": "application/vnd.sap.adt.enh.enhoxhh.v2+xml",
+    "Accept": "application/vnd.sap.adt.enh.enhoxhh.v2+xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"utf-8\"?><enho:enhancement abapsource:sourceUri=\"./zmcp_enh_b/source/main\" abapsource:fixPointArithmetic=\"false\" abapsource:activeUnicodeCheck=\"false\" adtcore:responsible=\"DEVELOPER\" adtcore:masterLanguage=\"EN\" adtcore:masterSystem=\"A4H\" adtcore:name=\"ZMCP_ENH_B\" adtcore:type=\"ENHO/XHH\" adtcore:changedAt=\"2026-08-05T15:39:16Z\" adtcore:version=\"inactive\" adtcore:createdAt=\"2026-08-05T15:39:16Z\" adtcore:changedBy=\"DEVELOPER\" adtcore:createdBy=\"DEVELOPER\" adtcore:description=\"ZMCP recon hook impl\" adtcore:language=\"EN\" xmlns:enho=\"http://www.sap.com/adt/enhancements/enho\" xmlns:abapsource=\"http://www.sap.com/adt/abapsource\" xmlns:adtcore=\"http://www.sap.com/adt/core\"><atom:link href=\"./zmcp_enh_b/source/main\" rel=\"http://www.sap.com/adt/relations/source\" type=\"text/plain\" title=\"Source Content\" etag=\"anDnLRBrLHIyXEslUCs0IWaw9vE=\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"./zmcp_enh_b/source/main\" rel=\"http://www.sap.com/adt/relations/source\" type=\"text/html\" title=\"Source Content (HTML)\" etag=\"\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"./zmcp_enh_b?version=active\" rel=\"http://www.sap.com/adt/relations/objectstates\" title=\"Complementary active/inactive version\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"./zmcp_enh_b/source/main/versions\" rel=\"http://www.sap.com/adt/relations/versions\" title=\"Historic versions\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/vit/wb/object_type/enhoxh/object_name/ZMCP_ENH_B\" rel=\"self\" type=\"application/vnd.sap.sapgui\" title=\"Representation in SAP Gui\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/programs/programs/zmcp_badi_host/enhancements/options?enhancementImplementation=ZMCP_ENH_B\" rel=\"http://www.sap.com/adt/relations/enhancementOptionsOfEnhancedObject\" type=\"application/vnd.sap.adt.enhancementoptions.v2+xml\" title=\"Enhancement Options\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><adtcore:packageRef adtcore:uri=\"/sap/bc/adt/packages/%24tmp\" adtcore:type=\"DEVC/K\" adtcore:name=\"$TMP\" adtcore:description=\"Temporary Objects (never transported!)\"/><enho:contentCommon enho:toolType=\"HOOK_IMPL\"><enho:usages><enho:referencedObject enho:program_id=\"R3TR\" enho:element_usage=\"REDO\" enho:upgrade=\"false\" enho:automatic_transport=\"false\"><enho:objectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST\"/><enho:mainObjectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST\"/></enho:referencedObject><enho:referencedObject enho:program_id=\"LIMU\" enho:element_usage=\"REDI\" enho:parent=\"#///contentCommon/usages/1\" enho:upgrade=\"false\" enho:automatic_transport=\"false\"><enho:objectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST\"/><enho:mainObjectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST\"/></enho:referencedObject></enho:usages></enho:contentCommon><enho:contentSpecific><enho:hookTechnology enho:nextId=\"2\"><enho:enhancedObject adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_badi_host\" adtcore:type=\"PROG/P\" adtcore:name=\"ZMCP_BADI_HOST\"/><enho:hookImplementation enho:id=\"1\" enho:spotname=\"\" enho:programname=\"ZMCP_BADI_HOST\" enho:overwrite=\"\" enho:method=\"\" enho:enhmode=\"D\" enho:full_name=\"\\PR:ZMCP_BADI_HOST\\FO:COMPUTE\\SE:END\\EI\" enho:full_description=\" Form COMPUTE, End\"><atom:link href=\"/sap/bc/adt/programs/programs/zmcp_badi_host/source/main#start=11,0\" rel=\"enclosure\" title=\"The enclosing object\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/></enho:hookImplementation></enho:hookTechnology></enho:contentSpecific></enho:enhancement>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "0",
+    "etag": "ne5lemdOzFXtZHHI/yZ2sSFK0xI=",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "149624.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 0,
+  "zeroByteBody": true,
+  "sha256OfRawBody": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "redactions": null,
+  "bodyFile": "138-w3-put-objdoc.txt",
+  "utcTimestamp": "2026-08-05T15:40:10.646Z",
+  "durationMs": 194,
+  "sessionName": "A"
+}

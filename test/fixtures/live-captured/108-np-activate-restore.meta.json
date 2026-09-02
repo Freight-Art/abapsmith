@@ -1,0 +1,34 @@
+{
+  "n": 108,
+  "label": "np-activate-restore",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/activation?method=activate&preauditRequested=true",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "vGjVjD6Yj4yRPuQ7IhKclQ==",
+    "Content-Type": "application/xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><adtcore:objectReferences xmlns:adtcore=\"http://www.sap.com/adt/core\"><adtcore:objectReference adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_dbg_demo\" adtcore:name=\"ZMCP_DBG_DEMO\"/></adtcore:objectReferences>",
+  "responseStatus": 403,
+  "responseStatusText": "Forbidden",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "751",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "41048.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1558,
+  "zeroByteBody": false,
+  "sha256": "226a7a11a20e0d57e96b27a46ebe26234354059a93f87745b461d2ae59bba833",
+  "utcTimestamp": "2026-07-31T23:54:52.826Z",
+  "durationMs": 96,
+  "sessionName": "A"
+}

@@ -1,0 +1,28 @@
+{
+  "method": "POST",
+  "url": "/sap/bc/adt/cts/transportrequests/searchconfiguration/configurations",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.adt.configuration.v1+xml",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 201,
+  "statusText": "Created",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.configuration.v1+xml; charset=utf-8",
+    "content-length": "398",
+    "location": "/sap/bc/adt/cts/transportrequests/searchconfiguration/configurations/1A2263E0A4E31FE1A3B6BDE618A5D650",
+    "etag": "20260801143317",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "112353.000000"
+  },
+  "threw": false,
+  "bodyFile": "transport-search-configuration-created.xml",
+  "bodyBytes": 1337
+}

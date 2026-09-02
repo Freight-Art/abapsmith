@@ -1,0 +1,29 @@
+{
+  "method": "GET",
+  "url": "/sap/bc/adt/cts/transportrequests",
+  "qs": {
+    "user": "DEVELOPER",
+    "targets": false
+  },
+  "requestHeaders": {
+    "Accept": "*/*",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.transportorganizertree.v1+xml; charset=utf-8",
+    "content-length": "1166",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "126145.000000"
+  },
+  "threw": false,
+  "bodyFile": "user-transports-targets-false.xml",
+  "bodyBytes": 15828
+}

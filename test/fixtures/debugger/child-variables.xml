@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+    <DATA>
+      <HIERARCHIES>
+        <STPDA_ADT_VARIABLE_HIERARCHY>
+          <PARENT_ID>@ROOT</PARENT_ID>
+          <CHILD_ID>LV_COUNT</CHILD_ID>
+          <CHILD_NAME>LV_COUNT</CHILD_NAME>
+        </STPDA_ADT_VARIABLE_HIERARCHY>
+        <STPDA_ADT_VARIABLE_HIERARCHY>
+          <PARENT_ID>@ROOT</PARENT_ID>
+          <CHILD_ID>LS_DATA</CHILD_ID>
+          <CHILD_NAME>LS_DATA</CHILD_NAME>
+        </STPDA_ADT_VARIABLE_HIERARCHY>
+      </HIERARCHIES>
+      <VARIABLES>
+        <STPDA_ADT_VARIABLE>
+          <ID>LV_COUNT</ID>
+          <NAME>LV_COUNT</NAME>
+          <META_TYPE>simple</META_TYPE>
+          <VALUE>42</VALUE>
+        </STPDA_ADT_VARIABLE>
+        <STPDA_ADT_VARIABLE>
+          <ID>LS_DATA</ID>
+          <NAME>LS_DATA</NAME>
+          <META_TYPE>structure</META_TYPE>
+        </STPDA_ADT_VARIABLE>
+      </VARIABLES>
+    </DATA>
+  </asx:values>
+</asx:abap>

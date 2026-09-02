@@ -1,0 +1,29 @@
+{
+  "method": "POST",
+  "url": "/sap/bc/adt/cts/transportchecks",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.transport.service.checkData",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "Content-Type": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.transport.service.checkData",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><asx:abap xmlns:asx=\"http://www.sap.com/abapxml\" version=\"1.0\"><asx:values><DATA><DEVCLASS>Z_FLIGHT_ADDITIONAL</DEVCLASS><OPERATION>I</OPERATION><URI>/sap/bc/adt/programs/programs/zmcp_tr_gone1/source/main</URI></DATA></asx:values></asx:abap>",
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.transport.service.checkData",
+    "content-length": "566",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "74558.000000"
+  },
+  "threw": false,
+  "bodyFile": "transport-info-transportable-new-object.xml",
+  "bodyBytes": 1287,
+  "capturedFrom": "A4H live appliance, 2026-08-01",
+  "note": "transportchecks pre-flight for a not-yet-existing object in a transportable package."
+}

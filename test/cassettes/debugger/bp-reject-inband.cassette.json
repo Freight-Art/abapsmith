@@ -1,0 +1,42 @@
+{
+  "id": "bp-reject-inband",
+  "recordedAt": "2026-07-31T23:49:01.700Z",
+  "recordedDurationMs": 293,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/012-bp-reject-comment-line.meta.json + test/fixtures/live-captured/012-bp-reject-comment-line.xml",
+    "notes": "IMPORTANT: HTTP 200 does NOT mean success here. The server rejects a breakpoint on a comment line by returning 200 OK with an in-band errorMessage attribute on the <breakpoint> element (\"Cannot create a breakpoint at this position\") rather than a non-2xx status. A caller that checks only the HTTP status code will silently believe the breakpoint was set. Authorization/Cookie/set-cookie header values were already redacted at the source (placeholders preserved as-is)."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/debugger/breakpoints",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "DiImM74G-dVI0t2U5VqRsQ==",
+      "Content-Type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dbg:breakpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\" scope=\"external\" debuggingMode=\"user\" requestUser=\"DEVELOPER\" terminalId=\"ZMCPCAPTURE000000000000000000001\" ideId=\"ZMCPCAPTUREIDE000000000000000000\" systemDebugging=\"false\" deactivated=\"false\"><syncScope mode=\"full\"></syncScope><breakpoint xmlns:adtcore=\"http://www.sap.com/adt/core\" kind=\"line\" clientId=\"bp82\" skipCount=\"0\" adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_dbg_demo/source/main#start=82\"/></dbg:breakpoints>"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-length": "235",
+      "content-type": "application/xml; charset=utf-8",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "186514.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dbg:breakpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\"><breakpoint kind=\"line\" clientId=\"bp82\" errorMessage=\"Cannot create a breakpoint at this position\" nonAbapFlavour=\"\"/></dbg:breakpoints>"
+  }
+}

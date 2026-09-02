@@ -1,0 +1,26 @@
+{
+  "method": "POST",
+  "url": "/sap/bc/adt/cts/transportrequests/A4HK900122/newreleasejobs",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/*",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.transportorganizer.v1+xml; charset=utf-8",
+    "content-length": "432",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "235614.000000"
+  },
+  "threw": false,
+  "bodyFile": "transport-release-abort-already-released.xml",
+  "bodyBytes": 1219
+}

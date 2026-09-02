@@ -1,0 +1,69 @@
+#!/usr/bin/env node
+// abap-journal-reconcile — thin shim that spawns the compiled CLI.
+//
+// PORTABILITY: this file used to be `#!/usr/bin/env bash`. It is
+// declared in package.json's `bin` map, and npm ALWAYS includes `bin` targets
+// in the published tarball (regardless of the `files` allowlist) and generates
+// a `cmd-shim` `.cmd`/`.ps1` wrapper for them on Windows. That wrapper invokes
+// the target with its shebang interpreter — and stock Windows has no `bash`,
+// so this entry point was dead on arrival there. It is now `#!/usr/bin/env
+// node`, matching the other entry points (`dist/index.js`, `bin/abap-
+// contract`), both of which are already Node.
+//
+// This does NOT amount to a claim that abapsmith runs on Windows. Nothing in
+// this repo has ever been executed on Windows, so
+// Windows support remains UNVERIFIED; this change removes one known blocker
+// and nothing more.
+//
+// See src/bin/journal-reconcile.ts for what this actually does (read-only
+// reconciliation of stranded `pending` journal entries) and its safety
+// constraints (read-only GETs against the ABAP server only; `--apply` only
+// ever appends locally to the journal, never touches the network).
+//
+// WHY SPAWN AND NOT `import()` — this is the same reasoning as bin/abap-
+// contract's header, and it is load-bearing, not stylistic. `dist/bin/journal-
+// reconcile.js` gates its own `main()` behind an `invokedAsProgram()` check
+// that compares `realpathSync(process.argv[1])` against its own module path
+// (see the bottom of src/bin/journal-reconcile.ts). A same-process dynamic
+// `import()` would leave `argv[1]` pointing at THIS file, the check would fail,
+// and `main()` would silently never run — the CLI would exit 0 having done
+// nothing. A real child process keeps `argv[1]` correct.
+//
+// WHY realpathSync — this replaces the `while [ -h "$SOURCE" ]; do ... readlink
+// ...` loop the bash version had, and it is not redundant. npm's bin linking
+// means this script is normally invoked THROUGH a symlink
+// (node_modules/.bin/abap-journal-reconcile -> ../abapsmith/bin/abap-journal-
+// reconcile), and `../dist/bin/journal-reconcile.js` is only correct relative
+// to the REAL location. Node does resolve the main module's symlinks by
+// default, so `import.meta.url` is usually already real — but not under
+// `--preserve-symlinks-main` / `--preserve-symlinks`, which a user can set via
+// NODE_OPTIONS. realpathSync makes the resolution independent of that flag,
+// exactly as the shell loop was.
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+
+const self = fileURLToPath(import.meta.url);
+const here = dirname(realpathSync(self));
+const compiled = join(here, "..", "dist", "bin", "journal-reconcile.js");
+
+if (!existsSync(compiled)) {
+  process.stderr.write(`abap-journal-reconcile: ${compiled} does not exist yet — run "npm run build" first.\n`);
+  process.exit(2);
+}
+
+const child = spawn(process.execPath, [compiled, ...process.argv.slice(2)], { stdio: "inherit" });
+child.on("exit", (code, signal) => {
+  if (signal) {
+    // Re-raise the child's terminating signal on ourselves so `$?` is 128+N,
+    // exactly as it was when the bash version `exec`d node in place.
+    process.kill(process.pid, signal);
+  } else {
+    process.exit(code ?? 1);
+  }
+});
+child.on("error", (err) => {
+  process.stderr.write(`abap-journal-reconcile: failed to spawn ${compiled}: ${err.message}\n`);
+  process.exit(1);
+});
