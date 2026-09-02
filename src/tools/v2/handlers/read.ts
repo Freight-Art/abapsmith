@@ -18,6 +18,7 @@
  * rationale: the git history.
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -37,11 +38,20 @@ import { liftV1Result, unknownValue } from "../unknown.js";
 const KNOWN_VIEWS = ["source", "contract", "method", "diff", "metadata", "outline", "bopf", "fpm"] as const;
 const UNSUPPORTED_VIEWS = new Set(["diff"]);
 
-/** Path to `dist/bin/contract.js`, relative to this file's own compiled
- *  location (`dist/tools/v2/handlers/read.js`). */
+/** Path to the compiled contract entry point, resolved from this module's own
+ *  location. Two layouts ship it: `tsc` output, where this file is
+ *  `dist/tools/v2/handlers/read.js` and the target is `dist/bin/contract.js`;
+ *  and the single-file plugin bundle, where this module is inlined into
+ *  `bundle/index.js` and the target sits at `bundle/bin/contract.js`. The
+ *  first candidate that exists wins; with neither present the `tsc` path is
+ *  returned so the spawn fails where a missing build has always failed. */
 function compiledContractEntryPoint(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "..", "bin", "contract.js");
+  const distLayout = join(here, "..", "..", "..", "bin", "contract.js");
+  if (existsSync(distLayout)) return distLayout;
+  const bundleLayout = join(here, "bin", "contract.js");
+  if (existsSync(bundleLayout)) return bundleLayout;
+  return distLayout;
 }
 
 interface SpawnedContract {

@@ -28,6 +28,11 @@ const FAKE_SID = "S4H";
 const FAKE_INSTANCE = "00";
 const FAKE_SESSION_TOKEN = `${FAKE_HOSTNAME}_${FAKE_SID}_${FAKE_INSTANCE}`;
 
+// The one appliance name the scanner exempts — SAP's published NPL developer
+// edition, which `abap-adt-api` names in a JSDoc example that `bundle/`
+// inlines. Assembled the same way as the rest, for the reasons in the header.
+const PUBLIC_DEMO_HOSTNAME = `${APPLIANCE_PREFIX}nplci`;
+
 // A syntactically routable placeholder address — not in any RFC 1918/3927
 // or RFC 5737 documentation block the scanner's own allowlist exempts —
 // assembled the same way so it never appears as a literal dotted-quad here.
@@ -45,6 +50,19 @@ describe("plaintext rules (unchanged baseline)", () => {
     const findings = scanLines([`host: ${FAKE_HOSTNAME}`]);
     expect(
       findings.some((f) => f.rule.includes("appliance hostname") && f.hit === FAKE_HOSTNAME),
+    ).toBe(true);
+  });
+
+  it("exempts the published developer-edition appliance name the bundle inlines", () => {
+    const findings = scanLines([`Base url, i.e. http://${PUBLIC_DEMO_HOSTNAME}.local:8000`]);
+    expect(findings.filter((f) => f.rule.includes("appliance hostname"))).toEqual([]);
+  });
+
+  it("exempts that one name only, not every name sharing its prefix", () => {
+    const lookalike = `${PUBLIC_DEMO_HOSTNAME}2`;
+    const findings = scanLines([`host: ${lookalike}`]);
+    expect(
+      findings.some((f) => f.rule.includes("appliance hostname") && f.hit === lookalike),
     ).toBe(true);
   });
 });

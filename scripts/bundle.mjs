@@ -1,0 +1,127 @@
+/**
+ * Builds the committed single-file plugin bundle under `bundle/`.
+ *
+ * Claude Code installs a plugin by copying the repository; it never runs
+ * `npm install` or a build step. The MCP server therefore has to be runnable
+ * straight from a checkout, which means its runtime dependencies and its
+ * TypeScript both have to be resolved ahead of time and committed.
+ *
+ * Two entry points, because `src/tools/v2/handlers/read.ts` deliberately runs
+ * the contract reducer as a CHILD PROCESS so `@abaplint/core` stays out of the
+ * server's import graph. Bundling them together would undo that. The layout
+ * mirrors `dist/` closely enough for `compiledContractEntryPoint()` to find the
+ * second from the first:
+ *
+ *   bundle/index.js        <- src/index.ts        (the MCP server)
+ *   bundle/bin/contract.js <- src/bin/contract.ts (spawned, carries abaplint)
+ *
+ * Run via `npm run bundle`. A committed build has exactly one failure mode that
+ * matters: someone edits `src/`, the whole gate stays green, and users keep
+ * running the old code. `bundle/BUILD-MANIFEST.json` records a digest over
+ * every input, and `test/plugin-bundle.test.ts` recomputes it, so drift fails
+ * the suite instead of shipping. That test imports `sourceDigest` from here,
+ * which is why the build itself only runs when this file is the entry point.
+ */
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+export const ENTRY_POINTS = [
+  { entry: "src/index.ts", out: "bundle/index.js" },
+  { entry: "src/bin/contract.ts", out: "bundle/bin/contract.js" },
+];
+
+export const MANIFEST_PATH = "bundle/BUILD-MANIFEST.json";
+
+/** Every `.ts` under `src/`, repo-relative and POSIX-separated, in a stable order. */
+export function sourceFiles(root = repoRoot) {
+  const found = [];
+  const walk = (dir) => {
+    const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1));
+    for (const e of entries) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name.endsWith(".ts")) found.push(relative(root, full).split(sep).join("/"));
+    }
+  };
+  walk(join(root, "src"));
+  return found;
+}
+
+/**
+ * Digest over everything that determines the bundle's contents: each source
+ * file's path and bytes, the declared dependency ranges esbuild inlines, and
+ * the package version — a dependency bump changes the output without touching
+ * a single `src/` byte.
+ */
+export function sourceDigest(root = repoRoot) {
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const h = createHash("sha256");
+  h.update(`version:${pkg.version}\n`);
+  for (const [name, range] of Object.entries(pkg.dependencies ?? {}).sort()) h.update(`dep:${name}@${range}\n`);
+  for (const file of sourceFiles(root)) {
+    h.update(`file:${file}\n`);
+    h.update(readFileSync(join(root, file)));
+  }
+  return h.digest("hex");
+}
+
+/**
+ * CJS dependencies reached through esbuild's interop still expect `require`,
+ * `__filename` and `__dirname` to exist. In an ESM output file they do not, so
+ * they are reconstructed from `import.meta.url`.
+ */
+const BANNER = [
+  "// GENERATED FILE - DO NOT EDIT. Regenerate with `npm run bundle`.",
+  "// Source of truth is src/; this is the committed build the Claude Code",
+  "// plugin runs, because plugin installation performs no build step.",
+  'import { createRequire as __nodeCreateRequire } from "node:module";',
+  'import { dirname as __nodeDirname } from "node:path";',
+  'import { fileURLToPath as __nodeFileURLToPath } from "node:url";',
+  "const require = __nodeCreateRequire(import.meta.url);",
+  "const __filename = __nodeFileURLToPath(import.meta.url);",
+  "const __dirname = __nodeDirname(__filename);",
+].join("\n");
+
+function build() {
+  const outDir = join(repoRoot, "bundle");
+  const esbuild = join(repoRoot, "node_modules", ".bin", "esbuild");
+
+  rmSync(outDir, { recursive: true, force: true });
+  mkdirSync(join(outDir, "bin"), { recursive: true });
+
+  for (const { entry, out } of ENTRY_POINTS) {
+    execFileSync(
+      esbuild,
+      [
+        join(repoRoot, entry),
+        "--bundle",
+        "--platform=node",
+        "--format=esm",
+        "--target=node20",
+        "--legal-comments=none",
+        `--banner:js=${BANNER}`,
+        `--outfile=${join(repoRoot, out)}`,
+      ],
+      { stdio: ["ignore", "inherit", "inherit"] },
+    );
+    const kib = (statSync(join(repoRoot, out)).size / 1024).toFixed(0);
+    process.stdout.write(`bundle: ${out} <- ${entry} (${kib} KiB)\n`);
+  }
+
+  const manifest = {
+    note: "Generated by scripts/bundle.mjs. sourceDigest covers src/**/*.ts, the declared dependency ranges and the package version; test/plugin-bundle.test.ts fails when it no longer matches.",
+    sourceDigest: sourceDigest(),
+    entryPoints: ENTRY_POINTS,
+  };
+  writeFileSync(join(repoRoot, MANIFEST_PATH), `${JSON.stringify(manifest, null, 2)}\n`);
+  process.stdout.write(`bundle: ${MANIFEST_PATH} written\n`);
+}
+
+const isEntryPoint =
+  process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+if (isEntryPoint) build();
