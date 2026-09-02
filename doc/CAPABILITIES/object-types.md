@@ -137,9 +137,12 @@ The `Object` column values are the registry `label` fields, unreworded.
   implementation on one is refused; a function group would be refused the
   same way.
 - `SHLP/DH`, `PROG/PS`, `PROG/PC`, `PROG/PT`, `SUSO/B`, `TABL/DI` — carry an
-  `unsupported` entry: no read, no write, no URI. For `TABL/DI` the
-  registry's stated reason is abapsmith's own reach, explicitly not a proven
-  ADT limitation.
+  `unsupported` entry: no read, no write, no URI. All but `TABL/DI` state a
+  reason established by live reconnaissance — 404s on every collection, 405s
+  on every write verb, content-free VIT stubs — so the `tests` in their
+  Evidence column grades the refusal the tests pin, not the recon behind it.
+  For `TABL/DI` the registry's stated reason is abapsmith's own reach,
+  explicitly not a proven ADT limitation, and no ADT probe has been run.
 - `PROG/I`, `FUGR/I`, `XSLT/VT` — readable, and nothing more: bare registry
   entries with no create, write, delete, or activate field.
 - `SRVB/SVB` — reading needs `format: "raw"`; create, activate, read-back and
