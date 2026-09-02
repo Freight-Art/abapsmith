@@ -1,0 +1,25 @@
+{
+  "method": "DELETE",
+  "url": "/sap/bc/adt/cts/transportrequests/A4HK999999",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/*",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-length": "0",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "30152.000000"
+  },
+  "threw": false,
+  "bodyFile": "transport-delete-nonexistent-noop.txt",
+  "bodyBytes": 0
+}

@@ -1,0 +1,42 @@
+{
+  "id": "stack-read",
+  "recordedAt": "2026-07-31T23:49:05.673Z",
+  "recordedDurationMs": 62,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/018-stack-2frames.meta.json + test/fixtures/live-captured/018-stack-2frames.xml",
+    "notes": "Filename says '2frames' but the body genuinely contains only 1 <stackEntry> element. This is a confirmed discrepancy, not a transcription error: test/fixtures/live-captured/INDEX.md (around lines 104-109) states verbatim: \"The stack file names overstate the frame count by one. Counting <stackEntry > occurrences: 018-stack-2frames.xml has 1, 031-stack-3frames.xml has 2, 036-stack-after-return.xml has 1, 039-stack-after-error-probes.xml has 1. The labels — and the expect note in 031-stack-3frames.meta.json (\\\"MORE THAN 2 FRAMES - the case no fixture has\\\") — are wrong. No capture in this set has more than 2 stack frames, so the >2-frame case remains uncaptured (see NOT CAPTURED). Trust the bytes, not the file name.\" This cassette uses the real 1-frame body, not an invented 2-frame one. Also settles the URI spelling: adtcore:uri, namespaced, with xmlns:adtcore declared on the stackEntry itself; child element is bare <stackEntry>, not dbg:stackEntry. Authorization/Cookie/set-cookie header values were already redacted at the source (placeholders preserved as-is)."
+  },
+  "request": {
+    "method": "GET",
+    "path": "/sap/bc/adt/debugger/stack?method=getStack&emode=_&semanticURIs=true",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "DiImM74G-dVI0t2U5VqRsQ==",
+      "Accept": "application/xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-length": "597",
+      "content-type": "application/xml; charset=utf-8",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "16668.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dbg:stack isRfc=\"false\" debugCursorStackIndex=\"0\" isSameSystem=\"true\" serverName=\"a4hsandbox_A4H_00\" xmlns:dbg=\"http://www.sap.com/adt/debugger\"><stackEntry stackPosition=\"1\" stackType=\"ABAP\" stackUri=\"/sap/bc/adt/debugger/stack/type/ABAP/position/1\" programName=\"ZMCP_DBG_DEMO\" includeName=\"ZMCP_DBG_DEMO\" line=\"84\" eventType=\"EVENT\" eventName=\"START-OF-SELECTION\" sourceType=\"ABAP\" systemProgram=\"false\" isVit=\"false\" adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_dbg_demo/source/main#start=84,0\" xmlns:adtcore=\"http://www.sap.com/adt/core\"/></dbg:stack>"
+  }
+}

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+    <DATA>
+      <STPDA_DEBUGGEE>
+        <CLIENT>001</CLIENT>
+        <DEBUGGEE_ID>ABC123</DEBUGGEE_ID>
+        <TERMINAL_ID>vsp-12345678</TERMINAL_ID>
+        <IDE_ID>vsp</IDE_ID>
+        <DEBUGGEE_USER>TESTUSER</DEBUGGEE_USER>
+        <PRG_CURR>ZTEST_MCP_CRUD</PRG_CURR>
+        <INCL_CURR>ZTEST_MCP_CRUD</INCL_CURR>
+        <LINE_CURR>15</LINE_CURR>
+        <RFCDEST></RFCDEST>
+        <APPLSERVER>A4HSANDBOX</APPLSERVER>
+        <SYSID>A4H</SYSID>
+        <SYSNR>0</SYSNR>
+        <TSTMP>20251205123456</TSTMP>
+        <DBGEE_KIND>DEBUGGEE</DBGEE_KIND>
+        <IS_ATTACH_IMPOSSIBLE></IS_ATTACH_IMPOSSIBLE>
+        <IS_SAME_SERVER>X</IS_SAME_SERVER>
+        <INSTANCE_NAME>A4H_01</INSTANCE_NAME>
+      </STPDA_DEBUGGEE>
+    </DATA>
+  </asx:values>
+</asx:abap>

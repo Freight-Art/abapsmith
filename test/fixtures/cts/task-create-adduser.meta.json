@@ -1,0 +1,30 @@
+{
+  "method": "POST",
+  "url": "/sap/bc/adt/cts/transportrequests/A4HK900127/tasks",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/*",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "Content-Type": "text/plain",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><tm:root xmlns:tm=\"http://www.sap.com/cts/adt/tm\" tm:number=\"A4HK900127\" tm:targetuser=\"USER1\" tm:useraction=\"newtask\"/>",
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.transportorganizer.v1+xml; charset=utf-8",
+    "content-length": "350",
+    "location": "/sap/bc/adt/cts/transportrequests/A4HK900133",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "64687.000000"
+  },
+  "threw": false,
+  "bodyFile": "task-create-adduser.xml",
+  "bodyBytes": 1425,
+  "capturedFrom": "A4H live appliance, 2026-08-01",
+  "note": "POST .../transportrequests/<trkorr>/tasks - trAddUser response, tm:useraction=tasks."
+}

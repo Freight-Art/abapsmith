@@ -1,0 +1,42 @@
+{
+  "id": "csrf-token-fetch",
+  "recordedAt": "2026-07-31T23:49:01.388Z",
+  "recordedDurationMs": 309,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/011-csrf-fetch-a.meta.json + test/fixtures/live-captured/011-csrf-fetch-a.xml",
+    "notes": "CSRF token fetch via GET with X-CSRF-Token: Fetch. Server returns the token in the x-csrf-token response header. Authorization and set-cookie header values were already redacted at the source (placeholders preserved as-is)."
+  },
+  "request": {
+    "method": "GET",
+    "path": "/sap/bc/adt/debugger/breakpoints/messagetypes",
+    "headers": {
+      "Authorization": "<redacted>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "Fetch"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-encoding": "gzip",
+      "content-length": "233",
+      "content-type": "application/vnd.sap.adt.nameditems.v1+xml; charset=utf-8",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "90361.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>",
+      "x-csrf-token": "DiImM74G-dVI0t2U5VqRsQ=="
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><nameditem:namedItemList xmlns:nameditem=\"http://www.sap.com/adt/nameditem\"><nameditem:totalItemCount>6</nameditem:totalItemCount><nameditem:namedItem><nameditem:name>A</nameditem:name><nameditem:description>Termination</nameditem:description><nameditem:data/></nameditem:namedItem><nameditem:namedItem><nameditem:name>E</nameditem:name><nameditem:description>Error</nameditem:description><nameditem:data/></nameditem:namedItem><nameditem:namedItem><nameditem:name>I</nameditem:name><nameditem:description>Information</nameditem:description><nameditem:data/></nameditem:namedItem><nameditem:namedItem><nameditem:name>S</nameditem:name><nameditem:description>Status</nameditem:description><nameditem:data/></nameditem:namedItem><nameditem:namedItem><nameditem:name>W</nameditem:name><nameditem:description>Warning</nameditem:description><nameditem:data/></nameditem:namedItem><nameditem:namedItem><nameditem:name>X</nameditem:name><nameditem:description>Exit</nameditem:description><nameditem:data/></nameditem:namedItem></nameditem:namedItemList>"
+  }
+}

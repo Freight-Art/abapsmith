@@ -1,0 +1,31 @@
+{
+  "n": 37,
+  "label": "listener-stop",
+  "expect": null,
+  "note": null,
+  "requestMethod": "DELETE",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/listeners?debuggingMode=user&requestUser=DEVELOPER&terminalId=ZMCPCAPTURE000000000000000000001&ideId=ZMCPCAPTUREIDE000000000000000000&checkConflict=false&notifyConflict=true",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "M-O7p7Fl7HnhWnZGnJei-Q=="
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "0",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "19027.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 0,
+  "zeroByteBody": true,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "utcTimestamp": "2026-07-31T23:38:58.924Z",
+  "durationMs": 111,
+  "sessionName": "A"
+}

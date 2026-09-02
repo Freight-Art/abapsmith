@@ -1,0 +1,21 @@
+@EndUserText.label : 'Carrier text table'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztmc_carrier_t {
+  key mandt      : mandt not null;
+  @AbapCatalog.textLanguage
+  @AbapCatalog.foreignKey.screenCheck : false
+  key spras      : spras not null
+    with foreign key t002
+      where spras = ztmc_carrier_t.spras;
+  @AbapCatalog.foreignKey.keyType : #TEXT_KEY
+  @AbapCatalog.foreignKey.screenCheck : false
+  key carrier_id : ztmc_e_carrid not null
+    with foreign key [0..*,1] ztmc_carrier
+      where mandt = ztmc_carrier_t.mandt
+        and carrier_id = ztmc_carrier_t.carrier_id;
+  description    : ztmc_e_descr;
+
+}

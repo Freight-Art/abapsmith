@@ -1,0 +1,13 @@
+{
+  "//": "Type-checks everything under test/cassettes/ (schema.ts, registry.ts, generate-fake-routes.ts, *.test.ts). Modeled on test/types/tsconfig.json: the root tsconfig excludes test/ entirely, so npm run typecheck never touches this directory on its own — this is the isolated project that does, driven from package.json's typecheck:cassettes script.",
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../..",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["./**/*.ts"],
+  "exclude": []
+}

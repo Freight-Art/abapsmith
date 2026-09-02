@@ -1,0 +1,31 @@
+{
+  "label": "rep1-xml-v1",
+  "what": "Dump DETAIL, vnd.sap.adt.runtime.dump.v1+xml — the 20-chapter document.",
+  "sourceCapture": "05-rep1-xml-v1.body.xml",
+  "sourceCaptureDir": "local capture session 2026-08-11 (not committed)",
+  "capturedUtc": "2026-08-11",
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/runtime/dump/20260811123447a4hsandbox_A4H_00%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20DEVELOPER%20%20%20001%20%20%20%20%20%20%20%204",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "application/vnd.sap.adt.runtime.dump.v1+xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "1160",
+    "content-type": "application/vnd.sap.adt.runtime.dump.v1+xml; charset=utf-8"
+  },
+  "byteLength": 4868,
+  "byteLengthAfterRedaction": 4868,
+  "zeroByteBody": false,
+  "sha256OfRedactedBody": "83c2f92bf9fc5be2b9a222c376a9d725a9cd827647665acfa2645a359bc61806",
+  "redactions": [
+    "hostname token -> \"a4hsandbox\" (8x, same 10-char length)"
+  ],
+  "redactionPolicy": "Length-preserving substitution only. No other byte was altered: percent-encoding, %20 padding runs, attribute order, XML escaping and the absent trailing newline are as captured.",
+  "bodyFile": "dump-detail-v1.xml",
+  "durationMs": 304
+}

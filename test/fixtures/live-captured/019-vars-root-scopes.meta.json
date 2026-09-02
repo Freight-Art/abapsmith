@@ -1,0 +1,34 @@
+{
+  "n": 19,
+  "label": "vars-root-scopes",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=getChildVariables",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "DiImM74G-dVI0t2U5VqRsQ==",
+    "Content-Type": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.ChildVariables",
+    "Accept": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.ChildVariables"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><asx:abap version=\"1.0\" xmlns:asx=\"http://www.sap.com/abapxml\"><asx:values><DATA><HIERARCHIES><STPDA_ADT_VARIABLE_HIERARCHY><PARENT_ID>@ROOT</PARENT_ID></STPDA_ADT_VARIABLE_HIERARCHY></HIERARCHIES></DATA></asx:values></asx:abap>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "339",
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.debugger.ChildVariables",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "11508.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 339,
+  "zeroByteBody": false,
+  "sha256": "108f7671492d222f66261ef25d4ffd653d8c623981f9e46c17d1989748d1d794",
+  "utcTimestamp": "2026-07-31T23:49:05.889Z",
+  "durationMs": 210,
+  "sessionName": "A"
+}

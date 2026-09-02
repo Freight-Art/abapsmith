@@ -1,0 +1,41 @@
+{
+  "id": "ddic-namespaced-name-30-chars",
+  "recordedAt": "2026-08-11T14:55:12Z",
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "Live capture against the A4H sandbox appliance (SID A4H, client 001) on 2026-08-11 at 2026-08-11T14:55:12Z, during the entity-kind capability probe. Raw capture artifacts (session scratchpad, not committed): datapreview/B-bofu-bprelshp.body.xml (3002 B decoded, sha256 127b7cc763dedc2202ec02c58bf25e487920237d200506a70d9e649b0ecfc215), datapreview/B-bofu-bprelshp.headers.json (verbatim response headers), datapreview/B-bofu-bprelshp.meta.json (request sidecar), produced by datapreview/capture39.mjs. NOTE the header/body length mismatch is real and not a transcription error: the server sent this response gzip-compressed, so content-length 508 is the COMPRESSED wire length while the stored body is the 3002-byte decoded payload. The headers are stored as received rather than rewritten to match the decoded body.",
+    "notes": "POST /sap/bc/adt/datapreview/ddic?rowNumber=5&ddicEntityName=%2FBOFU%2FCV_BPRELSHPCONTACTPERSON, empty request body, 200. THE NAMESPACED-NAME-LENGTH CASE. /BOFU/CV_BPRELSHPCONTACTPERSON is 30 characters: a 4-character namespace and a 24-character second segment. The endpoint serves it — 200 with 8 columns (RELNR, PARTNER, RELSHP_PARTNER, VALIDUNTILDATE, PAFKT, ABTNR, AUGRP, ISBUSINESSPURPOSECOMPLETED) — but NAMESPACED_NAME_RE capped the second segment at 20 and refused the name client-side with BAD_INPUT, so this request was never sent by the tool. This cassette is the evidence that the refusal was ours and wrong, and it pins the widened cap at the DDIC ceiling of 30 for the WHOLE name. Second fact this pins: the view is genuinely empty on this appliance — every <dataPreview:dataSet/> is self-closing and there is NO <dataPreview:message> element. That is the honest counterpart to ddic-cds-with-parameters-inband-message: zero rows with no message really does mean an empty entity, and the two cassettes together are what make the distinction testable rather than asserted. Anonymisation: appliance.server is the repo's standing pseudonym for the A4H ApplicationServerName. The appliance host name, its container IPv4 and the appliance URL are deliberately absent; Authorization / Cookie / X-CSRF-Token request-header values are replaced with placeholders. Response bytes are unmodified (decoded from gzip, otherwise untouched)."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/ddic?rowNumber=5&ddicEntityName=%2FBOFU%2FCV_BPRELSHPCONTACTPERSON",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 3 cookies>",
+      "X-CSRF-Token": "<redacted>",
+      "Content-Type": "text/plain",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "content-length": "508",
+      "content-encoding": "gzip",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "297475.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>0</dataPreview:totalRows><dataPreview:name>/BOFU/CV_BPRELSHPCONTACTPERSON</dataPreview:name><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:queryExecutionTime>88.7350000</dataPreview:queryExecutionTime><dataPreview:columns><dataPreview:metadata dataPreview:name=\"RELNR\" dataPreview:type=\"C\" dataPreview:description=\"BP Rel. Number\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\" dataPreview:length=\"12\" dataPreview:caseSensitive=\"false\"/><dataPreview:dataSet/></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"PARTNER\" dataPreview:type=\"C\" dataPreview:description=\"BusinessPartner\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\" dataPreview:length=\"10\" dataPreview:caseSensitive=\"false\"/><dataPreview:dataSet/></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"RELSHP_PARTNER\" dataPreview:type=\"C\" dataPreview:description=\"BusinessPartner\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\" dataPreview:length=\"10\" dataPreview:caseSensitive=\"false\"/><dataPreview:dataSet/></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"VALIDUNTILDATE\" dataPreview:type=\"D\" dataPreview:description=\"Valid To\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\" dataPreview:length=\"8\" dataPreview:caseSensitive=\"false\"/><dataPreview:dataSet/></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"PAFKT\" dataPreview:type=\"C\" dataPreview:description=\"Function\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\" dataPreview:length=\"4\" dataPreview:caseSensitive=\"false\"/><dataPreview:dataSet/></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"ABTNR\" dataPreview:type=\"C\" dataPreview:description=\"Department\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\" dataPreview:length=\"4\" dataPreview:caseSensitive=\"false\"/><dataPreview:dataSet/></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"AUGRP\" dataPreview:type=\"C\" dataPreview:description=\"Authorization Group\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\" dataPreview:length=\"4\" dataPreview:caseSensitive=\"false\"/><dataPreview:dataSet/></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"ISBUSINESSPURPOSECOMPLETED\" dataPreview:type=\"C\" dataPreview:description=\"Purpose Completed\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\" dataPreview:length=\"1\" dataPreview:caseSensitive=\"false\"/><dataPreview:dataSet/></dataPreview:columns></dataPreview:tableData>"
+  }
+}

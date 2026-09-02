@@ -1,0 +1,40 @@
+{
+  "id": "ddic-injection-boolean-expression-400",
+  "recordedAt": "2026-08-11T13:06:06Z",
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "Live capture against the A4H sandbox appliance (SID A4H, client 001) on 2026-08-11 at 2026-08-11T13:06:06Z. Raw capture artifacts (session scratchpad, not committed): wire39b/inj_space.body (408 B, sha256 c209595c98e508451bf380dbda8635928c3537a812c5262b23171a7ce031db8e), wire39b/inj_space.hdr (verbatim response status line + headers), wire39b/inj_space.json (request sidecar), produced by wire39b/cap.sh.",
+    "notes": "SECURITY EVIDENCE, second half of the injection pair (see ddic-injection-where-executed-200). ddicEntityName=T000 WHERE 1=1 (URL-encoded in the path) returned HTTP 400 with the message 'A Boolean expression was expected in \"1=1\".' — an ABAP Open-SQL PARSER error about the injected predicate's contents. That is the point: the request did not fail because the name was rejected as an identifier, it failed because the injected text reached the SQL parser and was merely malformed. A 400 here is NOT the server defending itself, and must not be read as one; the 200 in the companion cassette is what the same code path does when the injected predicate happens to be well-formed. Together the two pin that server-side validation of ddicEntityName does not exist. Note the error envelope is identical in shape to ddic-table-not-found-400 (same generic ExceptionDataPreviewGeneral type id), so an injected name cannot be distinguished from a typo'd one by the response alone — another reason validation must happen before the request is issued. Anonymisation: appliance.server is the repo's standing pseudonym for the A4H ApplicationServerName. The appliance's real host name and its container IPv4 are deliberately absent from this file, as is the appliance URL; Authorization / Cookie / X-CSRF-Token request-header values are replaced with placeholders. Response bytes are unmodified. kernelRelease/kernelPatchLevel were read live from GET /sap/bc/adt/system/information on the same day as this capture, not copied from an earlier cassette."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/ddic?rowNumber=3&ddicEntityName=T000%20WHERE%201=1",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 3 cookies>",
+      "X-CSRF-Token": "<redacted>",
+      "Content-Type": "text/plain",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "content-type": "application/xml",
+      "content-length": "408",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "71247.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"http://www.sap.com/adt/wda/dataPreview\"/><type id=\"ExceptionDataPreviewGeneral\"/><message lang=\"EN\">A Boolean expression was expected in \"1=1\".</message><localizedMessage lang=\"EN\">A Boolean expression was expected in \"1=1\".</localizedMessage><properties/></exc:exception>"
+  }
+}

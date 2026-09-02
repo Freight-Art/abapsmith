@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC. Hand-written, not a captured ADT wire response. See README.md in
+     this directory. This is the state an agent gets stuck in most often: the
+     binding exists and is activated, but was never published, so there is no
+     OData service behind /sap/opu/odata and no $metadata to read. The catalogue
+     link is absent, which is what makes the "no link at all" branch reachable. -->
+<srvb:serviceBinding xmlns:srvb="http://www.sap.com/adt/ddic/ServiceBindings"
+                     xmlns:adtcore="http://www.sap.com/adt/core"
+                     xmlns:atom="http://www.w3.org/2005/Atom"
+                     srvb:releaseSupported="false" srvb:published="false" srvb:repair="false"
+                     srvb:bindingCreated="true"
+                     adtcore:responsible="DEVELOPER" adtcore:masterLanguage="EN"
+                     adtcore:masterSystem="A4H" adtcore:name="ZUNPUB_SVB" adtcore:type="SRVB/SVB"
+                     adtcore:version="active" adtcore:description="Never published"
+                     adtcore:language="EN">
+ <atom:link href="/sap/bc/adt/vit/wb/object_type/srvbsvb/object_name/ZUNPUB_SVB" rel="self" type="application/vnd.sap.sapgui" title="Representation in SAP Gui"/>
+ <adtcore:packageRef adtcore:uri="/sap/bc/adt/packages/%24tmp" adtcore:type="DEVC/K" adtcore:name="$TMP"/>
+ <srvb:services srvb:name="ZUNPUB_SRV">
+  <srvb:content srvb:version="0001" srvb:releaseState="notReleased">
+   <srvb:serviceDefinition adtcore:uri="/sap/bc/adt/ddic/srvd/sources/zunpub_srvd" adtcore:type="SRVD/SRV" adtcore:name="ZUNPUB_SRVD"/>
+  </srvb:content>
+ </srvb:services>
+ <srvb:binding srvb:type="ODATA" srvb:version="V2" srvb:category="0">
+  <srvb:implementation adtcore:name=""/>
+ </srvb:binding>
+</srvb:serviceBinding>

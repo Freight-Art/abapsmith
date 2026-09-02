@@ -1,0 +1,28 @@
+{
+  "n": 100,
+  "label": "np-trigger",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/oo/classrun/ZMCP_DBG_RUN",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "X-CSRF-Token": "1W24fOdf_eSFcJD9WALCnw==",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 500,
+  "responseStatusText": "Internal Server Error",
+  "responseHeaders": {
+    "connection": "close",
+    "content-length": "9993",
+    "content-type": "text/html; charset=utf-8"
+  },
+  "byteLength": 9993,
+  "zeroByteBody": false,
+  "sha256": "bc0034d7cb75b039f53d09bda1b0cdba96f59e97ec4faee5449979658033a63a",
+  "utcTimestamp": "2026-07-31T23:54:51.910Z",
+  "durationMs": 613,
+  "sessionName": "B"
+}

@@ -1,0 +1,33 @@
+{
+  "n": 13,
+  "label": "bp-set-accepted",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/breakpoints",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "M-O7p7Fl7HnhWnZGnJei-Q==",
+    "Content-Type": "application/xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><dbg:breakpoints xmlns:dbg=\"http://www.sap.com/adt/debugger\" scope=\"external\" debuggingMode=\"user\" requestUser=\"DEVELOPER\" terminalId=\"ZMCPCAPTURE000000000000000000001\" ideId=\"ZMCPCAPTUREIDE000000000000000000\" systemDebugging=\"false\" deactivated=\"false\"><syncScope mode=\"full\"></syncScope><breakpoint xmlns:adtcore=\"http://www.sap.com/adt/core\" kind=\"line\" clientId=\"bp84\" skipCount=\"0\" adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_dbg_demo/source/main#start=84\"/><breakpoint xmlns:adtcore=\"http://www.sap.com/adt/core\" kind=\"line\" clientId=\"bp93\" skipCount=\"0\" adtcore:uri=\"/sap/bc/adt/programs/programs/zmcp_dbg_demo/source/main#start=93\"/></dbg:breakpoints>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "839",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "159202.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 839,
+  "zeroByteBody": false,
+  "sha256": "46631025393cfebe18bc6d8f3d089fb4087e50b3a8a9ce6e8eedb1a7ad6ae2bb",
+  "utcTimestamp": "2026-07-31T23:38:52.721Z",
+  "durationMs": 345,
+  "sessionName": "A"
+}

@@ -1,0 +1,12 @@
+@EndUserText.label : 'Screen fields T000 maintenance'
+@AbapCatalog.enhancementCategory : #NOT_CLASSIFIED
+define structure t000_0001 {
+  cccor_off  : cccor_off;
+  cccor_actv : cccor_actv;
+  cccor_prot : cccor_prot;
+  cccor_clos : cccor_clos;
+  cccategtxt : cccategtxt;
+  nocliintxt : nocliintxt;
+  copylcktxt : copylcktxt;
+
+}

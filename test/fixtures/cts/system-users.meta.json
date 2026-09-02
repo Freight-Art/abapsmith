@@ -1,0 +1,26 @@
+{
+  "method": "GET",
+  "url": "/sap/bc/adt/system/users",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/atom+xml;type=feed",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/atom+xml;type=feed",
+    "content-length": "841",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "921767.000000"
+  },
+  "threw": false,
+  "bodyFile": "system-users.xml",
+  "bodyBytes": 822
+}

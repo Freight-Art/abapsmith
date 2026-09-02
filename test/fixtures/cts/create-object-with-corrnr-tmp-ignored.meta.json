@@ -1,0 +1,29 @@
+{
+  "method": "POST",
+  "url": "/sap/bc/adt/programs/programs",
+  "qs": {
+    "corrNr": "A4HK900140"
+  },
+  "requestHeaders": {
+    "Accept": "*/*",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "Content-Type": "application/*",
+    "X-sap-adt-sessiontype": "stateful",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <program:abapProgram xmlns:program=\"http://www.sap.com/adt/programs/programs\"\n          xmlns:adtcore=\"http://www.sap.com/adt/core\"\n          adtcore:description=\"abap-mcp D1 tmp+corrNr probe\"\n          adtcore:name=\"ZMCP_D1_C01\" adtcore:type=\"PROG/P\"\n          adtcore:language=\"EN\" adtcore:masterLanguage=\"EN\" \n          adtcore:responsible=\"DEVELOPER\" >\n          <adtcore:packageRef adtcore:name=\"$TMP\"/>\n        </program:abapProgram>",
+  "threw": false,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "set-cookie": "<REDACTED>",
+    "content-length": "0",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "476238.000000"
+  },
+  "bodyFile": "create-object-with-corrnr-tmp-ignored.txt",
+  "bodyBytes": 0
+}

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?><qf:proposalResult xmlns:qf="http://www.sap.com/adt/quickfixes"><deltas><unit><content>
+  PRIVATE SECTION.
+    METHODS run.</content><adtcore:objectReference adtcore:uri="/sap/bc/adt/programs/programs/zmcp_qf_probe1/source/main#start=5,16" adtcore:type="PROG/P" adtcore:name="Insert member definition" xmlns:adtcore="http://www.sap.com/adt/core"/></unit><unit><content/><adtcore:objectReference adtcore:uri="/sap/bc/adt/programs/programs/zmcp_qf_probe1/source/main#start=5,4;end=5,16" adtcore:type="PROG/P" adtcore:name="Remove declaration" xmlns:adtcore="http://www.sap.com/adt/core"/></unit></deltas><variableSourceStates><adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core"/></variableSourceStates></qf:proposalResult>

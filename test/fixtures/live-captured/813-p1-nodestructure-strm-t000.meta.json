@@ -1,0 +1,30 @@
+{
+  "n": 813,
+  "label": "p1-nodestructure-strm-t000",
+  "expect": "independent ground truth: nodestructure of package STRM_T000, GET with withShortDescriptions=true",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=STRM_T000&withShortDescriptions=true",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 405,
+  "responseStatusText": "Method Not Allowed",
+  "responseHeaders": {
+    "content-length": "389",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "421344.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 389,
+  "zeroByteBody": false,
+  "sha256": "882421fea61810fafd739d1c2997f17145d524947833328fc0a6bb150f6ca10c",
+  "utcTimestamp": "2026-08-20T16:09:01.681Z",
+  "durationMs": 809,
+  "sessionName": "LIVE-305"
+}

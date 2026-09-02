@@ -1,0 +1,168 @@
+---
+name: abapsmith-edit-a-bopf-object
+description: Creates and edits BOPF business objects — nodes, associations, actions, determinations, validations, keys — and gets them to activate. Use for any abap_bopf_edit work.
+---
+
+# BOPF business objects
+
+The highest error rate on this server. Every trap below is a **200 that means
+failure**.
+
+Every step below is an `operation` of **`abap_bopf_edit`** on the default v1
+surface. On v2 the same operations are actions of **`abap_do`** — same names, same
+shapes, one tool instead of four. Check `tools/list` before assuming which.
+
+## Sequence
+
+```
+bopf_create
+  → bopf_set_node_flags   ← not optional, see below
+  → bopf_add_node / add_association / add_action /
+    add_determination / add_validation / add_query
+  → bopf_activate
+```
+
+`bopf_check_refs` and `bopf_test` run any time. So do the seven `bopf_remove_*`
+operations — `remove_node` (`node` only) and `remove_association` /
+`remove_action` / `remove_determination` / `remove_validation` / `remove_query`
+/ `remove_alternative_key` (`node` + `name`), see Deleting below. `bopf_delete`
+is terminal and admin-only.
+
+## A fresh BO cannot activate until you set node flags
+
+`bopf_create`'s auto-generated ROOT node has **none of its structural refs set**.
+Activation fails with *"Data structure is missing"*. `bopf_set_node_flags` with
+`spec.persistentStructureRef` is the only repair. Do this immediately after create.
+Address the node by **name** (`"ROOT"`); the raw nodeId string 404s.
+
+`spec` also accepts `combinedStructureRef`/`combinedTableRef`/`persistentTableRef`/
+`transientStructureRef`/`defaultingClassRef`/`dataAccessClassRef`/
+`authorizationClassRef`, each `{ name, type[, uri] }` or `null` to clear. It also
+sets the 10 boolean node flags and can rename a node via `spec.name`. Any ref or
+flag can be cleared with `null`.
+
+## Two naming rules that cost a round trip each
+
+- The persistent structure's name may **not** carry `_` in position 2 or 3 —
+  `ZS_BOP_A` is rejected (DDIC `DT101`); `ZSBOP_A` is fine.
+- **`KEY` is reserved by BOPF** as a node field name. DDIC accepts it; BOPF
+  refuses at activation. Name it `ID` or `KEY_ID`.
+
+## Create is not atomic
+
+A `bopf_create` that reports 500 or 400 **may still have created the object**.
+abapsmith re-GETs on any throw:
+
+- Response says `recovered: true` → **the object exists. Do not re-issue the create.**
+- No `recovered` note → genuinely failed.
+
+Never retry a create blind.
+
+`bopf_create` and `bopf_delete` **refuse every transportable package.** Local /
+`$TMP` only. Do not look for a flag to override it.
+
+## Adding elements
+
+- `bopf_add_node` needs a parent: **`spec.parent`** (the parent node's plain
+  name) or **`spec.parentNodeId`**, either one — abapsmith resolves the other
+  half from the model and writes both `bo:parent`/`bo:parentNodeID`, since BOPF
+  200s and drops a node carrying only one of them. Neither given, without
+  `spec.rootNode: true`, is refused before anything is sent. `add_node` re-reads
+  after the write and fails if the node isn't there, so success means it exists.
+- `bopf_add_determination`/`bopf_add_validation` cannot attach a trigger later.
+  `spec.triggers` is read only inside the original `add_determination`/
+  `add_validation` call — get it right or delete and recreate. Each entry is
+  `{ node?, association?, actionNode?, action?, create?, update?, delete?,
+  load?/determine?, check? }`: `node` is the WATCHED node (may differ from this
+  rule's own node), `association` lives on that watched node and points back
+  toward this rule's node — never a downward one. Omitting both `node` and
+  `association` makes a self-trigger. `action` is validation-only (a
+  determination's trigger rejects it outright); it names a trigger action on
+  `actionNode` (defaults to this rule's own node), and a trigger can carry only
+  `action` for a purely action-gated form. `create`/`update`/`delete` apply to
+  both kinds; `load`/`determine` are determination-only, `check` is
+  validation-only. A trigger `action` that doesn't exist on its node is refused
+  as a dangling ref (`allow_dangling_ref` override, same as class refs).
+  `bopf_add_determination` alone also takes `spec.relations`: `{ node
+  (required — the node both determinations live on), determination?,
+  relationType? }`, used to order determinations relative to each other.
+- `bopf_add_determination.spec.category` should always be set explicitly.
+  Omitted, BOPF defaults it server-side to the literal string `"undefined"` and
+  the determination's triggers silently never fire — no error, no activation
+  failure, just inert. Valid determination categories: `reactAfterModification`,
+  `calculateTransientAttributes`, `calculateTransientSubNodeInstances`,
+  `calculateProperties`, `reactOnCheckAndDetermine`, `reactBeforeSave`,
+  `drawNumbersDuringCreate`, `drawNumbersDuringSave`, `reactDuringSave`,
+  `reactAfterSuccessfulSave`, `reactAfterCleanupTransaction`,
+  `reactAfterFailedSave`. `consistencyCheck`/`actionCheck` are
+  `bopf_add_validation`-only categories — not valid on a determination.
+- **Class references are never checked** — not at PUT, not at activation, not at
+  runtime. A dangling or wrong-interface `implementationClassRef` silently never
+  fires. abapsmith preflights that the class source exists and throws
+  `BOPF_DANGLING_REF`. `allow_dangling_ref: true` accepts the risk; it does not
+  fix anything.
+- `bopf_add_alternative_key` needs the complete shape — `uniqueness` (`unique`
+  / `uniqueIfNotInitial` / `notUnique`), `dataTypeRef`, `dataTableTypeRef` and
+  `keyElements`, all four. A partial one **used to take down the whole ADT
+  session** with an assertion inside BOPF's model mapper; a missing field is
+  now refused before anything is sent. `i_know_this_may_not_activate: true` is
+  still required. It re-reads after the write and fails `CHECK_FAILED` if the
+  key isn't there, so success means it exists.
+  **Working order matters**: every `keyElements` name must already be a field
+  on the target node, and the node needs a `persistentStructureRef`, before
+  you call this — both are now preflighted and refused as `BOPF_DANGLING_REF`
+  (override: `allow_dangling_ref: true`), so in practice set
+  `persistentStructureRef` via `bopf_set_node_flags` before adding the key.
+  Confirmed: the structure's fields appear as node properties as soon as
+  `persistentStructureRef` is assigned, not only at activation — measured
+  before and after activating a fresh BO with the ref set while still
+  inactive; the property list did not change. This preflight only stops a
+  request shaped like the known session-killing repro — a complete,
+  enum-valid spec that clears both checks has still short-dumped the ADT
+  session. `add_alternative_key` is not confirmed to succeed on any node.
+
+## Never author a payload
+
+There is no per-node or per-element endpoint — a PUT replaces the **entire** model.
+abapsmith does GET-mutate-PUT under lock inside the handler. Use the per-element
+operations; never hand-build model XML.
+
+## Verify
+
+**Activation always returns 200**, including on failure. Read
+`chkl:messages/@type` — any `E` means it failed, free in the response. A clean
+activation with no `E` messages needs no re-GET — same success-path trust as
+`abapsmith-create-an-object`'s `speculative` mode; re-GET and confirm
+`adtcore:version="active"` yourself only if you have a specific reason to
+doubt it.
+
+**`bopf_test` writes real rows.** It is not a dry run unless `scenario.cleanup` is
+set. Its `save()` can set `ev_rejected='X'` — nothing persisted — while the call
+returns 200 and raises nothing. Check the rejection note, not the absence of an
+error. `generate_only: true` builds the bridge without running it.
+
+## Deleting
+
+`bopf_delete` leaves BOPF's **generated DDIC objects behind** — roughly 7 tables,
+table types and structures plus a constants interface for a 2-node BO. Orphans
+collide with a later create using the same naming pattern. Use `cascade_ddic` +
+`confirm_cascade` to remove them. `dry_run` defaults to `true`, so a bare call
+only reports.
+
+To remove one element instead of the whole BO: `bopf_remove_node` (`node`
+only) and `bopf_remove_association` (`node` + `name`) remove those two
+kinds. `remove_node` on the BO's root node is refused — that's a whole-BO
+delete, use `bopf_delete` instead. `remove_action` / `remove_determination` / `remove_validation` /
+`remove_query` / `remove_alternative_key` (`node` + `name`) cover the other
+five. If `name` matches more than one element on that node, these five take
+the **first one in document order** — call the same operation again for the
+next. They re-read after the write and fail `CHECK_FAILED`, naming both
+counts, if the count on that node didn't go down, and fail `NOT_FOUND`,
+listing what IS there, if nothing by that name exists.
+
+**Duplicate-name symptom**: a BO that stops activating right after you issued
+`add_action`/`add_determination`/`add_validation`/`add_query`/
+`add_alternative_key` twice with the same `name` — re-adding never replaces,
+it always creates a second element with that name. Fix: call the matching
+`remove_*` once per duplicate. Each call only takes the first match in
+document order, so it takes two calls to clear one duplicate pair.

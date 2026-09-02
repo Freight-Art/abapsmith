@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^mcp__plugin_abapsmith_abap__(abap_write|abap_run|abap_test|abap_ui|abap_bopf_edit|abap_bopf_delete|abap_bopf_test|abap_enh|abap_transport_release|abap_transport|abap_activate|abap_journal|abap_debug|abap_find|abap_do|abap_adt|abap_data_preview)$",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/abap-guard" }
+        ]
+      }
+    ]
+  }
+}

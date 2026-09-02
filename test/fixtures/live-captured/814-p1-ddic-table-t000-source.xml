@@ -1,0 +1,35 @@
+@EndUserText.label : 'Clients'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #C
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table t000 {
+  key mandt  : mandt not null;
+  mtext      : mtext_d not null;
+  ort01      : ort01 not null;
+  @AbapCatalog.foreignKey.keyType : #KEY
+  @AbapCatalog.foreignKey.screenCheck : true
+  mwaer      : mwaer not null
+    with foreign key [1..*,1] tcurc
+      where mandt = t000.mandt
+        and waers = t000.mwaer;
+  adrnr      : char10 not null;
+  cccategory : cccategory not null;
+  cccoractiv : cccoractiv not null;
+  ccnocliind : ccnocliind not null;
+  cccopylock : cccopylock not null;
+  ccnocascad : ccnocascad not null;
+  ccsoftlock : ccsoftlock not null;
+  ccorigcont : ccorigcont not null;
+  ccimaildis : ccimaildis not null;
+  cctemplock : cctemplock not null;
+  changeuser : as4user not null;
+  changedate : as4date not null;
+  @AbapCatalog.foreignKey.label : 'Logical system'
+  @AbapCatalog.foreignKey.keyType : #KEY
+  @AbapCatalog.foreignKey.screenCheck : true
+  logsys     : logsys not null
+    with foreign key [1,0..1] tbdls
+      where logsys = t000.logsys;
+
+}

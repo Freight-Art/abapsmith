@@ -1,0 +1,36 @@
+{
+  "n": 92,
+  "label": "np-source-original",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/programs/programs/zmcp_dbg_demo/source/main",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "vGjVjD6Yj4yRPuQ7IhKclQ==",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "2030",
+    "content-type": "text/plain; charset=utf-8",
+    "etag": "202607311509420011",
+    "last-modified": "Fri, 31 Jul 2026 15:09:42 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "71165.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 5069,
+  "zeroByteBody": false,
+  "sha256": "6e8ae0db910e8fe2a55619382f5fdd73bc868f72c2840b6640733fb80244c1b6",
+  "utcTimestamp": "2026-07-31T23:54:47.087Z",
+  "durationMs": 114,
+  "sessionName": "A"
+}

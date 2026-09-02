@@ -1,0 +1,32 @@
+{
+  "n": 218,
+  "label": "np-csrf-b",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/breakpoints/messagetypes",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "X-CSRF-Token": "Fetch"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "233",
+    "content-type": "application/vnd.sap.adt.nameditems.v1+xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "38653.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>",
+    "x-csrf-token": "zx6vigi70eXRlyaVZg5t1g=="
+  },
+  "byteLength": 1084,
+  "zeroByteBody": false,
+  "sha256": "49eb0fc268c8ff7331f0f80697b1c797651c04c32d24d81f928d62cbc91b7566",
+  "utcTimestamp": "2026-08-01T00:58:28.311Z",
+  "durationMs": 79,
+  "sessionName": "B"
+}

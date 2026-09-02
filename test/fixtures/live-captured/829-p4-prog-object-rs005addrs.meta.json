@@ -1,0 +1,33 @@
+{
+  "n": 829,
+  "label": "p4-prog-object-rs005addrs",
+  "expect": "independent ground truth: PROG/P RS005ADDRS own metadata description",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/programs/programs/rs005addrs",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "860",
+    "content-type": "application/vnd.sap.adt.programs.programs.v2+xml; charset=utf-8",
+    "etag": "201907250937590016",
+    "last-modified": "Thu, 25 Jul 2019 09:37:59 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "371871.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 3161,
+  "zeroByteBody": false,
+  "sha256": "10f843439cd2bb31027a0ea56faaa0a32e186ea44637d32b35414acd87bc2067",
+  "utcTimestamp": "2026-08-20T16:13:11.135Z",
+  "durationMs": 574,
+  "sessionName": "LIVE-305"
+}

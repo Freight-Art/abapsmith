@@ -1,0 +1,40 @@
+{
+  "id": "ddic-table-not-found-400",
+  "recordedAt": "2026-08-11T13:05:23Z",
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "Live capture against the A4H sandbox appliance (SID A4H, client 001) on 2026-08-11 at 2026-08-11T13:05:23Z. Raw capture artifacts (session scratchpad, not committed): wire39b/err_nosuchtable.body (500 B, sha256 d9a084db41158ae2feb47acbc7cf373fe664277f1e485369bae010ebae77ef6d), wire39b/err_nosuchtable.hdr (verbatim response status line + headers), wire39b/err_nosuchtable.json (request sidecar), produced by wire39b/cap.sh.",
+    "notes": "POST /sap/bc/adt/datapreview/ddic?rowNumber=3&ddicEntityName=ZZNOSUCHTABLE, empty request body. The error envelope for an unknown DDIC entity: HTTP 400 (not 404), content-type application/xml (NOT the datapreview vendor type the request asked for), <exc:exception> with <type id=\"ExceptionDataPreviewGeneral\"/> and a human message. The type id is the SAME generic id used for every other datapreview failure, so failure classification cannot key on it and must key on the <message> text ('Table/View X not found') — this cassette is what pins the NOT_FOUND classification to bytes rather than to a guess. Anonymisation: appliance.server is the repo's standing pseudonym for the A4H ApplicationServerName. The appliance's real host name and its container IPv4 are deliberately absent from this file, as is the appliance URL; Authorization / Cookie / X-CSRF-Token request-header values are replaced with placeholders. Response bytes are unmodified. kernelRelease/kernelPatchLevel were read live from GET /sap/bc/adt/system/information on the same day as this capture, not copied from an earlier cassette."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/ddic?rowNumber=3&ddicEntityName=ZZNOSUCHTABLE",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 3 cookies>",
+      "X-CSRF-Token": "<redacted>",
+      "Content-Type": "text/plain",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "content-type": "application/xml",
+      "content-length": "500",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "181375.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"http://www.sap.com/adt/wda/dataPreview\"/><type id=\"ExceptionDataPreviewGeneral\"/><message lang=\"EN\">Table/View ZZNOSUCHTABLE not found. Check whether active version of ZZNOSUCHTABLE exists.</message><localizedMessage lang=\"EN\">Table/View ZZNOSUCHTABLE not found. Check whether active version of ZZNOSUCHTABLE exists.</localizedMessage><properties/></exc:exception>"
+  }
+}

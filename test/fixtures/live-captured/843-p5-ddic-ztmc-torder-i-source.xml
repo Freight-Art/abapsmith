@@ -1,0 +1,17 @@
+@EndUserText.label : 'Transport order item'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztmc_torder_i {
+  key mandt     : mandt not null;
+  @AbapCatalog.foreignKey.screenCheck : false
+  key torder_id : ztmc_e_tordid not null
+    with foreign key [0..*,1] ztmc_torder
+      where mandt = ztmc_torder_i.mandt
+        and torder_id = ztmc_torder_i.torder_id;
+  key item_id   : ztmc_e_itemid not null;
+  material_id   : ztmc_e_matid;
+  quantity      : ztmc_e_qty;
+
+}

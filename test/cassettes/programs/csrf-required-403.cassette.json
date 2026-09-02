@@ -1,0 +1,42 @@
+{
+  "id": "csrf-required-403",
+  "recordedAt": "2026-07-31T23:49:55.422Z",
+  "recordedDurationMs": 283,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/071-p1-create-with-fetch-token.meta.json + test/fixtures/live-captured/071-p1-create-with-fetch-token.txt",
+    "notes": "A mutating POST /sap/bc/adt/programs/programs sent with x-csrf-token: fetch (the literal string 'fetch', asking the server to hand back a fresh token) instead of a real token is rejected outright: 403 Forbidden, plain-text body 'CSRF token validation failed', response header x-csrf-token: Required. The server does NOT treat a mutating request carrying 'fetch' as an implicit token-fetch-then-retry; the write is refused. Paired with the csrf-required-403-followup-verify cassette (072), which confirms the rejected create had no side effect. Authorization/set-cookie header values were already redacted at the source (placeholders preserved as-is)."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/programs/programs",
+    "headers": {
+      "Authorization": "<redacted>",
+      "x-csrf-token": "fetch",
+      "Content-Type": "application/vnd.sap.adt.programs.programs.v2+xml",
+      "Accept": "application/vnd.sap.adt.programs.programs.v2+xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><program:abapProgram xmlns:program=\"http://www.sap.com/adt/programs/programs\" xmlns:adtcore=\"http://www.sap.com/adt/core\" adtcore:description=\"ZMCP CSRF probe\" adtcore:name=\"ZMCP_CSRF_PROBE\" adtcore:type=\"PROG/P\" adtcore:responsible=\"DEVELOPER\"><adtcore:packageRef adtcore:name=\"$TMP\"/></program:abapProgram>"
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-length": "28",
+      "content-type": "text/plain; charset=utf-8",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "115230.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>",
+      "x-csrf-token": "Required"
+    },
+    "body": "CSRF token validation failed"
+  }
+}

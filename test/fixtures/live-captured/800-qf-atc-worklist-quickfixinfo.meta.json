@@ -1,0 +1,30 @@
+{
+  "n": 800,
+  "label": "qf-atc-worklist-quickfixinfo",
+  "note": "ATC worklist for the bait PROG: the single SLIN BREAK-POINT finding, carrying atcfinding:quickfixInfo=\"atc:<itemId>,<index>\".",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/atc/worklists/1A2263E0A4E31FE1A6EAC31DF8B1F650?includeExemptedFindings=false",
+  "requestHeaders": {
+    "Accept": "application/atc.worklist.v1+xml"
+  },
+  "requestBody": null,
+  "requestBodyBytes": 0,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/atc.worklist.v1+xml; charset=utf-8",
+    "content-length": "705",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "242411.000000"
+  },
+  "byteLength": 2046,
+  "zeroByteBody": false,
+  "sha256": "b89571980ef67bc4c8deab39266b3e66b04018886277606eaf1c031e01284324",
+  "utcTimestamp": "2026-08-18T22:47:44.632Z",
+  "durationMs": 328,
+  "sessionName": "QF",
+  "capturedBy": "scratchpad probes for the quickfix Phase 0 feasibility gate, driven through src/adt/connection.ts AbapConnection against the A4H sandbox appliance. REAL wire recording - not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the connection layer and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host/IP is deliberately not recorded."
+}

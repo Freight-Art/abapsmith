@@ -1,0 +1,33 @@
+{
+  "n": 93,
+  "label": "np-lock",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/programs/programs/zmcp_dbg_demo?_action=LOCK&accessMode=MODIFY",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "vGjVjD6Yj4yRPuQ7IhKclQ==",
+    "Accept": "application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.Result"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "323",
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.lock.Result",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "64128.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 323,
+  "zeroByteBody": false,
+  "sha256": "8a30931ad4774010d33f74b9734ed44fec5ffd632716f5814fc54c41f8b0ac46",
+  "utcTimestamp": "2026-07-31T23:54:47.295Z",
+  "durationMs": 204,
+  "sessionName": "A"
+}

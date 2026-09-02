@@ -1,0 +1,40 @@
+{
+  "id": "ddic-cds-with-parameters-inband-message",
+  "recordedAt": "2026-08-11T14:55:12Z",
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "Live capture against the A4H sandbox appliance (SID A4H, client 001) on 2026-08-11 at 2026-08-11T14:55:12Z, during the entity-kind capability probe. Raw capture artifacts (session scratchpad, not committed): datapreview/A-demo-cds-para.body.xml (430 B, sha256 8bf48c78ca02afdd962af3966b52c858701e308ff3aba523ef463246cbb0f5c1), datapreview/A-demo-cds-para.headers.json (verbatim response headers), datapreview/A-demo-cds-para.meta.json (request sidecar), produced by datapreview/capture39.mjs. Content-Length 430 matches the stored body byte-for-byte; the response was not compressed.",
+    "notes": "POST /sap/bc/adt/datapreview/ddic?rowNumber=5&ddicEntityName=DEMO_CDS_PARA, empty request body, 200. THE SILENT-EMPTY CASE, and the reason parsePreviewBody now reads dataPreview:message. DEMO_CDS_PARA is a CDS view WITH PARAMETERS. The endpoint does not refuse it with 4xx: it answers HTTP 200, <dataPreview:totalRows>0</dataPreview:totalRows>, ZERO <dataPreview:columns> elements, and one <dataPreview:message dataPreview:text=\"Data preview not supported for view with parameters\" dataPreview:severity=\"I\"/>. Structurally that is INDISTINGUISHABLE from a transparent table that happens to hold no rows, and before this capture the tool rendered it as one — \"EMPTY: ... exists and was read successfully, but returned no rows. That is a genuinely empty result, not a failure and not a truncation.\" That claim was false: no read happened. The message element is the only thing on the wire that says so, which makes it load-bearing rather than decorative. Note that removeNSPrefix:true strips the prefix from ATTRIBUTES too, so dataPreview:text/dataPreview:severity arrive as @_text/@_severity. The same body shape (byte-identical message element, severity \"I\") was captured on the same run for ICHARCTERISTICT, an SAP-shipped parameterised view, confirming this is endpoint behaviour and not a property of the DEMO_ object; that second capture is not stored as its own cassette because it pins nothing this one does not. Anonymisation: appliance.server is the repo's standing pseudonym for the A4H ApplicationServerName. The appliance host name, its container IPv4 and the appliance URL are deliberately absent; Authorization / Cookie / X-CSRF-Token request-header values are replaced with placeholders. Response bytes are unmodified."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/ddic?rowNumber=5&ddicEntityName=DEMO_CDS_PARA",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 3 cookies>",
+      "X-CSRF-Token": "<redacted>",
+      "Content-Type": "text/plain",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "content-length": "430",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "199942.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>0</dataPreview:totalRows><dataPreview:name>DEMO_CDS_PARA</dataPreview:name><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:message dataPreview:text=\"Data preview not supported for view with parameters\" dataPreview:severity=\"I\"/></dataPreview:tableData>"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "id": "listener-hit-debuggee",
+  "recordedAt": "2026-07-31T23:49:05.522Z",
+  "recordedDurationMs": 3282,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/015-listener-hit.meta.json + test/fixtures/live-captured/015-listener-hit.xml",
+    "notes": "Long-poll POST /sap/bc/adt/debugger/listeners that genuinely blocked for ~3282ms (recordedDurationMs) waiting for a debuggee to hit an armed breakpoint, then returned 200 with the DebuggeesList payload describing the caught debuggee. Authorization/Cookie/set-cookie header values were already redacted at the source (placeholders preserved as-is)."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/debugger/listeners?debuggingMode=user&requestUser=DEVELOPER&terminalId=ZMCPCAPTURE000000000000000000001&ideId=ZMCPCAPTUREIDE000000000000000000&timeout=120&checkConflict=false&isNotifiedOnConflict=true",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "DiImM74G-dVI0t2U5VqRsQ==",
+      "Accept": "application/vnd.sap.as+xml"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-encoding": "gzip",
+      "content-length": "612",
+      "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.debugger.DebuggeesList",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "3228328.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><asx:abap version=\"1.0\" xmlns:asx=\"http://www.sap.com/abapxml\"><asx:values><DATA><STPDA_DEBUGGEE><CLIENT>001</CLIENT><DEBUGGEE_ID>1A2263E0A4E31FE1A3A74D40077B3650</DEBUGGEE_ID><TERMINAL_ID/><IDE_ID/><DEBUGGEE_USER>DEVELOPER</DEBUGGEE_USER><PRG_CURR>ZMCP_DBG_DEMO</PRG_CURR><INCL_CURR>ZMCP_DBG_DEMO</INCL_CURR><LINE_CURR>84</LINE_CURR><RFCDEST>a4hsandbox_A4H_00</RFCDEST><APPLSERVER/><SYSID/><SYSNR>0</SYSNR><DBGKEY/><TSTMP>0</TSTMP><DBGEE_KIND>DEBUGGEE</DBGEE_KIND><DUMPID/><DUMPDATE>0000-00-00</DUMPDATE><DUMPTIME>00:00:00</DUMPTIME><DUMPHOST/><DUMPMODNO>0</DUMPMODNO><LISTENER_CTX_ID/><IS_ATTACH_IMPOSSIBLE>false</IS_ATTACH_IMPOSSIBLE><APPSERVER>a4hsandbox</APPSERVER><IS_SAME_SERVER>true</IS_SAME_SERVER><CAN_ADT_CROSS_SERVER>true</CAN_ADT_CROSS_SERVER><INSTANCE_NAME>a4hsandbox_A4H_00</INSTANCE_NAME><HOST>a4hsandbox</HOST><DUMP_ID/><DUMP_DATE>0000-00-00</DUMP_DATE><DUMP_TIME>00:00:00</DUMP_TIME><DUMP_HOST/><DUMP_UNAME/><DUMP_MODNO>0</DUMP_MODNO><DUMP_CLIENT/><DUMP_URI/><URI>/sap/bc/adt/programs/programs/zmcp_dbg_demo/source/main#start=84</URI><TYPE>PROG/P</TYPE><NAME>ZMCP_DBG_DEMO                           ZMCP_DBG_DEMO</NAME><PARENT_URI/><PACKAGE_NAME/><DESCRIPTION/></STPDA_DEBUGGEE></DATA></asx:values></asx:abap>"
+  }
+}

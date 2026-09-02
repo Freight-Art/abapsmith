@@ -1,0 +1,49 @@
+#!/usr/bin/env node
+// abap-contract — human/testing convenience CLI shim.
+//
+// This is NOT what `src/tools/v2/handlers/read.ts` spawns at runtime (it
+// spawns the compiled `dist/bin/contract.js` directly, via `process.execPath`
+// and a path resolved relative to its own compiled location — see that
+// file's `contract` branch). `bin/` is not in package.json's `"files"`
+// allowlist (only `dist` and THIRD-PARTY-NOTICES.md ship), so nothing in the
+// shipped package can rely on this file existing. It exists purely so a
+// developer working in a checkout can run:
+//
+//   npm run build   # dist/bin/contract.js not built yet? build it first
+//   bin/abap-contract CLAS ZCL_FOO < some.clas.abap
+//
+// without having to remember the dist/ path.
+//
+// This SPAWNS `dist/bin/contract.js` as a genuine child process (not a
+// same-process dynamic `import()`) deliberately: `dist/bin/contract.js`
+// gates its own `main()` behind an `invokedAsProgram()` check keyed on
+// `process.argv[1]` (see `src/bin/contract.ts`) — a same-process `import()`
+// would leave `argv[1]` pointing at THIS file, not at contract.js, and
+// `main()` would silently never run. Spawning a real child process is also
+// exactly what `read.ts` itself does, so this shim exercises the same code
+// path a developer is trying to sanity-check.
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { existsSync } from "node:fs";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const compiled = join(here, "..", "dist", "bin", "contract.js");
+
+if (!existsSync(compiled)) {
+  process.stderr.write(`abap-contract: ${compiled} does not exist yet — run "npm run build" first.\n`);
+  process.exit(2);
+}
+
+const child = spawn(process.execPath, [compiled, ...process.argv.slice(2)], { stdio: "inherit" });
+child.on("exit", (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal);
+  } else {
+    process.exit(code ?? 1);
+  }
+});
+child.on("error", (err) => {
+  process.stderr.write(`abap-contract: failed to spawn ${compiled}: ${err.message}\n`);
+  process.exit(1);
+});

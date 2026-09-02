@@ -1,0 +1,29 @@
+{
+  "method": "GET",
+  "url": "/sap/bc/adt/cts/transportrequests/A4HK900132",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.adt.transportorganizer.v1+xml",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.transportorganizer.v1+xml; charset=utf-8",
+    "content-length": "1042",
+    "etag": "20260801201326007",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "45707.000000"
+  },
+  "threw": false,
+  "bodyFile": "transport-details-task-resolves-to-parent.xml",
+  "bodyBytes": 8520,
+  "capturedFrom": "A4H live appliance, 2026-08-01",
+  "note": "GET of a TASK trkorr returns the PARENT request node; the task is nested with its own tm:status."
+}

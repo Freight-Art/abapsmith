@@ -1,0 +1,26 @@
+{
+  "method": "GET",
+  "url": "/sap/bc/adt/cts/transportrequests/searchconfiguration/configurations",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.adt.configurations.v1+xml",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.configurations.v1+xml; charset=utf-8",
+    "content-length": "131",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "157192.000000"
+  },
+  "threw": false,
+  "bodyFile": "transport-search-configurations-empty.xml",
+  "bodyBytes": 131
+}

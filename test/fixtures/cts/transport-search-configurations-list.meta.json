@@ -1,0 +1,27 @@
+{
+  "method": "GET",
+  "url": "/sap/bc/adt/cts/transportrequests/searchconfiguration/configurations",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.adt.configurations.v1+xml",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.configurations.v1+xml; charset=utf-8",
+    "content-length": "312",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "18996.000000"
+  },
+  "threw": false,
+  "bodyFile": "transport-search-configurations-list.xml",
+  "bodyBytes": 1226,
+  "note": "Captured live from A4H 2026-08-07 while two real search-configuration objects existed server-side. Confirms the plural GET .../searchconfiguration/configurations response uses rel=\"http://www.sap.com/adt/categories/configurations\" on each entry's atom:link, NOT rel=\"self\" (contrast transport-search-configuration-created.xml, the singular POST-create response, which does use rel=\"self\"). Both shapes share type=\"application/vnd.sap.adt.configuration.v1+xml\" (the CONFIGURATION_TYPE constant) on the link, which is what walkForConfigEntries now matches on instead of rel."
+}

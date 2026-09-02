@@ -1,0 +1,34 @@
+{
+  "n": 35,
+  "label": "step-return",
+  "expect": "returning from the method frame",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=stepReturn",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "DiImM74G-dVI0t2U5VqRsQ==",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "719",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "14250.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1676,
+  "zeroByteBody": false,
+  "sha256": "766d8bff2f45781d316c3c0e89d39b68da5becc8e9ab603c20d35b6b82b1f62d",
+  "utcTimestamp": "2026-07-31T23:49:07.005Z",
+  "durationMs": 58,
+  "sessionName": "A"
+}

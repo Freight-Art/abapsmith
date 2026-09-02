@@ -1,0 +1,31 @@
+{
+  "n": 836,
+  "label": "p5-quicksearch-ztmc-star",
+  "expect": "reporter's own data: do the 34 ZTMC_* objects exist on this system?",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=ZTMC_*&maxResults=50",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "835",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "439529.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 7170,
+  "zeroByteBody": false,
+  "sha256": "c6f42934b5b9e9b237326d44ff2529acd7b64b954ddaf82fab2187f8c349a262",
+  "utcTimestamp": "2026-08-20T16:14:45.231Z",
+  "durationMs": 669,
+  "sessionName": "LIVE-305"
+}

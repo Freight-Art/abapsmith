@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dbg:stack xmlns:dbg="http://www.sap.com/adt/debugger"
+  isRfc="false"
+  isSameSystem="true"
+  serverName="A4HSANDBOX_A4H_01"
+  debugCursorStackIndex="1">
+  <dbg:stackEntry
+    stackPosition="1"
+    stackType="ABAP"
+    stackUri="/sap/bc/adt/debugger/stack/type/ABAP/position/1"
+    programName="ZTEST_MCP_CRUD"
+    includeName="ZTEST_MCP_CRUD"
+    line="15"
+    eventType="REPORT"
+    eventName="ZTEST_MCP_CRUD"
+    sourceType="ABAP"
+    systemProgram="false"
+    isVit="false"
+    uri="/sap/bc/adt/programs/programs/ZTEST_MCP_CRUD/source/main#start=15"/>
+  <dbg:stackEntry
+    stackPosition="2"
+    stackType="ABAP"
+    stackUri="/sap/bc/adt/debugger/stack/type/ABAP/position/2"
+    programName="CL_ADT_RES_UNIT_TEST_RUN"
+    includeName="CL_ADT_RES_UNIT_TEST_RUN"
+    line="45"
+    eventType="METHOD"
+    eventName="POST"
+    sourceType="ABAP"
+    systemProgram="true"
+    isVit="false"/>
+</dbg:stack>

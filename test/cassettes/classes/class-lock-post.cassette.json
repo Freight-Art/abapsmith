@@ -1,0 +1,42 @@
+{
+  "id": "class-lock-post",
+  "recordedAt": "2026-07-31T23:50:37.182Z",
+  "recordedDurationMs": 165,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/063-class-lock.meta.json + test/fixtures/live-captured/063-class-lock.xml",
+    "notes": "POST /sap/bc/adt/oo/classes/zcl_zmcp_stale_probe?_action=LOCK&accessMode=MODIFY — acquires an editing lock, returning a LOCK_HANDLE in an asx:abap envelope. Authorization/Cookie/set-cookie header values were already redacted at the source (placeholders preserved as-is)."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/oo/classes/zcl_zmcp_stale_probe?_action=LOCK&accessMode=MODIFY",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 4 cookies>",
+      "X-sap-adt-sessiontype": "stateful",
+      "X-CSRF-Token": "aJwX2yX09WZh_zxe0G_Snw==",
+      "Accept": "application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.Result"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-length": "359",
+      "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.lock.Result",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "36393.000000",
+      "sap-server": "true",
+      "set-cookie": "<redacted>"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><asx:abap version=\"1.0\" xmlns:asx=\"http://www.sap.com/abapxml\"><asx:values><DATA><LOCK_HANDLE>30EABBBEED748D6C7C013C8A35BBB7FF1902066B</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/><IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT>NoModification</MODIFICATION_SUPPORT><SCOPE_MESSAGES/></DATA></asx:values></asx:abap>"
+  }
+}

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?><adtcore:mainObject adtcore:name="SE93" adtcore:type="TRAN/T" adtcore:version="active" adtcore:language="EN" xmlns:adtcore="http://www.sap.com/adt/core">
+  <adtcore:packageRef adtcore:name="SEUA"/>
+</adtcore:mainObject>

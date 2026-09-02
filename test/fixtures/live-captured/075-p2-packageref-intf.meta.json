@@ -1,0 +1,33 @@
+{
+  "n": 75,
+  "label": "p2-packageref-intf",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/oo/interfaces/if_oo_adt_classrun",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "766",
+    "content-type": "application/vnd.sap.adt.oo.interfaces.v2+xml; charset=utf-8",
+    "etag": "201802051913080015",
+    "last-modified": "Mon, 05 Feb 2018 19:13:08 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "508741.000000",
+    "sap-server": "true"
+  },
+  "byteLength": 2289,
+  "zeroByteBody": false,
+  "sha256": "7488932b21fa2f934a106f3c463a8f38aeb3f7fc423f617dd20b6b4d65e9cbdc",
+  "utcTimestamp": "2026-07-31T23:49:56.954Z",
+  "durationMs": 555,
+  "sessionName": "D"
+}

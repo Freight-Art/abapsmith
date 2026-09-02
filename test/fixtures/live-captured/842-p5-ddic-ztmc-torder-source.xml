@@ -1,0 +1,18 @@
+@EndUserText.label : 'Transport order header'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztmc_torder {
+  key mandt     : mandt not null;
+  key torder_id : ztmc_e_tordid not null;
+  pickup_loc    : ztmc_e_loc;
+  deliv_loc     : ztmc_e_loc;
+  trans_mode    : ztmc_e_tmode;
+  @AbapCatalog.foreignKey.screenCheck : false
+  carrier_id    : ztmc_e_carrid
+    with foreign key [0..*,1] ztmc_carrier
+      where mandt = ztmc_torder.mandt
+        and carrier_id = ztmc_torder.carrier_id;
+
+}

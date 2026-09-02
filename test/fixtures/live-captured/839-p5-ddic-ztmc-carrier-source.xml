@@ -1,0 +1,14 @@
+@EndUserText.label : 'Carrier master'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table ztmc_carrier {
+  key mandt      : mandt not null;
+  key carrier_id : ztmc_e_carrid not null;
+  name           : ztmc_e_carrname;
+  address        : ztmc_e_addr;
+  phone          : ztmc_e_phone;
+  email          : ztmc_e_email;
+
+}

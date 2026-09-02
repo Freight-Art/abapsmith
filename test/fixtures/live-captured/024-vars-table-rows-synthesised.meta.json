@@ -1,0 +1,35 @@
+{
+  "n": 24,
+  "label": "vars-table-rows-synthesised",
+  "expect": "MORE THAN 2 ROWS: the >2-row table case every invented fixture is missing",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger?method=getVariables",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "DiImM74G-dVI0t2U5VqRsQ==",
+    "Content-Type": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.Variables",
+    "Accept": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.debugger.Variables"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><asx:abap xmlns:asx=\"http://www.sap.com/abapxml\" version=\"1.0\"><asx:values><DATA><STPDA_ADT_VARIABLE><ID>LT_ITEMS[1]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[2]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[3]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[4]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[5]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[6]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[7]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[8]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[9]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[10]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[11]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[12]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[13]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[14]-ITEM_ID</ID></STPDA_ADT_VARIABLE><STPDA_ADT_VARIABLE><ID>LT_ITEMS[15]-ITEM_ID</ID></STPDA_ADT_VARIABLE></DATA></asx:values></asx:abap>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "686",
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.debugger.Variables",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "15149.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 10812,
+  "zeroByteBody": false,
+  "sha256": "6ab6fbcc0a61f4f1a4fc536df003703e9dc2f93d6ed84ecf2d7fd2bc09c533ae",
+  "utcTimestamp": "2026-07-31T23:49:06.194Z",
+  "durationMs": 58,
+  "sessionName": "A"
+}

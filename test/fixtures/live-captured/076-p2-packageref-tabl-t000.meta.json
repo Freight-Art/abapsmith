@@ -1,0 +1,33 @@
+{
+  "n": 76,
+  "label": "p2-packageref-tabl-t000",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/tables/t000",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "709",
+    "content-type": "application/vnd.sap.adt.tables.v2+xml; charset=utf-8",
+    "etag": "20180528111426001application/vnd.sap.adt.tables.v2+xmlqDepe0Ridxmjd3DuUvzPvuPR7mE=",
+    "last-modified": "Mon, 28 May 2018 11:14:26 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "414806.000000",
+    "sap-server": "true"
+  },
+  "byteLength": 2216,
+  "zeroByteBody": false,
+  "sha256": "b83f5d180b0ba80ea6c5464c77697558dbcf1d09f84e5cbb6aebdc31742c4f91",
+  "utcTimestamp": "2026-07-31T23:49:57.417Z",
+  "durationMs": 461,
+  "sessionName": "D"
+}

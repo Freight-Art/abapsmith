@@ -1,0 +1,33 @@
+{
+  "n": 73,
+  "label": "p2-packageref-prog",
+  "expect": null,
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/programs/programs/zmcp_dbg_demo",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "888",
+    "content-type": "application/vnd.sap.adt.programs.programs.v2+xml; charset=utf-8",
+    "etag": "202607311509420016",
+    "last-modified": "Fri, 31 Jul 2026 15:09:42 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "314841.000000",
+    "sap-server": "true"
+  },
+  "byteLength": 3209,
+  "zeroByteBody": false,
+  "sha256": "0e0510e948fc19b18c9e7e1751d9615f994c7a8c6f9533a0a4b9ff75f38dbc62",
+  "utcTimestamp": "2026-07-31T23:49:56.054Z",
+  "durationMs": 357,
+  "sessionName": "D"
+}

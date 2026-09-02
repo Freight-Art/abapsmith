@@ -1,0 +1,36 @@
+{
+  "method": "PUT",
+  "url": "/sap/bc/adt/programs/programs/zmcp_tr_live1/source/main",
+  "qs": {
+    "lockHandle": "FB79BA8EA5DD71BB7C4507FEFC713F9D54F4D555",
+    "corrNr": "A4HK900129"
+  },
+  "requestHeaders": {
+    "Accept": "*/*",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "Content-Type": "text/plain; charset=utf-8",
+    "X-sap-adt-sessiontype": "stateful",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": "REPORT zmcp_tr_live1.\nWRITE / 'pass 1'.\n",
+  "threw": true,
+  "errorName": "HttpClientException",
+  "errorMessage": "Request failed with status code 500",
+  "status": 500,
+  "statusText": "Internal Server Error",
+  "responseHeaders": {
+    "set-cookie": "<REDACTED>",
+    "content-type": "application/xml",
+    "content-length": "780",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "235431.000000",
+    "connection": "close"
+  },
+  "bodyFile": "write-error-object-already-locked-in-fabricated-request.xml",
+  "bodyBytes": 780,
+  "capturedFrom": "A4H live appliance, 2026-08-01",
+  "note": "HTTP 500 from the numbered source PUT after the unnumbered creation POST fabricated a different request (WP-G)."
+}

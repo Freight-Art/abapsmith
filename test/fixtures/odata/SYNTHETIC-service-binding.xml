@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC. Hand-written, not a captured ADT wire response. See README.md in
+     this directory. The element and attribute names follow abap-adt-api's
+     parseServiceBinding (node_modules/abap-adt-api/build/api/tablecontents.js),
+     which is the closest thing to a specification available offline. -->
+<srvb:serviceBinding xmlns:srvb="http://www.sap.com/adt/ddic/ServiceBindings"
+                     xmlns:adtcore="http://www.sap.com/adt/core"
+                     xmlns:atom="http://www.w3.org/2005/Atom"
+                     srvb:releaseSupported="false" srvb:published="true" srvb:repair="false"
+                     srvb:bindingCreated="true"
+                     adtcore:responsible="DEVELOPER" adtcore:masterLanguage="EN"
+                     adtcore:masterSystem="A4H" adtcore:name="ZTRAVEL_SVB" adtcore:type="SRVB/SVB"
+                     adtcore:changedAt="2026-08-18T00:00:00Z" adtcore:version="active"
+                     adtcore:createdAt="2026-08-18T00:00:00Z" adtcore:changedBy="DEVELOPER"
+                     adtcore:createdBy="DEVELOPER" adtcore:description="Travel service binding"
+                     adtcore:language="EN">
+ <atom:link href="/sap/bc/adt/businessservices/odatav2" rel="http://www.sap.com/categories/odatav2" type="application/xml" title="OData V2 service catalogue"/>
+ <atom:link href="/sap/bc/adt/vit/wb/object_type/srvbsvb/object_name/ZTRAVEL_SVB" rel="self" type="application/vnd.sap.sapgui" title="Representation in SAP Gui"/>
+ <adtcore:packageRef adtcore:uri="/sap/bc/adt/packages/ztravel_pkg" adtcore:type="DEVC/K" adtcore:name="ZTRAVEL_PKG"/>
+ <srvb:services srvb:name="ZTRAVEL_SRV">
+  <srvb:content srvb:version="0001" srvb:releaseState="notReleased">
+   <srvb:serviceDefinition adtcore:uri="/sap/bc/adt/ddic/srvd/sources/ztravel_srvd" adtcore:type="SRVD/SRV" adtcore:name="ZTRAVEL_SRVD"/>
+  </srvb:content>
+ </srvb:services>
+ <srvb:binding srvb:type="ODATA" srvb:version="V2" srvb:category="0">
+  <srvb:implementation adtcore:name=""/>
+ </srvb:binding>
+</srvb:serviceBinding>

@@ -1,0 +1,16 @@
+@EndUserText.label : 't000 subset for compare-tool and remote client-copy'
+@AbapCatalog.enhancementCategory : #NOT_CLASSIFIED
+define structure t000_rfc {
+  mandt      : mandt;
+  mtext      : mtext_d;
+  cccategory : cccategory;
+  cccoractiv : cccoractiv;
+  ccnocliind : ccnocliind;
+  cccopylock : cccopylock;
+  ccsoftlock : ccsoftlock;
+  ccorigcont : ccorigcont;
+  ccimaildis : ccimaildis;
+  cctemplock : cctemplock;
+  logsys     : logsys;
+
+}

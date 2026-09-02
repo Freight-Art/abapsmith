@@ -1,0 +1,29 @@
+{
+  "label": "f-user-none",
+  "what": "Dump feed for a user with no dumps — well-formed feed, zero entries.",
+  "sourceCapture": "02-f-user-none.body.xml",
+  "sourceCaptureDir": "local capture session 2026-08-11 (not committed)",
+  "capturedUtc": "2026-08-11",
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/runtime/dumps?%24query=and%20(%20equals%20(%20user%20%2C%20NOSUCHUSER%20)%20)",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "*/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "606",
+    "content-type": "application/atom+xml;type=feed"
+  },
+  "byteLength": 606,
+  "byteLengthAfterRedaction": 606,
+  "zeroByteBody": false,
+  "sha256OfRedactedBody": "edcb7348fc4517f010935f5122ec2ba85f77d024f54b13d6af95090fb236bb6c",
+  "redactions": null,
+  "redactionPolicy": "Length-preserving substitution only. No other byte was altered: percent-encoding, %20 padding runs, attribute order, XML escaping and the absent trailing newline are as captured.",
+  "bodyFile": "feed-empty.xml",
+  "durationMs": 187
+}

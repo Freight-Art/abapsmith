@@ -1,0 +1,33 @@
+{
+  "n": 831,
+  "label": "p4-prog-object-rs2hana-auth-run-cl",
+  "expect": "independent ground truth: PROG/I RS2HANA_AUTH_RUN_CL own metadata description",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/programs/includes/rs2hana_auth_run_cl",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "775",
+    "content-type": "application/vnd.sap.adt.programs.includes.v2+xml; charset=utf-8",
+    "etag": "202204272222410016RS2HANA_AUTH_RUN",
+    "last-modified": "Wed, 27 Apr 2022 22:22:41 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "84954.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 2752,
+  "zeroByteBody": false,
+  "sha256": "7b149755d151a964f9c337672eb292171abf13bd9572338d3bf3f79248ca71b1",
+  "utcTimestamp": "2026-08-20T16:13:13.840Z",
+  "durationMs": 513,
+  "sessionName": "LIVE-305"
+}

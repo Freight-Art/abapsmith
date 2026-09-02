@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC. Hand-written, not a captured ADT wire response. See README.md in
+     this directory. Element and attribute names follow abap-adt-api's
+     parseBindingDetails (node_modules/abap-adt-api/build/api/tablecontents.js).
+
+     `serviceUrl` and `serviceInformation/@url` are deliberately ABSOLUTE, which
+     is the shape the real endpoint answers with. The host here is `sap.invalid`
+     (RFC 2606, resolves nowhere); the parser must reduce these to a path so that
+     a real host can never reach a log, an error message or a fixture. -->
+<adtcore:serviceList xmlns:adtcore="http://www.sap.com/adt/core">
+ <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="/sap/bc/adt/businessservices/odatav2" rel="self" type="application/xml"/>
+ <adtcore:services repositoryId="SRVD" serviceId="ZTRAVEL_SRV" serviceVersion="0001"
+                   serviceUrl="https://sap.invalid:44300/sap/opu/odata/sap/ZTRAVEL_SRV"
+                   annotationUrl="https://sap.invalid:44300/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Annotations(TechnicalName='ZTRAVEL_SRV_VAN',Version='0001')/$value"
+                   published="true" created="true">
+  <adtcore:serviceInformation name="ZTRAVEL_SRV" version="0001" url="https://sap.invalid:44300/sap/opu/odata/sap/ZTRAVEL_SRV">
+   <adtcore:collection name="Travel">
+    <adtcore:navigation name="to_Booking" target="Booking"/>
+   </adtcore:collection>
+   <adtcore:collection name="Booking">
+    <adtcore:navigation name="to_Travel" target="Travel"/>
+   </adtcore:collection>
+  </adtcore:serviceInformation>
+ </adtcore:services>
+</adtcore:serviceList>

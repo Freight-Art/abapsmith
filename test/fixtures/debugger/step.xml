@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dbg:step xmlns:dbg="http://www.sap.com/adt/debugger"
+  isRfc="false"
+  isSameSystem="true"
+  serverName="A4HSANDBOX_A4H_01"
+  debugSessionId="session123"
+  processId="42"
+  isDebuggeeChanged="false"
+  isSteppingPossible="true"
+  isTerminationPossible="true">
+  <dbg:settings
+    systemDebugging="false"
+    createExceptionObject="false"
+    backgroundRFC="false"
+    sharedObjectDebugging="false"
+    showDataAging="false"
+    updateDebugging="false"/>
+  <dbg:actions>
+    <dbg:action name="stepOver" style="push" group="stepping" title="Step Over"/>
+  </dbg:actions>
+  <dbg:reachedBreakpoints/>
+</dbg:step>

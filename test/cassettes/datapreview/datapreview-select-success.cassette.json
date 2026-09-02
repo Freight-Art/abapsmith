@@ -1,0 +1,42 @@
+{
+  "id": "datapreview-select-success",
+  "recordedAt": "2026-07-31T23:54:40.554Z",
+  "recordedDurationMs": 299,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/087-p3b-datapreview-t000.meta.json + test/fixtures/live-captured/087-p3b-datapreview-t000.xml",
+    "notes": "POST /sap/bc/adt/datapreview/freestyle?rowNumber=20 with a plain-text SQL request body (SELECT mandt, cccategory, cccoractiv FROM t000) and a valid CSRF token. Returns 200 with a dataPreview:tableData payload (2 rows). Authorization/Cookie header values were already redacted at the source (placeholders preserved as-is)."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/freestyle?rowNumber=20",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Cookie": "<redacted: 3 cookies>",
+      "X-CSRF-Token": "fIbgdd-inh2OXFq-K1fk1A==",
+      "Content-Type": "text/plain",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml"
+    },
+    "body": "SELECT mandt, cccategory, cccoractiv FROM t000"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-encoding": "gzip",
+      "content-length": "427",
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-perf-fesrec": "242350.000000",
+      "sap-server": "true"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>2</dataPreview:totalRows><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:executedQueryString>SELECT MANDT, CCCATEGORY, CCCORACTIV FROM T000   INTO     TABLE @DATA(LT_RESULT)   UP TO 20  ROWS   .</dataPreview:executedQueryString><dataPreview:queryExecutionTime>0.3720000</dataPreview:queryExecutionTime><dataPreview:columns><dataPreview:metadata dataPreview:name=\"MANDT\" dataPreview:type=\"C\" dataPreview:description=\"MANDT\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>000</dataPreview:data><dataPreview:data>001</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"CCCATEGORY\" dataPreview:type=\"C\" dataPreview:description=\"CCCATEGORY\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>S</dataPreview:data><dataPreview:data>C</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"CCCORACTIV\" dataPreview:type=\"C\" dataPreview:description=\"CCCORACTIV\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>2</dataPreview:data><dataPreview:data>1</dataPreview:data></dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>"
+  }
+}

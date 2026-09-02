@@ -1,0 +1,622 @@
+----------------------------------------------------------------------------------------------------
+Category               ABAP programming error                                                 
+Runtime Errors         ITAB_ILLEGAL_SORT_ORDER                                                      
+ABAP Program           ZDBG_DEBUGME_2                                                               
+Application Component  Not assigned                                                                 
+Date and Time          11.08.2026 08:27:15 (UTC)                                                    
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Short Text                                                                                        |
+|    Error while inserting or changing rows in a sorted table                                      |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|What happened?                                                                                    |
+|    Error in the ABAP application program.                                                        |
+|                                                                                                  |
+|    The current ABAP program "ZDBG_DEBUGME_2" had to be terminated because it                     |
+|     found a                                                                                      |
+|    statement that could not be executed.                                                         |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|What can I do?                                                                                    |
+|    Note which actions and entries caused the error to occur.                                     |
+|                                                                                                  |
+|    Consult your SAP administrator.                                                               |
+|                                                                                                  |
+|    Using transaction ST22 for ABAP dump analysis, you can view, manage,                          |
+|    and retain termination messages for longer periods.                                           |
+|    Note which actions and entries caused the error to occur.                                     |
+|                                                                                                  |
+|    Consult your SAP administrator.                                                               |
+|                                                                                                  |
+|    Using transaction ST22 for ABAP dump analysis, you can view, manage,                          |
+|    and retain termination messages for longer periods.                                           |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Error analysis                                                                                    |
+|    An attempt was made to inset or change a row in internal table (type                          |
+|    SORTED_TABLE)  osition 3. This corrupted the sort sequence                                    |
+|    defined for the table by its key.                                                             |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|How to correct the error                                                                          |
+|    If the error occurs in one of your own ABAP programs or an SAP program                        |
+|    that you have modified, try to remedy the error.                                              |
+|    If you use statement "INSERT ... INTO TABLE ..." to insert a new row,                         |
+|    the row is automatically inserted at the right position.                                      |
+|    To change a row, you should use statement "MODIFY TABLE ... FROM ...".                        |
+|    The row the specified table key is then changed.                                              |
+|    If the error occurs in a non-modfied SAP program, you might be able to                        |
+|    find a solution in the SAP Notes system. If you have access to the SAP                        |
+|    Notes system, check there first using the following keywords:                                 |
+|                                                                                                  |
+|    "ITAB_ILLEGAL_SORT_ORDER"                                                                     |
+|    "ZDBG_DEBUGME_2" bzw. ZDBG_DEBUGME_2                                                          |
+|    "START-OF-SELECTION"                                                                          |
+|    If you cannot solve the problem yourself, please send the following                           |
+|    information to SAP:                                                                           |
+|                                                                                                  |
+|    1. The description of the problem (short dump)                                                |
+|    To do this, choose  System -> List -> Save -> Local File (unconverted)                        |
+|    on the screen you are in now.                                                                 |
+|                                                                                                  |
+|    2. The relevant system log                                                                    |
+|    To do this, call the system log in transaction SM21. Restrict the time                        |
+|    interval to ten minutes before the short dump and five minutes after                          |
+|    it. In the display, choose System -> List -> Save -> Local File                               |
+|    (unconverted).                                                                                |
+|                                                                                                  |
+|    3. If these are programs of your own, or modified SAP programs: The                           |
+|    source text of the programs                                                                   |
+|    To do this, please choose                                                                     |
+|    "Other Utilties -> Upload/Download -> Download".                                              |
+|                                                                                                  |
+|    4. Details regarding the conditions under which the error occurred or                         |
+|    which actions and input caused the error.                                                     |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|System environment                                                                                |
+|    SAP Release..... 754                                                                          |
+|    SAP Basis level 0007                                                                          |
+|                                                                                                  |
+|    Application server... a4hsandbox                                                              |
+|    Instance name....... a4hsandbox_A4H_00                                                        |
+|    Network address...... 172.17.0.2                                                              |
+|    Operating system... Linux                                                                     |
+|    Release.............. 5.15.0-173-generic                                                      |
+|    Hardware type....... x86_64                                                                   |
+|    Character length..... 16 Bits                                                                 |
+|    Pointer length........ 64 Bits                                                                |
+|    Work process number... 6                                                                      |
+|    ABAP load version.... 2597                                                                    |
+|    Shortdump setting. full                                                                       |
+|                                                                                                  |
+|    Database server... a4hsandbox                                                                 |
+|    Database type..... HDB                                                                        |
+|    Database name..... A4H                                                                        |
+|    Database user ID SAPA4H                                                                       |
+|                                                                                                  |
+|    Terminal.......... 198.51.100.163                                                             |
+|                                                                                                  |
+|    Character set C                                                                               |
+|                                                                                                  |
+|    SAP kernel....... 777                                                                         |
+|    Created on....... Jul  1 2022 21:54:53                                                        |
+|    Created at....... Linux GNU SLES-12 x86_64 cc4.8.5 use-pr220701                               |
+|    Database version SQLDBC 2.03.144.1551205008                                                   |
+|    Patch level....... 500                                                                        |
+|    Patch text.......                                                                             |
+|                                                                                                  |
+|    Database............. HANA 1.0, HANA 2.0                                                      |
+|    SAP database version. 777                                                                     |
+|    Operating system... Linux                                                                     |
+|                                                                                                  |
+|    Memory consumption                                                                            |
+|    EM...... 5294760                                                                              |
+|    Heap.... 0                                                                                    |
+|    Page.... 0                                                                                    |
+|    MM used. 729736                                                                               |
+|    MM free. 918936                                                                               |
+|    EM...... 5294760                                                                              |
+|    Heap.... 0                                                                                    |
+|    Page.... 0                                                                                    |
+|    MM used. 729736                                                                               |
+|    MM free. 918936                                                                               |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|User and Transaction                                                                              |
+|    Client................. 001                                                                   |
+|    User.................. DEVELOPER                                                              |
+|    Language key.......... E                                                                      |
+|    Transaction.........                                                                          |
+|    Transaction ID...... 4DD97CCD6B390060E006A26E33FB7F6E                                         |
+|                                                                                                  |
+|    EPP Root Context ID.... 1A2263E0A4E31FE1A5ABCEB26B575650                                      |
+|    EPP Connection ID...... 1A2263E0A4E31FE1A5ABCEB26B577650                                      |
+|    EPP Connection Counter. 1                                                                     |
+|    EPP Component Name..... A4H/a4hsandbox_A4H_00                                                 |
+|                                                                                                  |
+|    Program....................... ZDBG_DEBUGME_2                                                 |
+|    Screen......................... SAPMSSY0                                1000                  |
+|    Screen line.................... 6                                                             |
+|    Debugger interpretor loop... "(TPDA)"                                                         |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Server-Side Connection Information                                                                |
+|    Information on caller of "HTTP" connection: Plug-in type.........  HTTP                       |
+|    Caller IP.............. 198.51.100.163                                                        |
+|    Caller port............  50000                                                                |
+|    Universal resource ID /sap/bc/adt/oo/classrun/ZCL_ZMCP_RUN_ZDBG_DEBUGME_2                     |
+|                                                                                                  |
+|    Program.............. ZDBG_DEBUGME_2                                                          |
+|    Screen.............. SAPMSSY0                               1000                              |
+|    Screen line.......... 6                                                                       |
+|                                                                                                  |
+|    Information on caller of "HTTP" connection: Plug-in type.........  HTTP                       |
+|    Caller IP.............. 198.51.100.163                                                        |
+|    Caller port............  50000                                                                |
+|    Universal resource ID "/sap/bc/adt/oo/classrun/ZCL_ZMCP_RUN_ZDBG_DEBUGME_2"                   |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Information on where terminated                                                                   |
+|    The termination occurred inABAP program or include "ZDBG_DEBUGME_2", in                       |
+|     "START-OF-SELECTION". The                                                                    |
+|    main program was "ZDBG_DEBUGME_2".                                                            |
+|                                                                                                  |
+|    In the source code, the termination point is in line 35 of include                            |
+|     "ZDBG_DEBUGME_2".                                                                            |
+|    include "ZDBG_DEBUGME_2".                                                                     |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Source Code Extract                                                                               |
+----------------------------------------------------------------------------------------------------
+|Line |Code                                                                                        |
+----------------------------------------------------------------------------------------------------
+|    5|*&---------------------------------------------------------------------*                    |
+|    6|REPORT ZDBG_DEBUGME_2.                                                                      |
+|    7|                                                                                            |
+|    8|" We have some report                                                                       |
+|    9|" But it is dumping...                                                                      |
+|   10|" You should find the root cause                                                            |
+|   11|                                                                                            |
+|   12|" Feel free to execute this code, but don't change it                                       |
+|   13|                                                                                            |
+|   14|TYPES:                                                                                      |
+|   15|      BEGIN OF ty_tab,                                                                      |
+|   16|        item     TYPE char10,                                                               |
+|   17|        quantity TYPE i,                                                                    |
+|   18|        price    TYPE i,                                                                    |
+|   19|      END OF ty_tab.                                                                        |
+|   20|                                                                                            |
+|   21|DATA:                                                                                       |
+|   22|      itab TYPE sorted TABLE OF ty_tab WITH UNIQUE KEY item,                                |
+|   23|      wtab TYPE ty_tab.                                                                     |
+|   24|                                                                                            |
+|   25|wtab-item = 'Rice'. wtab-quantity = 2. wtab-price = 80.                                     |
+|   26|append wtab to itab.                                                                        |
+|   27|                                                                                            |
+|   28|wtab-item = 'Suger'. wtab-quantity = 1. wtab-price = 90.                                    |
+|   29|append wtab to itab.                                                                        |
+|   30|                                                                                            |
+|   31|wtab-item = 'Tea'. wtab-quantity = 1. wtab-price = 100.                                     |
+|   32|append wtab to itab.                                                                        |
+|   33|                                                                                            |
+|   34|wtab-item = 'Rice'. wtab-quantity = 3. wtab-price = 150.                                    |
+|>>>>>|append wtab to itab.                                                                        |
+|   36|                                                                                            |
+|   37|wtab-item = 'Horlicks'.wtab-quantity = 1. wtab-price = 200.                                 |
+|   38|append wtab to itab.                                                                        |
+|   39|                                                                                            |
+|   40|wtab-item = 'Suger'. wtab-quantity = 2. wtab-price = 70.                                    |
+|   41|append wtab to itab.                                                                        |
+|   42|                                                                                            |
+|   43|WRITE:  /3 'Item',                                                                          |
+|   44|        13 'Quantity(KG)',                                                                  |
+|   45|        28 'Price(Rs)'.                                                                     |
+|   46|WRITE / '=========================================='.                                       |
+|   47|SKIP. " Skipping one single line                                                            |
+|   48|                                                                                            |
+|   49|LOOP AT itab INTO wtab.                                                                     |
+|   50|                                                                                            |
+|   51|  WRITE:  /3 wtab-item,                                                                     |
+|   52|          12 wtab-quantity,                                                                 |
+|   53|          25 wtab-price.                                                                    |
+|   54|ENDLOOP.                                                                                    |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Contents of system fields                                                                         |
+----------------------------------------------------------------------------------------------------
+|Name    |Val.                                                                                     |
+----------------------------------------------------------------------------------------------------
+|SY-SUBRC|0                                                                                        |
+|SY-INDEX|0                                                                                        |
+|SY-TABIX|3                                                                                        |
+|SY-DBCNT|0                                                                                        |
+|SY-FDPOS|0                                                                                        |
+|SY-LSIND|0                                                                                        |
+|SY-PAGNO|0                                                                                        |
+|SY-LINNO|1                                                                                        |
+|SY-COLNO|1                                                                                        |
+|SY-PFKEY|STLI                                                                                     |
+|SY-UCOMM|                                                                                         |
+|SY-TITLE|Debugging example                                                                        |
+|SY-MSGTY|                                                                                         |
+|SY-MSGID|                                                                                         |
+|SY-MSGNO|000                                                                                      |
+|SY-MSGV1|                                                                                         |
+|SY-MSGV2|                                                                                         |
+|SY-MSGV3|                                                                                         |
+|SY-MSGV4|                                                                                         |
+|SY-MODNO|0                                                                                        |
+|SY-DATUM|20260811                                                                                 |
+|SY-UZEIT|082715                                                                                   |
+|SY-XPROG|RSDBRUNT                                                                                 |
+|SY-XFORM|%_INIT_PBO_FIRST                                                                         |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Active Calls/Events                                                                               |
+----------------------------------------------------------------------------------------------------
+|No.   Ty.          Program                             Include              Line                  |
+|      Name                                                                                        |
+----------------------------------------------------------------------------------------------------
+|    1 EVENT        ZDBG_DEBUGME_2                      ZDBG_DEBUGME_2                         35  |
+|      START-OF-SELECTION                                                                          |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Selected Variables                                                                                |
+----------------------------------------------------------------------------------------------------
+|Name                                                                                              |
+|    Val.                                                                                          |
+----------------------------------------------------------------------------------------------------
+|No.       1 Ty.          EVENT                                                                    |
+|Name  START-OF-SELECTION                                                                          |
+----------------------------------------------------------------------------------------------------
+|SY-LDBPG                                                                                          |
+|    SAPDBD$S                                                                                      |
+|    5454442522222222222222222222222222222222                                                      |
+|    3104244300000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    5300410050004400420044002400530020002000200020002000200020002000200020002000200020002000200020|
+|%_DUMMY$$                                                                                         |
+|                                                                                                  |
+|    2222                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    0000                                                                                          |
+|    2000200020002000                                                                              |
+|SY-REPID                                                                                          |
+|    ZDBG_DEBUGME_2                                                                                |
+|    5444544454445322222222222222222222222222                                                      |
+|    A427F45257D5F200000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    5A004400420047005F00440045004200550047004D0045005F00320020002000200020002000200020002000200020|
+|WTAB-ITEM                                                                                         |
+|    Rice                                                                                          |
+|    5666222222                                                                                    |
+|    2935000000                                                                                    |
+|    0000000000                                                                                    |
+|    0000000000                                                                                    |
+|    5200690063006500200020002000200020002000                                                      |
+|SY                                                                                                |
+|    {0;0;3;0;0;0;0;0;0;0;0;0;1;0;1;0;0;0;0;510;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;22;84;0;0;0;0;;|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000F00000000000000000|
+|    0000000030000000000000000000000000000000000000001000000010000000000000000000E10000000000000000|
+|    0000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000|
+|ITAB                                                                                              |
+|    Table IT_11[4x28]                                                                             |
+|    \PROGRAM=ZDBG_DEBUGME_2\DATA=ITAB                                                             |
+|    Table reference: 3                                                                            |
+|    TABH+ 0(20) = 4060C294467F0000000000000000000000000000                                        |
+|    TABH+20(20) = 00000000000000000000000004000000A8010000                                        |
+|    TABH+40(20) = 00000000030000000B000000040000001C000000                                        |
+|    TABH+60(20) = FFFFFFFF04000000A03500000400010602000000                                        |
+|    store                   = 0x4060C294467F0000                                                  |
+|    statScndKeyAdmin        = 0x0000000000000000                                                  |
+|    ext1    = 0x0000000000000000                                                                  |
+|    ----- Primary Key -----                                                                       |
+|    idxPtr                  = 0x0000000000000000                                                  |
+|      idxKind               = 0     (ItIndexNone)                                                 |
+|      accKind               = 2     (ItAccSorted)                                                 |
+|      uniKind    = 1     (ItUniYes)                                                               |
+|      keyKind (from pbag)   = 3     (user defined)                                                |
+|      cmpMode               = 3     (cmpSingleMcmpU)                                              |
+|    shmId                   = 0     (0x00000000)                                                  |
+|    id                      = 3     (0x03000000)                                                  |
+|    label    = 11    (0x0B000000)                                                                 |
+|    fill                    = 4     (0x04000000)                                                  |
+|    leng                    = 28    (0x1C000000)                                                  |
+|    loop                    = -1    (0xFFFFFFFF)                                                  |
+|    xtyp                    = PROG#000000/TYPE#000010                                             |
+|    occu    = 4     (0x04000000)                                                                  |
+|    occu0                   = 1                                                                   |
+|    stMode                  = 0                                                                   |
+|    groupCntl               = 0                                                                   |
+|    rfc                     = 0                                                                   |
+|    unShareable    = 0                                                                            |
+|    mightBeShared           = 0                                                                   |
+|    sharedWithShmTab        = 0                                                                   |
+|    isShmLockId             = 0                                                                   |
+|    isUsed                  = 1                                                                   |
+|    isCtfyAble    = 1                                                                             |
+|    hasScndKeys             = 0                                                                   |
+|    hasRowId                = 0                                                                   |
+|    statScndKeysOutdated    = 0                                                                   |
+|    statScndUniKeysOutdated = 0                                                                   |
+|    primKeyIsEmpty    = ItPrimKeyIsEmptyNo                                                        |
+|    rtmSelectNoOrderBy      = 0                                                                   |
+|    tstForceExtSort         = 0                                                                   |
+|    ----- Shareable Table Header Data (Store) -----                                               |
+|    tabi                    = 0xA060C294467F0000                                                  |
+|    pgHook    = 0x0000000000000000                                                                |
+|    uniqueNumber            = 10    (0x0A000000)                                                  |
+|    shmTabhSet              = 0x0000000000000000                                                  |
+|    refCount                = 0     (0x00000000)                                                  |
+|    tstRefCount             = 0     (0x00000000)                                                  |
+|    lineAdmin    = 4     (0x04000000)                                                             |
+|    lineAlloc               = 4     (0x04000000)                                                  |
+|    shmVersId               = 0     (0x00000000)                                                  |
+|    shmRefCount             = 1     (0x01000000)                                                  |
+|    rowId                   = 18446744073709551615                                                |
+|                                                                                                  |
+|    {Rice;2;80}                                                                                   |
+|    5060606020202020202000005000                                                                  |
+|    2090305000000000000020000000                                                                  |
+|    52006900630065002000200020002000200020000200000050000000                                      |
+|                                                                                                  |
+|    {Suger;1;90}                                                                                  |
+|    5070606070202020202000005000                                                                  |
+|    305070502000000000001000A000                                                                  |
+|    5300750067006500720020002000200020002000010000005A000000                                      |
+|                                                                                                  |
+|    {Tea;1;100}                                                                                   |
+|    5060602020202020202000006000                                                                  |
+|    4050100000000000000010004000                                                                  |
+|    54006500610020002000200020002000200020000100000064000000                                      |
+|                                                                                                  |
+|    {Rice;3;150}                                                                                  |
+|    5060606020202020202000009000                                                                  |
+|    2090305000000000000030006000                                                                  |
+|    52006900630065002000200020002000200020000300000096000000                                      |
+|WTAB                                                                                              |
+|    {Rice;3;150}                                                                                  |
+|    5060606020202020202000009000                                                                  |
+|    2090305000000000000030006000                                                                  |
+|    52006900630065002000200020002000200020000300000096000000                                      |
+|%_ARCHIVE                                                                                         |
+|    {;;;;;;;;;;;;;;;;;;0}                                                                         |
+|    2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020|
+|    0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+|    2000200020002000200020002000200020002000200020002000200020002000200020002000200020002000200020|
+|SY-XFORM                                                                                          |
+|    %_INIT_PBO_FIRST                                                                              |
+|    254445554454455522222222222222                                                                |
+|    5F9E94F02FF6923400000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    000000000000000000000000000000                                                                |
+|    25005F0049004E00490054005F00500042004F005F0046004900520053005400200020002000200020002000200020|
+|SYST-REPID                                                                                        |
+|    ZDBG_DEBUGME_2                                                                                |
+|    5444544454445322222222222222222222222222                                                      |
+|    A427F45257D5F200000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    0000000000000000000000000000000000000000                                                      |
+|    5A004400420047005F00440045004200550047004D0045005F00320020002000200020002000200020002000200020|
+|%_SSCR[]                                                                                          |
+|    Table IT_0[0x492]                                                                             |
+|    \PROGRAM=ZDBG_DEBUGME_2\DATA=%_SSCR[]                                                         |
+|    Table reference: 0                                                                            |
+|    TABH+ 0(20) = 0000000000000000000000000000000000000000                                        |
+|    TABH+20(20) = 0000000000000000000000000000000044040000                                        |
+|    TABH+40(20) = 00000000000000000000000000000000EC010000                                        |
+|    TABH+60(20) = FFFFFFFF04000000B03400000400000602000000                                        |
+|    store                   = 0x0000000000000000                                                  |
+|    statScndKeyAdmin        = 0x0000000000000000                                                  |
+|    ext1                    = 0x0000000000000000                                                  |
+|    ----- Primary Key -----                                                                       |
+|    idxPtr                  = 0x0000000000000000                                                  |
+|      idxKind               = 0     (ItIndexNone)                                                 |
+|      accKind               = 1     (ItAccStandard)                                               |
+|      uniKind               = 2     (ItUniNo)                                                     |
+|      keyKind (from pbag)   = 1     (default)                                                     |
+|      cmpMode               = 8     (cmpManyEq)                                                   |
+|    shmId                   = 0     (0x00000000)                                                  |
+|    id                      = 0     (0x00000000)                                                  |
+|    label                   = 0     (0x00000000)                                                  |
+|    fill    = 0     (0x00000000)                                                                  |
+|    leng                    = 492   (0xEC010000)                                                  |
+|    loop                    = -1    (0xFFFFFFFF)                                                  |
+|    xtyp                    = PROG#000000/TYPE#000005                                             |
+|    occu                    = 4     (0x04000000)                                                  |
+|    occu0    = 0                                                                                  |
+|    stMode                  = 0                                                                   |
+|    groupCntl               = 0                                                                   |
+|    rfc                     = 0                                                                   |
+|    unShareable             = 0                                                                   |
+|    mightBeShared    = 0                                                                          |
+|    sharedWithShmTab        = 0                                                                   |
+|    isShmLockId             = 0                                                                   |
+|    isUsed                  = 1                                                                   |
+|    isCtfyAble              = 1                                                                   |
+|    hasScndKeys    = 0                                                                            |
+|    hasRowId                = 0                                                                   |
+|    statScndKeysOutdated    = 0                                                                   |
+|    statScndUniKeysOutdated = 0                                                                   |
+|    primKeyIsEmpty          = ItPrimKeyIsEmptyNo                                                  |
+|    rtmSelectNoOrderBy    = 0                                                                     |
+|    tstForceExtSort         = 0                                                                   |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Application Calls                                                                                 |
+----------------------------------------------------------------------------------------------------
+|Index|Calls                                                                                       |
+----------------------------------------------------------------------------------------------------
+|    1|P=/sap/bc/adt/oo/classrun/ZCL_ZMCP_RUN_ZDBG_DEBUGME_2                                       |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Internal notes                                                                                    |
+|    The termination was triggered in function "RxIllegalSortOrder" of the SAP                     |
+|     kernel, in                                                                                   |
+|    line 95 of module "//bas/777_STACK/src/krn/abap/runt/abitab.c#1".                             |
+|    The internal operation just processed is "TAPP".                                              |
+|    Internal mode started at 20260811082715.                                                      |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Active Calls in SAP Kernel                                                                        |
+----------------------------------------------------------------------------------------------------
+|Lines of C stack in kernel (structure different on each platform)                                 |
+----------------------------------------------------------------------------------------------------
+|dw.sapA4H_D00[S](LinStackBacktrace(void**, int, int)+0xa9)[0x5630c97225ca,0x7225ca]               |
+|dw.sapA4H_D00[S](LinStack(_IO_FILE*)+0x4d)[0x5630c9726253,0x726253]                               |
+|dw.sapA4H_D00[S](CTrcStack2+0x4b)[0x5630c9722007,0x722007]                                        |
+|dw.sapA4H_D00[S](rabax_CStackSave()+0xa1)[0x5630c99160d3,0x9160d3]                                |
+|dw.sapA4H_D00[S](rabax(char16_t const*, char16_t const*, int, char16_t const*, void const*)+0x1575|
+|dw.sapA4H_D00[S](ab_ItabSrtTabChk(ItSrchCntx*, ItCmpCntx const*, unsigned int, unsigned int, bool,|
+|dw.sapA4H_D00[S](ab_ItabAppend(unsigned short, TABH*, RUDI, AB_TYPE_INFO const*, void const*, ItLi|
+|dw.sapA4H_D00[S](ab_jtapp()+0x2a9)[0x5630cb413129,0x2413129]                                      |
+|dw.sapA4H_D00[S](ab_extri()+0x317f)[0x5630cb2441bf,0x22441bf]                                     |
+|dw.sapA4H_D00[S](ab_xevent(char16_t const*)+0x24a)[0x5630cb2a1f6a,0x22a1f6a]                      |
+|dw.sapA4H_D00[S](ab_trigg()+0x1e0)[0x5630cb873020,0x2873020]                                      |
+|dw.sapA4H_D00[S](ab_run+0x3d)[0x5630cb87b81d,0x287b81d]                                           |
+|dw.sapA4H_D00[S](dynpmcal(DINFDUMY*, STPDUMMY*)+0x8a0)[0x5630cb21a960,0x221a960]                  |
+|dw.sapA4H_D00[S](dynppai0(DINFDUMY*)+0x25c)[0x5630cb7f848c,0x27f848c]                             |
+|dw.sapA4H_D00[S](dynprctl(DINFDUMY*)+0x1d1)[0x5630cb21b561,0x221b561]                             |
+|dw.sapA4H_D00[S](dynpen00+0x448)[0x5630cb211038,0x2211038]                                        |
+|dw.sapA4H_D00[S](ab_HttpRequestHandler(TH_PLUGIN_ROLE, TH_PLUGIN_ACTION, int, TH_PLUGIN_PROTOCOL, |
+|dw.sapA4H_D00[S](PluginHandler::handleRequest(REQUEST_BUF*, bool)+0x62f)[0x5630cb1f65bf,0x21f65bf]|
+|dw.sapA4H_D00[S](ThStart()+0x1fdb)[0x5630c95f0e56,0x5f0e56]                                       |
+|dw.sapA4H_D00[S](DpMain+0x3b1)[0x5630cb162681,0x2162681]                                          |
+|libc.so.6[S](__libc_start_main+0xef)[0x7f46e44a724d,0x3524d]                                      |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|List of ABAP Programs Affected                                                                    |
+----------------------------------------------------------------------------------------------------
+|Index |Ty.|Program                                 |Group |Date      |Time    |Size     |Lang.    |
+----------------------------------------------------------------------------------------------------
+|     0|Prg|ZDBG_DEBUGME_2                          |     0|11.08.2026|08:22:19|    18432|E        |
+|     1|Prg|SAPMSSY0                                |     1|23.03.2022|18:40:48|   120832|E        |
+|     2|Prg|SAPMSSYD                                |     1|28.10.2022|13:11:07|    34816|E        |
+|     3|Prg|SAPFSYSCALLS                            |     1|13.02.2015|19:49:42|     7168|E        |
+|     4|Prg|RSDBRUNT                                |     0|27.04.2022|22:25:59|   317440|E        |
+|     5|Typ|RSSCR                                   |     0|22.10.2012|15:46:46|     6144|         |
+|     6|Prg|RSDBSPBL                                |     0|28.05.2018|11:21:05|    81920|E        |
+|     7|Prg|SAPDBD$S                                |     0|13.02.2015|19:49:42|    20480|E        |
+|     8|Prg|RSDBSPMC                                |     0|28.05.2018|11:21:05|    92160|E        |
+|     9|Typ|DDSHDESCR                               |     0|28.11.1997|16:26:30|     4096|         |
+|    10|Typ|SPPARAMS                                |     0|07.03.1997|14:48:48|     2048|         |
+|    11|Prg|SAPLSABE                                |    11|23.02.2016|18:27:21|    14336|E        |
+|    12|Prg|SAPLSECU                                |    12|17.06.2019|12:43:55|   152576|E        |
+|    13|Typ|RSSUBINFO                               |     0|22.10.2012|15:46:48|     3072|         |
+|    14|Prg|SAPLSCNT                                |    14|28.05.2018|11:20:41|    31744|E        |
+|    15|Prg|SAPSHDTV                                |    14|20.12.2018|17:14:41|    77824|E        |
+|    16|Prg|SAPFS_SECLOG                            |     1|23.04.2019|13:18:45|    24576|E        |
+|    17|Typ|INDX                                    |     0|29.04.1998|10:21:27|     7168|         |
+|    18|Prg|SDYNPRAL                                |     1|16.05.2016|11:52:24|     7168|E        |
+|    19|Prg|SAPLSDYNPRAL                            |    19|20.12.2018|17:13:37|    16384|E        |
+|    20|Typ|DYNP_RAL_ID                             |     0|30.07.2013|11:58:33|     3072|         |
+|    21|Typ|DYNP_RAL_SCREEN                         |     0|22.10.2012|15:42:23|     2048|         |
+|    22|Prg|CL_DYNP_RAL_API===============CP        |    22|20.12.2018|17:14:06|   119808|E        |
+|    23|Prg|CL_SRAL_RECORDER_FACTORY_DYNP=CP        |    23|17.06.2019|12:45:52|    21504|E        |
+|    24|Prg|SRAL_DYNP_ADAPTER                       |    22|27.04.2022|22:26:10|    27648|E        |
+|    25|Prg|CL_SRAL_FACTORY_DYNP==========CP        |    25|17.06.2019|12:45:52|    45056|E        |
+|    26|Prg|CL_SRAL_SWITCH_CLIENT=========CP        |    26|28.02.2019|15:55:19|     9216|E        |
+|    27|Prg|CL_SRAL_DB_PARAMS=============CP        |    27|28.02.2019|15:55:19|    21504|E        |
+|    28|Prg|RADSHPBOPREFLIGHT                       |     1|13.02.2015|19:57:24|    17408|E        |
+|    29|Prg|RADSHPBOSTATUS                          |     1|13.02.2015|19:57:24|    19456|E        |
+|    30|Prg|RADSHPBOSWITCH                          |     1|13.02.2015|19:57:24|    20480|E        |
+|    31|Prg|RADSHUPGRADE                            |     1|13.02.2015|19:57:24|    21504|E        |
+|    32|Prg|RADSHPBO                                |     1|17.06.2019|12:45:53|    61440|E        |
+|    33|Prg|CL_DSH_SCREEN_ASSIGNMENT======CP        |    33|17.06.2019|12:45:49|    43008|E        |
+|    34|Prg|CL_ABAP_MESSAGE_DIGEST========CP        |    34|20.03.2017|16:30:06|    29696|E        |
+|    35|Prg|WPBHELP_REGISTRATION                    |     1|23.03.2022|18:40:59|    10240|E        |
+|    36|Prg|SAPFGUICNTL                             |     1|20.12.2018|17:14:41|    28672|E        |
+|    37|Prg|SAPLOLEA                                |    37|13.05.2019|08:32:45|   116736|E        |
+|    38|Prg|SAPLSGUI                                |    38|23.04.2019|13:20:39|   102400|E        |
+|    39|Prg|SAPLSTTM                                |    39|28.05.2018|11:30:10|    79872|E        |
+|    40|Prg|SAPLSBDC                                |    40|23.11.2018|17:25:34|    67584|E        |
+|    41|Prg|SAPLSFES                                |    41|23.03.2022|18:42:47|   321536|E        |
+|    42|Prg|CL_SYSTEM_TRANSACTION_STATE===CP        |    42|17.06.2019|12:45:53|   104448|E        |
+|    43|Prg|SAPLTHFB                                |    43|13.05.2019|08:31:00|   544768|E        |
+|    44|Prg|CL_WORKER_INFO================CP        |    44|27.04.2022|22:24:33|    59392|E        |
+|    45|Prg|CL_AGENT_INFO=================CP        |    45|23.11.2018|16:26:44|    10240|E        |
+|    46|Prg|IF_AGENT_TYPES================IP        |    44|13.02.2015|19:49:42|     5120|E        |
+|    47|Prg|CL_ABAP_SYST==================CP        |    47|13.02.2015|19:49:42|    12288|E        |
+|    48|Prg|SAPLURFC                                |    48|27.04.2022|22:26:07|    52224|E        |
+|    49|Prg|SAPLSPLUGIN                             |    49|13.02.2015|19:49:42|     8192|E        |
+|    50|Typ|SWCBCONT                                |     0|09.09.2011|20:56:57|     4096|         |
+|    51|Typ|OLE_VERBS                               |     0|09.02.1995|13:23:37|     3072|         |
+|    52|Typ|OLE_PA                                  |     0|13.01.1995|11:06:59|     3072|         |
+|    53|Prg|SAPFS_DYNPRO_HOOKS                      |     1|05.02.2018|19:15:13|     7168|E        |
+|    54|Prg|SAPLSALV_IDA_IMPL_UI_SCREEN             |    54|23.04.2019|13:20:17|    15360|E        |
+|    55|Prg|MENUSYST                                |     1|23.11.2018|17:30:36|    18432|E        |
+|    56|Typ|SMP_DYNTXT                              |     0|20.01.1999|16:36:58|     3072|         |
+|    57|Typ|SYST                                    |     0|16.07.2014|19:38:30|    32768|         |
+|    58|Typ|ARC_PARAMS                              |     0|16.07.2014|19:37:18|     6144|         |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|Directory of Application Tables                                                                   |
+----------------------------------------------------------------------------------------------------
+|Name                                     Date       Time       Lngth                              |
+|    Val.                                                                                          |
+----------------------------------------------------------------------------------------------------
+|Program  20260811082715                                                                           |
+----------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+|Program  ZDBG_DEBUGME_2                                                                           |
+----------------------------------------------------------------------------------------------------
+|SYST                                     16.07.2014 19:38:30   00004612                           |
+|    \0\0\0\0\x0003\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x0001                                    |
+|SY                                         .  .       :  :     00004612                           |
+|    \0\0\0\0\x0003\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x0001                                    |
+----------------------------------------------------------------------------------------------------
+|Program  SAPFS_SECLOG                                                                             |
+----------------------------------------------------------------------------------------------------
+|INDX                                       .  .       :  :     00003104                           |
+|    001%L%_SeclogExcludedCaller\0\0\0  00000000                                                   |
+----------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+|ABAP Control Blocks (CONT)                                                                        |
+----------------------------------------------------------------------------------------------------
+|Index|Name|Fl|PAR0|PAR1|PAR2|PAR3|PAR4|PAR5|PAR6|Source Code                             |Line    |
+----------------------------------------------------------------------------------------------------
+|   27|TAPP|00|0387|0019|001A|    |    |    |    |ZDBG_DEBUGME_2                          |      26|
+|   29|MOVL|00|0002|001B|000D|    |    |    |    |ZDBG_DEBUGME_2                          |      28|
+|   31|mvqs|04|0000|0024|0001|    |    |    |    |ZDBG_DEBUGME_2                          |      28|
+|   33|mvqs|04|0000|0028|005A|    |    |    |    |ZDBG_DEBUGME_2                          |      28|
+|   35|TAPP|00|0387|0019|001A|    |    |    |    |ZDBG_DEBUGME_2                          |      29|
+|   37|MOVL|00|0002|001B|000F|    |    |    |    |ZDBG_DEBUGME_2                          |      31|
+|   39|mvqs|04|0000|0024|0001|    |    |    |    |ZDBG_DEBUGME_2                          |      31|
+|   41|mvqs|04|0000|0028|0064|    |    |    |    |ZDBG_DEBUGME_2                          |      31|
+|   43|TAPP|00|0387|0019|001A|    |    |    |    |ZDBG_DEBUGME_2                          |      32|
+|   45|MOVL|00|0002|001B|000A|    |    |    |    |ZDBG_DEBUGME_2                          |      34|
+|   47|mvqs|04|0000|0024|0003|    |    |    |    |ZDBG_DEBUGME_2                          |      34|
+|   49|mvqs|04|0000|0028|0096|    |    |    |    |ZDBG_DEBUGME_2                          |      34|
+|>>>>>|TAPP|00|0387|0019|001A|    |    |    |    |ZDBG_DEBUGME_2                          |      35|
+|   53|MOVL|00|0002|001B|0013|    |    |    |    |ZDBG_DEBUGME_2                          |      37|
+|   55|mvqs|04|0000|0024|0001|    |    |    |    |ZDBG_DEBUGME_2                          |      37|
+|   57|mvqs|04|0000|0028|00C8|    |    |    |    |ZDBG_DEBUGME_2                          |      37|
+|   59|TAPP|00|0387|0019|001A|    |    |    |    |ZDBG_DEBUGME_2                          |      38|
+|   61|MOVL|00|0002|001B|000D|    |    |    |    |ZDBG_DEBUGME_2                          |      40|
+|   63|mvqs|04|0000|0024|0002|    |    |    |    |ZDBG_DEBUGME_2                          |      40|
+|   65|mvqs|04|0000|0028|0046|    |    |    |    |ZDBG_DEBUGME_2                          |      40|
+----------------------------------------------------------------------------------------------------

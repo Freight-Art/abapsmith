@@ -1,0 +1,128 @@
+REPORT zmcp_dbg_demo.
+
+* ZMCP_DBG_DEMO - centrepiece of the debugger test scenario.
+*
+* Reads ZMCP_DBG_ITEM (filled deterministically by ZMCP_DBG_FILL),
+* loops over the 15 rows computing a line value per row via a local
+* class method call (a real call frame to step into/out of), aggregates
+* per-category totals into a second internal table, then computes an
+* average and the highest-value category, and WRITEs everything out in
+* a format that is easy to assert on.
+*
+* See scripts/fixtures/debug/README.md for the exact expected output
+* and the hand-computed arithmetic behind it.
+
+" A RETURNING parameter must be FULLY typed - `TYPE p LENGTH 8 DECIMALS 2`
+" inline in the signature is rejected by the compiler ("A RETURNING parameter
+" must be fully typed."), so the amount type is named once here and reused.
+TYPES ty_amount TYPE p LENGTH 8 DECIMALS 2.
+
+CLASS lcl_calc DEFINITION.
+  PUBLIC SECTION.
+    " Computes one line's value (quantity * unit price). Called once per
+    " loop iteration in the main flow below - this is the call frame the
+    " debugger scenario exists to exercise.
+    CLASS-METHODS line_value
+      IMPORTING iv_qty          TYPE i
+                iv_price        TYPE zmcp_dbg_item-unit_price
+      RETURNING VALUE(rv_total) TYPE ty_amount.
+
+    " Formats a packed amount as a locale-independent "123.45" string by
+    " working entirely in integer cents, so the WRITE output below never
+    " depends on the logged-on user's decimal-notation setting.
+    CLASS-METHODS format_amount
+      IMPORTING iv_amount      TYPE p
+      RETURNING VALUE(rv_text) TYPE string.
+ENDCLASS.
+
+CLASS lcl_calc IMPLEMENTATION.
+  METHOD line_value.
+    DATA lv_raw TYPE p LENGTH 8 DECIMALS 2.
+    " DEBUG STOP M: inside lcl_calc=>line_value - own locals iv_qty, iv_price, lv_raw
+    IF iv_qty <= 0.
+      rv_total = 0.
+      RETURN.
+    ENDIF.
+    lv_raw   = iv_qty * iv_price.
+    rv_total = lv_raw.
+  ENDMETHOD.
+
+  METHOD format_amount.
+    DATA: lv_cents TYPE i,
+          lv_int   TYPE i,
+          lv_frac  TYPE i.
+    lv_cents = round( val = iv_amount * 100 dec = 0 ).
+    lv_int   = lv_cents DIV 100.
+    lv_frac  = lv_cents MOD 100.
+    rv_text  = |{ lv_int }.{ lv_frac WIDTH = 2 PAD = '0' ALIGN = RIGHT }|.
+  ENDMETHOD.
+ENDCLASS.
+
+TYPES: BEGIN OF ty_cat_total,
+         category TYPE zmcp_dbg_item-category,
+         total    TYPE p LENGTH 8 DECIMALS 2,
+         cnt      TYPE i,
+       END OF ty_cat_total,
+       ty_cat_totals TYPE STANDARD TABLE OF ty_cat_total WITH EMPTY KEY.
+
+DATA: lt_cat_totals   TYPE ty_cat_totals,
+      lv_grand_total  TYPE p LENGTH 8 DECIMALS 2 VALUE 0,
+      lv_counter      TYPE i VALUE 0,
+      lv_average      TYPE p LENGTH 8 DECIMALS 4,
+      lv_top_category TYPE zmcp_dbg_item-category,
+      lv_top_total    TYPE p LENGTH 8 DECIMALS 2 VALUE 0.
+
+" An explicit event block is REQUIRED here: once a processing block
+" (CLASS ... IMPLEMENTATION above) has been opened and closed, later top-level
+" statements no longer fall into the implicit START-OF-SELECTION and the
+" compiler rejects them with "Statement is not accessible."
+START-OF-SELECTION.
+
+SELECT * FROM zmcp_dbg_item INTO TABLE @DATA(lt_items) ORDER BY item_id.
+" DEBUG STOP 1: after SELECT, lt_items populated (15 rows expected)
+
+LOOP AT lt_items INTO DATA(ls_item).
+  lv_counter = lv_counter + 1.
+
+  DATA(lv_line_total) = lcl_calc=>line_value(
+    iv_qty   = ls_item-quantity
+    iv_price = ls_item-unit_price ).
+  " DEBUG STOP 2: back in the loop, right after the method call returns -
+  " lv_line_total now holds quantity * unit_price for the current row
+
+  lv_grand_total = lv_grand_total + lv_line_total.
+
+  ASSIGN lt_cat_totals[ category = ls_item-category ] TO FIELD-SYMBOL(<ls_cat>).
+  IF sy-subrc <> 0.
+    APPEND VALUE #( category = ls_item-category total = 0 cnt = 0 ) TO lt_cat_totals.
+    ASSIGN lt_cat_totals[ category = ls_item-category ] TO <ls_cat>.
+  ENDIF.
+  <ls_cat>-total = <ls_cat>-total + lv_line_total.
+  <ls_cat>-cnt   = <ls_cat>-cnt + 1.
+  " DEBUG STOP 3: end of loop body - lt_cat_totals has a fresh running total
+  " for ls_item-category, visible changing on every iteration
+ENDLOOP.
+
+lv_average = lv_grand_total / lv_counter.
+
+LOOP AT lt_cat_totals INTO DATA(ls_cat_scan).
+  IF ls_cat_scan-total > lv_top_total.
+    lv_top_total    = ls_cat_scan-total.
+    lv_top_category = ls_cat_scan-category.
+  ENDIF.
+ENDLOOP.
+" DEBUG STOP 4: after both post-loop computations - lv_average and
+" lv_top_category/lv_top_total are final
+
+WRITE: / 'ZMCP_DBG_DEMO RESULTS'.
+WRITE: / |ITEMS={ lv_counter }|.
+
+LOOP AT lt_cat_totals INTO DATA(ls_cat_out).
+  WRITE: / |CAT={ ls_cat_out-category } COUNT={ ls_cat_out-cnt } TOTAL={ lcl_calc=>format_amount( ls_cat_out-total ) }|.
+ENDLOOP.
+
+WRITE: / |GRAND_TOTAL={ lcl_calc=>format_amount( lv_grand_total ) }|.
+WRITE: / |AVERAGE={ lcl_calc=>format_amount( lv_average ) }|.
+WRITE: / |TOP_CATEGORY={ lv_top_category } TOP_TOTAL={ lcl_calc=>format_amount( lv_top_total ) }|.
+DATA lv_zmcp_neg  TYPE p LENGTH 8 DECIMALS 2 VALUE '-123.45'.
+DATA lv_zmcp_negi TYPE i VALUE -42.

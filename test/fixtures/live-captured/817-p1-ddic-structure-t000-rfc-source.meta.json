@@ -1,0 +1,32 @@
+{
+  "n": 817,
+  "label": "p1-ddic-structure-t000-rfc-source",
+  "expect": "independent ground truth: T000_RFC structure definition",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/structures/t000_rfc/source/main",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "441",
+    "content-type": "text/plain; charset=utf-8",
+    "etag": "20020904115058001text/plain2",
+    "last-modified": "Wed, 04 Sep 2002 11:50:58 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "234902.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 441,
+  "zeroByteBody": false,
+  "sha256": "20fd2c0cbd95cc34f221ffc1d3f841a2a05155127f3f54b38e0be6a09708f1e5",
+  "utcTimestamp": "2026-08-20T16:09:51.174Z",
+  "durationMs": 609,
+  "sessionName": "LIVE-305"
+}

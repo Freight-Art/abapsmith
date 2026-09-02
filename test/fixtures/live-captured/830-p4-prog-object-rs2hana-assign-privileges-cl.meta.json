@@ -1,0 +1,33 @@
+{
+  "n": 830,
+  "label": "p4-prog-object-rs2hana-assign-privileges-cl",
+  "expect": "independent ground truth: PROG/I RS2HANA_ASSIGN_PRIVILEGES_CL own metadata description",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/programs/includes/rs2hana_assign_privileges_cl",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "794",
+    "content-type": "application/vnd.sap.adt.programs.includes.v2+xml; charset=utf-8",
+    "etag": "201701162351370016RS2HANA_ASSIGN_PRIVILEGES",
+    "last-modified": "Mon, 16 Jan 2017 23:51:37 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "936214.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 2833,
+  "zeroByteBody": false,
+  "sha256": "cb0eb15aa2b9f1e4f2a4b9654b7c3ccd9ed46367048aff48221b1d9387b78e85",
+  "utcTimestamp": "2026-08-20T16:13:12.110Z",
+  "durationMs": 1195,
+  "sessionName": "LIVE-305"
+}

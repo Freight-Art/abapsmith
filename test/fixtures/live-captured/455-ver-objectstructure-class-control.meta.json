@@ -1,0 +1,33 @@
+{
+  "n": 455,
+  "label": "ver-objectstructure-class-control",
+  "expect": "control: adtcore:version on a CLAS objectStructure",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/oo/classes/cl_abap_unit_assert",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "1269",
+    "content-type": "application/vnd.sap.adt.oo.classes.v3+xml; charset=utf-8",
+    "etag": "20190617124501001000255R",
+    "last-modified": "Mon, 17 Jun 2019 12:45:01 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "347947.000000",
+    "sap-server": "true"
+  },
+  "byteLength": 8374,
+  "zeroByteBody": false,
+  "sha256": "3ffdb7c6d132529cff00f3066e61db19ef664281951a5f496f7e6842997b6aab",
+  "utcTimestamp": "2026-08-01T08:19:38.075Z",
+  "durationMs": 464,
+  "sessionName": "A"
+}

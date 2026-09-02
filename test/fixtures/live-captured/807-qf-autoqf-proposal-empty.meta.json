@@ -1,0 +1,32 @@
+{
+  "n": 807,
+  "label": "qf-autoqf-proposal-empty",
+  "note": "ATC autoqf route, step=proposal, objectReference = the ATC finding URI: HTTP 200 with an EMPTY <autoqf:checkMessages/>. The shape is accepted; this appliance offers no auto-quickfix for the finding.",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/atc/autoqf/worklist?step=proposal",
+  "requestHeaders": {
+    "Content-Type": "application/vnd.sap.adt.atc.objectreferences.v1+xml",
+    "Accept": "application/vnd.sap.adt.atc.autoqf.proposal.v1+xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<adtcore:objectReferences xmlns:adtcore=\"http://www.sap.com/adt/core\">\n  <adtcore:objectReference adtcore:uri=\"/sap/bc/adt/atc/findings/itemid/1A2263E0A4E31FE1A6EAC3C5B6BF3650/index/5\" adtcore:name=\"ZMCP_QF_PROBE1\" adtcore:type=\"PROG/P\"/>\n</adtcore:objectReferences>",
+  "requestBodyBytes": 305,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.atc.autoqf.proposal.v1+xml; charset=utf-8",
+    "content-length": "196",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "318973.000000"
+  },
+  "byteLength": 196,
+  "zeroByteBody": false,
+  "sha256": "5aae6e72df9327e8f3b6007ca5319c8f47ddb3fcade726cc9636d175410a150a",
+  "utcTimestamp": "2026-08-18T22:53:29.095Z",
+  "durationMs": 428,
+  "sessionName": "QF3",
+  "capturedBy": "scratchpad probes for the ATC autoqf Phase 0 feasibility gate, driven through src/adt/connection.ts AbapConnection against the A4H sandbox appliance. REAL wire recording - not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the connection layer and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host/IP is deliberately not recorded.",
+  "baitSourceNote": "The ABAP source echoed inside requestBody is BAIT invented for this probe (program ZMCP_QF_PROBE1 in $TMP, created and deleted by the probe). It is not customer code and is not a repository artefact."
+}

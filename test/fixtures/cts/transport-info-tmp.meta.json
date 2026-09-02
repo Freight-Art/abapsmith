@@ -1,0 +1,27 @@
+{
+  "method": "POST",
+  "url": "/sap/bc/adt/cts/transportchecks",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.transport.service.checkData",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "Content-Type": "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.transport.service.checkData",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><asx:abap xmlns:asx=\"http://www.sap.com/abapxml\" version=\"1.0\">\n    <asx:values>\n      <DATA>\n        \n<DEVCLASS>$TMP</DEVCLASS>\n<OPERATION>I</OPERATION>\n<URI>/sap/bc/adt/programs/programs/zmcp_dbg_demo</URI>\n      </DATA>\n    </asx:values>\n  </asx:abap>",
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.transport.service.checkData",
+    "content-length": "601",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "80540.000000"
+  },
+  "threw": false,
+  "bodyFile": "transport-info-tmp.xml",
+  "bodyBytes": 601
+}

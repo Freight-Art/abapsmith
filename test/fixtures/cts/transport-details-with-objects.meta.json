@@ -1,0 +1,27 @@
+{
+  "method": "GET",
+  "url": "/sap/bc/adt/cts/transportrequests/A4HK900117",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/vnd.sap.adt.transportorganizer.v1+xml",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.transportorganizer.v1+xml; charset=utf-8",
+    "content-length": "1041",
+    "etag": "20260801133446007q/WZb++fGzyo9bKUB1fTDOc2OIg=",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "793902.000000"
+  },
+  "threw": false,
+  "bodyFile": "transport-details-with-objects.xml",
+  "bodyBytes": 9363
+}

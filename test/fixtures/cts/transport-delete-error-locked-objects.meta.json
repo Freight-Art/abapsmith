@@ -1,0 +1,28 @@
+{
+  "method": "DELETE",
+  "url": "/sap/bc/adt/cts/transportrequests/A4HK900117",
+  "qs": null,
+  "requestHeaders": {
+    "Accept": "application/*",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "threw": true,
+  "errorName": "HttpClientException",
+  "errorMessage": "Request failed with status code 400",
+  "status": 400,
+  "statusText": "Bad Request",
+  "responseHeaders": {
+    "content-type": "application/xml",
+    "content-length": "446",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "173195.000000"
+  },
+  "bodyFile": "transport-delete-error-locked-objects.xml",
+  "bodyBytes": 446
+}

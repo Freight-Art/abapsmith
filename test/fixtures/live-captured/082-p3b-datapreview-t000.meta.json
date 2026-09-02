@@ -1,0 +1,32 @@
+{
+  "n": 82,
+  "label": "p3b-datapreview-t000",
+  "expect": "read-only SELECT against T000 with a valid CSRF token; determines whether a productive-system lockout can be made fail-closed",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=20",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "X-CSRF-Token": "jdKcRXAw6vM9szDHDxMXaQ==",
+    "Content-Type": "text/plain",
+    "Accept": "application/xml"
+  },
+  "requestBody": "SELECT mandt, cccategory, cccoractiv FROM t000",
+  "responseStatus": 406,
+  "responseStatusText": "Not Acceptable",
+  "responseHeaders": {
+    "content-length": "520",
+    "content-type": "application/xml",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "329843.000000",
+    "sap-server": "true"
+  },
+  "byteLength": 520,
+  "zeroByteBody": false,
+  "sha256": "6e8b54b65fc88f665b096c3463c754e83df829890fd29cfbe5f8685a135ea8ad",
+  "utcTimestamp": "2026-07-31T23:54:10.239Z",
+  "durationMs": 371,
+  "sessionName": "A"
+}

@@ -1,0 +1,33 @@
+{
+  "n": 454,
+  "label": "ver-objectstructure-ddls",
+  "expect": "does a DDLS objectStructure carry adtcore:version?",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/ddic/ddl/sources/i_acmusr02",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 3 cookies>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "656",
+    "content-type": "application/vnd.sap.adt.ddlSource+xml; charset=utf-8",
+    "etag": "202210281219390013d5lCLTjwiULD4q3oA5LSwVsk64c=",
+    "last-modified": "Fri, 28 Oct 2022 12:19:39 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "3371629.000000",
+    "sap-server": "true"
+  },
+  "byteLength": 1878,
+  "zeroByteBody": false,
+  "sha256": "59913523f422a7019ff480f6411bddc2c592ca8bd6477c990ed5d5db0e93d4c3",
+  "utcTimestamp": "2026-08-01T08:19:37.611Z",
+  "durationMs": 3433,
+  "sessionName": "A"
+}

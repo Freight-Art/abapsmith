@@ -1,0 +1,6 @@
+@EndUserText.label : 'Screen Fields T000 Maintenance'
+@AbapCatalog.enhancementCategory : #EXTENSIBLE_CHARACTER
+define structure t000_0002 {
+  ccimaildis : securecatt;
+
+}

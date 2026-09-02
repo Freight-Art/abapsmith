@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?><qf:proposalResult xmlns:qf="http://www.sap.com/adt/quickfixes"><deltas><unit><content>  METHOD run.
+
+  ENDMETHOD.
+
+</content><adtcore:objectReference adtcore:uri="/sap/bc/adt/programs/programs/zmcp_qf_probe1/source/main#start=9,0" adtcore:type="PROG/P" adtcore:name="Insert method implementation" xmlns:adtcore="http://www.sap.com/adt/core"/></unit></deltas><selection adtcore:uri="/sap/bc/adt/programs/programs/zmcp_qf_probe1/source/main#start=10,0" adtcore:type="PROG/P" adtcore:name="ZMCP_QF_PROBE1                          ZMCP_QF_PROBE1" xmlns:adtcore="http://www.sap.com/adt/core"/><variableSourceStates><adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core"/></variableSourceStates></qf:proposalResult>

@@ -1,0 +1,488 @@
+#!/usr/bin/env node
+// abap-guard — PreToolUse hook for the abapsmith Claude Code plugin.
+//
+// IMPORTANT — read before touching this file:
+//
+// 1. This hook is Claude-Code-only defence-in-depth. A non-Claude-Code MCP
+//    client (a bare MCP client, a different agent host, a raw stdio session)
+//    has no hooks at all, and this script never runs for it. The in-process
+//    ABAP_MODE capability gate (src/mode.ts, enforced via src/safety.ts on
+//    every tool call inside the server itself) MUST be independently
+//    sufficient on its own. This script must never be treated as the only
+//    gate — it is a second, coarser lock on the same door, not the door.
+//
+// 2. This script is deliberately a plain, dependency-free Node.js script,
+//    NOT TypeScript, and it does NOT import anything from dist/ or src/.
+//    That is an intentional decoupling, not an oversight: a PreToolUse hook
+//    has to keep working even if the TS build is broken, stale, or was never
+//    run (a fresh git checkout has no dist/ at all). It duplicates only the
+//    minimal, coarse tool-classification logic needed for its own
+//    defence-in-depth role — it is NOT a full reimplementation of
+//    src/mode.ts, and the two are allowed to drift in the tail direction
+//    described in point 4 below.
+//
+// 3. Fail-closed defaults, everywhere:
+//      - Malformed / unparsable / missing-tool_name stdin -> deny.
+//      - Missing or unrecognized ABAP_MODE -> treated as "read" (the most
+//        restrictive mode), never as "edit" or "admin".
+//
+// 4. Read mode is an ALLOWLIST; edit/admin mode is a DENYLIST. This asymmetry
+//    is deliberate, not a bug:
+//      - In ABAP_MODE=read, any tool this script does not explicitly
+//        recognize as read-only is DENIED. Read is the "nothing can go
+//        wrong" mode, so unknown tools are guilty until proven read-only.
+//      - In ABAP_MODE=edit or ABAP_MODE=admin, any tool this script does not
+//        recognize at all is ALLOWED through to the in-process gate. This
+//        script's job in edit/admin mode is narrower: stop obvious
+//        read-mode escapes and catch obviously-wrong admin-only calls
+//        (transport release) — not to be a complete, forever-updated
+//        allowlist for every tool the server will ever grow. The real,
+//        complete authority for "is this specific mutating call allowed
+//        right now" is src/mode.ts + src/safety.ts inside the server
+//        process. New tools added to the server work correctly in
+//        edit/admin mode from day one without this file being touched;
+//        they only need a table entry here if they should additionally be
+//        blockable/allowable in READ mode specifically.
+
+import { readFileSync } from "node:fs";
+
+const MODE_READ = "read";
+const MODE_EDIT = "edit";
+const MODE_ADMIN = "admin";
+
+// Tools that are read-only under every circumstance, regardless of any
+// argument. No gating needed beyond "is this the right tool name".
+const ALWAYS_READ_ONLY = new Set([
+  "abap_read",
+  "abap_search",
+  "abap_bopf", // show/raw/search/check_refs — all read-only (readOnlyHint: true)
+  "abap_fpm_read",
+  "abap_debug_vars",
+  "abap_debug_value",
+  "abap_find", // v2 surface: locate objects/usages/BOs/FPM/transports — read-only always
+  // Reads rows from one named DDIC table/view. readOnlyHint:
+  // true, no argument can make it mutate, and it is only registered at all when
+  // ABAP_ALLOW_DATA_PREVIEW is set. It MUST be listed here and not merely added
+  // to hooks/hooks.json's matcher: an unlisted tool falls through to step 5,
+  // which DENIES under ABAP_MODE=read — i.e. it would be blocked in exactly the
+  // mode where a read-only preview is most appropriate. The two files change
+  // together, always. Note this hook says nothing about WHICH table
+  // may be read; the deny-list and the productive ceiling live in src/safety.ts,
+  // which is the real authority, per point 1 at the top of this file.
+  "abap_data_preview",
+]);
+
+// Tools that always mutate. Need ABAP_MODE edit or admin.
+// NOTE: abap_bopf_delete is NOT here — it needs argument-aware handling
+// (see ADMIN_ONLY_WHEN below), since a cascade_ddic:true delete is an
+// admin-only ceiling while an ordinary delete stays plain-mutating.
+const ALWAYS_MUTATING = new Set([
+  "abap_write",
+  "abap_run",
+  "abap_test",
+  "abap_bopf_edit",
+  "abap_bopf_test",
+  "abap_enh",
+]);
+
+// Tools that need ABAP_MODE admin specifically (edit is not enough).
+const ADMIN_ONLY = new Set(["abap_transport_release"]);
+
+// Tools whose read/mutating classification depends on a field inside
+// tool_input. Values not listed in either readValues or mutatingValues are
+// treated as mutating (fail closed on unrecognized argument values too).
+//
+// An optional adminValues array names values that sit on an admin-only
+// ceiling (needs ABAP_MODE=admin specifically, edit is not enough) — see
+// abap_transport's operation:"delete" below. Specs without adminValues
+// (abap_activate, abap_journal, abap_debug) are unaffected — it defaults to
+// an empty array wherever it's read.
+//
+// Two entries below (`abap_do`, `abap_adt`, both on the v2 surface) use three
+// extra, optional spec fields beyond adminValues and the original four
+// entries:
+//   - adminOtherwise: true means EVERY non-read value is admin-only (used by
+//                     abap_adt, which has no separate "just needs edit" tier
+//                     — a v2 escape hatch that mutates is either GET or admin).
+//   - caseInsensitive: field values are compared uppercased (abap_adt's
+//                     `method` is an HTTP verb: GET/get/Get all mean the same
+//                     thing).
+//   - emptyIsRead:    an absent/empty field value is treated as read-only
+//                     rather than as an unrecognized-value mutation (abap_do
+//                     with no `action` and abap_adt with no `method` both
+//                     self-describe instead of doing anything — see
+//                     src/tools/v2/register.ts's isBareCall/default-GET
+//                     handling).
+const ARG_DEPENDENT = new Map([
+  [
+    "abap_transport",
+    {
+      field: "operation",
+      readValues: ["list", "show", "check", "users"],
+      mutatingValues: ["create", "addUser", "setOwner"],
+      adminValues: ["delete"],
+    },
+  ],
+  [
+    "abap_activate",
+    { field: "mode", readValues: ["check"], mutatingValues: ["activate"] },
+  ],
+  [
+    "abap_journal",
+    { field: "mode", readValues: ["list", "show"], mutatingValues: ["undo"] },
+  ],
+  [
+    // abap_ui: batch-input (BDC) classic-dynpro driver, gated by its `mode`
+    // field. `screen` (discovery: dynpro fields/flow-logic/GUI-status) is
+    // read-only in effect — it deploys only a throwaway $TMP bridge class,
+    // exactly like abap_fpm_read above (ALWAYS_READ_ONLY), which is the
+    // precedent this mirrors rather than requiring edit/admin for it. `press`
+    // (runs a batch-input script via CALL TRANSACTION ... MODE 'N' UPDATE 'S')
+    // COMMITS business data with no dry run and no rollback path, so it sits
+    // on the same admin-only ceiling as abap_transport_release/abap_transport
+    // operation:"delete" above — this hook only enforces ABAP_MODE=admin;
+    // the server independently ALSO requires ABAP_ALLOW_UI_PRESS=true (see
+    // src/tools/ui.ts's assertPressEnabled) before press actually runs, which
+    // this coarse hook has no visibility into and does not attempt to check —
+    // consistent with point 1 at the top of this file (in-process gate is the
+    // real, complete authority; this hook is a coarser second lock, never the
+    // only one). No mutatingValues: "mode" only ever takes "screen" or
+    // "press", so anything else falls through to the unrecognized-value
+    // fail-closed branch below.
+    "abap_ui",
+    { field: "mode", readValues: ["screen"], adminValues: ["press"] },
+  ],
+  [
+    // "vars"/"value" (v2 surface): folded in from v1's
+    // separate abap_debug_vars/abap_debug_value tools (both of which sit in
+    // ALWAYS_READ_ONLY above for the v1 surface). src/tools/debug-register.ts's
+    // createDebugRunner treats both as plain reads — deps.safety.assert("read"),
+    // no connection, no execute-tier gate — the exact same treatment
+    // DEBUG_UNGATED_ACTIONS gives stack/status/keepalive/stop. Both MUST stay
+    // in readValues: omitting them makes this hook deny under ABAP_MODE=read a
+    // v2 abap_debug({action:"vars"/"value"}) call the in-process gate allows —
+    // over-restrictive (fail-safe, not a security hole), but wrong. This table
+    // and debug-register.ts's action tiers change together.
+    "abap_debug",
+    {
+      field: "action",
+      readValues: ["stack", "status", "keepalive", "stop", "vars", "value"],
+      mutatingValues: ["start", "step"],
+    },
+  ],
+  [
+    // v2 surface: single mutation/execution entry point, dispatched by
+    // `action`. readValues/adminValues are the exact action names from
+    // src/tools/v2/catalogue.ts's ABAP_DO_ACTIONS; everything else — every
+    // other current action, plus any future one this file hasn't been
+    // updated for — is treated as mutating (fail closed), which is exactly
+    // right for edit/admin (allowed) and read (denied, unless separately
+    // listed above).
+    "abap_do",
+    {
+      field: "action",
+      emptyIsRead: true,
+      readValues: [
+        "check",
+        "journal_list",
+        "journal_show",
+        "transport_list",
+        "transport_show",
+        "transport_check",
+        "transport_users",
+        "bopf_check_refs",
+        "enh_discover_hook_anchors",
+      ],
+      adminValues: ["transport_release", "transport_delete", "bopf_delete"],
+      mutatingValues: [
+        "activate",
+        "run",
+        "test",
+        "undo",
+        "transport_create",
+        "transport_add_user",
+        "transport_set_owner",
+        "bopf_create",
+        "bopf_add_node",
+        "bopf_remove_node",
+        "bopf_add_association",
+        "bopf_remove_association",
+        "bopf_add_action",
+        "bopf_remove_action",
+        "bopf_add_determination",
+        "bopf_remove_determination",
+        "bopf_add_validation",
+        "bopf_remove_validation",
+        "bopf_add_query",
+        "bopf_remove_query",
+        "bopf_add_alternative_key",
+        "bopf_remove_alternative_key",
+        "bopf_set_node_flags",
+        "bopf_activate",
+        "bopf_test",
+        "enh_write_description",
+        "enh_create_spot",
+        "enh_add_badi_def",
+        "enh_add_filter_def",
+        "enh_create_impl",
+        "enh_set_filter_values",
+        "enh_exercise",
+        "enh_create_hook",
+      ],
+    },
+  ],
+  [
+    // v2 surface: raw ADT REST escape hatch. GET/HEAD (or an absent
+    // method — src/tools/v2/register.ts defaults to GET) is read-only; any
+    // other verb (POST/PUT/DELETE/...) is admin-only, full stop — there is no
+    // "just needs edit" tier for an arbitrary raw write against ADT.
+    "abap_adt",
+    {
+      field: "method",
+      caseInsensitive: true,
+      emptyIsRead: true,
+      readValues: ["GET", "HEAD"],
+      adminOtherwise: true,
+    },
+  ],
+]);
+
+// Tools that are ordinarily mutating (edit is enough) but escalate to an
+// admin-only ceiling when a specific field takes a specific value — for
+// flags that aren't naturally enum-shaped like ARG_DEPENDENT's fields.
+// Currently just abap_bopf_delete's cascade_ddic boolean: cascade_ddic:true
+// requires ABAP_MODE=admin; absent or false stays ordinary mutating.
+const ADMIN_ONLY_WHEN = new Map([
+  ["abap_bopf_delete", { field: "cascade_ddic", adminWhen: (v) => v === true }],
+]);
+
+function readStdin() {
+  try {
+    return readFileSync(0, "utf8");
+  } catch (_e) {
+    // EAGAIN on some platforms when stdin has no data ready yet, a closed
+    // stdin, etc. Any read failure is treated the same as malformed input.
+    return null;
+  }
+}
+
+function bareToolName(toolName) {
+  // Handle both a bare name ("abap_write") and a fully plugin-scoped name
+  // ("mcp__plugin_abapsmith_abap__abap_write") robustly: the real tool name
+  // is always the last "__"-delimited segment.
+  if (typeof toolName !== "string" || toolName.length === 0) return "";
+  const parts = toolName.split("__");
+  return parts[parts.length - 1];
+}
+
+function normalizeMode(raw) {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (v === MODE_READ || v === MODE_EDIT || v === MODE_ADMIN) return v;
+  // Missing or invalid ABAP_MODE -> most restrictive default.
+  return MODE_READ;
+}
+
+// How the mode in force should be NAMED to whoever has to fix a refusal.
+//
+// "ABAP_MODE=read" and "ABAP_MODE is not set, so it defaults to read" are
+// materially different sentences: the first sends the reader looking for the
+// place they set `read`, which does not exist, and it reads as though they had
+// chosen it. Worse, unset is the one value on which this hook and the server
+// DISAGREE — this hook fails closed to `read`, while `src/mode.ts` treats unset
+// as "fall back to the legacy ABAP_ALLOW_* flags". An operator who unsets
+// ABAP_MODE to reach the legacy path therefore gets denied here, by a mode they
+// never chose, and the old message gave them no way to see that. Naming the
+// default AS a default is what makes the two-gate structure discoverable.
+function describeMode(raw, mode) {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  // Noun-phrase shaped so it reads correctly in every sentence below, both
+  // "allowed under X." and "X only permits read-only operations".
+  if (v === "") return `ABAP_MODE=${mode} (a DEFAULT — ABAP_MODE is not set)`;
+  if (v.toLowerCase() !== mode) {
+    return `ABAP_MODE=${mode} (a DEFAULT — ABAP_MODE='${v}' is not a recognised mode)`;
+  }
+  return `ABAP_MODE=${mode}`;
+}
+
+// Appended to every DENIAL when the mode was defaulted rather than chosen, so
+// the reader is told the one thing the message above cannot imply: the server
+// behind this hook does something DIFFERENT with an unset ABAP_MODE.
+let denySuffix = "";
+
+function emitDecision(decision, reason) {
+  const payload = {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: decision,
+      permissionDecisionReason: reason,
+    },
+  };
+  // Both allow and deny decisions are emitted explicitly (rather than a
+  // silent exit 0 for allow) so every decision this hook makes is visible
+  // in transcripts/logs for auditing, not just the denials.
+  process.stdout.write(JSON.stringify(payload) + "\n");
+  process.exit(0);
+}
+
+function deny(reason) {
+  emitDecision("deny", reason + denySuffix);
+}
+
+function allow(reason) {
+  emitDecision("allow", reason);
+}
+
+function main() {
+  const raw = readStdin();
+  if (raw === null || raw === undefined || raw.trim() === "") {
+    deny("abap-guard: malformed hook input, denying by default.");
+    return;
+  }
+
+  let input;
+  try {
+    input = JSON.parse(raw);
+  } catch (_e) {
+    deny("abap-guard: malformed hook input, denying by default.");
+    return;
+  }
+
+  if (!input || typeof input !== "object" || typeof input.tool_name !== "string" || input.tool_name.length === 0) {
+    deny("abap-guard: malformed hook input, denying by default.");
+    return;
+  }
+
+  const mode = normalizeMode(process.env.ABAP_MODE);
+  const modeDesc = describeMode(process.env.ABAP_MODE, mode);
+  if (modeDesc !== `ABAP_MODE=${mode}`) {
+    denySuffix =
+      " NOTE: this hook and the abapsmith server do NOT agree on what an unset/unrecognised" +
+      " ABAP_MODE means. This hook fails closed to read; the server falls back to the legacy" +
+      " ABAP_ALLOW_* flags. Setting ABAP_MODE explicitly is the only configuration both honour.";
+  }
+  const fullToolName = input.tool_name;
+  const tool = bareToolName(fullToolName);
+  const toolInput = input.tool_input && typeof input.tool_input === "object" ? input.tool_input : {};
+
+  // 1. Always read-only: allowed in every mode.
+  if (ALWAYS_READ_ONLY.has(tool)) {
+    allow(`abap-guard: '${tool}' is always read-only; allowed under ${modeDesc}.`);
+    return;
+  }
+
+  // 2. Admin-only: needs ABAP_MODE=admin specifically.
+  if (ADMIN_ONLY.has(tool)) {
+    if (mode === MODE_ADMIN) {
+      allow(`abap-guard: '${tool}' is admin-only; allowed under ABAP_MODE=admin.`);
+    } else {
+      deny(`abap-guard: '${tool}' is admin-only (e.g. transport release) but ${modeDesc}. Set ABAP_MODE=admin to allow this.`);
+    }
+    return;
+  }
+
+  // 3. Always mutating: needs ABAP_MODE=edit or admin.
+  if (ALWAYS_MUTATING.has(tool)) {
+    if (mode === MODE_EDIT || mode === MODE_ADMIN) {
+      allow(`abap-guard: '${tool}' is mutating; allowed under ${modeDesc}.`);
+    } else {
+      deny(`abap-guard: '${tool}' is a mutating tool and ${modeDesc} only permits read-only operations. Set ABAP_MODE=edit or admin to allow this.`);
+    }
+    return;
+  }
+
+  // 3b. Admin-only-when: ordinarily mutating, but a specific field value
+  // escalates the call onto an admin-only ceiling (e.g. abap_bopf_delete
+  // with cascade_ddic:true). Falls through to plain mutating-tier behaviour
+  // when the field doesn't trigger the escalation.
+  if (ADMIN_ONLY_WHEN.has(tool)) {
+    const spec = ADMIN_ONLY_WHEN.get(tool);
+    const fieldValue = toolInput[spec.field];
+
+    if (spec.adminWhen(fieldValue)) {
+      if (mode === MODE_ADMIN) {
+        allow(`abap-guard: '${tool}' ${spec.field}=${JSON.stringify(fieldValue)} requires the admin-mode ceiling; allowed under ABAP_MODE=admin.`);
+      } else {
+        deny(
+          `abap-guard: '${tool}' ${spec.field}=${JSON.stringify(fieldValue)} requires the admin-mode ceiling (ABAP_MODE=admin); refused under ${modeDesc}. Set ABAP_MODE=admin to allow this.`,
+        );
+      }
+      return;
+    }
+
+    // Field absent or doesn't trigger admin-elevation: ordinary mutating
+    // tier, same as ALWAYS_MUTATING above.
+    if (mode === MODE_EDIT || mode === MODE_ADMIN) {
+      allow(`abap-guard: '${tool}' is mutating; allowed under ${modeDesc}.`);
+    } else {
+      deny(`abap-guard: '${tool}' is a mutating tool and ${modeDesc} only permits read-only operations. Set ABAP_MODE=edit or admin to allow this.`);
+    }
+    return;
+  }
+
+  // 4. Argument-dependent: inspect tool_input's operation/mode/action field.
+  if (ARG_DEPENDENT.has(tool)) {
+    const spec = ARG_DEPENDENT.get(tool);
+    const rawValue = toolInput[spec.field];
+    const isAbsent = rawValue === undefined || rawValue === null || rawValue === "";
+
+    // v2's abap_do/abap_adt: an absent action/method is a bare self-describing
+    // call (abap_do) or defaults to GET (abap_adt) — never a mutation. The
+    // four original entries never set emptyIsRead, so for them an absent
+    // field falls through to fieldStr === "undefined"/"null", an unrecognized
+    // value, which is (as before) treated as mutating — unchanged behaviour.
+    if (isAbsent && spec.emptyIsRead) {
+      allow(`abap-guard: '${tool}' ${spec.field} is absent, defaulting to a read-only value; allowed under ${modeDesc}.`);
+      return;
+    }
+
+    const fieldStr = isAbsent ? String(rawValue) : typeof rawValue === "string" ? rawValue : String(rawValue);
+    const compareValue = spec.caseInsensitive ? fieldStr.toUpperCase() : fieldStr;
+    const readValues = spec.caseInsensitive ? spec.readValues.map((v) => v.toUpperCase()) : spec.readValues;
+
+    if (readValues.includes(compareValue)) {
+      allow(`abap-guard: '${tool}' ${spec.field}='${fieldStr}' is a read-only sub-operation; allowed under ${modeDesc}.`);
+      return;
+    }
+
+    // Admin-only sub-operations (transport release/delete, bopf delete,
+    // abap_adt's non-GET verbs via adminOtherwise): need ABAP_MODE=admin
+    // specifically, same asymmetry as the top-level ADMIN_ONLY set in step 2.
+    const adminValues = spec.adminValues ?? [];
+    const isAdminOnly = spec.adminOtherwise === true || adminValues.includes(compareValue);
+    if (isAdminOnly) {
+      if (mode === MODE_ADMIN) {
+        allow(`abap-guard: '${tool}' ${spec.field}='${fieldStr}' is admin-only; allowed under ABAP_MODE=admin.`);
+      } else {
+        deny(
+          `abap-guard: '${tool}' ${spec.field}='${fieldStr}' is admin-only and ${modeDesc} does not permit it. Set ABAP_MODE=admin to allow this.`,
+        );
+      }
+      return;
+    }
+
+    // Either an explicitly mutating value, or an unrecognized value for the
+    // gating field — both are treated as mutating (fail closed).
+    const recognized = (spec.mutatingValues ?? []).includes(compareValue);
+    if (mode === MODE_EDIT || mode === MODE_ADMIN) {
+      allow(`abap-guard: '${tool}' ${spec.field}='${fieldStr}' is mutating; allowed under ${modeDesc}.`);
+    } else {
+      const qualifier = recognized ? "" : " (unrecognized value, treated as mutating)";
+      deny(
+        `abap-guard: '${tool}' ${spec.field}='${fieldStr}'${qualifier} is mutating and ${modeDesc} only permits read-only operations. Set ABAP_MODE=edit or admin to allow this.`,
+      );
+    }
+    return;
+  }
+
+  // 5. Unrecognized tool name. Asymmetric by design (see comment block at
+  // top of file, point 4): deny in read mode (allowlist philosophy), allow
+  // in edit/admin mode (defer to the in-process gate, which is the real,
+  // complete authority for tools this coarse hook doesn't know about).
+  if (mode === MODE_READ) {
+    deny(`abap-guard: '${tool}' is not a recognized read-only tool and ABAP_MODE=read defaults to deny (allowlist policy). Full tool name seen: '${fullToolName}'.`);
+  } else {
+    allow(`abap-guard: '${tool}' is not in abap-guard's coarse table; deferring to the in-process ABAP_MODE gate under ${modeDesc}.`);
+  }
+}
+
+main();

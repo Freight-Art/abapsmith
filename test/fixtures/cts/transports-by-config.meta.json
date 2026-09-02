@@ -1,0 +1,29 @@
+{
+  "method": "GET",
+  "url": "/sap/bc/adt/cts/transportrequests",
+  "qs": {
+    "configUri": "/sap/bc/adt/cts/transportrequests/searchconfiguration/configurations/1A2263E0A4E31FE1A3B6BDE618A5D650",
+    "targets": false
+  },
+  "requestHeaders": {
+    "Accept": "*/*",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "X-sap-adt-sessiontype": "stateless",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": null,
+  "status": 200,
+  "statusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.transportorganizertree.v1+xml; charset=utf-8",
+    "content-length": "3024",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "1155023.000000"
+  },
+  "threw": false,
+  "bodyFile": "transports-by-config.xml",
+  "bodyBytes": 64182
+}

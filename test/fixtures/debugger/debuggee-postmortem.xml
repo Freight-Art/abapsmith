@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+    <DATA>
+      <STPDA_DEBUGGEE>
+        <CLIENT>001</CLIENT>
+        <DEBUGGEE_ID>DUMP123</DEBUGGEE_ID>
+        <DEBUGGEE_USER>TESTUSER</DEBUGGEE_USER>
+        <PRG_CURR>ZTEST_MCP_CRUD</PRG_CURR>
+        <LINE_CURR>20</LINE_CURR>
+        <DBGEE_KIND>POSTMORTEM</DBGEE_KIND>
+        <IS_ATTACH_IMPOSSIBLE>X</IS_ATTACH_IMPOSSIBLE>
+        <DUMP_ID>20251205_123456_TESTUSER</DUMP_ID>
+        <DUMP_DATE>20251205</DUMP_DATE>
+        <DUMP_TIME>123456</DUMP_TIME>
+        <DUMP_HOST>A4HSANDBOX</DUMP_HOST>
+        <DUMP_UNAME>TESTUSER</DUMP_UNAME>
+        <DUMP_CLIENT>001</DUMP_CLIENT>
+        <DUMP_URI>/sap/bc/adt/runtime/dumps/123456</DUMP_URI>
+      </STPDA_DEBUGGEE>
+    </DATA>
+  </asx:values>
+</asx:abap>

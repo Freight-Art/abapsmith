@@ -1,0 +1,30 @@
+{
+  "n": 819,
+  "label": "p2-quicksearch-t000-tabl-ds",
+  "expect": "does objectType=TABL/DS filter still mis-pair among structures only?",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=T000*&objectType=TABL%2FDS&maxResults=5",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "623",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "59566.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 623,
+  "zeroByteBody": false,
+  "sha256": "2e30ca9e2fc308f60eea22080436a541e408a85911f5ffe4fbdffcaca37d1da2",
+  "utcTimestamp": "2026-08-20T16:10:16.837Z",
+  "durationMs": 395,
+  "sessionName": "LIVE-305"
+}

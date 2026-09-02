@@ -1,0 +1,13 @@
+{
+  "//": "Type-checks breaker-required.fixture.ts ALONE. See that file's header for why it needs its own project: the root tsconfig excludes test/, and the rest of the suite does not type-check clean under these settings. Driven from test/breaker-required-types.test.ts.",
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../..",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["./breaker-required.fixture.ts", "../../src/types/proxy-from-env.d.ts"],
+  "exclude": []
+}

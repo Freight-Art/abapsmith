@@ -1,0 +1,9 @@
+@EndUserText.label : 'Range structure for carrier ID'
+@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE
+define structure ztmc_s_r_carrid {
+  sign   : ddsign;
+  option : ddoption;
+  low    : ztmc_e_carrid;
+  high   : ztmc_e_carrid;
+
+}

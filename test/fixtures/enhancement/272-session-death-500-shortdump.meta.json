@@ -1,0 +1,32 @@
+{
+  "n": 272,
+  "label": "w17-create-spot",
+  "expect": "spot create, this time with no enhs:filters element at all",
+  "note": null,
+  "requestMethod": "POST",
+  "requestPath": "/sap/bc/adt/enhancements/enhsxs",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "7wQPgdTwjQv-qU5gAukBmg==",
+    "Content-Type": "application/vnd.sap.adt.enh.enhs.v1+xml",
+    "Accept": "application/vnd.sap.adt.enh.enhs.v1+xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><enhs:objectData xmlns:enhs=\"http://www.sap.com/adt/enhancements/enhs\" xmlns:adtcore=\"http://www.sap.com/adt/core\" adtcore:name=\"ZMCP_SPOT\" adtcore:type=\"ENHS/XS\" adtcore:description=\"ZMCP recon BAdI spot\" adtcore:masterLanguage=\"EN\" adtcore:language=\"EN\" adtcore:responsible=\"DEVELOPER\"><adtcore:packageRef adtcore:name=\"$TMP\"/><enhs:contentCommon enhs:toolType=\"BADI_DEF\" enhs:internal=\"false\"/><enhs:contentSpecific><enhs:badiTechnology><enhs:badiDefinitions><enhs:badiDefinition enhs:name=\"ZMCP_BADI_D1\" enhs:shorttext=\"ZMCP recon BAdI definition\" enhs:singleUse=\"true\" enhs:useFallbackClass=\"false\" enhs:filterLimitation=\"false\" enhs:documentationId=\"\"><enhs:interface adtcore:uri=\"/sap/bc/adt/oo/interfaces/zif_mcp_badi\" adtcore:type=\"INTF/OI\" adtcore:name=\"ZIF_MCP_BADI\"/></enhs:badiDefinition></enhs:badiDefinitions></enhs:badiTechnology></enhs:contentSpecific></enhs:objectData>",
+  "responseStatus": 500,
+  "responseStatusText": "Internal Server Error",
+  "responseHeaders": {
+    "connection": "close",
+    "content-length": "10006",
+    "content-type": "text/html; charset=utf-8"
+  },
+  "byteLength": 10006,
+  "zeroByteBody": false,
+  "sha256OfRawBody": "e3e175675a5dd4310892c75e5bccf92a99ed0a951f30adb3acb13a4b436b8939",
+  "redactions": null,
+  "bodyFile": "272-w17-create-spot.xml",
+  "utcTimestamp": "2026-08-05T15:51:34.531Z",
+  "durationMs": 819,
+  "sessionName": "A"
+}

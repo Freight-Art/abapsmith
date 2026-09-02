@@ -1,0 +1,35 @@
+{
+  "label": "rep2-formatted",
+  "what": "The /formatted plain-text rendering of dump key ...123447...4 — the SAME dump as dump-detail-v1.xml. Kept whole: the offset-alignment test needs every banner line, and all 20 dump:chapter line offsets resolve into this body (20/20).",
+  "sourceCapture": "06-rep2-formatted.body.txt",
+  "sourceCaptureDir": "local capture session 2026-08-11 (not committed)",
+  "capturedUtc": "2026-08-11",
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/runtime/dump/20260811123447a4hsandbox_A4H_00%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20DEVELOPER%20%20%20001%20%20%20%20%20%20%20%204/formatted",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "19371",
+    "content-type": "text/plain; charset=utf-8"
+  },
+  "byteLength": 182713,
+  "byteLengthAfterRedaction": 182713,
+  "lineCount": 1811,
+  "zeroByteBody": false,
+  "sha256OfRedactedBody": "2bff395691a8ae2a33f5e0010e0353533738e43eb003690b1663b9dad5c13ea8",
+  "pairedWith": "dump-detail-v1.xml (same dump key 20260811123447...4)",
+  "chapterOffsetAlignment": "20/20 dump:chapter line attributes land on their own banner line",
+  "redactions": [
+    "hostname token -> \"a4hsandbox\" (4x, same 10-char length)",
+    "public IPv4 -> 198.51.100.163 (RFC 5737 TEST-NET-2, 3x, same 14-char length)"
+  ],
+  "redactionPolicy": "Length-preserving substitution only. No other byte was altered: percent-encoding, %20 padding runs, attribute order, XML escaping and the absent trailing newline are as captured.",
+  "bodyFile": "dump-formatted.txt",
+  "durationMs": 314
+}

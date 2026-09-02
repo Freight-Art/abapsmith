@@ -1,0 +1,32 @@
+{
+  "method": "POST",
+  "url": "/sap/bc/adt/programs/programs",
+  "qs": {
+    "corrNr": "A4HK900122"
+  },
+  "requestHeaders": {
+    "Accept": "*/*",
+    "Cache-Control": "no-cache",
+    "x-csrf-token": "<REDACTED>",
+    "Content-Type": "application/*",
+    "X-sap-adt-sessiontype": "stateful",
+    "Cookie": "<REDACTED>"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n        <program:abapProgram xmlns:program=\"http://www.sap.com/adt/programs/programs\"\n          xmlns:adtcore=\"http://www.sap.com/adt/core\"\n          adtcore:description=\"abap-mcp bad corrNr probe\"\n          adtcore:name=\"ZMCP_CTS_BAD1\" adtcore:type=\"PROG/P\"\n          adtcore:language=\"EN\" adtcore:masterLanguage=\"EN\" \n          adtcore:responsible=\"DEVELOPER\" >\n          <adtcore:packageRef adtcore:name=\"Z_FLIGHT_ADDITIONAL\"/>\n        </program:abapProgram>",
+  "threw": true,
+  "errorName": "HttpClientException",
+  "errorMessage": "Request failed with status code 403",
+  "status": 403,
+  "statusText": "Forbidden",
+  "responseHeaders": {
+    "set-cookie": "<REDACTED>",
+    "content-type": "application/xml",
+    "content-length": "384",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "84369.000000"
+  },
+  "bodyFile": "create-object-error-corrnr-not-a-change-request.xml",
+  "bodyBytes": 384
+}

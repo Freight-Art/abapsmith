@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "abap": {
+      "command": "node",
+      "args": ["./dist/index.js"],
+      "env": {
+        "ABAP_URL": "https://sap.example.com:44300",
+        "ABAP_USER": "DEVELOPER",
+        "ABAP_CLIENT": "001",
+        "ABAP_SID": "A4H",
+        "ABAP_MODE": "read"
+      }
+    }
+  }
+}

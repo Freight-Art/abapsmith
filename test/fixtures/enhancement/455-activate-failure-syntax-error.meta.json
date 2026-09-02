@@ -1,0 +1,36 @@
+{
+  "n": 455,
+  "label": "w45-activate",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestPath": "/sap/bc/adt/activation?method=activate&preauditRequested=true",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "QCRRvmlrXo7GXJ1ef8t21A==",
+    "Content-Type": "application/xml",
+    "Accept": "application/xml"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><adtcore:objectReferences xmlns:adtcore=\"http://www.sap.com/adt/core\"><adtcore:objectReference adtcore:uri=\"/sap/bc/adt/oo/classes/zcl_mcp_badi_real\" adtcore:name=\"ZCL_MCP_BADI_REAL\"/></adtcore:objectReferences>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "397",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "888750.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 397,
+  "zeroByteBody": false,
+  "sha256OfRawBody": "c7a055a0b4f0455d679c3fa1f720bd133eb557e29e1083c7364e476a6bfecff6",
+  "redactions": null,
+  "bodyFile": "455-w45-activate.xml",
+  "utcTimestamp": "2026-08-05T16:15:46.173Z",
+  "durationMs": 972,
+  "sessionName": "A"
+}

@@ -1,0 +1,33 @@
+{
+  "n": 833,
+  "label": "p4-fugr-object-seo-aliases-get",
+  "expect": "independent ground truth: FUGR/FF SEO_ALIASES_GET own metadata description (in group SEOQ)",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/functions/groups/seoq/fmodules/seo_aliases_get",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "682",
+    "content-type": "application/vnd.sap.adt.functions.fmodules.v2+xml; charset=utf-8",
+    "etag": "201502131943490016",
+    "last-modified": "Fri, 13 Feb 2015 19:43:49 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "969448.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 2348,
+  "zeroByteBody": false,
+  "sha256": "d4f3f775a69ea2719b126d840566d4bc15475dae00954fb03e2c66bc94500ebb",
+  "utcTimestamp": "2026-08-20T16:14:02.973Z",
+  "durationMs": 1201,
+  "sessionName": "LIVE-305"
+}

@@ -1,0 +1,32 @@
+{
+  "n": 52,
+  "label": "listener-timeout-empty",
+  "expect": "HTTP 200 with Content-Length: 0 and a ZERO-BYTE body",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/listeners?debuggingMode=user&requestUser=DEVELOPER&terminalId=ZMCPCAPTURE000000000000000000001&ideId=ZMCPCAPTUREIDE000000000000000000&timeout=15&checkConflict=false&isNotifiedOnConflict=true",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "rDpIM6yhEcLFUJvV4M0tOw==",
+    "Accept": "application/vnd.sap.as+xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "0",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "15061428.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 0,
+  "zeroByteBody": true,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "utcTimestamp": "2026-07-31T23:49:50.724Z",
+  "durationMs": 15103,
+  "sessionName": "A"
+}

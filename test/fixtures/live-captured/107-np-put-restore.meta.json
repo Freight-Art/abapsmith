@@ -1,0 +1,34 @@
+{
+  "n": 107,
+  "label": "np-put-restore",
+  "expect": null,
+  "note": null,
+  "requestMethod": "PUT",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/programs/programs/zmcp_dbg_demo/source/main?lockHandle=B86D987264815450A8A2AD8B7611ED806B20243D",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "vGjVjD6Yj4yRPuQ7IhKclQ==",
+    "Content-Type": "text/plain; charset=utf-8"
+  },
+  "requestBody": "REPORT zmcp_dbg_demo.\r\n\r\n* ZMCP_DBG_DEMO - centrepiece of the debugger test scenario.\r\n*\r\n* Reads ZMCP_DBG_ITEM (filled deterministically by ZMCP_DBG_FILL),\r\n* loops over the 15 rows computing a line value per row via a local\r\n* class method call (a real call frame to step into/out of), aggregates\r\n* per-category totals into a second internal table, then computes an\r\n* average and the highest-value category, and WRITEs everything out in\r\n* a format that is easy to assert on.\r\n*\r\n* See scripts/fixtures/debug/README.md for the exact expected output\r\n* and the hand-computed arithmetic behind it.\r\n\r\n\" A RETURNING parameter must be FULLY typed - `TYPE p LENGTH 8 DECIMALS 2`\r\n\" inline in the signature is rejected by the compiler (\"A RETURNING parameter\r\n\" must be fully typed.\"), so the amount type is named once here and reused.\r\nTYPES ty_amount TYPE p LENGTH 8 DECIMALS 2.\r\n\r\nCLASS lcl_calc DEFINITION.\r\n  PUBLIC SECTION.\r\n    \" Computes one line's value (quantity * unit price). Called once per\r\n    \" loop iteration in the main flow below - this is the call frame the\r\n    \" debugger scenario exists to exercise.\r\n    CLASS-METHODS line_value\r\n      IMPORTING iv_qty          TYPE i\r\n                iv_price        TYPE zmcp_dbg_item-unit_price\r\n      RETURNING VALUE(rv_total) TYPE ty_amount.\r\n\r\n    \" Formats a packed amount as a locale-independent \"123.45\" string by\r\n    \" working entirely in integer cents, so the WRITE output below never\r\n    \" depends on the logged-on user's decimal-notation setting.\r\n    CLASS-METHODS format_amount\r\n      IMPORTING iv_amount      TYPE p\r\n      RETURNING VALUE(rv_text) TYPE string.\r\nENDCLASS.\r\n\r\nCLASS lcl_calc IMPLEMENTATION.\r\n  METHOD line_value.\r\n    DATA lv_raw TYPE p LENGTH 8 DECIMALS 2.\r\n    \" DEBUG STOP M: inside lcl_calc=>line_value - own locals iv_qty, iv_price, lv_raw\r\n    IF iv_qty <= 0.\r\n      rv_total = 0.\r\n      RETURN.\r\n    ENDIF.\r\n    lv_raw   = iv_qty * iv_price.\r\n    rv_total = lv_raw.\r\n  ENDMETHOD.\r\n\r\n  METHOD format_amount.\r\n    DATA: lv_cents TYPE i,\r\n          lv_int   TYPE i,\r\n          lv_frac  TYPE i.\r\n    lv_cents = round( val = iv_amount * 100 dec = 0 ).\r\n    lv_int   = lv_cents DIV 100.\r\n    lv_frac  = lv_cents MOD 100.\r\n    rv_text  = |{ lv_int }.{ lv_frac WIDTH = 2 PAD = '0' ALIGN = RIGHT }|.\r\n  ENDMETHOD.\r\nENDCLASS.\r\n\r\nTYPES: BEGIN OF ty_cat_total,\r\n         category TYPE zmcp_dbg_item-category,\r\n         total    TYPE p LENGTH 8 DECIMALS 2,\r\n         cnt      TYPE i,\r\n       END OF ty_cat_total,\r\n       ty_cat_totals TYPE STANDARD TABLE OF ty_cat_total WITH EMPTY KEY.\r\n\r\nDATA: lt_cat_totals   TYPE ty_cat_totals,\r\n      lv_grand_total  TYPE p LENGTH 8 DECIMALS 2 VALUE 0,\r\n      lv_counter      TYPE i VALUE 0,\r\n      lv_average      TYPE p LENGTH 8 DECIMALS 4,\r\n      lv_top_category TYPE zmcp_dbg_item-category,\r\n      lv_top_total    TYPE p LENGTH 8 DECIMALS 2 VALUE 0.\r\n\r\n\" An explicit event block is REQUIRED here: once a processing block\r\n\" (CLASS ... IMPLEMENTATION above) has been opened and closed, later top-level\r\n\" statements no longer fall into the implicit START-OF-SELECTION and the\r\n\" compiler rejects them with \"Statement is not accessible.\"\r\nSTART-OF-SELECTION.\r\n\r\nSELECT * FROM zmcp_dbg_item INTO TABLE @DATA(lt_items) ORDER BY item_id.\r\n\" DEBUG STOP 1: after SELECT, lt_items populated (15 rows expected)\r\n\r\nLOOP AT lt_items INTO DATA(ls_item).\r\n  lv_counter = lv_counter + 1.\r\n\r\n  DATA(lv_line_total) = lcl_calc=>line_value(\r\n    iv_qty   = ls_item-quantity\r\n    iv_price = ls_item-unit_price ).\r\n  \" DEBUG STOP 2: back in the loop, right after the method call returns -\r\n  \" lv_line_total now holds quantity * unit_price for the current row\r\n\r\n  lv_grand_total = lv_grand_total + lv_line_total.\r\n\r\n  ASSIGN lt_cat_totals[ category = ls_item-category ] TO FIELD-SYMBOL(<ls_cat>).\r\n  IF sy-subrc <> 0.\r\n    APPEND VALUE #( category = ls_item-category total = 0 cnt = 0 ) TO lt_cat_totals.\r\n    ASSIGN lt_cat_totals[ category = ls_item-category ] TO <ls_cat>.\r\n  ENDIF.\r\n  <ls_cat>-total = <ls_cat>-total + lv_line_total.\r\n  <ls_cat>-cnt   = <ls_cat>-cnt + 1.\r\n  \" DEBUG STOP 3: end of loop body - lt_cat_totals has a fresh running total\r\n  \" for ls_item-category, visible changing on every iteration\r\nENDLOOP.\r\n\r\nlv_average = lv_grand_total / lv_counter.\r\n\r\nLOOP AT lt_cat_totals INTO DATA(ls_cat_scan).\r\n  IF ls_cat_scan-total > lv_top_total.\r\n    lv_top_total    = ls_cat_scan-total.\r\n    lv_top_category = ls_cat_scan-category.\r\n  ENDIF.\r\nENDLOOP.\r\n\" DEBUG STOP 4: after both post-loop computations - lv_average and\r\n\" lv_top_category/lv_top_total are final\r\n\r\nWRITE: / 'ZMCP_DBG_DEMO RESULTS'.\r\nWRITE: / |ITEMS={ lv_counter }|.\r\n\r\nLOOP AT lt_cat_totals INTO DATA(ls_cat_out).\r\n  WRITE: / |CAT={ ls_cat_out-category } COUNT={ ls_cat_out-cnt } TOTAL={ lcl_calc=>format_amount( ls_cat_out-total ) }|.\r\nENDLOOP.\r\n\r\nWRITE: / |GRAND_TOTAL={ lcl_calc=>format_amount( lv_grand_total ) }|.\r\nWRITE: / |AVERAGE={ lcl_calc=>format_amount( lv_average ) }|.\r\nWRITE: / |TOP_CATEGORY={ lv_top_category } TOP_TOTAL={ lcl_calc=>format_amount( lv_top_total ) }|.",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "0",
+    "etag": "202607312354520001",
+    "last-modified": "Fri, 31 Jul 2026 23:54:52 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "203388.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 0,
+  "zeroByteBody": true,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "utcTimestamp": "2026-07-31T23:54:52.704Z",
+  "durationMs": 259,
+  "sessionName": "A"
+}

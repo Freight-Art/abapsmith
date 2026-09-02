@@ -1,0 +1,28 @@
+node_modules
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Write journal. Contains BEFORE-IMAGES of customer ABAP source — never commit
+# it. Override the location with ABAP_JOURNAL_DIR; see doc/JOURNAL/journal-format.md.
+.abapsmith/
+.abap-mcp/
+
+# Live-capture working material (raw ADT responses, driver scripts).
+# Curated, redacted captures belong in test/fixtures/live-captured/ instead.
+scratchpad/
+
+# Pre-release working material: raw ADT captures, session cookies, SSO tickets
+# and whole-system object enumerations. Not part of the published project.
+docs-legacy/
+
+# Scratch git worktrees created by coding agents.
+.claude/worktrees/
+
+# Eval harness output (eval/run.sh). Raw MCP telemetry from live runs against
+# a real appliance -- carries the appliance host and must never be committed.
+# Only derived summaries under eval/baseline/ are.
+eval/out/

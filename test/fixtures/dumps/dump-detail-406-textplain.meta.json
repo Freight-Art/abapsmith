@@ -1,0 +1,29 @@
+{
+  "label": "dump-detail-textplain",
+  "what": "Dump detail requested with Accept: text/plain — HTTP 406, the resource offers no text/plain variant.",
+  "sourceCapture": "01-dump-detail-textplain.body.xml",
+  "sourceCaptureDir": "local capture session 2026-08-11 (not committed)",
+  "capturedUtc": "2026-08-11",
+  "requestMethod": "GET",
+  "requestPath": "/sap/bc/adt/runtime/dump/20260811082715a4hsandbox_A4H_00%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20DEVELOPER%20%20%20001%20%20%20%20%20%20%20%206",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted>",
+    "Accept": "text/plain"
+  },
+  "requestBody": null,
+  "responseStatus": 406,
+  "responseStatusText": "Not Acceptable",
+  "responseHeaders": {
+    "content-length": "372",
+    "content-type": "application/xml"
+  },
+  "byteLength": 372,
+  "byteLengthAfterRedaction": 372,
+  "zeroByteBody": false,
+  "sha256OfRedactedBody": "c465d201721e4915c3d7cad6ec079d96b99719ee08ac56e8a0d80c87f9ce760d",
+  "redactions": null,
+  "redactionPolicy": "Length-preserving substitution only. No other byte was altered: percent-encoding, %20 padding runs, attribute order, XML escaping and the absent trailing newline are as captured.",
+  "bodyFile": "dump-detail-406-textplain.xml",
+  "durationMs": 1961
+}

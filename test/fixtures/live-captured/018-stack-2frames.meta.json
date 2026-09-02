@@ -1,0 +1,33 @@
+{
+  "n": 18,
+  "label": "stack-2frames",
+  "expect": "stack at the outer breakpoint; SETTLES adtcore:uri vs bare uri on stackEntry",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/stack?method=getStack&emode=_&semanticURIs=true",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "DiImM74G-dVI0t2U5VqRsQ==",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "597",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "16668.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 597,
+  "zeroByteBody": false,
+  "sha256": "7637f5d79c8bf6bd2fcc55fbb60ce2b22a9c582137c5989a1b3a66d99bf55afe",
+  "utcTimestamp": "2026-07-31T23:49:05.673Z",
+  "durationMs": 62,
+  "sessionName": "A"
+}

@@ -1,0 +1,31 @@
+{
+  "n": 824,
+  "label": "p4-quicksearch-prog-rs-star",
+  "expect": "discover mixed-subtype PROG/P + PROG/I group",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=RS*&maxResults=100",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "3040",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "1489805.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 22726,
+  "zeroByteBody": false,
+  "sha256": "ebc81193e39ddb1657990119525d0d0706c39f3554a19e2bf0676372b8ee36e5",
+  "utcTimestamp": "2026-08-20T16:11:46.018Z",
+  "durationMs": 1782,
+  "sessionName": "LIVE-305"
+}
