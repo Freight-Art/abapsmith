@@ -17,10 +17,10 @@ below invents its own vocabulary.
 | Marker | Meaning |
 | --- | --- |
 | `live` | Exercised against a real SAP system, with captured bytes or a dated source citation. |
-| `tests` | Covered by tests only. Fixtures are synthetic, hand-written, or derived by editing another capture. |
+| `tests` | Covered by tests only. Where the row claims a capability, its fixtures are synthetic, hand-written, or derived by editing another capture. Where the row claims none, what the tests pin is the refusal itself — the reason behind that refusal is often live recon, so a refusal row is grounded even though nothing about it is a live-verified capability claim. |
 | `mixed` | Sub-paths differ. The note says which are `live` and which are `tests`. |
 | `unverified` | No evidence either way. Not a claim that it is broken. |
-| `n/a` | The row claims no capability, so there is nothing to grade. |
+| `n/a` | There is nothing in the tree to grade: the row names a surface abapsmith has no code and no test for. A refusal a test pins is `tests`, not `n/a`, which is why the derived object-type table never produces `n/a` in its Evidence column. |
 
 A success path that was only ever produced by editing a captured failure is
 not `live`, however confident the code looks. Where that is the case, the
