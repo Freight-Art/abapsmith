@@ -66,6 +66,7 @@ inputs to this derivation rather than registry fields:
 | `FUGR/I` | Function group include | no | yes | no | no | no | tests |
 | `DDLS/DF` | CDS view / DDL source | yes | yes | yes | yes | yes | live |
 | `DDLX/EX` | Metadata extension | yes | yes | yes | yes | yes | live |
+| `DCLS/DL` | CDS access control | no | yes | yes | no | yes | unverified |
 | `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
 | `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
 | `XSLT/VT` | Transformation | yes | yes | yes | yes | yes | live |
@@ -105,6 +106,17 @@ The `Object` column values are the registry `label` fields, unreworded.
   is why the cell is `no` rather than `partial` — nothing has established it
   either way, and the gate stays shut until something does. Names are
   restricted to the `EZ` and `EY` prefixes.
+- `DCLS/DL` — reads are proven live: ADT discovery advertises
+  `/sap/bc/adt/acm/dcl/sources`, and a `GET .../source/main` on a real role
+  (`i_somi_usr_favorite`) returned 200. Update is supported — `abap_write`
+  resolves a change target — but unexercised: no write has run live yet.
+  Create and delete are gated shut: `create.verified` and `delete` are both
+  `"unverified"` in the registry, which is why the Create and Delete cells
+  read `no` rather than `partial` — exactly as the `ENQU/DL` bullet above
+  explains for its own delete. A create would go through abap-adt-api's
+  vendor `CreatableTypes` entry (creationPath `acm/dcl/sources`), not a
+  hand-built skeleton. The entry carries a `mediaType` because the object
+  URI 406s without it.
 - `MSAG/N` — activation is `n/a` because a message class is born active.
   Reading needs `format: "raw"`; a single raw document has been observed in
   the hundreds of thousands of characters, so the read is windowed by

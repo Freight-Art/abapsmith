@@ -2,8 +2,8 @@
 
 Things a reader might expect and will not find here:
 
-- CDS access controls (`DCLS`) and annotation definitions (`DDLA`) — no
-  registry entry, no `TypeSpec`, unreferenced anywhere in the tree.
+- Annotation definitions (`DDLA`) — no registry entry, no `TypeSpec`,
+  unreferenced anywhere in the tree.
 - BOPF representative nodes and BOPF configuration/customizing — no
   modelling, no operation, no refusal message, just absence.
 - RAP draft handling — not implemented at all.

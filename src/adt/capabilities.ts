@@ -291,8 +291,8 @@ export interface TypeCapabilities {
 }
 
 /**
- * Every ADT type code this registry knows about: the 21 entries in
- * `src/adt/types.ts`'s `TYPES` array, plus seven that are deliberately NOT
+ * Every ADT type code this registry knows about: the 25 entries in
+ * `src/adt/types.ts`'s `TYPES` array, plus eight that are deliberately NOT
  * there (see the module doc). Hand-maintained — kept honest at runtime by
  * {@link assertRegistryCoversTypes}.
  */
@@ -306,6 +306,7 @@ export type TypeCode =
   | "FUGR/I"
   | "DDLS/DF"
   | "DDLX/EX"
+  | "DCLS/DL"
   | "SRVD/SRV"
   | "BDEF/BDO"
   | "XSLT/VT"
@@ -456,6 +457,19 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     create: { vendor: true, verified: true },
     delete: true,
     activate: true,
+  },
+  // Same source-shape recipe as DDLS/DF: vendor CreatableTypes has a real
+  // DCLS/DL entry (creationPath acm/dcl/sources). 2026-09-04 probe: GET
+  // .../source/main 200s on an existing role; object GET 406s with a
+  // generic Accept, 200 with the vendor media type — hence mediaType below.
+  // No live create/delete yet, so both stay unverified.
+  "DCLS/DL": {
+    label: "CDS access control",
+    write: { shape: "source" },
+    create: { vendor: true, verified: "unverified" },
+    delete: "unverified",
+    activate: true,
+    mediaType: "application/vnd.sap.adt.dclSource+xml",
   },
   // Same recipe again: vendor CreatableTypes has a real SRVD/SRV entry, so
   // this is createNewObject/putSource/deleteObject unchanged. Live-verified

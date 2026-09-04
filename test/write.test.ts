@@ -628,13 +628,19 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     expect(() => assertWritableTypesAreReadable()).not.toThrow();
   });
 
-  it("WRITABLE_TYPES is exactly the source-shape twelve plus the properties-shape six", () => {
+  it("WRITABLE_TYPES is exactly the source-shape thirteen plus the properties-shape six", () => {
     // Spelled as one exhaustive set on purpose: a type silently ACQUIRING a
     // write capability is as much a regression as one losing it, and only an
-    // exhaustive comparison catches the first. The twelve-plus-six split is:
+    // exhaustive comparison catches the first. The thirteen-plus-six split is:
     //   source shape     — CLAS/OC INTF/OI PROG/P DDLS/DF DDLX/EX SRVD/SRV
     //                      TABL/DT TABL/DS FUGR/FF FUGR/F BDEF/BDO XSLT/VT
+    //                      DCLS/DL
     //   properties shape — DTEL/DE DOMA/DD TTYP/DA MSAG/N ENQU/DL SRVB/SVB
+    // DCLS/DL joined source-shape on the same recipe as DDLS/DF: vendor
+    // CreatableTypes has a real entry, so create is vendor, not a hand-built
+    // skeleton. `create.verified` and `delete` are both `"unverified"` (no
+    // live create/delete run yet), keeping it out of VERIFIED_CREATABLE_TYPES
+    // and DELETABLE_TYPES.
     // FUGR/F joined on live evidence, not inference: its `/source/main` is the
     // TOP-include skeleton, and a PUT carrying a distinguishing marker line came
     // back on the read, checked clean and activated (capabilities.ts documents
@@ -679,6 +685,7 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
         "FUGR/F",
         "BDEF/BDO",
         "XSLT/VT",
+        "DCLS/DL",
         "DTEL/DE",
         "DOMA/DD",
         "TTYP/DA",

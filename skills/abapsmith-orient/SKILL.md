@@ -44,9 +44,9 @@ Check here before planning any create.
 - `ENHO/XHH` — src/adt/enhancement-hook.ts — createHookImplementation (PROG/P host only).
 - `ENHS/XS` — src/adt/enhancement-bridge.ts — createEnhancementSpot.
 
-**Writable but NOT creatable (1).** Change an existing one; creating fails.
+**Writable but NOT creatable (2).** Change an existing one; creating fails.
 
-`ENQU/DL`
+`DCLS/DL` `ENQU/DL`
 
 **Not reachable by any write (8).** Do not probe for a write route.
 
