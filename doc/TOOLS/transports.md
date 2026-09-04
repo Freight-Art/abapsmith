@@ -62,5 +62,10 @@ row in the parent request's re-read, since CTS resolves a GET of a task
 number to its parent — so a task release now returns a real
 `released`/`not released` verdict when that row settles it, and
 `COULD NOT VERIFY` remains the answer when the row is missing from the
-parent's task list or its status doesn't settle anything either way.
+parent's task list or its status doesn't settle anything either way. For a
+task release, `requestedStatus`/`requestedStatusAfter` are the task's own
+readings and are what to trust; `parentStatusBefore`/`parentStatusAfter`
+describe the parent request instead, and can still read Modifiable after the
+task itself released cleanly. `outcome` for a task release is derived from
+that same row, so it never reads `unknown` next to a confirmed release.
 

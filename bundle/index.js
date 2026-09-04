@@ -102261,7 +102261,7 @@ function subjectNotes(s, answered) {
   if (!s.substituted) return [];
   const own = answered.tasks.find((t) => t.trkorr === s.asked);
   const notes = [
-    `SUBSTITUTION \u2014 you named ${s.asked}, the server answered about ${s.answered}. In CTS a GET of a task number returns its PARENT request, so ${s.asked} is a task of ${s.answered} and every status field above describes ${s.answered}, not ${s.asked}.`
+    `SUBSTITUTION \u2014 you named ${s.asked}, the server answered about ${s.answered}. In CTS a GET of a task number returns its PARENT request, so ${s.asked} is a task of ${s.answered}. requestedStatus (and, on a release, requestedStatusAfter) are ${s.asked}'s own readings; every other status field above describes ${s.answered}, not ${s.asked}.`
   ];
   notes.push(
     own ? `${s.asked} is listed among ${s.answered}'s tasks and reads ${fmtStatus(own.status, own.statusText)}.` : `This call learned nothing about ${s.asked}'s own state: it is not among the ${answered.tasks.length} task(s) the parsed response carries. Do not read the status above as ${s.asked}'s.`
@@ -103122,13 +103122,23 @@ function releaseBeforeImage(asked, before, subject, ownTask) {
 function releaseAfterImage(res, subject, verdict) {
   const lines = [
     `verdict: ${verdict}`,
-    `outcome: ${res.outcome}`,
+    `outcome: ${releaseOutcome(res, subject)}`,
     `reportedReleased: ${res.reportedReleased}`,
     `reportClaim: ${releaseClaim(res)}`,
     `verified: ${res.verified}`,
-    `confirmedByReRead: ${releaseConfirmed(res, subject)}`,
-    `statusAfter: ${res.verified ? fmtStatus(res.actualStatus, res.actualStatusText) : "re-read failed"}`
+    `confirmedByReRead: ${releaseConfirmed(res, subject)}`
   ];
+  if (subject.substituted) {
+    const own = substitutedTaskRow(res, subject);
+    lines.push(`requestedStatusAfter: ${own ? fmtStatus(own.status, own.statusText) : "not known"}`);
+    lines.push(
+      `parentStatusAfter: ${res.verified ? fmtStatus(res.actualStatus, res.actualStatusText) : "re-read failed"}`
+    );
+  } else {
+    lines.push(
+      `statusAfter: ${res.verified ? fmtStatus(res.actualStatus, res.actualStatusText) : "re-read failed"}`
+    );
+  }
   if (res.releaseTimestamp) lines.push(`releasedAt: ${res.releaseTimestamp}`);
   if (res.verificationError) lines.push(`verificationError: ${res.verificationError}`);
   for (const m of res.messages) {
@@ -103230,6 +103240,13 @@ function substitutedTaskRow(res, subject) {
   if (!res.verified || !subject.substituted) return void 0;
   return res.request?.tasks.find((t) => t.trkorr === subject.asked);
 }
+function releaseOutcome(res, subject) {
+  if (!subject.substituted) return res.outcome;
+  const { proved } = releaseVerdict(res, subject);
+  if (proved === "released") return res.reportedReleased ? "released" : "released-despite-abort";
+  if (proved === "not-released") return "aborted";
+  return "unknown";
+}
 function releaseVerdict(res, subject) {
   const now = fmtStatus(res.actualStatus, res.actualStatusText);
   if (res.verified && subject.substituted) {
@@ -103321,6 +103338,11 @@ function renderRelease(res, before, subject, maxChars) {
     });
   }
   const notes = [detail, ...subjectNotes(subject, res.request ?? before)];
+  if (subject.substituted) {
+    notes.push(
+      `requestedStatus/requestedStatusAfter are ${subject.asked}'s own readings and the fields to act on for this release. parentStatusBefore/parentStatusAfter describe ${subject.answered} and can stay Modifiable even when ${subject.asked} released cleanly.`
+    );
+  }
   if (proved === "released") {
     notes.push(
       `${res.trkorr} is now frozen: its objects are unlocked and the request can no longer be changed.`
@@ -103336,19 +103358,25 @@ function renderRelease(res, before, subject, maxChars) {
     const own = substitutedTaskRow(res, subject);
     requestedStatusAfter = own ? fmtStatus(own.status, own.statusText) : "not known";
   }
+  const statusFields = subject.substituted ? {
+    parentStatusBefore: fmtStatus(before.status, before.statusText),
+    parentStatusAfter: res.verified ? fmtStatus(res.actualStatus, res.actualStatusText) : "re-read failed"
+  } : {
+    statusBefore: fmtStatus(before.status, before.statusText),
+    statusAfter: res.verified ? fmtStatus(res.actualStatus, res.actualStatusText) : "re-read failed"
+  };
   return buildResponse({
     header: {
       transport: res.trkorr,
       ...subjectHeader(subject, before),
       requestedStatusAfter,
       verdict,
-      outcome: res.outcome,
+      outcome: releaseOutcome(res, subject),
       reportedReleased: res.reportedReleased,
       // Separate column on purpose: `outcome: released` with
       // `confirmedByReRead: false` is a real and important state.
       confirmedByReRead: confirmed,
-      statusBefore: fmtStatus(before.status, before.statusText),
-      statusAfter: res.verified ? fmtStatus(res.actualStatus, res.actualStatusText) : "re-read failed",
+      ...statusFields,
       verified: res.verified,
       releasedAt: res.releaseTimestamp,
       target: fmtTarget(before)
