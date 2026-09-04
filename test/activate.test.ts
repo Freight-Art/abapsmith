@@ -21,7 +21,7 @@ import type {
   HttpClientOptions,
   HttpClientResponse,
 } from "abap-adt-api/build/AdtHTTP.js";
-import { AbapConnection } from "../src/adt/connection.js";
+import { AbapConnection, type RawRequestOptions } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
@@ -306,6 +306,19 @@ const TABL_TARGET: ResolvedTarget = {
   packageSource: "server",
   exists: true,
   description: "probe table",
+};
+
+/** A third, distinct object — used only where a batch needs a THIRD chunk. */
+const PROG2_TARGET: ResolvedTarget = {
+  spec: { type: "PROG/P" } as ResolvedTarget["spec"],
+  type: "PROG/P",
+  name: "ZMCP_PROBE_REP2",
+  uri: "/sap/bc/adt/programs/programs/zmcp_probe_rep2",
+  sourceUri: "/sap/bc/adt/programs/programs/zmcp_probe_rep2/source/main",
+  packageName: "$TMP",
+  packageSource: "server",
+  exists: true,
+  description: "probe 2",
 };
 
 /**
@@ -1888,6 +1901,16 @@ describe("abapActivate — `objects` (batch form), end to end", () => {
   });
 });
 
+/** SYNTHETIC — same `chkl:messages` shape as `ACTIVATION_ERRORS`, `href` pointed at `TABL_TARGET` instead of `PROG_TARGET` so it attributes to TABL. */
+const TABL_ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
+<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
+  <msg objDescr="Table ZMCP_PROBE_TAB" type="E" line="1"
+       href="${TABL_TARGET.uri}"
+       forceSupported="true">
+    <shortText><txt>Error in ZMCP_PROBE_TAB</txt></shortText>
+  </msg>
+</chkl:messages>`;
+
 /**
  * Journalling.
  *
@@ -2113,7 +2136,184 @@ describe("abapActivate — journalling", () => {
     });
   });
 
-  it("a failed batch settles EVERY object's entry failed — the outcome is shared by construction", async () => {
+  it("chunk one activates clean, chunk two's POST throws — PROG settles succeeded, TABL stays pending", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connectWrite([
+        LOGON_ROUTE,
+        { match: onProgMeta, reply: resp(200, OBJECT_META(PROG_TARGET.name, PROG_TARGET.type), XML) },
+        {
+          match: (o) => o.url === TABL_TARGET.uri,
+          reply: resp(200, OBJECT_META(TABL_TARGET.name, TABL_TARGET.type), XML),
+        },
+        {
+          match: (o) => onActivation(o) && String(o.body ?? "").includes(PROG_TARGET.uri),
+          reply: resp(200, "", { "content-length": "0" }),
+        },
+      ]);
+      const realPost = conn.post.bind(conn);
+      vi.spyOn(conn, "post").mockImplementation(
+        async (url: string, opts?: RawRequestOptions & { body?: string }) => {
+          if (url.includes("/sap/bc/adt/activation") && String(opts?.body ?? "").includes(TABL_TARGET.uri)) {
+            throw new Error("socket hang up");
+          }
+          return realPost(url, opts);
+        },
+      );
+      const gate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP"] });
+
+      const e = await abapActivate(
+        conn,
+        {
+          objects: [
+            { object: PROG_TARGET.name, type: PROG_TARGET.type },
+            { object: TABL_TARGET.name, type: TABL_TARGET.type },
+          ],
+        },
+        100_000,
+        gate,
+        undefined,
+        journal,
+      ).then(
+        () => undefined,
+        (x: unknown) => x,
+      );
+      expect(isAbapError(e)).toBe(true);
+
+      const all = await journal.list({});
+      expect(all).toHaveLength(2);
+      expect(all.every((x) => x.irreversible)).toBe(true);
+
+      const prog = all.find((x) => x.object.name === PROG_TARGET.name)!;
+      expect(prog.outcome).toBe("succeeded");
+      expect(prog.activation?.attempted).toBe(true);
+      expect(prog.activation?.activated).toBe(true);
+
+      // TABL's chunk POST never answered — ADT has no deactivate, so PROG's
+      // already-clean chunk stays settled, but nothing was ever observed
+      // about TABL, and `pending` (not a guessed `failed`) says exactly that.
+      const tabl = all.find((x) => x.object.name === TABL_TARGET.name)!;
+      expect(tabl.outcome).toBe("pending");
+      expect(tabl.error).toBeUndefined();
+    });
+  });
+
+  it("chunk one activates clean, chunk two reports errors — PROG settles succeeded, TABL settles failed with its own error", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connectWrite([
+        LOGON_ROUTE,
+        { match: onProgMeta, reply: resp(200, OBJECT_META(PROG_TARGET.name, PROG_TARGET.type), XML) },
+        {
+          match: (o) => o.url === TABL_TARGET.uri,
+          reply: resp(200, OBJECT_META(TABL_TARGET.name, TABL_TARGET.type), XML),
+        },
+        {
+          match: (o) => onActivation(o) && String(o.body ?? "").includes(PROG_TARGET.uri),
+          reply: resp(200, "", { "content-length": "0" }),
+        },
+        {
+          match: (o) => onActivation(o) && String(o.body ?? "").includes(TABL_TARGET.uri),
+          reply: resp(200, TABL_ACTIVATION_ERROR, XML),
+        },
+      ]);
+      const gate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP"] });
+
+      const e = await abapActivate(
+        conn,
+        {
+          objects: [
+            { object: PROG_TARGET.name, type: PROG_TARGET.type },
+            { object: TABL_TARGET.name, type: TABL_TARGET.type },
+          ],
+        },
+        100_000,
+        gate,
+        undefined,
+        journal,
+      ).then(
+        () => undefined,
+        (x: unknown) => x,
+      );
+      expect(isAbapError(e)).toBe(true);
+
+      const all = await journal.list({});
+      expect(all).toHaveLength(2);
+
+      // Per-object detail, not one uniform patch: PROG's own chunk answered
+      // clean, so it settles succeeded even though the batch as a whole failed.
+      const prog = all.find((x) => x.object.name === PROG_TARGET.name)!;
+      expect(prog.outcome).toBe("succeeded");
+      expect(prog.activation?.activated).toBe(true);
+
+      const tabl = all.find((x) => x.object.name === TABL_TARGET.name)!;
+      expect(tabl.outcome).toBe("failed");
+      expect(tabl.error).toBeTruthy();
+    });
+  });
+
+  it("a chunk never sent because an earlier chunk threw is recorded as such, not as a guessed failure", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connectWriteWithCaps(
+        [
+          LOGON_ROUTE,
+          { match: onProgMeta, reply: resp(200, OBJECT_META(PROG_TARGET.name, PROG_TARGET.type), XML) },
+          {
+            match: (o) => o.url === TABL_TARGET.uri,
+            reply: resp(200, OBJECT_META(TABL_TARGET.name, TABL_TARGET.type), XML),
+          },
+          { match: (o) => o.url === PROG2_TARGET.uri, reply: resp(200, OBJECT_META(PROG2_TARGET.name, PROG2_TARGET.type), XML) },
+          {
+            match: (o) => onActivation(o) && String(o.body ?? "").includes(PROG_TARGET.uri),
+            reply: resp(200, "", { "content-length": "0" }),
+          },
+        ],
+        { maxDdicActivationBatch: 1, maxSafeActivationBatch: 1 },
+      );
+      // Counted at `conn.post` — the one choke point every activation chunk's
+      // POST goes through — rather than at the fake wire, since the throwing
+      // chunk below never gets far enough to reach it.
+      let activationPosts = 0;
+      const realPost = conn.post.bind(conn);
+      vi.spyOn(conn, "post").mockImplementation(
+        async (url: string, opts?: RawRequestOptions & { body?: string }) => {
+          if (url.includes("/sap/bc/adt/activation")) activationPosts++;
+          if (url.includes("/sap/bc/adt/activation") && String(opts?.body ?? "").includes(TABL_TARGET.uri)) {
+            throw new Error("socket hang up");
+          }
+          return realPost(url, opts);
+        },
+      );
+      const gate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP"] });
+
+      const e = await abapActivate(
+        conn,
+        {
+          objects: [
+            { object: PROG_TARGET.name, type: PROG_TARGET.type },
+            { object: TABL_TARGET.name, type: TABL_TARGET.type },
+            { object: PROG2_TARGET.name, type: PROG2_TARGET.type },
+          ],
+        },
+        100_000,
+        gate,
+        undefined,
+        journal,
+      ).then(
+        () => undefined,
+        (x: unknown) => x,
+      );
+      expect(isAbapError(e)).toBe(true);
+      expect(activationPosts).toBe(2);
+
+      const all = await journal.list({});
+      expect(all).toHaveLength(3);
+      const prog2 = all.find((x) => x.object.name === PROG2_TARGET.name)!;
+      expect(prog2.outcome).toBe("failed");
+      expect(prog2.error).toContain("no activation request naming");
+      expect(prog2.error).toContain(PROG2_TARGET.name);
+    });
+  });
+
+  it("a batch where every chunk reports errors settles EVERY object's entry failed", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connectWrite([
         LOGON_ROUTE,
@@ -2592,8 +2792,8 @@ describe("assertBatchActivated", () => {
     inactive: [],
     targets: [A, B],
     perObject: [
-      { target: A, activated: true, ok: true, messages: [], errors: 0, warnings: 0, inactive: [] },
-      { target: B, activated: true, ok: true, messages: [], errors: 0, warnings: 0, inactive: [] },
+      { target: A, activated: true, ok: true, disposition: "activated", messages: [], errors: 0, warnings: 0, inactive: [] },
+      { target: B, activated: true, ok: true, disposition: "activated", messages: [], errors: 0, warnings: 0, inactive: [] },
     ],
     unattributed: [],
     unattributedInactive: [],
@@ -2611,8 +2811,8 @@ describe("assertBatchActivated", () => {
       ok: false,
       errors: 1,
       perObject: [
-        { target: A, activated: false, ok: false, messages: [], errors: 1, warnings: 0, inactive: [] },
-        { target: B, activated: false, ok: true, messages: [], errors: 0, warnings: 0, inactive: [] },
+        { target: A, activated: false, ok: false, disposition: "not-activated", messages: [], errors: 1, warnings: 0, inactive: [] },
+        { target: B, activated: false, ok: true, disposition: "not-activated", messages: [], errors: 0, warnings: 0, inactive: [] },
       ],
     });
     const e = catchAbap(() => assertBatchActivated(failed));
@@ -2620,6 +2820,40 @@ describe("assertBatchActivated", () => {
     expect(e.message).toContain("ZFOO");
     expect(e.message).not.toContain("was blamed, ZBAR");
     expect((e.details as { blamed?: string[] }).blamed).toEqual(["ZFOO"]);
+    // Single-chunk batch: nothing is left active, so the original blanket
+    // warning still applies.
+    expect(e.hint).toContain("The whole set is still inactive");
+  });
+
+  it("names an earlier chunk's already-active objects in the hint instead of claiming the whole set is still inactive", () => {
+    const chunked = outcome({
+      activated: false,
+      ok: false,
+      errors: 1,
+      perObject: [
+        { target: A, activated: false, ok: true, disposition: "activated", messages: [], errors: 0, warnings: 0, inactive: [] },
+        {
+          target: B,
+          activated: false,
+          ok: false,
+          disposition: "not-activated",
+          messages: [{ severity: "E", text: "boom" }],
+          errors: 1,
+          warnings: 0,
+          inactive: [],
+        },
+      ],
+    });
+    const e = catchAbap(() => assertBatchActivated(chunked));
+    expect(e.code).toBe("CHECK_FAILED");
+    expect((e.details as { blamed?: string[] }).blamed).toEqual(["ZBAR"]);
+    // ZFOO is sitting there active from an earlier chunk. Telling the caller
+    // the whole set is still inactive would send them looking for objects
+    // that are already there.
+    expect(e.hint).toContain("ZFOO");
+    expect(e.hint).not.toContain("The whole set is still inactive");
+    const perObject = (e.details as { perObject?: Array<{ object: string; disposition: string }> }).perObject;
+    expect(perObject?.find((o) => o.object === "ZFOO")?.disposition).toBe("activated");
   });
 });
 
@@ -2640,12 +2874,13 @@ describe("renderBatch", () => {
           target: A,
           activated: false,
           ok: false,
+          disposition: "not-activated",
           messages: [{ severity: "E", text: "boom" }],
           errors: 1,
           warnings: 0,
           inactive: [],
         },
-        { target: B, activated: false, ok: true, messages: [], errors: 0, warnings: 0, inactive: [] },
+        { target: B, activated: false, ok: true, disposition: "not-activated", messages: [], errors: 0, warnings: 0, inactive: [] },
       ],
       unattributed: [],
       unattributedInactive: [],
@@ -2668,7 +2903,7 @@ describe("renderBatch", () => {
       inactive: [],
       targets: [A],
       perObject: [
-        { target: A, activated: false, ok: true, messages: [], errors: 0, warnings: 0, inactive: [] },
+        { target: A, activated: false, ok: true, disposition: "not-activated", messages: [], errors: 0, warnings: 0, inactive: [] },
       ],
       unattributed: [{ severity: "E", text: "orphan" }],
       unattributedInactive: [],

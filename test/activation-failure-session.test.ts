@@ -23,11 +23,11 @@ import type {
   HttpClientOptions,
   HttpClientResponse,
 } from "abap-adt-api/build/AdtHTTP.js";
-import { AbapConnection } from "../src/adt/connection.js";
+import { AbapConnection, type RawRequestOptions } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { isAbapError } from "../src/adt/errors.js";
-import { activateObject, assertNoErrors, type ActivationTarget } from "../src/adt/activate.js";
+import { activateObject, activateObjects, assertNoErrors, type ActivationTarget } from "../src/adt/activate.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 
 // --------------------------------------------------------------- fixtures ---
@@ -45,6 +45,18 @@ const FUGR_SEED: ActivationTarget = {
 };
 
 const VERSIONS_URL = `${FUGR_SEED.uri}/versions`;
+
+/**
+ * A DDIC-mode target — `chunkActivationTargets` never merges it into
+ * `FUGR_SEED`'s chunk (different class), so a two-object batch of
+ * `[FUGR_SEED, DDIC_SEED]` always travels as two sequential POSTs, no chunk
+ * cap override needed.
+ */
+const DDIC_SEED: ActivationTarget = {
+  name: "ZTMD_HS358B_DOM",
+  uri: "/sap/bc/adt/ddic/domains/ztmd_hs358b_dom",
+  type: "DOMA/DD",
+};
 
 /**
  * HAND-WRITTEN — the structure document `conn.adt.revisions()` GETs first,
@@ -296,5 +308,37 @@ describe("releaseActivationEnqueues — stranded phase-two enqueue", () => {
     expect(http.calls.filter(onActivation)).toHaveLength(1);
     expect(out.activated).toBe(true);
     expect(dropSession).not.toHaveBeenCalled();
+  });
+
+  it("guarantee 5 — a chunk that throws mid-batch does not skip the enqueue release", async () => {
+    // `activateObjects` (the batch path), not `activateObject`: the loop
+    // over chunks is where a throw could otherwise skip past the cleanup
+    // below the loop.
+    const { conn } = await connectWrite(notActivatedViaRevisions());
+    const dropSession = vi.spyOn(conn, "dropSession").mockResolvedValue(undefined);
+    vi.spyOn(conn, "heldLockUris").mockReturnValue([]);
+
+    // FUGR_SEED's own two POSTs (query-string-distinguished preauditRequested)
+    // must go through untouched; only DDIC_SEED's chunk throws, so the match
+    // is on its uri in the body, not on the query string.
+    const realPost = conn.post.bind(conn);
+    vi.spyOn(conn, "post").mockImplementation(
+      async (url: string, opts?: RawRequestOptions & { body?: string }) => {
+        if (url.includes("/sap/bc/adt/activation") && String(opts?.body ?? "").includes(DDIC_SEED.uri)) {
+          throw new Error("socket hang up");
+        }
+        return realPost(url, opts);
+      },
+    );
+
+    const e = await activateObjects(conn, [FUGR_SEED, DDIC_SEED]).then(
+      () => undefined,
+      (x: unknown) => x,
+    );
+    expect(isAbapError(e)).toBe(true);
+    // Skipping this leaves the SAP-side enqueue FUGR_SEED's phase-two POST
+    // took stranded, surfacing later as
+    // "Object LIMU REPS LZTMD_HS358B_FGUXX is already locked".
+    expect(dropSession).toHaveBeenCalledTimes(1);
   });
 });

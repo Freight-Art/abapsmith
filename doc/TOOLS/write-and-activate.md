@@ -145,3 +145,18 @@ one specific object is reported separately as `(unattributed)` and still
 fails the batch. `abap_do`'s `activate` action does not expose this form — it
 is v1-`abap_activate` (and the v1 tool surface generally) only.
 
+**Batch activation and the journal**: a batch writes one journal entry per
+object before any chunk's POST goes out, and because the chunks are POSTed
+sequentially, those entries can legitimately disagree about the outcome. A
+chunk that already answered clean has activated its objects — ADT has no
+deactivate operation — so a later chunk failing does not make them inactive
+again: their entries settle `succeeded` while the failing chunk's settle
+`failed`. An object whose chunk POST never answered at all is a genuinely
+unknown outcome; the journal's `pending | succeeded | failed` model has no
+value for "done, outcome unproven", so that entry is deliberately left
+`pending` and a warning is written to stderr instead of recording something
+the call did not establish — the same convention `abap_transport_release`
+uses. Re-read the object to see its state, and settle the entry by hand. An
+object in a chunk that was never sent at all, because an earlier chunk
+failed first, settles `failed`, with an error saying so.
+

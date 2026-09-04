@@ -1081,6 +1081,15 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * What the activation requests actually established about ONE object, apart
+ * from the batch verdict. Chunks are POSTed sequentially and ADT has no
+ * deactivate, so a later chunk's failure cannot make an earlier chunk's
+ * objects inactive again. `unknown` = that object's chunk POST threw and
+ * nothing was observed; `not-sent` = no request naming it ever went out.
+ */
+export type ActivationDisposition = "activated" | "not-activated" | "unknown" | "not-sent";
+
 /** One member of a batch activation, with only the messages that are provably its own. */
 export interface ObjectActivation {
   target: ActivationTarget;
@@ -1088,6 +1097,8 @@ export interface ObjectActivation {
   activated: boolean;
   /** No `[EAX]` message and no inactive-dependent entry was attributed to this object. */
   ok: boolean;
+  /** What this object's own chunk established; see {@link ActivationDisposition}. */
+  disposition: ActivationDisposition;
   messages: AdtMessage[];
   errors: number;
   warnings: number;
@@ -1108,7 +1119,8 @@ export interface ObjectActivation {
  * per-object observation: the response never states per object "this one
  * went active". `activated: false` with `ok: true` means "nothing wrong with
  * this object, but its state is not confirmed" — callers needing certainty
- * must read the object back.
+ * must read the object back. `ObjectActivation.disposition` is the per-object
+ * fact the verdict is not — what that object's own chunk's POST established.
  */
 export interface BatchActivationOutcome extends ActivationOutcome {
   targets: readonly ActivationTarget[];
@@ -1241,6 +1253,16 @@ export function chunkActivationTargets(
   return chunks;
 }
 
+export interface ActivateObjectsOptions {
+  /**
+   * One disposition per entry of `targets`, in order, reported on EVERY exit
+   * including the throw path — the accumulated chunk state otherwise dies with
+   * the stack frame, and a caller journalling the batch needs it to settle each
+   * object from its own chunk's result rather than the batch's.
+   */
+  readonly onDisposition?: (dispositions: readonly ActivationDisposition[]) => void;
+}
+
 /**
  * `POST /sap/bc/adt/activation?method=activate&preauditRequested=true` naming
  * EVERY target of ONE CHUNK in ONE request — same endpoint as
@@ -1255,7 +1277,9 @@ export function chunkActivationTargets(
  * server, which resolves order itself — `targets` order only decides
  * `perObject` presentation.
  *
- * Failure classification is `activateObject`'s, ANDed across every chunk.
+ * Failure classification is `activateObject`'s, ANDed across every chunk. A
+ * chunk that already answered clean keeps `disposition: "activated"`
+ * whatever a later chunk does.
  * Attribution is resolved against the FULL original `targets` list, so a
  * message about an object from a LATER chunk still lands correctly.
  *
@@ -1269,6 +1293,7 @@ export function chunkActivationTargets(
 export async function activateObjects(
   conn: AbapConnection,
   targets: readonly ActivationTarget[],
+  opts?: ActivateObjectsOptions,
 ): Promise<BatchActivationOutcome> {
   if (targets.length === 0) {
     throw new AbapError(
@@ -1297,6 +1322,9 @@ export async function activateObjects(
   // --- buckets keyed by the ORIGINAL targets, filled across every chunk ---
   const buckets = new Map<ActivationTarget, { messages: AdtMessage[]; inactive: InactiveObjectRef[] }>();
   for (const t of targets) buckets.set(t, { messages: [], inactive: [] });
+  const disposition = new Map<ActivationTarget, ActivationDisposition>(
+    targets.map((t) => [t, "not-sent" as ActivationDisposition]),
+  );
   const unattributed: AdtMessage[] = [];
   const unattributedInactive: InactiveObjectRef[] = [];
   const allMessages: AdtMessage[] = [];
@@ -1314,69 +1342,94 @@ export async function activateObjects(
     );
   }
 
-  for (const chunk of chunks) {
-    let result: ActivationResult;
-    try {
-      result = await postActivation(conn, chunk, true);
-      const phase2 = await activateWithPreauditSet(conn, chunk, result);
-      if (phase2) {
-        result = phase2.result;
-        allPreaudit.push(...phase2.preaudit);
+  let dispatchError: unknown;
+  try {
+    for (const chunk of chunks) {
+      let result: ActivationResult;
+      try {
+        result = await postActivation(conn, chunk, true);
+        const phase2 = await activateWithPreauditSet(conn, chunk, result);
+        if (phase2) {
+          result = phase2.result;
+          allPreaudit.push(...phase2.preaudit);
+        }
+      } catch (e) {
+        // The POST for this chunk did not answer; whether it reached the
+        // server is not observable here.
+        for (const t of chunk) disposition.set(t, "unknown");
+        if (isAbapError(e)) throw e;
+        // Attributed to THIS CHUNK, not `targets[0]`: a transport failure on
+        // the request is not evidence about any one member.
+        throw translateActivationError(e, {
+          name: chunk.map((t) => t.name).join(" + "),
+          uri: chunk[0]!.uri,
+        });
       }
-    } catch (e) {
-      if (isAbapError(e)) throw e;
-      // Attributed to THIS CHUNK, not `targets[0]`: a transport failure on
-      // the request is not evidence about any one member.
-      throw translateActivationError(e, {
-        name: chunk.map((t) => t.name).join(" + "),
-        uri: chunk[0]!.uri,
-      });
-    }
 
-    const messages = mapActivationMessages(result);
-    const inactive = mapInactiveObjects(result);
-    if (result.success === false) anyChunkFailed = true;
-    allMessages.push(...messages);
-    allInactive.push(...inactive);
+      const messages = mapActivationMessages(result);
+      const inactive = mapInactiveObjects(result);
+      if (result.success === false) anyChunkFailed = true;
+      allMessages.push(...messages);
+      allInactive.push(...inactive);
+      // The chunk's own reply is the same success signal `activateObject`
+      // reads for a single object, and it is settled whatever a later chunk
+      // does.
+      const chunkActivated = result.success !== false && tally(messages).errors === 0 && inactive.length === 0;
+      for (const t of chunk) disposition.set(t, chunkActivated ? "activated" : "not-activated");
 
-    for (const m of messages) {
-      const owner = attributeToTarget(m, targets);
-      if (owner) buckets.get(owner)!.messages.push(m);
-      else unattributed.push(m);
+      for (const m of messages) {
+        const owner = attributeToTarget(m, targets);
+        if (owner) buckets.get(owner)!.messages.push(m);
+        else unattributed.push(m);
+      }
+      for (const i of inactive) {
+        // Same two attribution signals as a message (URI, name standing in for
+        // `objDescr`): a member of THIS batch is its own problem; an outside
+        // object is a genuine external dependency belonging to the batch as a whole.
+        const owner = attributeToTarget({ uri: i.uri, objDescr: i.name }, targets);
+        if (owner) buckets.get(owner)!.inactive.push(i);
+        else unattributedInactive.push(i);
+      }
     }
-    for (const i of inactive) {
-      // Same two attribution signals as a message (URI, name standing in for
-      // `objDescr`): a member of THIS batch is its own problem; an outside
-      // object is a genuine external dependency belonging to the batch as a whole.
-      const owner = attributeToTarget({ uri: i.uri, objDescr: i.name }, targets);
-      if (owner) buckets.get(owner)!.inactive.push(i);
-      else unattributedInactive.push(i);
-    }
+  } catch (e) {
+    // Captured, not propagated: the enqueue cleanup below must still run,
+    // and the chunks that already answered are still a real result.
+    dispatchError = e;
   }
 
   const counts = tally(allMessages);
-  const activated = !anyChunkFailed && counts.errors === 0 && allInactive.length === 0;
+  const activated =
+    dispatchError === undefined && !anyChunkFailed && counts.errors === 0 && allInactive.length === 0;
 
   // At least one chunk's phase-two POST was actually sent (`allPreaudit`)
   // and the batch still didn't end activated: same stranded server-side
-  // enqueue as `activateObject` — see `releaseActivationEnqueues`.
+  // enqueue as `activateObject` — see `releaseActivationEnqueues`. A chunk
+  // that threw counts as not activated, so a mid-batch throw no longer
+  // skips this.
   if (allPreaudit.length > 0 && !activated) await releaseActivationEnqueues(conn);
 
   const perObject: ObjectActivation[] = targets.map((target) => {
     const b = buckets.get(target)!;
     const c = tally(b.messages);
     const objOk = c.errors === 0 && b.inactive.length === 0;
+    // Attribution runs against the FULL target list, so a later chunk's
+    // message can still blame an object whose own chunk came back clean.
+    const d = disposition.get(target)!;
     return {
       target,
       // See BatchActivationOutcome: the batch's verdict, not a per-object
       // observation. Never `true` for a member of a batch that failed.
       activated: activated && objOk,
       ok: objOk,
+      disposition: d === "activated" && !objOk ? "not-activated" : d,
       messages: b.messages,
       inactive: b.inactive,
       ...c,
     };
   });
+
+  opts?.onDisposition?.(perObject.map((o) => o.disposition));
+  if (dispatchError !== undefined) throw dispatchError;
 
   return {
     activated,
@@ -1448,6 +1501,12 @@ export function assertBatchActivated(
     unplaced > 0
       ? ` ${unplaced} message(s) could not be tied to any object in the set and are reported as unattributed.`
       : "";
+  // A chunked batch can leave earlier chunks active; saying otherwise is
+  // false and would send a caller looking for objects that are already
+  // there.
+  const alreadyActive = outcome.perObject
+    .filter((o) => o.disposition === "activated")
+    .map((o) => o.target.name);
 
   throw new AbapError(
     "CHECK_FAILED",
@@ -1462,6 +1521,7 @@ export function assertBatchActivated(
       perObject: outcome.perObject.map((o) => ({
         object: o.target.name,
         ok: o.ok,
+        disposition: o.disposition,
         errors: o.errors,
         warnings: o.warnings,
         messages: o.messages,
@@ -1471,9 +1531,11 @@ export function assertBatchActivated(
       messages: renderBatch(outcome),
     },
     names.length > 0
-      ? `Fix ${names.join(", ")} and activate the set again. The whole set is still inactive — ` +
-        "objects with no messages of their own were not confirmed activated either, so re-activate " +
-        "the complete set rather than only the objects you edited."
+      ? `Fix ${names.join(", ")} and activate the set again.` +
+        (alreadyActive.length > 0
+          ? ` ${alreadyActive.join(", ")} already activated in an earlier request of this batch and stayed active — ADT has no deactivate. Re-activating the whole set is still the simplest way to finish.`
+          : " The whole set is still inactive — objects with no messages of their own were not confirmed " +
+            "activated either, so re-activate the complete set rather than only the objects you edited.")
       : "The activation failed without naming an object in the set. Re-read the objects to see " +
         "which are still inactive, and check the unattributed messages above.",
   );
