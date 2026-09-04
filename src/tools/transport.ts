@@ -55,6 +55,7 @@ import {
   type TrList,
   type TrObject,
   type TrReleaseMessage,
+  type TrReleaseOutcome,
   type TrReleaseResult,
   type TrRequest,
   type TrSearchConfig,
@@ -243,8 +244,9 @@ function subjectNotes(s: TrSubject, answered: TrRequest): string[] {
   const own = answered.tasks.find((t) => t.trkorr === s.asked);
   const notes = [
     `SUBSTITUTION — you named ${s.asked}, the server answered about ${s.answered}. In CTS a GET ` +
-      `of a task number returns its PARENT request, so ${s.asked} is a task of ${s.answered} and ` +
-      `every status field above describes ${s.answered}, not ${s.asked}.`,
+      `of a task number returns its PARENT request, so ${s.asked} is a task of ${s.answered}. ` +
+      `requestedStatus (and, on a release, requestedStatusAfter) are ${s.asked}'s own readings; ` +
+      `every other status field above describes ${s.answered}, not ${s.asked}.`,
   ];
   notes.push(
     own
@@ -1658,13 +1660,25 @@ function releaseBeforeImage(
 function releaseAfterImage(res: TrReleaseResult, subject: TrSubject, verdict: string): string {
   const lines: string[] = [
     `verdict: ${verdict}`,
-    `outcome: ${res.outcome}`,
+    `outcome: ${releaseOutcome(res, subject)}`,
     `reportedReleased: ${res.reportedReleased}`,
     `reportClaim: ${releaseClaim(res)}`,
     `verified: ${res.verified}`,
     `confirmedByReRead: ${releaseConfirmed(res, subject)}`,
-    `statusAfter: ${res.verified ? fmtStatus(res.actualStatus, res.actualStatusText) : "re-read failed"}`,
   ];
+  // Same rename `renderRelease` applies: under substitution, `statusAfter`
+  // is object-scoped elsewhere and must not read as a claim about the task.
+  if (subject.substituted) {
+    const own = substitutedTaskRow(res, subject);
+    lines.push(`requestedStatusAfter: ${own ? fmtStatus(own.status, own.statusText) : "not known"}`);
+    lines.push(
+      `parentStatusAfter: ${res.verified ? fmtStatus(res.actualStatus, res.actualStatusText) : "re-read failed"}`,
+    );
+  } else {
+    lines.push(
+      `statusAfter: ${res.verified ? fmtStatus(res.actualStatus, res.actualStatusText) : "re-read failed"}`,
+    );
+  }
   if (res.releaseTimestamp) lines.push(`releasedAt: ${res.releaseTimestamp}`);
   if (res.verificationError) lines.push(`verificationError: ${res.verificationError}`);
   for (const m of res.messages) {
@@ -1827,6 +1841,21 @@ type ReleaseProof = "released" | "not-released" | undefined;
 function substitutedTaskRow(res: TrReleaseResult, subject: TrSubject): TrTask | undefined {
   if (!res.verified || !subject.substituted) return undefined;
   return res.request?.tasks.find((t) => t.trkorr === subject.asked);
+}
+
+/**
+ * `outcome` for the number the CALLER named, not `res.outcome` — under
+ * substitution `res.outcome` reconciles the envelope against the PARENT,
+ * which proves nothing about a task (see {@link releaseVerdict}). The
+ * task's own row is the only thing that settles it, so this derives outcome
+ * from the same verdict the header and journal already agree on.
+ */
+function releaseOutcome(res: TrReleaseResult, subject: TrSubject): TrReleaseOutcome {
+  if (!subject.substituted) return res.outcome;
+  const { proved } = releaseVerdict(res, subject);
+  if (proved === "released") return res.reportedReleased ? "released" : "released-despite-abort";
+  if (proved === "not-released") return "aborted";
+  return "unknown";
 }
 
 /**
@@ -2023,6 +2052,13 @@ function renderRelease(
   // current one; rendering the pre-read's row here would print "reads
   // Modifiable" directly under a verdict that says it is released.
   const notes: string[] = [detail, ...subjectNotes(subject, res.request ?? before)];
+  if (subject.substituted) {
+    notes.push(
+      `requestedStatus/requestedStatusAfter are ${subject.asked}'s own readings and the fields to ` +
+        `act on for this release. parentStatusBefore/parentStatusAfter describe ${subject.answered} ` +
+        `and can stay Modifiable even when ${subject.asked} released cleanly.`,
+    );
+  }
   // Only a proven release may be described as having happened — an
   // envelope-only "released" says nothing about the locks. The
   // substituted path can now prove a release too, and this note must follow
@@ -2053,21 +2089,36 @@ function renderRelease(
     requestedStatusAfter = own ? fmtStatus(own.status, own.statusText) : "not known";
   }
 
+  // Under substitution these describe the PARENT, not the number the caller
+  // asked about — `statusBefore`/`statusAfter` are object-scoped everywhere
+  // else, so keeping those names here would read as a claim about the task.
+  // Same values, renamed; `requestedStatusAfter` above is the task's own.
+  const statusFields = subject.substituted
+    ? {
+        parentStatusBefore: fmtStatus(before.status, before.statusText),
+        parentStatusAfter: res.verified
+          ? fmtStatus(res.actualStatus, res.actualStatusText)
+          : "re-read failed",
+      }
+    : {
+        statusBefore: fmtStatus(before.status, before.statusText),
+        statusAfter: res.verified
+          ? fmtStatus(res.actualStatus, res.actualStatusText)
+          : "re-read failed",
+      };
+
   return buildResponse({
     header: {
       transport: res.trkorr,
       ...subjectHeader(subject, before),
       requestedStatusAfter,
       verdict,
-      outcome: res.outcome,
+      outcome: releaseOutcome(res, subject),
       reportedReleased: res.reportedReleased,
       // Separate column on purpose: `outcome: released` with
       // `confirmedByReRead: false` is a real and important state.
       confirmedByReRead: confirmed,
-      statusBefore: fmtStatus(before.status, before.statusText),
-      statusAfter: res.verified
-        ? fmtStatus(res.actualStatus, res.actualStatusText)
-        : "re-read failed",
+      ...statusFields,
       verified: res.verified,
       releasedAt: res.releaseTimestamp,
       target: fmtTarget(before),
