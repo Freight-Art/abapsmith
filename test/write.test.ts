@@ -1306,14 +1306,18 @@ describe("writeObject: create gate", () => {
 
 /**
  * A NEW set, deliberately not a widening of `WRITABLE_TYPES` — see the
- * doc comment on `ENHANCEABLE_TYPES` in src/adt/write.ts. Only `ENHO/XHH` (the
- * source-code plug-in) has a real PUT-source path; `ENHO/XH` and `ENHS/XS` are
- * structured-XML-only with no writer anywhere in this codebase, and stay
- * refused by `resolveWriteTarget`.
+ * doc comment on `ENHANCEABLE_TYPES` in src/adt/write.ts. The set is really
+ * "write, no create", not "enhancement": `TYPE/DG` and `DRUL/DRL` are
+ * read+write-only DDIC source types, nothing to do with enhancements.
+ * `ENHO/XHH` (the source-code plug-in) has a real PUT-source path; `ENHO/XH`
+ * and `ENHS/XS` are structured-XML-only with no writer anywhere in this
+ * codebase, and stay refused by `resolveWriteTarget`.
  */
 describe("ENHANCEABLE_TYPES / isEnhanceableType", () => {
-  it("contains exactly ENHO/XHH — not the other two implemented enhancement types", () => {
-    expect(ENHANCEABLE_TYPES).toEqual(["ENHO/XHH"]);
+  it("contains exactly TYPE/DG, DRUL/DRL, ENHO/XHH (write, no create) — not the other two implemented enhancement types", () => {
+    expect(ENHANCEABLE_TYPES).toEqual(["TYPE/DG", "DRUL/DRL", "ENHO/XHH"]);
+    expect(isEnhanceableType("TYPE/DG")).toBe(true);
+    expect(isEnhanceableType("DRUL/DRL")).toBe(true);
     expect(isEnhanceableType("ENHO/XHH")).toBe(true);
     expect(isEnhanceableType("ENHO/XH")).toBe(false);
     expect(isEnhanceableType("ENHS/XS")).toBe(false);

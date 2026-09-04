@@ -71,6 +71,8 @@ inputs to this derivation rather than registry fields:
 | `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
 | `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
 | `XSLT/VT` | Transformation | yes | yes | yes | yes | yes | live |
+| `TYPE/DG` | Type group | no | yes | yes | no | yes | unverified |
+| `DRUL/DRL` | Dependency rule | no | yes | yes | no | yes | unverified |
 | `ENHO/XH` | BAdI implementation | partial | partial | no | partial | yes | tests |
 | `ENHO/XHH` | Enhancement source plug-in | partial | yes | yes | partial | no | unverified |
 | `ENHS/XS` | Enhancement spot | partial | partial | no | partial | yes | tests |
@@ -195,6 +197,19 @@ The `Object` column values are the registry `label` fields, unreworded.
   both fixes the POST returned 200 and the object read back afterwards. See
   this type's REGISTRY comment in capabilities.ts for the exact server
   messages.
+- `TYPE/DG` — reads are proven live: ADT discovery advertises
+  `/sap/bc/adt/ddic/typegroups`, and `GET .../ddic/typegroups/trexc` plus
+  `.../source/main` both returned 200 on A4H, 2026-09-04, real source. Update
+  resolves through the generic PUT-source path but has not itself been
+  exercised live. Create is `no`: no `CreatableTypes` row in abap-adt-api and
+  no create body ever captured from the wire. Delete stays `"unverified"` —
+  never attempted — which is why the cell is `no`, not `partial`.
+- `DRUL/DRL` — same evidence shape as `TYPE/DG`: `GET
+  .../ddic/drul/sources/demo_drul_1` plus `.../source/main` both returned 200
+  on A4H, 2026-09-04, real source. Update resolves through the generic
+  PUT-source path but has not itself been exercised live. Create is `no`: no
+  `CreatableTypes` row and no captured create body. Delete stays
+  `"unverified"` — never attempted — which is why the cell is `no`.
 - `SRVB/SVB` — reading needs `format: "raw"`; create, activate, read-back and
   delete over the ADT business-services binding path are live-verified. This
   is a different path from the OData metadata read described under RAP,

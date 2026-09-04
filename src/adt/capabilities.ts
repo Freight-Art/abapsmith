@@ -296,7 +296,7 @@ export interface TypeCapabilities {
 }
 
 /**
- * Every ADT type code this registry knows about: the 26 entries in
+ * Every ADT type code this registry knows about: the 28 entries in
  * `src/adt/types.ts`'s `TYPES` array, plus eight that are deliberately NOT
  * there (see the module doc). Hand-maintained — kept honest at runtime by
  * {@link assertRegistryCoversTypes}.
@@ -316,6 +316,8 @@ export type TypeCode =
   | "SRVD/SRV"
   | "BDEF/BDO"
   | "XSLT/VT"
+  | "TYPE/DG"
+  | "DRUL/DRL"
   | "ENHO/XH"
   | "ENHO/XHH"
   | "ENHS/XS"
@@ -653,6 +655,38 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     // Discovery advertises this as the transformations collection's accept
     // type (2026-09-04); a generic Accept on the object GET was not tested.
     mediaType: "application/vnd.sap.adt.transformations+xml",
+  },
+  // Two DDIC source types added 2026-09-04, both measured live on A4H, no
+  // create on either: neither has a `CreatableTypes` row in abap-adt-api,
+  // and unlike XSLT/VT no create body has ever been captured from the wire,
+  // so read+write is the honest extent of the evidence — no skeleton
+  // invented from the discovery Accept header. `delete` never attempted.
+  // `write` resolves via the generic PUT-source path but has not itself
+  // been exercised live yet. `mediaType` is the vendor Accept actually used
+  // on the object URI (the sibling DCLS/DL/DDLA/ADF URIs 406 without it) —
+  // a generic Accept was not tried.
+  //
+  // Type group: discovery advertises typegroups with this media type; GET
+  // .../ddic/typegroups/trexc → 200, root
+  // `<atypgr:abapTypeGroup ... adtcore:type="TYPE/DG">`; GET .../source/main
+  // with Accept: text/plain → 200, real `TYPE-POOL trexc. CONSTANTS: …`.
+  "TYPE/DG": {
+    label: "Type group",
+    write: { shape: "source" },
+    delete: "unverified",
+    activate: true,
+    mediaType: "application/vnd.sap.adt.ddic.typegroups.v2+xml",
+  },
+  // Dependency rule: discovery advertises drul/sources with this media type,
+  // title "Dependency Rule"; GET .../drul/sources/demo_drul_1 → 200, root
+  // `<blue:blueSource adtcore:type="DRUL/DRL">`; .../source/main → 200, real
+  // `DEFINE FILTER DEPENDENCY RULE demo_drul_1 ON demo_parts_1 …`.
+  "DRUL/DRL": {
+    label: "Dependency rule",
+    write: { shape: "source" },
+    delete: "unverified",
+    activate: true,
+    mediaType: "application/vnd.sap.adt.ddic.drul.v1+xml",
   },
   // No write/create — an existing BAdI implementation is edited through
   // enhancement-write.ts's specialised document PUT (ENHANCEMENT_WRITE_TYPES),
@@ -1172,8 +1206,8 @@ function codesWith(pred: (c: TypeCapabilities) => boolean): string[] {
 
 /**
  * Types an EXISTING object of which can be written AND newly created.
- * Deliberately excludes `ENHO/XHH` (write, no create — see
- * {@link ENHANCEABLE_TYPES}).
+ * Deliberately excludes `ENHO/XHH`, `TYPE/DG`, `DRUL/DRL` (write, no create
+ * — see {@link ENHANCEABLE_TYPES}).
  */
 export const WRITABLE_TYPES: readonly string[] = codesWith((c) => c.write !== undefined && c.create !== undefined);
 
@@ -1253,7 +1287,7 @@ export function isBridgeDeletableType(type: string | undefined): boolean {
   return cap?.bridgeDelete !== undefined;
 }
 
-/** Enhancement types resolvable/editable through the ordinary PUT-source path but never created here (today: `["ENHO/XHH"]`). */
+/** The write-but-never-created set (name is historical, from when `ENHO/XHH` was its only member): resolvable/editable through the ordinary PUT-source path but never created here — today `ENHO/XHH`, `TYPE/DG`, `DRUL/DRL`. */
 export const ENHANCEABLE_TYPES: readonly string[] = codesWith((c) => c.write !== undefined && c.create === undefined);
 
 /**

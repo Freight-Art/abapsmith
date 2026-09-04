@@ -481,7 +481,7 @@ const ACTIVATE_ONLY = new Set<string>(ACTIVATION_ONLY_TYPES);
  * backed by.
  */
 const DELETABLE = new Set<string>(DELETABLE_TYPES);
-/** True when `type` is an enhancement type this module can resolve/write (see {@link ENHANCEABLE_TYPES}). */
+/** True when `type` is in the write-but-never-created set this module can resolve/write (see {@link ENHANCEABLE_TYPES}). */
 export function isEnhanceableType(type: string | undefined): boolean {
   return type !== undefined && ENHANCEABLE.has(type);
 }
