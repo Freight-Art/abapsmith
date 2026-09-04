@@ -637,10 +637,13 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     //                      DCLS/DL DDLA/ADF PROG/I FUGR/I
     //   properties shape — DTEL/DE DOMA/DD TTYP/DA MSAG/N ENQU/DL SRVB/SVB
     // PROG/I and FUGR/I joined source-shape on their own vendor create
-    // routes (programs/includes and functions/groups/%s/includes), but
-    // `create.verified` and `delete` stay `"unverified"` for both — no live
-    // create/delete run yet — so neither lands in VERIFIED_CREATABLE_TYPES
-    // or DELETABLE_TYPES.
+    // routes (programs/includes and functions/groups/%s/includes).
+    // `create.verified` and `delete` are both `true`, live-verified end to
+    // end on A4H 2026-09-04 (create/activate/re-write/read/delete/NOT_FOUND
+    // read for both), putting both in VERIFIED_CREATABLE_TYPES and
+    // DELETABLE_TYPES — see capabilities.ts for the evidence, including
+    // PROG/I's delete-while-referenced 403 and FUGR/I's must-exist-group
+    // 500.
     // DCLS/DL joined source-shape on the same recipe as DDLS/DF: vendor
     // CreatableTypes has a real entry, so create is vendor, not a hand-built
     // skeleton. `create.verified` and `delete` are both `true`, live-verified

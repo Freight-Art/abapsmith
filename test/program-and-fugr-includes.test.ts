@@ -16,7 +16,10 @@
  * and free-named, nothing ties it to a host program in the create body.
  * `GET /sap/bc/adt/programs/includes/lsabp_unit_sboxtop` → 200 with a generic
  * `Accept: application/*`, so neither type needs a `mediaType` override.
- * Create/delete were NOT run live for either type — both stay "unverified".
+ * A follow-up live run on A4H 2026-09-04 exercised the full create/activate/
+ * write/read/delete cycle for both types and both settled to
+ * `create.verified: true` / `delete: true` — see `src/adt/capabilities.ts`
+ * for the evidence citations.
  */
 import { describe, expect, it } from "vitest";
 import type {
@@ -227,7 +230,7 @@ describe("PROG/I and FUGR/I registry shape", () => {
   });
 });
 
-describe("PROG/I and FUGR/I: create and delete gates stay shut", () => {
+describe("PROG/I and FUGR/I: create and delete gates are open, live-verified", () => {
   it("both are in WRITABLE_TYPES and CREATABLE_TYPES", () => {
     for (const type of ["PROG/I", "FUGR/I"]) {
       expect(WRITABLE_TYPES).toContain(type);
@@ -235,16 +238,15 @@ describe("PROG/I and FUGR/I: create and delete gates stay shut", () => {
     }
   });
 
-  // Neither create nor delete was run live for these two types — only a
-  // read-only ADT validation call was made (see the file header). The
-  // coordinator's own live create/delete run against A4H is what would flip
-  // these two gates, the same way it did for DCLS/DL.
-  it("neither is in VERIFIED_CREATABLE_TYPES or DELETABLE_TYPES", () => {
+  // Both types went through a full live create/activate/write/read/delete
+  // cycle on A4H 2026-09-04 (see the file header and
+  // src/adt/capabilities.ts), the same way DCLS/DL was settled.
+  it("both are in VERIFIED_CREATABLE_TYPES and DELETABLE_TYPES", () => {
     for (const type of ["PROG/I", "FUGR/I"]) {
-      expect(capabilitiesFor(type)?.create?.verified).toBe("unverified");
-      expect(capabilitiesFor(type)?.delete).toBe("unverified");
-      expect(VERIFIED_CREATABLE_TYPES).not.toContain(type);
-      expect(DELETABLE_TYPES).not.toContain(type);
+      expect(capabilitiesFor(type)?.create?.verified).toBe(true);
+      expect(capabilitiesFor(type)?.delete).toBe(true);
+      expect(VERIFIED_CREATABLE_TYPES).toContain(type);
+      expect(DELETABLE_TYPES).toContain(type);
     }
   });
 });
