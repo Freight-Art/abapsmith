@@ -202,15 +202,36 @@ The `Object` column values are the registry `label` fields, unreworded.
   `.../source/main` returned real source; `abap_write` update, then
   `abap_activate`, then `abap_write mode=delete` on `ZTMDX` ($TMP) all
   succeeded, and a read afterwards came back `NOT_FOUND`. Create is `no`:
-  no `CreatableTypes` row in abap-adt-api and no create path in abapsmith —
-  the test object was created with a raw ADT POST.
+  abap-adt-api has no `CreatableTypes` row for type groups, so create goes
+  through a hand-built skeleton POST, the same mechanism `BDEF/BDO` and
+  `XSLT/VT` use — root `atypgr:abapTypeGroup`, namespace
+  `http://www.sap.com/adt/ddic/typegroups`, POST
+  `/sap/bc/adt/ddic/typegroups` with Content-Type
+  `application/vnd.sap.adt.ddic.typegroups.v2+xml`. That body and endpoint
+  are captured from a raw ADT POST made outside abapsmith (2026-09-04): it
+  returned 200 OK with an empty body and no Location, and a follow-up `GET
+  .../typegroups/ztmdx/source/main` came back with a server-seeded
+  `TYPE-POOL ztmdx.`. `create.verified` is therefore `"unverified"`, not
+  `true` — abapsmith refuses to run this create until a live run through
+  its own choreography earns it. Type-group names are capped at 5
+  characters and may not contain underscores (server: 403 "Do not use
+  underscores in type group names"); `src/adt/write.ts` enforces both
+  pre-flight, at zero wire cost.
 - `DRUL/DRL` — same evidence shape as `TYPE/DG`: `GET
   .../ddic/drul/sources/demo_drul_1` plus `.../source/main` returned real
   source; `abap_write` update on `ZTMD_DRUL_01` ($TMP) wrote and saved the
   source (activation was skipped — the test rule had a deliberate syntax
   error), and `abap_write mode=delete` then a read confirmed `NOT_FOUND`.
-  Create is `no`: no `CreatableTypes` row and no create path in abapsmith —
-  the test object was created with a raw ADT POST.
+  Create is `no`: same reasoning as `TYPE/DG` — no `CreatableTypes` row, so
+  create goes through a hand-built skeleton POST — but a different shape:
+  root `blue:blueSource`, namespace `http://www.sap.com/wbobj/blue`, POST
+  `/sap/bc/adt/ddic/drul/sources` with Content-Type
+  `application/vnd.sap.adt.ddic.drul.v1+xml`. Captured the same way,
+  outside abapsmith (2026-09-04): it returned 201 Created with `Location:
+  /sap/bc/adt/ddic/drul/sources/ztmd_drul_01`, but the created source was
+  empty — the caller must PUT the `DEFINE FILTER DEPENDENCY RULE …` text
+  afterwards. `create.verified` is `"unverified"`: abapsmith refuses the
+  create until a live run through its own path proves it.
 - `SRVB/SVB` — reading needs `format: "raw"`; create, activate, read-back and
   delete over the ADT business-services binding path are live-verified. This
   is a different path from the OData metadata read described under RAP,
