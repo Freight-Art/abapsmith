@@ -1446,6 +1446,21 @@ export const TERMINAL_REFUSAL_NOTE =
   "Terminal for this object type — an identical retry cannot succeed.";
 
 /**
+ * A delete refusal that names `abap_write` itself as the limited party, not
+ * the object. At least three types reaching this today (ENHO/XH, ENHO/XHH,
+ * ENHS/XS) are in fact deleted live, by `abap_enh` — see
+ * `doc/CAPABILITIES/object-types.md`. "cannot be deleted" would be false for
+ * those three, so the refusal states a tool gap, never an object property.
+ */
+export function deleteUnsupportedMessage(label: string, code: string): string {
+  return (
+    `abap_write does not implement delete for ${label} (${code}). That is a gap in this tool's ` +
+    `coverage, not a property of the object — it may still be removable by other means. ` +
+    TERMINAL_REFUSAL_NOTE
+  );
+}
+
+/**
  * Walk the REAL `types.ts` `TYPES` array and throw if any `.type` code has no
  * `REGISTRY` entry — closes the gap a hand-maintained `TypeCode` union can't
  * close at compile time. Runs once below at module load (a missing entry is
