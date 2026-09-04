@@ -66201,6 +66201,16 @@ var TYPES = [
     keywords: ["access control", "dcls", "dcl", "cds access control", "authorization role", "define role"]
   },
   {
+    // path confirmed live: GET .../source/main 200s with Accept: text/plain (2026-09-04).
+    type: "DDLA/ADF",
+    kind: "DDLA",
+    label: "Annotation definition",
+    path: "/sap/bc/adt/ddic/ddla/sources/{name}",
+    mode: "source",
+    supportsSource: true,
+    keywords: ["annotation definition", "ddla", "cds annotation", "annotation"]
+  },
+  {
     type: "SRVD/SRV",
     kind: "SRVD",
     label: "Service definition",
@@ -66623,6 +66633,19 @@ var REGISTRY = {
     delete: true,
     activate: true,
     mediaType: "application/vnd.sap.adt.dclSource+xml"
+  },
+  // Same source-shape recipe as DCLS/DL: vendor CreatableTypes has a real
+  // DDLA/ADF entry (validationPath ddic/ddla/sources/validation). 2026-09-04
+  // probe: GET /ddic/ddla/sources/endusertext/source/main 200s; the object
+  // URI 406s with a generic Accept, 200 with the vendor media type — hence
+  // mediaType. No live create/delete yet, so both stay unverified.
+  "DDLA/ADF": {
+    label: "Annotation definition",
+    write: { shape: "source" },
+    create: { vendor: true, verified: "unverified" },
+    delete: "unverified",
+    activate: true,
+    mediaType: "application/vnd.sap.adt.ddic.ddla.v1+xml"
   },
   // Same recipe again: vendor CreatableTypes has a real SRVD/SRV entry, so
   // this is createNewObject/putSource/deleteObject unchanged. Live-verified
