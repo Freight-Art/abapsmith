@@ -94863,7 +94863,7 @@ function registerRunTools(mcp, deps) {
   mcp.registerTool(
     "abap_run",
     {
-      description: "Execute an IF_OO_ADT_CLASSRUN class or report; returns output. `parameters` (report mode) fills PARAMETERS/SELECT-OPTIONS. Headless \u2014 no interactive list/ALV grid.",
+      description: "Execute an IF_OO_ADT_CLASSRUN class or report; returns output. `parameters` (report mode) fills PARAMETERS/SELECT-OPTIONS. Headless \u2014 no interactive list/ALV grid. Executed ABAP runs with the connected user's full SAP authorisations and is not constrained by this server's package, name or transport allowlists.",
       inputSchema: runInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
