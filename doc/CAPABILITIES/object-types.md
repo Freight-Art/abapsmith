@@ -60,10 +60,10 @@ inputs to this derivation rather than registry fields:
 | `CLAS/OC` | Class | yes | yes | yes | yes | yes | live |
 | `INTF/OI` | Interface | yes | yes | yes | yes | yes | live |
 | `PROG/P` | Program | yes | yes | yes | yes | yes | live |
-| `PROG/I` | Include | no | yes | no | no | no | tests |
+| `PROG/I` | Include | yes | yes | yes | yes | yes | live |
 | `FUGR/F` | Function group | yes | yes | yes | yes | yes | live |
 | `FUGR/FF` | Function module | yes | yes | yes | yes | yes | live |
-| `FUGR/I` | Function group include | no | yes | no | no | no | tests |
+| `FUGR/I` | Function group include | yes | yes | yes | yes | yes | live |
 | `DDLS/DF` | CDS view / DDL source | yes | yes | yes | yes | yes | live |
 | `DDLX/EX` | Metadata extension | yes | yes | yes | yes | yes | live |
 | `DCLS/DL` | CDS access control | yes | yes | yes | yes | yes | live |
@@ -166,8 +166,24 @@ The `Object` column values are the registry `label` fields, unreworded.
   Evidence column grades the refusal the tests pin, not the recon behind it.
   For `TABL/DI` the registry's stated reason is abapsmith's own reach,
   explicitly not a proven ADT limitation, and no ADT probe has been run.
-- `PROG/I`, `FUGR/I` — readable, and nothing more: bare registry entries with
-  no create, write, delete, or activate field.
+- `PROG/I` — `create.verified` and `delete` are both `true`, live-verified
+  full cycle on A4H 2026-09-04: create, check, activate, re-write, read-back,
+  delete. Create goes through the vendor `CreatableTypes` route, not a
+  hand-built skeleton; an include is package-parented and tied to its host
+  program only by the host's own `INCLUDE <name>.` statement, not by
+  anything in the create body. Delete is refused by the server (403
+  `ExceptionResourceDeletionFailure`) while any program still `INCLUDE`s it.
+- `FUGR/I` — `create.verified` and `delete` are both `true`, live-verified
+  full cycle on A4H 2026-09-04, including an arbitrary non-`F01`/`TOP`/`UXX`
+  suffix. It is container-parented: the caller passes the full
+  `L<GROUP><suffix>` include name as `GROUP/LGROUPSUFFIX` (name plus the
+  group as container), since a bare 3-char suffix (the vendor row's
+  `maxLen: 3` hint) is refused live while the full name validates OK. The
+  function group must already exist first — create against a missing group
+  500s `ExceptionResourceCreationFailure`. Its `["LZ","LY"]` name-prefix
+  override is server-derived, like `ENQU/DL`'s `["EZ","EY"]`: SAP derives
+  the group from the include name, so a customer `Z…`/`Y…` group's include
+  necessarily begins `LZ`/`LY`.
 - `XSLT/VT` — the registry path was corrected from `/sap/bc/adt/xslt/sources/`
   (404 live) to `/sap/bc/adt/xslt/transformations/` (200, including
   `.../source/main` with real source; 2026-09-04) — the old path failed every
