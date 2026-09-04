@@ -4,9 +4,10 @@
  * NEW object is out of scope: every function starts from a `GET` that must
  * succeed, refusing `NOT_FOUND` otherwise.
  *
- * Separate module rather than a branch in `write.ts`: `write.ts`'s
- * `ENHANCEABLE_TYPES` is `["ENHO/XHH"]` only (`test/write.test.ts` pins
- * `resolveWriteTarget` to refuse the other two), and `writeObject` assumes
+ * Separate module rather than a branch in `write.ts`: of the three
+ * enhancement types, `write.ts`'s `ENHANCEABLE_TYPES` admits only
+ * `ENHO/XHH` (`test/write.test.ts` pins `resolveWriteTarget` to refuse the
+ * other two), and `writeObject` assumes
  * a single `/source/main` sub-resource — never true for `ENHO/XH`/`ENHS/XS`
  * (`mode: "ddic"`, see `enhancement.ts`). Reuses `write.ts`'s generic
  * primitives and `./relock.ts`'s `withRelockRetry` directly.

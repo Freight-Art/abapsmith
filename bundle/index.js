@@ -66240,6 +66240,29 @@ var TYPES = [
     supportsSource: true,
     keywords: ["xslt", "transformation"]
   },
+  // objectType search is queried as TYPE/DA, but the appliance's own
+  // adtcore:type on the result is TYPE/DG — that is the code used here.
+  // Path confirmed live: GET .../source/main 200s with Accept: text/plain
+  // (2026-09-04).
+  {
+    type: "TYPE/DG",
+    kind: "TYPE",
+    label: "Type group",
+    path: "/sap/bc/adt/ddic/typegroups/{name}",
+    mode: "source",
+    supportsSource: true,
+    keywords: ["type group", "type pool", "typegroup", "type-pool"]
+  },
+  // path confirmed live: GET .../drul/sources/demo_drul_1/source/main 200s (2026-09-04).
+  {
+    type: "DRUL/DRL",
+    kind: "DRUL",
+    label: "Dependency rule",
+    path: "/sap/bc/adt/ddic/drul/sources/{name}",
+    mode: "source",
+    supportsSource: true,
+    keywords: ["dependency rule", "drul"]
+  },
   // ---- Enhancement framework: BAdI impls, source plug-ins, enhancement
   // spots. URIs/behaviour verified live on A4H. ENHO/XH and ENHS/XS have no
   // /source/main (structured XML only), so mode stays "ddic" — routes reads
@@ -66808,6 +66831,43 @@ var REGISTRY = {
     // Discovery advertises this as the transformations collection's accept
     // type (2026-09-04); a generic Accept on the object GET was not tested.
     mediaType: "application/vnd.sap.adt.transformations+xml"
+  },
+  // Two DDIC source types added 2026-09-04. Update, activate and delete were
+  // all exercised live through abapsmith on A4H (2026-09-04, $TMP objects)
+  // and worked end to end. Create remains unimplemented: neither has a
+  // `CreatableTypes` row in abap-adt-api and abapsmith has no create path
+  // for them — the live objects named below were created with raw ADT
+  // POSTs. `mediaType` is the vendor Accept actually used on the object
+  // URI (the sibling DCLS/DL/DDLA/ADF URIs 406 without it) — a generic
+  // Accept was not tried.
+  //
+  // Type group: GET .../ddic/typegroups/trexc → 200, root
+  // `<atypgr:abapTypeGroup ... adtcore:type="TYPE/DG">`; GET .../source/main
+  // with Accept: text/plain → 200, real `TYPE-POOL trexc. CONSTANTS: …`.
+  // Live on ZTMDX ($TMP): write → activate → delete → NOT_FOUND, all clean.
+  // Wire quirk: ADT rejects underscores in type-group names ("Do not use
+  // underscores in type group names", 403) and caps them at 5 characters
+  // (TYPE-POOL naming rule).
+  "TYPE/DG": {
+    label: "Type group",
+    write: { shape: "source" },
+    delete: true,
+    activate: true,
+    mediaType: "application/vnd.sap.adt.ddic.typegroups.v2+xml"
+  },
+  // Dependency rule: discovery advertises drul/sources with this media type,
+  // title "Dependency Rule"; GET .../drul/sources/demo_drul_1 → 200, root
+  // `<blue:blueSource adtcore:type="DRUL/DRL">`; .../source/main → 200, real
+  // `DEFINE FILTER DEPENDENCY RULE demo_drul_1 ON demo_parts_1 …`.
+  // Live on ZTMD_DRUL_01 ($TMP): write saved source (activation skipped —
+  // the test rule had a deliberate syntax error), delete → NOT_FOUND. Raw
+  // POST create returned 201 with Location .../drul/sources/ztmd_drul_01.
+  "DRUL/DRL": {
+    label: "Dependency rule",
+    write: { shape: "source" },
+    delete: true,
+    activate: true,
+    mediaType: "application/vnd.sap.adt.ddic.drul.v1+xml"
   },
   // No write/create — an existing BAdI implementation is edited through
   // enhancement-write.ts's specialised document PUT (ENHANCEMENT_WRITE_TYPES),
@@ -89044,7 +89104,11 @@ function parseObjectRef(input, hint) {
   const codeMatch = /^([A-Za-z]{4}(?:\/[A-Za-z]{1,3})?)\s+(.+)$/.exec(rest);
   if (codeMatch) {
     const candidate = specForType(codeMatch[1]);
-    if (candidate) {
+    const lower = rest.toLowerCase();
+    const stolenByLongerKeyword = KEYWORDS_BY_LENGTH.some(
+      ({ keyword }) => keyword.length > codeMatch[1].length && lower.startsWith(keyword + " ")
+    );
+    if (candidate && !stolenByLongerKeyword) {
       spec = candidate;
       rest = codeMatch[2].trim();
       via = "typecode";

@@ -71,6 +71,8 @@ inputs to this derivation rather than registry fields:
 | `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
 | `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
 | `XSLT/VT` | Transformation | yes | yes | yes | yes | yes | live |
+| `TYPE/DG` | Type group | no | yes | yes | yes | yes | live |
+| `DRUL/DRL` | Dependency rule | no | yes | yes | yes | yes | live |
 | `ENHO/XH` | BAdI implementation | partial | partial | no | partial | yes | tests |
 | `ENHO/XHH` | Enhancement source plug-in | partial | yes | yes | partial | no | unverified |
 | `ENHS/XS` | Enhancement spot | partial | partial | no | partial | yes | tests |
@@ -195,6 +197,20 @@ The `Object` column values are the registry `label` fields, unreworded.
   both fixes the POST returned 200 and the object read back afterwards. See
   this type's REGISTRY comment in capabilities.ts for the exact server
   messages.
+- `TYPE/DG` — read, update and delete are all live-verified through
+  abapsmith on A4H, 2026-09-04: `GET .../ddic/typegroups/trexc` plus
+  `.../source/main` returned real source; `abap_write` update, then
+  `abap_activate`, then `abap_write mode=delete` on `ZTMDX` ($TMP) all
+  succeeded, and a read afterwards came back `NOT_FOUND`. Create is `no`:
+  no `CreatableTypes` row in abap-adt-api and no create path in abapsmith —
+  the test object was created with a raw ADT POST.
+- `DRUL/DRL` — same evidence shape as `TYPE/DG`: `GET
+  .../ddic/drul/sources/demo_drul_1` plus `.../source/main` returned real
+  source; `abap_write` update on `ZTMD_DRUL_01` ($TMP) wrote and saved the
+  source (activation was skipped — the test rule had a deliberate syntax
+  error), and `abap_write mode=delete` then a read confirmed `NOT_FOUND`.
+  Create is `no`: no `CreatableTypes` row and no create path in abapsmith —
+  the test object was created with a raw ADT POST.
 - `SRVB/SVB` — reading needs `format: "raw"`; create, activate, read-back and
   delete over the ADT business-services binding path are live-verified. This
   is a different path from the OData metadata read described under RAP,

@@ -223,6 +223,29 @@ export const TYPES: TypeSpec[] = [
     supportsSource: true,
     keywords: ["xslt", "transformation"],
   },
+  // objectType search is queried as TYPE/DA, but the appliance's own
+  // adtcore:type on the result is TYPE/DG — that is the code used here.
+  // Path confirmed live: GET .../source/main 200s with Accept: text/plain
+  // (2026-09-04).
+  {
+    type: "TYPE/DG",
+    kind: "TYPE",
+    label: "Type group",
+    path: "/sap/bc/adt/ddic/typegroups/{name}",
+    mode: "source",
+    supportsSource: true,
+    keywords: ["type group", "type pool", "typegroup", "type-pool"],
+  },
+  // path confirmed live: GET .../drul/sources/demo_drul_1/source/main 200s (2026-09-04).
+  {
+    type: "DRUL/DRL",
+    kind: "DRUL",
+    label: "Dependency rule",
+    path: "/sap/bc/adt/ddic/drul/sources/{name}",
+    mode: "source",
+    supportsSource: true,
+    keywords: ["dependency rule", "drul"],
+  },
   // ---- Enhancement framework: BAdI impls, source plug-ins, enhancement
   // spots. URIs/behaviour verified live on A4H. ENHO/XH and ENHS/XS have no
   // /source/main (structured XML only), so mode stays "ddic" — routes reads

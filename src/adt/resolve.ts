@@ -197,7 +197,14 @@ export function parseObjectRef(input: string, hint?: TypeSpec): ParsedRef {
   const codeMatch = /^([A-Za-z]{4}(?:\/[A-Za-z]{1,3})?)\s+(.+)$/.exec(rest);
   if (codeMatch) {
     const candidate = specForType(codeMatch[1]!);
-    if (candidate) {
+    // A registered keyword strictly longer than the matched code wins — else
+    // "type group X" parses as code TYPE + name "group X" instead of the
+    // multi-word keyword "type group".
+    const lower = rest.toLowerCase();
+    const stolenByLongerKeyword = KEYWORDS_BY_LENGTH.some(
+      ({ keyword }) => keyword.length > codeMatch[1]!.length && lower.startsWith(keyword + " "),
+    );
+    if (candidate && !stolenByLongerKeyword) {
       spec = candidate;
       rest = codeMatch[2]!.trim();
       via = "typecode";
