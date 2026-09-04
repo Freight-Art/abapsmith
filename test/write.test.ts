@@ -6468,6 +6468,13 @@ function batchDeleteRoute(
      * `deleted: "unverified"`.
      */
     unverifiedFor?: string | ReadonlyArray<string>;
+    /**
+     * The object's own resolution GET 404s (ADT's real answer for a name
+     * that isn't there), same fixture as module-level `ABSENT_ROUTE`. No
+     * LOCK/DELETE route is ever reached for it — `resolveWriteTarget` throws
+     * NOT_FOUND straight off that GET, before pass 2 could touch it.
+     */
+    absentFor?: string | ReadonlyArray<string>;
   } = {},
 ): Route {
   // A real server: once an object's DELETE has actually landed, its content
@@ -6499,6 +6506,9 @@ function batchDeleteRoute(
         ? opts.unverifiedFor
         : [opts.unverifiedFor],
   );
+  const absentSet = new Set(
+    opts.absentFor === undefined ? [] : Array.isArray(opts.absentFor) ? opts.absentFor : [opts.absentFor],
+  );
   const gone = new Set<string>();
   return (r) => {
     if (r.url.endsWith("/repository/informationsystem/search")) {
@@ -6517,6 +6527,7 @@ function batchDeleteRoute(
     for (const o of objs) {
       const src = `${o.uri}/source/main`;
       if (r.url === o.uri && r.method === "GET" && !r.qs._action) {
+        if (absentSet.has(o.name)) return resp(404, NOT_FOUND_XML, OK_XML);
         return resp(200, OBJECT_XML(o.name, o.type), OK_XML);
       }
       if (r.url === src && r.method === "GET") {
@@ -6768,6 +6779,94 @@ describe("abapWriteBatchDelete — ordering: caller order, never reordered", () 
     );
     const deleteOrder = adt.calls.filter((c) => c.method === "DELETE").map((c) => c.url);
     expect(deleteOrder).toEqual([BDEL_C.uri, BDEL_B.uri, BDEL_A.uri]);
+  });
+});
+
+describe("abapWriteBatchDelete — already-absent entries are skipped, not refused", () => {
+  it("an absent entry in the middle does not stop the others — they are really deleted, and the absence is reported by name", async () => {
+    const { conn, adt } = await connected(batchDeleteRoute([BDEL_A, BDEL_B, BDEL_C], { absentFor: BDEL_B.name }));
+    const res = await abapWriteBatchDelete(
+      conn,
+      [BDEL_A, BDEL_B, BDEL_C].map((o) => ({ object: o.name, type: "PROG/P" })),
+      100_000,
+      DEFAULT_GATE,
+      undefined,
+    );
+    // Reaching a response at all (rather than a thrown error) is the "no
+    // throw" proof — a refusal here would reject the promise instead.
+    expect(res.text).toContain("deleted: 2");
+    expect(res.text).toContain("absent: 1");
+    expect(res.text).toContain("failed: 0");
+    expect(res.text).toMatch(/ZMCP_BDEL_B: already absent/);
+    // A and C were genuinely deleted.
+    const deleteOrder = adt.calls.filter((c) => c.method === "DELETE").map((c) => c.url);
+    expect(deleteOrder).toEqual([BDEL_A.uri, BDEL_C.uri]);
+    // B got nothing beyond its own resolution GET (which 404s) — no
+    // before-image read, no LOCK, no DELETE.
+    const bVerbs = adt.calls
+      .filter((c) => c.url === BDEL_B.uri || c.url === `${BDEL_B.uri}/source/main`)
+      .map((c) => (c.qs._action ? c.qs._action : c.method));
+    expect(bVerbs).toEqual(["GET"]);
+  });
+
+  it("an absent entry mixed with a genuine package still fails the WHOLE batch before any delete", async () => {
+    const { conn, adt } = await connected(batchDeleteRoute([BDEL_A, BDEL_PKG], { absentFor: BDEL_A.name }));
+    const e = await catchErr(
+      abapWriteBatchDelete(
+        conn,
+        [
+          { object: BDEL_A.name, type: "PROG/P" },
+          { object: BDEL_PKG.name, type: "DEVC/K" },
+        ],
+        100_000,
+        DEFAULT_GATE,
+        undefined,
+      ),
+    );
+    expect(e.code).toBe("UNSUPPORTED");
+    expect(e.message).toContain(BDEL_PKG.name);
+    // The package guard still wins over an already-absent neighbour — no
+    // mutating request was issued for anything in the batch.
+    expect(adt.verbs).not.toContain("LOCK");
+    expect(adt.verbs).not.toContain("DELETE");
+  });
+
+  it("a batch where every entry is absent succeeds, reports zero deleted, and issues no mutating request at all", async () => {
+    const { conn, adt } = await connected(
+      batchDeleteRoute([BDEL_A, BDEL_B], { absentFor: [BDEL_A.name, BDEL_B.name] }),
+    );
+    const res = await abapWriteBatchDelete(
+      conn,
+      [BDEL_A, BDEL_B].map((o) => ({ object: o.name, type: "PROG/P" })),
+      100_000,
+      DEFAULT_GATE,
+      undefined,
+    );
+    expect(res.text).toContain("deleted: 0");
+    expect(res.text).toContain("absent: 2");
+    expect(res.text).toContain("failed: 0");
+    expect(res.text).toMatch(/None of the 2 object\(s\) in this batch existed on A4H — nothing was deleted\./);
+    expect(adt.calls.filter((c) => c.method === "DELETE" || c.qs._action === "LOCK")).toHaveLength(0);
+  });
+
+  it("a duplicate that is also absent is still refused up front", async () => {
+    const { conn, adt } = await connected(batchDeleteRoute([BDEL_A], { absentFor: BDEL_A.name }));
+    const e = await catchErr(
+      abapWriteBatchDelete(
+        conn,
+        [
+          { object: BDEL_A.name, type: "PROG/P" },
+          { object: BDEL_A.name, type: "PROG/P" },
+        ],
+        100_000,
+        DEFAULT_GATE,
+        undefined,
+      ),
+    );
+    expect(e.code).toBe("BAD_INPUT");
+    expect(e.message).toContain("more than once");
+    expect(adt.verbs).not.toContain("LOCK");
+    expect(adt.verbs).not.toContain("DELETE");
   });
 });
 

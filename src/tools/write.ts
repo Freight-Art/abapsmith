@@ -247,8 +247,10 @@ export const writeInputSchema = {
   // so the caller must list dependents before dependencies.
   //
   // The whole set is validated first (resolves, deletable, gated, no dupes)
-  // and the batch is refused entirely if any entry fails. Once deletion
-  // starts, one failure does not stop the rest — every object is deleted and
+  // and the batch is refused entirely if any entry fails — except an entry
+  // that does not exist, which is reported per-entry as already-absent
+  // instead of aborting the batch. Once deletion starts, one failure does
+  // not stop the rest — every object is deleted and
   // journalled (with its own before-image) individually before the next is
   // attempted, so a batch that dies halfway leaves an accurate per-object
   // record for `abap_journal mode=undo`. That per-object continuation
@@ -2213,15 +2215,18 @@ export interface ObjectDeleteOutcome {
   readonly uri: string;
   readonly ok: boolean;
   /**
-   * Three states, mirroring `deleteObject`'s own return: `true` — a
-   * read-back confirmed the object is gone. `false` — two probes (a
-   * read-back and an independent repository search) agree the object is
-   * still there; the DELETE was accepted but did not take, and `ok` is
-   * `false` for this entry too. `"unverified"` — neither probe could settle
-   * it; `ok` stays `true` (the DELETE itself was accepted and is durable),
-   * but the caller should treat the object's actual fate as unconfirmed.
+   * Four states, mirroring `deleteObject`'s own return plus one Pass-1
+   * outcome: `true` — a read-back confirmed the object is gone. `false` —
+   * two probes (a read-back and an independent repository search) agree the
+   * object is still there; the DELETE was accepted but did not take, and
+   * `ok` is `false` for this entry too. `"unverified"` — neither probe could
+   * settle it; `ok` stays `true` (the DELETE itself was accepted and is
+   * durable), but the caller should treat the object's actual fate as
+   * unconfirmed. `"already-absent"` — the object was not on the system in
+   * Pass 1, so nothing was locked, deleted, or journalled for it; `ok` stays
+   * `true` because the requested end state (the object gone) already held.
    */
-  readonly deleted: boolean | "unverified";
+  readonly deleted: boolean | "unverified" | "already-absent";
   /**
    * The journal entry this delete's before-image was captured under, set
    * whenever the delete was actually journalled — REGARDLESS of `ok`. A
@@ -2239,9 +2244,13 @@ export interface ObjectDeleteOutcome {
  * for the cap's derivation.
  *
  * Two passes, structurally like `abapActivateBatch`, but Pass 2 diverges on purpose.
- * **Pass 1 (validation) is all-or-nothing**: every entry is resolved via `authorizeMutation`
- * and ALSO checked with `isPackageType` directly — `authorizeMutation` only refuses packages
- * for op:"activate", so this catches a DEVC/K before Pass 2 could delete anything ahead of it.
+ * **Pass 1 (validation) is all-or-nothing, with one exception**: every entry is resolved via
+ * `authorizeMutation` and ALSO checked with `isPackageType` directly — `authorizeMutation` only
+ * refuses packages for op:"activate", so this catches a DEVC/K before Pass 2 could delete
+ * anything ahead of it. The exception is an entry that does not exist at all: that is recorded
+ * as `deleted: "already-absent"` and the rest of the batch still proceeds. Every other Pass 1
+ * refusal — an existing package, a duplicate name, an unknown/ambiguous type, a gate refusal —
+ * still aborts the whole call before anything is deleted.
  *
  * **Pass 2 (execution) does NOT mirror activation's Pass 2.** Activation's mutation phase
  * is one real server-side batch POST, so atomicity is free. ADT has no multi-object DELETE
@@ -2298,12 +2307,47 @@ export async function abapWriteBatchDelete(
 
   // ---- pass 1: resolve + authorise + package-refuse EVERY entry, before
   // deleting ANY -----------------------------------------------------------
-  const authorized: Array<{
-    authorized: AuthorizedTarget<MutatingOperation, ResolvedTarget>;
-    affects?: EnhancedObjectRef;
-  }> = [];
+  // Ordered like `wanted` — an authorized target keeps its `affects`; an
+  // already-absent entry carries just enough to report it (no `affects`, it
+  // is never mutated). Kept as one union array, not two lists, so pass 2 can
+  // walk it in caller order without re-deriving that order.
+  type Pass1Entry =
+    | {
+        kind: "authorized";
+        authorized: AuthorizedTarget<MutatingOperation, ResolvedTarget>;
+        affects?: EnhancedObjectRef;
+      }
+    | { kind: "absent"; name: string; type: string; uri: string };
+  const pass1: Pass1Entry[] = [];
   for (const w of wanted) {
-    const a = await authorizeMutation(conn, gate, "delete", w);
+    let a: AuthorizedTarget<MutatingOperation, ResolvedTarget>;
+    try {
+      a = await authorizeMutation(conn, gate, "delete", w);
+    } catch (e) {
+      // An already-absent entry is a no-op, not a refusal — UNLESS it
+      // resolved to a package: a would-be DEVC/K stays a whole-batch abort,
+      // same as an EXISTING package below, so it can't sneak past that guard
+      // by not existing. Also require `operation === "delete"`: that field
+      // is only ever set by `authorizeMutation`'s own "does not exist" throw,
+      // so a different NOT_FOUND surfaced through `resolveWriteTarget` (e.g.
+      // a stale search-index contradiction) keeps its own guidance and still
+      // aborts the batch, rather than being swallowed as "already absent".
+      if (
+        isAbapError(e) &&
+        e.code === "NOT_FOUND" &&
+        e.details.operation === "delete" &&
+        !isPackageType(e.details.type as string | undefined)
+      ) {
+        pass1.push({
+          kind: "absent",
+          name: (e.details.name as string | undefined) ?? w.name,
+          type: (e.details.type as string | undefined) ?? w.type ?? "",
+          uri: (e.details.uri as string | undefined) ?? "",
+        });
+        continue;
+      }
+      throw e;
+    }
     if (isPackageType(a.target.type)) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -2315,14 +2359,27 @@ export async function abapWriteBatchDelete(
           "objects in a separate batch without it.",
       );
     }
-    authorized.push({ authorized: a, affects: w.affectsRef });
+    pass1.push({ kind: "authorized", authorized: a, affects: w.affectsRef });
   }
-  assertNoDuplicateDeleteTargets(authorized.map((e) => e.authorized.target));
+  assertNoDuplicateDeleteTargets(
+    pass1.map((p) => (p.kind === "authorized" ? p.authorized.target : p)),
+  );
 
   // ---- pass 2: delete one at a time, in caller order, continue past a
   // per-object failure -------------------------------------------------------
   const outcomes: ObjectDeleteOutcome[] = [];
-  for (const { authorized: a, affects } of authorized) {
+  for (const p of pass1) {
+    if (p.kind === "absent") {
+      outcomes.push({
+        name: p.name,
+        type: p.type,
+        uri: p.uri,
+        ok: true,
+        deleted: "already-absent",
+      });
+      continue;
+    }
+    const { authorized: a, affects } = p;
     const t = a.target;
     const trOpts = transport
       ? { transport, gate, ...(affects ? { affects } : {}) }
@@ -2395,6 +2452,7 @@ export async function abapWriteBatchDelete(
   // into a plain "deleted" count.
   const confirmed = succeeded.filter((o) => o.deleted === true);
   const unverified = succeeded.filter((o) => o.deleted === "unverified");
+  const absent = outcomes.filter((o) => o.deleted === "already-absent");
   // By `journalEntry !== undefined`, not by `ok`: a contradicted
   // delete (`ok: false`, `deleted: false`) that was still journalled is
   // recoverable through abap_journal mode=undo just like a succeeded one,
@@ -2408,6 +2466,9 @@ export async function abapWriteBatchDelete(
           `${o.type} ${o.name}: FAILED — [${o.error!.code}] ${o.error!.message}` +
           (o.journalEntry ? ` (journalled as ${o.journalEntry}, still recoverable)` : "")
         );
+      }
+      if (o.deleted === "already-absent") {
+        return `${o.type} ${o.name}: already absent — nothing to delete, nothing was locked or journalled`;
       }
       const journalSuffix = o.journalEntry
         ? ` — journalled as ${o.journalEntry}`
@@ -2436,6 +2497,7 @@ export async function abapWriteBatchDelete(
         ? `Batch delete of ${outcomes.length} object(s) failed: none were deleted.`
         : `Batch delete of ${outcomes.length} object(s): ${confirmed.length} deleted` +
           (unverified.length > 0 ? `, ${unverified.length} unverified` : "") +
+          (absent.length > 0 ? `, ${absent.length} already absent` : "") +
           `, ${failed.length} failed. The ${succeeded.length} that succeeded are NOT rolled back.`,
       {
         objects: outcomes.map((o) => o.name),
@@ -2467,17 +2529,27 @@ export async function abapWriteBatchDelete(
       mode: "delete",
       deleted: confirmed.length,
       ...(unverified.length > 0 ? { unverified: unverified.length } : {}),
+      ...(absent.length > 0 ? { absent: absent.length } : {}),
       failed: failed.length,
     },
     body,
     bodyLabel: "OBJECTS",
     // `failed` is always empty here — any failure threw CHECK_FAILED above — so this
     // no longer needs a NOT-deleted branch; only the all-succeeded case reaches this point.
+    //
+    // The summary line is a small helper rather than a nested ternary: a batch can be
+    // confirmed/unverified/already-absent in any mix, and the all-absent batch needs its
+    // own plain statement (no object existed) rather than a "0 confirmed deleted" reading.
     notes: [
-      unverified.length > 0
-        ? `${confirmed.length} of ${outcomes.length} object(s) confirmed deleted; ` +
-          `${unverified.length} unverified — see the UNVERIFIED marker(s) above.`
-        : `All ${outcomes.length} object(s) were deleted.`,
+      absent.length === outcomes.length
+        ? `None of the ${outcomes.length} object(s) in this batch existed on ${conn.cfg.sid} — ` +
+          "nothing was deleted."
+        : unverified.length > 0 || absent.length > 0
+          ? `${confirmed.length} of ${outcomes.length} object(s) confirmed deleted` +
+            (unverified.length > 0 ? `; ${unverified.length} unverified` : "") +
+            (absent.length > 0 ? `; ${absent.length} already absent` : "") +
+            (unverified.length > 0 ? " — see the UNVERIFIED marker(s) above." : ".")
+          : `All ${outcomes.length} object(s) were deleted.`,
       ...(journalled.length > 0
         ? [
             `${journalled.length} deletion(s) were journalled individually — ` +
@@ -2485,14 +2557,15 @@ export async function abapWriteBatchDelete(
               "before-image; there is no single id for the whole batch.",
           ]
         : []),
-      // Every outcome here is a success (a failure of any kind throws
-      // above), so `succeeded` and `outcomes` coincide — this is just the
-      // subset of them with no `journalEntry`.
-      ...(succeeded.some((o) => o.journalEntry === undefined)
+      // Every outcome here is a success (a failure of any kind throws above), so
+      // `succeeded` and `outcomes` coincide. An already-absent entry is also `ok: true`
+      // with no `journalEntry` but deleted nothing, so it must NOT count toward
+      // "irreversible" — only successes that actually deleted something belong here.
+      ...(succeeded.some((o) => o.deleted !== "already-absent" && o.journalEntry === undefined)
         ? [
-            `${succeeded.filter((o) => o.journalEntry === undefined).length} deleted object(s) were ` +
-              "NOT journalled (the write journal is off or was not available) and are IRREVERSIBLE " +
-              "from here.",
+            `${succeeded.filter((o) => o.deleted !== "already-absent" && o.journalEntry === undefined).length} ` +
+              "deleted object(s) were NOT journalled (the write journal is off or was not available) " +
+              "and are IRREVERSIBLE from here.",
           ]
         : []),
     ],
