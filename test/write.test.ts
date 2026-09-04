@@ -642,9 +642,11 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     // end to end on A4H 2026-09-04 (create/PUT/activate/read-back/delete/
     // NOT_FOUND read), putting it in VERIFIED_CREATABLE_TYPES and
     // DELETABLE_TYPES.
-    // DDLA/ADF joined on the same vendor-create recipe as DCLS/DL. No live
-    // create/delete run yet, so `create.verified` and `delete` are both
-    // `"unverified"`, keeping it out of VERIFIED_CREATABLE_TYPES and
+    // DDLA/ADF joined on the same vendor-create recipe as DCLS/DL, but a
+    // 2026-09-04 A4H probe DISPROVED create (403
+    // ExceptionNoAnnotationDefinitionAuthorization — SAP-only object type),
+    // so `create.verified` is `false`. `delete` stays `"unverified"` since
+    // create never succeeded, keeping it out of VERIFIED_CREATABLE_TYPES and
     // DELETABLE_TYPES.
     // FUGR/F joined on live evidence, not inference: its `/source/main` is the
     // TOP-include skeleton, and a PUT carrying a distinguishing marker line came

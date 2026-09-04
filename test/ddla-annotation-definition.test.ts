@@ -1,13 +1,18 @@
 /**
- * DDLA/ADF (annotation definition) is a new registry entry, live-probed on
- * A4H 2026-09-04: ADT discovery advertises `/sap/bc/adt/ddic/ddla/sources`
+ * DDLA/ADF (annotation definition) is a registry entry live-probed on A4H
+ * 2026-09-04: ADT discovery advertises `/sap/bc/adt/ddic/ddla/sources`
  * (title "Annotation Definition", accept
  * `application/vnd.sap.adt.ddic.ddla.v1+xml`, category term `ddlaadf`); `GET
  * /sap/bc/adt/ddic/ddla/sources/endusertext/source/main` with `Accept:
  * text/plain` → 200 real annotation-definition source; the object URI 406s
  * with a generic Accept and 200s with the vendor media type, root element
  * `ddla:ddlaSource` carrying `adtcore:type="DDLA/ADF"`; abap-adt-api's
- * CreatableTypes has a DDLA/ADF row. No live create or delete has been run.
+ * CreatableTypes has a DDLA/ADF row. Create is DISPROVEN, not merely
+ * unverified: both `abap_write` and a raw `POST .../ddic/ddla/sources` with
+ * the vendor body were refused 403 `ExceptionNoAnnotationDefinitionAuthorization`,
+ * "You are not authorized to create Annotation Definitions", from an admin
+ * user — annotation definitions are SAP-only on this system. Delete stays
+ * "unverified": create never succeeded, so delete was never reachable.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -84,16 +89,18 @@ describe("DDLA/ADF registry: write, create, activate, media type", () => {
   });
 });
 
-describe("DDLA/ADF derived sets: writable and creatable, but not yet verified or deletable", () => {
+describe("DDLA/ADF derived sets: writable, but create is disproven and delete stays unverified", () => {
   it("is in WRITABLE_TYPES and CREATABLE_TYPES", () => {
     expect(WRITABLE_TYPES).toContain("DDLA/ADF");
     expect(CREATABLE_TYPES).toContain("DDLA/ADF");
   });
 
-  // Both gates stay shut until a live create/delete run earns them; today
-  // this is unverified, not disproven.
+  // Create's gate is shut because it was DISPROVEN live (403
+  // ExceptionNoAnnotationDefinitionAuthorization), not because it's
+  // untested. Delete stays "unverified" — create never succeeded, so delete
+  // was never once reachable to test.
   it("is not in VERIFIED_CREATABLE_TYPES or DELETABLE_TYPES", () => {
-    expect(capabilitiesFor("DDLA/ADF")?.create?.verified).toBe("unverified");
+    expect(capabilitiesFor("DDLA/ADF")?.create?.verified).toBe(false);
     expect(capabilitiesFor("DDLA/ADF")?.delete).toBe("unverified");
     expect(VERIFIED_CREATABLE_TYPES).not.toContain("DDLA/ADF");
     expect(DELETABLE_TYPES).not.toContain("DDLA/ADF");

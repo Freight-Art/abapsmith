@@ -67,7 +67,7 @@ inputs to this derivation rather than registry fields:
 | `DDLS/DF` | CDS view / DDL source | yes | yes | yes | yes | yes | live |
 | `DDLX/EX` | Metadata extension | yes | yes | yes | yes | yes | live |
 | `DCLS/DL` | CDS access control | yes | yes | yes | yes | yes | live |
-| `DDLA/ADF` | Annotation definition | no | yes | yes | no | yes | unverified |
+| `DDLA/ADF` | Annotation definition | no | yes | yes | no | yes | live |
 | `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
 | `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
 | `XSLT/VT` | Transformation | yes | yes | yes | yes | yes | live |
@@ -116,13 +116,17 @@ The `Object` column values are the registry `label` fields, unreworded.
   `mediaType` because the object URI 406s without it.
 - `DDLA/ADF` — reads are proven live: ADT discovery advertises
   `/sap/bc/adt/ddic/ddla/sources`, and a `GET
-  .../ddic/ddla/sources/endusertext/source/main` returned 200. Update is
-  supported — `abap_write` resolves a change target — but unexercised: no
-  write has run live yet. Create and delete are gated shut: `create.verified`
-  and `delete` are both `"unverified"` in the registry, which is why the
-  Create and Delete cells read `no` rather than `partial`. A create would go
-  through abap-adt-api's vendor `CreatableTypes` entry (validationPath
-  `ddic/ddla/sources/validation`), not a hand-built skeleton. The entry
+  .../ddic/ddla/sources/endusertext/source/main` returned 200 (`DEMOANNO` in
+  package SABAPDEMOS). Update is supported — `abap_write` resolves a change
+  target — but unexercised: no write has run live yet. Create is
+  live-disproven, not merely untested: a 2026-09-04 A4H probe refused both
+  `abap_write` (creating `ZTMD_ANNO_01` in `$TMP`) and a raw `POST
+  .../ddic/ddla/sources` with the vendor body, both `403
+  ExceptionNoAnnotationDefinitionAuthorization`, "You are not authorized to
+  create Annotation Definitions" — from an admin user that creates every
+  other type, so annotation definitions are a SAP-only object type on this
+  system. Delete stays `"unverified"`: create never succeeded, so delete was
+  never once reachable to test, same reasoning as `ENQU/DL` above. The entry
   carries a `mediaType` because the object URI 406s without it.
 - `MSAG/N` — activation is `n/a` because a message class is born active.
   Reading needs `format: "raw"`; a single raw document has been observed in
