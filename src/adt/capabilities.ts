@@ -149,9 +149,9 @@ export interface CreateCapability {
    * type, so `createNewObject()` reuses it unchanged.
    *
    * False ⇒ no vendor entry (checked directly against `objectcreator.js`'s
-   * map — `TTYP/DA`, `ENQU/DL`, `BDEF/BDO`, `XSLT/VT` are absent) — `write.ts` POSTs the
-   * create body itself via `createByXml`, one of two ways, enforced by
-   * {@link assertNoConflictingCapabilities}:
+   * map — `TTYP/DA`, `ENQU/DL`, `BDEF/BDO`, `XSLT/VT`, `TYPE/DG`, `DRUL/DRL`
+   * are absent) — `write.ts` POSTs the create body itself via `createByXml`,
+   * one of two ways, enforced by {@link assertNoConflictingCapabilities}:
    *   - no `create.skeleton` — the caller's own write payload IS the create
    *     body verbatim. Requires `write.shape === "properties"` — `TTYP/DA`,
    *     `ENQU/DL` (whose create is rejected unless `<enqu:content>` is
@@ -159,7 +159,8 @@ export interface CreateCapability {
    *   - `create.skeleton` present — `write.ts` hand-builds the create XML
    *     from name/type/package (see {@link SkeletonCreate}); the payload is
    *     ABAP source and goes on the PUT that follows. Requires
-   *     `write.shape === "source"` — `BDEF/BDO`, `XSLT/VT`.
+   *     `write.shape === "source"` — `BDEF/BDO`, `XSLT/VT`, `TYPE/DG`,
+   *     `DRUL/DRL`.
    */
   vendor: boolean;
   /** See {@link ParentKind}. */
@@ -658,12 +659,13 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   },
   // Two DDIC source types added 2026-09-04. Update, activate and delete were
   // all exercised live through abapsmith on A4H (2026-09-04, $TMP objects)
-  // and worked end to end. Create remains unimplemented: neither has a
-  // `CreatableTypes` row in abap-adt-api and abapsmith has no create path
-  // for them — the live objects named below were created with raw ADT
-  // POSTs. `mediaType` is the vendor Accept actually used on the object
-  // URI (the sibling DCLS/DL/DDLA/ADF URIs 406 without it) — a generic
-  // Accept was not tried.
+  // and worked end to end. Neither has a `CreatableTypes` row in
+  // abap-adt-api, so create goes through a hand-built skeleton like
+  // `BDEF/BDO`/`XSLT/VT` — the live objects named below were created with
+  // raw ADT POSTs outside abapsmith, so `verified` stays `"unverified"`
+  // until abapsmith's own choreography runs one live. `mediaType` is the
+  // vendor Accept actually used on the object URI (the sibling
+  // DCLS/DL/DDLA/ADF URIs 406 without it) — a generic Accept was not tried.
   //
   // Type group: GET .../ddic/typegroups/trexc → 200, root
   // `<atypgr:abapTypeGroup ... adtcore:type="TYPE/DG">`; GET .../source/main
@@ -675,6 +677,19 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   "TYPE/DG": {
     label: "Type group",
     write: { shape: "source" },
+    // Raw POST .../ddic/typegroups, Content-Type
+    // application/vnd.sap.adt.ddic.typegroups.v2+xml, → 200, empty body, no
+    // Location; GET .../typegroups/ztmdx/source/main → server-seeded
+    // `TYPE-POOL ztmdx.` (2026-09-04). Outside abapsmith, hence unverified.
+    create: {
+      vendor: false,
+      skeleton: {
+        rootName: "atypgr:abapTypeGroup",
+        namespace: 'xmlns:atypgr="http://www.sap.com/adt/ddic/typegroups"',
+        contentType: "application/vnd.sap.adt.ddic.typegroups.v2+xml",
+      },
+      verified: "unverified",
+    },
     delete: true,
     activate: true,
     mediaType: "application/vnd.sap.adt.ddic.typegroups.v2+xml",
@@ -689,6 +704,20 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   "DRUL/DRL": {
     label: "Dependency rule",
     write: { shape: "source" },
+    // Raw POST .../ddic/drul/sources, Content-Type
+    // application/vnd.sap.adt.ddic.drul.v1+xml, → 201, Location
+    // .../drul/sources/ztmd_drul_01; created source is empty, so the caller
+    // must PUT the DEFINE FILTER DEPENDENCY RULE text afterwards
+    // (2026-09-04). Outside abapsmith, hence unverified.
+    create: {
+      vendor: false,
+      skeleton: {
+        rootName: "blue:blueSource",
+        namespace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
+        contentType: "application/vnd.sap.adt.ddic.drul.v1+xml",
+      },
+      verified: "unverified",
+    },
     delete: true,
     activate: true,
     mediaType: "application/vnd.sap.adt.ddic.drul.v1+xml",
@@ -1211,8 +1240,8 @@ function codesWith(pred: (c: TypeCapabilities) => boolean): string[] {
 
 /**
  * Types an EXISTING object of which can be written AND newly created.
- * Deliberately excludes `ENHO/XHH`, `TYPE/DG`, `DRUL/DRL` (write, no create
- * — see {@link ENHANCEABLE_TYPES}).
+ * Deliberately excludes `ENHO/XHH` (write, no create — see
+ * {@link ENHANCEABLE_TYPES}).
  */
 export const WRITABLE_TYPES: readonly string[] = codesWith((c) => c.write !== undefined && c.create !== undefined);
 
@@ -1292,7 +1321,7 @@ export function isBridgeDeletableType(type: string | undefined): boolean {
   return cap?.bridgeDelete !== undefined;
 }
 
-/** The write-but-never-created set (name is historical, from when `ENHO/XHH` was its only member): resolvable/editable through the ordinary PUT-source path but never created here — today `ENHO/XHH`, `TYPE/DG`, `DRUL/DRL`. */
+/** The write-but-never-created set (name is historical, from when `ENHO/XHH` was its only member): resolvable/editable through the ordinary PUT-source path but never created here — today `ENHO/XHH` alone. */
 export const ENHANCEABLE_TYPES: readonly string[] = codesWith((c) => c.write !== undefined && c.create === undefined);
 
 /**

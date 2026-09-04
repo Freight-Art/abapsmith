@@ -534,18 +534,19 @@ export function assertNoDuplicateDeleteTargets(
 
 /**
  * ADT name-length limits not in the vendor's creation table
- * (`objectcreator.js`'s `CreatableTypes`, e.g. TABL/DT = 16) — `TTYP/DA` and
- * `ENQU/DL` are absent there and would silently inherit the generic 30
- * without this. `SRVB/SVB` is deliberately NOT overridden: it already has a
- * correct vendor entry (`maxLen: 26`); adding one here would risk drift.
- * `FUGR/I` IS in the vendor table, but its `maxLen: 3` describes only the
- * suffix a GUI would prompt for — abapsmith passes the full `L<GROUP><suffix>`
- * name, so it needs the override too.
+ * (`objectcreator.js`'s `CreatableTypes`, e.g. TABL/DT = 16) — `TTYP/DA`,
+ * `ENQU/DL` and `TYPE/DG` are absent there and would silently inherit the
+ * generic 30 without this. `SRVB/SVB` is deliberately NOT overridden: it
+ * already has a correct vendor entry (`maxLen: 26`); adding one here would
+ * risk drift. `FUGR/I` IS in the vendor table, but its `maxLen: 3` describes
+ * only the suffix a GUI would prompt for — abapsmith passes the full
+ * `L<GROUP><suffix>` name, so it needs the override too.
  */
 const NAME_LIMIT_OVERRIDES: Record<string, number> = {
   "TTYP/DA": 30, // DD40L-TYPENAME
   "ENQU/DL": 16, // DD25L-VIEWNAME, same field the classic view name uses
   "FUGR/I": 30, // full "L"+group(26)+suffix(3) name, not the vendor's 3-char suffix-only maxLen
+  "TYPE/DG": 5, // TYPE-POOL naming rule (DD ABAP type-pool names are 5 characters)
 };
 
 function maxNameLength(type: string): number {
@@ -1196,6 +1197,17 @@ export async function resolveWriteTarget(
     throw new AbapError("BAD_INPUT", `${JSON.stringify(target.name)} is not a valid ABAP object name.`, {
       name: target.name,
     });
+  }
+  // A4H refuses this at create with 403 / "Do not use underscores in type
+  // group names" (2026-09-04) — checked here, before the length check, so
+  // the more actionable rule wins when a name breaks both.
+  if (spec.type === "TYPE/DG" && name.includes("_")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${name} contains an underscore — type group names cannot.`,
+      { name, type: spec.type },
+      "Use only letters and digits, max 5 characters, e.g. ZTMDX.",
+    );
   }
   const limit = maxNameLength(spec.type);
   if (name.length > limit) {

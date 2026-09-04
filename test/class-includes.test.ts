@@ -119,12 +119,30 @@ describe("an include is NEVER silently downgraded to the main source", () => {
     expect(NON_CLASS_WRITABLE).not.toContain("CLAS/OC");
   });
 
+  /**
+   * The fixture name each type's own `resolveWriteTarget` pre-flight can
+   * live with, so the include check — not a name-shape guard that runs
+   * earlier — is what fires. `TYPE/DG` (type groups) is the one type with a
+   * server-enforced name rule stricter than the generic 30-char length
+   * check: A4H rejects an underscore in a type-group name with 403 "Do not
+   * use underscores in type group names", and TYPE-POOL names cap at 5
+   * characters (both checked in `resolveWriteTarget` before the include
+   * check). `ZMCP_INC` trips that guard, so `TYPE/DG` needs its own
+   * 5-character, underscore-free name here — every other writable type
+   * keeps the shared fixture. Do not collapse this back to one constant:
+   * that is exactly the "TYPE/DG's own rule was never exercised" regression
+   * this sweep exists to catch.
+   */
+  function fixtureNameFor(type: string): string {
+    return type === "TYPE/DG" ? "ZMCPI" : "ZMCP_INC";
+  }
+
   it("write side: resolveWriteTarget refuses `include` on every non-class writable type", async () => {
     for (const type of NON_CLASS_WRITABLE) {
       const spec = specForType(type)!;
       const e = await catchErr(
         resolveWriteTarget(OFFLINE, {
-          name: "ZMCP_INC",
+          name: fixtureNameFor(type),
           type,
           include: "testclasses",
           ...(spec.parentPath ? { containerName: "ZMCP_FG" } : {}),
