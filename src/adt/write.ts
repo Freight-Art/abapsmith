@@ -538,10 +538,14 @@ export function assertNoDuplicateDeleteTargets(
  * `ENQU/DL` are absent there and would silently inherit the generic 30
  * without this. `SRVB/SVB` is deliberately NOT overridden: it already has a
  * correct vendor entry (`maxLen: 26`); adding one here would risk drift.
+ * `FUGR/I` IS in the vendor table, but its `maxLen: 3` describes only the
+ * suffix a GUI would prompt for — abapsmith passes the full `L<GROUP><suffix>`
+ * name, so it needs the override too.
  */
 const NAME_LIMIT_OVERRIDES: Record<string, number> = {
   "TTYP/DA": 30, // DD40L-TYPENAME
   "ENQU/DL": 16, // DD25L-VIEWNAME, same field the classic view name uses
+  "FUGR/I": 30, // full "L"+group(26)+suffix(3) name, not the vendor's 3-char suffix-only maxLen
 };
 
 function maxNameLength(type: string): number {

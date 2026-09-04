@@ -8,6 +8,12 @@
  * REGISTRY and OUT_OF_REGISTRY_CREATE grow. Also guards the "not reachable"
  * bucket's read claim and that the shipped skill matches what
  * the generator produces, without requiring a build.
+ *
+ * The line-mixing property below is about the generator's rendering, not
+ * REGISTRY's current contents, so it runs against a small synthetic
+ * registry: PROG/I and FUGR/I were the real registry's last
+ * readable-but-unreachable types, and both gained write/create recipes, so
+ * REGISTRY no longer has an example to exercise the property against.
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -69,11 +75,19 @@ describe("capability table: unreachable bucket census", () => {
   // Pre-fix, every unreachable type sat on one shared flat-list line, so
   // "readable" and "unreadable" types were never distinguishable by line;
   // post-fix they're on two separate lines. A line that mixes both groups
-  // is the defect, regardless of what words surround it.
+  // is the defect, regardless of what words surround it. PROG/I and FUGR/I
+  // were the real registry's last readable-but-unreachable types, so this is
+  // now driven off a synthetic registry (same idiom as the stale-dist/ test
+  // above) rather than REGISTRY, to keep the property exercisable; a second
+  // test below asserts the real REGISTRY renders the now-empty group honestly.
   it("never puts a readable and an unreadable type on the same line of the unreachable bucket", async () => {
-    const { table, buckets } = await buildCapabilityTable(REGISTRY);
-    const readableTypes = buckets.unreachable.filter((r) => !REGISTRY[r.type]?.unsupported).map((r) => r.type);
-    const unreadableTypes = buckets.unreachable.filter((r) => REGISTRY[r.type]?.unsupported).map((r) => r.type);
+    const registry = {
+      "ZZZ/QR": { label: "synthetic readable, unreachable" },
+      "ZZZ/QS": { label: "synthetic unreadable, unreachable", unsupported: { reason: "test" } },
+    };
+    const { table, buckets } = await buildCapabilityTable(registry);
+    const readableTypes = buckets.unreachable.filter((r) => !registry[r.type]?.unsupported).map((r) => r.type);
+    const unreadableTypes = buckets.unreachable.filter((r) => registry[r.type]?.unsupported).map((r) => r.type);
     // Non-vacuity: both groups must be non-empty, or "no line mixes them" is
     // trivially true because there's nothing on one side to mix in.
     expect(readableTypes.length, "no readable type in the unreachable bucket to test against").toBeGreaterThan(0);
@@ -85,6 +99,17 @@ describe("capability table: unreachable bucket census", () => {
       const mentionsUnreadable = unreadableTypes.some((t) => line.includes(`\`${t}\``));
       expect(mentionsReadable && mentionsUnreadable, `line mixes readable and unreadable types: ${line}`).toBe(false);
     }
+  });
+
+  // PROG/I and FUGR/I (the last readable-but-unreachable types) gained real
+  // write/create recipes, so today's REGISTRY has none left. Pin that fact,
+  // and that the generator says so honestly (an empty "_(none)_" line) rather
+  // than a dangling or missing line, instead of just letting it go untested.
+  it("today's REGISTRY has no readable-but-unreachable types, and the generator renders that group as _(none)_", async () => {
+    const { table, buckets } = await buildCapabilityTable(REGISTRY);
+    const readableTypes = buckets.unreachable.filter((r) => !REGISTRY[r.type]?.unsupported);
+    expect(readableTypes).toEqual([]);
+    expect(table).toContain("- Readable, not writable (0): _(none)_");
   });
 });
 

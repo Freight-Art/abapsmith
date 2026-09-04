@@ -431,13 +431,13 @@ describe("resolveWriteTarget", () => {
   it("refuses types it cannot create, and refuses to guess", async () => {
     // Was `DTEL/DE` until the properties-shape pass made data elements
     // genuinely writable, then `XSLT/VT` until the corrected transformations
-    // path made it genuinely writable too. `PROG/I` is the same shape of case
-    // it used to be: present in types.ts (so `specForType` finds it and this
-    // is NOT the "unknown type" BAD_INPUT), declared in capabilities.ts with
-    // neither `create` nor `write`, and therefore refused by the
-    // CREATABLE/ENHANCEABLE check before a single byte goes on the wire —
-    // which is what `offline` (a null connection) proves.
-    expect((await catchErr(resolveWriteTarget(offline, { type: "PROG/I", name: "ZTMD_INC" }))).code).toBe(
+    // path made it genuinely writable too, then `PROG/I` until it gained its
+    // own vendor create/write recipe, retiring it from this role. `ENHO/XH`
+    // is present in types.ts (so `specForType` finds it — this is not the
+    // "unknown type" `BAD_INPUT` case below) but declared in capabilities.ts
+    // with neither `create` nor `write`, so it's refused before a byte goes
+    // on the wire, which `offline` proves.
+    expect((await catchErr(resolveWriteTarget(offline, { type: "ENHO/XH", name: "ZTMD_INC" }))).code).toBe(
       "UNSUPPORTED",
     );
     expect((await catchErr(resolveWriteTarget(offline, { name: "ZSOMETHING" }))).code).toBe(
@@ -628,14 +628,19 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     expect(() => assertWritableTypesAreReadable()).not.toThrow();
   });
 
-  it("WRITABLE_TYPES is exactly the source-shape fourteen plus the properties-shape six", () => {
+  it("WRITABLE_TYPES is exactly the source-shape sixteen plus the properties-shape six", () => {
     // Spelled as one exhaustive set on purpose: a type silently ACQUIRING a
     // write capability is as much a regression as one losing it, and only an
-    // exhaustive comparison catches the first. The fourteen-plus-six split is:
+    // exhaustive comparison catches the first. The sixteen-plus-six split is:
     //   source shape     — CLAS/OC INTF/OI PROG/P DDLS/DF DDLX/EX SRVD/SRV
     //                      TABL/DT TABL/DS FUGR/FF FUGR/F BDEF/BDO XSLT/VT
-    //                      DCLS/DL DDLA/ADF
+    //                      DCLS/DL DDLA/ADF PROG/I FUGR/I
     //   properties shape — DTEL/DE DOMA/DD TTYP/DA MSAG/N ENQU/DL SRVB/SVB
+    // PROG/I and FUGR/I joined source-shape on their own vendor create
+    // routes (programs/includes and functions/groups/%s/includes), but
+    // `create.verified` and `delete` stay `"unverified"` for both — no live
+    // create/delete run yet — so neither lands in VERIFIED_CREATABLE_TYPES
+    // or DELETABLE_TYPES.
     // DCLS/DL joined source-shape on the same recipe as DDLS/DF: vendor
     // CreatableTypes has a real entry, so create is vendor, not a hand-built
     // skeleton. `create.verified` and `delete` are both `true`, live-verified
@@ -693,6 +698,8 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
         "XSLT/VT",
         "DCLS/DL",
         "DDLA/ADF",
+        "PROG/I",
+        "FUGR/I",
         "DTEL/DE",
         "DOMA/DD",
         "TTYP/DA",
@@ -5376,8 +5383,8 @@ describe("invariant: no REGISTRY type may declare `bridgeCreate` without a routi
   });
 
   /**
-   * Temporarily overwrites `PROG/I` — an existing, otherwise-inert registry
-   * entry nothing else here depends on — to exercise the real guard against
+   * Temporarily overwrites `PROG/I` — a real registry entry, but one nothing
+   * else in this test file depends on — to exercise the real guard against
    * a bad shape without touching src/, restoring it in `finally` so no
    * other test observes the mutation.
    */

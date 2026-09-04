@@ -6,7 +6,9 @@ description: Writes ABAP source for classes, interfaces, programs, function grou
 # ABAP source objects
 
 `CLAS/OC` `INTF/OI` `PROG/P` `FUGR/F` `FUGR/FF` — all `source` shape.
-`PROG/I` and `FUGR/I` (includes) are **not writable**.
+`PROG/I` and `FUGR/I` (includes) are `source`-writable too, but **not
+creatable**: `create.verified` and `delete` are both `"unverified"`, so a
+create or delete of an include is refused.
 
 ## Class sub-includes
 

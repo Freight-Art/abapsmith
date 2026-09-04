@@ -79,13 +79,18 @@
  *
  * `namePrefixes` is read by `SafetyGate.rules()`: a type that declares it is
  * judged against its own prefix list instead of the global
- * `DEFAULT_NAME_PREFIXES`. Set by `ENQU/DL` only (SAP requires `E…` names for
- * lock objects) — the global default is deliberately not widened for one type.
+ * `DEFAULT_NAME_PREFIXES`. Two types set it: `ENQU/DL` (SAP requires `E…`
+ * names for lock objects) and `FUGR/I` (`LZ`/`LY`, because SAP derives the
+ * function group from the include name `L<GROUP><suffix>`) — the global
+ * default is deliberately not widened for either.
  *
- * `FUGR/FF` is `create.parent: "container"`: a function module is parented by
- * its function GROUP (`<adtcore:containerRef>`), not a package, and
- * `write.ts`'s `createNewObject` switches on this to build
- * `functions/groups/{group}/fmodules` instead of `/packages/…`.
+ * `FUGR/FF` and `FUGR/I` are both `create.parent: "container"`: a function
+ * module and a function group include are each parented by their function
+ * GROUP (`<adtcore:containerRef>`), not a package, and `write.ts`'s
+ * `createNewObject` switches on this to build a group sub-collection
+ * instead of `/packages/…` — which sub-collection (`/fmodules` for
+ * `FUGR/FF`, `/includes` for `FUGR/I`) comes from the vendor's own per-type
+ * `creationPath`, not from anything hard-coded in `createNewObject`.
  */
 import { ddicStrategy } from "./ddic.js";
 import { TYPES, type TypeSpec } from "./types.js";
@@ -210,7 +215,7 @@ export interface TypeCapabilities {
   /**
    * Per-type name-prefix override, REPLACING the configured/global
    * `allowNamePrefixes` for this type only. Read by `SafetyGate.rules()` — see
-   * the module doc. Set by `ENQU/DL` and nothing else.
+   * the module doc. Set by `ENQU/DL` and `FUGR/I` only.
    */
   namePrefixes?: string[];
   /**
@@ -364,9 +369,27 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     delete: true,
     activate: true,
   },
-  // No verified create/write recipe for a bare program include on its own —
-  // falls through to the generic "cannot be written" refusal.
-  "PROG/I": { label: "Include" },
+  // Package-parented (unlike FUGR/I below): vendor CreatableTypes has a real
+  // PROG/I entry (creationPath programs/includes, validationPath
+  // includes/validation) using the ordinary createBodySimple/
+  // <adtcore:packageRef> body, so create.parent stays at its "package"
+  // default — an include is a standalone repository object; nothing in the
+  // create body ties it to a host program, only the host's own
+  // `INCLUDE <name>.` statement does that.
+  //
+  // Evidence, A4H 2026-09-04: POST .../includes/validation?objtype=PROG/I&
+  // objname=ZTMD_INC_01&packagename=$TMP returned CHECK_RESULT=X (name is
+  // free-form, 30 chars); GET .../programs/includes/lsabp_unit_sboxtop
+  // 200s with a generic Accept, so no mediaType override is needed.
+  // `create.verified` and `delete` stay "unverified" — no live create/delete
+  // yet.
+  "PROG/I": {
+    label: "Include",
+    write: { shape: "source" },
+    create: { vendor: true, verified: "unverified" },
+    delete: "unverified",
+    activate: true,
+  },
   // PACKAGE-parented (unlike FUGR/FF below): vendor CreatableTypes has a real
   // FUGR/F entry using the ordinary <adtcore:packageRef> body, so
   // create.parent stays at its "package" default. Registering this is what
@@ -425,7 +448,36 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     delete: true,
     activate: true,
   },
-  "FUGR/I": { label: "Function group include" },
+  // Container-parented like FUGR/FF: the vendor FUGR/I row goes through
+  // createBodyFunc, emitting <adtcore:containerRef> naming the function
+  // GROUP. Name shape: the caller passes the FULL include name
+  // (L<GROUP><suffix>) together with the group as container — e.g.
+  // object: "ZTMD_FG_01/LZTMD_FG_01F01". The vendor row's maxLen: 3 is a
+  // client-side hint the server contradicts: POST .../functions/validation?
+  // objtype=FUGR/I&fugrname=SABP_UNIT_SBOX&objname=… answered SEVERITY
+  // ERROR ("Include F01 will not be created in function group
+  // SABP_UNIT_SBOX") for the bare 3-char suffix, and SEVERITY OK for
+  // LSABP_UNIT_SBOXF01 (A4H, 2026-09-04). So t.name goes to createObject
+  // unchanged, and it's the same name the read/write/delete URI carries — a
+  // live GET .../functions/groups/sabp_unit_sbox/includes/lsabp_unit_sboxtop
+  // returns adtcore:name="LSABP_UNIT_SBOXTOP".
+  //
+  // createNewObject needed no change; see the container-parent note in the
+  // module doc above.
+  //
+  // namePrefixes is server-derived, like ENQU/DL's ["EZ","EY"]: SAP derives
+  // the group name from the include name, so an include of a customer
+  // Z…/Y… group necessarily begins LZ/LY, and the global ["Z","Y"] list
+  // would refuse every valid name. `create.verified` and `delete` stay
+  // "unverified" — no live run yet.
+  "FUGR/I": {
+    label: "Function group include",
+    write: { shape: "source" },
+    create: { vendor: true, parent: "container", verified: "unverified" },
+    delete: "unverified",
+    activate: true,
+    namePrefixes: ["LZ", "LY"],
+  },
   // Source-shape, reuses createNewObject/putSource/deleteObject unchanged
   // (vendor CreatableTypes has a DDLS/DF entry). `delete: true`
   // live-verified 2026-08-19: create → delete → independent

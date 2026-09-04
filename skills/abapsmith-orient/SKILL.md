@@ -45,13 +45,13 @@ Check here before planning any create.
 - `ENHO/XHH` — src/adt/enhancement-hook.ts — createHookImplementation (PROG/P host only).
 - `ENHS/XS` — src/adt/enhancement-bridge.ts — createEnhancementSpot.
 
-**Writable but NOT creatable (2).** Change an existing one; creating fails.
+**Writable but NOT creatable (4).** Change an existing one; creating fails.
 
-`DDLA/ADF` `ENQU/DL`
+`PROG/I` `FUGR/I` `DDLA/ADF` `ENQU/DL`
 
-**Not reachable by any write (8).** Do not probe for a write route.
+**Not reachable by any write (6).** Do not probe for a write route.
 
-- Readable, not writable (2): `PROG/I` `FUGR/I`
+- Readable, not writable (0): _(none)_
 - Not readable either (6) — `abap_read` refuses these with UNSUPPORTED, from the same `unsupported` entry in src/adt/capabilities.ts: `SHLP/DH` `PROG/PS` `PROG/PC` `PROG/PT` `SUSO/B` `TABL/DI`
 
 <!-- END generated -->

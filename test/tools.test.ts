@@ -952,21 +952,22 @@ describe("abap_write — format (pretty-printer rider)", () => {
    * mocked in this file — the same way the DEVC/K delete refusal above
    * mirrors its real UNSUPPORTED rejection.
    *
-   * PROG/I (bare include) is the example: a bare `{ label }` entry in the
-   * registry (src/adt/capabilities.ts), with no `write`/`create` capability
-   * of its own. (This test used to target DDLX/EX, then XSLT/VT; DDLX/EX was
-   * admitted to WRITABLE_TYPES alongside SRVD/SRV in the same pass DDLS/DF
-   * joined it, and XSLT/VT was admitted once its transformations path was
-   * corrected — see capabilities.ts — so neither can stand in for "a type
-   * this refusal actually fires for" any more. PROG/I remains a genuinely
-   * unsupported type and takes over as the example.)
+   * ENHO/XH (BAdI implementation) is the example: declared in the registry
+   * (src/adt/capabilities.ts) with `activate: true` but no `write`/`create`
+   * capability of its own. (This test used to target DDLX/EX, then XSLT/VT,
+   * then PROG/I; DDLX/EX was admitted to WRITABLE_TYPES alongside SRVD/SRV in
+   * the same pass DDLS/DF joined it, XSLT/VT was admitted once its
+   * transformations path was corrected, and PROG/I gained its own vendor
+   * write/create recipe — see capabilities.ts — so none of the three can
+   * stand in for "a type this refusal actually fires for" any more. ENHO/XH
+   * remains genuinely unsupported and takes over as the example.)
    */
-  it("format:true against a PROG/I include target is refused with UNSUPPORTED via the pre-existing type check, not a bespoke branch", async () => {
+  it("format:true against an ENHO/XH BAdI implementation target is refused with UNSUPPORTED via the pre-existing type check, not a bespoke branch", async () => {
     adt.resolveWriteTarget.mockRejectedValue(
       new AbapError(
         "UNSUPPORTED",
-        "Include ZTMD_INC (PROG/I) cannot be written by abapsmith.",
-        { type: "PROG/I", name: "ZTMD_INC" },
+        "BAdI implementation ZTMD_BADI_IMPL (ENHO/XH) cannot be written by abapsmith.",
+        { type: "ENHO/XH", name: "ZTMD_BADI_IMPL" },
         "Writable types are CLAS/OC, INTF/OI, PROG/P, DDLS/DF, DDLX/EX, SRVD/SRV, TABL/DT, TABL/DS.",
       ),
     );
@@ -977,9 +978,9 @@ describe("abap_write — format (pretty-printer rider)", () => {
     );
     const err = errorOf(
       await call(h, "abap_write", {
-        object: "ZTMD_INC",
+        object: "ZTMD_BADI_IMPL",
         package: "$TMP",
-        source: "* include body",
+        source: "* BAdI implementation body",
         format: true,
       }),
     );
