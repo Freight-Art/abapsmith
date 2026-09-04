@@ -67,6 +67,7 @@ inputs to this derivation rather than registry fields:
 | `DDLS/DF` | CDS view / DDL source | yes | yes | yes | yes | yes | live |
 | `DDLX/EX` | Metadata extension | yes | yes | yes | yes | yes | live |
 | `DCLS/DL` | CDS access control | yes | yes | yes | yes | yes | live |
+| `DDLA/ADF` | Annotation definition | no | yes | yes | no | yes | unverified |
 | `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
 | `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
 | `XSLT/VT` | Transformation | yes | yes | yes | yes | yes | live |
@@ -113,6 +114,16 @@ The `Object` column values are the registry `label` fields, unreworded.
   verbatim → PUT with activate → activated clean, read back verbatim →
   delete, confirmed by a NOT_FOUND read afterwards. The entry carries a
   `mediaType` because the object URI 406s without it.
+- `DDLA/ADF` — reads are proven live: ADT discovery advertises
+  `/sap/bc/adt/ddic/ddla/sources`, and a `GET
+  .../ddic/ddla/sources/endusertext/source/main` returned 200. Update is
+  supported — `abap_write` resolves a change target — but unexercised: no
+  write has run live yet. Create and delete are gated shut: `create.verified`
+  and `delete` are both `"unverified"` in the registry, which is why the
+  Create and Delete cells read `no` rather than `partial`. A create would go
+  through abap-adt-api's vendor `CreatableTypes` entry (validationPath
+  `ddic/ddla/sources/validation`), not a hand-built skeleton. The entry
+  carries a `mediaType` because the object URI 406s without it.
 - `MSAG/N` — activation is `n/a` because a message class is born active.
   Reading needs `format: "raw"`; a single raw document has been observed in
   the hundreds of thousands of characters, so the read is windowed by

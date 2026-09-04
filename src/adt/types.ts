@@ -184,6 +184,16 @@ export const TYPES: TypeSpec[] = [
     keywords: ["access control", "dcls", "dcl", "cds access control", "authorization role", "define role"],
   },
   {
+    // path confirmed live: GET .../source/main 200s with Accept: text/plain (2026-09-04).
+    type: "DDLA/ADF",
+    kind: "DDLA",
+    label: "Annotation definition",
+    path: "/sap/bc/adt/ddic/ddla/sources/{name}",
+    mode: "source",
+    supportsSource: true,
+    keywords: ["annotation definition", "ddla", "cds annotation", "annotation"],
+  },
+  {
     type: "SRVD/SRV",
     kind: "SRVD",
     label: "Service definition",

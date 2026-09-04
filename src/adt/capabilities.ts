@@ -291,7 +291,7 @@ export interface TypeCapabilities {
 }
 
 /**
- * Every ADT type code this registry knows about: the 25 entries in
+ * Every ADT type code this registry knows about: the 26 entries in
  * `src/adt/types.ts`'s `TYPES` array, plus eight that are deliberately NOT
  * there (see the module doc). Hand-maintained — kept honest at runtime by
  * {@link assertRegistryCoversTypes}.
@@ -307,6 +307,7 @@ export type TypeCode =
   | "DDLS/DF"
   | "DDLX/EX"
   | "DCLS/DL"
+  | "DDLA/ADF"
   | "SRVD/SRV"
   | "BDEF/BDO"
   | "XSLT/VT"
@@ -472,6 +473,19 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     delete: true,
     activate: true,
     mediaType: "application/vnd.sap.adt.dclSource+xml",
+  },
+  // Same source-shape recipe as DCLS/DL: vendor CreatableTypes has a real
+  // DDLA/ADF entry (validationPath ddic/ddla/sources/validation). 2026-09-04
+  // probe: GET /ddic/ddla/sources/endusertext/source/main 200s; the object
+  // URI 406s with a generic Accept, 200 with the vendor media type — hence
+  // mediaType. No live create/delete yet, so both stay unverified.
+  "DDLA/ADF": {
+    label: "Annotation definition",
+    write: { shape: "source" },
+    create: { vendor: true, verified: "unverified" },
+    delete: "unverified",
+    activate: true,
+    mediaType: "application/vnd.sap.adt.ddic.ddla.v1+xml",
   },
   // Same recipe again: vendor CreatableTypes has a real SRVD/SRV entry, so
   // this is createNewObject/putSource/deleteObject unchanged. Live-verified
