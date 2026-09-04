@@ -399,6 +399,40 @@ describe("resolveWriteTarget", () => {
     expect(e.retryable).toBe(true);
   });
 
+  it("an existing DEVC/K with no packageRef resolves to itself, not PACKAGE_UNKNOWN", async () => {
+    // Live shape (A4H, 2026-09-04): a root LOCAL package created over REST
+    // reads back 200 with adtcore:name but an empty <pak:superPackage/> and
+    // no <adtcore:packageRef> at all — unlike $TMP/ZTMD_COURSES, which do
+    // carry one.
+    const pkg = "$ZTMD_PKG_01";
+    const uri = "/sap/bc/adt/packages/%24ztmd_pkg_01";
+    const xml =
+      `<?xml version="1.0" encoding="utf-8"?>` +
+      `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+      `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${pkg}" adtcore:type="DEVC/K">` +
+      `<pak:attributes packageType="development"/>` +
+      `<pak:superPackage/>` +
+      `</pak:package>`;
+    const { conn, adt } = await connected((r) => (r.url === uri ? resp(200, xml, OK_XML) : undefined));
+    const t = await resolveWriteTarget(conn, { type: "DEVC/K", name: pkg });
+    expect(t.exists).toBe(true);
+    expect(t.packageName).toBe(pkg);
+    expect(t.packageSource).toBe("server");
+    expect(adt.labels).toEqual([`GET ${uri}`]);
+  });
+
+  it("a non-package type with no packageRef still fails closed — the carve-out is CREATE_ONLY-scoped", async () => {
+    // Same missing-packageRef 200 as "fails closed…" above, but on TABL/DT —
+    // pins that the DEVC/K carve-out is type-scoped (CREATE_ONLY only), not a
+    // general "existing object, no packageRef -> trust adtcore:name" rule.
+    const { conn } = await connected((r) =>
+      r.url === TABLE_URI ? resp(200, "<adtcore:objectMetadata/>", OK_XML) : undefined,
+    );
+    const e = await catchErr(resolveWriteTarget(conn, { type: "TABL/DT", name: "ZMCP_TEST_TAB" }));
+    expect(e.code).toBe("SAFETY_DENIED");
+    expect(e.details.reason).toBe("PACKAGE_UNKNOWN");
+  });
+
   // The package-lookup GET (`conn.get`, unclassified — see the
   // comment above `resolveWriteTarget`'s catch block in src/adt/write.ts)
   // used to have every throw that was not already an `AbapError` treated as
@@ -660,7 +694,7 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     // TOP-include skeleton, and a PUT carrying a distinguishing marker line came
     // back on the read, checked clean and activated (capabilities.ts documents
     // the probe). Source-shape membership is also what keeps it OUT of
-    // CREATE_ONLY_TYPES, whose two consumers in `resolveWriteTarget` mean
+    // CREATE_ONLY_TYPES, whose three consumers in `resolveWriteTarget` mean
     // "this object IS its own package" — see the CREATE_ONLY_TYPES test below.
     // DDLX/EX and SRVD/SRV joined alongside DDLS/DF: same source-shape recipe,
     // both live-verified create/PUT/activate/delete, twice, on A4H (see
@@ -758,12 +792,15 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     expect(capabilitiesFor("FUGR/F")?.delete).toBe(true);
   });
 
-  it("CREATE_ONLY_TYPES stays package-only: its two consumers mean 'this object IS its own package'", () => {
-    // `resolveWriteTarget` uses CREATE_ONLY_TYPES for exactly two things —
-    // reporting `packageName: base.name` for a NOT_FOUND object, and skipping
-    // the "already exists in another package" refusal. Both are true of DEVC/K
-    // and of nothing else. A create-without-write type would land here and
-    // silently inherit both, which is why FUGR/F carries a write shape.
+  it("CREATE_ONLY_TYPES stays package-only: its three consumers mean 'this object IS its own package'", () => {
+    // `resolveWriteTarget` uses CREATE_ONLY_TYPES for exactly three things —
+    // reporting `packageName: base.name` for a NOT_FOUND object, falling back
+    // to `base.name` when an EXISTING object's 200 carries no packageRef
+    // either (the root-LOCAL-package-over-REST case, A4H 2026-09-04), and
+    // skipping the "already exists in another package" refusal. All three are
+    // true of DEVC/K and of nothing else. A create-without-write type would
+    // land here and silently inherit all three, which is why FUGR/F carries a
+    // write shape.
     expect(CREATE_ONLY_TYPES).toEqual(["DEVC/K"]);
   });
 
@@ -1256,32 +1293,29 @@ describe("writeObject: create gate", () => {
     ]);
   });
 
-  it("the tri-state distinction survives at the boundary: false (disproven, ENQU/DL) and \"unverified\" (never tried, DEVC/K) are different findings that both fail the gate identically", () => {
-    // This is the entire point of `verified` being tri-state rather than a
-    // boolean (module doc, `src/adt/capabilities.ts`): `false` is stronger
-    // evidence than `"unverified"` — ENQU/DL's create was tried live twice
-    // and rejected both times, while DEVC/K's create has simply
-    // never been attempted through this gate (package creation is routed
-    // around it entirely — see below). Collapsing the two back into one
-    // boolean would silently discard the more expensive finding; this test
-    // is what would catch that collapse.
+  it("create.verified is tri-state across the whole registry, and the false leg (ENQU/DL, disproven) still holds", () => {
+    // DEVC/K was this test's "unverified" exemplar until a live A4H run
+    // (2026-09-04) settled it to true; no entry carries "unverified" today,
+    // so the tri-state is asserted over the whole registry instead.
     const enqu = capabilitiesFor("ENQU/DL");
-    const devc = capabilitiesFor("DEVC/K");
     expect(enqu?.create?.verified).toBe(false);
-    expect(devc?.create?.verified).toBe("unverified");
-    // Different findings, same strict `!== true` refusal, and both absent
-    // from the narrow set the gate and the error message both use.
     expect(enqu?.create?.verified).not.toBe(true);
-    expect(devc?.create?.verified).not.toBe(true);
     expect(VERIFIED_CREATABLE_TYPES).not.toContain("ENQU/DL");
-    expect(VERIFIED_CREATABLE_TYPES).not.toContain("DEVC/K");
-    // DEVC/K itself is never actually reachable through THIS gate — package
-    // creation goes through `abapCreatePackage`/`createNewPackage`, a wholly
-    // separate path `writeObject`'s own `isPackageType` guard refuses before
-    // the create gate is ever reached (see that gate's "no DEVC/K carve-out is
-    // needed" comment). Not exercised as a create-gate refusal here for that
-    // reason — asserting its `verified` value and its absence from
-    // `VERIFIED_CREATABLE_TYPES` is the honest, reachable half of the claim.
+
+    const devc = capabilitiesFor("DEVC/K");
+    expect(devc?.create?.verified).toBe(true);
+
+    // Every declared `create.verified` in the registry is one of the three
+    // legal states — `TypeCapabilities` already guarantees this at compile
+    // time; this is the runtime companion, so a future refactor that widens
+    // the type can't silently smuggle a fourth value through unnoticed.
+    const verifiedValues = Object.values(REGISTRY)
+      .map((c) => c.create?.verified)
+      .filter((v) => v !== undefined);
+    expect(verifiedValues.length).toBeGreaterThan(0);
+    for (const v of verifiedValues) {
+      expect([true, false, "unverified"]).toContain(v);
+    }
   });
 
   /**

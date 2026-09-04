@@ -1345,12 +1345,15 @@ export async function resolveWriteTarget(
 
   const serverPackage =
     parsePackageRef(body) ?? (await containerPackage(conn, spec, containerName));
-  if (!serverPackage) {
+  if (!serverPackage && !CREATE_ONLY.has(spec.type)) {
     // Every writable type either carries adtcore:packageRef itself or
     // inherits one from its container — reaching here is a genuine anomaly.
     throw packageUnknown(base, "the object's metadata carried no <adtcore:packageRef> element");
   }
-  const packageName = serverPackage.toUpperCase();
+  // A root LOCAL package created over REST reads back with an empty
+  // <pak:superPackage/> and no adtcore:packageRef at all (A4H, 2026-09-04);
+  // a package is its own package, same as the not-yet-exists branch above.
+  const packageName = (serverPackage ?? base.name).toUpperCase();
 
   if (!CREATE_ONLY.has(spec.type) && requestedPackage && requestedPackage !== packageName) {
     throw new AbapError(
