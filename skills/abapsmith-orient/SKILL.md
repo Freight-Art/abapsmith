@@ -12,7 +12,7 @@ Check here before planning any create.
 
 <!-- BEGIN generated: scripts/gen-capability-table.mjs -->
 
-**Creatable and writable (17).** Everything else is not.
+**Creatable and writable (18).** Everything else is not.
 
 - `CLAS/OC` — write shape `source`, delete: yes
 - `INTF/OI` — write shape `source`, delete: yes
@@ -21,6 +21,7 @@ Check here before planning any create.
 - `FUGR/FF` — write shape `source`, delete: yes
 - `DDLS/DF` — write shape `source`, delete: yes
 - `DDLX/EX` — write shape `source`, delete: yes
+- `DCLS/DL` — write shape `source`, delete: yes
 - `SRVD/SRV` — write shape `source`, delete: yes
 - `BDEF/BDO` — write shape `source`, delete: no
 - `XSLT/VT` — write shape `source`, delete: yes

@@ -66191,6 +66191,16 @@ var TYPES = [
     keywords: ["ddlx", "metadata extension"]
   },
   {
+    // path confirmed live: GET .../source/main 200s with Accept: text/plain (2026-09-04).
+    type: "DCLS/DL",
+    kind: "DCLS",
+    label: "CDS access control",
+    path: "/sap/bc/adt/acm/dcl/sources/{name}",
+    mode: "source",
+    supportsSource: true,
+    keywords: ["access control", "dcls", "dcl", "cds access control", "authorization role", "define role"]
+  },
+  {
     type: "SRVD/SRV",
     kind: "SRVD",
     label: "Service definition",
@@ -66598,6 +66608,21 @@ var REGISTRY = {
     create: { vendor: true, verified: true },
     delete: true,
     activate: true
+  },
+  // Same source-shape recipe as DDLS/DF: vendor CreatableTypes has a real
+  // DCLS/DL entry (creationPath acm/dcl/sources). Live-verified end to end
+  // on A4H, 2026-09-04, all through abapsmith's own abap_write/abap_read:
+  // create ZTMD_DCL_01 in $TMP → source PUT → read back verbatim → PUT with
+  // activate=true → activated clean, read back verbatim → delete → NOT_FOUND
+  // on a subsequent read. Object GET 406s with a generic Accept, 200 with
+  // the vendor media type — hence mediaType below.
+  "DCLS/DL": {
+    label: "CDS access control",
+    write: { shape: "source" },
+    create: { vendor: true, verified: true },
+    delete: true,
+    activate: true,
+    mediaType: "application/vnd.sap.adt.dclSource+xml"
   },
   // Same recipe again: vendor CreatableTypes has a real SRVD/SRV entry, so
   // this is createNewObject/putSource/deleteObject unchanged. Live-verified

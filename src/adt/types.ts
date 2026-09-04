@@ -174,6 +174,16 @@ export const TYPES: TypeSpec[] = [
     keywords: ["ddlx", "metadata extension"],
   },
   {
+    // path confirmed live: GET .../source/main 200s with Accept: text/plain (2026-09-04).
+    type: "DCLS/DL",
+    kind: "DCLS",
+    label: "CDS access control",
+    path: "/sap/bc/adt/acm/dcl/sources/{name}",
+    mode: "source",
+    supportsSource: true,
+    keywords: ["access control", "dcls", "dcl", "cds access control", "authorization role", "define role"],
+  },
+  {
     type: "SRVD/SRV",
     kind: "SRVD",
     label: "Service definition",

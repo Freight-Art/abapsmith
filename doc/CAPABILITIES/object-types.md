@@ -66,6 +66,7 @@ inputs to this derivation rather than registry fields:
 | `FUGR/I` | Function group include | no | yes | no | no | no | tests |
 | `DDLS/DF` | CDS view / DDL source | yes | yes | yes | yes | yes | live |
 | `DDLX/EX` | Metadata extension | yes | yes | yes | yes | yes | live |
+| `DCLS/DL` | CDS access control | yes | yes | yes | yes | yes | live |
 | `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
 | `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
 | `XSLT/VT` | Transformation | yes | yes | yes | yes | yes | live |
@@ -105,6 +106,13 @@ The `Object` column values are the registry `label` fields, unreworded.
   is why the cell is `no` rather than `partial` — nothing has established it
   either way, and the gate stays shut until something does. Names are
   restricted to the `EZ` and `EY` prefixes.
+- `DCLS/DL` — reads, create, update, activate and delete are all
+  live-verified, 2026-09-04, on A4H in `$TMP` (`ZTMD_DCL_01`): create via
+  abap-adt-api's vendor `CreatableTypes` entry (creationPath
+  `acm/dcl/sources`, not a hand-built skeleton) → source PUT → read back
+  verbatim → PUT with activate → activated clean, read back verbatim →
+  delete, confirmed by a NOT_FOUND read afterwards. The entry carries a
+  `mediaType` because the object URI 406s without it.
 - `MSAG/N` — activation is `n/a` because a message class is born active.
   Reading needs `format: "raw"`; a single raw document has been observed in
   the hundreds of thousands of characters, so the read is windowed by
