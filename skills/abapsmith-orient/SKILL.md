@@ -12,7 +12,7 @@ Check here before planning any create.
 
 <!-- BEGIN generated: scripts/gen-capability-table.mjs -->
 
-**Creatable and writable (17).** Everything else is not.
+**Creatable and writable (18).** Everything else is not.
 
 - `CLAS/OC` — write shape `source`, delete: yes
 - `INTF/OI` — write shape `source`, delete: yes
@@ -21,6 +21,7 @@ Check here before planning any create.
 - `FUGR/FF` — write shape `source`, delete: yes
 - `DDLS/DF` — write shape `source`, delete: yes
 - `DDLX/EX` — write shape `source`, delete: yes
+- `DCLS/DL` — write shape `source`, delete: yes
 - `SRVD/SRV` — write shape `source`, delete: yes
 - `BDEF/BDO` — write shape `source`, delete: no
 - `XSLT/VT` — write shape `source`, delete: yes
@@ -44,9 +45,9 @@ Check here before planning any create.
 - `ENHO/XHH` — src/adt/enhancement-hook.ts — createHookImplementation (PROG/P host only).
 - `ENHS/XS` — src/adt/enhancement-bridge.ts — createEnhancementSpot.
 
-**Writable but NOT creatable (2).** Change an existing one; creating fails.
+**Writable but NOT creatable (1).** Change an existing one; creating fails.
 
-`DCLS/DL` `ENQU/DL`
+`ENQU/DL`
 
 **Not reachable by any write (8).** Do not probe for a write route.
 

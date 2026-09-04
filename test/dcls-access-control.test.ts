@@ -5,8 +5,9 @@
  * /sap/bc/adt/acm/dcl/sources/i_somi_usr_favorite/source/main` with `Accept:
  * text/plain` → 200 real DCL source; object GET 406s with a generic Accept,
  * 200 with the vendor media type; abap-adt-api's CreatableTypes has a real
- * DCLS/DL entry (creationPath `acm/dcl/sources`). No live create or delete
- * has been run for this type — hence the unverified tri-states below.
+ * DCLS/DL entry (creationPath `acm/dcl/sources`). Create/update/activate/
+ * delete were then run end to end on A4H, $TMP (`ZTMD_DCL_01`) — hence the
+ * verified tri-states below.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -87,18 +88,17 @@ describe("DCLS/DL registry: write, create, activate, media type", () => {
   });
 });
 
-describe("DCLS/DL derived sets: writable and creatable, but not yet verified or deletable", () => {
+describe("DCLS/DL derived sets: writable, creatable, verified, and deletable", () => {
   it("is in WRITABLE_TYPES and CREATABLE_TYPES", () => {
     expect(WRITABLE_TYPES).toContain("DCLS/DL");
     expect(CREATABLE_TYPES).toContain("DCLS/DL");
   });
 
-  // Both gates stay shut until a live create/delete run earns them; today
-  // this is unverified, not disproven.
-  it("is not in VERIFIED_CREATABLE_TYPES or DELETABLE_TYPES", () => {
-    expect(capabilitiesFor("DCLS/DL")?.create?.verified).toBe("unverified");
-    expect(capabilitiesFor("DCLS/DL")?.delete).toBe("unverified");
-    expect(VERIFIED_CREATABLE_TYPES).not.toContain("DCLS/DL");
-    expect(DELETABLE_TYPES).not.toContain("DCLS/DL");
+  // Both gates opened after the 2026-09-04 live create/delete run.
+  it("is in VERIFIED_CREATABLE_TYPES and DELETABLE_TYPES", () => {
+    expect(capabilitiesFor("DCLS/DL")?.create?.verified).toBe(true);
+    expect(capabilitiesFor("DCLS/DL")?.delete).toBe(true);
+    expect(VERIFIED_CREATABLE_TYPES).toContain("DCLS/DL");
+    expect(DELETABLE_TYPES).toContain("DCLS/DL");
   });
 });

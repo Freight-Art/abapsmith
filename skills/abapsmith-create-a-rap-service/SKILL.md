@@ -22,6 +22,7 @@ PUBLISH — a human does this, not abapsmith
 ```
 
 `DDLX/EX` (metadata extension) is optional and hangs off the CDS view.
+`DCLS/DL` (access control) is also creatable here and is optional.
 
 Activate each artifact before writing the next. A later artifact referencing an
 inactive earlier one passes PUT and fails activation.
