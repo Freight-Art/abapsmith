@@ -25,7 +25,11 @@ Notes: uses a real write session but leases a **read** slot from the
 connection pool — deliberate, since it doesn't hold an ABAP enqueue lock.
 Report mode generates a throwaway bridge class in a dedicated package; it
 cannot render interactive lists or ALV grids (headless only). Runs in a
-fresh session each time to avoid stale-class caching.
+fresh session each time to avoid stale-class caching. The ABAP that runs
+here executes under the connected technical user's SAP authorisations:
+`ABAP_ALLOW_PACKAGES`, `ABAP_ALLOW_NAME_PREFIXES` and `ABAP_ALLOW_TRANSPORTS`
+constrain only the writes this server itself issues, not what executed ABAP
+does — see [safety-gate.md](../SAFETY/safety-gate.md).
 
 Example:
 
