@@ -66524,9 +66524,27 @@ var REGISTRY = {
     delete: true,
     activate: true
   },
-  // No verified create/write recipe for a bare program include on its own —
-  // falls through to the generic "cannot be written" refusal.
-  "PROG/I": { label: "Include" },
+  // Package-parented (unlike FUGR/I below): vendor CreatableTypes has a real
+  // PROG/I entry (creationPath programs/includes, validationPath
+  // includes/validation) using the ordinary createBodySimple/
+  // <adtcore:packageRef> body, so create.parent stays at its "package"
+  // default — an include is a standalone repository object; nothing in the
+  // create body ties it to a host program, only the host's own
+  // `INCLUDE <name>.` statement does that.
+  //
+  // Evidence, A4H 2026-09-04: POST .../includes/validation?objtype=PROG/I&
+  // objname=ZTMD_INC_01&packagename=$TMP returned CHECK_RESULT=X (name is
+  // free-form, 30 chars); GET .../programs/includes/lsabp_unit_sboxtop
+  // 200s with a generic Accept, so no mediaType override is needed.
+  // `create.verified` and `delete` stay "unverified" — no live create/delete
+  // yet.
+  "PROG/I": {
+    label: "Include",
+    write: { shape: "source" },
+    create: { vendor: true, verified: "unverified" },
+    delete: "unverified",
+    activate: true
+  },
   // PACKAGE-parented (unlike FUGR/FF below): vendor CreatableTypes has a real
   // FUGR/F entry using the ordinary <adtcore:packageRef> body, so
   // create.parent stays at its "package" default. Registering this is what
@@ -66585,7 +66603,36 @@ var REGISTRY = {
     delete: true,
     activate: true
   },
-  "FUGR/I": { label: "Function group include" },
+  // Container-parented like FUGR/FF: the vendor FUGR/I row goes through
+  // createBodyFunc, emitting <adtcore:containerRef> naming the function
+  // GROUP. Name shape: the caller passes the FULL include name
+  // (L<GROUP><suffix>) together with the group as container — e.g.
+  // object: "ZTMD_FG_01/LZTMD_FG_01F01". The vendor row's maxLen: 3 is a
+  // client-side hint the server contradicts: POST .../functions/validation?
+  // objtype=FUGR/I&fugrname=SABP_UNIT_SBOX&objname=… answered SEVERITY
+  // ERROR ("Include F01 will not be created in function group
+  // SABP_UNIT_SBOX") for the bare 3-char suffix, and SEVERITY OK for
+  // LSABP_UNIT_SBOXF01 (A4H, 2026-09-04). So t.name goes to createObject
+  // unchanged, and it's the same name the read/write/delete URI carries — a
+  // live GET .../functions/groups/sabp_unit_sbox/includes/lsabp_unit_sboxtop
+  // returns adtcore:name="LSABP_UNIT_SBOXTOP".
+  //
+  // createNewObject needed no change; see the container-parent note in the
+  // module doc above.
+  //
+  // namePrefixes is server-derived, like ENQU/DL's ["EZ","EY"]: SAP derives
+  // the group name from the include name, so an include of a customer
+  // Z…/Y… group necessarily begins LZ/LY, and the global ["Z","Y"] list
+  // would refuse every valid name. `create.verified` and `delete` stay
+  // "unverified" — no live run yet.
+  "FUGR/I": {
+    label: "Function group include",
+    write: { shape: "source" },
+    create: { vendor: true, parent: "container", verified: "unverified" },
+    delete: "unverified",
+    activate: true,
+    namePrefixes: ["LZ", "LY"]
+  },
   // Source-shape, reuses createNewObject/putSource/deleteObject unchanged
   // (vendor CreatableTypes has a DDLS/DF entry). `delete: true`
   // live-verified 2026-08-19: create → delete → independent
@@ -91838,8 +91885,10 @@ function assertNoDuplicateDeleteTargets(targets) {
 var NAME_LIMIT_OVERRIDES = {
   "TTYP/DA": 30,
   // DD40L-TYPENAME
-  "ENQU/DL": 16
+  "ENQU/DL": 16,
   // DD25L-VIEWNAME, same field the classic view name uses
+  "FUGR/I": 30
+  // full "L"+group(26)+suffix(3) name, not the vendor's 3-char suffix-only maxLen
 };
 function maxNameLength(type) {
   return NAME_LIMIT_OVERRIDES[type] ?? import_abap_adt_api7.CreatableTypes.get(type)?.maxLen ?? 30;
