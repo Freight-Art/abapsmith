@@ -44001,6 +44001,8 @@ function sameT100No(a, b) {
   return false;
 }
 var PACKAGE_SOFTWARE_COMPONENT_REFUSED_HINT = 'SAP is refusing the SOFTWARE COMPONENT, not the package name. LOCAL is only accepted for a $-named local package, so a Z* or Y* name can never be assigned to it. Pass software_component: "HOME" (or another real software component configured on this system) to create the package as a transportable one \u2014 that route needs a transport request, so supply one as `corr_nr`, or create a $-prefixed package instead if you wanted a local one. Retrying this call unchanged cannot succeed: the refusal follows from the name and the component, not from anything transient.';
+var DELETE_REFUSED_STILL_REFERENCED_HINT = 'The program/include named in the message was NOT deleted \u2014 another program still has an INCLUDE statement for it. This is not a lock and not an authorisation refusal. Find every referrer first with abap_search (mode: "where_used", query: "<name>"), then remove the INCLUDE line from each one, or delete the referencing program, and retry the delete. Retrying unchanged fails again with the same message.';
+var CONTAINER_PARENT_MISSING_HINT = 'The message names the CONTAINER (the function group), not the include or function module you asked to create, and "without a package" is misleading \u2014 the package was supplied; the group itself does not exist yet. Create the group first: FUGR/F create with source: "FUNCTION-POOL <name>." \u2014 then retry the include/function-module create. Retrying it unchanged fails again until the group exists.';
 var ADT_MESSAGE_RULES = [
   {
     id: "package-software-component-refused",
@@ -44008,6 +44010,16 @@ var ADT_MESSAGE_RULES = [
     t100No: "462",
     match: /may not be assigned to software component/i,
     hint: PACKAGE_SOFTWARE_COMPONENT_REFUSED_HINT
+  },
+  {
+    id: "delete-refused-still-referenced",
+    match: /is referenced in other programs/i,
+    hint: DELETE_REFUSED_STILL_REFERENCED_HINT
+  },
+  {
+    id: "container-parent-missing",
+    match: /cannot be created without a package/i,
+    hint: CONTAINER_PARENT_MISSING_HINT
   }
 ];
 for (const rule of ADT_MESSAGE_RULES) {
