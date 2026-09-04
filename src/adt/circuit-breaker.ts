@@ -14,8 +14,11 @@
  * breaker; `isSessionDeath()` filters it out first.
  *
  * Two independent machines, never sharing state:
- *  A. AUTH LATCH — permanent, one-way, no cooldown/recovery. `trip()` /
- *     `isTripped` / `info` / `onTrip()`.
+ *  A. AUTH LATCH — one-way except for an explicit re-arm: `rearmAuthProbe()`
+ *     (operator action, never a timer) admits exactly one further logon
+ *     attempt, with a doubling bounded cooldown between attempts. Nothing
+ *     ever re-probes on its own. `trip()` / `isTripped` / `info` / `onTrip()`
+ *     / `rearmAuthProbe()` / `authProbeArmed` / `allowAuthProbe()`.
  *  B. TRANSIENT MACHINE — closed -> open -> half-open -> closed, recoverable.
  *     `allowRequest()`, `recordSuccess()`, `recordTransientFailure()`,
  *     observed via `state` / `status()`.
@@ -40,6 +43,9 @@ import {
   __resetAuthLatchForTests,
   __setAuthLatchDirForTests,
   AUTH_LATCH_TTL_MS,
+  authRearmSignalPath,
+  clearTrippedFingerprint,
+  consumeAuthRearmSignal,
   durableLatchPathFor,
   fingerprintCredentials,
   lookupTrippedFingerprint,
@@ -132,6 +138,25 @@ export interface BreakerStatus {
   probeInFlight: boolean;
   /** The cooldown currently in force (grows on repeated probe failures). */
   cooldownMs: number;
+  /** Latched only: earliest time an explicit re-arm is accepted. Present whenever `authTerminal` is not. */
+  authRearmAt?: Date;
+  /** Latched only; clamped at >= 0. */
+  msUntilAuthRearm?: number;
+  /** Latched only: a re-arm has armed the single probe; the next request spends it. */
+  authProbeArmed?: boolean;
+  /** Latched only: the file an operator creates to re-arm one attempt. */
+  authRearmSignalFile?: string;
+  /** Latched only: no operator-reachable re-arm exists here (no state directory), so no further attempt will ever be made. Never set together with `authRearmAt`. */
+  authTerminal?: boolean;
+}
+
+/** Result of {@link AuthCircuitBreaker.rearmAuthProbe}. */
+export interface AuthRearmResult {
+  armed: boolean;
+  outcome: "armed" | "not-latched" | "cooling-down";
+  /** Only when "cooling-down". */
+  msUntilRearm?: number;
+  rearmAt?: Date;
 }
 
 export interface BreakerOptions {
@@ -156,6 +181,16 @@ export interface BreakerOptions {
 const DEFAULT_COOLDOWN_MS = 30_000;
 const DEFAULT_MAX_COOLDOWN_MS = 300_000;
 const DEFAULT_FAILURE_THRESHOLD = 3;
+
+/**
+ * Cooldown before a spent re-arm may be followed by another; doubles per
+ * failed probe, capped at {@link AUTH_REARM_MAX_COOLDOWN_MS}. Not a timer: a
+ * probe is only ever admitted by an explicit re-arm.
+ */
+const AUTH_REARM_BASE_COOLDOWN_MS = 15 * 60_000;
+const AUTH_REARM_MAX_COOLDOWN_MS = 4 * 60 * 60_000;
+/** Minimum spacing between on-disk re-arm signal checks (one statSync each). */
+const AUTH_REARM_POLL_MS = 1_000;
 
 /**
  * Fed to `fingerprintCredentials` in place of a password when `cfg.password`
@@ -260,6 +295,19 @@ export class AuthCircuitBreaker {
    * {@link durableLatchFile}. */
   private latchFile: string | undefined;
 
+  // ------------------------------------------------------- auth re-arm state
+  private authProbeArmedFlag = false;
+  private authProbeOutstanding = false;
+  /** `undefined` = a re-arm is accepted right now. */
+  private authRearmNotBeforeMs: number | undefined;
+  private authRearmCooldownMs = AUTH_REARM_BASE_COOLDOWN_MS;
+  /** Must NOT be 0: an injected clock can start at 0. */
+  private lastRearmSignalCheckMs = Number.NEGATIVE_INFINITY;
+  /** Resolved once in `trip()`. */
+  private rearmSignalFile: string | undefined;
+  /** The fingerprint to clear on a successful probe. */
+  private latchFingerprint: string | undefined;
+
   constructor(opts: BreakerOptions = {}) {
     const base = opts.cooldownMs;
     const max = opts.maxCooldownMs;
@@ -302,6 +350,8 @@ export class AuthCircuitBreaker {
       // `trip()`'s own branch below), so it never looks this up on its own —
       // do it here, keyed on the fingerprint `forConfig` actually minted.
       breaker.latchFile = durableLatchPathFor(fingerprint);
+      // So a replayed latch can also be cleared by a successful re-armed probe.
+      breaker.latchFingerprint = fingerprint;
       return breaker;
     }
     return new AuthCircuitBreaker({ credentialFingerprint: fingerprint });
@@ -351,6 +401,11 @@ export class AuthCircuitBreaker {
   ): TripInfo {
     if (this.tripped) return this.tripped;
     this.tripped = { reason, message, status: ctx.status, url: ctx.url, at: ctx.at ?? new Date() };
+    // `authRearmNotBeforeMs` stays undefined: the FIRST re-arm is accepted
+    // immediately, because restarting the process already achieves exactly
+    // that today — the cooldown's job is bounding REPEATED attempts.
+    this.latchFingerprint ??= this.credentialFingerprint;
+    this.rearmSignalFile = authRearmSignalPath();
     // Record process-wide only for a breaker that was given a fingerprint —
     // i.e. only from AbapConnection's constructor, never from a replay.
     if (this.credentialFingerprint) {
@@ -371,6 +426,107 @@ export class AuthCircuitBreaker {
       }
     }
     return this.tripped;
+  }
+
+  // ------------------------------------------------------------- auth re-arm
+
+  /**
+   * Re-arm exactly ONE logon attempt. Never called on a timer — the
+   * operator's re-arm file or a direct call is the only way in.
+   */
+  rearmAuthProbe(): AuthRearmResult {
+    if (!this.tripped) return { armed: false, outcome: "not-latched" };
+    const notBefore = this.authRearmNotBeforeMs;
+    if (notBefore !== undefined && this.now() < notBefore) {
+      return {
+        armed: false,
+        outcome: "cooling-down",
+        msUntilRearm: Math.max(0, notBefore - this.now()),
+        rearmAt: new Date(notBefore),
+      };
+    }
+    this.authProbeArmedFlag = true;
+    // A new re-arm supersedes an unresolved earlier probe.
+    this.authProbeOutstanding = false;
+    return { armed: true, outcome: "armed" };
+  }
+
+  /**
+   * True when a re-arm is armed and unspent. Reads the operator's re-arm
+   * file at most once per `AUTH_REARM_POLL_MS`. Never throws.
+   */
+  get authProbeArmed(): boolean {
+    this.syncAuthRearmSignal();
+    return this.authProbeArmedFlag;
+  }
+
+  /**
+   * Consume the armed probe: true at most once per re-arm, then false until
+   * the next one. `allowRequest()` still refuses every latched request —
+   * this is a separate, narrower door for the one admitted probe.
+   */
+  allowAuthProbe(): boolean {
+    if (!this.tripped) return false;
+    this.syncAuthRearmSignal();
+    if (!this.authProbeArmedFlag) return false;
+    this.authProbeArmedFlag = false;
+    this.authProbeOutstanding = true;
+    this.authRearmNotBeforeMs = this.now() + this.authRearmCooldownMs;
+    return true;
+  }
+
+  /**
+   * Reads the operator's re-arm signal file and, if present and the cooldown
+   * has elapsed, arms the probe. Throttled to once per `AUTH_REARM_POLL_MS`
+   * (one `statSync` each). Never throws — this file's contract.
+   */
+  private syncAuthRearmSignal(): void {
+    try {
+      if (!this.tripped || this.authProbeArmedFlag) return;
+      const now = this.now();
+      if (now - this.lastRearmSignalCheckMs < AUTH_REARM_POLL_MS) return;
+      this.lastRearmSignalCheckMs = now;
+      // Cooldown not elapsed yet: leave the file in place — it arms once the
+      // cooldown elapses, rather than being consumed for nothing now.
+      if (this.authRearmNotBeforeMs !== undefined && now < this.authRearmNotBeforeMs) return;
+      if (consumeAuthRearmSignal()) this.rearmAuthProbe();
+    } catch {
+      /* never throws */
+    }
+  }
+
+  /**
+   * The successful probe: an authenticated response is the one piece of
+   * evidence that outranks the latch. Clears both machines back to a clean
+   * closed state.
+   */
+  private clearAuthLatch(): void {
+    this.tripped = undefined;
+    this.authProbeArmedFlag = false;
+    this.authProbeOutstanding = false;
+    this.authRearmCooldownMs = AUTH_REARM_BASE_COOLDOWN_MS;
+    this.authRearmNotBeforeMs = undefined;
+    this.latchFile = undefined;
+    this.rearmSignalFile = undefined;
+    if (this.latchFingerprint) clearTrippedFingerprint(this.latchFingerprint);
+    this.phase = "closed";
+    this.probing = false;
+    this.consecutiveFailures = 0;
+    this.currentCooldownMs = this.baseCooldownMs;
+    this.openedAtMs = undefined;
+    this.nextProbeAtMs = undefined;
+  }
+
+  /**
+   * A re-armed probe failed to prove anything (wrong credentials, or nothing
+   * left the process): enforce the current cooldown before another re-arm is
+   * accepted, then double it for next time, capped at `AUTH_REARM_MAX_COOLDOWN_MS`.
+   */
+  private failAuthProbe(): void {
+    this.authProbeOutstanding = false;
+    this.authProbeArmedFlag = false;
+    this.authRearmNotBeforeMs = this.now() + this.authRearmCooldownMs;
+    this.authRearmCooldownMs = Math.min(this.authRearmCooldownMs * 2, AUTH_REARM_MAX_COOLDOWN_MS);
   }
 
   // ----------------------------------------------------------- transient machine
@@ -409,11 +565,17 @@ export class AuthCircuitBreaker {
   }
 
   /**
-   * A request succeeded. No-op while latched (a success cannot un-reject
-   * credentials — and nothing should be in flight anyway).
+   * A request succeeded. While latched, this can only be the one re-armed
+   * probe — an authenticated response is the one piece of evidence that
+   * outranks the latch, so it clears it. A stray success with no outstanding
+   * probe is a no-op: nothing should be in flight against a latched breaker
+   * otherwise.
    */
   recordSuccess(): void {
-    if (this.tripped) return;
+    if (this.tripped) {
+      if (this.authProbeOutstanding) this.clearAuthLatch();
+      return;
+    }
     this.syncPhase();
     if (this.phase === "half-open") {
       if (!this.probing) {
@@ -437,13 +599,19 @@ export class AuthCircuitBreaker {
 
   /**
    * A failure that is NOT a credential problem.
+   * latched with an outstanding re-armed probe: the probe failed to prove
+   * anything (nothing left the process, or it timed out) — spend it and
+   * escalate the re-arm cooldown.
    * half-open (probe failed): re-open immediately, DOUBLE the cooldown
    * (capped at `maxCooldownMs`) — one failed probe is enough.
    * closed: count it; at `failureThreshold` consecutive failures, open with
    * the base cooldown.
    */
   recordTransientFailure(detail: { message?: string; status?: number; url?: string } = {}): void {
-    if (this.tripped) return;
+    if (this.tripped) {
+      if (this.authProbeOutstanding) this.failAuthProbe();
+      return;
+    }
     this.syncPhase();
     this.lastFailureDesc = this.describeDetail(detail);
     if (this.phase === "half-open") {
@@ -515,6 +683,15 @@ export class AuthCircuitBreaker {
       return undefined;
     }
     const reason = classifyAuthFailure(resp);
+    if (this.tripped) {
+      // Latched: the only request that can be in flight is a re-armed probe.
+      if (reason) return this.tripForAuth(reason, resp.status, url);
+      if (this.authProbeOutstanding) {
+        if (!isSessionDeath(resp) && resp.status >= 200 && resp.status < 400) this.clearAuthLatch();
+        else this.failAuthProbe();
+      }
+      return undefined;
+    }
     if (reason) return this.tripForAuth(reason, resp.status, url);
     if (isSessionDeath(resp)) return undefined;
     const s = resp.status;
@@ -604,8 +781,14 @@ export class AuthCircuitBreaker {
 
   // ------------------------------------------------------------------ internals
 
-  /** Shared auth-trip path for `inspect()` and `noteFailure()`. */
+  /** Shared auth-trip path for `inspect()` and `noteFailure()`. A fresh 401
+   * answering a re-armed probe is a failed probe, not a new trip — the
+   * first trip reason still wins. */
   private tripForAuth(reason: TripReason, status: number, url?: string): TripInfo {
+    if (this.tripped) {
+      if (this.authProbeOutstanding) this.failAuthProbe();
+      return this.tripped;
+    }
     const message =
       reason === "icf-logon-page"
         ? "SAP ICF returned a logon-failure page. This counts as a failed logon attempt."
@@ -661,6 +844,16 @@ export class AuthCircuitBreaker {
       out.nextProbeAt = new Date(this.nextProbeAtMs);
       out.msUntilNextProbe = Math.max(0, this.nextProbeAtMs - this.now());
     }
+    if (latched) {
+      out.authProbeArmed = this.authProbeArmedFlag;
+      if (this.rearmSignalFile === undefined) {
+        out.authTerminal = true;
+      } else {
+        out.authRearmSignalFile = this.rearmSignalFile;
+        out.authRearmAt = new Date(this.authRearmNotBeforeMs ?? this.now());
+        out.msUntilAuthRearm = Math.max(0, (this.authRearmNotBeforeMs ?? 0) - this.now());
+      }
+    }
     return out;
   }
 
@@ -669,15 +862,18 @@ export class AuthCircuitBreaker {
       const info = this.tripped;
       const detail = info ? `${info.reason}: ${info.message}` : "authentication failure";
       const ttlMinutes = Math.round(AUTH_LATCH_TTL_MS / 60000);
+      const signal = this.rearmSignalFile;
       return (
         `Authentication is permanently disabled for the lifetime of this process (${detail}). ` +
         "The ABAP system rejected these credentials; retrying would spend another logon attempt and " +
-        "can lock the SAP user (login/fails_to_user_lock defaults to 5). This process's own latch does " +
-        "NOT expire — only exiting the process clears it. It is ALSO recorded in auth-latch.json under " +
-        "the state directory (ABAP_STATE_DIR, default <cwd>/.abapsmith), so it holds across every " +
-        `terminal sharing these credentials; that durable entry expires on its own ${ttlMinutes} minutes ` +
-        "after the first failure, or delete auth-latch.json now, which clears it for every terminal at " +
-        "once immediately."
+        "can lock the SAP user (login/fails_to_user_lock defaults to 5). Nothing retries on its own: " +
+        "exiting the process clears it, and so does one explicit re-arm" +
+        (signal ? ` (create ${signal})` : "") +
+        ", which admits exactly one further logon attempt and spends one of those attempts if the " +
+        "credentials are still wrong. It is ALSO recorded in auth-latch.json under the state directory " +
+        "(ABAP_STATE_DIR, default <cwd>/.abapsmith), so it holds across every terminal sharing these " +
+        `credentials; that durable entry expires on its own ${ttlMinutes} minutes after the first ` +
+        "failure, or delete auth-latch.json now, which clears it for every terminal at once immediately."
       );
     }
     if (state === "open") {

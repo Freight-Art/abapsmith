@@ -567,7 +567,7 @@ export class AbapConnection {
     this.breaker.onTrip((info) => {
       this.log(
         `[abapsmith] CIRCUIT BREAKER TRIPPED (${info.reason}): ${info.message} ` +
-          "No further requests will be sent for the lifetime of this process.",
+          "No further requests until an explicit re-arm admits one (see the AUTH_CIRCUIT_OPEN hint).",
       );
     });
     this.exit = opts.exit ?? ((code) => process.exit(code));
@@ -964,9 +964,9 @@ export class AbapConnection {
     this.noteWireResponse(carried as { status: number }, generation, "thrown");
   }
 
-  /** Re-raise a latched breaker as itself. Every caller is where the guard's own throw is unreachable or rewritten (`noRetryTransport()` bypasses the gate; `AdtHTTP` strips `instanceof AbapError`) — without this the latch would surface as a retryable local failure. */
+  /** Re-raise a latched breaker as itself. Every caller is where the guard's own throw is unreachable or rewritten (`noRetryTransport()` bypasses the gate; `AdtHTTP` strips `instanceof AbapError`) — without this the latch would surface as a retryable local failure. An armed re-arm is let through: the guard is the one place that actually spends it. */
   private assertBreakerClosed(): void {
-    if (this.breaker.isTripped) throw circuitOpenError(this.breaker);
+    if (this.breaker.isTripped && !this.breaker.authProbeArmed) throw circuitOpenError(this.breaker);
   }
 
   private assertUsable(): void {

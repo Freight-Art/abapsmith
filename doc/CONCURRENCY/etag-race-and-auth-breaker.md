@@ -51,10 +51,12 @@ send another authenticated request.** Concretely:
   can answer `200` with an "Anmeldung fehlgeschlagen" / "Logon failed" HTML
   page; that still counts as a failed logon against the lockout counter, so
   it trips the latch too.
-- The latch is **never** retried and has no cooldown, no probe, no
-  half-open state — unlike the separate transient-failure breaker in the
-  same module (which does recover on its own from 5xx/timeouts/network
-  errors, since those are not credential problems).
+- The latch is **never** retried automatically or on a timer — unlike the
+  separate transient-failure breaker in the same module (which does recover
+  on its own from 5xx/timeouts/network errors, since those are not
+  credential problems). It recovers only through an explicit re-arm, which
+  admits a single probe request; a probe that fails doubles a bounded
+  cooldown before the next re-arm is accepted.
 - A short dump or a session-death response (a user's ABAP syntax mistake)
   must never trip the latch — that would let one bad ABAP statement disable
   the server for the rest of the process's life. These are classified
@@ -65,7 +67,9 @@ send another authenticated request.** Concretely:
   up the same latched state instead of each independently burning a logon
   attempt.
 
-**To clear it:** fix `ABAP_USER` / `ABAP_PASSWORD` and restart the process
-(or every process sharing the state directory). The durable on-disk entry
+**To clear it:** create the `auth-rearm` file beside `auth-latch.json` under
+the state directory — that admits exactly one further logon attempt, without
+restarting anything, and if the credentials are still wrong that attempt
+spends one more against `login/fails_to_user_lock`. The durable on-disk entry
 also expires on its own after a fixed TTL, or can be deleted immediately to
 clear it for every terminal at once.
