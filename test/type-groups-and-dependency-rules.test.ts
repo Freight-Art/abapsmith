@@ -1,8 +1,11 @@
 /**
  * Pinning test for two ADT object types added 2026-09-04 from live A4H
- * recon: TYPE/DG "Type group" and DRUL/DRL "Dependency rule". Both are
- * read+write only — `create` is undefined (ENHANCEABLE_TYPES member) and
- * `delete` is `"unverified"`, never attempted against the live system.
+ * recon: TYPE/DG "Type group" and DRUL/DRL "Dependency rule". `create` is
+ * still undefined (ENHANCEABLE_TYPES member, no CreatableTypes row) — both
+ * test objects were created with raw ADT POSTs, not through abapsmith.
+ * Update, activate and delete were all exercised live through abapsmith on
+ * A4H 2026-09-04 ($TMP objects) and worked, so `delete` is `true` and both
+ * types are DELETABLE_TYPES members.
  *
  * One behavior below is pinned as discovered, not as the background spec
  * assumed: `specForKeyword("type")` alone resolves to TYPE/DG, via
@@ -291,22 +294,22 @@ describe("TYPE/DG and DRUL/DRL: read path (FakeAdt)", () => {
 });
 
 describe("TYPE/DG and DRUL/DRL registry: write, create, activate, media type", () => {
-  it("TYPE/DG capabilities: source write, activatable, delete unverified, no create", () => {
+  it("TYPE/DG capabilities: source write, activatable, deletable, no create", () => {
     const cap = capabilitiesFor("TYPE/DG");
     expect(cap?.label).toBe("Type group");
     expect(cap?.write?.shape).toBe("source");
     expect(cap?.activate).toBe(true);
-    expect(cap?.delete).toBe("unverified");
+    expect(cap?.delete).toBe(true);
     expect(cap?.mediaType).toBe("application/vnd.sap.adt.ddic.typegroups.v2+xml");
     expect(cap?.create).toBeUndefined();
   });
 
-  it("DRUL/DRL capabilities: source write, activatable, delete unverified, no create", () => {
+  it("DRUL/DRL capabilities: source write, activatable, deletable, no create", () => {
     const cap = capabilitiesFor("DRUL/DRL");
     expect(cap?.label).toBe("Dependency rule");
     expect(cap?.write?.shape).toBe("source");
     expect(cap?.activate).toBe(true);
-    expect(cap?.delete).toBe("unverified");
+    expect(cap?.delete).toBe(true);
     expect(cap?.mediaType).toBe("application/vnd.sap.adt.ddic.drul.v1+xml");
     expect(cap?.create).toBeUndefined();
   });
@@ -352,23 +355,28 @@ describe("TYPE/DG and DRUL/DRL: create is refused", () => {
   });
 });
 
-describe("TYPE/DG and DRUL/DRL: op \"delete\" is refused offline", () => {
-  const offline = null as unknown as AbapConnection;
-
-  it("TYPE/DG delete throws UNSUPPORTED naming the label and type code, zero requests", async () => {
-    const e = await catchErr(resolveWriteTarget(offline, { type: "TYPE/DG", name: "TREXC" }, "delete"));
-    expect(isAbapError(e)).toBe(true);
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/Type group/);
-    expect(String(e.message)).toMatch(/TYPE\/DG/);
+describe("TYPE/DG and DRUL/DRL: op \"delete\" is not refused pre-flight", () => {
+  it("both types are DELETABLE_TYPES members", () => {
+    expect(DELETABLE_TYPES).toContain("TYPE/DG");
+    expect(DELETABLE_TYPES).toContain("DRUL/DRL");
   });
 
-  it("DRUL/DRL delete throws UNSUPPORTED naming the label and type code, zero requests", async () => {
-    const e = await catchErr(resolveWriteTarget(offline, { type: "DRUL/DRL", name: "DEMO_DRUL_1" }, "delete"));
-    expect(isAbapError(e)).toBe(true);
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/Dependency rule/);
-    expect(String(e.message)).toMatch(/DRUL\/DRL/);
+  it("TYPE/DG delete resolves instead of throwing UNSUPPORTED at the pre-flight gate", async () => {
+    // ABSENT_ROUTE 404s the existence GET; with an explicit `type` (so
+    // specSource === "caller") resolveWriteTarget resolves with exists:false
+    // rather than throwing. Resolving at all (not rejecting UNSUPPORTED)
+    // proves the op:"delete" gate let TYPE/DG through.
+    const { conn } = await connected(ABSENT_ROUTE);
+    const resolved = await resolveWriteTarget(conn, { type: "TYPE/DG", name: "TREXC" }, "delete");
+    expect(resolved.type).toBe("TYPE/DG");
+    expect(resolved.exists).toBe(false);
+  });
+
+  it("DRUL/DRL delete resolves instead of throwing UNSUPPORTED at the pre-flight gate", async () => {
+    const { conn } = await connected(ABSENT_ROUTE);
+    const resolved = await resolveWriteTarget(conn, { type: "DRUL/DRL", name: "DEMO_DRUL_1" }, "delete");
+    expect(resolved.type).toBe("DRUL/DRL");
+    expect(resolved.exists).toBe(false);
   });
 });
 
@@ -422,12 +430,12 @@ describe("TYPE/DG and DRUL/DRL derived-set membership", () => {
     expect(ABAP_WRITE_TYPES).toContain("DRUL/DRL");
   });
 
-  it("neither is WRITABLE_TYPES, CREATABLE_TYPES, VERIFIED_CREATABLE_TYPES, or DELETABLE_TYPES", () => {
+  it("neither is WRITABLE_TYPES, CREATABLE_TYPES, or VERIFIED_CREATABLE_TYPES — both are DELETABLE_TYPES", () => {
     for (const type of ["TYPE/DG", "DRUL/DRL"] as const) {
       expect(WRITABLE_TYPES, type).not.toContain(type);
       expect(CREATABLE_TYPES, type).not.toContain(type);
       expect(VERIFIED_CREATABLE_TYPES, type).not.toContain(type);
-      expect(DELETABLE_TYPES, type).not.toContain(type);
+      expect(DELETABLE_TYPES, type).toContain(type);
     }
   });
 
