@@ -92,7 +92,7 @@ import {
   type QueryFields,
   type AlternativeKeyFields,
 } from "../adt/bopf-xml.js";
-import type { BoModel, BoNode, AdtObjectRef, IntegrityFinding } from "../adt/bopf-types.js";
+import type { BoModel, BoNode, AdtObjectRef, IntegrityFinding, BoAssociation } from "../adt/bopf-types.js";
 import { validateSpecKeys } from "./bopf-spec-keys.js";
 
 // ---------------------------------------------------------------------------
@@ -1783,7 +1783,47 @@ function countMembers(model: BoModel, kind: MemberKind, node: string, member: st
     .filter((m) => m.name.toLowerCase() === memberName).length;
 }
 
+/**
+ * Bare node name an association's `targetNodeRef` points at — same
+ * resolution order as `targetNodeName` in bopf-runtime.ts (uri's XPath
+ * fragment, else the part after the last `~` in name, else name unchanged).
+ */
+function resolveTargetNodeName(ref: AdtObjectRef | undefined): string | undefined {
+  if (!ref) return undefined;
+  if (ref.uri) {
+    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref.uri);
+    if (m) return m[1];
+  }
+  const tilde = ref.name.lastIndexOf("~");
+  return tilde >= 0 ? ref.name.slice(tilde + 1) : ref.name;
+}
+
+/**
+ * An existing association on `node` with the same implementationType and
+ * target node as the one just requested — the signature BOPF treats as a
+ * duplicate and silently discards (e.g. add_node's auto-created ROOT→child
+ * Composition link). Case-insensitive on both fields.
+ */
+function findEquivalentAssociation(
+  node: BoNode,
+  implementationType: string,
+  targetNode: string,
+): BoAssociation | undefined {
+  const wantType = implementationType.toLowerCase();
+  const wantTarget = targetNode.toLowerCase();
+  return node.associations.find(
+    (a) =>
+      (a.implementationType ?? "").toLowerCase() === wantType &&
+      (resolveTargetNodeName(a.targetNodeRef) ?? "").toLowerCase() === wantTarget,
+  );
+}
+
 const MEMBER_CHECK_BY_OP: Readonly<Record<string, { readonly kind: MemberKind; readonly direction: "added" | "removed" }>> = {
+  add_association: { kind: "association", direction: "added" },
+  add_action: { kind: "action", direction: "added" },
+  add_determination: { kind: "determination", direction: "added" },
+  add_validation: { kind: "validation", direction: "added" },
+  add_query: { kind: "query", direction: "added" },
   add_alternative_key: { kind: "alternativeKey", direction: "added" },
   remove_association: { kind: "association", direction: "removed" },
   remove_action: { kind: "action", direction: "removed" },
@@ -2177,6 +2217,51 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
           const countAfter = countMembers(afterMutate.model, memberCheck.kind, nodeName, member);
           const moved = memberCheck.direction === "added" ? countAfter > countBefore : countAfter < countBefore;
           if (!moved) {
+            // add_association only: check whether the miss is really a server-side
+            // dedup (e.g. add_node's auto-created ROOT→child Composition link)
+            // rather than a plain loss, and say so — but still CHECK_FAILED either
+            // way, since the association the caller named does not exist.
+            let equivalent: BoAssociation | undefined;
+            let equivalentTarget: string | undefined;
+            if (input.operation === "add_association") {
+              const spec = (input.spec ?? {}) as Record<string, unknown>;
+              const implementationType = str(spec.implementationType);
+              const requestedTarget = resolveTargetNodeName(ref(spec.targetNodeRef));
+              if (implementationType && requestedTarget) {
+                const targetNode = afterMutate.model.nodes.find((n) => n.name.toLowerCase() === nodeName.toLowerCase());
+                equivalent = targetNode && findEquivalentAssociation(targetNode, implementationType, requestedTarget);
+                equivalentTarget = requestedTarget;
+              }
+            }
+            if (equivalent) {
+              throw new AbapError(
+                "CHECK_FAILED",
+                `abap_bopf_edit add_association "${member}" on ${bo} node "${nodeName}": the PUT was accepted ` +
+                  `(journalEntryId ${entryId}) but a fresh re-read shows the association was not added. An ` +
+                  `equivalent association "${equivalent.name}" (implementationType "${equivalent.implementationType}") ` +
+                  `to node "${equivalentTarget}" is already present on that node, so BOPF most likely discarded ` +
+                  `this one as a duplicate rather than erroring — the link you asked for already exists under ` +
+                  `the name "${equivalent.name}", so the model is already correct; nothing was activated.`,
+                {
+                  bo,
+                  node: nodeName,
+                  name: member,
+                  kind: memberCheck.kind,
+                  countBefore,
+                  countAfter,
+                  journalEntryId: entryId,
+                  existingEquivalent: {
+                    name: equivalent.name,
+                    implementationType: equivalent.implementationType,
+                    targetNode: equivalentTarget,
+                  },
+                },
+                `Use the existing association "${equivalent.name}" instead of adding a new one, or pass a different ` +
+                  `implementationType/targetNodeRef if a genuinely distinct link is wanted. add_node auto-creates a ` +
+                  `ROOT→child Composition association plus TO_PARENT/TO_ROOT on the child, which is the usual way ` +
+                  `this collision arises.`,
+              );
+            }
             throw new AbapError(
               "CHECK_FAILED",
               `abap_bopf_edit ${input.operation} "${member}" on ${bo} node "${nodeName}": the PUT was accepted ` +
