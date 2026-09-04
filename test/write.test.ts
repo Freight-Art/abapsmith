@@ -430,13 +430,14 @@ describe("resolveWriteTarget", () => {
 
   it("refuses types it cannot create, and refuses to guess", async () => {
     // Was `DTEL/DE` until the properties-shape pass made data elements
-    // genuinely writable. `XSLT/VT` is the same shape of case it used to be:
-    // present in types.ts (so `specForType` finds it and this is NOT the
-    // "unknown type" BAD_INPUT), declared in capabilities.ts with neither
-    // `create` nor `write`, and therefore refused by the CREATABLE/ENHANCEABLE
-    // check before a single byte goes on the wire — which is what `offline`
-    // (a null connection) proves.
-    expect((await catchErr(resolveWriteTarget(offline, { type: "XSLT/VT", name: "ZX" }))).code).toBe(
+    // genuinely writable, then `XSLT/VT` until the corrected transformations
+    // path made it genuinely writable too. `PROG/I` is the same shape of case
+    // it used to be: present in types.ts (so `specForType` finds it and this
+    // is NOT the "unknown type" BAD_INPUT), declared in capabilities.ts with
+    // neither `create` nor `write`, and therefore refused by the
+    // CREATABLE/ENHANCEABLE check before a single byte goes on the wire —
+    // which is what `offline` (a null connection) proves.
+    expect((await catchErr(resolveWriteTarget(offline, { type: "PROG/I", name: "ZTMD_INC" }))).code).toBe(
       "UNSUPPORTED",
     );
     expect((await catchErr(resolveWriteTarget(offline, { name: "ZSOMETHING" }))).code).toBe(
@@ -627,12 +628,12 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     expect(() => assertWritableTypesAreReadable()).not.toThrow();
   });
 
-  it("WRITABLE_TYPES is exactly the source-shape eleven plus the properties-shape six", () => {
+  it("WRITABLE_TYPES is exactly the source-shape twelve plus the properties-shape six", () => {
     // Spelled as one exhaustive set on purpose: a type silently ACQUIRING a
     // write capability is as much a regression as one losing it, and only an
-    // exhaustive comparison catches the first. The eleven-plus-six split is:
+    // exhaustive comparison catches the first. The twelve-plus-six split is:
     //   source shape     — CLAS/OC INTF/OI PROG/P DDLS/DF DDLX/EX SRVD/SRV
-    //                      TABL/DT TABL/DS FUGR/FF FUGR/F BDEF/BDO
+    //                      TABL/DT TABL/DS FUGR/FF FUGR/F BDEF/BDO XSLT/VT
     //   properties shape — DTEL/DE DOMA/DD TTYP/DA MSAG/N ENQU/DL SRVB/SVB
     // FUGR/F joined on live evidence, not inference: its `/source/main` is the
     // TOP-include skeleton, and a PUT carrying a distinguishing marker line came
@@ -647,6 +648,12 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     // source-shape AND `create.vendor: false` at once — see capabilities.ts's
     // `SkeletonCreate` doc for why that combination needed a new mechanism
     // rather than reusing TTYP/ENQU's "payload doubles as create body" trick.
+    // XSLT/VT is the newest source-shape member: its read path is
+    // live-measured (`/xslt/transformations/…/source/main` returns real
+    // stylesheet source, 2026-09-04), but its create skeleton comes from the
+    // ADT discovery doc, not a live create — so `create.verified` and
+    // `delete` are both `"unverified"`, keeping it out of
+    // VERIFIED_CREATABLE_TYPES and DELETABLE_TYPES despite being writable.
     // SRVB/SVB joined properties shape on documentation, and its provenance
     // was contested for a while: a session scratchpad claimed a live run
     // (create 201, read-back 200 at 1664 bytes, activate 200 clean, delete
@@ -671,6 +678,7 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
         "FUGR/FF",
         "FUGR/F",
         "BDEF/BDO",
+        "XSLT/VT",
         "DTEL/DE",
         "DOMA/DD",
         "TTYP/DA",
@@ -4567,6 +4575,60 @@ describe("BDEF/BDO — skeleton create (source shape, create.vendor = false)", (
     expect(e.code).toBe("UNSUPPORTED");
     expect(String(e.message)).toMatch(/BDEF\/BDO/);
     expect(adt.calls).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * XSLT/VT's skeleton is the second `rootAttributes` user (BDEF/BDO's has
+ * none) — pins that `buildSkeletonXml` splices `trans:transformationType`
+ * onto the root for this type without perturbing BDEF/BDO's body above. See
+ * capabilities.ts's XSLT/VT REGISTRY comment for the two live 400s
+ * (namespace, then InvalidTransformationValue) this attribute exists to fix.
+ */
+describe("XSLT/VT — skeleton create carries rootAttributes", () => {
+  const XSLT_URI = "/sap/bc/adt/xslt/transformations/ztmd_x";
+  const XSLT_SRC = `${XSLT_URI}/source/main`;
+  const XSLT_COLLECTION = "/sap/bc/adt/xslt/transformations";
+  const XSLT_SOURCE = '<xsl:transform version="1.0"></xsl:transform>';
+
+  it("creates a missing transformation with trans:transformationType on the root", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === XSLT_URI && r.method === "GET") return resp(404, NOT_FOUND_XML, OK_XML);
+      if (r.url === XSLT_COLLECTION && r.method === "POST") return resp(201, "", {});
+      if (r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
+      if (r.url === XSLT_SRC && r.method === "PUT") return resp(200, "", OK_TEXT);
+      return undefined;
+    });
+
+    const res = await writeObject(
+      conn,
+      await authWrite(conn, { type: "XSLT/VT", name: "ZTMD_X" }),
+      { source: XSLT_SOURCE },
+    );
+    expect(res.created).toBe(true);
+
+    const create = adt.calls.find((c) => c.url === XSLT_COLLECTION && c.method === "POST")!;
+    expect(create.body).toBe(
+      '<trans:transformation xmlns:trans="http://www.sap.com/adt/transformation" ' +
+        'xmlns:adtcore="http://www.sap.com/adt/core" ' +
+        'trans:transformationType="XSLTProgram" ' +
+        'adtcore:description="Transformation ZTMD_X" ' +
+        'adtcore:name="ZTMD_X" adtcore:type="XSLT/VT" ' +
+        'adtcore:language="EN" adtcore:masterLanguage="EN" ' +
+        'adtcore:responsible="DEVELOPER">' +
+        '<adtcore:packageRef adtcore:name="$TMP"/>' +
+        "</trans:transformation>",
+    );
+    expect(create.headers?.["Content-Type"]).toBe("application/vnd.sap.adt.transformations+xml");
+
+    const put = adt.calls.find((c) => c.url === XSLT_SRC && c.method === "PUT")!;
+    expect(put.body).toBe(XSLT_SOURCE);
+
+    // BDEF/BDO's skeleton has no rootAttributes — this splice leaves it alone.
+    expect(capabilitiesFor("BDEF/BDO")?.create?.skeleton?.rootAttributes).toBeUndefined();
   });
 });
 

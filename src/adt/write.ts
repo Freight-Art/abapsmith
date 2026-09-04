@@ -3166,8 +3166,12 @@ function buildSkeletonXml(
   skeleton: NonNullable<CreateCapability["skeleton"]>,
 ): string {
   const root = skeleton.rootName;
+  // rootAttributes (e.g. XSLT/VT's trans:transformationType) splices in here,
+  // right after the namespace declarations — absent for every other skeleton.
+  const rootAttrs = skeleton.rootAttributes ? `${skeleton.rootAttributes} ` : "";
   return (
     `<${root} ${skeleton.namespace} xmlns:adtcore="http://www.sap.com/adt/core" ` +
+    rootAttrs +
     `adtcore:description="${escapeXmlAttr(t.description)}" ` +
     `adtcore:name="${escapeXmlAttr(t.name)}" ` +
     `adtcore:type="${escapeXmlAttr(t.type)}" ` +

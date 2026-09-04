@@ -12,7 +12,7 @@ Check here before planning any create.
 
 <!-- BEGIN generated: scripts/gen-capability-table.mjs -->
 
-**Creatable and writable (16).** Everything else is not.
+**Creatable and writable (17).** Everything else is not.
 
 - `CLAS/OC` — write shape `source`, delete: yes
 - `INTF/OI` — write shape `source`, delete: yes
@@ -23,6 +23,7 @@ Check here before planning any create.
 - `DDLX/EX` — write shape `source`, delete: yes
 - `SRVD/SRV` — write shape `source`, delete: yes
 - `BDEF/BDO` — write shape `source`, delete: no
+- `XSLT/VT` — write shape `source`, delete: yes
 - `TABL/DT` — write shape `source`, delete: yes
 - `TABL/DS` — write shape `source`, delete: yes
 - `DTEL/DE` — write shape `properties`, delete: yes
@@ -47,9 +48,9 @@ Check here before planning any create.
 
 `ENQU/DL`
 
-**Not reachable by any write (9).** Do not probe for a write route.
+**Not reachable by any write (8).** Do not probe for a write route.
 
-- Readable, not writable (3): `PROG/I` `FUGR/I` `XSLT/VT`
+- Readable, not writable (2): `PROG/I` `FUGR/I`
 - Not readable either (6) — `abap_read` refuses these with UNSUPPORTED, from the same `unsupported` entry in src/adt/capabilities.ts: `SHLP/DH` `PROG/PS` `PROG/PC` `PROG/PT` `SUSO/B` `TABL/DI`
 
 <!-- END generated -->

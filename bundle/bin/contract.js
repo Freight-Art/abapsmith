@@ -57,9 +57,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/position.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/position.js
 var require_position = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/position.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/position.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Position = void 0;
@@ -91,9 +91,9 @@ var require_position = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/virtual_position.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/virtual_position.js
 var require_virtual_position = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/virtual_position.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/virtual_position.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.VirtualPosition = void 0;
@@ -135,9 +135,9 @@ var require_virtual_position = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/severity.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/severity.js
 var require_severity = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/severity.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/severity.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Severity = void 0;
@@ -150,9 +150,9 @@ var require_severity = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/issue.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/issue.js
 var require_issue = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/issue.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/issue.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Issue = void 0;
@@ -297,9 +297,9 @@ var require_issue = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/version.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/version.js
 var require_version = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/version.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/version.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.defaultRelease = exports.Release = exports.ReleaseList = exports.LanguageVersion = exports.Version = void 0;
@@ -501,9 +501,9 @@ var require_version = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/_basic_rule_config.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/_basic_rule_config.js
 var require_basic_rule_config = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/_basic_rule_config.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/_basic_rule_config.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BasicRuleConfig = void 0;
@@ -518,9 +518,9 @@ var require_basic_rule_config = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/_irule.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/_irule.js
 var require_irule = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/_irule.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/_irule.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RuleTag = void 0;
@@ -542,9 +542,9 @@ var require_irule = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/7bit_ascii.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/7bit_ascii.js
 var require_bit_ascii = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/7bit_ascii.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/7bit_ascii.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SevenBitAscii = exports.SevenBitAsciiConf = void 0;
@@ -618,9 +618,9 @@ Checkes files with extensions ".abap" and ".asddls"`,
   }
 });
 
-// ../abap-mcp/node_modules/fast-xml-parser/lib/fxp.cjs
+// ../../abap-mcp/node_modules/fast-xml-parser/lib/fxp.cjs
 var require_fxp = __commonJS({
-  "../abap-mcp/node_modules/fast-xml-parser/lib/fxp.cjs"(exports, module) {
+  "../../abap-mcp/node_modules/fast-xml-parser/lib/fxp.cjs"(exports, module) {
     (() => {
       "use strict";
       var t = { d: (e2, i2) => {
@@ -2340,9 +2340,9 @@ var require_fxp = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/_identifier.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/_identifier.js
 var require_identifier = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/_identifier.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/_identifier.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Identifier = void 0;
@@ -2378,9 +2378,9 @@ var require_identifier = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/abstract_token.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/abstract_token.js
 var require_abstract_token = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/abstract_token.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/abstract_token.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AbstractToken = void 0;
@@ -2418,9 +2418,9 @@ var require_abstract_token = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/identifier.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/identifier.js
 var require_identifier2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/identifier.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/identifier.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Identifier = void 0;
@@ -2431,9 +2431,9 @@ var require_identifier2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/_abstract_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/_abstract_object.js
 var require_abstract_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/_abstract_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/_abstract_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AbstractObject = void 0;
@@ -2550,9 +2550,9 @@ var require_abstract_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/xml_utils.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/xml_utils.js
 var require_xml_utils = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/xml_utils.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/xml_utils.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.xmlToArray = xmlToArray;
@@ -2580,9 +2580,9 @@ var require_xml_utils = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/at.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/at.js
 var require_at = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/at.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/at.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.At = void 0;
@@ -2596,9 +2596,9 @@ var require_at = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/atw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/atw.js
 var require_atw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/atw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/atw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AtW = void 0;
@@ -2612,9 +2612,9 @@ var require_atw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wat.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wat.js
 var require_wat = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wat.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wat.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WAt = void 0;
@@ -2628,9 +2628,9 @@ var require_wat = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/watw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/watw.js
 var require_watw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/watw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/watw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WAtW = void 0;
@@ -2644,9 +2644,9 @@ var require_watw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_left.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_left.js
 var require_bracket_left = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_left.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_left.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BracketLeft = void 0;
@@ -2660,9 +2660,9 @@ var require_bracket_left = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_left.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_left.js
 var require_wbracket_left = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_left.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_left.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WBracketLeft = void 0;
@@ -2676,9 +2676,9 @@ var require_wbracket_left = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_leftw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_leftw.js
 var require_bracket_leftw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_leftw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_leftw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BracketLeftW = void 0;
@@ -2692,9 +2692,9 @@ var require_bracket_leftw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_leftw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_leftw.js
 var require_wbracket_leftw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_leftw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_leftw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WBracketLeftW = void 0;
@@ -2708,9 +2708,9 @@ var require_wbracket_leftw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_right.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_right.js
 var require_bracket_right = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_right.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_right.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BracketRight = void 0;
@@ -2724,9 +2724,9 @@ var require_bracket_right = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_right.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_right.js
 var require_wbracket_right = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_right.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_right.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WBracketRight = void 0;
@@ -2740,9 +2740,9 @@ var require_wbracket_right = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_rightw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_rightw.js
 var require_bracket_rightw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_rightw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/bracket_rightw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BracketRightW = void 0;
@@ -2756,9 +2756,9 @@ var require_bracket_rightw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_rightw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_rightw.js
 var require_wbracket_rightw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_rightw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wbracket_rightw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WBracketRightW = void 0;
@@ -2772,9 +2772,9 @@ var require_wbracket_rightw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/instance_arrow.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/instance_arrow.js
 var require_instance_arrow = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/instance_arrow.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/instance_arrow.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InstanceArrow = void 0;
@@ -2788,9 +2788,9 @@ var require_instance_arrow = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/winstance_arrow.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/winstance_arrow.js
 var require_winstance_arrow = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/winstance_arrow.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/winstance_arrow.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WInstanceArrow = void 0;
@@ -2804,9 +2804,9 @@ var require_winstance_arrow = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/instance_arroww.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/instance_arroww.js
 var require_instance_arroww = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/instance_arroww.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/instance_arroww.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InstanceArrowW = void 0;
@@ -2820,9 +2820,9 @@ var require_instance_arroww = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/winstance_arroww.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/winstance_arroww.js
 var require_winstance_arroww = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/winstance_arroww.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/winstance_arroww.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WInstanceArrowW = void 0;
@@ -2836,9 +2836,9 @@ var require_winstance_arroww = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_left.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_left.js
 var require_paren_left = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_left.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_left.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParenLeft = void 0;
@@ -2852,9 +2852,9 @@ var require_paren_left = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_left.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_left.js
 var require_wparen_left = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_left.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_left.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WParenLeft = void 0;
@@ -2868,9 +2868,9 @@ var require_wparen_left = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_leftw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_leftw.js
 var require_paren_leftw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_leftw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_leftw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParenLeftW = void 0;
@@ -2884,9 +2884,9 @@ var require_paren_leftw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_leftw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_leftw.js
 var require_wparen_leftw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_leftw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_leftw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WParenLeftW = void 0;
@@ -2900,9 +2900,9 @@ var require_wparen_leftw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_right.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_right.js
 var require_paren_right = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_right.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_right.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParenRight = void 0;
@@ -2916,9 +2916,9 @@ var require_paren_right = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_right.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_right.js
 var require_wparen_right = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_right.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_right.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WParenRight = void 0;
@@ -2932,9 +2932,9 @@ var require_wparen_right = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_rightw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_rightw.js
 var require_paren_rightw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_rightw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/paren_rightw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParenRightW = void 0;
@@ -2948,9 +2948,9 @@ var require_paren_rightw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_rightw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_rightw.js
 var require_wparen_rightw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_rightw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wparen_rightw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WParenRightW = void 0;
@@ -2964,9 +2964,9 @@ var require_wparen_rightw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/dash.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/dash.js
 var require_dash = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/dash.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/dash.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Dash = void 0;
@@ -2980,9 +2980,9 @@ var require_dash = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wdash.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wdash.js
 var require_wdash = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wdash.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wdash.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WDash = void 0;
@@ -2996,9 +2996,9 @@ var require_wdash = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/dashw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/dashw.js
 var require_dashw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/dashw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/dashw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DashW = void 0;
@@ -3012,9 +3012,9 @@ var require_dashw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wdashw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wdashw.js
 var require_wdashw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wdashw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wdashw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WDashW = void 0;
@@ -3028,9 +3028,9 @@ var require_wdashw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/plus.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/plus.js
 var require_plus = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/plus.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/plus.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Plus = void 0;
@@ -3044,9 +3044,9 @@ var require_plus = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wplus.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wplus.js
 var require_wplus = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wplus.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wplus.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WPlus = void 0;
@@ -3060,9 +3060,9 @@ var require_wplus = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/plusw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/plusw.js
 var require_plusw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/plusw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/plusw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PlusW = void 0;
@@ -3076,9 +3076,9 @@ var require_plusw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wplusw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wplusw.js
 var require_wplusw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wplusw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wplusw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WPlusW = void 0;
@@ -3092,9 +3092,9 @@ var require_wplusw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/static_arrow.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/static_arrow.js
 var require_static_arrow = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/static_arrow.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/static_arrow.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StaticArrow = void 0;
@@ -3108,9 +3108,9 @@ var require_static_arrow = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wstatic_arrow.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wstatic_arrow.js
 var require_wstatic_arrow = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wstatic_arrow.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wstatic_arrow.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WStaticArrow = void 0;
@@ -3124,9 +3124,9 @@ var require_wstatic_arrow = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/static_arroww.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/static_arroww.js
 var require_static_arroww = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/static_arroww.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/static_arroww.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StaticArrowW = void 0;
@@ -3140,9 +3140,9 @@ var require_static_arroww = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wstatic_arroww.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wstatic_arroww.js
 var require_wstatic_arroww = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wstatic_arroww.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/wstatic_arroww.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WStaticArrowW = void 0;
@@ -3156,9 +3156,9 @@ var require_wstatic_arroww = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string.js
 var require_string = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StringToken = void 0;
@@ -3169,9 +3169,9 @@ var require_string = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template.js
 var require_string_template = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StringTemplate = void 0;
@@ -3182,9 +3182,9 @@ var require_string_template = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_begin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_begin.js
 var require_string_template_begin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_begin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_begin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StringTemplateBegin = void 0;
@@ -3195,9 +3195,9 @@ var require_string_template_begin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_end.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_end.js
 var require_string_template_end = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_end.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_end.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StringTemplateEnd = void 0;
@@ -3208,9 +3208,9 @@ var require_string_template_end = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_middle.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_middle.js
 var require_string_template_middle = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_middle.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/string_template_middle.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StringTemplateMiddle = void 0;
@@ -3221,9 +3221,9 @@ var require_string_template_middle = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/colon.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/colon.js
 var require_colon = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/colon.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/colon.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Colon = void 0;
@@ -3234,9 +3234,9 @@ var require_colon = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/comment.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/comment.js
 var require_comment = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/comment.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/comment.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Comment = void 0;
@@ -3247,9 +3247,9 @@ var require_comment = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/association_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/association_name.js
 var require_association_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/association_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/association_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AssociationName = void 0;
@@ -3260,9 +3260,9 @@ var require_association_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/pragma.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/pragma.js
 var require_pragma = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/pragma.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/pragma.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Pragma = void 0;
@@ -3273,9 +3273,9 @@ var require_pragma = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/punctuation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/punctuation.js
 var require_punctuation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/punctuation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/punctuation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Punctuation = void 0;
@@ -3286,9 +3286,9 @@ var require_punctuation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/index.js
 var require_tokens = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/tokens/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -3357,9 +3357,9 @@ var require_tokens = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/files/_abstract_file.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/files/_abstract_file.js
 var require_abstract_file = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/files/_abstract_file.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/files/_abstract_file.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AbstractFile = void 0;
@@ -3403,9 +3403,9 @@ var require_abstract_file = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/abap_file.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/abap_file.js
 var require_abap_file = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/abap_file.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/abap_file.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ABAPFile = void 0;
@@ -3453,9 +3453,9 @@ var require_abap_file = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/abap_file_information.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/abap_file_information.js
 var require_abap_file_information = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/abap_file_information.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/abap_file_information.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ABAPFileInformation = void 0;
@@ -3507,9 +3507,9 @@ var require_abap_file_information = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/token_node.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/token_node.js
 var require_token_node = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/token_node.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/token_node.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TokenNode = void 0;
@@ -3547,9 +3547,9 @@ var require_token_node = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/_abstract_node.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/_abstract_node.js
 var require_abstract_node = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/_abstract_node.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/_abstract_node.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AbstractNode = void 0;
@@ -3581,9 +3581,9 @@ var require_abstract_node = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/expression_node.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/expression_node.js
 var require_expression_node = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/expression_node.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/expression_node.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExpressionNode = void 0;
@@ -3843,9 +3843,9 @@ var require_expression_node = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/statement_node.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/statement_node.js
 var require_statement_node = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/statement_node.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/statement_node.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StatementNode = void 0;
@@ -4156,9 +4156,9 @@ var require_statement_node = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/structure_node.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/structure_node.js
 var require_structure_node = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/structure_node.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/structure_node.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StructureNode = void 0;
@@ -4401,9 +4401,9 @@ var require_structure_node = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/token_node_regex.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/token_node_regex.js
 var require_token_node_regex = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/token_node_regex.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/token_node_regex.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TokenNodeRegex = void 0;
@@ -4414,9 +4414,9 @@ var require_token_node_regex = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/index.js
 var require_nodes = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/nodes/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -4443,9 +4443,9 @@ var require_nodes = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/_statement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/_statement.js
 var require_statement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/_statement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/_statement.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NativeSQL = exports.MacroRecursion = exports.MacroContent = exports.MacroCall = exports.Empty = exports.Comment = exports.Unknown = void 0;
@@ -4494,9 +4494,9 @@ var require_statement = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/_combi.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/_combi.js
 var require_combi = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/_combi.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/_combi.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.seq = seq;
@@ -4829,9 +4829,9 @@ var require_combi = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/result.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/result.js
 var require_result = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/result.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/result.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Result = void 0;
@@ -4920,9 +4920,9 @@ var require_result = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/combi.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/combi.js
 var require_combi2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/combi.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/combi.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -5981,9 +5981,9 @@ var require_combi2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_name.js
 var require_method_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodName = void 0;
@@ -5997,9 +5997,9 @@ var require_method_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/abstract_methods.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/abstract_methods.js
 var require_abstract_methods = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/abstract_methods.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/abstract_methods.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AbstractMethods = void 0;
@@ -6014,9 +6014,9 @@ var require_abstract_methods = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/abstract.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/abstract.js
 var require_abstract = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/abstract.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/abstract.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Abstract = void 0;
@@ -6030,9 +6030,9 @@ var require_abstract = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/and_return.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/and_return.js
 var require_and_return = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/and_return.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/and_return.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AndReturn = void 0;
@@ -6046,9 +6046,9 @@ var require_and_return = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arith_operator.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arith_operator.js
 var require_arith_operator = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arith_operator.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arith_operator.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ArithOperator = void 0;
@@ -6064,9 +6064,9 @@ var require_arith_operator = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arrow_or_dash.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arrow_or_dash.js
 var require_arrow_or_dash = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arrow_or_dash.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arrow_or_dash.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ArrowOrDash = void 0;
@@ -6081,9 +6081,9 @@ var require_arrow_or_dash = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arrow.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arrow.js
 var require_arrow = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arrow.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/arrow.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Arrow = void 0;
@@ -6098,9 +6098,9 @@ var require_arrow = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element.js
 var require_text_element = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TextElement = void 0;
@@ -6116,9 +6116,9 @@ var require_text_element = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/table_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/table_body.js
 var require_table_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/table_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/table_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TableBody = void 0;
@@ -6134,9 +6134,9 @@ var require_table_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/attribute_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/attribute_chain.js
 var require_attribute_chain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/attribute_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/attribute_chain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AttributeChain = void 0;
@@ -6154,9 +6154,9 @@ var require_attribute_chain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/dereference.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/dereference.js
 var require_dereference = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/dereference.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/dereference.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Dereference = void 0;
@@ -6171,9 +6171,9 @@ var require_dereference = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant.js
 var require_constant = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Constant = void 0;
@@ -6188,9 +6188,9 @@ var require_constant = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_chain.js
 var require_field_chain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_chain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldChain = void 0;
@@ -6214,9 +6214,9 @@ var require_field_chain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_dynamic_access.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_dynamic_access.js
 var require_dynamic_access = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_dynamic_access.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_dynamic_access.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.dynComp = dynComp;
@@ -6238,9 +6238,9 @@ var require_dynamic_access = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source.js
 var require_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Source = void 0;
@@ -6285,9 +6285,9 @@ var require_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/dynamic.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/dynamic.js
 var require_dynamic = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/dynamic.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/dynamic.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Dynamic = void 0;
@@ -6304,9 +6304,9 @@ var require_dynamic = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field.js
 var require_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Field = void 0;
@@ -6320,9 +6320,9 @@ var require_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source3.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source3.js
 var require_simple_source3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source3.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source3.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SimpleSource3 = void 0;
@@ -6337,9 +6337,9 @@ var require_simple_source3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/assign_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/assign_source.js
 var require_assign_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/assign_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/assign_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AssignSource = void 0;
@@ -6370,9 +6370,9 @@ var require_assign_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/eml_entity_path.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/eml_entity_path.js
 var require_eml_entity_path = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/eml_entity_path.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/eml_entity_path.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EMLEntityPath = void 0;
@@ -6387,9 +6387,9 @@ var require_eml_entity_path = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/attribute_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/attribute_name.js
 var require_attribute_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/attribute_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/attribute_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AttributeName = void 0;
@@ -6403,9 +6403,9 @@ var require_attribute_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/behavior_definition_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/behavior_definition_name.js
 var require_behavior_definition_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/behavior_definition_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/behavior_definition_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BehaviorDefinitionName = void 0;
@@ -6419,9 +6419,9 @@ var require_behavior_definition_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/block_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/block_name.js
 var require_block_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/block_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/block_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BlockName = void 0;
@@ -6437,9 +6437,9 @@ var require_block_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/integer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/integer.js
 var require_integer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/integer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/integer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Integer = void 0;
@@ -6455,9 +6455,9 @@ var require_integer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/call_transformation_options.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/call_transformation_options.js
 var require_call_transformation_options = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/call_transformation_options.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/call_transformation_options.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallTransformationOptions = void 0;
@@ -6475,9 +6475,9 @@ var require_call_transformation_options = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/call_transformation_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/call_transformation_parameters.js
 var require_call_transformation_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/call_transformation_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/call_transformation_parameters.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallTransformationParameters = void 0;
@@ -6496,9 +6496,9 @@ var require_call_transformation_parameters = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/let.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/let.js
 var require_let = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/let.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/let.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Let = void 0;
@@ -6513,9 +6513,9 @@ var require_let = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cast.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cast.js
 var require_cast = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cast.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cast.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Cast = void 0;
@@ -6535,9 +6535,9 @@ var require_cast = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_final.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_final.js
 var require_class_final = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_final.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_final.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassFinal = void 0;
@@ -6551,9 +6551,9 @@ var require_class_final = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_name.js
 var require_class_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassName = void 0;
@@ -6567,9 +6567,9 @@ var require_class_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_friends.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_friends.js
 var require_class_friends = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_friends.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_friends.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassFriends = void 0;
@@ -6584,9 +6584,9 @@ var require_class_friends = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_global.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_global.js
 var require_class_global = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_global.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/class_global.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassGlobal = void 0;
@@ -6600,9 +6600,9 @@ var require_class_global = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/color.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/color.js
 var require_color = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/color.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/color.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Color = void 0;
@@ -6622,9 +6622,9 @@ var require_color = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/compare_operator.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/compare_operator.js
 var require_compare_operator = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/compare_operator.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/compare_operator.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CompareOperator = void 0;
@@ -6674,9 +6674,9 @@ var require_compare_operator = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/compare.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/compare.js
 var require_compare = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/compare.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/compare.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Compare = void 0;
@@ -6702,9 +6702,9 @@ var require_compare = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_chain_simple.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_chain_simple.js
 var require_component_chain_simple = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_chain_simple.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_chain_simple.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ComponentChainSimple = void 0;
@@ -6721,9 +6721,9 @@ var require_component_chain_simple = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_chain.js
 var require_component_chain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_chain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ComponentChain = void 0;
@@ -6741,9 +6741,9 @@ var require_component_chain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare_simple.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare_simple.js
 var require_component_compare_simple = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare_simple.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare_simple.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ComponentCompareSimple = void 0;
@@ -6762,9 +6762,9 @@ var require_component_compare_simple = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare_single.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare_single.js
 var require_component_compare_single = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare_single.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare_single.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ComponentCompareSingle = void 0;
@@ -6781,9 +6781,9 @@ var require_component_compare_single = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare.js
 var require_component_compare = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_compare.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ComponentCompare = void 0;
@@ -6807,9 +6807,9 @@ var require_component_compare = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_cond_sub.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_cond_sub.js
 var require_component_cond_sub = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_cond_sub.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_cond_sub.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ComponentCondSub = void 0;
@@ -6826,9 +6826,9 @@ var require_component_cond_sub = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_cond.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_cond.js
 var require_component_cond = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_cond.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_cond.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ComponentCond = void 0;
@@ -6846,9 +6846,9 @@ var require_component_cond = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_name.js
 var require_component_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/component_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ComponentName = void 0;
@@ -6862,9 +6862,9 @@ var require_component_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/concatenated_constant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/concatenated_constant.js
 var require_concatenated_constant = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/concatenated_constant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/concatenated_constant.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConcatenatedConstant = void 0;
@@ -6880,9 +6880,9 @@ var require_concatenated_constant = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond_body.js
 var require_cond_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CondBody = void 0;
@@ -6899,9 +6899,9 @@ var require_cond_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond_sub.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond_sub.js
 var require_cond_sub = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond_sub.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond_sub.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CondSub = void 0;
@@ -6918,9 +6918,9 @@ var require_cond_sub = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond.js
 var require_cond = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/cond.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Cond = void 0;
@@ -6940,9 +6940,9 @@ var require_cond = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant_field_length.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant_field_length.js
 var require_constant_field_length = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant_field_length.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant_field_length.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConstantFieldLength = void 0;
@@ -6959,9 +6959,9 @@ var require_constant_field_length = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant_string.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant_string.js
 var require_constant_string = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant_string.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/constant_string.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConstantString = void 0;
@@ -6975,9 +6975,9 @@ var require_constant_string = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/conv_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/conv_body.js
 var require_conv_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/conv_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/conv_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConvBody = void 0;
@@ -6992,9 +6992,9 @@ var require_conv_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body_base.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body_base.js
 var require_corresponding_body_base = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body_base.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body_base.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CorrespondingBodyBase = void 0;
@@ -7010,9 +7010,9 @@ var require_corresponding_body_base = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body_mapping.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body_mapping.js
 var require_corresponding_body_mapping = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body_mapping.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body_mapping.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CorrespondingBodyMapping = void 0;
@@ -7028,9 +7028,9 @@ var require_corresponding_body_mapping = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body.js
 var require_corresponding_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/corresponding_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CorrespondingBody = void 0;
@@ -7057,9 +7057,9 @@ var require_corresponding_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_lob_handle_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_lob_handle_type.js
 var require_lob_handle_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_lob_handle_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_lob_handle_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.lobColumns = lobColumns;
@@ -7079,9 +7079,9 @@ var require_lob_handle_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/data_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/data_definition.js
 var require_data_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/data_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/data_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -7138,9 +7138,9 @@ var require_data_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/database_connection.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/database_connection.js
 var require_database_connection = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/database_connection.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/database_connection.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DatabaseConnection = void 0;
@@ -7156,9 +7156,9 @@ var require_database_connection = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/database_table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/database_table.js
 var require_database_table = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/database_table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/database_table.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DatabaseTable = void 0;
@@ -7181,9 +7181,9 @@ var require_database_table = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/decimals.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/decimals.js
 var require_decimals = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/decimals.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/decimals.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Decimals = void 0;
@@ -7199,9 +7199,9 @@ var require_decimals = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/default.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/default.js
 var require_default = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/default.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/default.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Default = void 0;
@@ -7217,9 +7217,9 @@ var require_default = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/definition_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/definition_name.js
 var require_definition_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/definition_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/definition_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DefinitionName = void 0;
@@ -7235,9 +7235,9 @@ var require_definition_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/destination.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/destination.js
 var require_destination = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/destination.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/destination.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Destination = void 0;
@@ -7252,9 +7252,9 @@ var require_destination = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/entity_association.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/entity_association.js
 var require_entity_association = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/entity_association.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/entity_association.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EntityAssociation = void 0;
@@ -7269,9 +7269,9 @@ var require_entity_association = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/event_handler.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/event_handler.js
 var require_event_handler = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/event_handler.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/event_handler.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EventHandler = void 0;
@@ -7287,9 +7287,9 @@ var require_event_handler = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/event_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/event_name.js
 var require_event_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/event_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/event_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EventName = void 0;
@@ -7303,9 +7303,9 @@ var require_event_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/exception_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/exception_name.js
 var require_exception_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/exception_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/exception_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExceptionName = void 0;
@@ -7321,9 +7321,9 @@ var require_exception_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_all.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_all.js
 var require_field_all = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_all.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_all.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldAll = void 0;
@@ -7337,9 +7337,9 @@ var require_field_all = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_length.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_length.js
 var require_field_length = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_length.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_length.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldLength = void 0;
@@ -7357,9 +7357,9 @@ var require_field_length = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_sub.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_sub.js
 var require_field_sub = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_sub.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_sub.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldSub = void 0;
@@ -7377,9 +7377,9 @@ var require_field_sub = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_assignment.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_assignment.js
 var require_field_assignment = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_assignment.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_assignment.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldAssignment = void 0;
@@ -7396,9 +7396,9 @@ var require_field_assignment = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_offset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_offset.js
 var require_field_offset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_offset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_offset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldOffset = void 0;
@@ -7415,9 +7415,9 @@ var require_field_offset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_symbol.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_symbol.js
 var require_field_symbol = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_symbol.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/field_symbol.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldSymbol = void 0;
@@ -7433,9 +7433,9 @@ var require_field_symbol = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/filter_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/filter_body.js
 var require_filter_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/filter_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/filter_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FilterBody = void 0;
@@ -7452,9 +7452,9 @@ var require_filter_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/final_methods.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/final_methods.js
 var require_final_methods = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/final_methods.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/final_methods.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FinalMethods = void 0;
@@ -7469,9 +7469,9 @@ var require_final_methods = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/find_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/find_type.js
 var require_find_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/find_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/find_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FindType = void 0;
@@ -7486,9 +7486,9 @@ var require_find_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/for.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/for.js
 var require_for = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/for.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/for.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.For = void 0;
@@ -7516,9 +7516,9 @@ var require_for = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_changing.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_changing.js
 var require_form_changing = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_changing.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_changing.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormChanging = void 0;
@@ -7533,9 +7533,9 @@ var require_form_changing = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_name.js
 var require_form_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormName = void 0;
@@ -7550,9 +7550,9 @@ var require_form_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param_name.js
 var require_form_param_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormParamName = void 0;
@@ -7568,9 +7568,9 @@ var require_form_param_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param_type.js
 var require_form_param_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormParamType = void 0;
@@ -7591,9 +7591,9 @@ var require_form_param_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param.js
 var require_form_param = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_param.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormParam = void 0;
@@ -7610,9 +7610,9 @@ var require_form_param = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_raising.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_raising.js
 var require_form_raising = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_raising.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_raising.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormRaising = void 0;
@@ -7630,9 +7630,9 @@ var require_form_raising = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_tables.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_tables.js
 var require_form_tables = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_tables.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_tables.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormTables = void 0;
@@ -7647,9 +7647,9 @@ var require_form_tables = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_using.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_using.js
 var require_form_using = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_using.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/form_using.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormUsing = void 0;
@@ -7664,9 +7664,9 @@ var require_form_using = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/fstarget.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/fstarget.js
 var require_fstarget = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/fstarget.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/fstarget.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FSTarget = void 0;
@@ -7681,9 +7681,9 @@ var require_fstarget = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_name.js
 var require_parameter_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParameterName = void 0;
@@ -7697,9 +7697,9 @@ var require_parameter_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_exporting_parameter.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_exporting_parameter.js
 var require_function_exporting_parameter = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_exporting_parameter.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_exporting_parameter.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FunctionExportingParameter = void 0;
@@ -7719,9 +7719,9 @@ var require_function_exporting_parameter = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_exporting.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_exporting.js
 var require_function_exporting = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_exporting.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_exporting.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FunctionExporting = void 0;
@@ -7737,9 +7737,9 @@ var require_function_exporting = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_name.js
 var require_function_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FunctionName = void 0;
@@ -7754,9 +7754,9 @@ var require_function_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_parameters.js
 var require_function_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/function_parameters.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FunctionParameters = void 0;
@@ -7777,9 +7777,9 @@ var require_function_parameters = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/include_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/include_name.js
 var require_include_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/include_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/include_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IncludeName = void 0;
@@ -7794,9 +7794,9 @@ var require_include_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_field_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_field_definition.js
 var require_inline_field_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_field_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_field_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InlineFieldDefinition = void 0;
@@ -7812,9 +7812,9 @@ var require_inline_field_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_field.js
 var require_inline_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InlineField = void 0;
@@ -7830,9 +7830,9 @@ var require_inline_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_loop_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_loop_definition.js
 var require_inline_loop_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_loop_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inline_loop_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InlineLoopDefinition = void 0;
@@ -7849,9 +7849,9 @@ var require_inline_loop_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inlinedata.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inlinedata.js
 var require_inlinedata = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inlinedata.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inlinedata.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InlineData = void 0;
@@ -7872,9 +7872,9 @@ var require_inlinedata = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inlinefs.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inlinefs.js
 var require_inlinefs = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inlinefs.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/inlinefs.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InlineFS = void 0;
@@ -7894,9 +7894,9 @@ var require_inlinefs = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/interface_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/interface_name.js
 var require_interface_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/interface_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/interface_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InterfaceName = void 0;
@@ -7910,9 +7910,9 @@ var require_interface_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/kernel_id.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/kernel_id.js
 var require_kernel_id = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/kernel_id.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/kernel_id.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.KernelId = void 0;
@@ -7928,9 +7928,9 @@ var require_kernel_id = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/language.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/language.js
 var require_language = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/language.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/language.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Language = void 0;
@@ -7944,9 +7944,9 @@ var require_language = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/length.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/length.js
 var require_length = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/length.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/length.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Length = void 0;
@@ -7962,9 +7962,9 @@ var require_length = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/lob_handle.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/lob_handle.js
 var require_lob_handle = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/lob_handle.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/lob_handle.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -8016,9 +8016,9 @@ var require_lob_handle = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by_component.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by_component.js
 var require_loop_group_by_component = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by_component.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by_component.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoopGroupByComponent = void 0;
@@ -8037,9 +8037,9 @@ var require_loop_group_by_component = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target.js
 var require_target = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Target = void 0;
@@ -8065,9 +8065,9 @@ var require_target = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by_target.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by_target.js
 var require_loop_group_by_target = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by_target.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by_target.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoopGroupByTarget = void 0;
@@ -8085,9 +8085,9 @@ var require_loop_group_by_target = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by.js
 var require_loop_group_by = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_group_by.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoopGroupBy = void 0;
@@ -8107,9 +8107,9 @@ var require_loop_group_by = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_source.js
 var require_loop_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoopSource = void 0;
@@ -8125,9 +8125,9 @@ var require_loop_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_target.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_target.js
 var require_loop_target = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_target.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/loop_target.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoopTarget = void 0;
@@ -8145,9 +8145,9 @@ var require_loop_target = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/macro_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/macro_name.js
 var require_macro_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/macro_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/macro_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MacroName = void 0;
@@ -8163,9 +8163,9 @@ var require_macro_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_class.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_class.js
 var require_message_class = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_class.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_class.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MessageClass = void 0;
@@ -8180,9 +8180,9 @@ var require_message_class = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_number.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_number.js
 var require_message_number = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_number.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_number.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MessageNumber = void 0;
@@ -8196,9 +8196,9 @@ var require_message_number = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_source_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_source_source.js
 var require_message_source_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_source_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_source_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MessageSourceSource = void 0;
@@ -8214,9 +8214,9 @@ var require_message_source_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_source.js
 var require_message_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MessageSource = void 0;
@@ -8235,9 +8235,9 @@ var require_message_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_type_and_number.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_type_and_number.js
 var require_message_type_and_number = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_type_and_number.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/message_type_and_number.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MessageTypeAndNumber = void 0;
@@ -8251,9 +8251,9 @@ var require_message_type_and_number = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_param.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_param.js
 var require_method_call_param = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_param.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_param.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodCallParam = void 0;
@@ -8274,9 +8274,9 @@ var require_method_call_param = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_body.js
 var require_method_call_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodCallBody = void 0;
@@ -8295,9 +8295,9 @@ var require_method_call_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_chain.js
 var require_method_call_chain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call_chain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodCallChain = void 0;
@@ -8320,9 +8320,9 @@ var require_method_call_chain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call.js
 var require_method_call = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_call.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodCall = void 0;
@@ -8339,9 +8339,9 @@ var require_method_call = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_changing.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_changing.js
 var require_method_def_changing = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_changing.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_changing.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodDefChanging = void 0;
@@ -8358,9 +8358,9 @@ var require_method_def_changing = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_exceptions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_exceptions.js
 var require_method_def_exceptions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_exceptions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_exceptions.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodDefExceptions = void 0;
@@ -8376,9 +8376,9 @@ var require_method_def_exceptions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_exporting.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_exporting.js
 var require_method_def_exporting = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_exporting.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_exporting.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodDefExporting = void 0;
@@ -8393,9 +8393,9 @@ var require_method_def_exporting = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_importing.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_importing.js
 var require_method_def_importing = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_importing.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_importing.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodDefImporting = void 0;
@@ -8413,9 +8413,9 @@ var require_method_def_importing = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_raising.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_raising.js
 var require_method_def_raising = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_raising.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_raising.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodDefRaising = void 0;
@@ -8433,9 +8433,9 @@ var require_method_def_raising = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_returning.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_returning.js
 var require_method_def_returning = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_returning.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_def_returning.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -8489,9 +8489,9 @@ var require_method_def_returning = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param_name.js
 var require_method_param_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodParamName = void 0;
@@ -8506,9 +8506,9 @@ var require_method_param_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param_optional.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param_optional.js
 var require_method_param_optional = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param_optional.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param_optional.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodParamOptional = void 0;
@@ -8523,9 +8523,9 @@ var require_method_param_optional = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param.js
 var require_method_param = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_param.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -8581,9 +8581,9 @@ var require_method_param = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_parameters.js
 var require_method_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_parameters.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodParameters = void 0;
@@ -8604,9 +8604,9 @@ var require_method_parameters = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_source.js
 var require_method_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/method_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodSource = void 0;
@@ -8630,9 +8630,9 @@ var require_method_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/modif.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/modif.js
 var require_modif = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/modif.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/modif.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Modif = void 0;
@@ -8646,9 +8646,9 @@ var require_modif = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/namespace_simple_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/namespace_simple_name.js
 var require_namespace_simple_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/namespace_simple_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/namespace_simple_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NamespaceSimpleName = void 0;
@@ -8662,9 +8662,9 @@ var require_namespace_simple_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/new_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/new_object.js
 var require_new_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/new_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/new_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NewObject = void 0;
@@ -8685,9 +8685,9 @@ var require_new_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/ole_exporting.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/ole_exporting.js
 var require_ole_exporting = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/ole_exporting.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/ole_exporting.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.OLEExporting = void 0;
@@ -8703,9 +8703,9 @@ var require_ole_exporting = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/or.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/or.js
 var require_or = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/or.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/or.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Or = void 0;
@@ -8720,9 +8720,9 @@ var require_or = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_exception.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_exception.js
 var require_parameter_exception = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_exception.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_exception.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParameterException = void 0;
@@ -8739,9 +8739,9 @@ var require_parameter_exception = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_exceptions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_exceptions.js
 var require_parameter_list_exceptions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_exceptions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_exceptions.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParameterListExceptions = void 0;
@@ -8756,9 +8756,9 @@ var require_parameter_list_exceptions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_s.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_s.js
 var require_parameter_list_s = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_s.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_s.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParameterListS = void 0;
@@ -8773,9 +8773,9 @@ var require_parameter_list_s = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_t.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_t.js
 var require_parameter_list_t = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_t.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_list_t.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParameterListT = void 0;
@@ -8790,9 +8790,9 @@ var require_parameter_list_t = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_s.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_s.js
 var require_parameter_s = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_s.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_s.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParameterS = void 0;
@@ -8807,9 +8807,9 @@ var require_parameter_s = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_t.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_t.js
 var require_parameter_t = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_t.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/parameter_t.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParameterT = void 0;
@@ -8824,9 +8824,9 @@ var require_parameter_t = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/pass_by_value.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/pass_by_value.js
 var require_pass_by_value = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/pass_by_value.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/pass_by_value.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PassByValue = void 0;
@@ -8843,9 +8843,9 @@ var require_pass_by_value = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_changing.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_changing.js
 var require_perform_changing = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_changing.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_changing.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PerformChanging = void 0;
@@ -8861,9 +8861,9 @@ var require_perform_changing = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_tables.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_tables.js
 var require_perform_tables = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_tables.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_tables.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PerformTables = void 0;
@@ -8879,9 +8879,9 @@ var require_perform_tables = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_using.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_using.js
 var require_perform_using = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_using.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/perform_using.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PerformUsing = void 0;
@@ -8897,9 +8897,9 @@ var require_perform_using = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/provide_field_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/provide_field_name.js
 var require_provide_field_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/provide_field_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/provide_field_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ProvideFieldName = void 0;
@@ -8914,9 +8914,9 @@ var require_provide_field_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/radio_group_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/radio_group_name.js
 var require_radio_group_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/radio_group_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/radio_group_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RadioGroupName = void 0;
@@ -8930,9 +8930,9 @@ var require_radio_group_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/raise_with.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/raise_with.js
 var require_raise_with = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/raise_with.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/raise_with.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RaiseWith = void 0;
@@ -8949,9 +8949,9 @@ var require_raise_with = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/read_table_target.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/read_table_target.js
 var require_read_table_target = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/read_table_target.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/read_table_target.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReadTableTarget = void 0;
@@ -8968,9 +8968,9 @@ var require_read_table_target = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/receive_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/receive_parameters.js
 var require_receive_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/receive_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/receive_parameters.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReceiveParameters = void 0;
@@ -8990,9 +8990,9 @@ var require_receive_parameters = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/redefinition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/redefinition.js
 var require_redefinition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/redefinition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/redefinition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Redefinition = void 0;
@@ -9006,9 +9006,9 @@ var require_redefinition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/reduce_next.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/reduce_next.js
 var require_reduce_next = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/reduce_next.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/reduce_next.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReduceNext = void 0;
@@ -9027,9 +9027,9 @@ var require_reduce_next = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/reduce_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/reduce_body.js
 var require_reduce_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/reduce_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/reduce_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReduceBody = void 0;
@@ -9046,9 +9046,9 @@ var require_reduce_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/report_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/report_name.js
 var require_report_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/report_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/report_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReportName = void 0;
@@ -9063,9 +9063,9 @@ var require_report_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cds_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cds_parameters.js
 var require_sql_cds_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cds_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cds_parameters.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCDSParameters = void 0;
@@ -9083,9 +9083,9 @@ var require_sql_cds_parameters = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cond.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cond.js
 var require_sql_cond = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cond.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cond.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCond = void 0;
@@ -9105,9 +9105,9 @@ var require_sql_cond = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_cardinality.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_cardinality.js
 var require_sql_path_cardinality = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_cardinality.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_cardinality.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLPathCardinality = void 0;
@@ -9124,9 +9124,9 @@ var require_sql_path_cardinality = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_join_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_join_type.js
 var require_sql_path_join_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_join_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_join_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLPathJoinType = void 0;
@@ -9143,9 +9143,9 @@ var require_sql_path_join_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_segment.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_segment.js
 var require_sql_path_segment = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_segment.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_segment.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLPathSegment = void 0;
@@ -9173,9 +9173,9 @@ var require_sql_path_segment = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_for_column.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_for_column.js
 var require_sql_path_for_column = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_for_column.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_for_column.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLPathForColumn = void 0;
@@ -9196,9 +9196,9 @@ var require_sql_path_for_column = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list_loop_greedy.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list_loop_greedy.js
 var require_sql_field_list_loop_greedy = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list_loop_greedy.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list_loop_greedy.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFieldListLoopGreedy = void 0;
@@ -9221,9 +9221,9 @@ var require_sql_field_list_loop_greedy = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_fields_loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_fields_loop.js
 var require_sql_fields_loop = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_fields_loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_fields_loop.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFieldsLoop = void 0;
@@ -9238,9 +9238,9 @@ var require_sql_fields_loop = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source.js
 var require_sql_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLSource = void 0;
@@ -9259,9 +9259,9 @@ var require_sql_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_up_to.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_up_to.js
 var require_sql_up_to = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_up_to.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_up_to.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLUpTo = void 0;
@@ -9277,9 +9277,9 @@ var require_sql_up_to = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_name.js
 var require_sql_field_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFieldName = void 0;
@@ -9293,9 +9293,9 @@ var require_sql_field_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_alias_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_alias_field.js
 var require_sql_alias_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_alias_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_alias_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLAliasField = void 0;
@@ -9312,9 +9312,9 @@ var require_sql_alias_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_order_by.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_order_by.js
 var require_sql_order_by = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_order_by.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_order_by.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLOrderBy = void 0;
@@ -9337,9 +9337,9 @@ var require_sql_order_by = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_over.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_over.js
 var require_sql_over = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_over.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_over.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLOver = void 0;
@@ -9367,9 +9367,9 @@ var require_sql_over = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_aggregation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_aggregation.js
 var require_sql_aggregation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_aggregation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_aggregation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLAggregation = void 0;
@@ -9406,9 +9406,9 @@ var require_sql_aggregation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_case.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_case.js
 var require_sql_case = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_case.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_case.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCase = void 0;
@@ -9437,9 +9437,9 @@ var require_sql_case = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_function_input.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_function_input.js
 var require_sql_function_input = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_function_input.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_function_input.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFunctionInput = void 0;
@@ -9468,9 +9468,9 @@ var require_sql_function_input = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_pattern.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_pattern.js
 var require_sql_regexpr_pattern = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_pattern.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_pattern.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLRegexprPattern = void 0;
@@ -9491,9 +9491,9 @@ var require_sql_regexpr_pattern = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_from.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_from.js
 var require_sql_regexpr_from = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_from.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_from.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLRegexprFrom = void 0;
@@ -9513,9 +9513,9 @@ var require_sql_regexpr_from = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_occurrence.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_occurrence.js
 var require_sql_regexpr_occurrence = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_occurrence.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_occurrence.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLRegexprOccurrence = void 0;
@@ -9535,9 +9535,9 @@ var require_sql_regexpr_occurrence = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_replace_regexpr.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_replace_regexpr.js
 var require_sql_replace_regexpr = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_replace_regexpr.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_replace_regexpr.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLReplaceRegexpr = void 0;
@@ -9562,9 +9562,9 @@ var require_sql_replace_regexpr = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_occurrences_regexpr.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_occurrences_regexpr.js
 var require_sql_occurrences_regexpr = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_occurrences_regexpr.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_occurrences_regexpr.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLOccurrencesRegexpr = void 0;
@@ -9582,9 +9582,9 @@ var require_sql_occurrences_regexpr = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_group.js
 var require_sql_regexpr_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_regexpr_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLRegexprGroup = void 0;
@@ -9604,9 +9604,9 @@ var require_sql_regexpr_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_substring_regexpr.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_substring_regexpr.js
 var require_sql_substring_regexpr = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_substring_regexpr.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_substring_regexpr.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLSubstringRegexpr = void 0;
@@ -9627,9 +9627,9 @@ var require_sql_substring_regexpr = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_locate_regexpr.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_locate_regexpr.js
 var require_sql_locate_regexpr = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_locate_regexpr.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_locate_regexpr.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLLocateRegexpr = void 0;
@@ -9650,9 +9650,9 @@ var require_sql_locate_regexpr = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_function.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_function.js
 var require_sql_function = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_function.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_function.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFunction = exports.sqlSpatialAggregateDefs = exports.sqlSpatialFunctionDefs = exports.sqlNamedFunctionDefs = exports.sqlFunctionDefs = void 0;
@@ -10033,9 +10033,9 @@ var require_sql_function = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field.js
 var require_sql_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLField = void 0;
@@ -10072,9 +10072,9 @@ var require_sql_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_grouping_sets.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_grouping_sets.js
 var require_sql_grouping_sets = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_grouping_sets.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_grouping_sets.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLGroupingSets = void 0;
@@ -10092,9 +10092,9 @@ var require_sql_grouping_sets = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_group_by.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_group_by.js
 var require_sql_group_by = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_group_by.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_group_by.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLGroupBy = void 0;
@@ -10119,9 +10119,9 @@ var require_sql_group_by = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_structure.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_structure.js
 var require_sql_into_structure = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_structure.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_structure.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLIntoStructure = void 0;
@@ -10139,9 +10139,9 @@ var require_sql_into_structure = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_offset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_offset.js
 var require_sql_offset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_offset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_offset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLOffset = void 0;
@@ -10156,9 +10156,9 @@ var require_sql_offset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_select_core.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_select_core.js
 var require_select_core = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_select_core.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_select_core.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.buildSelectSingleCore = buildSelectSingleCore;
@@ -10225,9 +10225,9 @@ var require_select_core = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_set_op_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_set_op_group.js
 var require_sql_set_op_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_set_op_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_set_op_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLSetOpGroup = void 0;
@@ -10246,9 +10246,9 @@ var require_sql_set_op_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/select_cte.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/select_cte.js
 var require_select_cte = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/select_cte.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/select_cte.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SelectCTE = void 0;
@@ -10287,9 +10287,9 @@ var require_select_cte = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_as_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_as_name.js
 var require_sql_as_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_as_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_as_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLAsName = void 0;
@@ -10305,9 +10305,9 @@ var require_sql_as_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_path_prefix.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_path_prefix.js
 var require_sql_cte_path_prefix = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_path_prefix.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_path_prefix.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCTEPathPrefix = void 0;
@@ -10323,9 +10323,9 @@ var require_sql_cte_path_prefix = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_for_entity.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_for_entity.js
 var require_sql_path_for_entity = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_for_entity.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_path_for_entity.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLPathForEntity = void 0;
@@ -10344,9 +10344,9 @@ var require_sql_path_for_entity = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/with_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/with_name.js
 var require_with_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/with_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/with_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WithName = void 0;
@@ -10363,9 +10363,9 @@ var require_with_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_defining_new_association.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_defining_new_association.js
 var require_sql_defining_new_association = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_defining_new_association.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_defining_new_association.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLDefiningNewAssociation = void 0;
@@ -10387,9 +10387,9 @@ var require_sql_defining_new_association = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_association_entry.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_association_entry.js
 var require_sql_association_entry = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_association_entry.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_association_entry.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLAssociationEntry = void 0;
@@ -10412,9 +10412,9 @@ var require_sql_association_entry = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_associations_list.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_associations_list.js
 var require_sql_associations_list = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_associations_list.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_associations_list.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLAssociationsList = void 0;
@@ -10431,9 +10431,9 @@ var require_sql_associations_list = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_associations.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_associations.js
 var require_sql_cte_associations = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_associations.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_associations.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCTEAssociations = void 0;
@@ -10450,9 +10450,9 @@ var require_sql_cte_associations = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_hierarchy.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_hierarchy.js
 var require_sql_cte_hierarchy = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_hierarchy.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_cte_hierarchy.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCTEHierarchy = void 0;
@@ -10469,9 +10469,9 @@ var require_sql_cte_hierarchy = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_source.js
 var require_sql_hierarchy_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLHierarchySource = void 0;
@@ -10509,9 +10509,9 @@ var require_sql_hierarchy_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_accessor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_accessor.js
 var require_sql_hierarchy_accessor = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_accessor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_accessor.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLHierarchyAccessor = void 0;
@@ -10533,9 +10533,9 @@ var require_sql_hierarchy_accessor = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_aggregate.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_aggregate.js
 var require_sql_hierarchy_aggregate = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_aggregate.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hierarchy_aggregate.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLHierarchyAggregate = void 0;
@@ -10560,9 +10560,9 @@ var require_sql_hierarchy_aggregate = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/select.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/select.js
 var require_select = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/select.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/select.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Select = void 0;
@@ -10584,9 +10584,9 @@ var require_select = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_field_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_field_chain.js
 var require_simple_field_chain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_field_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_field_chain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SimpleFieldChain = void 0;
@@ -10607,9 +10607,9 @@ var require_simple_field_chain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_field_chain2.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_field_chain2.js
 var require_simple_field_chain2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_field_chain2.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_field_chain2.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SimpleFieldChain2 = void 0;
@@ -10632,9 +10632,9 @@ var require_simple_field_chain2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_name.js
 var require_simple_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SimpleName = void 0;
@@ -10648,9 +10648,9 @@ var require_simple_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source1.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source1.js
 var require_simple_source1 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source1.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source1.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SimpleSource1 = void 0;
@@ -10667,9 +10667,9 @@ var require_simple_source1 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source2.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source2.js
 var require_simple_source2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source2.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source2.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SimpleSource2 = void 0;
@@ -10686,9 +10686,9 @@ var require_simple_source2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source4.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source4.js
 var require_simple_source4 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source4.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_source4.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SimpleSource4 = void 0;
@@ -10704,9 +10704,9 @@ var require_simple_source4 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_target.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_target.js
 var require_simple_target = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_target.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/simple_target.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SimpleTarget = void 0;
@@ -10732,9 +10732,9 @@ var require_simple_target = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field_symbol_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field_symbol_chain.js
 var require_source_field_symbol_chain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field_symbol_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field_symbol_chain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SourceFieldSymbolChain = void 0;
@@ -10750,9 +10750,9 @@ var require_source_field_symbol_chain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field_symbol.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field_symbol.js
 var require_source_field_symbol = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field_symbol.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field_symbol.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SourceFieldSymbol = void 0;
@@ -10767,9 +10767,9 @@ var require_source_field_symbol = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field.js
 var require_source_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/source_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SourceField = void 0;
@@ -10784,9 +10784,9 @@ var require_source_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_arithmetic_operator.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_arithmetic_operator.js
 var require_sql_arithmetic_operator = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_arithmetic_operator.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_arithmetic_operator.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLArithmeticOperator = void 0;
@@ -10802,9 +10802,9 @@ var require_sql_arithmetic_operator = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_arithmetics.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_arithmetics.js
 var require_sql_arithmetics = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_arithmetics.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_arithmetics.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLArithmetics = void 0;
@@ -10821,9 +10821,9 @@ var require_sql_arithmetics = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_bypassing_buffer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_bypassing_buffer.js
 var require_sql_bypassing_buffer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_bypassing_buffer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_bypassing_buffer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLBypassingBuffer = void 0;
@@ -10837,9 +10837,9 @@ var require_sql_bypassing_buffer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source_simple.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source_simple.js
 var require_sql_source_simple = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source_simple.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source_simple.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLSourceSimple = void 0;
@@ -10858,9 +10858,9 @@ var require_sql_source_simple = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_client.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_client.js
 var require_sql_client = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_client.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_client.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLClient = void 0;
@@ -10880,9 +10880,9 @@ var require_sql_client = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_compare_operator.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_compare_operator.js
 var require_sql_compare_operator = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_compare_operator.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_compare_operator.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCompareOperator = void 0;
@@ -10897,9 +10897,9 @@ var require_sql_compare_operator = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_like_regexpr.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_like_regexpr.js
 var require_sql_like_regexpr = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_like_regexpr.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_like_regexpr.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLLikeRegexpr = void 0;
@@ -10921,9 +10921,9 @@ var require_sql_like_regexpr = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_compare.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_compare.js
 var require_sql_compare = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_compare.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_compare.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCompare = void 0;
@@ -10958,9 +10958,9 @@ var require_sql_compare = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_and_value.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_and_value.js
 var require_sql_field_and_value = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_and_value.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_and_value.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFieldAndValue = void 0;
@@ -10981,9 +10981,9 @@ var require_sql_field_and_value = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list_loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list_loop.js
 var require_sql_field_list_loop = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list_loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list_loop.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFieldListLoop = void 0;
@@ -11007,9 +11007,9 @@ var require_sql_field_list_loop = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list.js
 var require_sql_field_list = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_field_list.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFieldList = void 0;
@@ -11030,9 +11030,9 @@ var require_sql_field_list = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_fields.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_fields.js
 var require_sql_fields = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_fields.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_fields.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFields = void 0;
@@ -11047,9 +11047,9 @@ var require_sql_fields = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_for_all_entries.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_for_all_entries.js
 var require_sql_for_all_entries = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_for_all_entries.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_for_all_entries.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLForAllEntries = void 0;
@@ -11065,9 +11065,9 @@ var require_sql_for_all_entries = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_extended_result.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_extended_result.js
 var require_sql_extended_result = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_extended_result.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_extended_result.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLExtendedResult = void 0;
@@ -11082,9 +11082,9 @@ var require_sql_extended_result = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_columns.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_columns.js
 var require_sql_creating_columns = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_columns.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_columns.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCreatingColumns = void 0;
@@ -11100,9 +11100,9 @@ var require_sql_creating_columns = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_for_scope.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_for_scope.js
 var require_sql_creating_for_scope = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_for_scope.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_for_scope.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCreatingForScope = void 0;
@@ -11120,9 +11120,9 @@ var require_sql_creating_for_scope = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_type_spec.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_type_spec.js
 var require_sql_creating_type_spec = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_type_spec.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating_type_spec.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCreatingTypeSpec = void 0;
@@ -11138,9 +11138,9 @@ var require_sql_creating_type_spec = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating.js
 var require_sql_creating = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_creating.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLCreating = void 0;
@@ -11157,9 +11157,9 @@ var require_sql_creating = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_provided_by.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_provided_by.js
 var require_sql_provided_by = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_provided_by.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_provided_by.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLProvidedBy = void 0;
@@ -11174,9 +11174,9 @@ var require_sql_provided_by = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_expose_client_as.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_expose_client_as.js
 var require_sql_expose_client_as = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_expose_client_as.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_expose_client_as.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLExposeClientAs = void 0;
@@ -11190,9 +11190,9 @@ var require_sql_expose_client_as = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_typed_literal.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_typed_literal.js
 var require_sql_typed_literal = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_typed_literal.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_typed_literal.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLTypedLiteral = void 0;
@@ -11240,9 +11240,9 @@ var require_sql_typed_literal = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from_source.js
 var require_sql_from_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFromSource = void 0;
@@ -11270,9 +11270,9 @@ var require_sql_from_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from_body.js
 var require_sql_from_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFromBody = void 0;
@@ -11292,9 +11292,9 @@ var require_sql_from_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from.js
 var require_sql_from = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_from.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLFrom = void 0;
@@ -11309,9 +11309,9 @@ var require_sql_from = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_indicators.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_indicators.js
 var require_sql_indicators = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_indicators.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_indicators.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLIndicators = void 0;
@@ -11332,9 +11332,9 @@ var require_sql_indicators = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_having.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_having.js
 var require_sql_having = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_having.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_having.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLHaving = void 0;
@@ -11349,9 +11349,9 @@ var require_sql_having = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hints.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hints.js
 var require_sql_hints = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hints.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_hints.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLHints = void 0;
@@ -11368,9 +11368,9 @@ var require_sql_hints = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_in.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_in.js
 var require_sql_in = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_in.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_in.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLIn = void 0;
@@ -11397,9 +11397,9 @@ var require_sql_in = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_list.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_list.js
 var require_sql_into_list = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_list.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_list.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLIntoList = void 0;
@@ -11418,9 +11418,9 @@ var require_sql_into_list = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_table.js
 var require_sql_into_table = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_into_table.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLIntoTable = void 0;
@@ -11438,9 +11438,9 @@ var require_sql_into_table = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_join_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_join_source.js
 var require_sql_join_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_join_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_join_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLJoinSource = void 0;
@@ -11458,9 +11458,9 @@ var require_sql_join_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_join.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_join.js
 var require_sql_join = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_join.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_join.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLJoin = void 0;
@@ -11481,9 +11481,9 @@ var require_sql_join = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_options.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_options.js
 var require_sql_options = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_options.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_options.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLOptions = void 0;
@@ -11504,9 +11504,9 @@ var require_sql_options = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_dml_options.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_dml_options.js
 var require_sql_dml_options = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_dml_options.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_dml_options.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLDmlOptions = void 0;
@@ -11526,9 +11526,9 @@ var require_sql_dml_options = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_mapping_from_entity.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_mapping_from_entity.js
 var require_sql_mapping_from_entity = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_mapping_from_entity.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_mapping_from_entity.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLMappingFromEntity = void 0;
@@ -11543,9 +11543,9 @@ var require_sql_mapping_from_entity = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_package_size.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_package_size.js
 var require_sql_package_size = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_package_size.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_package_size.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLPackageSize = void 0;
@@ -11560,9 +11560,9 @@ var require_sql_package_size = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_privileged_access.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_privileged_access.js
 var require_sql_privileged_access = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_privileged_access.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_privileged_access.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLPrivilegedAccess = void 0;
@@ -11579,9 +11579,9 @@ var require_sql_privileged_access = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_set_op.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_set_op.js
 var require_sql_set_op = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_set_op.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_set_op.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLSetOp = void 0;
@@ -11602,9 +11602,9 @@ var require_sql_set_op = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source_no_space.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source_no_space.js
 var require_sql_source_no_space = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source_no_space.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_source_no_space.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLSourceNoSpace = void 0;
@@ -11623,9 +11623,9 @@ var require_sql_source_no_space = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_target.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_target.js
 var require_sql_target = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_target.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/sql_target.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLTarget = void 0;
@@ -11644,9 +11644,9 @@ var require_sql_target = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template_formatting.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template_formatting.js
 var require_string_template_formatting = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template_formatting.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template_formatting.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StringTemplateFormatting = void 0;
@@ -11684,9 +11684,9 @@ var require_string_template_formatting = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template_source.js
 var require_string_template_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StringTemplateSource = void 0;
@@ -11702,9 +11702,9 @@ var require_string_template_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template.js
 var require_string_template2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/string_template.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -11759,9 +11759,9 @@ var require_string_template2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/super_class_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/super_class_name.js
 var require_super_class_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/super_class_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/super_class_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SuperClassName = void 0;
@@ -11776,9 +11776,9 @@ var require_super_class_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/switch_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/switch_body.js
 var require_switch_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/switch_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/switch_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SwitchBody = void 0;
@@ -11795,9 +11795,9 @@ var require_switch_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/table_expression.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/table_expression.js
 var require_table_expression = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/table_expression.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/table_expression.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TableExpression = void 0;
@@ -11818,9 +11818,9 @@ var require_table_expression = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target_field_symbol.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target_field_symbol.js
 var require_target_field_symbol = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target_field_symbol.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target_field_symbol.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TargetFieldSymbol = void 0;
@@ -11835,9 +11835,9 @@ var require_target_field_symbol = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target_field.js
 var require_target_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/target_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TargetField = void 0;
@@ -11852,9 +11852,9 @@ var require_target_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/test_seam_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/test_seam_name.js
 var require_test_seam_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/test_seam_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/test_seam_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TestSeamName = void 0;
@@ -11870,9 +11870,9 @@ var require_test_seam_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element_key.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element_key.js
 var require_text_element_key = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element_key.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element_key.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TextElementKey = void 0;
@@ -11886,9 +11886,9 @@ var require_text_element_key = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element_string.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element_string.js
 var require_text_element_string = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element_string.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/text_element_string.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TextElementString = void 0;
@@ -11906,9 +11906,9 @@ var require_text_element_string = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/throw.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/throw.js
 var require_throw = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/throw.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/throw.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Throw = void 0;
@@ -11925,9 +11925,9 @@ var require_throw = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/transporting_fields.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/transporting_fields.js
 var require_transporting_fields = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/transporting_fields.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/transporting_fields.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TransportingFields = void 0;
@@ -11944,9 +11944,9 @@ var require_transporting_fields = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_name_or_infer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_name_or_infer.js
 var require_type_name_or_infer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_name_or_infer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_name_or_infer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeNameOrInfer = void 0;
@@ -11961,9 +11961,9 @@ var require_type_name_or_infer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_name.js
 var require_type_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeName = void 0;
@@ -11981,9 +11981,9 @@ var require_type_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_param.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_param.js
 var require_type_param = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_param.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_param.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeParam = void 0;
@@ -12003,9 +12003,9 @@ var require_type_param = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_derived_types.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_derived_types.js
 var require_derived_types = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_derived_types.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/_derived_types.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.commonDerivedTypes = commonDerivedTypes;
@@ -12060,9 +12060,9 @@ var require_derived_types = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_structure.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_structure.js
 var require_type_structure = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_structure.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_structure.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeStructure = void 0;
@@ -12084,9 +12084,9 @@ var require_type_structure = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_table_key.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_table_key.js
 var require_type_table_key = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_table_key.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_table_key.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeTableKey = void 0;
@@ -12109,9 +12109,9 @@ var require_type_table_key = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_table.js
 var require_type_table = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_table.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeTable = void 0;
@@ -12146,9 +12146,9 @@ var require_type_table = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_simple_ref.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_simple_ref.js
 var require_type_simple_ref = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_simple_ref.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type_simple_ref.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeSimpleRef = void 0;
@@ -12164,9 +12164,9 @@ var require_type_simple_ref = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type.js
 var require_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Type = void 0;
@@ -12188,9 +12188,9 @@ var require_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_base.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_base.js
 var require_value_base = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_base.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_base.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ValueBase = void 0;
@@ -12205,9 +12205,9 @@ var require_value_base = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body_lines.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body_lines.js
 var require_value_body_lines = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body_lines.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body_lines.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ValueBodyLines = void 0;
@@ -12224,9 +12224,9 @@ var require_value_body_lines = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body_line.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body_line.js
 var require_value_body_line = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body_line.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body_line.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ValueBodyLine = void 0;
@@ -12244,9 +12244,9 @@ var require_value_body_line = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body.js
 var require_value_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value_body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ValueBody = void 0;
@@ -12264,9 +12264,9 @@ var require_value_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value.js
 var require_value = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/value.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Value = void 0;
@@ -12282,9 +12282,9 @@ var require_value = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/write_offset_length.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/write_offset_length.js
 var require_write_offset_length = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/write_offset_length.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/write_offset_length.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WriteOffsetLength = void 0;
@@ -12305,9 +12305,9 @@ var require_write_offset_length = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/index.js
 var require_expressions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expressions/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -12603,9 +12603,9 @@ var require_expressions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data.js
 var require_data = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Data = void 0;
@@ -12620,9 +12620,9 @@ var require_data = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/report.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/report.js
 var require_report = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/report.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/report.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Report = void 0;
@@ -12646,9 +12646,9 @@ var require_report = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/write.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/write.js
 var require_write = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/write.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/write.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Write = void 0;
@@ -12671,9 +12671,9 @@ var require_write = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endmethod.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endmethod.js
 var require_endmethod = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endmethod.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endmethod.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndMethod = void 0;
@@ -12687,9 +12687,9 @@ var require_endmethod = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/method_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/method_implementation.js
 var require_method_implementation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/method_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/method_implementation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodImplementation = void 0;
@@ -12710,9 +12710,9 @@ var require_method_implementation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endform.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endform.js
 var require_endform = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endform.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endform.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndForm = void 0;
@@ -12727,9 +12727,9 @@ var require_endform = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/form.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/form.js
 var require_form = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/form.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/form.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Form = void 0;
@@ -12747,9 +12747,9 @@ var require_form = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import_nametab.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import_nametab.js
 var require_import_nametab = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import_nametab.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import_nametab.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ImportNametab = void 0;
@@ -12766,9 +12766,9 @@ var require_import_nametab = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/check_select_options.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/check_select_options.js
 var require_check_select_options = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/check_select_options.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/check_select_options.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CheckSelectOptions = void 0;
@@ -12784,9 +12784,9 @@ var require_check_select_options = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_badi.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_badi.js
 var require_call_badi = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_badi.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_badi.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallBadi = void 0;
@@ -12803,9 +12803,9 @@ var require_call_badi = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data.js
 var require_class_data = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassData = void 0;
@@ -12820,9 +12820,9 @@ var require_class_data = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data_begin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data_begin.js
 var require_class_data_begin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data_begin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data_begin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassDataBegin = void 0;
@@ -12839,9 +12839,9 @@ var require_class_data_begin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data_end.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data_end.js
 var require_class_data_end = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data_end.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_data_end.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassDataEnd = void 0;
@@ -12858,9 +12858,9 @@ var require_class_data_end = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/select_loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/select_loop.js
 var require_select_loop = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/select_loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/select_loop.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SelectLoop = void 0;
@@ -12874,9 +12874,9 @@ var require_select_loop = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/do.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/do.js
 var require_do = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/do.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/do.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Do = void 0;
@@ -12894,9 +12894,9 @@ var require_do = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/break_id.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/break_id.js
 var require_break_id = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/break_id.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/break_id.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BreakId = void 0;
@@ -12914,9 +12914,9 @@ var require_break_id = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_deferred.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_deferred.js
 var require_interface_deferred = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_deferred.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_deferred.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InterfaceDeferred = void 0;
@@ -12932,9 +12932,9 @@ var require_interface_deferred = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/while.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/while.js
 var require_while = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/while.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/while.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.While = void 0;
@@ -12950,9 +12950,9 @@ var require_while = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop_at_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop_at_screen.js
 var require_loop_at_screen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop_at_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop_at_screen.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoopAtScreen = void 0;
@@ -12969,9 +12969,9 @@ var require_loop_at_screen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop.js
 var require_loop = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Loop = void 0;
@@ -12996,9 +12996,9 @@ var require_loop = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/check.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/check.js
 var require_check = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/check.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/check.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Check = void 0;
@@ -13014,9 +13014,9 @@ var require_check = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endprovide.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endprovide.js
 var require_endprovide = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endprovide.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endprovide.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndProvide = void 0;
@@ -13032,9 +13032,9 @@ var require_endprovide = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/if.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/if.js
 var require_if = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/if.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/if.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.If = void 0;
@@ -13049,9 +13049,9 @@ var require_if = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/convert_text.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/convert_text.js
 var require_convert_text = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/convert_text.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/convert_text.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConvertText = void 0;
@@ -13066,9 +13066,9 @@ var require_convert_text = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/log_point.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/log_point.js
 var require_log_point = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/log_point.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/log_point.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LogPoint = void 0;
@@ -13087,9 +13087,9 @@ var require_log_point = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/window.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/window.js
 var require_window = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/window.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/window.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Window = void 0;
@@ -13107,9 +13107,9 @@ var require_window = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endif.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endif.js
 var require_endif = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endif.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endif.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndIf = void 0;
@@ -13123,9 +13123,9 @@ var require_endif = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum.js
 var require_type_enum = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeEnum = void 0;
@@ -13142,9 +13142,9 @@ var require_type_enum = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum_begin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum_begin.js
 var require_type_enum_begin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum_begin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum_begin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeEnumBegin = void 0;
@@ -13164,9 +13164,9 @@ var require_type_enum_begin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum_end.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum_end.js
 var require_type_enum_end = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum_end.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_enum_end.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeEnumEnd = void 0;
@@ -13184,9 +13184,9 @@ var require_type_enum_end = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_run_time.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_run_time.js
 var require_set_run_time = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_run_time.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_run_time.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetRunTime = void 0;
@@ -13204,9 +13204,9 @@ var require_set_run_time = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/field_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/field_group.js
 var require_field_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/field_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/field_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldGroup = void 0;
@@ -13223,9 +13223,9 @@ var require_field_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/print_control.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/print_control.js
 var require_print_control = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/print_control.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/print_control.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PrintControl = void 0;
@@ -13250,9 +13250,9 @@ var require_print_control = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/extract.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/extract.js
 var require_extract = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/extract.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/extract.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Extract = void 0;
@@ -13269,9 +13269,9 @@ var require_extract = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sum.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sum.js
 var require_sum = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sum.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sum.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Sum = void 0;
@@ -13286,9 +13286,9 @@ var require_sum = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_of_page.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_of_page.js
 var require_end_of_page = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_of_page.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_of_page.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndOfPage = void 0;
@@ -13303,9 +13303,9 @@ var require_end_of_page = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_report.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_report.js
 var require_generate_report = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_report.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_report.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GenerateReport = void 0;
@@ -13335,9 +13335,9 @@ var require_generate_report = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/elseif.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/elseif.js
 var require_elseif = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/elseif.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/elseif.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ElseIf = void 0;
@@ -13352,9 +13352,9 @@ var require_elseif = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/else.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/else.js
 var require_else = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/else.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/else.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Else = void 0;
@@ -13368,9 +13368,9 @@ var require_else = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/perform.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/perform.js
 var require_perform = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/perform.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/perform.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -13434,9 +13434,9 @@ var require_perform = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/append.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/append.js
 var require_append = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/append.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/append.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Append = void 0;
@@ -13459,9 +13459,9 @@ var require_append = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/clear.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/clear.js
 var require_clear = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/clear.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/clear.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Clear = void 0;
@@ -13478,9 +13478,9 @@ var require_clear = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/concatenate.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/concatenate.js
 var require_concatenate = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/concatenate.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/concatenate.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Concatenate = void 0;
@@ -13501,9 +13501,9 @@ var require_concatenate = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enddo.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enddo.js
 var require_enddo = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enddo.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enddo.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndDo = void 0;
@@ -13517,9 +13517,9 @@ var require_enddo = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endclass.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endclass.js
 var require_endclass = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endclass.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endclass.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndClass = void 0;
@@ -13533,9 +13533,9 @@ var require_endclass = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/try.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/try.js
 var require_try = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/try.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/try.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Try = void 0;
@@ -13549,9 +13549,9 @@ var require_try = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endtry.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endtry.js
 var require_endtry = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endtry.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endtry.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndTry = void 0;
@@ -13565,9 +13565,9 @@ var require_endtry = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assert.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assert.js
 var require_assert = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assert.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assert.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Assert = void 0;
@@ -13586,9 +13586,9 @@ var require_assert = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/return.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/return.js
 var require_return = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/return.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/return.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Return = void 0;
@@ -13604,9 +13604,9 @@ var require_return = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endwhile.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endwhile.js
 var require_endwhile = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endwhile.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endwhile.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndWhile = void 0;
@@ -13620,9 +13620,9 @@ var require_endwhile = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant.js
 var require_constant2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Constant = void 0;
@@ -13639,9 +13639,9 @@ var require_constant2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/catch.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/catch.js
 var require_catch = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/catch.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/catch.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Catch = void 0;
@@ -13656,9 +13656,9 @@ var require_catch = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/infotypes.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/infotypes.js
 var require_infotypes = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/infotypes.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/infotypes.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Infotypes = void 0;
@@ -13679,9 +13679,9 @@ var require_infotypes = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/message.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/message.js
 var require_message = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/message.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/message.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Message = void 0;
@@ -13711,9 +13711,9 @@ var require_message = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_table.js
 var require_read_table = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_table.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReadTable = void 0;
@@ -13739,9 +13739,9 @@ var require_read_table = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endloop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endloop.js
 var require_endloop = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endloop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endloop.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndLoop = void 0;
@@ -13755,9 +13755,9 @@ var require_endloop = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/case.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/case.js
 var require_case = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/case.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/case.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Case = void 0;
@@ -13772,9 +13772,9 @@ var require_case = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_object.js
 var require_create_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CreateObject = void 0;
@@ -13797,9 +13797,9 @@ var require_create_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/select.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/select.js
 var require_select2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/select.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/select.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Select = void 0;
@@ -13813,9 +13813,9 @@ var require_select2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call.js
 var require_call = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Call = void 0;
@@ -13832,9 +13832,9 @@ var require_call = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_local_friends.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_local_friends.js
 var require_class_local_friends = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_local_friends.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_local_friends.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassLocalFriends = void 0;
@@ -13849,9 +13849,9 @@ var require_class_local_friends = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_deferred.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_deferred.js
 var require_class_deferred = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_deferred.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_deferred.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassDeferred = void 0;
@@ -13867,9 +13867,9 @@ var require_class_deferred = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fieldsymbol.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fieldsymbol.js
 var require_fieldsymbol = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fieldsymbol.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fieldsymbol.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldSymbol = void 0;
@@ -13887,9 +13887,9 @@ var require_fieldsymbol = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_definition.js
 var require_class_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassDefinition = void 0;
@@ -13912,9 +13912,9 @@ var require_class_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_implementation.js
 var require_class_implementation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_implementation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassImplementation = void 0;
@@ -13929,9 +13929,9 @@ var require_class_implementation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/translate.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/translate.js
 var require_translate = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/translate.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/translate.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Translate = void 0;
@@ -13948,9 +13948,9 @@ var require_translate = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/exit.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/exit.js
 var require_exit = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/exit.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/exit.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Exit = void 0;
@@ -13964,9 +13964,9 @@ var require_exit = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endcase.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endcase.js
 var require_endcase = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endcase.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endcase.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndCase = void 0;
@@ -13980,9 +13980,9 @@ var require_endcase = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant_begin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant_begin.js
 var require_constant_begin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant_begin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant_begin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConstantBegin = void 0;
@@ -13998,9 +13998,9 @@ var require_constant_begin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant_end.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant_end.js
 var require_constant_end = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant_end.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/constant_end.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConstantEnd = void 0;
@@ -14016,9 +14016,9 @@ var require_constant_end = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when_others.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when_others.js
 var require_when_others = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when_others.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when_others.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WhenOthers = void 0;
@@ -14032,9 +14032,9 @@ var require_when_others = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when.js
 var require_when = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.When = void 0;
@@ -14050,9 +14050,9 @@ var require_when = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/continue.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/continue.js
 var require_continue = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/continue.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/continue.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Continue = void 0;
@@ -14066,9 +14066,9 @@ var require_continue = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assign.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assign.js
 var require_assign = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assign.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assign.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Assign = void 0;
@@ -14104,9 +14104,9 @@ var require_assign = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_badi.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_badi.js
 var require_get_badi = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_badi.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_badi.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetBadi = void 0;
@@ -14126,9 +14126,9 @@ var require_get_badi = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/suppress_dialog.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/suppress_dialog.js
 var require_suppress_dialog = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/suppress_dialog.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/suppress_dialog.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SuppressDialog = void 0;
@@ -14144,9 +14144,9 @@ var require_suppress_dialog = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type.js
 var require_type2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -14206,9 +14206,9 @@ var require_type2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/hide.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/hide.js
 var require_hide = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/hide.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/hide.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Hide = void 0;
@@ -14225,9 +14225,9 @@ var require_hide = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_locale.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_locale.js
 var require_get_locale = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_locale.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_locale.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetLocale = void 0;
@@ -14246,9 +14246,9 @@ var require_get_locale = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_locale.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_locale.js
 var require_set_locale = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_locale.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_locale.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetLocale = void 0;
@@ -14267,9 +14267,9 @@ var require_set_locale = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/commit.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/commit.js
 var require_commit = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/commit.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/commit.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Commit = void 0;
@@ -14286,9 +14286,9 @@ var require_commit = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_screen.js
 var require_modify_screen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_screen.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ModifyScreen = void 0;
@@ -14305,9 +14305,9 @@ var require_modify_screen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/commit_entities.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/commit_entities.js
 var require_commit_entities = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/commit_entities.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/commit_entities.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CommitEntities = void 0;
@@ -14327,9 +14327,9 @@ var require_commit_entities = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_entities.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_entities.js
 var require_modify_entities = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_entities.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_entities.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ModifyEntities = void 0;
@@ -14366,9 +14366,9 @@ var require_modify_entities = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_entities.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_entities.js
 var require_read_entities = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_entities.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_entities.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReadEntities = void 0;
@@ -14399,9 +14399,9 @@ var require_read_entities = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/rollback_entities.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/rollback_entities.js
 var require_rollback_entities = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/rollback_entities.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/rollback_entities.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RollbackEntities = void 0;
@@ -14417,9 +14417,9 @@ var require_rollback_entities = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/summary.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/summary.js
 var require_summary = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/summary.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/summary.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Summary = void 0;
@@ -14434,9 +14434,9 @@ var require_summary = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/input.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/input.js
 var require_input = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/input.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/input.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Input = void 0;
@@ -14451,9 +14451,9 @@ var require_input = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/on_change.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/on_change.js
 var require_on_change = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/on_change.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/on_change.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.OnChange = void 0;
@@ -14471,9 +14471,9 @@ var require_on_change = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_user_command.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_user_command.js
 var require_at_user_command = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_user_command.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_user_command.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AtUserCommand = void 0;
@@ -14488,9 +14488,9 @@ var require_at_user_command = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/position.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/position.js
 var require_position2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/position.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/position.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Position = void 0;
@@ -14507,9 +14507,9 @@ var require_position2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/resume.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/resume.js
 var require_resume = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/resume.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/resume.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Resume = void 0;
@@ -14523,9 +14523,9 @@ var require_resume = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/stop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/stop.js
 var require_stop = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/stop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/stop.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Stop = void 0;
@@ -14540,9 +14540,9 @@ var require_stop = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_pf_status.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_pf_status.js
 var require_get_pf_status = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_pf_status.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_pf_status.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetPFStatus = void 0;
@@ -14561,9 +14561,9 @@ var require_get_pf_status = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_report.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_report.js
 var require_delete_report = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_report.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_report.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DeleteReport = void 0;
@@ -14581,9 +14581,9 @@ var require_delete_report = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/controls.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/controls.js
 var require_controls = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/controls.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/controls.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Controls = void 0;
@@ -14602,9 +14602,9 @@ var require_controls = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_line_selection.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_line_selection.js
 var require_at_line_selection = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_line_selection.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_line_selection.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AtLineSelection = void 0;
@@ -14619,9 +14619,9 @@ var require_at_line_selection = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/new_page.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/new_page.js
 var require_new_page = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/new_page.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/new_page.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NewPage = void 0;
@@ -14656,9 +14656,9 @@ var require_new_page = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_dataset.js
 var require_set_dataset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_dataset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetDataset = void 0;
@@ -14675,9 +14675,9 @@ var require_set_dataset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_property.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_property.js
 var require_get_property = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_property.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_property.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetProperty = void 0;
@@ -14694,9 +14694,9 @@ var require_get_property = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/scroll_list.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/scroll_list.js
 var require_scroll_list = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/scroll_list.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/scroll_list.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ScrollList = void 0;
@@ -14718,9 +14718,9 @@ var require_scroll_list = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/load_of_program.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/load_of_program.js
 var require_load_of_program = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/load_of_program.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/load_of_program.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoadOfProgram = void 0;
@@ -14736,9 +14736,9 @@ var require_load_of_program = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/top_of_page.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/top_of_page.js
 var require_top_of_page = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/top_of_page.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/top_of_page.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TopOfPage = void 0;
@@ -14754,9 +14754,9 @@ var require_top_of_page = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/truncate_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/truncate_dataset.js
 var require_truncate_dataset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/truncate_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/truncate_dataset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TruncateDataset = void 0;
@@ -14772,9 +14772,9 @@ var require_truncate_dataset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_update_task.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_update_task.js
 var require_set_update_task = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_update_task.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_update_task.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetUpdateTask = void 0;
@@ -14789,9 +14789,9 @@ var require_set_update_task = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_user_command.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_user_command.js
 var require_set_user_command = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_user_command.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_user_command.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetUserCommand = void 0;
@@ -14808,9 +14808,9 @@ var require_set_user_command = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/rollback.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/rollback.js
 var require_rollback = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/rollback.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/rollback.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Rollback = void 0;
@@ -14826,9 +14826,9 @@ var require_rollback = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_internal.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_internal.js
 var require_delete_internal = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_internal.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_internal.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DeleteInternal = void 0;
@@ -14855,9 +14855,9 @@ var require_delete_internal = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_database.js
 var require_delete_database = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_database.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DeleteDatabase = void 0;
@@ -14882,9 +14882,9 @@ var require_delete_database = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_dataset.js
 var require_delete_dataset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_dataset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DeleteDataset = void 0;
@@ -14901,9 +14901,9 @@ var require_delete_dataset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free_memory.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free_memory.js
 var require_free_memory = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free_memory.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free_memory.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FreeMemory = void 0;
@@ -14920,9 +14920,9 @@ var require_free_memory = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/catch_system_exceptions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/catch_system_exceptions.js
 var require_catch_system_exceptions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/catch_system_exceptions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/catch_system_exceptions.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CatchSystemExceptions = void 0;
@@ -14939,9 +14939,9 @@ var require_catch_system_exceptions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endcatch.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endcatch.js
 var require_endcatch = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endcatch.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endcatch.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndCatch = void 0;
@@ -14956,9 +14956,9 @@ var require_endcatch = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assign_local_copy.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assign_local_copy.js
 var require_assign_local_copy = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assign_local_copy.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/assign_local_copy.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AssignLocalCopy = void 0;
@@ -14978,9 +14978,9 @@ var require_assign_local_copy = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_extended_check.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_extended_check.js
 var require_set_extended_check = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_extended_check.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_extended_check.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetExtendedCheck = void 0;
@@ -14996,9 +14996,9 @@ var require_set_extended_check = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/split.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/split.js
 var require_split = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/split.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/split.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Split = void 0;
@@ -15016,9 +15016,9 @@ var require_split = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/new_line.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/new_line.js
 var require_new_line = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/new_line.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/new_line.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NewLine = void 0;
@@ -15034,9 +15034,9 @@ var require_new_line = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free_object.js
 var require_free_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FreeObject = void 0;
@@ -15053,9 +15053,9 @@ var require_free_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sort.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sort.js
 var require_sort = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sort.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sort.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Sort = void 0;
@@ -15076,9 +15076,9 @@ var require_sort = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/replace.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/replace.js
 var require_replace = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/replace.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/replace.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Replace = void 0;
@@ -15106,9 +15106,9 @@ var require_replace = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/with.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/with.js
 var require_with = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/with.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/with.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.With = void 0;
@@ -15127,9 +15127,9 @@ var require_with = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/with_loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/with_loop.js
 var require_with_loop = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/with_loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/with_loop.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WithLoop = void 0;
@@ -15143,9 +15143,9 @@ var require_with_loop = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endwith.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endwith.js
 var require_endwith = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endwith.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endwith.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndWith = void 0;
@@ -15160,9 +15160,9 @@ var require_endwith = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/condense.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/condense.js
 var require_condense = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/condense.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/condense.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Condense = void 0;
@@ -15177,9 +15177,9 @@ var require_condense = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_internal.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_internal.js
 var require_insert_internal = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_internal.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_internal.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InsertInternal = void 0;
@@ -15210,9 +15210,9 @@ var require_insert_internal = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_database.js
 var require_insert_database = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_database.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InsertDatabase = void 0;
@@ -15236,9 +15236,9 @@ var require_insert_database = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_field_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_field_group.js
 var require_insert_field_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_field_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_field_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InsertFieldGroup = void 0;
@@ -15257,9 +15257,9 @@ var require_insert_field_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/update_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/update_database.js
 var require_update_database = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/update_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/update_database.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.UpdateDatabase = void 0;
@@ -15282,9 +15282,9 @@ var require_update_database = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_database.js
 var require_modify_database = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_database.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ModifyDatabase = void 0;
@@ -15306,9 +15306,9 @@ var require_modify_database = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/merge_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/merge_database.js
 var require_merge_database = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/merge_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/merge_database.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MergeDatabase = void 0;
@@ -15345,9 +15345,9 @@ var require_merge_database = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_internal.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_internal.js
 var require_modify_internal = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_internal.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_internal.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ModifyInternal = void 0;
@@ -15373,9 +15373,9 @@ var require_modify_internal = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise.js
 var require_raise = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Raise = void 0;
@@ -15398,9 +15398,9 @@ var require_raise = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/define.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/define.js
 var require_define = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/define.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/define.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Define = void 0;
@@ -15417,9 +15417,9 @@ var require_define = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enddefine.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enddefine.js
 var require_enddefine = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enddefine.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enddefine.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndOfDefinition = void 0;
@@ -15434,9 +15434,9 @@ var require_enddefine = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/find.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/find.js
 var require_find = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/find.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/find.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Find = void 0;
@@ -15455,9 +15455,9 @@ var require_find = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/move.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/move.js
 var require_move = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/move.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/move.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Move = void 0;
@@ -15480,9 +15480,9 @@ var require_move = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/move_corresponding.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/move_corresponding.js
 var require_move_corresponding = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/move_corresponding.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/move_corresponding.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MoveCorresponding = void 0;
@@ -15510,9 +15510,9 @@ var require_move_corresponding = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_time.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_time.js
 var require_get_time = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_time.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_time.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetTime = void 0;
@@ -15529,9 +15529,9 @@ var require_get_time = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement_point.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement_point.js
 var require_enhancement_point = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement_point.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement_point.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EnhancementPoint = void 0;
@@ -15548,9 +15548,9 @@ var require_enhancement_point = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement_section.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement_section.js
 var require_enhancement_section = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement_section.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement_section.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EnhancementSection = void 0;
@@ -15568,9 +15568,9 @@ var require_enhancement_section = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_enhancement_section.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_enhancement_section.js
 var require_end_enhancement_section = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_enhancement_section.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_enhancement_section.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndEnhancementSection = void 0;
@@ -15586,9 +15586,9 @@ var require_end_enhancement_section = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_handler.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_handler.js
 var require_set_handler = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_handler.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_handler.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetHandler = void 0;
@@ -15607,9 +15607,9 @@ var require_set_handler = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_left.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_left.js
 var require_set_left = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_left.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_left.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetLeft = void 0;
@@ -15626,9 +15626,9 @@ var require_set_left = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/pack.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/pack.js
 var require_pack = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/pack.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/pack.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Pack = void 0;
@@ -15645,9 +15645,9 @@ var require_pack = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/case_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/case_type.js
 var require_case_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/case_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/case_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CaseType = void 0;
@@ -15663,9 +15663,9 @@ var require_case_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when_type.js
 var require_when_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/when_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WhenType = void 0;
@@ -15683,9 +15683,9 @@ var require_when_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/exec_sql.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/exec_sql.js
 var require_exec_sql = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/exec_sql.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/exec_sql.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExecSQL = void 0;
@@ -15703,9 +15703,9 @@ var require_exec_sql = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/open_cursor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/open_cursor.js
 var require_open_cursor = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/open_cursor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/open_cursor.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.OpenCursor = void 0;
@@ -15723,9 +15723,9 @@ var require_open_cursor = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/communication.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/communication.js
 var require_communication = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/communication.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/communication.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Communication = void 0;
@@ -15751,9 +15751,9 @@ var require_communication = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_subroutine.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_subroutine.js
 var require_generate_subroutine = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_subroutine.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_subroutine.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GenerateSubroutine = void 0;
@@ -15778,9 +15778,9 @@ var require_generate_subroutine = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/reject.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/reject.js
 var require_reject = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/reject.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/reject.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Reject = void 0;
@@ -15797,9 +15797,9 @@ var require_reject = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/load_report.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/load_report.js
 var require_load_report = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/load_report.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/load_report.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoadReport = void 0;
@@ -15816,9 +15816,9 @@ var require_load_report = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/private.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/private.js
 var require_private = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/private.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/private.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Private = void 0;
@@ -15832,9 +15832,9 @@ var require_private = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/system_call.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/system_call.js
 var require_system_call = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/system_call.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/system_call.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SystemCall = void 0;
@@ -15855,9 +15855,9 @@ var require_system_call = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_language.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_language.js
 var require_set_language = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_language.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_language.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetLanguage = void 0;
@@ -15874,9 +15874,9 @@ var require_set_language = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_dialog.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_dialog.js
 var require_call_dialog = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_dialog.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_dialog.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallDialog = void 0;
@@ -15897,9 +15897,9 @@ var require_call_dialog = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/protected.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/protected.js
 var require_protected = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/protected.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/protected.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Protected = void 0;
@@ -15913,9 +15913,9 @@ var require_protected = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/public.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/public.js
 var require_public = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/public.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/public.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Public = void 0;
@@ -15929,9 +15929,9 @@ var require_public = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/nodes.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/nodes.js
 var require_nodes2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/nodes.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/nodes.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Nodes = void 0;
@@ -15948,9 +15948,9 @@ var require_nodes2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/demand.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/demand.js
 var require_demand = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/demand.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/demand.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Demand = void 0;
@@ -15969,9 +15969,9 @@ var require_demand = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/supply.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/supply.js
 var require_supply = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/supply.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/supply.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Supply = void 0;
@@ -15989,9 +15989,9 @@ var require_supply = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fields.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fields.js
 var require_fields = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fields.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fields.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Fields = void 0;
@@ -16008,9 +16008,9 @@ var require_fields = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_cluster.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_cluster.js
 var require_delete_cluster = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_cluster.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_cluster.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DeleteCluster = void 0;
@@ -16029,9 +16029,9 @@ var require_delete_cluster = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_margin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_margin.js
 var require_set_margin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_margin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_margin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetMargin = void 0;
@@ -16048,9 +16048,9 @@ var require_set_margin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_database.js
 var require_call_database = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_database.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallDatabase = void 0;
@@ -16071,9 +16071,9 @@ var require_call_database = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/contexts.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/contexts.js
 var require_contexts = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/contexts.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/contexts.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Contexts = void 0;
@@ -16090,9 +16090,9 @@ var require_contexts = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface.js
 var require_interface = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Interface = void 0;
@@ -16107,9 +16107,9 @@ var require_interface = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endinterface.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endinterface.js
 var require_endinterface = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endinterface.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endinterface.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndInterface = void 0;
@@ -16123,9 +16123,9 @@ var require_endinterface = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/parameter.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/parameter.js
 var require_parameter = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/parameter.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/parameter.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Parameter = void 0;
@@ -16156,9 +16156,9 @@ var require_parameter = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/include.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/include.js
 var require_include = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/include.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/include.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Include = void 0;
@@ -16174,9 +16174,9 @@ var require_include = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/collect.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/collect.js
 var require_collect = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/collect.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/collect.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Collect = void 0;
@@ -16193,9 +16193,9 @@ var require_collect = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/ranges.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/ranges.js
 var require_ranges = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/ranges.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/ranges.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Ranges = void 0;
@@ -16213,9 +16213,9 @@ var require_ranges = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/events.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/events.js
 var require_events = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/events.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/events.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Events = void 0;
@@ -16231,9 +16231,9 @@ var require_events = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/receive.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/receive.js
 var require_receive = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/receive.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/receive.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Receive = void 0;
@@ -16250,9 +16250,9 @@ var require_receive = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/back.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/back.js
 var require_back = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/back.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/back.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Back = void 0;
@@ -16267,9 +16267,9 @@ var require_back = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/add_corresponding.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/add_corresponding.js
 var require_add_corresponding = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/add_corresponding.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/add_corresponding.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AddCorresponding = void 0;
@@ -16286,9 +16286,9 @@ var require_add_corresponding = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/subtract_corresponding.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/subtract_corresponding.js
 var require_subtract_corresponding = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/subtract_corresponding.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/subtract_corresponding.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SubtractCorresponding = void 0;
@@ -16305,9 +16305,9 @@ var require_subtract_corresponding = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static_begin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static_begin.js
 var require_static_begin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static_begin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static_begin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StaticBegin = void 0;
@@ -16324,9 +16324,9 @@ var require_static_begin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static_end.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static_end.js
 var require_static_end = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static_end.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static_end.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StaticEnd = void 0;
@@ -16342,9 +16342,9 @@ var require_static_end = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_dataset.js
 var require_get_dataset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_dataset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetDataset = void 0;
@@ -16363,9 +16363,9 @@ var require_get_dataset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/tables.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/tables.js
 var require_tables = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/tables.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/tables.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Tables = void 0;
@@ -16382,9 +16382,9 @@ var require_tables = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/local.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/local.js
 var require_local = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/local.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/local.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Local = void 0;
@@ -16401,9 +16401,9 @@ var require_local = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/add.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/add.js
 var require_add = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/add.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/add.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Add = void 0;
@@ -16424,9 +16424,9 @@ var require_add = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/describe.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/describe.js
 var require_describe = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/describe.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/describe.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Describe = void 0;
@@ -16460,9 +16460,9 @@ var require_describe = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/submit.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/submit.js
 var require_submit = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/submit.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/submit.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Submit = void 0;
@@ -16511,9 +16511,9 @@ var require_submit = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/scan.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/scan.js
 var require_scan = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/scan.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/scan.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Scan = void 0;
@@ -16551,9 +16551,9 @@ var require_scan = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/export.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/export.js
 var require_export = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/export.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/export.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Export = void 0;
@@ -16585,9 +16585,9 @@ var require_export = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import.js
 var require_import = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Import = void 0;
@@ -16621,9 +16621,9 @@ var require_import = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_first.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_first.js
 var require_at_first = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_first.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_first.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AtFirst = void 0;
@@ -16637,9 +16637,9 @@ var require_at_first = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_last.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_last.js
 var require_at_last = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_last.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_last.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AtLast = void 0;
@@ -16653,9 +16653,9 @@ var require_at_last = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_pf.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_pf.js
 var require_at_pf = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_pf.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_pf.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AtPF = void 0;
@@ -16670,9 +16670,9 @@ var require_at_pf = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at.js
 var require_at2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.At = void 0;
@@ -16693,9 +16693,9 @@ var require_at2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/put.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/put.js
 var require_put = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/put.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/put.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Put = void 0;
@@ -16712,9 +16712,9 @@ var require_put = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endat.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endat.js
 var require_endat = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endat.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endat.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndAt = void 0;
@@ -16729,9 +16729,9 @@ var require_endat = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endselect.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endselect.js
 var require_endselect = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endselect.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endselect.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndSelect = void 0;
@@ -16745,9 +16745,9 @@ var require_endselect = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/refresh.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/refresh.js
 var require_refresh = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/refresh.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/refresh.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Refresh = void 0;
@@ -16765,9 +16765,9 @@ var require_refresh = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/shift.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/shift.js
 var require_shift = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/shift.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/shift.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Shift = void 0;
@@ -16788,9 +16788,9 @@ var require_shift = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh.js
 var require_type_mesh = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeMesh = void 0;
@@ -16810,9 +16810,9 @@ var require_type_mesh = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/transfer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/transfer.js
 var require_transfer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/transfer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/transfer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Transfer = void 0;
@@ -16830,9 +16830,9 @@ var require_transfer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/subtract.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/subtract.js
 var require_subtract = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/subtract.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/subtract.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Subtract = void 0;
@@ -16849,9 +16849,9 @@ var require_subtract = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/unassign.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/unassign.js
 var require_unassign = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/unassign.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/unassign.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Unassign = void 0;
@@ -16866,9 +16866,9 @@ var require_unassign = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/open_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/open_dataset.js
 var require_open_dataset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/open_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/open_dataset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.OpenDataset = void 0;
@@ -16900,9 +16900,9 @@ var require_open_dataset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/close_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/close_dataset.js
 var require_close_dataset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/close_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/close_dataset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CloseDataset = void 0;
@@ -16919,9 +16919,9 @@ var require_close_dataset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_load.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_load.js
 var require_interface_load = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_load.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_load.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InterfaceLoad = void 0;
@@ -16937,9 +16937,9 @@ var require_interface_load = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/close_cursor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/close_cursor.js
 var require_close_cursor = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/close_cursor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/close_cursor.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CloseCursor = void 0;
@@ -16956,9 +16956,9 @@ var require_close_cursor = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/leave.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/leave.js
 var require_leave = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/leave.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/leave.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Leave = void 0;
@@ -16977,9 +16977,9 @@ var require_leave = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_definition_load.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_definition_load.js
 var require_class_definition_load = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_definition_load.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/class_definition_load.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassDefinitionLoad = void 0;
@@ -16995,9 +16995,9 @@ var require_class_definition_load = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/initialization.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/initialization.js
 var require_initialization = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/initialization.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/initialization.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Initialization = void 0;
@@ -17012,9 +17012,9 @@ var require_initialization = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/start_of_selection.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/start_of_selection.js
 var require_start_of_selection = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/start_of_selection.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/start_of_selection.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StartOfSelection = void 0;
@@ -17029,9 +17029,9 @@ var require_start_of_selection = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_blank.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_blank.js
 var require_set_blank = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_blank.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_blank.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetBlank = void 0;
@@ -17048,9 +17048,9 @@ var require_set_blank = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/export_dynpro.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/export_dynpro.js
 var require_export_dynpro = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/export_dynpro.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/export_dynpro.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExportDynpro = void 0;
@@ -17067,9 +17067,9 @@ var require_export_dynpro = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_of_selection.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_of_selection.js
 var require_end_of_selection = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_of_selection.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_of_selection.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndOfSelection = void 0;
@@ -17084,9 +17084,9 @@ var require_end_of_selection = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/search.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/search.js
 var require_search = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/search.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/search.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Search = void 0;
@@ -17107,9 +17107,9 @@ var require_search = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_line.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_line.js
 var require_modify_line = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_line.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/modify_line.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ModifyLine = void 0;
@@ -17140,9 +17140,9 @@ var require_modify_line = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/selectionscreen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/selectionscreen.js
 var require_selectionscreen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/selectionscreen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/selectionscreen.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SelectionScreen = void 0;
@@ -17194,9 +17194,9 @@ var require_selectionscreen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free.js
 var require_free = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/free.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Free = void 0;
@@ -17213,9 +17213,9 @@ var require_free = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endon.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endon.js
 var require_endon = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endon.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endon.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndOn = void 0;
@@ -17231,9 +17231,9 @@ var require_endon = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fetch_next_cursor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fetch_next_cursor.js
 var require_fetch_next_cursor = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fetch_next_cursor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/fetch_next_cursor.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FetchNextCursor = void 0;
@@ -17253,9 +17253,9 @@ var require_fetch_next_cursor = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/reserve.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/reserve.js
 var require_reserve = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/reserve.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/reserve.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Reserve = void 0;
@@ -17272,9 +17272,9 @@ var require_reserve = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise_entity_event.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise_entity_event.js
 var require_raise_entity_event = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise_entity_event.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise_entity_event.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RaiseEntityEvent = void 0;
@@ -17290,9 +17290,9 @@ var require_raise_entity_event = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/refresh_control.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/refresh_control.js
 var require_refresh_control = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/refresh_control.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/refresh_control.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RefreshControl = void 0;
@@ -17309,9 +17309,9 @@ var require_refresh_control = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_dynpro.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_dynpro.js
 var require_delete_dynpro = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_dynpro.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_dynpro.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DeleteDynpro = void 0;
@@ -17328,9 +17328,9 @@ var require_delete_dynpro = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_dynpro.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_dynpro.js
 var require_generate_dynpro = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_dynpro.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/generate_dynpro.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GenerateDynpro = void 0;
@@ -17349,9 +17349,9 @@ var require_generate_dynpro = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_on_help_request.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_on_help_request.js
 var require_process_on_help_request = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_on_help_request.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_on_help_request.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ProcessOnHelpRequest = void 0;
@@ -17366,9 +17366,9 @@ var require_process_on_help_request = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/detail.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/detail.js
 var require_detail = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/detail.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/detail.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Detail = void 0;
@@ -17383,9 +17383,9 @@ var require_detail = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/editor_call.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/editor_call.js
 var require_editor_call = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/editor_call.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/editor_call.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EditorCall = void 0;
@@ -17404,9 +17404,9 @@ var require_editor_call = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/break.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/break.js
 var require_break = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/break.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/break.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Break = void 0;
@@ -17424,9 +17424,9 @@ var require_break = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_textpool.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_textpool.js
 var require_delete_textpool = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_textpool.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_textpool.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DeleteTextpool = void 0;
@@ -17445,9 +17445,9 @@ var require_delete_textpool = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get.js
 var require_get = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Get = void 0;
@@ -17466,9 +17466,9 @@ var require_get = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop_extract.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop_extract.js
 var require_loop_extract = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop_extract.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/loop_extract.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LoopExtract = void 0;
@@ -17483,9 +17483,9 @@ var require_loop_extract = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/selectoption.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/selectoption.js
 var require_selectoption = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/selectoption.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/selectoption.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SelectOption = void 0;
@@ -17512,9 +17512,9 @@ var require_selectoption = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/convert.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/convert.js
 var require_convert = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/convert.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/convert.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Convert = void 0;
@@ -17545,9 +17545,9 @@ var require_convert = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static.js
 var require_static = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/static.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -17603,9 +17603,9 @@ var require_static = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/compute.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/compute.js
 var require_compute = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/compute.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/compute.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Compute = void 0;
@@ -17622,9 +17622,9 @@ var require_compute = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/multiply.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/multiply.js
 var require_multiply = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/multiply.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/multiply.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Multiply = void 0;
@@ -17641,9 +17641,9 @@ var require_multiply = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/divide.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/divide.js
 var require_divide = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/divide.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/divide.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Divide = void 0;
@@ -17660,9 +17660,9 @@ var require_divide = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/format.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/format.js
 var require_format = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/format.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/format.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Format = void 0;
@@ -17682,9 +17682,9 @@ var require_format = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/syntax_check.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/syntax_check.js
 var require_syntax_check = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/syntax_check.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/syntax_check.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SyntaxCheck = void 0;
@@ -17717,9 +17717,9 @@ var require_syntax_check = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/aliases.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/aliases.js
 var require_aliases = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/aliases.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/aliases.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Aliases = void 0;
@@ -17734,9 +17734,9 @@ var require_aliases = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/method_def.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/method_def.js
 var require_method_def = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/method_def.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/method_def.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodDef = void 0;
@@ -17794,9 +17794,9 @@ var require_method_def = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh_begin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh_begin.js
 var require_type_mesh_begin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh_begin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh_begin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeMeshBegin = void 0;
@@ -17813,9 +17813,9 @@ var require_type_mesh_begin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh_end.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh_end.js
 var require_type_mesh_end = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh_end.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_mesh_end.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeMeshEnd = void 0;
@@ -17832,9 +17832,9 @@ var require_type_mesh_end = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_def.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_def.js
 var require_interface_def = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_def.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/interface_def.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InterfaceDef = void 0;
@@ -17853,9 +17853,9 @@ var require_interface_def = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_selection_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_selection_screen.js
 var require_at_selection_screen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_selection_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/at_selection_screen.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AtSelectionScreen = void 0;
@@ -17880,9 +17880,9 @@ var require_at_selection_screen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/include_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/include_type.js
 var require_include_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/include_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/include_type.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -17937,9 +17937,9 @@ var require_include_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import_dynpro.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import_dynpro.js
 var require_import_dynpro = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import_dynpro.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/import_dynpro.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ImportDynpro = void 0;
@@ -17956,9 +17956,9 @@ var require_import_dynpro = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_function.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_function.js
 var require_call_function = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_function.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_function.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallFunction = void 0;
@@ -17986,9 +17986,9 @@ var require_call_function = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_selection_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_selection_screen.js
 var require_call_selection_screen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_selection_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_selection_screen.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallSelectionScreen = void 0;
@@ -18009,9 +18009,9 @@ var require_call_selection_screen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_transformation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_transformation.js
 var require_call_transformation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_transformation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_transformation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallTransformation = void 0;
@@ -18035,9 +18035,9 @@ var require_call_transformation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_line.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_line.js
 var require_read_line = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_line.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_line.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReadLine = void 0;
@@ -18060,9 +18060,9 @@ var require_read_line = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_textpool.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_textpool.js
 var require_read_textpool = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_textpool.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_textpool.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReadTextpool = void 0;
@@ -18082,9 +18082,9 @@ var require_read_textpool = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_report.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_report.js
 var require_read_report = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_report.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_report.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReadReport = void 0;
@@ -18104,9 +18104,9 @@ var require_read_report = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_dataset.js
 var require_read_dataset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/read_dataset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReadDataset = void 0;
@@ -18123,9 +18123,9 @@ var require_read_dataset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_bit.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_bit.js
 var require_get_bit = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_bit.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_bit.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetBit = void 0;
@@ -18141,9 +18141,9 @@ var require_get_bit = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_reference.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_reference.js
 var require_get_reference = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_reference.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_reference.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetReference = void 0;
@@ -18160,9 +18160,9 @@ var require_get_reference = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_report.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_report.js
 var require_insert_report = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_report.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_report.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InsertReport = void 0;
@@ -18180,9 +18180,9 @@ var require_insert_report = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_textpool.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_textpool.js
 var require_insert_textpool = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_textpool.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/insert_textpool.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InsertTextpool = void 0;
@@ -18201,9 +18201,9 @@ var require_insert_textpool = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_bit.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_bit.js
 var require_set_bit = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_bit.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_bit.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetBit = void 0;
@@ -18219,9 +18219,9 @@ var require_set_bit = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_run_time.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_run_time.js
 var require_get_run_time = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_run_time.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_run_time.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetRunTime = void 0;
@@ -18238,9 +18238,9 @@ var require_get_run_time = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_parameter.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_parameter.js
 var require_get_parameter = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_parameter.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_parameter.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetParameter = void 0;
@@ -18257,9 +18257,9 @@ var require_get_parameter = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_data.js
 var require_create_data = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_data.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CreateData = void 0;
@@ -18289,9 +18289,9 @@ var require_create_data = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_country.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_country.js
 var require_set_country = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_country.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_country.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetCountry = void 0;
@@ -18308,9 +18308,9 @@ var require_set_country = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/function_module.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/function_module.js
 var require_function_module = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/function_module.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/function_module.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FunctionModule = void 0;
@@ -18326,9 +18326,9 @@ var require_function_module = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/dynpro_loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/dynpro_loop.js
 var require_dynpro_loop = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/dynpro_loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/dynpro_loop.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DynproLoop = void 0;
@@ -18349,9 +18349,9 @@ var require_dynpro_loop = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_pools.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_pools.js
 var require_type_pools = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_pools.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_pools.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypePools = void 0;
@@ -18368,9 +18368,9 @@ var require_type_pools = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_pool.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_pool.js
 var require_type_pool = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_pool.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_pool.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypePool = void 0;
@@ -18387,9 +18387,9 @@ var require_type_pool = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/wait.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/wait.js
 var require_wait = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/wait.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/wait.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Wait = void 0;
@@ -18413,9 +18413,9 @@ var require_wait = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/overlay.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/overlay.js
 var require_overlay = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/overlay.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/overlay.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Overlay = void 0;
@@ -18432,9 +18432,9 @@ var require_overlay = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_screen.js
 var require_set_screen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_screen.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetScreen = void 0;
@@ -18451,9 +18451,9 @@ var require_set_screen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_cursor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_cursor.js
 var require_set_cursor = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_cursor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_cursor.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetCursor = void 0;
@@ -18474,9 +18474,9 @@ var require_set_cursor = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_screen.js
 var require_call_screen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_screen.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallScreen = void 0;
@@ -18495,9 +18495,9 @@ var require_call_screen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_pf_status.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_pf_status.js
 var require_set_pf_status = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_pf_status.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_pf_status.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetPFStatus = void 0;
@@ -18516,9 +18516,9 @@ var require_set_pf_status = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_titlebar.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_titlebar.js
 var require_set_titlebar = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_titlebar.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_titlebar.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetTitlebar = void 0;
@@ -18537,9 +18537,9 @@ var require_set_titlebar = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/program.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/program.js
 var require_program = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/program.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/program.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Program = void 0;
@@ -18561,9 +18561,9 @@ var require_program = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/function_pool.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/function_pool.js
 var require_function_pool = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/function_pool.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/function_pool.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FunctionPool = void 0;
@@ -18582,9 +18582,9 @@ var require_function_pool = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/module.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/module.js
 var require_module = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/module.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/module.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Module = void 0;
@@ -18602,9 +18602,9 @@ var require_module = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endmodule.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endmodule.js
 var require_endmodule = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endmodule.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endmodule.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndModule = void 0;
@@ -18619,9 +18619,9 @@ var require_endmodule = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endfunction.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endfunction.js
 var require_endfunction = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endfunction.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endfunction.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndFunction = void 0;
@@ -18636,9 +18636,9 @@ var require_endfunction = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/retry.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/retry.js
 var require_retry = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/retry.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/retry.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Retry = void 0;
@@ -18653,9 +18653,9 @@ var require_retry = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/authority_check.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/authority_check.js
 var require_authority_check = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/authority_check.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/authority_check.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AuthorityCheck = void 0;
@@ -18674,9 +18674,9 @@ var require_authority_check = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_parameter.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_parameter.js
 var require_set_parameter = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_parameter.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_parameter.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetParameter = void 0;
@@ -18693,9 +18693,9 @@ var require_set_parameter = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/field.js
 var require_field2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Field = void 0;
@@ -18722,9 +18722,9 @@ var require_field2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_cursor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_cursor.js
 var require_get_cursor = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_cursor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_cursor.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetCursor = void 0;
@@ -18747,9 +18747,9 @@ var require_get_cursor = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_kernel.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_kernel.js
 var require_call_kernel = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_kernel.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_kernel.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallKernel = void 0;
@@ -18766,9 +18766,9 @@ var require_call_kernel = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_transaction.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_transaction.js
 var require_call_transaction = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_transaction.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_transaction.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallTransaction = void 0;
@@ -18789,9 +18789,9 @@ var require_call_transaction = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/unpack.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/unpack.js
 var require_unpack = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/unpack.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/unpack.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Unpack = void 0;
@@ -18808,9 +18808,9 @@ var require_unpack = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/skip.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/skip.js
 var require_skip = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/skip.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/skip.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Skip = void 0;
@@ -18827,9 +18827,9 @@ var require_skip = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/uline.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/uline.js
 var require_uline = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/uline.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/uline.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Uline = void 0;
@@ -18846,9 +18846,9 @@ var require_uline = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data_begin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data_begin.js
 var require_data_begin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data_begin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data_begin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DataBegin = void 0;
@@ -18866,9 +18866,9 @@ var require_data_begin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data_end.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data_end.js
 var require_data_end = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data_end.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/data_end.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DataEnd = void 0;
@@ -18886,9 +18886,9 @@ var require_data_end = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_begin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_begin.js
 var require_type_begin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_begin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_begin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeBegin = void 0;
@@ -18905,9 +18905,9 @@ var require_type_begin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_after_input.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_after_input.js
 var require_process_after_input = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_after_input.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_after_input.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ProcessAfterInput = void 0;
@@ -18922,9 +18922,9 @@ var require_process_after_input = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_before_output.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_before_output.js
 var require_process_before_output = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_before_output.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_before_output.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ProcessBeforeOutput = void 0;
@@ -18939,9 +18939,9 @@ var require_process_before_output = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_on_value_request.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_on_value_request.js
 var require_process_on_value_request = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_on_value_request.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/process_on_value_request.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ProcessOnValueRequest = void 0;
@@ -18956,9 +18956,9 @@ var require_process_on_value_request = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_end.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_end.js
 var require_type_end = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_end.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/type_end.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeEnd = void 0;
@@ -18974,9 +18974,9 @@ var require_type_end = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise_event.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise_event.js
 var require_raise_event = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise_event.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/raise_event.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RaiseEvent = void 0;
@@ -18993,9 +18993,9 @@ var require_raise_event = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/cleanup.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/cleanup.js
 var require_cleanup = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/cleanup.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/cleanup.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Cleanup = void 0;
@@ -19011,9 +19011,9 @@ var require_cleanup = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_ole.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_ole.js
 var require_create_ole = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_ole.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/create_ole.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CreateOLE = void 0;
@@ -19030,9 +19030,9 @@ var require_create_ole = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_ole.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_ole.js
 var require_call_ole = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_ole.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_ole.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallOLE = void 0;
@@ -19050,9 +19050,9 @@ var require_call_ole = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_property.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_property.js
 var require_set_property = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_property.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_property.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetProperty = void 0;
@@ -19069,9 +19069,9 @@ var require_set_property = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/test_injection.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/test_injection.js
 var require_test_injection = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/test_injection.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/test_injection.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TestInjection = void 0;
@@ -19087,9 +19087,9 @@ var require_test_injection = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_test_injection.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_test_injection.js
 var require_end_test_injection = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_test_injection.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_test_injection.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndTestInjection = void 0;
@@ -19103,9 +19103,9 @@ var require_end_test_injection = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/test_seam.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/test_seam.js
 var require_test_seam = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/test_seam.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/test_seam.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TestSeam = void 0;
@@ -19121,9 +19121,9 @@ var require_test_seam = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_test_seam.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_test_seam.js
 var require_end_test_seam = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_test_seam.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_test_seam.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndTestSeam = void 0;
@@ -19138,9 +19138,9 @@ var require_end_test_seam = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_memory.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_memory.js
 var require_delete_memory = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_memory.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/delete_memory.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DeleteMemory = void 0;
@@ -19161,9 +19161,9 @@ var require_delete_memory = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/provide.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/provide.js
 var require_provide = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/provide.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/provide.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Provide = void 0;
@@ -19186,9 +19186,9 @@ var require_provide = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endexec.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endexec.js
 var require_endexec = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endexec.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/endexec.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndExec = void 0;
@@ -19203,9 +19203,9 @@ var require_endexec = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/chain.js
 var require_chain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/chain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Chain = void 0;
@@ -19220,9 +19220,9 @@ var require_chain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_chain.js
 var require_end_chain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_chain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndChain = void 0;
@@ -19237,9 +19237,9 @@ var require_end_chain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_subscreen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_subscreen.js
 var require_call_subscreen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_subscreen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/call_subscreen.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CallSubscreen = void 0;
@@ -19257,9 +19257,9 @@ var require_call_subscreen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sort_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sort_dataset.js
 var require_sort_dataset = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sort_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/sort_dataset.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SortDataset = void 0;
@@ -19280,9 +19280,9 @@ var require_sort_dataset = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_permissions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_permissions.js
 var require_get_permissions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_permissions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/get_permissions.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GetPermissions = void 0;
@@ -19301,9 +19301,9 @@ var require_get_permissions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_locks.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_locks.js
 var require_set_locks = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_locks.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/set_locks.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SetLocks = void 0;
@@ -19320,9 +19320,9 @@ var require_set_locks = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement.js
 var require_enhancement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/enhancement.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Enhancement = void 0;
@@ -19339,9 +19339,9 @@ var require_enhancement = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_enhancement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_enhancement.js
 var require_end_enhancement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_enhancement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/end_enhancement.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EndEnhancement = void 0;
@@ -19356,9 +19356,9 @@ var require_end_enhancement = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/form_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/form_definition.js
 var require_form_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/form_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/form_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormDefinition = void 0;
@@ -19374,9 +19374,9 @@ var require_form_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/verification_message.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/verification_message.js
 var require_verification_message = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/verification_message.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/verification_message.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.VerificationMessage = void 0;
@@ -19394,9 +19394,9 @@ var require_verification_message = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/index.js
 var require_statements = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statements/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -19735,9 +19735,9 @@ var require_statements = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/any.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/any.js
 var require_any = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/any.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/any.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -19790,9 +19790,9 @@ var require_any = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/normal.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/normal.js
 var require_normal = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/normal.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/normal.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20081,9 +20081,9 @@ var require_normal = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/body.js
 var require_body = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/body.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Body = void 0;
@@ -20098,9 +20098,9 @@ var require_body = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at_first.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at_first.js
 var require_at_first2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at_first.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at_first.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20153,9 +20153,9 @@ var require_at_first2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at_last.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at_last.js
 var require_at_last2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at_last.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at_last.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20208,9 +20208,9 @@ var require_at_last2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at.js
 var require_at3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/at.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20263,9 +20263,9 @@ var require_at3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/when_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/when_type.js
 var require_when_type2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/when_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/when_type.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20319,9 +20319,9 @@ var require_when_type2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/case_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/case_type.js
 var require_case_type2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/case_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/case_type.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20374,9 +20374,9 @@ var require_case_type2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/when.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/when.js
 var require_when2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/when.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/when.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20430,9 +20430,9 @@ var require_when2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/case.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/case.js
 var require_case2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/case.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/case.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20487,9 +20487,9 @@ var require_case2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/catch_system_exceptions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/catch_system_exceptions.js
 var require_catch_system_exceptions2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/catch_system_exceptions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/catch_system_exceptions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20542,9 +20542,9 @@ var require_catch_system_exceptions2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/catch.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/catch.js
 var require_catch2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/catch.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/catch.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20598,9 +20598,9 @@ var require_catch2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/chain.js
 var require_chain2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/chain.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20652,9 +20652,9 @@ var require_chain2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_data.js
 var require_class_data2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_data.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20706,9 +20706,9 @@ var require_class_data2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/types.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/types.js
 var require_types = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/types.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/types.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20761,9 +20761,9 @@ var require_types = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/constants.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/constants.js
 var require_constants = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/constants.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/constants.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20815,9 +20815,9 @@ var require_constants = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/type_enum.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/type_enum.js
 var require_type_enum2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/type_enum.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/type_enum.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20869,9 +20869,9 @@ var require_type_enum2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/enhancement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/enhancement.js
 var require_enhancement2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/enhancement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/enhancement.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20924,9 +20924,9 @@ var require_enhancement2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/define.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/define.js
 var require_define2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/define.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/define.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -20979,9 +20979,9 @@ var require_define2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/data.js
 var require_data2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/data.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21037,9 +21037,9 @@ var require_data2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/section_contents.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/section_contents.js
 var require_section_contents = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/section_contents.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/section_contents.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21097,9 +21097,9 @@ var require_section_contents = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/private_section.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/private_section.js
 var require_private_section = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/private_section.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/private_section.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21152,9 +21152,9 @@ var require_private_section = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/protected_section.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/protected_section.js
 var require_protected_section = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/protected_section.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/protected_section.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21207,9 +21207,9 @@ var require_protected_section = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/public_section.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/public_section.js
 var require_public_section = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/public_section.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/public_section.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21262,9 +21262,9 @@ var require_public_section = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_definition.js
 var require_class_definition2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21320,9 +21320,9 @@ var require_class_definition2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_global.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_global.js
 var require_class_global2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_global.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_global.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21375,9 +21375,9 @@ var require_class_global2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_implementation.js
 var require_class_implementation2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/class_implementation.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21431,9 +21431,9 @@ var require_class_implementation2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/cleanup.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/cleanup.js
 var require_cleanup2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/cleanup.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/cleanup.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21487,9 +21487,9 @@ var require_cleanup2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/do.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/do.js
 var require_do2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/do.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/do.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21542,9 +21542,9 @@ var require_do2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/dynpro_logic.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/dynpro_logic.js
 var require_dynpro_logic = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/dynpro_logic.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/dynpro_logic.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21596,9 +21596,9 @@ var require_dynpro_logic = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/else.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/else.js
 var require_else2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/else.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/else.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21653,9 +21653,9 @@ var require_else2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/elseif.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/elseif.js
 var require_elseif2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/elseif.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/elseif.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21710,9 +21710,9 @@ var require_elseif2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/enhancement_section.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/enhancement_section.js
 var require_enhancement_section2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/enhancement_section.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/enhancement_section.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21765,9 +21765,9 @@ var require_enhancement_section2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/exec_sql.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/exec_sql.js
 var require_exec_sql2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/exec_sql.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/exec_sql.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21820,9 +21820,9 @@ var require_exec_sql2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/form.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/form.js
 var require_form2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/form.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/form.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21875,9 +21875,9 @@ var require_form2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/function_module.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/function_module.js
 var require_function_module2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/function_module.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/function_module.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21930,9 +21930,9 @@ var require_function_module2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/if.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/if.js
 var require_if2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/if.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/if.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -21988,9 +21988,9 @@ var require_if2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/interface_global.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/interface_global.js
 var require_interface_global = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/interface_global.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/interface_global.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22043,9 +22043,9 @@ var require_interface_global = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/interface.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/interface.js
 var require_interface2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/interface.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/interface.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22099,9 +22099,9 @@ var require_interface2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop_at_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop_at_screen.js
 var require_loop_at_screen2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop_at_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop_at_screen.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22154,9 +22154,9 @@ var require_loop_at_screen2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop.js
 var require_loop2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22209,9 +22209,9 @@ var require_loop2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/method.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/method.js
 var require_method = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/method.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/method.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22265,9 +22265,9 @@ var require_method = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/module.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/module.js
 var require_module2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/module.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/module.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22320,9 +22320,9 @@ var require_module2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/on_change.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/on_change.js
 var require_on_change2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/on_change.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/on_change.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22376,9 +22376,9 @@ var require_on_change2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/dynpro_loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/dynpro_loop.js
 var require_dynpro_loop2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/dynpro_loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/dynpro_loop.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22431,9 +22431,9 @@ var require_dynpro_loop2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop_extract.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop_extract.js
 var require_loop_extract2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop_extract.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/loop_extract.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22486,9 +22486,9 @@ var require_loop_extract2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_after_input.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_after_input.js
 var require_process_after_input2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_after_input.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_after_input.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22545,9 +22545,9 @@ var require_process_after_input2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_before_output.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_before_output.js
 var require_process_before_output2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_before_output.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_before_output.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22602,9 +22602,9 @@ var require_process_before_output2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_on_value_request.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_on_value_request.js
 var require_process_on_value_request2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_on_value_request.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_on_value_request.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22657,9 +22657,9 @@ var require_process_on_value_request2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/provide.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/provide.js
 var require_provide2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/provide.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/provide.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22712,9 +22712,9 @@ var require_provide2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/select.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/select.js
 var require_select3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/select.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/select.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22767,9 +22767,9 @@ var require_select3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_on_help_request.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_on_help_request.js
 var require_process_on_help_request2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_on_help_request.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/process_on_help_request.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22822,9 +22822,9 @@ var require_process_on_help_request2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/statics.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/statics.js
 var require_statics = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/statics.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/statics.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22876,9 +22876,9 @@ var require_statics = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/test_injection.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/test_injection.js
 var require_test_injection2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/test_injection.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/test_injection.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22931,9 +22931,9 @@ var require_test_injection2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/test_seam.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/test_seam.js
 var require_test_seam2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/test_seam.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/test_seam.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -22986,9 +22986,9 @@ var require_test_seam2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/try.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/try.js
 var require_try2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/try.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/try.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -23044,9 +23044,9 @@ var require_try2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/type_mesh.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/type_mesh.js
 var require_type_mesh2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/type_mesh.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/type_mesh.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -23098,9 +23098,9 @@ var require_type_mesh2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/while.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/while.js
 var require_while2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/while.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/while.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -23153,9 +23153,9 @@ var require_while2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/with.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/with.js
 var require_with2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/with.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/with.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -23208,9 +23208,9 @@ var require_with2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/index.js
 var require_structures = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structures/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -23291,9 +23291,9 @@ var require_structures = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/visibility.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/visibility.js
 var require_visibility = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/visibility.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/visibility.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Visibility = void 0;
@@ -23306,9 +23306,9 @@ var require_visibility = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/_abap_file_information.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/_abap_file_information.js
 var require_abap_file_information2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/_abap_file_information.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/_abap_file_information.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RiskLevel = exports.Duration = exports.MethodParameterDirection = exports.AttributeLevel = void 0;
@@ -23340,9 +23340,9 @@ var require_abap_file_information2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/abap_file_information_parser.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/abap_file_information_parser.js
 var require_abap_file_information_parser = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/abap_file_information_parser.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/4_file_information/abap_file_information_parser.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -23729,9 +23729,9 @@ var require_abap_file_information_parser = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer_buffer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer_buffer.js
 var require_lexer_buffer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer_buffer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer_buffer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LexerBuffer = void 0;
@@ -23774,9 +23774,9 @@ var require_lexer_buffer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer_stream.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer_stream.js
 var require_lexer_stream = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer_stream.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer_stream.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LexerStream = void 0;
@@ -23864,9 +23864,9 @@ var require_lexer_stream = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer.js
 var require_lexer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/1_lexer/lexer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Lexer = void 0;
@@ -24166,9 +24166,9 @@ var require_lexer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/artifacts.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/artifacts.js
 var require_artifacts = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/artifacts.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/artifacts.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -24288,9 +24288,9 @@ var require_artifacts = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/files/memory_file.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/files/memory_file.js
 var require_memory_file = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/files/memory_file.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/files/memory_file.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MemoryFile = void 0;
@@ -24311,9 +24311,9 @@ var require_memory_file = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expand_macros.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expand_macros.js
 var require_expand_macros = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expand_macros.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/expand_macros.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -24577,9 +24577,9 @@ var require_expand_macros = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/_select_reclassify.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/_select_reclassify.js
 var require_select_reclassify = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/_select_reclassify.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/_select_reclassify.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -24754,9 +24754,9 @@ var require_select_reclassify = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statement_parser.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statement_parser.js
 var require_statement_parser = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statement_parser.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/2_statements/statement_parser.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -25083,9 +25083,9 @@ var require_statement_parser = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structure_parser.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structure_parser.js
 var require_structure_parser = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structure_parser.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/3_structures/structure_parser.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -25181,9 +25181,9 @@ var require_structure_parser = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/abap_parser.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/abap_parser.js
 var require_abap_parser = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/abap_parser.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/abap_parser.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ABAPParser = void 0;
@@ -25246,9 +25246,9 @@ var require_abap_parser = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/_abap_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/_abap_object.js
 var require_abap_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/_abap_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/_abap_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ABAPObject = void 0;
@@ -25397,9 +25397,9 @@ var require_abap_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/_abap_rule.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/_abap_rule.js
 var require_abap_rule = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/_abap_rule.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/_abap_rule.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ABAPRule = void 0;
@@ -25425,9 +25425,9 @@ var require_abap_rule = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/abapdoc.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/abapdoc.js
 var require_abapdoc = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/abapdoc.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/abapdoc.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Abapdoc = exports.AbapdocConf = void 0;
@@ -25563,9 +25563,9 @@ https://github.com/SAP/styleguides/blob/main/clean-abap/CleanABAP.md#abap-doc-on
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/add_test_attributes.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/add_test_attributes.js
 var require_add_test_attributes = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/add_test_attributes.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/add_test_attributes.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -25700,9 +25700,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/aff_and_xml.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/aff_and_xml.js
 var require_aff_and_xml = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/aff_and_xml.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/aff_and_xml.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AFFAndXML = exports.AFFAndXMLConf = void 0;
@@ -25761,9 +25761,9 @@ var require_aff_and_xml = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/edit_helper.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/edit_helper.js
 var require_edit_helper = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/edit_helper.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/edit_helper.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EditHelper = exports.EditDraft = void 0;
@@ -25990,9 +25990,9 @@ var require_edit_helper = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_parameters.js
 var require_align_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_parameters.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -26406,9 +26406,9 @@ DATA(sdf) = VALUE type(
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_pseudo_comments.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_pseudo_comments.js
 var require_align_pseudo_comments = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_pseudo_comments.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_pseudo_comments.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AlignPseudoComments = exports.AlignPseudoCommentsConf = void 0;
@@ -26482,9 +26482,9 @@ var require_align_pseudo_comments = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/abap_query_functional_area.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/abap_query_functional_area.js
 var require_abap_query_functional_area = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/abap_query_functional_area.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/abap_query_functional_area.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ABAPQueryFunctionalArea = void 0;
@@ -26508,9 +26508,9 @@ var require_abap_query_functional_area = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/abap_query_query.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/abap_query_query.js
 var require_abap_query_query = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/abap_query_query.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/abap_query_query.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ABAPQueryQuery = void 0;
@@ -26534,9 +26534,9 @@ var require_abap_query_query = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/activation_variant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/activation_variant.js
 var require_activation_variant = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/activation_variant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/activation_variant.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ActivationVariant = void 0;
@@ -26559,9 +26559,9 @@ var require_activation_variant = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/api_release_state.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/api_release_state.js
 var require_api_release_state = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/api_release_state.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/api_release_state.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.APIReleaseState = void 0;
@@ -26584,9 +26584,9 @@ var require_api_release_state = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_descriptors_fiori.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_descriptors_fiori.js
 var require_application_descriptors_fiori = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_descriptors_fiori.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_descriptors_fiori.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ApplicationDescriptorsFiori = void 0;
@@ -26610,9 +26610,9 @@ var require_application_descriptors_fiori = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_job_catalog_entry.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_job_catalog_entry.js
 var require_application_job_catalog_entry = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_job_catalog_entry.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_job_catalog_entry.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ApplicationJobCatalogEntry = void 0;
@@ -26635,9 +26635,9 @@ var require_application_job_catalog_entry = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_job_template.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_job_template.js
 var require_application_job_template = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_job_template.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_job_template.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ApplicationJobTemplate = void 0;
@@ -26660,9 +26660,9 @@ var require_application_job_template = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_log_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_log_object.js
 var require_application_log_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_log_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/application_log_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ApplicationLogObject = void 0;
@@ -26685,9 +26685,9 @@ var require_application_log_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/assignment_service_to_authorization_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/assignment_service_to_authorization_group.js
 var require_assignment_service_to_authorization_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/assignment_service_to_authorization_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/assignment_service_to_authorization_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AssignmentServiceToAuthorizationGroup = void 0;
@@ -26710,9 +26710,9 @@ var require_assignment_service_to_authorization_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_category.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_category.js
 var require_atc_check_category = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_category.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_category.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ATCCheckCategory = void 0;
@@ -26735,9 +26735,9 @@ var require_atc_check_category = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_object.js
 var require_atc_check_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ATCCheckObject = void 0;
@@ -26760,9 +26760,9 @@ var require_atc_check_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_variant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_variant.js
 var require_atc_check_variant = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_variant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/atc_check_variant.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ATCCheckVariant = void 0;
@@ -26785,9 +26785,9 @@ var require_atc_check_variant = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/_abstract_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/_abstract_type.js
 var require_abstract_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/_abstract_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/_abstract_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AbstractType = void 0;
@@ -26824,9 +26824,9 @@ var require_abstract_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/any_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/any_type.js
 var require_any_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/any_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/any_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AnyType = void 0;
@@ -26865,9 +26865,9 @@ var require_any_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/cgeneric_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/cgeneric_type.js
 var require_cgeneric_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/cgeneric_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/cgeneric_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CGenericType = void 0;
@@ -26900,9 +26900,9 @@ var require_cgeneric_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/character_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/character_type.js
 var require_character_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/character_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/character_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CharacterType = void 0;
@@ -26954,9 +26954,9 @@ var require_character_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/clike_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/clike_type.js
 var require_clike_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/clike_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/clike_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CLikeType = void 0;
@@ -26989,9 +26989,9 @@ var require_clike_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/csequence_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/csequence_type.js
 var require_csequence_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/csequence_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/csequence_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CSequenceType = void 0;
@@ -27017,9 +27017,9 @@ var require_csequence_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/data_reference_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/data_reference_type.js
 var require_data_reference_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/data_reference_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/data_reference_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DataReference = void 0;
@@ -27060,9 +27060,9 @@ var require_data_reference_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/data_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/data_type.js
 var require_data_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/data_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/data_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DataType = void 0;
@@ -27088,9 +27088,9 @@ var require_data_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/date_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/date_type.js
 var require_date_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/date_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/date_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DateType = void 0;
@@ -27116,9 +27116,9 @@ var require_date_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat_type.js
 var require_decfloat_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DecFloatType = void 0;
@@ -27144,9 +27144,9 @@ var require_decfloat_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat16_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat16_type.js
 var require_decfloat16_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat16_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat16_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DecFloat16Type = void 0;
@@ -27172,9 +27172,9 @@ var require_decfloat16_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat34_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat34_type.js
 var require_decfloat34_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat34_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/decfloat34_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DecFloat34Type = void 0;
@@ -27200,9 +27200,9 @@ var require_decfloat34_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/enum_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/enum_type.js
 var require_enum_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/enum_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/enum_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EnumType = void 0;
@@ -27228,9 +27228,9 @@ var require_enum_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/float_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/float_type.js
 var require_float_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/float_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/float_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FloatType = void 0;
@@ -27256,9 +27256,9 @@ var require_float_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/floating_point_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/floating_point_type.js
 var require_floating_point_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/floating_point_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/floating_point_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FloatingPointType = void 0;
@@ -27294,9 +27294,9 @@ var require_floating_point_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/generic_object_reference_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/generic_object_reference_type.js
 var require_generic_object_reference_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/generic_object_reference_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/generic_object_reference_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GenericObjectReferenceType = void 0;
@@ -27322,9 +27322,9 @@ var require_generic_object_reference_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/hex_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/hex_type.js
 var require_hex_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/hex_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/hex_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.HexType = void 0;
@@ -27360,9 +27360,9 @@ var require_hex_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/integer_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/integer_type.js
 var require_integer_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/integer_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/integer_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IntegerType = void 0;
@@ -27410,9 +27410,9 @@ var require_integer_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/integer8_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/integer8_type.js
 var require_integer8_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/integer8_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/integer8_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Integer8Type = void 0;
@@ -27438,9 +27438,9 @@ var require_integer8_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/numeric_generic_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/numeric_generic_type.js
 var require_numeric_generic_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/numeric_generic_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/numeric_generic_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NumericGenericType = void 0;
@@ -27466,9 +27466,9 @@ var require_numeric_generic_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/numeric_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/numeric_type.js
 var require_numeric_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/numeric_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/numeric_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NumericType = void 0;
@@ -27504,9 +27504,9 @@ var require_numeric_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/object_reference_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/object_reference_type.js
 var require_object_reference_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/object_reference_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/object_reference_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ObjectReferenceType = void 0;
@@ -27542,9 +27542,9 @@ var require_object_reference_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/packed_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/packed_type.js
 var require_packed_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/packed_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/packed_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PackedType = void 0;
@@ -27586,9 +27586,9 @@ var require_packed_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/pgeneric_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/pgeneric_type.js
 var require_pgeneric_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/pgeneric_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/pgeneric_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PGenericType = void 0;
@@ -27621,9 +27621,9 @@ var require_pgeneric_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/simple_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/simple_type.js
 var require_simple_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/simple_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/simple_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SimpleType = void 0;
@@ -27656,9 +27656,9 @@ var require_simple_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/string_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/string_type.js
 var require_string_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/string_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/string_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StringType = void 0;
@@ -27706,9 +27706,9 @@ var require_string_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/structure_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/structure_type.js
 var require_structure_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/structure_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/structure_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StructureType = void 0;
@@ -27770,9 +27770,9 @@ var require_structure_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/table_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/table_type.js
 var require_table_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/table_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/table_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TableType = exports.TableKeyType = exports.TableAccessType = void 0;
@@ -27846,9 +27846,9 @@ var require_table_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/time_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/time_type.js
 var require_time_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/time_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/time_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TimeType = void 0;
@@ -27874,9 +27874,9 @@ var require_time_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/unknown_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/unknown_type.js
 var require_unknown_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/unknown_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/unknown_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.UnknownType = void 0;
@@ -27909,9 +27909,9 @@ var require_unknown_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/utc_long_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/utc_long_type.js
 var require_utc_long_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/utc_long_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/utc_long_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.UTCLongType = void 0;
@@ -27937,9 +27937,9 @@ var require_utc_long_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/void_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/void_type.js
 var require_void_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/void_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/void_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.VoidType = void 0;
@@ -27982,9 +27982,9 @@ var require_void_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xgeneric_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xgeneric_type.js
 var require_xgeneric_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xgeneric_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xgeneric_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.XGenericType = void 0;
@@ -28017,9 +28017,9 @@ var require_xgeneric_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xsequence_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xsequence_type.js
 var require_xsequence_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xsequence_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xsequence_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.XSequenceType = void 0;
@@ -28045,9 +28045,9 @@ var require_xsequence_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xstring_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xstring_type.js
 var require_xstring_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xstring_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/xstring_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.XStringType = void 0;
@@ -28086,9 +28086,9 @@ var require_xstring_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/index.js
 var require_basic = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/basic/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -28144,9 +28144,9 @@ var require_basic = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddic.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddic.js
 var require_ddic = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddic.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddic.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -28596,9 +28596,9 @@ var require_ddic = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_check_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_check_field.js
 var require_authorization_check_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_check_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_check_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AuthorizationCheckField = void 0;
@@ -28667,9 +28667,9 @@ var require_authorization_check_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_group.js
 var require_authorization_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AuthorizationGroup = void 0;
@@ -28692,9 +28692,9 @@ var require_authorization_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object_class.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object_class.js
 var require_authorization_object_class = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object_class.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object_class.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AuthorizationObjectClass = void 0;
@@ -28717,9 +28717,9 @@ var require_authorization_object_class = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object_extension.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object_extension.js
 var require_authorization_object_extension = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object_extension.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object_extension.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AuthorizationObjectExtension = void 0;
@@ -28742,9 +28742,9 @@ var require_authorization_object_extension = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object.js
 var require_authorization_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/authorization_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AuthorizationObject = void 0;
@@ -28767,9 +28767,9 @@ var require_authorization_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/badi_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/badi_definition.js
 var require_badi_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/badi_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/badi_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BADIDefinition = void 0;
@@ -28792,9 +28792,9 @@ var require_badi_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/behavior_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/behavior_definition.js
 var require_behavior_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/behavior_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/behavior_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BehaviorDefinition = void 0;
@@ -28817,9 +28817,9 @@ var require_behavior_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/brf_plus_system_application.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/brf_plus_system_application.js
 var require_brf_plus_system_application = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/brf_plus_system_application.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/brf_plus_system_application.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BRFPlusSystemApplication = void 0;
@@ -28842,9 +28842,9 @@ var require_brf_plus_system_application = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/bsp_application.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/bsp_application.js
 var require_bsp_application = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/bsp_application.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/bsp_application.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BSPApplication = void 0;
@@ -28867,9 +28867,9 @@ var require_bsp_application = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_add_in_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_add_in_implementation.js
 var require_business_add_in_implementation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_add_in_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_add_in_implementation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BusinessAddInImplementation = void 0;
@@ -28892,9 +28892,9 @@ var require_business_add_in_implementation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_catalog_app_assignment.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_catalog_app_assignment.js
 var require_business_catalog_app_assignment = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_catalog_app_assignment.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_catalog_app_assignment.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BusinessCatalogAppAssignment = void 0;
@@ -28917,9 +28917,9 @@ var require_business_catalog_app_assignment = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_catalog.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_catalog.js
 var require_business_catalog = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_catalog.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_catalog.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BusinessCatalog = void 0;
@@ -28942,9 +28942,9 @@ var require_business_catalog = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_configuration_maintenance_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_configuration_maintenance_object.js
 var require_business_configuration_maintenance_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_configuration_maintenance_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_configuration_maintenance_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BusinessConfigurationMaintenanceObject = void 0;
@@ -28968,9 +28968,9 @@ var require_business_configuration_maintenance_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_configuration_set.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_configuration_set.js
 var require_business_configuration_set = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_configuration_set.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_configuration_set.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BusinessConfigurationSet = void 0;
@@ -28993,9 +28993,9 @@ var require_business_configuration_set = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_function_assignment.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_function_assignment.js
 var require_business_function_assignment = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_function_assignment.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_function_assignment.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BusinessFunctionAssignment = void 0;
@@ -29018,9 +29018,9 @@ var require_business_function_assignment = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_function_set_assignment.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_function_set_assignment.js
 var require_business_function_set_assignment = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_function_set_assignment.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_function_set_assignment.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BusinessFunctionSetAssignment = void 0;
@@ -29043,9 +29043,9 @@ var require_business_function_set_assignment = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_object_model.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_object_model.js
 var require_business_object_model = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_object_model.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_object_model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BusinessObjectModel = void 0;
@@ -29068,9 +29068,9 @@ var require_business_object_model = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_object_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_object_type.js
 var require_business_object_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_object_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/business_object_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BusinessObjectType = void 0;
@@ -29093,9 +29093,9 @@ var require_business_object_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_entity_buffer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_entity_buffer.js
 var require_cds_entity_buffer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_entity_buffer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_entity_buffer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSEntityBuffer = void 0;
@@ -29118,9 +29118,9 @@ var require_cds_entity_buffer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_lexer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_lexer.js
 var require_cds_lexer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_lexer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_lexer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSLexer = void 0;
@@ -29305,9 +29305,9 @@ var require_cds_lexer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_aggregate.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_aggregate.js
 var require_cds_aggregate = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_aggregate.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_aggregate.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSAggregate = void 0;
@@ -29325,9 +29325,9 @@ var require_cds_aggregate = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotate.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotate.js
 var require_cds_annotate = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotate.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotate.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSAnnotate = void 0;
@@ -29342,9 +29342,9 @@ var require_cds_annotate = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_name.js
 var require_cds_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSName = void 0;
@@ -29381,9 +29381,9 @@ var require_cds_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_integer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_integer.js
 var require_cds_integer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_integer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_integer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSInteger = void 0;
@@ -29401,9 +29401,9 @@ var require_cds_integer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_parameters.js
 var require_cds_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_parameters.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSParameters = void 0;
@@ -29420,9 +29420,9 @@ var require_cds_parameters = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_parameters_select.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_parameters_select.js
 var require_cds_parameters_select = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_parameters_select.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_parameters_select.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSParametersSelect = void 0;
@@ -29443,9 +29443,9 @@ var require_cds_parameters_select = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_condition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_condition.js
 var require_cds_condition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_condition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_condition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSCondition = void 0;
@@ -29471,9 +29471,9 @@ var require_cds_condition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_string.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_string.js
 var require_cds_string = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_string.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_string.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSString = void 0;
@@ -29490,9 +29490,9 @@ var require_cds_string = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_prefixed_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_prefixed_name.js
 var require_cds_prefixed_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_prefixed_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_prefixed_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSPrefixedName = void 0;
@@ -29529,9 +29529,9 @@ var require_cds_prefixed_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_simple.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_simple.js
 var require_cds_annotation_simple = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_simple.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_simple.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSAnnotationSimple = void 0;
@@ -29552,9 +29552,9 @@ var require_cds_annotation_simple = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_array.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_array.js
 var require_cds_annotation_array = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_array.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_array.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSAnnotationArray = void 0;
@@ -29572,9 +29572,9 @@ var require_cds_annotation_array = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_object.js
 var require_cds_annotation_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSAnnotationObject = void 0;
@@ -29593,9 +29593,9 @@ var require_cds_annotation_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation.js
 var require_cds_annotation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_annotation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSAnnotation = void 0;
@@ -29613,9 +29613,9 @@ var require_cds_annotation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_arith_paren.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_arith_paren.js
 var require_cds_arith_paren = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_arith_paren.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_arith_paren.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSArithParen = void 0;
@@ -29632,9 +29632,9 @@ var require_cds_arith_paren = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_arithmetics.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_arithmetics.js
 var require_cds_arithmetics = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_arithmetics.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_arithmetics.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSArithmetics = void 0;
@@ -29673,9 +29673,9 @@ var require_cds_arithmetics = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_as.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_as.js
 var require_cds_as = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_as.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_as.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSAs = void 0;
@@ -29694,9 +29694,9 @@ var require_cds_as = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_cardinality.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_cardinality.js
 var require_cds_cardinality = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_cardinality.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_cardinality.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSCardinality = void 0;
@@ -29714,9 +29714,9 @@ var require_cds_cardinality = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_association.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_association.js
 var require_cds_association = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_association.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_association.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSAssociation = void 0;
@@ -29740,9 +29740,9 @@ var require_cds_association = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_case.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_case.js
 var require_cds_case = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_case.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_case.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSCase = void 0;
@@ -29761,9 +29761,9 @@ var require_cds_case = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_cast.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_cast.js
 var require_cds_cast = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_cast.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_cast.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSCast = void 0;
@@ -29779,9 +29779,9 @@ var require_cds_cast = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_composition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_composition.js
 var require_cds_composition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_composition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_composition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSComposition = void 0;
@@ -29802,9 +29802,9 @@ var require_cds_composition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_abstract.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_abstract.js
 var require_cds_define_abstract = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_abstract.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_abstract.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSDefineAbstract = void 0;
@@ -29822,9 +29822,9 @@ var require_cds_define_abstract = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_type.js
 var require_cds_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSType = void 0;
@@ -29840,9 +29840,9 @@ var require_cds_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_custom.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_custom.js
 var require_cds_define_custom = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_custom.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_custom.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSDefineCustom = void 0;
@@ -29861,9 +29861,9 @@ var require_cds_define_custom = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_external_entity.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_external_entity.js
 var require_cds_define_external_entity = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_external_entity.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_external_entity.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSDefineExternalEntity = void 0;
@@ -29886,9 +29886,9 @@ var require_cds_define_external_entity = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_hierarchy.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_hierarchy.js
 var require_cds_define_hierarchy = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_hierarchy.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_hierarchy.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSDefineHierarchy = void 0;
@@ -29912,9 +29912,9 @@ var require_cds_define_hierarchy = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_projection.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_projection.js
 var require_cds_define_projection = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_projection.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_projection.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSDefineProjection = void 0;
@@ -29937,9 +29937,9 @@ var require_cds_define_projection = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_table_entity.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_table_entity.js
 var require_cds_define_table_entity = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_table_entity.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_table_entity.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSDefineTableEntity = void 0;
@@ -29958,9 +29958,9 @@ var require_cds_define_table_entity = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_table_function.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_table_function.js
 var require_cds_define_table_function = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_table_function.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_table_function.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSDefineTableFunction = void 0;
@@ -29977,9 +29977,9 @@ var require_cds_define_table_function = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_paren_select.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_paren_select.js
 var require_cds_paren_select = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_paren_select.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_paren_select.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSParenSelect = void 0;
@@ -29996,9 +29996,9 @@ var require_cds_paren_select = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_join.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_join.js
 var require_cds_join = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_join.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_join.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSJoin = void 0;
@@ -30025,9 +30025,9 @@ var require_cds_join = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_select.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_select.js
 var require_cds_select = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_select.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_select.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSSelect = void 0;
@@ -30054,9 +30054,9 @@ var require_cds_select = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_with_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_with_parameters.js
 var require_cds_with_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_with_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_with_parameters.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSWithParameters = void 0;
@@ -30074,9 +30074,9 @@ var require_cds_with_parameters = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_view.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_view.js
 var require_cds_define_view = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_view.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_define_view.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSDefineView = void 0;
@@ -30099,9 +30099,9 @@ var require_cds_define_view = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_element.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_element.js
 var require_cds_element = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_element.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_element.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSElement = void 0;
@@ -30129,9 +30129,9 @@ var require_cds_element = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_extend_view.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_extend_view.js
 var require_cds_extend_view = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_extend_view.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_extend_view.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSExtendView = void 0;
@@ -30166,9 +30166,9 @@ var require_cds_extend_view = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_function_input.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_function_input.js
 var require_cds_function_input = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_function_input.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_function_input.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSFunctionInput = void 0;
@@ -30185,9 +30185,9 @@ var require_cds_function_input = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_function.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_function.js
 var require_cds_function = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_function.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_function.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSFunction = void 0;
@@ -30263,9 +30263,9 @@ var require_cds_function = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_group_by.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_group_by.js
 var require_cds_group_by = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_group_by.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_group_by.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSGroupBy = void 0;
@@ -30280,9 +30280,9 @@ var require_cds_group_by = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_having.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_having.js
 var require_cds_having = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_having.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_having.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSHaving = void 0;
@@ -30297,9 +30297,9 @@ var require_cds_having = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_provider_contract.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_provider_contract.js
 var require_cds_provider_contract = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_provider_contract.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_provider_contract.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSProviderContract = void 0;
@@ -30313,9 +30313,9 @@ var require_cds_provider_contract = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_relation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_relation.js
 var require_cds_relation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_relation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_relation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSRelation = void 0;
@@ -30354,9 +30354,9 @@ var require_cds_relation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_source.js
 var require_cds_source = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_source.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSSource = void 0;
@@ -30375,9 +30375,9 @@ var require_cds_source = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_table_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_table_field.js
 var require_cds_table_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_table_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_table_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSTableField = void 0;
@@ -30398,9 +30398,9 @@ var require_cds_table_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_where.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_where.js
 var require_cds_where = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_where.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/cds_where.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSWhere = void 0;
@@ -30415,9 +30415,9 @@ var require_cds_where = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/index.js
 var require_expressions2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/expressions/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -30484,9 +30484,9 @@ var require_expressions2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_parser.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_parser.js
 var require_cds_parser = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_parser.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_parser.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -30578,9 +30578,9 @@ var require_cds_parser = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_metadata_extension.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_metadata_extension.js
 var require_cds_metadata_extension = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_metadata_extension.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_metadata_extension.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSMetadataExtension = void 0;
@@ -30630,9 +30630,9 @@ var require_cds_metadata_extension = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_type.js
 var require_cds_type2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/cds_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSType = void 0;
@@ -30655,9 +30655,9 @@ var require_cds_type2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/change_document.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/change_document.js
 var require_change_document = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/change_document.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/change_document.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ChangeDocument = void 0;
@@ -30680,9 +30680,9 @@ var require_change_document = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/chapter_of_book_structure.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/chapter_of_book_structure.js
 var require_chapter_of_book_structure = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/chapter_of_book_structure.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/chapter_of_book_structure.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ChapterOfBookStructure = void 0;
@@ -30705,9 +30705,9 @@ var require_chapter_of_book_structure = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/checkpoint_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/checkpoint_group.js
 var require_checkpoint_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/checkpoint_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/checkpoint_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CheckpointGroup = void 0;
@@ -30730,9 +30730,9 @@ var require_checkpoint_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/class.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/class.js
 var require_class = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/class.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/class.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Class = exports.ClassCategory = void 0;
@@ -30844,9 +30844,9 @@ var require_class = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/classification.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/classification.js
 var require_classification = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/classification.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/classification.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Classification = void 0;
@@ -30869,9 +30869,9 @@ var require_classification = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/communication_scenario.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/communication_scenario.js
 var require_communication_scenario = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/communication_scenario.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/communication_scenario.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CommunicationScenario = void 0;
@@ -30894,9 +30894,9 @@ var require_communication_scenario = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/composite_enhancement_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/composite_enhancement_implementation.js
 var require_composite_enhancement_implementation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/composite_enhancement_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/composite_enhancement_implementation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CompositeEnhancementImplementation = void 0;
@@ -30919,9 +30919,9 @@ var require_composite_enhancement_implementation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/composite_enhancement_spot.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/composite_enhancement_spot.js
 var require_composite_enhancement_spot = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/composite_enhancement_spot.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/composite_enhancement_spot.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CompositeEnhancementSpot = void 0;
@@ -30944,9 +30944,9 @@ var require_composite_enhancement_spot = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/concepts_of_package.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/concepts_of_package.js
 var require_concepts_of_package = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/concepts_of_package.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/concepts_of_package.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConceptsOfPackage = void 0;
@@ -30970,9 +30970,9 @@ var require_concepts_of_package = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/custom_data_browser_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/custom_data_browser_object.js
 var require_custom_data_browser_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/custom_data_browser_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/custom_data_browser_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CustomDataBrowserObject = void 0;
@@ -30995,9 +30995,9 @@ var require_custom_data_browser_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/customer_enhancement_project.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/customer_enhancement_project.js
 var require_customer_enhancement_project = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/customer_enhancement_project.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/customer_enhancement_project.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CustomerEnhancementProject = void 0;
@@ -31020,9 +31020,9 @@ var require_customer_enhancement_project = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_attributes.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_attributes.js
 var require_customizing_attributes = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_attributes.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_attributes.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CustomizingAttributes = void 0;
@@ -31045,9 +31045,9 @@ var require_customizing_attributes = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_img_activity.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_img_activity.js
 var require_customizing_img_activity = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_img_activity.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_img_activity.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CustomizingImgActivity = void 0;
@@ -31070,9 +31070,9 @@ var require_customizing_img_activity = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_transaction.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_transaction.js
 var require_customizing_transaction = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_transaction.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/customizing_transaction.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CustomizingTransaction = void 0;
@@ -31095,9 +31095,9 @@ var require_customizing_transaction = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_control.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_control.js
 var require_data_control = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_control.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_control.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DataControl = void 0;
@@ -31120,9 +31120,9 @@ var require_data_control = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_determine_types.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_determine_types.js
 var require_cds_determine_types = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_determine_types.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/cds/cds_determine_types.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSDetermineTypes = void 0;
@@ -31216,9 +31216,9 @@ var require_cds_determine_types = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_definition.js
 var require_data_definition2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DataDefinition = void 0;
@@ -31433,9 +31433,9 @@ var require_data_definition2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_element.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_element.js
 var require_data_element = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_element.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/data_element.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -31632,9 +31632,9 @@ var require_data_element = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/datastore_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/datastore_object.js
 var require_datastore_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/datastore_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/datastore_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DatastoreObject = void 0;
@@ -31657,9 +31657,9 @@ var require_datastore_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/dialog_module.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/dialog_module.js
 var require_dialog_module = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/dialog_module.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/dialog_module.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DialogModule = void 0;
@@ -31682,9 +31682,9 @@ var require_dialog_module = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/documentation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/documentation.js
 var require_documentation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/documentation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/documentation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Documentation = void 0;
@@ -31707,9 +31707,9 @@ var require_documentation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/domain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/domain.js
 var require_domain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/domain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/domain.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -31854,9 +31854,9 @@ var require_domain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_configuration.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_configuration.js
 var require_ecatt_test_configuration = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_configuration.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_configuration.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EcattTestConfiguration = void 0;
@@ -31879,9 +31879,9 @@ var require_ecatt_test_configuration = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_data_container.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_data_container.js
 var require_ecatt_test_data_container = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_data_container.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_data_container.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EcattTestDataContainer = void 0;
@@ -31904,9 +31904,9 @@ var require_ecatt_test_data_container = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_script.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_script.js
 var require_ecatt_test_script = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_script.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/ecatt_test_script.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EcattTestScript = void 0;
@@ -31929,9 +31929,9 @@ var require_ecatt_test_script = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/email_template.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/email_template.js
 var require_email_template = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/email_template.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/email_template.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EmailTemplate = void 0;
@@ -31955,9 +31955,9 @@ var require_email_template = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/enhancement_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/enhancement_implementation.js
 var require_enhancement_implementation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/enhancement_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/enhancement_implementation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EnhancementImplementation = void 0;
@@ -32007,9 +32007,9 @@ var require_enhancement_implementation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/enhancement_spot.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/enhancement_spot.js
 var require_enhancement_spot = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/enhancement_spot.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/enhancement_spot.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EnhancementSpot = void 0;
@@ -32059,9 +32059,9 @@ var require_enhancement_spot = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/entity_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/entity_type.js
 var require_entity_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/entity_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/entity_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EntityType = void 0;
@@ -32084,9 +32084,9 @@ var require_entity_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/event_binding.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/event_binding.js
 var require_event_binding = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/event_binding.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/event_binding.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EventBinding = void 0;
@@ -32109,9 +32109,9 @@ var require_event_binding = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/event_consumer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/event_consumer.js
 var require_event_consumer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/event_consumer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/event_consumer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EventConsumer = void 0;
@@ -32134,9 +32134,9 @@ var require_event_consumer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/extension_index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/extension_index.js
 var require_extension_index = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/extension_index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/extension_index.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExtensionIndex = void 0;
@@ -32193,9 +32193,9 @@ var require_extension_index = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/field_catalog.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/field_catalog.js
 var require_field_catalog = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/field_catalog.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/field_catalog.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FieldCatalog = void 0;
@@ -32218,9 +32218,9 @@ var require_field_catalog = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/form_object_form.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/form_object_form.js
 var require_form_object_form = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/form_object_form.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/form_object_form.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormObjectForm = void 0;
@@ -32243,9 +32243,9 @@ var require_form_object_form = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/form_object_interface.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/form_object_interface.js
 var require_form_object_interface = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/form_object_interface.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/form_object_interface.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormObjectInterface = void 0;
@@ -32268,9 +32268,9 @@ var require_form_object_interface = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/format_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/format_type.js
 var require_format_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/format_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/format_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormatType = void 0;
@@ -32293,9 +32293,9 @@ var require_format_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/_typed_identifier.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/_typed_identifier.js
 var require_typed_identifier = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/_typed_identifier.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/_typed_identifier.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypedIdentifier = void 0;
@@ -32337,9 +32337,9 @@ var require_typed_identifier = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_attribute.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_attribute.js
 var require_class_attribute = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_attribute.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_attribute.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassAttribute = void 0;
@@ -32357,9 +32357,9 @@ var require_class_attribute = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_constant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_constant.js
 var require_class_constant = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_constant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_constant.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassConstant = void 0;
@@ -32381,9 +32381,9 @@ var require_class_constant = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_scope_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_scope_type.js
 var require_scope_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_scope_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_scope_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ScopeType = void 0;
@@ -32411,9 +32411,9 @@ var require_scope_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_object_oriented.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_object_oriented.js
 var require_object_oriented = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_object_oriented.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_object_oriented.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -32828,9 +32828,9 @@ var require_object_oriented = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_reference.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_reference.js
 var require_reference = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_reference.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_reference.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ReferenceType = void 0;
@@ -32856,9 +32856,9 @@ var require_reference = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_syntax_input.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_syntax_input.js
 var require_syntax_input = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_syntax_input.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_syntax_input.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CheckSyntaxKey = void 0;
@@ -32872,9 +32872,9 @@ var require_syntax_input = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_name.js
 var require_component_name2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_name.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -32957,9 +32957,9 @@ var require_component_name2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/attribute_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/attribute_name.js
 var require_attribute_name2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/attribute_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/attribute_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AttributeName = void 0;
@@ -33037,9 +33037,9 @@ var require_attribute_name2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_offset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_offset.js
 var require_field_offset2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_offset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_offset.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -33098,9 +33098,9 @@ var require_field_offset2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_length.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_length.js
 var require_field_length2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_length.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_length.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -33164,9 +33164,9 @@ var require_field_length2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_data.js
 var require_inline_data = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_data.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -33256,9 +33256,9 @@ var require_inline_data = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_type_utils.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_type_utils.js
 var require_type_utils = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_type_utils.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_type_utils.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -33771,9 +33771,9 @@ var require_type_utils = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cast.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cast.js
 var require_cast2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cast.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cast.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -33879,9 +33879,9 @@ var require_cast2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/target.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/target.js
 var require_target2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/target.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/target.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -34083,9 +34083,9 @@ var require_target2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/assert_error.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/assert_error.js
 var require_assert_error = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/assert_error.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/assert_error.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AssertError = void 0;
@@ -34095,9 +34095,9 @@ var require_assert_error = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_builtin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_builtin.js
 var require_builtin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_builtin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_builtin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.BuiltIn = exports.BuiltInMethod = void 0;
@@ -35345,9 +35345,9 @@ var require_builtin = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/_check_offset_length.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/_check_offset_length.js
 var require_check_offset_length = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/_check_offset_length.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/_check_offset_length.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -35406,9 +35406,9 @@ var require_check_offset_length = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_parameters.js
 var require_method_parameters2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_parameters.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -35709,9 +35709,9 @@ var require_method_parameters2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/dynamic.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/dynamic.js
 var require_dynamic2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/dynamic.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/dynamic.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -35767,9 +35767,9 @@ var require_dynamic2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/create_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/create_object.js
 var require_create_object2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/create_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/create_object.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -35987,9 +35987,9 @@ var require_create_object2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/new_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/new_object.js
 var require_new_object2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/new_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/new_object.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -36190,9 +36190,9 @@ var require_new_object2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/constant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/constant.js
 var require_constant3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/constant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/constant.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Constant = void 0;
@@ -36221,9 +36221,9 @@ var require_constant3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_param.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_param.js
 var require_method_call_param2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_param.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_param.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -36359,9 +36359,9 @@ var require_method_call_param2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_chain.js
 var require_method_call_chain2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_chain.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -36528,9 +36528,9 @@ var require_method_call_chain2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_chain.js
 var require_component_chain2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_chain.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -36672,9 +36672,9 @@ var require_component_chain2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/string_template.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/string_template.js
 var require_string_template3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/string_template.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/string_template.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -36780,9 +36780,9 @@ var require_string_template3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_field_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_field_definition.js
 var require_inline_field_definition2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_field_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_field_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -36872,9 +36872,9 @@ var require_inline_field_definition2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_loop_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_loop_definition.js
 var require_inline_loop_definition2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_loop_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_loop_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -36973,9 +36973,9 @@ var require_inline_loop_definition2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_compare.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_compare.js
 var require_component_compare2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_compare.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_compare.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37049,9 +37049,9 @@ var require_component_compare2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_cond.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_cond.js
 var require_component_cond2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_cond.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_cond.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37111,9 +37111,9 @@ var require_component_cond2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source_field_symbol.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source_field_symbol.js
 var require_source_field_symbol2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source_field_symbol.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source_field_symbol.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SourceFieldSymbol = void 0;
@@ -37137,9 +37137,9 @@ var require_source_field_symbol2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/compare.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/compare.js
 var require_compare2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/compare.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/compare.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37209,9 +37209,9 @@ var require_compare2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cond.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cond.js
 var require_cond2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cond.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cond.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37271,9 +37271,9 @@ var require_cond2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/let.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/let.js
 var require_let2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/let.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/let.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37335,9 +37335,9 @@ var require_let2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/for.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/for.js
 var require_for2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/for.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/for.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37436,9 +37436,9 @@ var require_for2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_assignment.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_assignment.js
 var require_field_assignment2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_assignment.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_assignment.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37522,9 +37522,9 @@ var require_field_assignment2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/value_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/value_body.js
 var require_value_body2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/value_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/value_body.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37654,9 +37654,9 @@ var require_value_body2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/reduce_next.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/reduce_next.js
 var require_reduce_next2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/reduce_next.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/reduce_next.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37717,9 +37717,9 @@ var require_reduce_next2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/reduce_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/reduce_body.js
 var require_reduce_body2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/reduce_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/reduce_body.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37824,9 +37824,9 @@ var require_reduce_body2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/switch_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/switch_body.js
 var require_switch_body2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/switch_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/switch_body.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37896,9 +37896,9 @@ var require_switch_body2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cond_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cond_body.js
 var require_cond_body2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cond_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/cond_body.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -37974,9 +37974,9 @@ var require_cond_body2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/conv_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/conv_body.js
 var require_conv_body2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/conv_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/conv_body.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -38046,9 +38046,9 @@ var require_conv_body2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/filter_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/filter_body.js
 var require_filter_body2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/filter_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/filter_body.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -38112,9 +38112,9 @@ var require_filter_body2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/corresponding_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/corresponding_body.js
 var require_corresponding_body2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/corresponding_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/corresponding_body.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -38182,9 +38182,9 @@ var require_corresponding_body2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/attribute_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/attribute_chain.js
 var require_attribute_chain2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/attribute_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/attribute_chain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AttributeChain = void 0;
@@ -38234,9 +38234,9 @@ var require_attribute_chain2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/dereference.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/dereference.js
 var require_dereference2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/dereference.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/dereference.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Dereference = void 0;
@@ -38259,9 +38259,9 @@ var require_dereference2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source.js
 var require_source2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -38612,9 +38612,9 @@ var require_source2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/table_expression.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/table_expression.js
 var require_table_expression2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/table_expression.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/table_expression.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -38691,9 +38691,9 @@ var require_table_expression2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source_field.js
 var require_source_field2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/source_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SourceField = void 0;
@@ -38728,9 +38728,9 @@ var require_source_field2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_chain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_chain.js
 var require_field_chain2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_chain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/field_chain.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -38928,9 +38928,9 @@ var require_field_chain2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/basic_types.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/basic_types.js
 var require_basic_types = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/basic_types.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/basic_types.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -39866,9 +39866,9 @@ var require_basic_types = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/type_table_key.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/type_table_key.js
 var require_type_table_key2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/type_table_key.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/type_table_key.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -39931,9 +39931,9 @@ var require_type_table_key2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/type_table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/type_table.js
 var require_type_table2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/type_table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/type_table.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40014,9 +40014,9 @@ var require_type_table2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/data_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/data_definition.js
 var require_data_definition3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/data_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/data_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40096,9 +40096,9 @@ var require_data_definition3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_data.js
 var require_class_data3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_data.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40176,9 +40176,9 @@ var require_class_data3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/class_data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/class_data.js
 var require_class_data4 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/class_data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/class_data.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40257,9 +40257,9 @@ var require_class_data4 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/data.js
 var require_data3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/data.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40355,9 +40355,9 @@ var require_data3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/constant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/constant.js
 var require_constant4 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/constant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/constant.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40455,9 +40455,9 @@ var require_constant4 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/type.js
 var require_type3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/type.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40538,9 +40538,9 @@ var require_type3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/include_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/include_type.js
 var require_include_type2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/include_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/include_type.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40663,9 +40663,9 @@ var require_include_type2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/types.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/types.js
 var require_types2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/types.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/types.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40763,9 +40763,9 @@ var require_types2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/constants.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/constants.js
 var require_constants2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/constants.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/constants.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40854,9 +40854,9 @@ var require_constants2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/ranges.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/ranges.js
 var require_ranges2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/ranges.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/ranges.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -40933,9 +40933,9 @@ var require_ranges2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/selectoption.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/selectoption.js
 var require_selectoption2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/selectoption.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/selectoption.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -41039,9 +41039,9 @@ var require_selectoption2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/parameter.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/parameter.js
 var require_parameter2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/parameter.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/parameter.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -41124,9 +41124,9 @@ var require_parameter2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/data.js
 var require_data4 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/data.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -41290,9 +41290,9 @@ var require_data4 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/type_enum.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/type_enum.js
 var require_type_enum3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/type_enum.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/type_enum.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -41415,9 +41415,9 @@ var require_type_enum3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/type_mesh.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/type_mesh.js
 var require_type_mesh3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/type_mesh.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/type_mesh.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -41522,9 +41522,9 @@ var require_type_mesh3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/type_definitions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/type_definitions.js
 var require_type_definitions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/type_definitions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/type_definitions.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypeDefinitions = void 0;
@@ -41548,9 +41548,9 @@ var require_type_definitions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/alias.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/alias.js
 var require_alias = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/alias.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/alias.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Alias = void 0;
@@ -41572,9 +41572,9 @@ var require_alias = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_attributes.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_attributes.js
 var require_class_attributes = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_attributes.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_attributes.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -41868,9 +41868,9 @@ var require_class_attributes = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_def_returning.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_def_returning.js
 var require_method_def_returning2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_def_returning.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_def_returning.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -41945,9 +41945,9 @@ var require_method_def_returning2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/default.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/default.js
 var require_default2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/default.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/default.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42009,9 +42009,9 @@ var require_default2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_param.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_param.js
 var require_method_param2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_param.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_param.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42097,9 +42097,9 @@ var require_method_param2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_parameters.js
 var require_method_parameters3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_parameters.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42451,9 +42451,9 @@ var require_method_parameters3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_definition.js
 var require_method_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42599,9 +42599,9 @@ var require_method_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_definitions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_definitions.js
 var require_method_definitions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_definitions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_definitions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42706,9 +42706,9 @@ var require_method_definitions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/event_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/event_definition.js
 var require_event_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/event_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/event_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -42785,9 +42785,9 @@ var require_event_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_definition.js
 var require_class_definition3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -43068,9 +43068,9 @@ var require_class_definition3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_implementation.js
 var require_method_implementation2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/method_implementation.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -43130,9 +43130,9 @@ var require_method_implementation2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_implementation.js
 var require_class_implementation3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/class_implementation.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -43207,9 +43207,9 @@ var require_class_implementation3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/form_param.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/form_param.js
 var require_form_param2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/form_param.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/form_param.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FormParam = void 0;
@@ -43277,9 +43277,9 @@ var require_form_param2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/form_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/form_definition.js
 var require_form_definition2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/form_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/form_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -43403,9 +43403,9 @@ var require_form_definition2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/function_module_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/function_module_definition.js
 var require_function_module_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/function_module_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/function_module_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FunctionModuleDefinition = exports.FunctionModuleType = exports.FunctionModuleParameterDirection = void 0;
@@ -43524,9 +43524,9 @@ var require_function_module_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/interface_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/interface_definition.js
 var require_interface_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/interface_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/interface_definition.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -43677,9 +43677,9 @@ var require_interface_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/index.js
 var require_types3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -43714,9 +43714,9 @@ var require_types3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/_dynpros.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/_dynpros.js
 var require_dynpros = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/_dynpros.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/_dynpros.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.parseDynpros = parseDynpros;
@@ -43763,9 +43763,9 @@ var require_dynpros = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/function_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/function_group.js
 var require_function_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/function_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/function_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FunctionGroup = void 0;
@@ -43957,9 +43957,9 @@ var require_function_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_model_metadata.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_model_metadata.js
 var require_gateway_model_metadata = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_model_metadata.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_model_metadata.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GatewayModelMetadata = void 0;
@@ -43982,9 +43982,9 @@ var require_gateway_model_metadata = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_model.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_model.js
 var require_gateway_model = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_model.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_model.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GatewayModel = void 0;
@@ -44007,9 +44007,9 @@ var require_gateway_model = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_odata_group_and_assignment.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_odata_group_and_assignment.js
 var require_gateway_odata_group_and_assignment = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_odata_group_and_assignment.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_odata_group_and_assignment.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GatewayODataGroupAndAssignment = void 0;
@@ -44032,9 +44032,9 @@ var require_gateway_odata_group_and_assignment = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_project.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_project.js
 var require_gateway_project = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_project.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_project.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GatewayProject = void 0;
@@ -44057,9 +44057,9 @@ var require_gateway_project = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_service_groups_metadata.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_service_groups_metadata.js
 var require_gateway_service_groups_metadata = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_service_groups_metadata.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_service_groups_metadata.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GatewayServiceGroupsMetadata = void 0;
@@ -44082,9 +44082,9 @@ var require_gateway_service_groups_metadata = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_service.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_service.js
 var require_gateway_service = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_service.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_service.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GatewayService = void 0;
@@ -44107,9 +44107,9 @@ var require_gateway_service = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_vocabulary_annotation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_vocabulary_annotation.js
 var require_gateway_vocabulary_annotation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_vocabulary_annotation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/gateway_vocabulary_annotation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GatewayVocabularyAnnotation = void 0;
@@ -44132,9 +44132,9 @@ var require_gateway_vocabulary_annotation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_hierarchy_storage_extrension_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_hierarchy_storage_extrension_name.js
 var require_general_hierarchy_storage_extrension_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_hierarchy_storage_extrension_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_hierarchy_storage_extrension_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GeneralHierarchyStorageExtrensionName = void 0;
@@ -44157,9 +44157,9 @@ var require_general_hierarchy_storage_extrension_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_storage_structure.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_storage_structure.js
 var require_general_storage_structure = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_storage_structure.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_storage_structure.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GeneralStorageStructure = void 0;
@@ -44182,9 +44182,9 @@ var require_general_storage_structure = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_text.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_text.js
 var require_general_text = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_text.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/general_text.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.GeneralText = void 0;
@@ -44207,9 +44207,9 @@ var require_general_text = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/http_service.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/http_service.js
 var require_http_service = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/http_service.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/http_service.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.HttpService = void 0;
@@ -44232,9 +44232,9 @@ var require_http_service = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_binary_data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_binary_data.js
 var require_iac_binary_data = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_binary_data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_binary_data.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IACBinaryData = void 0;
@@ -44257,9 +44257,9 @@ var require_iac_binary_data = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_language_resource.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_language_resource.js
 var require_iac_language_resource = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_language_resource.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_language_resource.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IACLanguageResource = void 0;
@@ -44282,9 +44282,9 @@ var require_iac_language_resource = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_service.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_service.js
 var require_iac_service = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_service.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_service.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IACService = void 0;
@@ -44307,9 +44307,9 @@ var require_iac_service = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_template.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_template.js
 var require_iac_template = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_template.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iac_template.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IACTemplate = void 0;
@@ -44332,9 +44332,9 @@ var require_iac_template = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/iam_app.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iam_app.js
 var require_iam_app = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/iam_app.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/iam_app.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IAMApp = void 0;
@@ -44357,9 +44357,9 @@ var require_iam_app = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/icf_service.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/icf_service.js
 var require_icf_service = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/icf_service.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/icf_service.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ICFService = void 0;
@@ -44419,9 +44419,9 @@ var require_icf_service = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/idoc_extension.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/idoc_extension.js
 var require_idoc_extension = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/idoc_extension.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/idoc_extension.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IdocExtension = void 0;
@@ -44444,9 +44444,9 @@ var require_idoc_extension = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/idoc.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/idoc.js
 var require_idoc = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/idoc.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/idoc.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Idoc = void 0;
@@ -44469,9 +44469,9 @@ var require_idoc = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/inbound_service.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/inbound_service.js
 var require_inbound_service = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/inbound_service.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/inbound_service.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InboundService = void 0;
@@ -44494,9 +44494,9 @@ var require_inbound_service = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/info_area.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/info_area.js
 var require_info_area = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/info_area.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/info_area.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InfoArea = void 0;
@@ -44519,9 +44519,9 @@ var require_info_area = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/info_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/info_object.js
 var require_info_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/info_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/info_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InfoObject = void 0;
@@ -44544,9 +44544,9 @@ var require_info_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/interface.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/interface.js
 var require_interface3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/interface.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/interface.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Interface = void 0;
@@ -44627,9 +44627,9 @@ var require_interface3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/knowledge_transfer_document.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/knowledge_transfer_document.js
 var require_knowledge_transfer_document = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/knowledge_transfer_document.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/knowledge_transfer_document.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.KnowledgeTransferDocument = void 0;
@@ -44653,9 +44653,9 @@ var require_knowledge_transfer_document = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/lock_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/lock_object.js
 var require_lock_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/lock_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/lock_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LockObject = void 0;
@@ -44728,9 +44728,9 @@ var require_lock_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/maintenance_and_transport_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/maintenance_and_transport_object.js
 var require_maintenance_and_transport_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/maintenance_and_transport_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/maintenance_and_transport_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MaintenanceAndTransportObject = void 0;
@@ -44813,9 +44813,9 @@ var require_maintenance_and_transport_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/message.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/message.js
 var require_message2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/message.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/types/message.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Message = void 0;
@@ -44852,9 +44852,9 @@ var require_message2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/message_class.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/message_class.js
 var require_message_class2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/message_class.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/message_class.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MessageClass = void 0;
@@ -44946,9 +44946,9 @@ var require_message_class2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/messaging_channel.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/messaging_channel.js
 var require_messaging_channel = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/messaging_channel.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/messaging_channel.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MessagingChannel = void 0;
@@ -44971,9 +44971,9 @@ var require_messaging_channel = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/mime_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/mime_object.js
 var require_mime_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/mime_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/mime_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MIMEObject = void 0;
@@ -45040,9 +45040,9 @@ var require_mime_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/namespace.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/namespace.js
 var require_namespace = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/namespace.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/namespace.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Namespace = void 0;
@@ -45066,9 +45066,9 @@ var require_namespace = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_api.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_api.js
 var require_neptune_api = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_api.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_api.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneAPI = void 0;
@@ -45092,9 +45092,9 @@ var require_neptune_api = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_app.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_app.js
 var require_neptune_app = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_app.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_app.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneApp = void 0;
@@ -45117,9 +45117,9 @@ var require_neptune_app = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_custom_color.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_custom_color.js
 var require_neptune_custom_color = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_custom_color.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_custom_color.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneCustomColor = void 0;
@@ -45142,9 +45142,9 @@ var require_neptune_custom_color = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_custom_js_helper.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_custom_js_helper.js
 var require_neptune_custom_js_helper = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_custom_js_helper.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_custom_js_helper.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneCustomJSHelper = void 0;
@@ -45167,9 +45167,9 @@ var require_neptune_custom_js_helper = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_documentation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_documentation.js
 var require_neptune_documentation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_documentation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_documentation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneDocumentation = void 0;
@@ -45192,9 +45192,9 @@ var require_neptune_documentation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_enhancement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_enhancement.js
 var require_neptune_enhancement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_enhancement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_enhancement.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneEnhancement = void 0;
@@ -45217,9 +45217,9 @@ var require_neptune_enhancement = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_launchpad_layout.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_launchpad_layout.js
 var require_neptune_launchpad_layout = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_launchpad_layout.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_launchpad_layout.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneLaunchpadLayout = void 0;
@@ -45242,9 +45242,9 @@ var require_neptune_launchpad_layout = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_launchpad.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_launchpad.js
 var require_neptune_launchpad = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_launchpad.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_launchpad.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneLaunchpad = void 0;
@@ -45267,9 +45267,9 @@ var require_neptune_launchpad = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_login_page.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_login_page.js
 var require_neptune_login_page = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_login_page.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_login_page.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneLoginPage = void 0;
@@ -45292,9 +45292,9 @@ var require_neptune_login_page = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_media_library.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_media_library.js
 var require_neptune_media_library = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_media_library.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_media_library.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneMediaLibrary = void 0;
@@ -45317,9 +45317,9 @@ var require_neptune_media_library = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_media_pack.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_media_pack.js
 var require_neptune_media_pack = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_media_pack.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_media_pack.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneMediaPack = void 0;
@@ -45342,9 +45342,9 @@ var require_neptune_media_pack = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_metadata.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_metadata.js
 var require_neptune_metadata = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_metadata.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_metadata.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneMetadata = void 0;
@@ -45367,9 +45367,9 @@ var require_neptune_metadata = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_mobile_client.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_mobile_client.js
 var require_neptune_mobile_client = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_mobile_client.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_mobile_client.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneMobileClient = void 0;
@@ -45392,9 +45392,9 @@ var require_neptune_mobile_client = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_odata.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_odata.js
 var require_neptune_odata = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_odata.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_odata.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneOData = void 0;
@@ -45417,9 +45417,9 @@ var require_neptune_odata = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_policy.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_policy.js
 var require_neptune_policy = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_policy.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_policy.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptunePolicy = void 0;
@@ -45442,9 +45442,9 @@ var require_neptune_policy = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_rfc_mapping.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_rfc_mapping.js
 var require_neptune_rfc_mapping = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_rfc_mapping.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_rfc_mapping.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneRFCMapping = void 0;
@@ -45467,9 +45467,9 @@ var require_neptune_rfc_mapping = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_rich_text_template.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_rich_text_template.js
 var require_neptune_rich_text_template = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_rich_text_template.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_rich_text_template.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneRichTextTemplate = void 0;
@@ -45492,9 +45492,9 @@ var require_neptune_rich_text_template = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_splash_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_splash_screen.js
 var require_neptune_splash_screen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_splash_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_splash_screen.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneSplashScreen = void 0;
@@ -45517,9 +45517,9 @@ var require_neptune_splash_screen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_sticky_banner.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_sticky_banner.js
 var require_neptune_sticky_banner = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_sticky_banner.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_sticky_banner.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneStickyBanner = void 0;
@@ -45542,9 +45542,9 @@ var require_neptune_sticky_banner = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile_group.js
 var require_neptune_tile_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneTileGroup = void 0;
@@ -45567,9 +45567,9 @@ var require_neptune_tile_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile_layout.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile_layout.js
 var require_neptune_tile_layout = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile_layout.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile_layout.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneTileLayout = void 0;
@@ -45592,9 +45592,9 @@ var require_neptune_tile_layout = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile.js
 var require_neptune_tile = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_tile.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneTile = void 0;
@@ -45617,9 +45617,9 @@ var require_neptune_tile = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_url_alias.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_url_alias.js
 var require_neptune_url_alias = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_url_alias.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/neptune_url_alias.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NeptuneURLAlias = void 0;
@@ -45642,9 +45642,9 @@ var require_neptune_url_alias = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/number_range.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/number_range.js
 var require_number_range = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/number_range.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/number_range.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NumberRange = void 0;
@@ -45702,9 +45702,9 @@ var require_number_range = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/oauth2_profile.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/oauth2_profile.js
 var require_oauth2_profile = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/oauth2_profile.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/oauth2_profile.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Oauth2Profile = void 0;
@@ -45737,9 +45737,9 @@ var require_oauth2_profile = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/object_characteristic.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/object_characteristic.js
 var require_object_characteristic = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/object_characteristic.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/object_characteristic.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ObjectCharacteristic = void 0;
@@ -45762,9 +45762,9 @@ var require_object_characteristic = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/outbound_service.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/outbound_service.js
 var require_outbound_service = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/outbound_service.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/outbound_service.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.OutboundService = void 0;
@@ -45787,9 +45787,9 @@ var require_outbound_service = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/package_interface.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/package_interface.js
 var require_package_interface = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/package_interface.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/package_interface.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PackageInterface = void 0;
@@ -45812,9 +45812,9 @@ var require_package_interface = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/package.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/package.js
 var require_package = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/package.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/package.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Package = void 0;
@@ -45837,9 +45837,9 @@ var require_package = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/page_format.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/page_format.js
 var require_page_format = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/page_format.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/page_format.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PageFormat = void 0;
@@ -45862,9 +45862,9 @@ var require_page_format = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/parameter.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/parameter.js
 var require_parameter3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/parameter.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/parameter.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Parameter = void 0;
@@ -45887,9 +45887,9 @@ var require_parameter3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/personalization_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/personalization_object.js
 var require_personalization_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/personalization_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/personalization_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PersonalizationObject = void 0;
@@ -45912,9 +45912,9 @@ var require_personalization_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/program.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/program.js
 var require_program2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/program.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/program.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Program = void 0;
@@ -46004,9 +46004,9 @@ var require_program2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/proxy_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/proxy_object.js
 var require_proxy_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/proxy_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/proxy_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ProxyObject = void 0;
@@ -46117,9 +46117,9 @@ var require_proxy_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/push_channel.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/push_channel.js
 var require_push_channel = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/push_channel.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/push_channel.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PushChannel = void 0;
@@ -46142,9 +46142,9 @@ var require_push_channel = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/query_user_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/query_user_group.js
 var require_query_user_group = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/query_user_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/query_user_group.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.QueryUserGroup = void 0;
@@ -46167,9 +46167,9 @@ var require_query_user_group = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/restriction_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/restriction_field.js
 var require_restriction_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/restriction_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/restriction_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RestrictionField = void 0;
@@ -46192,9 +46192,9 @@ var require_restriction_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/restriction_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/restriction_type.js
 var require_restriction_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/restriction_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/restriction_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RestrictionType = void 0;
@@ -46217,9 +46217,9 @@ var require_restriction_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rfc_service.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rfc_service.js
 var require_rfc_service = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rfc_service.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rfc_service.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RFCService = void 0;
@@ -46242,9 +46242,9 @@ var require_rfc_service = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/sapscript_style.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/sapscript_style.js
 var require_sapscript_style = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/sapscript_style.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/sapscript_style.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SAPScriptStyle = void 0;
@@ -46267,9 +46267,9 @@ var require_sapscript_style = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/sapscript.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/sapscript.js
 var require_sapscript = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/sapscript.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/sapscript.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SAPScript = void 0;
@@ -46292,9 +46292,9 @@ var require_sapscript = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/screen_variant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/screen_variant.js
 var require_screen_variant = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/screen_variant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/screen_variant.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ScreenVariant = void 0;
@@ -46317,9 +46317,9 @@ var require_screen_variant = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/search_help.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/search_help.js
 var require_search_help = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/search_help.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/search_help.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SearchHelp = void 0;
@@ -46342,9 +46342,9 @@ var require_search_help = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/service_binding.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/service_binding.js
 var require_service_binding = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/service_binding.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/service_binding.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ServiceBinding = void 0;
@@ -46367,9 +46367,9 @@ var require_service_binding = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/service_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/service_definition.js
 var require_service_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/service_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/service_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ServiceDefinition = void 0;
@@ -46392,9 +46392,9 @@ var require_service_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/shared_memory.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/shared_memory.js
 var require_shared_memory = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/shared_memory.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/shared_memory.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SharedMemory = void 0;
@@ -46417,9 +46417,9 @@ var require_shared_memory = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/smart_form.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/smart_form.js
 var require_smart_form = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/smart_form.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/smart_form.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SmartForm = void 0;
@@ -46442,9 +46442,9 @@ var require_smart_form = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/smart_style.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/smart_style.js
 var require_smart_style = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/smart_style.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/smart_style.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SmartStyle = void 0;
@@ -46467,9 +46467,9 @@ var require_smart_style = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/standard_task.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/standard_task.js
 var require_standard_task = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/standard_task.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/standard_task.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StandardTask = void 0;
@@ -46492,9 +46492,9 @@ var require_standard_task = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/switch_assignment_hierarchy.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/switch_assignment_hierarchy.js
 var require_switch_assignment_hierarchy = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/switch_assignment_hierarchy.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/switch_assignment_hierarchy.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SwitchAssignmentHierarchy = void 0;
@@ -46517,9 +46517,9 @@ var require_switch_assignment_hierarchy = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/switch_assignments.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/switch_assignments.js
 var require_switch_assignments = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/switch_assignments.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/switch_assignments.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SwitchAssignments = void 0;
@@ -46542,9 +46542,9 @@ var require_switch_assignments = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/table_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/table_type.js
 var require_table_type2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/table_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/table_type.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -46785,9 +46785,9 @@ var require_table_type2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/table.js
 var require_table = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/table.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -47170,9 +47170,9 @@ var require_table = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/technical_job_definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/technical_job_definition.js
 var require_technical_job_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/technical_job_definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/technical_job_definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TechnicalJobDefinition = void 0;
@@ -47195,9 +47195,9 @@ var require_technical_job_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/transaction_variant.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/transaction_variant.js
 var require_transaction_variant = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/transaction_variant.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/transaction_variant.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TransactionVariant = void 0;
@@ -47220,9 +47220,9 @@ var require_transaction_variant = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/transaction.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/transaction.js
 var require_transaction = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/transaction.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/transaction.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Transaction = void 0;
@@ -47289,9 +47289,9 @@ var require_transaction = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/transformation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/transformation.js
 var require_transformation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/transformation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/transformation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Transformation = void 0;
@@ -47314,9 +47314,9 @@ var require_transformation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/type_pool.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/type_pool.js
 var require_type_pool2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/type_pool.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/type_pool.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TypePool = void 0;
@@ -47348,9 +47348,9 @@ var require_type_pool2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/view_cluster.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/view_cluster.js
 var require_view_cluster = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/view_cluster.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/view_cluster.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ViewCluster = void 0;
@@ -47373,9 +47373,9 @@ var require_view_cluster = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/view.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/view.js
 var require_view = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/view.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/view.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -47569,9 +47569,9 @@ var require_view = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/virtual_end_point.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/virtual_end_point.js
 var require_virtual_end_point = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/virtual_end_point.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/virtual_end_point.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.VirtualEndPoint = void 0;
@@ -47594,9 +47594,9 @@ var require_virtual_end_point = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_application_configuration.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_application_configuration.js
 var require_web_dynpro_application_configuration = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_application_configuration.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_application_configuration.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WebDynproApplicationConfiguration = void 0;
@@ -47619,9 +47619,9 @@ var require_web_dynpro_application_configuration = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_application.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_application.js
 var require_web_dynpro_application = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_application.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_application.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WebDynproApplication = void 0;
@@ -47644,9 +47644,9 @@ var require_web_dynpro_application = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_component_configuration.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_component_configuration.js
 var require_web_dynpro_component_configuration = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_component_configuration.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_component_configuration.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WebDynproComponentConfiguration = void 0;
@@ -47669,9 +47669,9 @@ var require_web_dynpro_component_configuration = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_component.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_component.js
 var require_web_dynpro_component = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_component.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_dynpro_component.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WebDynproComponent = void 0;
@@ -47694,9 +47694,9 @@ var require_web_dynpro_component = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_mime.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_mime.js
 var require_web_mime = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_mime.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_mime.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WebMIME = void 0;
@@ -47767,9 +47767,9 @@ var require_web_mime = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_reporting_template.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_reporting_template.js
 var require_web_reporting_template = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_reporting_template.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/web_reporting_template.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WebReportingTemplate = void 0;
@@ -47792,9 +47792,9 @@ var require_web_reporting_template = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/index.js
 var require_objects = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -47983,9 +47983,9 @@ var require_objects = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_type_expressions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_type_expressions.js
 var require_align_type_expressions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_type_expressions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/align_type_expressions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -48217,9 +48217,9 @@ ENDINTERFACE.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/allowed_object_naming.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/allowed_object_naming.js
 var require_allowed_object_naming = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/allowed_object_naming.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/allowed_object_naming.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AllowedObjectNaming = exports.AllowedObjectNamingConf = void 0;
@@ -48276,9 +48276,9 @@ var require_allowed_object_naming = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/allowed_object_types.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/allowed_object_types.js
 var require_allowed_object_types = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/allowed_object_types.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/allowed_object_types.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.AllowedObjectTypes = exports.AllowedObjectTypesConf = void 0;
@@ -48336,9 +48336,9 @@ var require_allowed_object_types = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/ambiguous_statement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/ambiguous_statement.js
 var require_ambiguous_statement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/ambiguous_statement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/ambiguous_statement.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -48464,9 +48464,9 @@ MODIFY TABLE foo FROM bar.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/avoid_use.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/avoid_use.js
 var require_avoid_use = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/avoid_use.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/avoid_use.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -48639,9 +48639,9 @@ BREAK points`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/begin_end_names.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/begin_end_names.js
 var require_begin_end_names = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/begin_end_names.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/begin_end_names.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -48780,9 +48780,9 @@ var require_begin_end_names = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/begin_single_include.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/begin_single_include.js
 var require_begin_single_include = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/begin_single_include.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/begin_single_include.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -48916,9 +48916,9 @@ DATA END OF foo.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/call_transaction_authority_check.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/call_transaction_authority_check.js
 var require_call_transaction_authority_check = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/call_transaction_authority_check.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/call_transaction_authority_check.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -49018,9 +49018,9 @@ ENDTRY.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/catch_and_raise.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/catch_and_raise.js
 var require_catch_and_raise = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/catch_and_raise.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/catch_and_raise.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -49150,9 +49150,9 @@ ENDTRY.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_association_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_association_name.js
 var require_cds_association_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_association_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_association_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSAssociationName = exports.CDSAssociationNameConf = void 0;
@@ -49230,9 +49230,9 @@ https://help.sap.com/docs/abap-cloud/abap-data-models/cds-associations`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_comment_style.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_comment_style.js
 var require_cds_comment_style = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_comment_style.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_comment_style.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSCommentStyle = exports.CDSCommentStyleConf = void 0;
@@ -49294,9 +49294,9 @@ https://help.sap.com/doc/abapdocu_latest_index_htm/latest/en-us/abencds_general_
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_field_order.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_field_order.js
 var require_cds_field_order = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_field_order.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_field_order.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSFieldOrder = exports.CDSFieldOrderConf = void 0;
@@ -49415,9 +49415,9 @@ var require_cds_field_order = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_legacy_view.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_legacy_view.js
 var require_cds_legacy_view = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_legacy_view.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_legacy_view.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSLegacyView = exports.CDSLegacyViewConf = void 0;
@@ -49482,9 +49482,9 @@ v755 and up`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_naming.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_naming.js
 var require_cds_naming = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_naming.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_naming.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSNaming = exports.CDSNamingConf = void 0;
@@ -49608,9 +49608,9 @@ https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/ee6ff9b281d8448f96b4fe6c89f2bdc8
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_parser_error.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_parser_error.js
 var require_cds_parser_error = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_parser_error.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cds_parser_error.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CDSParserError = exports.CDSParserErrorConf = void 0;
@@ -49661,9 +49661,9 @@ var require_cds_parser_error = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/chain_mainly_declarations.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/chain_mainly_declarations.js
 var require_chain_mainly_declarations = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/chain_mainly_declarations.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/chain_mainly_declarations.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -49824,9 +49824,9 @@ https://help.sap.com/doc/abapdocu_latest_index_htm/latest/en-US/abenchained_stat
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/change_if_to_case.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/change_if_to_case.js
 var require_change_if_to_case = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/change_if_to_case.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/change_if_to_case.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -50000,9 +50000,9 @@ ENDCASE.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_abstract.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_abstract.js
 var require_check_abstract = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_abstract.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_abstract.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CheckAbstract = exports.CheckAbstractConf = void 0;
@@ -50072,9 +50072,9 @@ var require_check_abstract = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_comments.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_comments.js
 var require_check_comments = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_comments.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_comments.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CheckComments = exports.CheckCommentsConf = void 0;
@@ -50167,9 +50167,9 @@ WRITE 2.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_ddic.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_ddic.js
 var require_check_ddic = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_ddic.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_ddic.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -50272,9 +50272,9 @@ var require_check_ddic = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/utils/include_graph.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/utils/include_graph.js
 var require_include_graph = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/utils/include_graph.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/utils/include_graph.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IncludeGraph = void 0;
@@ -50462,9 +50462,9 @@ var require_include_graph = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_include.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_include.js
 var require_check_include = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_include.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_include.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CheckInclude = exports.CheckIncludeConf = void 0;
@@ -50527,9 +50527,9 @@ var require_check_include = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_subrc.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_subrc.js
 var require_check_subrc = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_subrc.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_subrc.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -50742,9 +50742,9 @@ FIND statement with MATCH COUNT is considered okay if subrc is not checked`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/spaghetti_scope.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/spaghetti_scope.js
 var require_spaghetti_scope = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/spaghetti_scope.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/spaghetti_scope.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SpaghettiScope = exports.SpaghettiScopeNode = void 0;
@@ -51039,9 +51039,9 @@ var require_spaghetti_scope = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_current_scope.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_current_scope.js
 var require_current_scope = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_current_scope.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_current_scope.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CurrentScope = void 0;
@@ -51539,9 +51539,9 @@ var require_current_scope = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_procedural.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_procedural.js
 var require_procedural = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_procedural.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/_procedural.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -51814,9 +51814,9 @@ var require_procedural = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/static.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/static.js
 var require_static2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/static.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/static.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -51886,9 +51886,9 @@ var require_static2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/statics.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/statics.js
 var require_statics2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/statics.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/structures/statics.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52003,9 +52003,9 @@ var require_statics2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_memory.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_memory.js
 var require_delete_memory2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_memory.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_memory.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52059,9 +52059,9 @@ var require_delete_memory2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/perform.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/perform.js
 var require_perform2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/perform.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/perform.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52156,9 +52156,9 @@ var require_perform2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/search.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/search.js
 var require_search2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/search.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/search.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52212,9 +52212,9 @@ var require_search2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/translate.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/translate.js
 var require_translate2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/translate.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/translate.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52272,9 +52272,9 @@ var require_translate2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_fs.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_fs.js
 var require_inline_fs = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_fs.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/inline_fs.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52351,9 +52351,9 @@ var require_inline_fs = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/fstarget.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/fstarget.js
 var require_fstarget2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/fstarget.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/fstarget.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52421,9 +52421,9 @@ var require_fstarget2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_internal.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_internal.js
 var require_modify_internal2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_internal.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_internal.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52517,9 +52517,9 @@ var require_modify_internal2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/fieldsymbol.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/fieldsymbol.js
 var require_fieldsymbol2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/fieldsymbol.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/fieldsymbol.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52593,9 +52593,9 @@ var require_fieldsymbol2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/tables.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/tables.js
 var require_tables2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/tables.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/tables.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52674,9 +52674,9 @@ var require_tables2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/interface_deferred.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/interface_deferred.js
 var require_interface_deferred2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/interface_deferred.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/interface_deferred.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52729,9 +52729,9 @@ var require_interface_deferred2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_deferred.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_deferred.js
 var require_class_deferred2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_deferred.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_deferred.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52784,9 +52784,9 @@ var require_class_deferred2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_source.js
 var require_method_source2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_source.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -52967,9 +52967,9 @@ var require_method_source2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_body.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_body.js
 var require_method_call_body2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_body.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/method_call_body.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -53033,9 +53033,9 @@ var require_method_call_body2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call.js
 var require_call2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Call = void 0;
@@ -53070,9 +53070,9 @@ var require_call2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_implementation.js
 var require_class_implementation4 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_implementation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassImplementation = void 0;
@@ -53125,9 +53125,9 @@ var require_class_implementation4 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/method_implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/method_implementation.js
 var require_method_implementation3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/method_implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/method_implementation.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -53221,9 +53221,9 @@ var require_method_implementation3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/move.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/move.js
 var require_move2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/move.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/move.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -53332,9 +53332,9 @@ var require_move2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/move_corresponding.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/move_corresponding.js
 var require_move_corresponding2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/move_corresponding.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/move_corresponding.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -53409,9 +53409,9 @@ var require_move_corresponding2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/catch.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/catch.js
 var require_catch3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/catch.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/catch.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -53538,9 +53538,9 @@ var require_catch3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/loop_group_by.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/loop_group_by.js
 var require_loop_group_by2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/loop_group_by.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/loop_group_by.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -53615,9 +53615,9 @@ var require_loop_group_by2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/loop.js
 var require_loop3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/loop.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -53784,9 +53784,9 @@ var require_loop3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_compare_simple.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_compare_simple.js
 var require_component_compare_simple2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_compare_simple.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/component_compare_simple.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -53862,9 +53862,9 @@ var require_component_compare_simple2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_table.js
 var require_read_table2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_table.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -54027,9 +54027,9 @@ var require_read_table2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/database_table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/database_table.js
 var require_database_table2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/database_table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/database_table.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DatabaseTable = void 0;
@@ -54061,9 +54061,9 @@ var require_database_table2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_from.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_from.js
 var require_sql_from2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_from.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_from.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -54127,9 +54127,9 @@ var require_sql_from2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_for_all_entries.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_for_all_entries.js
 var require_sql_for_all_entries2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_for_all_entries.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_for_all_entries.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -54199,9 +54199,9 @@ var require_sql_for_all_entries2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_source.js
 var require_sql_source2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_source.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -54259,9 +54259,9 @@ var require_sql_source2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_set_op_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_set_op_group.js
 var require_sql_set_op_group2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_set_op_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_set_op_group.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -54321,9 +54321,9 @@ var require_sql_set_op_group2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_in.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_in.js
 var require_sql_in2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_in.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_in.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -54400,9 +54400,9 @@ var require_sql_in2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_compare.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_compare.js
 var require_sql_compare2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_compare.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_compare.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -54511,9 +54511,9 @@ var require_sql_compare2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_order_by.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_order_by.js
 var require_sql_order_by2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_order_by.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/sql_order_by.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -54568,9 +54568,9 @@ var require_sql_order_by2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/select.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/select.js
 var require_select4 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/select.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/select.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55000,9 +55000,9 @@ var require_select4 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/select.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/select.js
 var require_select5 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/select.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/select.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55059,9 +55059,9 @@ var require_select5 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_internal.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_internal.js
 var require_insert_internal2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_internal.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_internal.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55189,9 +55189,9 @@ var require_insert_internal2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/split.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/split.js
 var require_split2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/split.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/split.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55275,9 +55275,9 @@ var require_split2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/assign.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/assign.js
 var require_assign2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/assign.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/assign.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55383,9 +55383,9 @@ var require_assign2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/convert.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/convert.js
 var require_convert2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/convert.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/convert.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55476,9 +55476,9 @@ var require_convert2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/describe.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/describe.js
 var require_describe2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/describe.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/describe.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55576,9 +55576,9 @@ var require_describe2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_textpool.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_textpool.js
 var require_read_textpool2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_textpool.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_textpool.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55636,9 +55636,9 @@ var require_read_textpool2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/find.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/find.js
 var require_find2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/find.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/find.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55755,9 +55755,9 @@ var require_find2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/message_source.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/message_source.js
 var require_message_source2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/message_source.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/message_source.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55836,9 +55836,9 @@ var require_message_source2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/message.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/message.js
 var require_message3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/message.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/message.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55917,9 +55917,9 @@ var require_message3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_time.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_time.js
 var require_get_time2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_time.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_time.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -55979,9 +55979,9 @@ var require_get_time2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_parameter.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_parameter.js
 var require_get_parameter2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_parameter.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_parameter.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56045,9 +56045,9 @@ var require_get_parameter2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/when_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/when_type.js
 var require_when_type3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/when_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/when_type.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56128,9 +56128,9 @@ var require_when_type3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/if.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/if.js
 var require_if3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/if.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/if.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56184,9 +56184,9 @@ var require_if3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/else_if.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/else_if.js
 var require_else_if = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/else_if.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/else_if.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56240,9 +56240,9 @@ var require_else_if = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/append.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/append.js
 var require_append2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/append.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/append.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56373,9 +56373,9 @@ var require_append2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/selection_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/selection_screen.js
 var require_selection_screen = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/selection_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/selection_screen.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56465,9 +56465,9 @@ var require_selection_screen = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/at_selection_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/at_selection_screen.js
 var require_at_selection_screen2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/at_selection_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/at_selection_screen.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56529,9 +56529,9 @@ var require_at_selection_screen2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/write.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/write.js
 var require_write2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/write.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/write.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56615,9 +56615,9 @@ var require_write2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/case.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/case.js
 var require_case3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/case.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/case.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56671,9 +56671,9 @@ var require_case3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/case_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/case_type.js
 var require_case_type3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/case_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/case_type.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56727,9 +56727,9 @@ var require_case_type3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/do.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/do.js
 var require_do3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/do.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/do.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56796,9 +56796,9 @@ var require_do3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/concatenate.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/concatenate.js
 var require_concatenate2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/concatenate.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/concatenate.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56902,9 +56902,9 @@ var require_concatenate2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/function_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/function_parameters.js
 var require_function_parameters2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/function_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/function_parameters.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -56997,9 +56997,9 @@ var require_function_parameters2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_function.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_function.js
 var require_call_function2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_function.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_function.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57083,9 +57083,9 @@ var require_call_function2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/clear.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/clear.js
 var require_clear2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/clear.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/clear.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57143,9 +57143,9 @@ var require_clear2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/refresh.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/refresh.js
 var require_refresh2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/refresh.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/refresh.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57199,9 +57199,9 @@ var require_refresh2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/return.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/return.js
 var require_return2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/return.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/return.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57265,9 +57265,9 @@ var require_return2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/free.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/free.js
 var require_free2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/free.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/free.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57321,9 +57321,9 @@ var require_free2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/replace.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/replace.js
 var require_replace2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/replace.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/replace.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57381,9 +57381,9 @@ var require_replace2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_bit.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_bit.js
 var require_get_bit2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_bit.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_bit.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57456,9 +57456,9 @@ var require_get_bit2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/raise_with.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/raise_with.js
 var require_raise_with2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/raise_with.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/expressions/raise_with.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57512,9 +57512,9 @@ var require_raise_with2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/raise.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/raise.js
 var require_raise2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/raise.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/raise.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57642,9 +57642,9 @@ var require_raise2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_internal.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_internal.js
 var require_delete_internal2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_internal.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_internal.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57740,9 +57740,9 @@ var require_delete_internal2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/receive.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/receive.js
 var require_receive2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/receive.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/receive.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57800,9 +57800,9 @@ var require_receive2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/when.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/when.js
 var require_when3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/when.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/when.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57856,9 +57856,9 @@ var require_when3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/create_data.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/create_data.js
 var require_create_data2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/create_data.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/create_data.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -57942,9 +57942,9 @@ var require_create_data2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_transformation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_transformation.js
 var require_call_transformation2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_transformation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_transformation.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58016,9 +58016,9 @@ var require_call_transformation2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_locale.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_locale.js
 var require_get_locale2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_locale.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_locale.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58076,9 +58076,9 @@ var require_get_locale2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_locale.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_locale.js
 var require_set_locale2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_locale.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_locale.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58136,9 +58136,9 @@ var require_set_locale2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/sort.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/sort.js
 var require_sort2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/sort.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/sort.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58218,9 +58218,9 @@ var require_sort2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_report.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_report.js
 var require_read_report2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_report.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_report.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58278,9 +58278,9 @@ var require_read_report2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/authority_check.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/authority_check.js
 var require_authority_check2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/authority_check.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/authority_check.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58334,9 +58334,9 @@ var require_authority_check2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_report.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_report.js
 var require_insert_report2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_report.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_report.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58390,9 +58390,9 @@ var require_insert_report2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_reference.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_reference.js
 var require_get_reference2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_reference.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_reference.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58461,9 +58461,9 @@ var require_get_reference2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_pf_status.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_pf_status.js
 var require_get_pf_status2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_pf_status.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_pf_status.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58528,9 +58528,9 @@ var require_get_pf_status2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_database.js
 var require_insert_database2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_database.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58596,9 +58596,9 @@ var require_insert_database2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_database.js
 var require_delete_database2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_database.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58664,9 +58664,9 @@ var require_delete_database2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/import_dynpro.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/import_dynpro.js
 var require_import_dynpro2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/import_dynpro.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/import_dynpro.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58724,9 +58724,9 @@ var require_import_dynpro2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/open_cursor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/open_cursor.js
 var require_open_cursor2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/open_cursor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/open_cursor.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58780,9 +58780,9 @@ var require_open_cursor2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/fetch_next_cursor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/fetch_next_cursor.js
 var require_fetch_next_cursor2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/fetch_next_cursor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/fetch_next_cursor.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58840,9 +58840,9 @@ var require_fetch_next_cursor2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/close_cursor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/close_cursor.js
 var require_close_cursor2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/close_cursor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/close_cursor.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58896,9 +58896,9 @@ var require_close_cursor2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/syntax_check.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/syntax_check.js
 var require_syntax_check2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/syntax_check.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/syntax_check.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -58956,9 +58956,9 @@ var require_syntax_check2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/import.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/import.js
 var require_import2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/import.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/import.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59024,9 +59024,9 @@ var require_import2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/export.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/export.js
 var require_export2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/export.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/export.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59092,9 +59092,9 @@ var require_export2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/scan.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/scan.js
 var require_scan2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/scan.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/scan.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59152,9 +59152,9 @@ var require_scan2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/submit.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/submit.js
 var require_submit2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/submit.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/submit.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59216,9 +59216,9 @@ var require_submit2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/open_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/open_dataset.js
 var require_open_dataset2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/open_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/open_dataset.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59276,9 +59276,9 @@ var require_open_dataset2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/close_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/close_dataset.js
 var require_close_dataset2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/close_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/close_dataset.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59332,9 +59332,9 @@ var require_close_dataset2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_run_time.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_run_time.js
 var require_get_run_time2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_run_time.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_run_time.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59394,9 +59394,9 @@ var require_get_run_time2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/update_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/update_database.js
 var require_update_database2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/update_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/update_database.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59482,9 +59482,9 @@ var require_update_database2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/add.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/add.js
 var require_add2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/add.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/add.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59542,9 +59542,9 @@ var require_add2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/editor_call.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/editor_call.js
 var require_editor_call2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/editor_call.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/editor_call.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59601,9 +59601,9 @@ var require_editor_call2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/subtract.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/subtract.js
 var require_subtract2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/subtract.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/subtract.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59661,9 +59661,9 @@ var require_subtract2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/add_corresponding.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/add_corresponding.js
 var require_add_corresponding2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/add_corresponding.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/add_corresponding.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59721,9 +59721,9 @@ var require_add_corresponding2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/subtract_corresponding.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/subtract_corresponding.js
 var require_subtract_corresponding2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/subtract_corresponding.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/subtract_corresponding.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59781,9 +59781,9 @@ var require_subtract_corresponding2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/multiply.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/multiply.js
 var require_multiply2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/multiply.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/multiply.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59841,9 +59841,9 @@ var require_multiply2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/divide.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/divide.js
 var require_divide2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/divide.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/divide.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59901,9 +59901,9 @@ var require_divide2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/condense.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/condense.js
 var require_condense2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/condense.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/condense.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -59957,9 +59957,9 @@ var require_condense2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/controls.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/controls.js
 var require_controls2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/controls.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/controls.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60044,9 +60044,9 @@ var require_controls2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/while.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/while.js
 var require_while3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/while.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/while.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60108,9 +60108,9 @@ var require_while3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/select_loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/select_loop.js
 var require_select_loop2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/select_loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/select_loop.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60165,9 +60165,9 @@ var require_select_loop2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/check.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/check.js
 var require_check2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/check.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/check.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60221,9 +60221,9 @@ var require_check2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/log_point.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/log_point.js
 var require_log_point2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/log_point.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/log_point.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60277,9 +60277,9 @@ var require_log_point2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/raise_event.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/raise_event.js
 var require_raise_event2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/raise_event.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/raise_event.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60342,9 +60342,9 @@ var require_raise_event2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/form.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/form.js
 var require_form3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/form.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/form.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Form = void 0;
@@ -60372,9 +60372,9 @@ var require_form3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/assert.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/assert.js
 var require_assert2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/assert.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/assert.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60428,9 +60428,9 @@ var require_assert2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_parameter.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_parameter.js
 var require_set_parameter2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_parameter.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_parameter.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60484,9 +60484,9 @@ var require_set_parameter2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_local_friends.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_local_friends.js
 var require_class_local_friends2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_local_friends.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/class_local_friends.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60572,9 +60572,9 @@ var require_class_local_friends2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_badi.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_badi.js
 var require_get_badi2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_badi.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_badi.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60636,9 +60636,9 @@ var require_get_badi2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/with.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/with.js
 var require_with3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/with.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/with.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60692,9 +60692,9 @@ var require_with3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/with_loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/with_loop.js
 var require_with_loop2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/with_loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/with_loop.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60748,9 +60748,9 @@ var require_with_loop2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/system_call.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/system_call.js
 var require_system_call2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/system_call.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/system_call.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60804,9 +60804,9 @@ var require_system_call2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/collect.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/collect.js
 var require_collect2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/collect.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/collect.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60871,9 +60871,9 @@ var require_collect2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/transfer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/transfer.js
 var require_transfer2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/transfer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/transfer.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -60932,9 +60932,9 @@ var require_transfer2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_database.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_database.js
 var require_modify_database2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_database.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_database.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61010,9 +61010,9 @@ var require_modify_database2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/truncate_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/truncate_dataset.js
 var require_truncate_dataset2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/truncate_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/truncate_dataset.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61066,9 +61066,9 @@ var require_truncate_dataset2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_badi.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_badi.js
 var require_call_badi2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_badi.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_badi.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61130,9 +61130,9 @@ var require_call_badi2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_kernel.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_kernel.js
 var require_call_kernel2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_kernel.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_kernel.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61186,9 +61186,9 @@ var require_call_kernel2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/pack.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/pack.js
 var require_pack2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/pack.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/pack.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61246,9 +61246,9 @@ var require_pack2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/unpack.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/unpack.js
 var require_unpack2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/unpack.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/unpack.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61306,9 +61306,9 @@ var require_unpack2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/format.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/format.js
 var require_format2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/format.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/format.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61362,9 +61362,9 @@ var require_format2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_pf_status.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_pf_status.js
 var require_set_pf_status2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_pf_status.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_pf_status.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61418,9 +61418,9 @@ var require_set_pf_status2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_titlebar.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_titlebar.js
 var require_set_titlebar2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_titlebar.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_titlebar.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61474,9 +61474,9 @@ var require_set_titlebar2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_transaction.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_transaction.js
 var require_call_transaction2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_transaction.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/call_transaction.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61534,9 +61534,9 @@ var require_call_transaction2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_handler.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_handler.js
 var require_set_handler2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_handler.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_handler.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61594,9 +61594,9 @@ var require_set_handler2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/wait.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/wait.js
 var require_wait2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/wait.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/wait.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61654,9 +61654,9 @@ var require_wait2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_report.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_report.js
 var require_delete_report2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_report.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_report.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61710,9 +61710,9 @@ var require_delete_report2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/shift.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/shift.js
 var require_shift2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/shift.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/shift.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61789,9 +61789,9 @@ var require_shift2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_bit.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_bit.js
 var require_set_bit2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_bit.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/set_bit.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61856,9 +61856,9 @@ var require_set_bit2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_screen.js
 var require_modify_screen2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_screen.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61912,9 +61912,9 @@ var require_modify_screen2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_cluster.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_cluster.js
 var require_delete_cluster2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_cluster.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/delete_cluster.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -61976,9 +61976,9 @@ var require_delete_cluster2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/unassign.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/unassign.js
 var require_unassign2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/unassign.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/unassign.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62041,9 +62041,9 @@ var require_unassign2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_textpool.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_textpool.js
 var require_insert_textpool2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_textpool.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_textpool.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62097,9 +62097,9 @@ var require_insert_textpool2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_cursor.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_cursor.js
 var require_get_cursor2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_cursor.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_cursor.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62153,9 +62153,9 @@ var require_get_cursor2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/loop_at_screen.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/loop_at_screen.js
 var require_loop_at_screen3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/loop_at_screen.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/loop_at_screen.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62216,9 +62216,9 @@ var require_loop_at_screen3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_field_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_field_group.js
 var require_insert_field_group2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_field_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/insert_field_group.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62279,9 +62279,9 @@ var require_insert_field_group2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_entities.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_entities.js
 var require_read_entities2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_entities.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_entities.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62346,9 +62346,9 @@ var require_read_entities2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_entities.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_entities.js
 var require_modify_entities2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_entities.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/modify_entities.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62413,9 +62413,9 @@ var require_modify_entities2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/commit_entities.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/commit_entities.js
 var require_commit_entities2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/commit_entities.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/commit_entities.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62480,9 +62480,9 @@ var require_commit_entities2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_permissions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_permissions.js
 var require_get_permissions2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_permissions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/get_permissions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62547,9 +62547,9 @@ var require_get_permissions2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_dataset.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_dataset.js
 var require_read_dataset2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_dataset.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/read_dataset.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62607,9 +62607,9 @@ var require_read_dataset2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/field_group.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/field_group.js
 var require_field_group2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/field_group.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/statements/field_group.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62671,9 +62671,9 @@ var require_field_group2 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/stuff.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/stuff.js
 var require_stuff = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/stuff.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/stuff.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -62746,9 +62746,9 @@ var require_stuff = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/syntax.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/syntax.js
 var require_syntax = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/syntax.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/syntax.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -63297,9 +63297,9 @@ var require_syntax = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_syntax.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_syntax.js
 var require_check_syntax = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_syntax.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_syntax.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CheckSyntax = exports.CheckSyntaxConf = void 0;
@@ -63354,9 +63354,9 @@ var require_check_syntax = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_text_elements.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_text_elements.js
 var require_check_text_elements = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_text_elements.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_text_elements.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -63484,9 +63484,9 @@ var require_check_text_elements = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_transformation_exists.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_transformation_exists.js
 var require_check_transformation_exists = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_transformation_exists.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/check_transformation_exists.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CheckTransformationExists = exports.CheckTransformationExistsConf = void 0;
@@ -63548,9 +63548,9 @@ var require_check_transformation_exists = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/clear_exporting_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/clear_exporting_parameters.js
 var require_clear_exporting_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/clear_exporting_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/clear_exporting_parameters.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClearExportingParameters = exports.ClearExportingParametersConf = void 0;
@@ -63807,9 +63807,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/_naming_rule_config.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/_naming_rule_config.js
 var require_naming_rule_config = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/_naming_rule_config.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/_naming_rule_config.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NamingRuleConfig = void 0;
@@ -63826,9 +63826,9 @@ var require_naming_rule_config = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/utils/name_validator.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/utils/name_validator.js
 var require_name_validator = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/utils/name_validator.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/utils/name_validator.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NameValidator = void 0;
@@ -63849,9 +63849,9 @@ var require_name_validator = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/class_attribute_names.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/class_attribute_names.js
 var require_class_attribute_names = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/class_attribute_names.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/class_attribute_names.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ClassAttributeNames = exports.ClassAttributeNamesConf = void 0;
@@ -63965,9 +63965,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/classic_exceptions_overlap.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/classic_exceptions_overlap.js
 var require_classic_exceptions_overlap = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/classic_exceptions_overlap.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/classic_exceptions_overlap.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -64078,9 +64078,9 @@ var require_classic_exceptions_overlap = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/cloud_types.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cloud_types.js
 var require_cloud_types = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/cloud_types.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cloud_types.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -64171,9 +64171,9 @@ var require_cloud_types = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/colon_missing_space.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/colon_missing_space.js
 var require_colon_missing_space = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/colon_missing_space.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/colon_missing_space.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ColonMissingSpace = exports.ColonMissingSpaceConf = void 0;
@@ -64239,9 +64239,9 @@ var require_colon_missing_space = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/commented_code.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/commented_code.js
 var require_commented_code = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/commented_code.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/commented_code.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CommentedCode = exports.CommentedCodeConf = void 0;
@@ -64347,9 +64347,9 @@ https://docs.abapopenchecks.org/checks/14/`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/constant_classes.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/constant_classes.js
 var require_constant_classes = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/constant_classes.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/constant_classes.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -64488,9 +64488,9 @@ var require_constant_classes = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/constructor_visibility_public.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/constructor_visibility_public.js
 var require_constructor_visibility_public = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/constructor_visibility_public.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/constructor_visibility_public.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ConstructorVisibilityPublic = exports.ConstructorVisibilityPublicConf = void 0;
@@ -64561,9 +64561,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/contains_tab.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/contains_tab.js
 var require_contains_tab = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/contains_tab.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/contains_tab.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ContainsTab = exports.ContainsTabConf = void 0;
@@ -64636,9 +64636,9 @@ https://github.com/SAP/styleguides/blob/main/clean-abap/CleanABAP.md#indent-and-
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/cyclic_oo.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cyclic_oo.js
 var require_cyclic_oo = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/cyclic_oo.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cyclic_oo.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CyclicOO = exports.CyclicOOConf = void 0;
@@ -64792,9 +64792,9 @@ References in testclass includes are ignored`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/utils/cyclomatic_complexity_stats.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/utils/cyclomatic_complexity_stats.js
 var require_cyclomatic_complexity_stats = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/utils/cyclomatic_complexity_stats.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/utils/cyclomatic_complexity_stats.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -64871,9 +64871,9 @@ var require_cyclomatic_complexity_stats = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/cyclomatic_complexity.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cyclomatic_complexity.js
 var require_cyclomatic_complexity = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/cyclomatic_complexity.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/cyclomatic_complexity.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CyclomaticComplexity = exports.CyclomaticComplexityConf = void 0;
@@ -64929,9 +64929,9 @@ var require_cyclomatic_complexity = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/dangerous_statement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/dangerous_statement.js
 var require_dangerous_statement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/dangerous_statement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/dangerous_statement.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -65092,9 +65092,9 @@ dynamic SQL can potentially create SQL injection problems`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/db_operation_in_loop.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/db_operation_in_loop.js
 var require_db_operation_in_loop = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/db_operation_in_loop.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/db_operation_in_loop.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -65215,9 +65215,9 @@ ENDLOOP.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/definitions_top.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/definitions_top.js
 var require_definitions_top = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/definitions_top.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/definitions_top.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -65406,9 +65406,9 @@ ENDFORM.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/description_empty.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/description_empty.js
 var require_description_empty = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/description_empty.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/description_empty.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DescriptionEmpty = exports.DescriptionEmptyConf = void 0;
@@ -65465,9 +65465,9 @@ var require_description_empty = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/double_space.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/double_space.js
 var require_double_space = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/double_space.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/double_space.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DoubleSpace = exports.DoubleSpaceConf = void 0;
@@ -65639,9 +65639,9 @@ var require_double_space = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/_unknown_object.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/_unknown_object.js
 var require_unknown_object = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/_unknown_object.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/_unknown_object.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.UnknownObject = void 0;
@@ -65678,9 +65678,9 @@ var require_unknown_object = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/artifacts_objects.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/artifacts_objects.js
 var require_artifacts_objects = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/artifacts_objects.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/artifacts_objects.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -65749,9 +65749,9 @@ var require_artifacts_objects = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/global_definitions/find_global_definitions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/global_definitions/find_global_definitions.js
 var require_find_global_definitions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/global_definitions/find_global_definitions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/5_syntax/global_definitions/find_global_definitions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -65929,9 +65929,9 @@ var require_find_global_definitions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/utils/excludeHelper.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/utils/excludeHelper.js
 var require_excludeHelper = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/utils/excludeHelper.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/utils/excludeHelper.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExcludeHelper = void 0;
@@ -65949,9 +65949,9 @@ var require_excludeHelper = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddic_references.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddic_references.js
 var require_ddic_references = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddic_references.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddic_references.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDICReferences = void 0;
@@ -66040,9 +66040,9 @@ var require_ddic_references = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/skip_logic.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/skip_logic.js
 var require_skip_logic = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/skip_logic.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/skip_logic.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SkipLogic = void 0;
@@ -66168,9 +66168,9 @@ var require_skip_logic = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules_runner.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules_runner.js
 var require_rules_runner = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules_runner.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules_runner.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RulesRunner = void 0;
@@ -66324,9 +66324,9 @@ var require_rules_runner = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/msag_references.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/msag_references.js
 var require_msag_references = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/msag_references.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/msag_references.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MSAGReferences = void 0;
@@ -66379,9 +66379,9 @@ var require_msag_references = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/macro_references.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/macro_references.js
 var require_macro_references = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/macro_references.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/macro_references.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MacroReferences = void 0;
@@ -66454,9 +66454,9 @@ var require_macro_references = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/abap/cross_include_macros.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/abap/cross_include_macros.js
 var require_cross_include_macros = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/abap/cross_include_macros.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/abap/cross_include_macros.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.CrossIncludeMacros = void 0;
@@ -66542,9 +66542,9 @@ var require_cross_include_macros = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/registry.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/registry.js
 var require_registry = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/registry.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/registry.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Registry = void 0;
@@ -66934,9 +66934,9 @@ var require_registry = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/downport.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/downport.js
 var require_downport = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/downport.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/downport.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -69913,9 +69913,9 @@ ${indentation}  WHEN OTHERS.
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/dynpro_checks.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/dynpro_checks.js
 var require_dynpro_checks = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/dynpro_checks.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/dynpro_checks.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DynproChecks = exports.DynproChecksConf = void 0;
@@ -70011,9 +70011,9 @@ var require_dynpro_checks = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/easy_to_find_messages.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/easy_to_find_messages.js
 var require_easy_to_find_messages = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/easy_to_find_messages.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/easy_to_find_messages.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EasyToFindMessages = exports.EasyToFindMessagesConf = void 0;
@@ -70086,9 +70086,9 @@ https://github.com/SAP/styleguides/blob/main/clean-abap/CleanABAP.md#make-messag
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_event.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_event.js
 var require_empty_event = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_event.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_event.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -70212,9 +70212,9 @@ START-OF-SELECTION.
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_line_in_statement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_line_in_statement.js
 var require_empty_line_in_statement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_line_in_statement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_line_in_statement.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EmptyLineinStatement = exports.EmptyLineinStatementConf = void 0;
@@ -70300,9 +70300,9 @@ hello.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_statement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_statement.js
 var require_empty_statement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_statement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_statement.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EmptyStatement = exports.EmptyStatementConf = void 0;
@@ -70357,9 +70357,9 @@ var require_empty_statement = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_structure.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_structure.js
 var require_empty_structure = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_structure.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/empty_structure.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -70546,9 +70546,9 @@ result = xsdbool( sy-subrc = 0 ).`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/exit_or_check.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/exit_or_check.js
 var require_exit_or_check = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/exit_or_check.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/exit_or_check.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -70664,9 +70664,9 @@ do_something( ).`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/expand_macros.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/expand_macros.js
 var require_expand_macros2 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/expand_macros.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/expand_macros.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ExpandMacros = exports.ExpandMacrosConf = void 0;
@@ -70748,9 +70748,9 @@ _hello.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/exporting.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/exporting.js
 var require_exporting = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/exporting.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/exporting.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Exporting = exports.ExportingConf = void 0;
@@ -70832,9 +70832,9 @@ https://docs.abapopenchecks.org/checks/30/`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/fm_global_parameters_obsolete.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/fm_global_parameters_obsolete.js
 var require_fm_global_parameters_obsolete = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/fm_global_parameters_obsolete.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/fm_global_parameters_obsolete.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -70926,9 +70926,9 @@ var require_fm_global_parameters_obsolete = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_identifier.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_identifier.js
 var require_forbidden_identifier = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_identifier.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_identifier.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ForbiddenIdentifier = exports.ForbiddenIdentifierConf = void 0;
@@ -71008,9 +71008,9 @@ https://github.com/abaplint/transpiler/blob/bda94b8b56e2b7f2f87be2168f12361aa530
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_pseudo_and_pragma.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_pseudo_and_pragma.js
 var require_forbidden_pseudo_and_pragma = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_pseudo_and_pragma.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_pseudo_and_pragma.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -71177,9 +71177,9 @@ var require_forbidden_pseudo_and_pragma = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_void_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_void_type.js
 var require_forbidden_void_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_void_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/forbidden_void_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ForbiddenVoidType = exports.ForbiddenVoidTypeConf = void 0;
@@ -71278,9 +71278,9 @@ DATS, TIMS, DATUM, FLAG, INT4, NUMC3, NUMC4, SAP_BOOL, TEXT25, TEXT80, X255, XFE
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/form_tables_obsolete.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/form_tables_obsolete.js
 var require_form_tables_obsolete = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/form_tables_obsolete.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/form_tables_obsolete.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -71375,9 +71375,9 @@ ENDFORM.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/fully_type_constants.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/fully_type_constants.js
 var require_fully_type_constants = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/fully_type_constants.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/fully_type_constants.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -71481,9 +71481,9 @@ var require_fully_type_constants = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/fully_type_itabs.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/fully_type_itabs.js
 var require_fully_type_itabs = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/fully_type_itabs.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/fully_type_itabs.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -71585,9 +71585,9 @@ DATA lt_bar TYPE STANDARD TABLE OF ty.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/function_module_recommendations.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/function_module_recommendations.js
 var require_function_module_recommendations = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/function_module_recommendations.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/function_module_recommendations.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.FunctionModuleRecommendations = exports.FunctionModuleRecommendationsConf = void 0;
@@ -71745,9 +71745,9 @@ var require_function_module_recommendations = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/functional_writing.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/functional_writing.js
 var require_functional_writing = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/functional_writing.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/functional_writing.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -71904,9 +71904,9 @@ cl_abap_typedescr=>describe_by_name(
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/global_class.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/global_class.js
 var require_global_class = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/global_class.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/global_class.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -72038,9 +72038,9 @@ var require_global_class = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_conditions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_conditions.js
 var require_identical_conditions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_conditions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_conditions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -72228,9 +72228,9 @@ ENDCASE.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_contents.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_contents.js
 var require_identical_contents = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_contents.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_contents.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -72406,9 +72406,9 @@ WRITE 'world'.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_descriptions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_descriptions.js
 var require_identical_descriptions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_descriptions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_descriptions.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IdenticalDescriptions = exports.IdenticalDescriptionsConf = void 0;
@@ -72509,9 +72509,9 @@ Works for: INTF, CLAS, DOMA, DTEL, FUNC in same FUGR`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_form_names.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_form_names.js
 var require_identical_form_names = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_form_names.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_form_names.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IdenticalFormNames = exports.IdenticalFormNamesConf = void 0;
@@ -72568,9 +72568,9 @@ var require_identical_form_names = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_move.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_move.js
 var require_identical_move = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_move.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/identical_move.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -72664,9 +72664,9 @@ lv_value = 5.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/if_in_if.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/if_in_if.js
 var require_if_in_if = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/if_in_if.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/if_in_if.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -72832,9 +72832,9 @@ ENDCASE.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/implement_methods.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/implement_methods.js
 var require_implement_methods = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/implement_methods.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/implement_methods.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -73142,9 +73142,9 @@ var require_implement_methods = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/implicit_start_of_selection.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/implicit_start_of_selection.js
 var require_implicit_start_of_selection = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/implicit_start_of_selection.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/implicit_start_of_selection.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -73274,9 +73274,9 @@ WRITE 'hello'.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/in_statement_indentation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/in_statement_indentation.js
 var require_in_statement_indentation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/in_statement_indentation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/in_statement_indentation.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -73415,9 +73415,9 @@ ENDIF.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/indent.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/indent.js
 var require_indent = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/indent.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/indent.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -73584,9 +73584,9 @@ var require_indent = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/indentation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/indentation.js
 var require_indentation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/indentation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/indentation.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -73770,9 +73770,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/index_completely_contained.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/index_completely_contained.js
 var require_index_completely_contained = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/index_completely_contained.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/index_completely_contained.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -73879,9 +73879,9 @@ var require_index_completely_contained = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/inline_data_old_versions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/inline_data_old_versions.js
 var require_inline_data_old_versions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/inline_data_old_versions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/inline_data_old_versions.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.InlineDataOldVersions = exports.InlineDataOldVersionsConf = void 0;
@@ -73945,9 +73945,9 @@ var require_inline_data_old_versions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/intf_referencing_clas.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/intf_referencing_clas.js
 var require_intf_referencing_clas = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/intf_referencing_clas.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/intf_referencing_clas.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.IntfReferencingClas = exports.IntfReferencingClasConf = void 0;
@@ -74025,9 +74025,9 @@ var require_intf_referencing_clas = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/invalid_table_index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/invalid_table_index.js
 var require_invalid_table_index = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/invalid_table_index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/invalid_table_index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -74140,9 +74140,9 @@ READ TABLE gt_stack ASSIGNING <ls_stack> INDEX 1.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/keep_single_parameter_on_one_line.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/keep_single_parameter_on_one_line.js
 var require_keep_single_parameter_on_one_line = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/keep_single_parameter_on_one_line.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/keep_single_parameter_on_one_line.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -74336,9 +74336,9 @@ var require_keep_single_parameter_on_one_line = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/keyword_case.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/keyword_case.js
 var require_keyword_case = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/keyword_case.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/keyword_case.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -74621,9 +74621,9 @@ var require_keyword_case = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_break_multiple_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_break_multiple_parameters.js
 var require_line_break_multiple_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_break_multiple_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_break_multiple_parameters.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -74738,9 +74738,9 @@ var require_line_break_multiple_parameters = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_break_style.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_break_style.js
 var require_line_break_style = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_break_style.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_break_style.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LineBreakStyle = exports.LineBreakStyleConf = void 0;
@@ -74795,9 +74795,9 @@ abapGit does not work with CRLF`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_length.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_length.js
 var require_line_length = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_length.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_length.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LineLength = exports.LineLengthConf = void 0;
@@ -74865,9 +74865,9 @@ long_text = 'split long expressions across multiple lines'.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_only_punc.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_only_punc.js
 var require_line_only_punc = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_only_punc.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/line_only_punc.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LineOnlyPunc = exports.LineOnlyPuncConf = void 0;
@@ -74955,9 +74955,9 @@ https://docs.abapopenchecks.org/checks/16/`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_class_naming.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_class_naming.js
 var require_local_class_naming = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_class_naming.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_class_naming.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LocalClassNaming = exports.LocalClassNamingConf = void 0;
@@ -75036,9 +75036,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_testclass_consistency.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_testclass_consistency.js
 var require_local_testclass_consistency = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_testclass_consistency.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_testclass_consistency.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.LocalTestclassConsistency = exports.LocalTestclassConsistencyConf = void 0;
@@ -75109,9 +75109,9 @@ var require_local_testclass_consistency = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_variable_names.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_variable_names.js
 var require_local_variable_names = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_variable_names.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/local_variable_names.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -75292,9 +75292,9 @@ ENDFORM.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/macro_naming.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/macro_naming.js
 var require_macro_naming = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/macro_naming.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/macro_naming.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -75403,9 +75403,9 @@ END-OF-DEFINITION.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/main_file_contents.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/main_file_contents.js
 var require_main_file_contents = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/main_file_contents.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/main_file_contents.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -75549,9 +75549,9 @@ var require_main_file_contents = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/many_parentheses.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/many_parentheses.js
 var require_many_parentheses = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/many_parentheses.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/many_parentheses.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -75768,9 +75768,9 @@ ENDIF.
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/max_one_method_parameter_per_line.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/max_one_method_parameter_per_line.js
 var require_max_one_method_parameter_per_line = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/max_one_method_parameter_per_line.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/max_one_method_parameter_per_line.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -75872,9 +75872,9 @@ METHODS apps_scope_token
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/max_one_statement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/max_one_statement.js
 var require_max_one_statement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/max_one_statement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/max_one_statement.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MaxOneStatement = exports.MaxOneStatementConf = void 0;
@@ -75948,9 +75948,9 @@ WRITE bar.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/message_exists.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/message_exists.js
 var require_message_exists = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/message_exists.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/message_exists.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -76137,9 +76137,9 @@ var require_message_exists = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_implemented_twice.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_implemented_twice.js
 var require_method_implemented_twice = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_implemented_twice.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_implemented_twice.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodImplementedTwice = exports.MethodImplementedTwiceConf = void 0;
@@ -76214,9 +76214,9 @@ var require_method_implemented_twice = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/utils/method_length_stats.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/utils/method_length_stats.js
 var require_method_length_stats = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/utils/method_length_stats.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/utils/method_length_stats.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -76313,9 +76313,9 @@ var require_method_length_stats = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/utils/form_length_stats.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/utils/form_length_stats.js
 var require_form_length_stats = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/utils/form_length_stats.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/utils/form_length_stats.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -76407,9 +76407,9 @@ var require_form_length_stats = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/utils/function_length_stats.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/utils/function_length_stats.js
 var require_function_length_stats = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/utils/function_length_stats.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/utils/function_length_stats.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -76499,9 +76499,9 @@ var require_function_length_stats = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_length.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_length.js
 var require_method_length = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_length.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_length.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -76653,9 +76653,9 @@ Abstract methods without statements are considered okay.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_overwrites_builtin.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_overwrites_builtin.js
 var require_method_overwrites_builtin = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_overwrites_builtin.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_overwrites_builtin.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodOverwritesBuiltIn = exports.MethodOverwritesBuiltInConf = void 0;
@@ -76719,9 +76719,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_parameter_names.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_parameter_names.js
 var require_method_parameter_names = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_parameter_names.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/method_parameter_names.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MethodParameterNames = exports.MethodParameterNamesConf = void 0;
@@ -76841,9 +76841,9 @@ var require_method_parameter_names = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/mix_returning.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/mix_returning.js
 var require_mix_returning = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/mix_returning.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/mix_returning.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -76948,9 +76948,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/modify_only_own_db_tables.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/modify_only_own_db_tables.js
 var require_modify_only_own_db_tables = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/modify_only_own_db_tables.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/modify_only_own_db_tables.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -77083,9 +77083,9 @@ var require_modify_only_own_db_tables = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/msag_consistency.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/msag_consistency.js
 var require_msag_consistency = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/msag_consistency.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/msag_consistency.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MSAGConsistency = exports.MSAGConsistencyConf = void 0;
@@ -77199,9 +77199,9 @@ message text must not exceed 73 characters, no message number duplicates`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/names_no_dash.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/names_no_dash.js
 var require_names_no_dash = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/names_no_dash.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/names_no_dash.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -77322,9 +77322,9 @@ var require_names_no_dash = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/nesting.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/nesting.js
 var require_nesting = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/nesting.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/nesting.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -77425,9 +77425,9 @@ https://docs.abapopenchecks.org/checks/74/`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/sequential_blank.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sequential_blank.js
 var require_sequential_blank = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/sequential_blank.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sequential_blank.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SequentialBlank = exports.SequentialBlankConf = void 0;
@@ -77499,9 +77499,9 @@ var require_sequential_blank = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/newline_between_methods.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/newline_between_methods.js
 var require_newline_between_methods = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/newline_between_methods.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/newline_between_methods.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -77625,9 +77625,9 @@ var require_newline_between_methods = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_aliases.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_aliases.js
 var require_no_aliases = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_aliases.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_aliases.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NoAliases = exports.NoAliasesConf = void 0;
@@ -77695,9 +77695,9 @@ ENDINTERFACE.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_chained_assignment.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_chained_assignment.js
 var require_no_chained_assignment = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_chained_assignment.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_chained_assignment.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -77800,9 +77800,9 @@ var1 = var2.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_comments_between_methods.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_comments_between_methods.js
 var require_no_comments_between_methods = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_comments_between_methods.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_comments_between_methods.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -77916,9 +77916,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_external_form_calls.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_external_form_calls.js
 var require_no_external_form_calls = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_external_form_calls.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_external_form_calls.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -78009,9 +78009,9 @@ PERFORM foo(bar).`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_inline_in_optional_branches.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_inline_in_optional_branches.js
 var require_no_inline_in_optional_branches = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_inline_in_optional_branches.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_inline_in_optional_branches.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -78127,9 +78127,9 @@ Not considered optional branches:
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_macros.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_macros.js
 var require_no_macros = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_macros.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_macros.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -78218,9 +78218,9 @@ END-OF-DEFINITION.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_mandt_in_database_operations.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_mandt_in_database_operations.js
 var require_no_mandt_in_database_operations = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_mandt_in_database_operations.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_mandt_in_database_operations.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -78353,9 +78353,9 @@ var require_no_mandt_in_database_operations = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_prefixes.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_prefixes.js
 var require_no_prefixes = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_prefixes.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_prefixes.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -78591,9 +78591,9 @@ https://github.com/SAP/styleguides/blob/main/clean-abap/sub-sections/AvoidEncodi
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_public_attributes.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_public_attributes.js
 var require_no_public_attributes = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_public_attributes.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_public_attributes.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NoPublicAttributes = exports.NoPublicAttributesConf = void 0;
@@ -78693,9 +78693,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_yoda_conditions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_yoda_conditions.js
 var require_no_yoda_conditions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_yoda_conditions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_yoda_conditions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -78826,9 +78826,9 @@ ENDIF.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/nrob_consistency.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/nrob_consistency.js
 var require_nrob_consistency = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/nrob_consistency.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/nrob_consistency.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -78926,9 +78926,9 @@ Issue reported if the referenced domain is not found(taking error namespace into
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/object_naming.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/object_naming.js
 var require_object_naming = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/object_naming.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/object_naming.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ObjectNaming = exports.ObjectNamingConf = void 0;
@@ -79026,9 +79026,9 @@ var require_object_naming = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/obsolete_statement.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/obsolete_statement.js
 var require_obsolete_statement = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/obsolete_statement.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/obsolete_statement.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -79469,9 +79469,9 @@ ENDIF.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_parameter_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_parameter_name.js
 var require_omit_parameter_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_parameter_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_parameter_name.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -79628,9 +79628,9 @@ EXPORTING must already be omitted for this rule to take effect, https://rules.ab
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_preceding_zeros.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_preceding_zeros.js
 var require_omit_preceding_zeros = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_preceding_zeros.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_preceding_zeros.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -79738,9 +79738,9 @@ var require_omit_preceding_zeros = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_receiving.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_receiving.js
 var require_omit_receiving = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_receiving.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/omit_receiving.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -79849,9 +79849,9 @@ var require_omit_receiving = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_702_chaining.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_702_chaining.js
 var require_parser_702_chaining = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_702_chaining.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_702_chaining.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -79992,9 +79992,9 @@ Only active on target version 702 and below.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_bad_exceptions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_bad_exceptions.js
 var require_parser_bad_exceptions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_bad_exceptions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_bad_exceptions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -80102,9 +80102,9 @@ var require_parser_bad_exceptions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_error.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_error.js
 var require_parser_error = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_error.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_error.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ParserError = exports.ParserErrorConf = void 0;
@@ -80183,9 +80183,9 @@ See recognized syntax at https://syntax.abaplint.org`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_missing_space.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_missing_space.js
 var require_parser_missing_space = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_missing_space.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/parser_missing_space.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -80482,9 +80482,9 @@ This rule makes sure the spaces are consistently required across the language.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/pragma_style.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/pragma_style.js
 var require_pragma_style = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/pragma_style.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/pragma_style.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PragmaStyle = exports.PragmaStyleConf = void 0;
@@ -80560,9 +80560,9 @@ var require_pragma_style = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_corresponding.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_corresponding.js
 var require_prefer_corresponding = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_corresponding.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_corresponding.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -80652,9 +80652,9 @@ var require_prefer_corresponding = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_inline.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_inline.js
 var require_prefer_inline = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_inline.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_inline.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -80916,9 +80916,9 @@ DATA(percentage) = CONV decfloat34( comment_number / abs_statement_number ) * 10
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_is_not.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_is_not.js
 var require_prefer_is_not = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_is_not.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_is_not.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -81052,9 +81052,9 @@ IF NOT variable CA 'hello'.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_pragmas.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_pragmas.js
 var require_prefer_pragmas = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_pragmas.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_pragmas.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PreferPragmas = exports.PreferPragmasConf = void 0;
@@ -81134,9 +81134,9 @@ var require_prefer_pragmas = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_raise_exception_new.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_raise_exception_new.js
 var require_prefer_raise_exception_new = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_raise_exception_new.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_raise_exception_new.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -81251,9 +81251,9 @@ From 752 and up`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_returning_to_exporting.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_returning_to_exporting.js
 var require_prefer_returning_to_exporting = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_returning_to_exporting.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_returning_to_exporting.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -81365,9 +81365,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_xsdbool.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_xsdbool.js
 var require_prefer_xsdbool = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_xsdbool.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefer_xsdbool.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -81464,9 +81464,9 @@ https://github.com/SAP/styleguides/blob/main/clean-abap/CleanABAP.md#use-xsdbool
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/preferred_compare_operator.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/preferred_compare_operator.js
 var require_preferred_compare_operator = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/preferred_compare_operator.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/preferred_compare_operator.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -81598,9 +81598,9 @@ ENDIF.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefix_is_current_class.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefix_is_current_class.js
 var require_prefix_is_current_class = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefix_is_current_class.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/prefix_is_current_class.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -81818,9 +81818,9 @@ ENDMETHOD.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/reduce_procedural_code.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/reduce_procedural_code.js
 var require_reduce_procedural_code = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/reduce_procedural_code.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/reduce_procedural_code.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -81944,9 +81944,9 @@ ENDFORM.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/reduce_string_templates.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/reduce_string_templates.js
 var require_reduce_string_templates = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/reduce_string_templates.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/reduce_string_templates.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -82069,9 +82069,9 @@ WRITE |{ 'sdf' }|.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/redundant_conversion.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/redundant_conversion.js
 var require_redundant_conversion = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/redundant_conversion.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/redundant_conversion.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -82305,9 +82305,9 @@ text = text.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/release_idoc.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/release_idoc.js
 var require_release_idoc = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/release_idoc.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/release_idoc.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -82403,9 +82403,9 @@ var require_release_idoc = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/remove_descriptions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/remove_descriptions.js
 var require_remove_descriptions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/remove_descriptions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/remove_descriptions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -82566,9 +82566,9 @@ Consider using ABAP Doc for documentation.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/rfc_error_handling.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/rfc_error_handling.js
 var require_rfc_error_handling = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/rfc_error_handling.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/rfc_error_handling.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -82684,9 +82684,9 @@ var require_rfc_error_handling = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_add_order_by.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_add_order_by.js
 var require_select_add_order_by = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_add_order_by.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_add_order_by.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -82835,9 +82835,9 @@ If the target is a sorted/hashed table, no issue is reported`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_performance.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_performance.js
 var require_select_performance = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_performance.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_performance.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -82991,9 +82991,9 @@ ENDSELECT.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_single_full_key.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_single_full_key.js
 var require_select_single_full_key = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_single_full_key.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/select_single_full_key.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -83161,9 +83161,9 @@ If the statement contains a JOIN it is not checked`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/selection_screen_naming.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/selection_screen_naming.js
 var require_selection_screen_naming = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/selection_screen_naming.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/selection_screen_naming.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SelectionScreenNaming = exports.SelectionScreenNamingConf = void 0;
@@ -83264,9 +83264,9 @@ var require_selection_screen_naming = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/selection_screen_texts_missing.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/selection_screen_texts_missing.js
 var require_selection_screen_texts_missing = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/selection_screen_texts_missing.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/selection_screen_texts_missing.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SelectionScreenTextsMissing = exports.SelectionScreenTextsMissingConf = void 0;
@@ -83367,9 +83367,9 @@ var require_selection_screen_texts_missing = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/short_case.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/short_case.js
 var require_short_case = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/short_case.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/short_case.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -83478,9 +83478,9 @@ var require_short_case = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/sicf_consistency.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sicf_consistency.js
 var require_sicf_consistency = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/sicf_consistency.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sicf_consistency.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SICFConsistency = exports.SICFConsistencyConf = void 0;
@@ -83587,9 +83587,9 @@ var require_sicf_consistency = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/slow_parameter_passing.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/slow_parameter_passing.js
 var require_slow_parameter_passing = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/slow_parameter_passing.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/slow_parameter_passing.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SlowParameterPassing = exports.SlowParameterPassingConf = void 0;
@@ -83721,9 +83721,9 @@ ENDCLASS.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/smim_consistency.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/smim_consistency.js
 var require_smim_consistency = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/smim_consistency.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/smim_consistency.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SMIMConsistency = exports.SMIMConsistencyConf = void 0;
@@ -83789,9 +83789,9 @@ var require_smim_consistency = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/space_before_colon.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/space_before_colon.js
 var require_space_before_colon = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/space_before_colon.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/space_before_colon.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SpaceBeforeColon = exports.SpaceBeforeColonConf = void 0;
@@ -83863,9 +83863,9 @@ var require_space_before_colon = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/space_before_dot.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/space_before_dot.js
 var require_space_before_dot = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/space_before_dot.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/space_before_dot.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -83997,9 +83997,9 @@ https://github.com/SAP/styleguides/blob/main/clean-abap/CleanABAP.md#condense-yo
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/sql_escape_host_variables.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sql_escape_host_variables.js
 var require_sql_escape_host_variables = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/sql_escape_host_variables.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sql_escape_host_variables.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -84120,9 +84120,9 @@ var require_sql_escape_host_variables = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/sql_value_conversion.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sql_value_conversion.js
 var require_sql_value_conversion = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/sql_value_conversion.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sql_value_conversion.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SQLValueConversion = exports.SQLValueConversionConf = void 0;
@@ -84189,9 +84189,9 @@ var require_sql_value_conversion = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/start_at_tab.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/start_at_tab.js
 var require_start_at_tab = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/start_at_tab.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/start_at_tab.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StartAtTab = exports.StartAtTabConf = void 0;
@@ -84265,9 +84265,9 @@ https://github.com/SAP/styleguides/blob/main/clean-abap/CleanABAP.md#indent-and-
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/static_call_via_instance.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/static_call_via_instance.js
 var require_static_call_via_instance = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/static_call_via_instance.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/static_call_via_instance.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.StaticCallViaInstance = exports.StaticCallViaInstanceConf = void 0;
@@ -84354,9 +84354,9 @@ ENDMETHOD.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/strict_sql.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/strict_sql.js
 var require_strict_sql = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/strict_sql.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/strict_sql.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -84475,9 +84475,9 @@ Activates from v750 and up`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/superclass_final.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/superclass_final.js
 var require_superclass_final = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/superclass_final.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/superclass_final.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -84624,9 +84624,9 @@ var require_superclass_final = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/superfluous_value.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/superfluous_value.js
 var require_superfluous_value = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/superfluous_value.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/superfluous_value.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -84738,9 +84738,9 @@ var require_superfluous_value = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/sy_modification.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sy_modification.js
 var require_sy_modification = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/sy_modification.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sy_modification.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -84840,9 +84840,9 @@ sy = sy.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/sy_read_restriction.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sy_read_restriction.js
 var require_sy_read_restriction = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/sy_read_restriction.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/sy_read_restriction.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -84991,9 +84991,9 @@ https://help.sap.com/doc/abapdocu_cp_index_htm/CLOUD/en-US/ABENSYSTEM_FIELDS.htm
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/tabl_enhancement_category.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/tabl_enhancement_category.js
 var require_tabl_enhancement_category = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/tabl_enhancement_category.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/tabl_enhancement_category.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TABLEnhancementCategory = exports.TABLEnhancementCategoryConf = void 0;
@@ -85047,9 +85047,9 @@ You may use standard report RS_DDIC_CLASSIFICATION_FINAL for adjustment.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/tables_declared_locally.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/tables_declared_locally.js
 var require_tables_declared_locally = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/tables_declared_locally.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/tables_declared_locally.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -85145,9 +85145,9 @@ ENDFORM.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/try_without_catch.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/try_without_catch.js
 var require_try_without_catch = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/try_without_catch.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/try_without_catch.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.TryWithoutCatch = exports.TryWithoutCatchConf = void 0;
@@ -85206,9 +85206,9 @@ ENDTRY.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/type_form_parameters.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/type_form_parameters.js
 var require_type_form_parameters = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/type_form_parameters.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/type_form_parameters.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -85304,9 +85304,9 @@ ENDFORM.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/types_naming.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/types_naming.js
 var require_types_naming = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/types_naming.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/types_naming.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -85424,9 +85424,9 @@ var require_types_naming = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/uncaught_exception.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/uncaught_exception.js
 var require_uncaught_exception = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/uncaught_exception.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/uncaught_exception.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -85712,9 +85712,9 @@ var require_uncaught_exception = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unknown_types.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unknown_types.js
 var require_unknown_types = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unknown_types.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unknown_types.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -85911,9 +85911,9 @@ var require_unknown_types = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_chaining.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_chaining.js
 var require_unnecessary_chaining = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_chaining.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_chaining.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.UnnecessaryChaining = exports.UnnecessaryChainingConf = void 0;
@@ -86008,9 +86008,9 @@ var require_unnecessary_chaining = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_pragma.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_pragma.js
 var require_unnecessary_pragma = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_pragma.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_pragma.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -86217,9 +86217,9 @@ DATA: BEGIN OF blah ##NEEDED,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_return.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_return.js
 var require_unnecessary_return = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_return.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unnecessary_return.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -86350,9 +86350,9 @@ ENDFORM.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unreachable_code.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unreachable_code.js
 var require_unreachable_code = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unreachable_code.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unreachable_code.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -86477,9 +86477,9 @@ RETURN.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unsecure_fae.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unsecure_fae.js
 var require_unsecure_fae = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unsecure_fae.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unsecure_fae.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -86576,9 +86576,9 @@ var require_unsecure_fae = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_ddic.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_ddic.js
 var require_unused_ddic = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_ddic.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_ddic.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -86669,9 +86669,9 @@ var require_unused_ddic = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_macros.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_macros.js
 var require_unused_macros = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_macros.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_macros.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.UnusedMacros = exports.UnusedMacrosConf = void 0;
@@ -86745,9 +86745,9 @@ foobar2.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_methods.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_methods.js
 var require_unused_methods = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_methods.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_methods.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -87022,9 +87022,9 @@ Skips:
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_types.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_types.js
 var require_unused_types = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_types.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_types.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.UnusedTypes = exports.UnusedTypesConf = void 0;
@@ -87216,9 +87216,9 @@ var require_unused_types = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_variables.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_variables.js
 var require_unused_variables = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_variables.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/unused_variables.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -87519,9 +87519,9 @@ Errors found in INCLUDES are reported for the main program.`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_bool_expression.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_bool_expression.js
 var require_use_bool_expression = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_bool_expression.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_bool_expression.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -87670,9 +87670,9 @@ DATA(fsdf) = xsdbool( foo <> bar ).`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_class_based_exceptions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_class_based_exceptions.js
 var require_use_class_based_exceptions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_class_based_exceptions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_class_based_exceptions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -87771,9 +87771,9 @@ ENDINTERFACE.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_line_exists.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_line_exists.js
 var require_use_line_exists = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_line_exists.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_line_exists.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -87915,9 +87915,9 @@ ENDIF.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_new.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_new.js
 var require_use_new = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_new.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/use_new.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -88048,9 +88048,9 @@ Applicable from v740sp02 and up`,
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/when_others_last.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/when_others_last.js
 var require_when_others_last = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/when_others_last.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/when_others_last.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -88157,9 +88157,9 @@ ENDCASE.`
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/whitespace_end.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/whitespace_end.js
 var require_whitespace_end = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/whitespace_end.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/whitespace_end.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.WhitespaceEnd = exports.WhitespaceEndConf = void 0;
@@ -88224,9 +88224,9 @@ var require_whitespace_end = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/xml_consistency.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/xml_consistency.js
 var require_xml_consistency = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/xml_consistency.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/xml_consistency.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -88542,9 +88542,9 @@ var require_xml_consistency = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_exclamation_escape.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_exclamation_escape.js
 var require_no_exclamation_escape = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_exclamation_escape.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/no_exclamation_escape.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.NoExclamationEscape = exports.NoExclamationEscapeConf = void 0;
@@ -88599,9 +88599,9 @@ var require_no_exclamation_escape = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/rules/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/rules/index.js
 var require_rules = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/rules/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/rules/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -88812,9 +88812,9 @@ var require_rules = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/artifacts_rules.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/artifacts_rules.js
 var require_artifacts_rules = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/artifacts_rules.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/artifacts_rules.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -88875,18 +88875,18 @@ var require_artifacts_rules = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/json5/lib/unicode.js
+// ../../abap-mcp/node_modules/json5/lib/unicode.js
 var require_unicode = __commonJS({
-  "../abap-mcp/node_modules/json5/lib/unicode.js"(exports, module) {
+  "../../abap-mcp/node_modules/json5/lib/unicode.js"(exports, module) {
     module.exports.Space_Separator = /[\u1680\u2000-\u200A\u202F\u205F\u3000]/;
     module.exports.ID_Start = /[\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0370-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u05D0-\u05EA\u05F0-\u05F2\u0620-\u064A\u066E\u066F\u0671-\u06D3\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u06FC\u06FF\u0710\u0712-\u072F\u074D-\u07A5\u07B1\u07CA-\u07EA\u07F4\u07F5\u07FA\u0800-\u0815\u081A\u0824\u0828\u0840-\u0858\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u0904-\u0939\u093D\u0950\u0958-\u0961\u0971-\u0980\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BD\u09CE\u09DC\u09DD\u09DF-\u09E1\u09F0\u09F1\u09FC\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A59-\u0A5C\u0A5E\u0A72-\u0A74\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABD\u0AD0\u0AE0\u0AE1\u0AF9\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3D\u0B5C\u0B5D\u0B5F-\u0B61\u0B71\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BD0\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D\u0C58-\u0C5A\u0C60\u0C61\u0C80\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBD\u0CDE\u0CE0\u0CE1\u0CF1\u0CF2\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D3A\u0D3D\u0D4E\u0D54-\u0D56\u0D5F-\u0D61\u0D7A-\u0D7F\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0E01-\u0E30\u0E32\u0E33\u0E40-\u0E46\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB0\u0EB2\u0EB3\u0EBD\u0EC0-\u0EC4\u0EC6\u0EDC-\u0EDF\u0F00\u0F40-\u0F47\u0F49-\u0F6C\u0F88-\u0F8C\u1000-\u102A\u103F\u1050-\u1055\u105A-\u105D\u1061\u1065\u1066\u106E-\u1070\u1075-\u1081\u108E\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1711\u1720-\u1731\u1740-\u1751\u1760-\u176C\u176E-\u1770\u1780-\u17B3\u17D7\u17DC\u1820-\u1877\u1880-\u1884\u1887-\u18A8\u18AA\u18B0-\u18F5\u1900-\u191E\u1950-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u1A00-\u1A16\u1A20-\u1A54\u1AA7\u1B05-\u1B33\u1B45-\u1B4B\u1B83-\u1BA0\u1BAE\u1BAF\u1BBA-\u1BE5\u1C00-\u1C23\u1C4D-\u1C4F\u1C5A-\u1C7D\u1C80-\u1C88\u1CE9-\u1CEC\u1CEE-\u1CF1\u1CF5\u1CF6\u1D00-\u1DBF\u1E00-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u2071\u207F\u2090-\u209C\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CEE\u2CF2\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D80-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2E2F\u3005-\u3007\u3021-\u3029\u3031-\u3035\u3038-\u303C\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312E\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEA\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA61F\uA62A\uA62B\uA640-\uA66E\uA67F-\uA69D\uA6A0-\uA6EF\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AE\uA7B0-\uA7B7\uA7F7-\uA801\uA803-\uA805\uA807-\uA80A\uA80C-\uA822\uA840-\uA873\uA882-\uA8B3\uA8F2-\uA8F7\uA8FB\uA8FD\uA90A-\uA925\uA930-\uA946\uA960-\uA97C\uA984-\uA9B2\uA9CF\uA9E0-\uA9E4\uA9E6-\uA9EF\uA9FA-\uA9FE\uAA00-\uAA28\uAA40-\uAA42\uAA44-\uAA4B\uAA60-\uAA76\uAA7A\uAA7E-\uAAAF\uAAB1\uAAB5\uAAB6\uAAB9-\uAABD\uAAC0\uAAC2\uAADB-\uAADD\uAAE0-\uAAEA\uAAF2-\uAAF4\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABE2\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D\uFB1F-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE70-\uFE74\uFE76-\uFEFC\uFF21-\uFF3A\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]|\uD800[\uDC00-\uDC0B\uDC0D-\uDC26\uDC28-\uDC3A\uDC3C\uDC3D\uDC3F-\uDC4D\uDC50-\uDC5D\uDC80-\uDCFA\uDD40-\uDD74\uDE80-\uDE9C\uDEA0-\uDED0\uDF00-\uDF1F\uDF2D-\uDF4A\uDF50-\uDF75\uDF80-\uDF9D\uDFA0-\uDFC3\uDFC8-\uDFCF\uDFD1-\uDFD5]|\uD801[\uDC00-\uDC9D\uDCB0-\uDCD3\uDCD8-\uDCFB\uDD00-\uDD27\uDD30-\uDD63\uDE00-\uDF36\uDF40-\uDF55\uDF60-\uDF67]|\uD802[\uDC00-\uDC05\uDC08\uDC0A-\uDC35\uDC37\uDC38\uDC3C\uDC3F-\uDC55\uDC60-\uDC76\uDC80-\uDC9E\uDCE0-\uDCF2\uDCF4\uDCF5\uDD00-\uDD15\uDD20-\uDD39\uDD80-\uDDB7\uDDBE\uDDBF\uDE00\uDE10-\uDE13\uDE15-\uDE17\uDE19-\uDE33\uDE60-\uDE7C\uDE80-\uDE9C\uDEC0-\uDEC7\uDEC9-\uDEE4\uDF00-\uDF35\uDF40-\uDF55\uDF60-\uDF72\uDF80-\uDF91]|\uD803[\uDC00-\uDC48\uDC80-\uDCB2\uDCC0-\uDCF2]|\uD804[\uDC03-\uDC37\uDC83-\uDCAF\uDCD0-\uDCE8\uDD03-\uDD26\uDD50-\uDD72\uDD76\uDD83-\uDDB2\uDDC1-\uDDC4\uDDDA\uDDDC\uDE00-\uDE11\uDE13-\uDE2B\uDE80-\uDE86\uDE88\uDE8A-\uDE8D\uDE8F-\uDE9D\uDE9F-\uDEA8\uDEB0-\uDEDE\uDF05-\uDF0C\uDF0F\uDF10\uDF13-\uDF28\uDF2A-\uDF30\uDF32\uDF33\uDF35-\uDF39\uDF3D\uDF50\uDF5D-\uDF61]|\uD805[\uDC00-\uDC34\uDC47-\uDC4A\uDC80-\uDCAF\uDCC4\uDCC5\uDCC7\uDD80-\uDDAE\uDDD8-\uDDDB\uDE00-\uDE2F\uDE44\uDE80-\uDEAA\uDF00-\uDF19]|\uD806[\uDCA0-\uDCDF\uDCFF\uDE00\uDE0B-\uDE32\uDE3A\uDE50\uDE5C-\uDE83\uDE86-\uDE89\uDEC0-\uDEF8]|\uD807[\uDC00-\uDC08\uDC0A-\uDC2E\uDC40\uDC72-\uDC8F\uDD00-\uDD06\uDD08\uDD09\uDD0B-\uDD30\uDD46]|\uD808[\uDC00-\uDF99]|\uD809[\uDC00-\uDC6E\uDC80-\uDD43]|[\uD80C\uD81C-\uD820\uD840-\uD868\uD86A-\uD86C\uD86F-\uD872\uD874-\uD879][\uDC00-\uDFFF]|\uD80D[\uDC00-\uDC2E]|\uD811[\uDC00-\uDE46]|\uD81A[\uDC00-\uDE38\uDE40-\uDE5E\uDED0-\uDEED\uDF00-\uDF2F\uDF40-\uDF43\uDF63-\uDF77\uDF7D-\uDF8F]|\uD81B[\uDF00-\uDF44\uDF50\uDF93-\uDF9F\uDFE0\uDFE1]|\uD821[\uDC00-\uDFEC]|\uD822[\uDC00-\uDEF2]|\uD82C[\uDC00-\uDD1E\uDD70-\uDEFB]|\uD82F[\uDC00-\uDC6A\uDC70-\uDC7C\uDC80-\uDC88\uDC90-\uDC99]|\uD835[\uDC00-\uDC54\uDC56-\uDC9C\uDC9E\uDC9F\uDCA2\uDCA5\uDCA6\uDCA9-\uDCAC\uDCAE-\uDCB9\uDCBB\uDCBD-\uDCC3\uDCC5-\uDD05\uDD07-\uDD0A\uDD0D-\uDD14\uDD16-\uDD1C\uDD1E-\uDD39\uDD3B-\uDD3E\uDD40-\uDD44\uDD46\uDD4A-\uDD50\uDD52-\uDEA5\uDEA8-\uDEC0\uDEC2-\uDEDA\uDEDC-\uDEFA\uDEFC-\uDF14\uDF16-\uDF34\uDF36-\uDF4E\uDF50-\uDF6E\uDF70-\uDF88\uDF8A-\uDFA8\uDFAA-\uDFC2\uDFC4-\uDFCB]|\uD83A[\uDC00-\uDCC4\uDD00-\uDD43]|\uD83B[\uDE00-\uDE03\uDE05-\uDE1F\uDE21\uDE22\uDE24\uDE27\uDE29-\uDE32\uDE34-\uDE37\uDE39\uDE3B\uDE42\uDE47\uDE49\uDE4B\uDE4D-\uDE4F\uDE51\uDE52\uDE54\uDE57\uDE59\uDE5B\uDE5D\uDE5F\uDE61\uDE62\uDE64\uDE67-\uDE6A\uDE6C-\uDE72\uDE74-\uDE77\uDE79-\uDE7C\uDE7E\uDE80-\uDE89\uDE8B-\uDE9B\uDEA1-\uDEA3\uDEA5-\uDEA9\uDEAB-\uDEBB]|\uD869[\uDC00-\uDED6\uDF00-\uDFFF]|\uD86D[\uDC00-\uDF34\uDF40-\uDFFF]|\uD86E[\uDC00-\uDC1D\uDC20-\uDFFF]|\uD873[\uDC00-\uDEA1\uDEB0-\uDFFF]|\uD87A[\uDC00-\uDFE0]|\uD87E[\uDC00-\uDE1D]/;
     module.exports.ID_Continue = /[\xAA\xB5\xBA\xC0-\xD6\xD8-\xF6\xF8-\u02C1\u02C6-\u02D1\u02E0-\u02E4\u02EC\u02EE\u0300-\u0374\u0376\u0377\u037A-\u037D\u037F\u0386\u0388-\u038A\u038C\u038E-\u03A1\u03A3-\u03F5\u03F7-\u0481\u0483-\u0487\u048A-\u052F\u0531-\u0556\u0559\u0561-\u0587\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u05D0-\u05EA\u05F0-\u05F2\u0610-\u061A\u0620-\u0669\u066E-\u06D3\u06D5-\u06DC\u06DF-\u06E8\u06EA-\u06FC\u06FF\u0710-\u074A\u074D-\u07B1\u07C0-\u07F5\u07FA\u0800-\u082D\u0840-\u085B\u0860-\u086A\u08A0-\u08B4\u08B6-\u08BD\u08D4-\u08E1\u08E3-\u0963\u0966-\u096F\u0971-\u0983\u0985-\u098C\u098F\u0990\u0993-\u09A8\u09AA-\u09B0\u09B2\u09B6-\u09B9\u09BC-\u09C4\u09C7\u09C8\u09CB-\u09CE\u09D7\u09DC\u09DD\u09DF-\u09E3\u09E6-\u09F1\u09FC\u0A01-\u0A03\u0A05-\u0A0A\u0A0F\u0A10\u0A13-\u0A28\u0A2A-\u0A30\u0A32\u0A33\u0A35\u0A36\u0A38\u0A39\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A59-\u0A5C\u0A5E\u0A66-\u0A75\u0A81-\u0A83\u0A85-\u0A8D\u0A8F-\u0A91\u0A93-\u0AA8\u0AAA-\u0AB0\u0AB2\u0AB3\u0AB5-\u0AB9\u0ABC-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AD0\u0AE0-\u0AE3\u0AE6-\u0AEF\u0AF9-\u0AFF\u0B01-\u0B03\u0B05-\u0B0C\u0B0F\u0B10\u0B13-\u0B28\u0B2A-\u0B30\u0B32\u0B33\u0B35-\u0B39\u0B3C-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B5C\u0B5D\u0B5F-\u0B63\u0B66-\u0B6F\u0B71\u0B82\u0B83\u0B85-\u0B8A\u0B8E-\u0B90\u0B92-\u0B95\u0B99\u0B9A\u0B9C\u0B9E\u0B9F\u0BA3\u0BA4\u0BA8-\u0BAA\u0BAE-\u0BB9\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD0\u0BD7\u0BE6-\u0BEF\u0C00-\u0C03\u0C05-\u0C0C\u0C0E-\u0C10\u0C12-\u0C28\u0C2A-\u0C39\u0C3D-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C58-\u0C5A\u0C60-\u0C63\u0C66-\u0C6F\u0C80-\u0C83\u0C85-\u0C8C\u0C8E-\u0C90\u0C92-\u0CA8\u0CAA-\u0CB3\u0CB5-\u0CB9\u0CBC-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CDE\u0CE0-\u0CE3\u0CE6-\u0CEF\u0CF1\u0CF2\u0D00-\u0D03\u0D05-\u0D0C\u0D0E-\u0D10\u0D12-\u0D44\u0D46-\u0D48\u0D4A-\u0D4E\u0D54-\u0D57\u0D5F-\u0D63\u0D66-\u0D6F\u0D7A-\u0D7F\u0D82\u0D83\u0D85-\u0D96\u0D9A-\u0DB1\u0DB3-\u0DBB\u0DBD\u0DC0-\u0DC6\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DE6-\u0DEF\u0DF2\u0DF3\u0E01-\u0E3A\u0E40-\u0E4E\u0E50-\u0E59\u0E81\u0E82\u0E84\u0E87\u0E88\u0E8A\u0E8D\u0E94-\u0E97\u0E99-\u0E9F\u0EA1-\u0EA3\u0EA5\u0EA7\u0EAA\u0EAB\u0EAD-\u0EB9\u0EBB-\u0EBD\u0EC0-\u0EC4\u0EC6\u0EC8-\u0ECD\u0ED0-\u0ED9\u0EDC-\u0EDF\u0F00\u0F18\u0F19\u0F20-\u0F29\u0F35\u0F37\u0F39\u0F3E-\u0F47\u0F49-\u0F6C\u0F71-\u0F84\u0F86-\u0F97\u0F99-\u0FBC\u0FC6\u1000-\u1049\u1050-\u109D\u10A0-\u10C5\u10C7\u10CD\u10D0-\u10FA\u10FC-\u1248\u124A-\u124D\u1250-\u1256\u1258\u125A-\u125D\u1260-\u1288\u128A-\u128D\u1290-\u12B0\u12B2-\u12B5\u12B8-\u12BE\u12C0\u12C2-\u12C5\u12C8-\u12D6\u12D8-\u1310\u1312-\u1315\u1318-\u135A\u135D-\u135F\u1380-\u138F\u13A0-\u13F5\u13F8-\u13FD\u1401-\u166C\u166F-\u167F\u1681-\u169A\u16A0-\u16EA\u16EE-\u16F8\u1700-\u170C\u170E-\u1714\u1720-\u1734\u1740-\u1753\u1760-\u176C\u176E-\u1770\u1772\u1773\u1780-\u17D3\u17D7\u17DC\u17DD\u17E0-\u17E9\u180B-\u180D\u1810-\u1819\u1820-\u1877\u1880-\u18AA\u18B0-\u18F5\u1900-\u191E\u1920-\u192B\u1930-\u193B\u1946-\u196D\u1970-\u1974\u1980-\u19AB\u19B0-\u19C9\u19D0-\u19D9\u1A00-\u1A1B\u1A20-\u1A5E\u1A60-\u1A7C\u1A7F-\u1A89\u1A90-\u1A99\u1AA7\u1AB0-\u1ABD\u1B00-\u1B4B\u1B50-\u1B59\u1B6B-\u1B73\u1B80-\u1BF3\u1C00-\u1C37\u1C40-\u1C49\u1C4D-\u1C7D\u1C80-\u1C88\u1CD0-\u1CD2\u1CD4-\u1CF9\u1D00-\u1DF9\u1DFB-\u1F15\u1F18-\u1F1D\u1F20-\u1F45\u1F48-\u1F4D\u1F50-\u1F57\u1F59\u1F5B\u1F5D\u1F5F-\u1F7D\u1F80-\u1FB4\u1FB6-\u1FBC\u1FBE\u1FC2-\u1FC4\u1FC6-\u1FCC\u1FD0-\u1FD3\u1FD6-\u1FDB\u1FE0-\u1FEC\u1FF2-\u1FF4\u1FF6-\u1FFC\u203F\u2040\u2054\u2071\u207F\u2090-\u209C\u20D0-\u20DC\u20E1\u20E5-\u20F0\u2102\u2107\u210A-\u2113\u2115\u2119-\u211D\u2124\u2126\u2128\u212A-\u212D\u212F-\u2139\u213C-\u213F\u2145-\u2149\u214E\u2160-\u2188\u2C00-\u2C2E\u2C30-\u2C5E\u2C60-\u2CE4\u2CEB-\u2CF3\u2D00-\u2D25\u2D27\u2D2D\u2D30-\u2D67\u2D6F\u2D7F-\u2D96\u2DA0-\u2DA6\u2DA8-\u2DAE\u2DB0-\u2DB6\u2DB8-\u2DBE\u2DC0-\u2DC6\u2DC8-\u2DCE\u2DD0-\u2DD6\u2DD8-\u2DDE\u2DE0-\u2DFF\u2E2F\u3005-\u3007\u3021-\u302F\u3031-\u3035\u3038-\u303C\u3041-\u3096\u3099\u309A\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u3105-\u312E\u3131-\u318E\u31A0-\u31BA\u31F0-\u31FF\u3400-\u4DB5\u4E00-\u9FEA\uA000-\uA48C\uA4D0-\uA4FD\uA500-\uA60C\uA610-\uA62B\uA640-\uA66F\uA674-\uA67D\uA67F-\uA6F1\uA717-\uA71F\uA722-\uA788\uA78B-\uA7AE\uA7B0-\uA7B7\uA7F7-\uA827\uA840-\uA873\uA880-\uA8C5\uA8D0-\uA8D9\uA8E0-\uA8F7\uA8FB\uA8FD\uA900-\uA92D\uA930-\uA953\uA960-\uA97C\uA980-\uA9C0\uA9CF-\uA9D9\uA9E0-\uA9FE\uAA00-\uAA36\uAA40-\uAA4D\uAA50-\uAA59\uAA60-\uAA76\uAA7A-\uAAC2\uAADB-\uAADD\uAAE0-\uAAEF\uAAF2-\uAAF6\uAB01-\uAB06\uAB09-\uAB0E\uAB11-\uAB16\uAB20-\uAB26\uAB28-\uAB2E\uAB30-\uAB5A\uAB5C-\uAB65\uAB70-\uABEA\uABEC\uABED\uABF0-\uABF9\uAC00-\uD7A3\uD7B0-\uD7C6\uD7CB-\uD7FB\uF900-\uFA6D\uFA70-\uFAD9\uFB00-\uFB06\uFB13-\uFB17\uFB1D-\uFB28\uFB2A-\uFB36\uFB38-\uFB3C\uFB3E\uFB40\uFB41\uFB43\uFB44\uFB46-\uFBB1\uFBD3-\uFD3D\uFD50-\uFD8F\uFD92-\uFDC7\uFDF0-\uFDFB\uFE00-\uFE0F\uFE20-\uFE2F\uFE33\uFE34\uFE4D-\uFE4F\uFE70-\uFE74\uFE76-\uFEFC\uFF10-\uFF19\uFF21-\uFF3A\uFF3F\uFF41-\uFF5A\uFF66-\uFFBE\uFFC2-\uFFC7\uFFCA-\uFFCF\uFFD2-\uFFD7\uFFDA-\uFFDC]|\uD800[\uDC00-\uDC0B\uDC0D-\uDC26\uDC28-\uDC3A\uDC3C\uDC3D\uDC3F-\uDC4D\uDC50-\uDC5D\uDC80-\uDCFA\uDD40-\uDD74\uDDFD\uDE80-\uDE9C\uDEA0-\uDED0\uDEE0\uDF00-\uDF1F\uDF2D-\uDF4A\uDF50-\uDF7A\uDF80-\uDF9D\uDFA0-\uDFC3\uDFC8-\uDFCF\uDFD1-\uDFD5]|\uD801[\uDC00-\uDC9D\uDCA0-\uDCA9\uDCB0-\uDCD3\uDCD8-\uDCFB\uDD00-\uDD27\uDD30-\uDD63\uDE00-\uDF36\uDF40-\uDF55\uDF60-\uDF67]|\uD802[\uDC00-\uDC05\uDC08\uDC0A-\uDC35\uDC37\uDC38\uDC3C\uDC3F-\uDC55\uDC60-\uDC76\uDC80-\uDC9E\uDCE0-\uDCF2\uDCF4\uDCF5\uDD00-\uDD15\uDD20-\uDD39\uDD80-\uDDB7\uDDBE\uDDBF\uDE00-\uDE03\uDE05\uDE06\uDE0C-\uDE13\uDE15-\uDE17\uDE19-\uDE33\uDE38-\uDE3A\uDE3F\uDE60-\uDE7C\uDE80-\uDE9C\uDEC0-\uDEC7\uDEC9-\uDEE6\uDF00-\uDF35\uDF40-\uDF55\uDF60-\uDF72\uDF80-\uDF91]|\uD803[\uDC00-\uDC48\uDC80-\uDCB2\uDCC0-\uDCF2]|\uD804[\uDC00-\uDC46\uDC66-\uDC6F\uDC7F-\uDCBA\uDCD0-\uDCE8\uDCF0-\uDCF9\uDD00-\uDD34\uDD36-\uDD3F\uDD50-\uDD73\uDD76\uDD80-\uDDC4\uDDCA-\uDDCC\uDDD0-\uDDDA\uDDDC\uDE00-\uDE11\uDE13-\uDE37\uDE3E\uDE80-\uDE86\uDE88\uDE8A-\uDE8D\uDE8F-\uDE9D\uDE9F-\uDEA8\uDEB0-\uDEEA\uDEF0-\uDEF9\uDF00-\uDF03\uDF05-\uDF0C\uDF0F\uDF10\uDF13-\uDF28\uDF2A-\uDF30\uDF32\uDF33\uDF35-\uDF39\uDF3C-\uDF44\uDF47\uDF48\uDF4B-\uDF4D\uDF50\uDF57\uDF5D-\uDF63\uDF66-\uDF6C\uDF70-\uDF74]|\uD805[\uDC00-\uDC4A\uDC50-\uDC59\uDC80-\uDCC5\uDCC7\uDCD0-\uDCD9\uDD80-\uDDB5\uDDB8-\uDDC0\uDDD8-\uDDDD\uDE00-\uDE40\uDE44\uDE50-\uDE59\uDE80-\uDEB7\uDEC0-\uDEC9\uDF00-\uDF19\uDF1D-\uDF2B\uDF30-\uDF39]|\uD806[\uDCA0-\uDCE9\uDCFF\uDE00-\uDE3E\uDE47\uDE50-\uDE83\uDE86-\uDE99\uDEC0-\uDEF8]|\uD807[\uDC00-\uDC08\uDC0A-\uDC36\uDC38-\uDC40\uDC50-\uDC59\uDC72-\uDC8F\uDC92-\uDCA7\uDCA9-\uDCB6\uDD00-\uDD06\uDD08\uDD09\uDD0B-\uDD36\uDD3A\uDD3C\uDD3D\uDD3F-\uDD47\uDD50-\uDD59]|\uD808[\uDC00-\uDF99]|\uD809[\uDC00-\uDC6E\uDC80-\uDD43]|[\uD80C\uD81C-\uD820\uD840-\uD868\uD86A-\uD86C\uD86F-\uD872\uD874-\uD879][\uDC00-\uDFFF]|\uD80D[\uDC00-\uDC2E]|\uD811[\uDC00-\uDE46]|\uD81A[\uDC00-\uDE38\uDE40-\uDE5E\uDE60-\uDE69\uDED0-\uDEED\uDEF0-\uDEF4\uDF00-\uDF36\uDF40-\uDF43\uDF50-\uDF59\uDF63-\uDF77\uDF7D-\uDF8F]|\uD81B[\uDF00-\uDF44\uDF50-\uDF7E\uDF8F-\uDF9F\uDFE0\uDFE1]|\uD821[\uDC00-\uDFEC]|\uD822[\uDC00-\uDEF2]|\uD82C[\uDC00-\uDD1E\uDD70-\uDEFB]|\uD82F[\uDC00-\uDC6A\uDC70-\uDC7C\uDC80-\uDC88\uDC90-\uDC99\uDC9D\uDC9E]|\uD834[\uDD65-\uDD69\uDD6D-\uDD72\uDD7B-\uDD82\uDD85-\uDD8B\uDDAA-\uDDAD\uDE42-\uDE44]|\uD835[\uDC00-\uDC54\uDC56-\uDC9C\uDC9E\uDC9F\uDCA2\uDCA5\uDCA6\uDCA9-\uDCAC\uDCAE-\uDCB9\uDCBB\uDCBD-\uDCC3\uDCC5-\uDD05\uDD07-\uDD0A\uDD0D-\uDD14\uDD16-\uDD1C\uDD1E-\uDD39\uDD3B-\uDD3E\uDD40-\uDD44\uDD46\uDD4A-\uDD50\uDD52-\uDEA5\uDEA8-\uDEC0\uDEC2-\uDEDA\uDEDC-\uDEFA\uDEFC-\uDF14\uDF16-\uDF34\uDF36-\uDF4E\uDF50-\uDF6E\uDF70-\uDF88\uDF8A-\uDFA8\uDFAA-\uDFC2\uDFC4-\uDFCB\uDFCE-\uDFFF]|\uD836[\uDE00-\uDE36\uDE3B-\uDE6C\uDE75\uDE84\uDE9B-\uDE9F\uDEA1-\uDEAF]|\uD838[\uDC00-\uDC06\uDC08-\uDC18\uDC1B-\uDC21\uDC23\uDC24\uDC26-\uDC2A]|\uD83A[\uDC00-\uDCC4\uDCD0-\uDCD6\uDD00-\uDD4A\uDD50-\uDD59]|\uD83B[\uDE00-\uDE03\uDE05-\uDE1F\uDE21\uDE22\uDE24\uDE27\uDE29-\uDE32\uDE34-\uDE37\uDE39\uDE3B\uDE42\uDE47\uDE49\uDE4B\uDE4D-\uDE4F\uDE51\uDE52\uDE54\uDE57\uDE59\uDE5B\uDE5D\uDE5F\uDE61\uDE62\uDE64\uDE67-\uDE6A\uDE6C-\uDE72\uDE74-\uDE77\uDE79-\uDE7C\uDE7E\uDE80-\uDE89\uDE8B-\uDE9B\uDEA1-\uDEA3\uDEA5-\uDEA9\uDEAB-\uDEBB]|\uD869[\uDC00-\uDED6\uDF00-\uDFFF]|\uD86D[\uDC00-\uDF34\uDF40-\uDFFF]|\uD86E[\uDC00-\uDC1D\uDC20-\uDFFF]|\uD873[\uDC00-\uDEA1\uDEB0-\uDFFF]|\uD87A[\uDC00-\uDFE0]|\uD87E[\uDC00-\uDE1D]|\uDB40[\uDD00-\uDDEF]/;
   }
 });
 
-// ../abap-mcp/node_modules/json5/lib/util.js
+// ../../abap-mcp/node_modules/json5/lib/util.js
 var require_util = __commonJS({
-  "../abap-mcp/node_modules/json5/lib/util.js"(exports, module) {
+  "../../abap-mcp/node_modules/json5/lib/util.js"(exports, module) {
     var unicode = require_unicode();
     module.exports = {
       isSpaceSeparator(c) {
@@ -88908,9 +88908,9 @@ var require_util = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/json5/lib/parse.js
+// ../../abap-mcp/node_modules/json5/lib/parse.js
 var require_parse = __commonJS({
-  "../abap-mcp/node_modules/json5/lib/parse.js"(exports, module) {
+  "../../abap-mcp/node_modules/json5/lib/parse.js"(exports, module) {
     var util = require_util();
     var source;
     var parseState;
@@ -89755,9 +89755,9 @@ var require_parse = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/json5/lib/stringify.js
+// ../../abap-mcp/node_modules/json5/lib/stringify.js
 var require_stringify = __commonJS({
-  "../abap-mcp/node_modules/json5/lib/stringify.js"(exports, module) {
+  "../../abap-mcp/node_modules/json5/lib/stringify.js"(exports, module) {
     var util = require_util();
     module.exports = function stringify(value, replacer, space) {
       const stack = [];
@@ -89974,9 +89974,9 @@ var require_stringify = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/json5/lib/index.js
+// ../../abap-mcp/node_modules/json5/lib/index.js
 var require_lib = __commonJS({
-  "../abap-mcp/node_modules/json5/lib/index.js"(exports, module) {
+  "../../abap-mcp/node_modules/json5/lib/index.js"(exports, module) {
     var parse = require_parse();
     var stringify = require_stringify();
     var JSON5 = {
@@ -89987,9 +89987,9 @@ var require_lib = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/config.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/config.js
 var require_config = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/config.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/config.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -90206,7 +90206,7 @@ var require_config = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/vscode-languageserver-types/lib/esm/main.js
+// ../../abap-mcp/node_modules/vscode-languageserver-types/lib/esm/main.js
 var main_exports = {};
 __export(main_exports, {
   AnnotatedTextEdit: () => AnnotatedTextEdit,
@@ -90297,7 +90297,7 @@ __export(main_exports, {
 });
 var DocumentUri, URI, integer, uinteger, Position, Range, Location, LocationLink, Color, ColorInformation, ColorPresentation, FoldingRangeKind, FoldingRange, DiagnosticRelatedInformation, DiagnosticSeverity, DiagnosticTag, CodeDescription, Diagnostic, Command, TextEdit, ChangeAnnotation, ChangeAnnotationIdentifier, AnnotatedTextEdit, TextDocumentEdit, CreateFile, RenameFile, DeleteFile, WorkspaceEdit, TextEditChangeImpl, SnippetTextEdit, ChangeAnnotations, WorkspaceChange, TextDocumentIdentifier, VersionedTextDocumentIdentifier, OptionalVersionedTextDocumentIdentifier, LanguageKind, TextDocumentItem, MarkupKind, MarkupContent, CompletionItemKind, InsertTextFormat, CompletionItemTag, InsertReplaceEdit, InsertTextMode, ApplyKind, CompletionItemLabelDetails, CompletionItem, CompletionList, MarkedString, Hover, ParameterInformation, SignatureInformation, DocumentHighlightKind, DocumentHighlight, SymbolKind, SymbolTag, SymbolInformation, WorkspaceSymbol, DocumentSymbol, CodeActionKind, CodeActionTriggerKind, CodeActionContext, CodeActionTag, CodeAction, CodeLens, FormattingOptions, DocumentLink, SelectionRange, SemanticTokenTypes, SemanticTokenModifiers, SemanticTokens, InlineValueText, InlineValueVariableLookup, InlineValueEvaluatableExpression, InlineValueContext, InlayHintKind, InlayHintLabelPart, InlayHint, StringValue, InlineCompletionItem, InlineCompletionList, InlineCompletionTriggerKind, SelectedCompletionInfo, InlineCompletionContext, WorkspaceFolder, EOL, TextDocument, FullTextDocument, Is;
 var init_main = __esm({
-  "../abap-mcp/node_modules/vscode-languageserver-types/lib/esm/main.js"() {
+  "../../abap-mcp/node_modules/vscode-languageserver-types/lib/esm/main.js"() {
     "use strict";
     (function(DocumentUri2) {
       function is(value) {
@@ -91775,9 +91775,9 @@ var init_main = __esm({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_lsp_utils.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_lsp_utils.js
 var require_lsp_utils = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_lsp_utils.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_lsp_utils.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -91893,9 +91893,9 @@ var require_lsp_utils = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/symbols.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/symbols.js
 var require_symbols = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/symbols.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/symbols.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -92065,9 +92065,9 @@ var require_symbols = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_lookup.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_lookup.js
 var require_lookup = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_lookup.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_lookup.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -92486,9 +92486,9 @@ var require_lookup = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/hover.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/hover.js
 var require_hover = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/hover.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/hover.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -92579,9 +92579,9 @@ var require_hover = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/diagnostics.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/diagnostics.js
 var require_diagnostics = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/diagnostics.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/diagnostics.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -92681,9 +92681,9 @@ var require_diagnostics = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/dump_scope.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/dump_scope.js
 var require_dump_scope = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/dump_scope.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/dump_scope.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DumpScope = void 0;
@@ -92776,9 +92776,9 @@ var require_dump_scope = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/help.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/help.js
 var require_help = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/help.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/help.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Help = void 0;
@@ -93046,9 +93046,9 @@ var require_help = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/fix_keyword_case.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/fix_keyword_case.js
 var require_fix_keyword_case = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/fix_keyword_case.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/fix_keyword_case.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -93143,9 +93143,9 @@ var require_fix_keyword_case = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/pretty_printer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/pretty_printer.js
 var require_pretty_printer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/pretty_printer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/pretty_printer/pretty_printer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PrettyPrinter = void 0;
@@ -93183,9 +93183,9 @@ var require_pretty_printer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/definition.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/definition.js
 var require_definition = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/definition.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/definition.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Definition = void 0;
@@ -93217,9 +93217,9 @@ var require_definition = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/references.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/references.js
 var require_references = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/references.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/references.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.References = void 0;
@@ -93317,9 +93317,9 @@ var require_references = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/renamer_helper.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/renamer_helper.js
 var require_renamer_helper = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/renamer_helper.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/renamer_helper.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RenamerHelper = void 0;
@@ -93539,9 +93539,9 @@ var require_renamer_helper = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_data_element.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_data_element.js
 var require_rename_data_element = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_data_element.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_data_element.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RenameDataElement = void 0;
@@ -93572,9 +93572,9 @@ var require_rename_data_element = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_domain.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_domain.js
 var require_rename_domain = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_domain.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_domain.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RenameDomain = void 0;
@@ -93602,9 +93602,9 @@ var require_rename_domain = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_global_class.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_global_class.js
 var require_rename_global_class = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_global_class.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_global_class.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -93698,9 +93698,9 @@ var require_rename_global_class = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_global_interface.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_global_interface.js
 var require_rename_global_interface = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_global_interface.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_global_interface.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -93786,9 +93786,9 @@ var require_rename_global_interface = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_program.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_program.js
 var require_rename_program = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_program.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_program.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -93892,9 +93892,9 @@ var require_rename_program = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_table.js
 var require_rename_table = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_table.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RenameTable = void 0;
@@ -93925,9 +93925,9 @@ var require_rename_table = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_table_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_table_type.js
 var require_rename_table_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_table_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_table_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RenameTableType = void 0;
@@ -93957,9 +93957,9 @@ var require_rename_table_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_message_class.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_message_class.js
 var require_rename_message_class = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_message_class.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_message_class.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RenameMessageClass = void 0;
@@ -94002,9 +94002,9 @@ var require_rename_message_class = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_icf_service.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_icf_service.js
 var require_rename_icf_service = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_icf_service.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/rename_icf_service.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.RenameICFService = void 0;
@@ -94052,9 +94052,9 @@ var require_rename_icf_service = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/renamer.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/renamer.js
 var require_renamer = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/renamer.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/objects/rename/renamer.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Renamer = void 0;
@@ -94186,9 +94186,9 @@ var require_renamer = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/rename.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/rename.js
 var require_rename = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/rename.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/rename.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -94332,9 +94332,9 @@ var require_rename = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/highlight.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/highlight.js
 var require_highlight = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/highlight.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/highlight.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Highlight = void 0;
@@ -94406,9 +94406,9 @@ var require_highlight = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_edit.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_edit.js
 var require_edit = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_edit.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_edit.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -94483,9 +94483,9 @@ var require_edit = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/code_actions.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/code_actions.js
 var require_code_actions = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/code_actions.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/code_actions.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -94613,9 +94613,9 @@ var require_code_actions = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/implementation.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/implementation.js
 var require_implementation = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/implementation.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/implementation.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Implementation = void 0;
@@ -94679,9 +94679,9 @@ var require_implementation = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/semantic.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/semantic.js
 var require_semantic = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/semantic.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/semantic.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -94829,9 +94829,9 @@ var require_semantic = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/code_lens.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/code_lens.js
 var require_code_lens = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/code_lens.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/code_lens.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -94967,9 +94967,9 @@ var require_code_lens = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/inlay_hints.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/inlay_hints.js
 var require_inlay_hints = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/inlay_hints.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/inlay_hints.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -95073,9 +95073,9 @@ var require_inlay_hints = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/language_server.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/language_server.js
 var require_language_server = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/language_server.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/language_server.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -95239,17 +95239,17 @@ var require_language_server = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_interfaces.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_interfaces.js
 var require_interfaces = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_interfaces.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/lsp/_interfaces.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_literal.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_literal.js
 var require_ddl_literal = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_literal.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_literal.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLStringLiteral = exports.DDLCardinalityValue = void 0;
@@ -95270,9 +95270,9 @@ var require_ddl_literal = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_name.js
 var require_ddl_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLName = void 0;
@@ -95287,9 +95287,9 @@ var require_ddl_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_qualified_name.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_qualified_name.js
 var require_ddl_qualified_name = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_qualified_name.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_qualified_name.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLQualifiedName = void 0;
@@ -95304,9 +95304,9 @@ var require_ddl_qualified_name = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_where.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_where.js
 var require_ddl_where = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_where.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_where.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLWhere = void 0;
@@ -95324,9 +95324,9 @@ var require_ddl_where = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_clauses.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_clauses.js
 var require_ddl_clauses = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_clauses.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_clauses.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLReference = exports.DDLValueHelp = exports.DDLForeignKey = exports.DDLForeignKeyTarget = void 0;
@@ -95362,9 +95362,9 @@ var require_ddl_clauses = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_extend.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_extend.js
 var require_ddl_extend = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_extend.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_extend.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLExtend = void 0;
@@ -95382,9 +95382,9 @@ var require_ddl_extend = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_include.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_include.js
 var require_ddl_include = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_include.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_include.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLInclude = void 0;
@@ -95402,9 +95402,9 @@ var require_ddl_include = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_named_include.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_named_include.js
 var require_ddl_named_include = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_named_include.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_named_include.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLNamedInclude = void 0;
@@ -95422,9 +95422,9 @@ var require_ddl_named_include = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_type.js
 var require_ddl_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLType = void 0;
@@ -95444,9 +95444,9 @@ var require_ddl_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_table_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_table_field.js
 var require_ddl_table_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_table_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_table_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLTableField = void 0;
@@ -95465,9 +95465,9 @@ var require_ddl_table_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_aspect.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_aspect.js
 var require_ddl_aspect = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_aspect.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_aspect.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLAspect = void 0;
@@ -95488,9 +95488,9 @@ var require_ddl_aspect = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_structure_field.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_structure_field.js
 var require_ddl_structure_field = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_structure_field.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_structure_field.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLStructureField = void 0;
@@ -95507,9 +95507,9 @@ var require_ddl_structure_field = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_extend_type.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_extend_type.js
 var require_ddl_extend_type = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_extend_type.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_extend_type.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLExtendType = void 0;
@@ -95530,9 +95530,9 @@ var require_ddl_extend_type = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_structure.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_structure.js
 var require_ddl_structure = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_structure.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_structure.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLStructure = void 0;
@@ -95552,9 +95552,9 @@ var require_ddl_structure = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_table.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_table.js
 var require_ddl_table = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_table.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/ddl_table.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.DDLTable = void 0;
@@ -95575,9 +95575,9 @@ var require_ddl_table = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/index.js
 var require_expressions3 = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/expressions/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -95614,9 +95614,9 @@ var require_expressions3 = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/ddl/ddl_parser.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/ddl_parser.js
 var require_ddl_parser = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/ddl/ddl_parser.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/ddl/ddl_parser.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -95777,9 +95777,9 @@ var require_ddl_parser = __commonJS({
   }
 });
 
-// ../abap-mcp/node_modules/@abaplint/core/build/src/index.js
+// ../../abap-mcp/node_modules/@abaplint/core/build/src/index.js
 var require_src = __commonJS({
-  "../abap-mcp/node_modules/@abaplint/core/build/src/index.js"(exports) {
+  "../../abap-mcp/node_modules/@abaplint/core/build/src/index.js"(exports) {
     "use strict";
     var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;

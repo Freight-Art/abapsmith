@@ -129,6 +129,13 @@ export interface SkeletonCreate {
    * the git history for the incident.
    */
   contentType: string;
+  /**
+   * Extra already-escaped attribute text spliced onto the root element after
+   * the namespace declarations — e.g. XSLT/VT's
+   * `trans:transformationType="XSLTProgram"`, required by the server to
+   * accept the create POST at all (see that entry's own comment).
+   */
+  rootAttributes?: string;
 }
 
 export interface CreateCapability {
@@ -137,7 +144,7 @@ export interface CreateCapability {
    * type, so `createNewObject()` reuses it unchanged.
    *
    * False ⇒ no vendor entry (checked directly against `objectcreator.js`'s
-   * map — `TTYP/DA`, `ENQU/DL`, `BDEF/BDO` are absent) — `write.ts` POSTs the
+   * map — `TTYP/DA`, `ENQU/DL`, `BDEF/BDO`, `XSLT/VT` are absent) — `write.ts` POSTs the
    * create body itself via `createByXml`, one of two ways, enforced by
    * {@link assertNoConflictingCapabilities}:
    *   - no `create.skeleton` — the caller's own write payload IS the create
@@ -147,7 +154,7 @@ export interface CreateCapability {
    *   - `create.skeleton` present — `write.ts` hand-builds the create XML
    *     from name/type/package (see {@link SkeletonCreate}); the payload is
    *     ABAP source and goes on the PUT that follows. Requires
-   *     `write.shape === "source"` — `BDEF/BDO`.
+   *     `write.shape === "source"` — `BDEF/BDO`, `XSLT/VT`.
    */
   vendor: boolean;
   /** See {@link ParentKind}. */
@@ -517,7 +524,38 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     delete: false,
     activate: true,
   },
-  "XSLT/VT": { label: "Transformation" },
+  // `create.vendor: false` — no XSLT/VT row in abap-adt-api's CreatableTypes
+  // (checked against objectcreator.js), so create needs a skeleton like
+  // BDEF/BDO. Live-probed against A4H 2026-09-04: the plural namespace
+  // `.../adt/transformations` 400s ("System expected the element
+  // '{http://www.sap.com/adt/transformation}transformation'"); the singular
+  // namespace below then 400s InvalidTransformationValue ("Transformation
+  // Type is not supported") until `trans:transformationType="XSLTProgram"`
+  // is on the root — with that attribute the raw POST returned 200 and the
+  // object read back afterwards. `contentType` carries no parameters, per
+  // SkeletonCreate.contentType's doc.
+  "XSLT/VT": {
+    label: "Transformation",
+    write: { shape: "source" },
+    create: {
+      vendor: false,
+      skeleton: {
+        rootName: "trans:transformation",
+        namespace: 'xmlns:trans="http://www.sap.com/adt/transformation"',
+        contentType: "application/vnd.sap.adt.transformations+xml",
+        rootAttributes: 'trans:transformationType="XSLTProgram"',
+      },
+      // Live 2026-09-04 through abap_write itself: create ZTMD_XSLT_01 in $TMP
+      // (created: true, check clean, activated), read back verbatim.
+      verified: true,
+    },
+    // Live 2026-09-04: abap_write mode=delete → deleted: true, read → NOT_FOUND.
+    delete: true,
+    activate: true,
+    // Discovery advertises this as the transformations collection's accept
+    // type (2026-09-04); a generic Accept on the object GET was not tested.
+    mediaType: "application/vnd.sap.adt.transformations+xml",
+  },
   // No write/create — an existing BAdI implementation is edited through
   // enhancement-write.ts's specialised document PUT (ENHANCEMENT_WRITE_TYPES),
   // not this registry's generic PUT. `activate: true` lets abap_activate
@@ -1322,7 +1360,7 @@ export function assertNoConflictingCapabilities(): void {
     // CreateCapability.vendor's doc comments): "properties" write shape with
     // no skeleton (payload IS the create body — TTYP/DA, ENQU/DL), or
     // "source" write shape WITH a skeleton (write.ts hand-builds the create
-    // XML — BDEF/BDO). Anything else has no body to POST.
+    // XML — BDEF/BDO, XSLT/VT). Anything else has no body to POST.
     if (cap.create?.vendor === false) {
       const shape = cap.write?.shape;
       const hasSkeleton = cap.create.skeleton !== undefined;

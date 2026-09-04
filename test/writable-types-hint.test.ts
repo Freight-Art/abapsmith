@@ -48,7 +48,9 @@ describe("writableTypesHint", () => {
 
   it("the same inventory backs the UNSUPPORTED refusal for a known-but-unwritable type", async () => {
     const known = await catchErr(resolveWriteTarget(offline, { type: "ZZZZ/QQ", name: "ZTMD_X" }));
-    const unsupported = await catchErr(resolveWriteTarget(offline, { type: "XSLT/VT", name: "ZX" }));
+    const unsupported = await catchErr(
+      resolveWriteTarget(offline, { type: "PROG/I", name: "ZTMD_INC" }),
+    );
     expect(unsupported.code).toBe("UNSUPPORTED");
     expect(unsupported.hint).toBe(known.hint);
     expect(unsupported.hint).toContain("DEVC/K");

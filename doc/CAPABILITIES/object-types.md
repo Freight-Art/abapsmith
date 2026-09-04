@@ -68,7 +68,7 @@ inputs to this derivation rather than registry fields:
 | `DDLX/EX` | Metadata extension | yes | yes | yes | yes | yes | live |
 | `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
 | `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
-| `XSLT/VT` | Transformation | no | yes | no | no | no | tests |
+| `XSLT/VT` | Transformation | yes | yes | yes | yes | yes | live |
 | `ENHO/XH` | BAdI implementation | partial | partial | no | partial | yes | tests |
 | `ENHO/XHH` | Enhancement source plug-in | partial | yes | yes | partial | no | unverified |
 | `ENHS/XS` | Enhancement spot | partial | partial | no | partial | yes | tests |
@@ -143,8 +143,19 @@ The `Object` column values are the registry `label` fields, unreworded.
   Evidence column grades the refusal the tests pin, not the recon behind it.
   For `TABL/DI` the registry's stated reason is abapsmith's own reach,
   explicitly not a proven ADT limitation, and no ADT probe has been run.
-- `PROG/I`, `FUGR/I`, `XSLT/VT` — readable, and nothing more: bare registry
-  entries with no create, write, delete, or activate field.
+- `PROG/I`, `FUGR/I` — readable, and nothing more: bare registry entries with
+  no create, write, delete, or activate field.
+- `XSLT/VT` — the registry path was corrected from `/sap/bc/adt/xslt/sources/`
+  (404 live) to `/sap/bc/adt/xslt/transformations/` (200, including
+  `.../source/main` with real source; 2026-09-04) — the old path failed every
+  read, so this row's Read was wrongly `yes` until now. `create.verified` and
+  `delete` are both `true`: the create skeleton needed a fix to match — a raw
+  POST to `/sap/bc/adt/xslt/transformations` 400d until the namespace was
+  singular (`.../adt/transformation`) and 400d again (InvalidTransformationValue)
+  until the root also carried `trans:transformationType="XSLTProgram"`; with
+  both fixes the POST returned 200 and the object read back afterwards. See
+  this type's REGISTRY comment in capabilities.ts for the exact server
+  messages.
 - `SRVB/SVB` — reading needs `format: "raw"`; create, activate, read-back and
   delete over the ADT business-services binding path are live-verified. This
   is a different path from the OData metadata read described under RAP,
