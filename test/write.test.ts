@@ -628,19 +628,25 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     expect(() => assertWritableTypesAreReadable()).not.toThrow();
   });
 
-  it("WRITABLE_TYPES is exactly the source-shape thirteen plus the properties-shape six", () => {
+  it("WRITABLE_TYPES is exactly the source-shape fourteen plus the properties-shape six", () => {
     // Spelled as one exhaustive set on purpose: a type silently ACQUIRING a
     // write capability is as much a regression as one losing it, and only an
-    // exhaustive comparison catches the first. The thirteen-plus-six split is:
+    // exhaustive comparison catches the first. The fourteen-plus-six split is:
     //   source shape     — CLAS/OC INTF/OI PROG/P DDLS/DF DDLX/EX SRVD/SRV
     //                      TABL/DT TABL/DS FUGR/FF FUGR/F BDEF/BDO XSLT/VT
-    //                      DCLS/DL
+    //                      DCLS/DL DDLA/ADF
     //   properties shape — DTEL/DE DOMA/DD TTYP/DA MSAG/N ENQU/DL SRVB/SVB
     // DCLS/DL joined source-shape on the same recipe as DDLS/DF: vendor
     // CreatableTypes has a real entry, so create is vendor, not a hand-built
     // skeleton. `create.verified` and `delete` are both `true`, live-verified
     // end to end on A4H 2026-09-04 (create/PUT/activate/read-back/delete/
     // NOT_FOUND read), putting it in VERIFIED_CREATABLE_TYPES and
+    // DELETABLE_TYPES.
+    // DDLA/ADF joined on the same vendor-create recipe as DCLS/DL, but a
+    // 2026-09-04 A4H probe DISPROVED create (403
+    // ExceptionNoAnnotationDefinitionAuthorization — SAP-only object type),
+    // so `create.verified` is `false`. `delete` stays `"unverified"` since
+    // create never succeeded, keeping it out of VERIFIED_CREATABLE_TYPES and
     // DELETABLE_TYPES.
     // FUGR/F joined on live evidence, not inference: its `/source/main` is the
     // TOP-include skeleton, and a PUT carrying a distinguishing marker line came
@@ -686,6 +692,7 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
         "BDEF/BDO",
         "XSLT/VT",
         "DCLS/DL",
+        "DDLA/ADF",
         "DTEL/DE",
         "DOMA/DD",
         "TTYP/DA",

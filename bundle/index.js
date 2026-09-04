@@ -66201,6 +66201,16 @@ var TYPES = [
     keywords: ["access control", "dcls", "dcl", "cds access control", "authorization role", "define role"]
   },
   {
+    // path confirmed live: GET .../source/main 200s with Accept: text/plain (2026-09-04).
+    type: "DDLA/ADF",
+    kind: "DDLA",
+    label: "Annotation definition",
+    path: "/sap/bc/adt/ddic/ddla/sources/{name}",
+    mode: "source",
+    supportsSource: true,
+    keywords: ["annotation definition", "ddla", "cds annotation", "annotation"]
+  },
+  {
     type: "SRVD/SRV",
     kind: "SRVD",
     label: "Service definition",
@@ -66623,6 +66633,27 @@ var REGISTRY = {
     delete: true,
     activate: true,
     mediaType: "application/vnd.sap.adt.dclSource+xml"
+  },
+  // Same source-shape recipe as DCLS/DL: vendor CreatableTypes has a real
+  // DDLA/ADF entry (validationPath ddic/ddla/sources/validation), and
+  // `GET .../ddic/ddla/sources/endusertext/source/main` 200s (the object URI
+  // 406s with a generic Accept, 200 with the vendor media type — hence
+  // mediaType). But `verified: false` — settled (not "unverified"): a
+  // 2026-09-04 A4H probe DISPROVED create for both `abap_write` (creating
+  // ZTMD_ANNO_01 in $TMP) and a raw `POST .../ddic/ddla/sources` with the
+  // vendor body — both refused 403, exception `com.sap.adt.ddla
+  // .ExceptionNoAnnotationDefinitionAuthorization`, "You are not authorized
+  // to create Annotation Definitions", from an admin user that creates every
+  // other type. Annotation definitions are SAP-only on this system. `delete`
+  // stays "unverified": create never succeeded, so delete was never once
+  // reachable to test — same reasoning as ENQU/DL above.
+  "DDLA/ADF": {
+    label: "Annotation definition",
+    write: { shape: "source" },
+    create: { vendor: true, verified: false },
+    delete: "unverified",
+    activate: true,
+    mediaType: "application/vnd.sap.adt.ddic.ddla.v1+xml"
   },
   // Same recipe again: vendor CreatableTypes has a real SRVD/SRV entry, so
   // this is createNewObject/putSource/deleteObject unchanged. Live-verified
