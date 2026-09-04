@@ -66536,13 +66536,17 @@ var REGISTRY = {
   // objname=ZTMD_INC_01&packagename=$TMP returned CHECK_RESULT=X (name is
   // free-form, 30 chars); GET .../programs/includes/lsabp_unit_sboxtop
   // 200s with a generic Accept, so no mediaType override is needed.
-  // `create.verified` and `delete` stay "unverified" — no live create/delete
-  // yet.
+  // `create.verified: true` and `delete: true` — live-verified full cycle on
+  // A4H 2026-09-04: create, check clean, activate, re-write (etag changed,
+  // activate), read-back. Delete is refused by the server (403
+  // ExceptionResourceDeletionFailure, "referenced in other programs") while
+  // any program still INCLUDEs it; delete succeeded once the host's own
+  // `INCLUDE` statement was removed, and a read then 404d.
   "PROG/I": {
     label: "Include",
     write: { shape: "source" },
-    create: { vendor: true, verified: "unverified" },
-    delete: "unverified",
+    create: { vendor: true, verified: true },
+    delete: true,
     activate: true
   },
   // PACKAGE-parented (unlike FUGR/FF below): vendor CreatableTypes has a real
@@ -66623,13 +66627,17 @@ var REGISTRY = {
   // namePrefixes is server-derived, like ENQU/DL's ["EZ","EY"]: SAP derives
   // the group name from the include name, so an include of a customer
   // Z…/Y… group necessarily begins LZ/LY, and the global ["Z","Y"] list
-  // would refuse every valid name. `create.verified` and `delete` stay
-  // "unverified" — no live run yet.
+  // would refuse every valid name. `create.verified: true` and `delete: true`
+  // — live-verified full cycle on A4H 2026-09-04 (ZTMD_FG_01/LZTMD_FG_01F01
+  // and an arbitrary LZTMD_FG_01ABC suffix, both): create, activate, update
+  // (etag changed), read, delete, then a 404 read. The group must already
+  // exist — POST against a missing group 500s
+  // ExceptionResourceCreationFailure "cannot be created without a package".
   "FUGR/I": {
     label: "Function group include",
     write: { shape: "source" },
-    create: { vendor: true, parent: "container", verified: "unverified" },
-    delete: "unverified",
+    create: { vendor: true, parent: "container", verified: true },
+    delete: true,
     activate: true,
     namePrefixes: ["LZ", "LY"]
   },
