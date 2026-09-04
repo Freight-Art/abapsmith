@@ -19,3 +19,7 @@ Things a reader might expect and will not find here:
   unexposed by deliberate design.
 - Deactivation of an activated object — ADT itself has no deactivate
   operation, so nothing here can offer one.
+- ABAP Messaging Channels (`SAMC`) and ABAP Push Channels (`SAPC`) — config XML
+  at `uc_object_type_group/{samc|sapc}`; vendor Accept header, `/source/main` is
+  asXML not ABAP text; fits neither `abap_read` nor `format: "raw"` (unverified
+  write shape). Probed A4H 2026-09-04, omitted.
