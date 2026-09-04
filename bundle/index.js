@@ -106224,7 +106224,28 @@ function countMembers(model, kind, node2, member) {
   const memberName = member.toLowerCase();
   return model.nodes.filter((n) => n.name.toLowerCase() === nodeName).flatMap((n) => MEMBERS_BY_KIND[kind](n)).filter((m) => m.name.toLowerCase() === memberName).length;
 }
+function resolveTargetNodeName(ref2) {
+  if (!ref2) return void 0;
+  if (ref2.uri) {
+    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref2.uri);
+    if (m) return m[1];
+  }
+  const tilde = ref2.name.lastIndexOf("~");
+  return tilde >= 0 ? ref2.name.slice(tilde + 1) : ref2.name;
+}
+function findEquivalentAssociation(node2, implementationType, targetNode) {
+  const wantType = implementationType.toLowerCase();
+  const wantTarget = targetNode.toLowerCase();
+  return node2.associations.find(
+    (a) => (a.implementationType ?? "").toLowerCase() === wantType && (resolveTargetNodeName(a.targetNodeRef) ?? "").toLowerCase() === wantTarget
+  );
+}
 var MEMBER_CHECK_BY_OP = {
+  add_association: { kind: "association", direction: "added" },
+  add_action: { kind: "action", direction: "added" },
+  add_determination: { kind: "determination", direction: "added" },
+  add_validation: { kind: "validation", direction: "added" },
+  add_query: { kind: "query", direction: "added" },
   add_alternative_key: { kind: "alternativeKey", direction: "added" },
   remove_association: { kind: "association", direction: "removed" },
   remove_action: { kind: "action", direction: "removed" },
@@ -106489,6 +106510,39 @@ async function runBopfEdit(deps, args) {
           const countAfter = countMembers(afterMutate.model, memberCheck.kind, nodeName, member);
           const moved = memberCheck.direction === "added" ? countAfter > countBefore : countAfter < countBefore;
           if (!moved) {
+            let equivalent;
+            let equivalentTarget;
+            if (input.operation === "add_association") {
+              const spec = input.spec ?? {};
+              const implementationType = str2(spec.implementationType);
+              const requestedTarget = resolveTargetNodeName(ref(spec.targetNodeRef));
+              if (implementationType && requestedTarget) {
+                const targetNode = afterMutate.model.nodes.find((n) => n.name.toLowerCase() === nodeName.toLowerCase());
+                equivalent = targetNode && findEquivalentAssociation(targetNode, implementationType, requestedTarget);
+                equivalentTarget = requestedTarget;
+              }
+            }
+            if (equivalent) {
+              throw new AbapError(
+                "CHECK_FAILED",
+                `abap_bopf_edit add_association "${member}" on ${bo} node "${nodeName}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows the association was not added. An equivalent association "${equivalent.name}" (implementationType "${equivalent.implementationType}") to node "${equivalentTarget}" is already present on that node, so BOPF most likely discarded this one as a duplicate rather than erroring \u2014 the link you asked for already exists under the name "${equivalent.name}", so the model is already correct; nothing was activated.`,
+                {
+                  bo,
+                  node: nodeName,
+                  name: member,
+                  kind: memberCheck.kind,
+                  countBefore,
+                  countAfter,
+                  journalEntryId: entryId,
+                  existingEquivalent: {
+                    name: equivalent.name,
+                    implementationType: equivalent.implementationType,
+                    targetNode: equivalentTarget
+                  }
+                },
+                `Use the existing association "${equivalent.name}" instead of adding a new one, or pass a different implementationType/targetNodeRef if a genuinely distinct link is wanted. add_node auto-creates a ROOT\u2192child Composition association plus TO_PARENT/TO_ROOT on the child, which is the usual way this collision arises.`
+              );
+            }
             throw new AbapError(
               "CHECK_FAILED",
               `abap_bopf_edit ${input.operation} "${member}" on ${bo} node "${nodeName}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${countAfter} ${memberCheck.kind}(s) named "${member}" on that node after the write, versus ${countBefore} before \u2014 nothing was ${memberCheck.direction}. A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.`,

@@ -38,3 +38,10 @@ the XML tree is never round-tripped.
   of the target node, and the node must have a persistent structure
   reference — but a clean preflight still does not mean the operation will
   succeed, hence the acknowledgement flag.
+- **`add_node` auto-creates associations.** On the tested appliance,
+  `add_node` also creates the ROOT→child Composition association plus
+  `TO_PARENT`/`TO_ROOT` on the child, none of them requested. An explicit
+  `add_association` for that same ROOT→child link is discarded server-side
+  as a duplicate; `abap_bopf_edit` now catches this via a post-write re-read
+  and reports `CHECK_FAILED`, naming the existing association instead of
+  claiming success.
