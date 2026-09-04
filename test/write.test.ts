@@ -628,13 +628,13 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     expect(() => assertWritableTypesAreReadable()).not.toThrow();
   });
 
-  it("WRITABLE_TYPES is exactly the source-shape sixteen plus the properties-shape six", () => {
+  it("WRITABLE_TYPES is exactly the source-shape eighteen plus the properties-shape six", () => {
     // Spelled as one exhaustive set on purpose: a type silently ACQUIRING a
     // write capability is as much a regression as one losing it, and only an
-    // exhaustive comparison catches the first. The sixteen-plus-six split is:
+    // exhaustive comparison catches the first. The eighteen-plus-six split is:
     //   source shape     — CLAS/OC INTF/OI PROG/P DDLS/DF DDLX/EX SRVD/SRV
     //                      TABL/DT TABL/DS FUGR/FF FUGR/F BDEF/BDO XSLT/VT
-    //                      DCLS/DL DDLA/ADF PROG/I FUGR/I
+    //                      DCLS/DL DDLA/ADF PROG/I FUGR/I TYPE/DG DRUL/DRL
     //   properties shape — DTEL/DE DOMA/DD TTYP/DA MSAG/N ENQU/DL SRVB/SVB
     // PROG/I and FUGR/I joined source-shape on their own vendor create
     // routes (programs/includes and functions/groups/%s/includes).
@@ -685,6 +685,12 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     // read-back/delete for the flow exercised. See the PROVENANCE WARNING
     // on the REGISTRY entry in src/adt/capabilities.ts for the full
     // confirmed/caveated/still-inferred breakdown.
+    // TYPE/DG and DRUL/DRL joined once both gained a `create` skeleton,
+    // moving them out of ENHANCEABLE_TYPES and into this set. Both later
+    // had their full create → write → activate → read-back → delete cycle
+    // run live through abapsmith on A4H 2026-09-04 (ZTMDY, ZTMD_DRUL_02,
+    // $TMP), so `create.verified` and `delete` are both `true` — see
+    // capabilities.ts.
     expect(new Set(WRITABLE_TYPES)).toEqual(
       new Set([
         "CLAS/OC",
@@ -709,6 +715,8 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
         "MSAG/N",
         "ENQU/DL",
         "SRVB/SVB",
+        "TYPE/DG",
+        "DRUL/DRL",
       ]),
     );
   });
@@ -1307,17 +1315,18 @@ describe("writeObject: create gate", () => {
 /**
  * A NEW set, deliberately not a widening of `WRITABLE_TYPES` — see the
  * doc comment on `ENHANCEABLE_TYPES` in src/adt/write.ts. The set is really
- * "write, no create", not "enhancement": `TYPE/DG` and `DRUL/DRL` are
- * read+write-only DDIC source types, nothing to do with enhancements.
- * `ENHO/XHH` (the source-code plug-in) has a real PUT-source path; `ENHO/XH`
- * and `ENHS/XS` are structured-XML-only with no writer anywhere in this
- * codebase, and stay refused by `resolveWriteTarget`.
+ * "write, no create", not "enhancement". `TYPE/DG` and `DRUL/DRL` left it
+ * once both gained a `create` skeleton (see capabilities.ts); `ENHO/XHH`
+ * (the source-code plug-in) is the sole remaining member, with a real
+ * PUT-source path but no create anywhere. `ENHO/XH` and `ENHS/XS` are
+ * structured-XML-only with no writer anywhere in this codebase, and stay
+ * refused by `resolveWriteTarget`.
  */
 describe("ENHANCEABLE_TYPES / isEnhanceableType", () => {
-  it("contains exactly TYPE/DG, DRUL/DRL, ENHO/XHH (write, no create) — not the other two implemented enhancement types", () => {
-    expect(ENHANCEABLE_TYPES).toEqual(["TYPE/DG", "DRUL/DRL", "ENHO/XHH"]);
-    expect(isEnhanceableType("TYPE/DG")).toBe(true);
-    expect(isEnhanceableType("DRUL/DRL")).toBe(true);
+  it("contains exactly ENHO/XHH (write, no create) — TYPE/DG and DRUL/DRL moved out once they gained create", () => {
+    expect(ENHANCEABLE_TYPES).toEqual(["ENHO/XHH"]);
+    expect(isEnhanceableType("TYPE/DG")).toBe(false);
+    expect(isEnhanceableType("DRUL/DRL")).toBe(false);
     expect(isEnhanceableType("ENHO/XHH")).toBe(true);
     expect(isEnhanceableType("ENHO/XH")).toBe(false);
     expect(isEnhanceableType("ENHS/XS")).toBe(false);
