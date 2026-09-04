@@ -30,9 +30,12 @@
   `abap_journal mode=undo` both refuse to touch it — clearing one
   needs SE11/SE14, which is also where a new classic view has to be created
   (a CDS view, `DDLS/DF`, is the modern equivalent abapsmith both writes and
-  reads). A transportable package is refused for a different reason:
-  `RS_CORR_INSERT` rejects the object key itself (`TK103`). The bridge code
-  and its recon stay in the tree behind that single refusal.
+  reads). A transportable package was refused for a different, measured
+  reason: `RS_CORR_INSERT` rejected the object key itself (`TK103`). The
+  generated ABAP now builds the 44-character DICT object key the FM expects
+  and registers before `DDIF_VIEW_PUT` runs, but that fix is read off the
+  FM's source, not live-verified, so the create stays refused for every
+  package until a live run proves it.
   `VIEW/DV` and `TRAN/T` do each have a bridge delete
   endpoint (`src/adt/view-delete.ts`, `src/adt/tran-delete.ts`), so
   `resolveWriteTarget` can reach one with a delete — but neither round-trip

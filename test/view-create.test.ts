@@ -272,7 +272,7 @@ describe("generator/parser drift", () => {
   it("emits exactly the tag SET createClassicView expects, for a transportable package", () => {
     const tags = emittedTags(classicViewFragment(VIEW));
     expect(new Set(tags)).toEqual(new Set(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"]));
-    expect(tags).toEqual(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"]);
+    expect(tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
   });
 
   it("emits exactly the tag SET createClassicView expects, for $TMP (round 5: RS_CORR_INSERT/VIEW-REGISTERED skipped again)", () => {
@@ -453,7 +453,8 @@ describe("the sy-subrc guard — a classic EXCEPTIONS failure is never tagged as
     const between = lines.slice(callIdx, tagIdx);
     expect(between).toContain("IF sy-subrc <> 0.");
     // And the guard RETURNs, so a failed PUT can never fall through into the
-    // registration/activation steps that follow.
+    // activation step that follows. Registration (RS_CORR_INSERT) already ran
+    // before this call, so this guard has nothing before it left to protect.
     expect(between).toContain("RETURN.");
     expect(between.some((l) => l.startsWith(`out->write( |${DDIC_ERR_PREFIX}`))).toBe(true);
   });
