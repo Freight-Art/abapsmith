@@ -52,9 +52,11 @@ turns — one tool call instead of N — not HTTP round trips and not server loa
 - **The two passes have opposite failure semantics, and that is a contract.**
   Pass 1 resolves, authorises and package-checks **every** entry before
   anything is deleted, and is **all-or-nothing**: one bad entry — unknown or
-  ambiguous type, a name that does not exist, a `DEVC/K` package, a duplicate —
-  aborts the whole call before any deletion or journalling, and the response is
-  an ordinary single error (`isError: true`), with **no** per-object breakdown.
+  ambiguous type, a `DEVC/K` package, a duplicate — aborts the whole call
+  before any deletion or journalling, and the response is an ordinary single
+  error (`isError: true`), with **no** per-object breakdown. An entry that
+  does not exist is the one exception: it is reported per-entry as `already
+  absent` (a no-op, not an error) and does not stop the rest of the batch.
   Pass 2 — the deletes themselves — is **best-effort per object**: a failure on
   object *k* does not stop *k+1*, and objects already deleted stay deleted —
   but any leftover-undeleted object now also fails the call: the
