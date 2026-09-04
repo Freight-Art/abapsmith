@@ -329,6 +329,11 @@ describe("packageDeleteFragment generates the expected ABAP (closed template —
     const local = packageDeleteFragment(LOCAL_PARAMS).join("\n");
     expect(local).toContain(`'${PKG}'`);
   });
+
+  it("accepts a $-prefixed local package name, quoted correctly in the generated ABAP", () => {
+    const src = packageDeleteFragment({ packageName: "$ZTMD_PKG_01", corrNr: "" }).join("\n");
+    expect(src).toContain("SELECT SINGLE * FROM tdevc INTO @ls_tdevc WHERE devclass = '$ZTMD_PKG_01'.");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -352,6 +357,24 @@ describe("input validation is refused before any network call", () => {
     );
     expect(err.code).toBe("BAD_INPUT");
     expect(err.message).toContain("30");
+  });
+
+  it("refuses a package name containing a quote, period, or embedded newline — the ABAP-injection guard", async () => {
+    for (const bad of ["ZTM'FOO", "ZTM.FOO", "ZTM\nFOO"]) {
+      const err = await catchErr(
+        deletePackageViaBridge(offline, allowingGate(), { packageName: bad, corrNr: "" }),
+      );
+      expect(err.code).toBe("BAD_INPUT");
+    }
+  });
+
+  it("still refuses a bare $ or $$-prefixed name — allowLocal strips only ONE leading $", async () => {
+    for (const bad of ["$", "$$", "$$X"]) {
+      const err = await catchErr(
+        deletePackageViaBridge(offline, allowingGate(), { packageName: bad, corrNr: "" }),
+      );
+      expect(err.code).toBe("BAD_INPUT");
+    }
   });
 
   it("a malformed corr_nr is refused, and the message names corr_nr", async () => {

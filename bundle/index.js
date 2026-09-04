@@ -67046,21 +67046,20 @@ var REGISTRY = {
     activate: true,
     namePrefixes: ["EZ", "EY"]
   },
-  // `verified: "unverified"` here is a DIFFERENT kind of "unverified" than
-  // the create-verification-sweep TODOs elsewhere: DEVC/K is created by abapCreatePackage
-  // (src/tools/write.ts), a separate code path that never touches
-  // createNewObject or this gate at all (routed the same way VIEW/DV/TRAN/T
-  // bypass to the classrun bridge). VERIFIED_CREATABLE_TYPES therefore never
-  // gates package creation either way — whatever `verified` says here is
-  // read by nobody today. Set "unverified" for lack of a real citation, not
-  // upgraded to `true` on a guess.
+  // DEVC/K is created by abapCreatePackage (src/tools/write.ts), a separate
+  // code path that never touches createNewObject or this gate at all
+  // (routed the same way VIEW/DV/TRAN/T bypass to the classrun bridge) — so
+  // VERIFIED_CREATABLE_TYPES never gates package creation either way.
+  // `verified: true` is live evidence: a LOCAL root package created over
+  // ADT REST landed on A4H 2026-09-04, was read back, was searchable, and
+  // was deleted through abapsmith.
   //
   // `create` covers only software_component=LOCAL, over ADT REST; the
   // TRANSPORTABLE route is `bridgeCreate` below, coexisting deliberately
   //
   "DEVC/K": {
     label: "Package",
-    create: { vendor: true, verified: "unverified" },
+    create: { vendor: true, verified: true },
     bridgeCreate: {
       adtRest: "POST /sap/bc/adt/packages is NOT 405 here \u2014 it is still how a LOCAL package is created (software_component=LOCAL, the create above). What is unreachable over REST is a TRANSPORTABLE one, and the blocker is abapsmith's own pre-flight, not SAP's: preflightCorr (src/adt/write.ts) asks CTS transportchecks whether the object needs a request, and CTS answers 'local' for a package that does not exist yet because it has nothing to classify \u2014 so the 'did we get a transport?' guard can never be satisfied and the caller's corr_nr is never consulted. Verified live on A4H for a root package and for a sub-package under a real transportable parent; byte-identical refusal in both cases, with a valid modifiable request in the arguments. The guard itself is not wrong to exist: POSTing a transportable package with no request makes SAP answer 200 and silently fabricate one.",
       via: "CL_PACKAGE_FACTORY=>CREATE_NEW_PACKAGE, then lo_package->save( i_transport_request = ... ) \u2014 SE21's own backend \u2014 called from a generated IF_OO_ADT_CLASSRUN bridge. A superpackage is attached in a SECOND step (LOAD_PACKAGE / SET_SUPER_PACKAGE_NAME / SAVE): SCOMPKDTLN carries no usable superpackage field on create, and its PDEVCLASS is the transport LAYER, not the parent. See src/adt/package-create.ts and src/adt/ddic-bridge.ts.",
@@ -91730,6 +91729,7 @@ function missingEnhancementWrapperError(target, source, serverMessage, check4) {
 
 // src/adt/package-delete.ts
 var PACKAGE_MAX_LENGTH = 30;
+var PACKAGE_RULES = { maxLength: PACKAGE_MAX_LENGTH, allowLocal: true };
 var CONTENT_DISPLAY_LIMIT = 20;
 var SET_CHANGEABLE_STEP = "Making package changeable";
 function assertOptionalCorrNr(value) {
@@ -91789,7 +91789,7 @@ function parsePackageContents(raw) {
   return { contents, truncated };
 }
 function packageDeleteFragment(p) {
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", { maxLength: PACKAGE_MAX_LENGTH });
+  const packageName = assertEnhIdentifier(p.packageName, "packageName", PACKAGE_RULES);
   const corrNr = assertOptionalCorrNr(p.corrNr);
   const pkg = quoted2(packageName);
   const saveCallLines = corrNr === "" ? ["CALL METHOD lo_package->save", "  EXCEPTIONS", "    OTHERS = 1."] : [
@@ -91917,9 +91917,7 @@ function packageDeleteFragment(p) {
   ];
 }
 async function deletePackageViaBridge(conn, gate, params) {
-  const packageName = assertEnhIdentifier(params.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH
-  });
+  const packageName = assertEnhIdentifier(params.packageName, "packageName", PACKAGE_RULES);
   const corrNr = assertOptionalCorrNr(params.corrNr);
   const corr = corrNr === "" ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "auto" };
   assertBridgeMutation(
@@ -92394,10 +92392,10 @@ async function resolveWriteTarget(conn, target, op = "write") {
     throw packageUnknown(base, describeUnknownError(e));
   }
   const serverPackage2 = parsePackageRef(body) ?? await containerPackage(conn, spec, containerName);
-  if (!serverPackage2) {
+  if (!serverPackage2 && !CREATE_ONLY.has(spec.type)) {
     throw packageUnknown(base, "the object's metadata carried no <adtcore:packageRef> element");
   }
-  const packageName = serverPackage2.toUpperCase();
+  const packageName = (serverPackage2 ?? base.name).toUpperCase();
   if (!CREATE_ONLY.has(spec.type) && requestedPackage && requestedPackage !== packageName) {
     throw new AbapError(
       "BAD_INPUT",
@@ -99674,7 +99672,7 @@ function isMeasuredPackage(packageName) {
   return packageName.trim().toUpperCase() === MEASURED_PACKAGE;
 }
 function assertClassicViewCreateSupported(packageName) {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES);
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
   const opening = `No retry will succeed for package ${JSON.stringify(validated)} or any other: abapsmith cannot create a classic view for any package, so create it in SE11/SE14 by hand instead. `;
   if (isMeasuredPackage(validated)) {
     throw new AbapError(
@@ -99702,7 +99700,7 @@ function assertClassicViewCreateSupported(packageName) {
 function quotedIdentifier(value, what, opts = {}) {
   return abapLiteral(assertEnhIdentifier(value, what, { maxLength: VIEW_NAME_MAX2, ...opts }));
 }
-var PACKAGE_RULES = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
+var PACKAGE_RULES2 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
 function assertCorrNr2(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
@@ -99734,7 +99732,7 @@ function validate3(p) {
     (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX2 })
   );
   const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", PACKAGE_RULES);
+  const packageName = assertEnhIdentifier(p.packageName, "packageName", PACKAGE_RULES2);
   const local = isLocalPackage(packageName);
   if (local && p.corrNr !== void 0) {
     throw new AbapError(
@@ -99826,7 +99824,7 @@ function classicViewFragment(p) {
       "CALL FUNCTION 'RS_CORR_INSERT'",
       `  EXPORTING object = ${view}`,
       "            object_class = 'DICT'",
-      `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES)}`,
+      `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES2)}`,
       "            master_language = sy-langu",
       "            mode = 'INSERT'",
       "            global_lock = 'X'",

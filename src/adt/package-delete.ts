@@ -39,7 +39,7 @@
 
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
-import type { SafetyCorr, SafetyGate } from "../safety.js";
+import type { AbapIdentifierOptions, SafetyCorr, SafetyGate } from "../safety.js";
 import type { RunResult } from "./run.js";
 import {
   assertBridgeMutation,
@@ -58,6 +58,12 @@ import { isTrkorr } from "./transports.js";
 
 /** `TDEVC-DEVCLASS` is CHAR30, same limit `./package-create.ts` validates its `packageName` against. */
 const PACKAGE_MAX_LENGTH = 30;
+
+// allowLocal: every local package name starts with `$` (e.g. `$TMP`, and
+// `$ZTMD_PKG_01` created by ./package-create.ts over REST) — without it a
+// local package could be created but never deleted. Shared by both
+// packageDeleteFragment and deletePackageViaBridge so they can't disagree.
+const PACKAGE_RULES: AbapIdentifierOptions = { maxLength: PACKAGE_MAX_LENGTH, allowLocal: true };
 
 /** How many rows of each emptiness query this bridge shows before it stops counting — see {@link packageDeleteFragment}. */
 const CONTENT_DISPLAY_LIMIT = 20;
@@ -200,7 +206,7 @@ export function parsePackageContents(raw: string): { contents: PackageContent[];
  * `packageFragment`. Five steps, labelled inline below.
  */
 export function packageDeleteFragment(p: PackageDeleteParams): string[] {
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", { maxLength: PACKAGE_MAX_LENGTH });
+  const packageName = assertEnhIdentifier(p.packageName, "packageName", PACKAGE_RULES);
   const corrNr = assertOptionalCorrNr(p.corrNr);
   const pkg = quoted(packageName);
 
@@ -364,9 +370,7 @@ export async function deletePackageViaBridge(
   },
 ): Promise<{ run: RunResult; transcript: DdicTranscript; contents: PackageContent[]; truncated: boolean }> {
   // 1 — re-validated inside packageDeleteFragment too (exported, must be safe standalone).
-  const packageName = assertEnhIdentifier(params.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH,
-  });
+  const packageName = assertEnhIdentifier(params.packageName, "packageName", PACKAGE_RULES);
   const corrNr = assertOptionalCorrNr(params.corrNr);
 
   // 2 — the second gate, on the domain object, zero-network, before any ABAP is generated.

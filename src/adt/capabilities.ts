@@ -856,21 +856,20 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     activate: true,
     namePrefixes: ["EZ", "EY"],
   },
-  // `verified: "unverified"` here is a DIFFERENT kind of "unverified" than
-  // the create-verification-sweep TODOs elsewhere: DEVC/K is created by abapCreatePackage
-  // (src/tools/write.ts), a separate code path that never touches
-  // createNewObject or this gate at all (routed the same way VIEW/DV/TRAN/T
-  // bypass to the classrun bridge). VERIFIED_CREATABLE_TYPES therefore never
-  // gates package creation either way — whatever `verified` says here is
-  // read by nobody today. Set "unverified" for lack of a real citation, not
-  // upgraded to `true` on a guess.
+  // DEVC/K is created by abapCreatePackage (src/tools/write.ts), a separate
+  // code path that never touches createNewObject or this gate at all
+  // (routed the same way VIEW/DV/TRAN/T bypass to the classrun bridge) — so
+  // VERIFIED_CREATABLE_TYPES never gates package creation either way.
+  // `verified: true` is live evidence: a LOCAL root package created over
+  // ADT REST landed on A4H 2026-09-04, was read back, was searchable, and
+  // was deleted through abapsmith.
   //
   // `create` covers only software_component=LOCAL, over ADT REST; the
   // TRANSPORTABLE route is `bridgeCreate` below, coexisting deliberately
   //
   "DEVC/K": {
     label: "Package",
-    create: { vendor: true, verified: "unverified" },
+    create: { vendor: true, verified: true },
     bridgeCreate: {
       adtRest:
         "POST /sap/bc/adt/packages is NOT 405 here — it is still how a LOCAL package is created " +
