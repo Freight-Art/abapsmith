@@ -83,7 +83,7 @@ inputs to this derivation rather than registry fields:
 | `TTYP/DA` | Table type | yes | yes | yes | yes | yes | live |
 | `MSAG/N` | Message class | yes | partial | yes | yes | n/a | live |
 | `ENQU/DL` | Lock object | no | partial | yes | no | yes | live |
-| `DEVC/K` | Package | partial | yes | no | partial | no | unverified |
+| `DEVC/K` | Package | yes | yes | no | partial | no | live |
 | `SRVB/SVB` | Service binding | yes | partial | yes | yes | yes | live |
 | `SHLP/DH` | Search help | no | no | no | no | no | tests |
 | `VIEW/DV` | Classic view | no | no | no | partial | no | unverified |
@@ -137,7 +137,9 @@ The `Object` column values are the registry `label` fields, unreworded.
 - `DEVC/K` — a package can be created (through both an ADT create and a
   bridge create) and can be deleted, but only while empty, and it can never
   be rewritten: there is no `write` field, so `abap_write` cannot resolve a
-  change target for one. Create carries no live-verification flag.
+  change target for one. The REST (LOCAL) create is live-verified,
+  2026-09-04 on A4H: a root package created over ADT REST landed live, was
+  read back, was searchable, and was deleted through abapsmith.
 - `VIEW/DV` and `TRAN/T` — create and delete only, both through a generated
   `IF_OO_ADT_CLASSRUN` bridge class. There is no `TypeSpec` for either, so
   `abap_read` cannot build a URI and there is no read-back at all: after
