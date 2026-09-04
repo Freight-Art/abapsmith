@@ -71,7 +71,41 @@ const UNRELATED_XML = `<?xml version="1.0" encoding="utf-8"?>
   </properties>
 </exc:exception>`;
 
+/** Live A4H capture, 2026-09-04: `PROG/I ZTMD_INC_01` delete refused while
+ * `PROG/P ZTMD_INC_PROG` still had `INCLUDE ztmd_inc_01.` — no T100 key sent. */
+const DELETE_STILL_REFERENCED_MESSAGE = "Program ZTMD_INC_01 is referenced in other programs";
+const DELETE_STILL_REFERENCED_XML = `<?xml version="1.0" encoding="utf-8"?>
+<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">
+  <namespace id="com.sap.adt"/>
+  <type id="ExceptionResourceDeletionFailure"/>
+  <message lang="EN">${DELETE_STILL_REFERENCED_MESSAGE}</message>
+  <localizedMessage lang="EN">${DELETE_STILL_REFERENCED_MESSAGE}</localizedMessage>
+  <properties/>
+</exc:exception>`;
+
+/** Live A4H capture, 2026-09-04: `FUGR/I ZTMD_FG_01/LZTMD_FG_01F01` create
+ * refused because `ZTMD_FG_01` did not exist yet — no T100 key sent. */
+const CONTAINER_PARENT_MISSING_MESSAGE =
+  "Object R3TR FUGR ZTMD_FG_01 cannot be created without a package";
+const CONTAINER_PARENT_MISSING_XML = `<?xml version="1.0" encoding="utf-8"?>
+<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">
+  <namespace id="com.sap.adt"/>
+  <type id="ExceptionResourceCreationFailure"/>
+  <message lang="EN">${CONTAINER_PARENT_MISSING_MESSAGE}</message>
+  <localizedMessage lang="EN">${CONTAINER_PARENT_MISSING_MESSAGE}</localizedMessage>
+  <properties/>
+</exc:exception>`;
+
 const ctx = { operation: "create" };
+
+/** A rule's own `match` regex, by id — throws loudly (not `?.`) so a renamed
+ * id fails the test instead of silently no-op'ing. */
+function matchOf(id: string): RegExp {
+  const rule = ADT_MESSAGE_RULES.find((r) => r.id === id);
+  if (!rule) throw new Error(`no rule with id "${id}"`);
+  if (!rule.match) throw new Error(`rule "${id}" has no prose match`);
+  return rule.match;
+}
 
 describe("classifyAdtMessage — unit", () => {
   it("matches on T100 TR/462 alone", () => {
@@ -109,6 +143,36 @@ describe("classifyAdtMessage — unit", () => {
         true,
       );
     }
+  });
+
+  it("matches delete-refused-still-referenced verbatim on the live A4H message", () => {
+    const rule = classifyAdtMessage(DELETE_STILL_REFERENCED_MESSAGE, {});
+    expect(rule?.id).toBe("delete-refused-still-referenced");
+  });
+
+  it("matches container-parent-missing verbatim on the live A4H message", () => {
+    const rule = classifyAdtMessage(CONTAINER_PARENT_MISSING_MESSAGE, {});
+    expect(rule?.id).toBe("container-parent-missing");
+  });
+
+  it("delete-refused-still-referenced's own matcher does not match the container-parent-missing message", () => {
+    expect(matchOf("delete-refused-still-referenced").test(CONTAINER_PARENT_MISSING_MESSAGE)).toBe(false);
+  });
+
+  it("container-parent-missing's own matcher does not match the delete-refused-still-referenced message", () => {
+    expect(matchOf("container-parent-missing").test(DELETE_STILL_REFERENCED_MESSAGE)).toBe(false);
+  });
+
+  it("neither new rule's matcher matches the TR/462 message, and TR/462 still resolves via classifyAdtMessage to package-software-component-refused", () => {
+    expect(matchOf("delete-refused-still-referenced").test(TR462_MESSAGE)).toBe(false);
+    expect(matchOf("container-parent-missing").test(TR462_MESSAGE)).toBe(false);
+    const rule = classifyAdtMessage(TR462_MESSAGE, {});
+    expect(rule?.id).toBe("package-software-component-refused");
+  });
+
+  it("rule ids are unique across ADT_MESSAGE_RULES", () => {
+    const ids = ADT_MESSAGE_RULES.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
@@ -192,5 +256,41 @@ describe("translateAdtError — package/software-component rule wired into the U
     expect(err.code).toBe("ADT_ERROR");
     expect(err.details.unclassified).toBe(true);
     expect(err.details.unclassifiedKey).toBe("none");
+  });
+});
+
+describe("translateAdtError — delete-refused-still-referenced wired into the UNCLASSIFIED tail", () => {
+  it("a 403 ExceptionResourceDeletionFailure 'referenced in other programs' response is classified, not the generic fallback", () => {
+    const e = thrownByLibrary(403, "Forbidden", OK_XML, DELETE_STILL_REFERENCED_XML);
+    const err = translateAdtError(e, ctx);
+
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.message).toBe(DELETE_STILL_REFERENCED_MESSAGE);
+    expect(err.details.classifiedBy).toBe("delete-refused-still-referenced");
+    expect(err.details.unclassified).toBeUndefined();
+    expect(err.details.unclassifiedKey).toBeUndefined();
+    expect(err.details.properties).toBeUndefined();
+    expect(err.details.adtExceptionType).toBe("ExceptionResourceDeletionFailure");
+    expect(err.details.status).toBe(403);
+    expect(err.hint).not.toMatch(/was not recognised by any specific rule here/);
+    expect(err.hint).toMatch(/mode: "where_used"/);
+  });
+});
+
+describe("translateAdtError — container-parent-missing wired into the UNCLASSIFIED tail", () => {
+  it("a 500 ExceptionResourceCreationFailure 'cannot be created without a package' response is classified, not the generic fallback", () => {
+    const e = thrownByLibrary(500, "Internal Server Error", OK_XML, CONTAINER_PARENT_MISSING_XML);
+    const err = translateAdtError(e, ctx);
+
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.message).toBe(CONTAINER_PARENT_MISSING_MESSAGE);
+    expect(err.details.classifiedBy).toBe("container-parent-missing");
+    expect(err.details.unclassified).toBeUndefined();
+    expect(err.details.unclassifiedKey).toBeUndefined();
+    expect(err.details.properties).toBeUndefined();
+    expect(err.details.adtExceptionType).toBe("ExceptionResourceCreationFailure");
+    expect(err.details.status).toBe(500);
+    expect(err.hint).not.toMatch(/was not recognised by any specific rule here/);
+    expect(err.hint).toMatch(/FUNCTION-POOL/);
   });
 });
