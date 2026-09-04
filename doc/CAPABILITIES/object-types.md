@@ -68,7 +68,7 @@ inputs to this derivation rather than registry fields:
 | `DDLX/EX` | Metadata extension | yes | yes | yes | yes | yes | live |
 | `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
 | `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
-| `XSLT/VT` | Transformation | no | yes | yes | no | yes | unverified |
+| `XSLT/VT` | Transformation | yes | yes | yes | yes | yes | live |
 | `ENHO/XH` | BAdI implementation | partial | partial | no | partial | yes | tests |
 | `ENHO/XHH` | Enhancement source plug-in | partial | yes | yes | partial | no | unverified |
 | `ENHS/XS` | Enhancement spot | partial | partial | no | partial | yes | tests |
@@ -148,11 +148,14 @@ The `Object` column values are the registry `label` fields, unreworded.
 - `XSLT/VT` — the registry path was corrected from `/sap/bc/adt/xslt/sources/`
   (404 live) to `/sap/bc/adt/xslt/transformations/` (200, including
   `.../source/main` with real source; 2026-09-04) — the old path failed every
-  read, so this row's Read was wrongly `yes` until now. Read is
-  live-measured; create and delete are not: create builds a `SkeletonCreate`
-  from the ADT discovery document with `create.verified: "unverified"`, and
-  `delete` is `"unverified"` too, so both stay refused until a live run earns
-  a `true`.
+  read, so this row's Read was wrongly `yes` until now. `create.verified` and
+  `delete` are both `true`: the create skeleton needed a fix to match — a raw
+  POST to `/sap/bc/adt/xslt/transformations` 400d until the namespace was
+  singular (`.../adt/transformation`) and 400d again (InvalidTransformationValue)
+  until the root also carried `trans:transformationType="XSLTProgram"`; with
+  both fixes the POST returned 200 and the object read back afterwards. See
+  this type's REGISTRY comment in capabilities.ts for the exact server
+  messages.
 - `SRVB/SVB` — reading needs `format: "raw"`; create, activate, read-back and
   delete over the ADT business-services binding path are live-verified. This
   is a different path from the OData metadata read described under RAP,

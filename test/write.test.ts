@@ -4581,6 +4581,60 @@ describe("BDEF/BDO — skeleton create (source shape, create.vendor = false)", (
 // ---------------------------------------------------------------------------
 
 /**
+ * XSLT/VT's skeleton is the second `rootAttributes` user (BDEF/BDO's has
+ * none) — pins that `buildSkeletonXml` splices `trans:transformationType`
+ * onto the root for this type without perturbing BDEF/BDO's body above. See
+ * capabilities.ts's XSLT/VT REGISTRY comment for the two live 400s
+ * (namespace, then InvalidTransformationValue) this attribute exists to fix.
+ */
+describe("XSLT/VT — skeleton create carries rootAttributes", () => {
+  const XSLT_URI = "/sap/bc/adt/xslt/transformations/ztmd_x";
+  const XSLT_SRC = `${XSLT_URI}/source/main`;
+  const XSLT_COLLECTION = "/sap/bc/adt/xslt/transformations";
+  const XSLT_SOURCE = '<xsl:transform version="1.0"></xsl:transform>';
+
+  it("creates a missing transformation with trans:transformationType on the root", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === XSLT_URI && r.method === "GET") return resp(404, NOT_FOUND_XML, OK_XML);
+      if (r.url === XSLT_COLLECTION && r.method === "POST") return resp(201, "", {});
+      if (r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
+      if (r.url === XSLT_SRC && r.method === "PUT") return resp(200, "", OK_TEXT);
+      return undefined;
+    });
+
+    const res = await writeObject(
+      conn,
+      await authWrite(conn, { type: "XSLT/VT", name: "ZTMD_X" }),
+      { source: XSLT_SOURCE },
+    );
+    expect(res.created).toBe(true);
+
+    const create = adt.calls.find((c) => c.url === XSLT_COLLECTION && c.method === "POST")!;
+    expect(create.body).toBe(
+      '<trans:transformation xmlns:trans="http://www.sap.com/adt/transformation" ' +
+        'xmlns:adtcore="http://www.sap.com/adt/core" ' +
+        'trans:transformationType="XSLTProgram" ' +
+        'adtcore:description="Transformation ZTMD_X" ' +
+        'adtcore:name="ZTMD_X" adtcore:type="XSLT/VT" ' +
+        'adtcore:language="EN" adtcore:masterLanguage="EN" ' +
+        'adtcore:responsible="DEVELOPER">' +
+        '<adtcore:packageRef adtcore:name="$TMP"/>' +
+        "</trans:transformation>",
+    );
+    expect(create.headers?.["Content-Type"]).toBe("application/vnd.sap.adt.transformations+xml");
+
+    const put = adt.calls.find((c) => c.url === XSLT_SRC && c.method === "PUT")!;
+    expect(put.body).toBe(XSLT_SOURCE);
+
+    // BDEF/BDO's skeleton has no rootAttributes — this splice leaves it alone.
+    expect(capabilitiesFor("BDEF/BDO")?.create?.skeleton?.rootAttributes).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
  * `SRVB/SVB` — a third write engine only in the sense that it needs a
  * type-specific media type; the choreography is the SAME properties shape as
  * DOMA/DTEL/TTYP/MSAG/ENQU above (no `/source/main`, the object's own URI is

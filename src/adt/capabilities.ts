@@ -129,6 +129,13 @@ export interface SkeletonCreate {
    * the git history for the incident.
    */
   contentType: string;
+  /**
+   * Extra already-escaped attribute text spliced onto the root element after
+   * the namespace declarations — e.g. XSLT/VT's
+   * `trans:transformationType="XSLTProgram"`, required by the server to
+   * accept the create POST at all (see that entry's own comment).
+   */
+  rootAttributes?: string;
 }
 
 export interface CreateCapability {
@@ -519,11 +526,14 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   },
   // `create.vendor: false` — no XSLT/VT row in abap-adt-api's CreatableTypes
   // (checked against objectcreator.js), so create needs a skeleton like
-  // BDEF/BDO. `rootName`/`namespace`/`contentType` come from the ADT
-  // discovery document (2026-09-04), not a create probe — no create has
-  // been attempted live. `contentType` carries no parameters, per
-  // SkeletonCreate.contentType's doc, as precaution rather than measurement
-  // here. `verified`/`delete: "unverified"` — no live create or delete run.
+  // BDEF/BDO. Live-probed against A4H 2026-09-04: the plural namespace
+  // `.../adt/transformations` 400s ("System expected the element
+  // '{http://www.sap.com/adt/transformation}transformation'"); the singular
+  // namespace below then 400s InvalidTransformationValue ("Transformation
+  // Type is not supported") until `trans:transformationType="XSLTProgram"`
+  // is on the root — with that attribute the raw POST returned 200 and the
+  // object read back afterwards. `contentType` carries no parameters, per
+  // SkeletonCreate.contentType's doc.
   "XSLT/VT": {
     label: "Transformation",
     write: { shape: "source" },
@@ -531,12 +541,16 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
       vendor: false,
       skeleton: {
         rootName: "trans:transformation",
-        namespace: 'xmlns:trans="http://www.sap.com/adt/transformations"',
+        namespace: 'xmlns:trans="http://www.sap.com/adt/transformation"',
         contentType: "application/vnd.sap.adt.transformations+xml",
+        rootAttributes: 'trans:transformationType="XSLTProgram"',
       },
-      verified: "unverified",
+      // Live 2026-09-04 through abap_write itself: create ZTMD_XSLT_01 in $TMP
+      // (created: true, check clean, activated), read back verbatim.
+      verified: true,
     },
-    delete: "unverified",
+    // Live 2026-09-04: abap_write mode=delete → deleted: true, read → NOT_FOUND.
+    delete: true,
     activate: true,
     // Discovery advertises this as the transformations collection's accept
     // type (2026-09-04); a generic Accept on the object GET was not tested.

@@ -41,27 +41,31 @@ describe("XSLT/VT URI: transformations, not the dead sources collection", () => 
 describe("XSLT/VT registry: write, create, delete, activate", () => {
   const cap = capabilitiesFor("XSLT/VT");
 
-  it("is writable as source and activatable, with delete left unverified", () => {
+  it("is writable as source and activatable, with delete verified", () => {
     expect(cap?.write?.shape).toBe("source");
     expect(cap?.activate).toBe(true);
-    // Tri-state: only `true` opens the delete gate; `"unverified"` refuses.
-    expect(cap?.delete).toBe("unverified");
+    expect(cap?.delete).toBe(true);
   });
 
   it("creates via a hand-built skeleton, not abap-adt-api's vendor CreatableTypes table", () => {
     expect(cap?.create?.vendor).toBe(false);
-    // Tri-state: no live create evidence yet, so it refuses like `false`.
-    expect(cap?.create?.verified).toBe("unverified");
+    expect(cap?.create?.verified).toBe(true);
     expect(cap?.create?.skeleton?.rootName).toBe("trans:transformation");
+    // Singular URI — the plural form 400s (see this entry's REGISTRY comment).
     expect(cap?.create?.skeleton?.namespace).toBe(
-      'xmlns:trans="http://www.sap.com/adt/transformations"',
+      'xmlns:trans="http://www.sap.com/adt/transformation"',
     );
+    expect(cap?.create?.skeleton?.namespace).not.toContain("/transformations");
     expect(cap?.create?.skeleton?.contentType).toBe(
       "application/vnd.sap.adt.transformations+xml",
     );
     // A `; charset=…` parameter on the create POST gets a 406 / SADT_RESOURCE 037
     // (SkeletonCreate.contentType's doc comment) — the skeleton must carry none.
     expect(cap?.create?.skeleton?.contentType).not.toContain(";");
+    // Required or the create POST 400s InvalidTransformationValue (see REGISTRY comment).
+    expect(cap?.create?.skeleton?.rootAttributes).toContain(
+      'trans:transformationType="XSLTProgram"',
+    );
   });
 
   it("carries the same vendor media type read/write use for this type", () => {
@@ -69,14 +73,14 @@ describe("XSLT/VT registry: write, create, delete, activate", () => {
   });
 });
 
-describe("XSLT/VT derived sets: reachable but not yet trusted", () => {
+describe("XSLT/VT derived sets: reachable, creatable, and deletable", () => {
   it("is writable and creatable", () => {
     expect(WRITABLE_TYPES).toContain("XSLT/VT");
     expect(CREATABLE_TYPES).toContain("XSLT/VT");
   });
 
-  it("is NOT in the verified-creatable or deletable sets — both gate on a strict `true`, and this entry has neither set to `true`", () => {
-    expect(VERIFIED_CREATABLE_TYPES).not.toContain("XSLT/VT");
-    expect(DELETABLE_TYPES).not.toContain("XSLT/VT");
+  it("is in the verified-creatable and deletable sets — both gate on a strict `true`, and this entry has both", () => {
+    expect(VERIFIED_CREATABLE_TYPES).toContain("XSLT/VT");
+    expect(DELETABLE_TYPES).toContain("XSLT/VT");
   });
 });
