@@ -85369,6 +85369,7 @@ function isCondemnedConnectionError(e) {
   return isAbapError(e) && e.code === "SESSION_DEAD" && e.details.condemned === true;
 }
 var DEAD_ON_ARRIVAL_MS = 500;
+var EXECUTES_ABAP_OPS = /* @__PURE__ */ new Set(["abap_run", "abap_test", "abap_bopf_test"]);
 function isAuthClassError(e) {
   return isAbapError(e) && (e.code === "AUTH_FAILED" || e.code === "AUTH_CIRCUIT_OPEN" || e.code === "CIRCUIT_OPEN_TRANSIENT");
 }
@@ -85619,6 +85620,13 @@ var AdtSessionPool = class {
     return { total: this.slots.length, busy, idle, waiting: this.waiters.length, dead };
   }
   async withRead(op, fn) {
+    if (EXECUTES_ABAP_OPS.has(op)) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${op} executes ABAP and must be dispatched with withWrite \u2014 the read lane replays a dead-slot failure unconditionally.`,
+        { op }
+      );
+    }
     return this.runOn("read", op, fn);
   }
   async withWrite(op, objectUri, fn) {
@@ -94921,8 +94929,9 @@ function registerRunTools(mcp, deps) {
       try {
         deps.safety.assert("execute", preflight(args), { phase: "preflight" });
         await deps.ensureConnected();
-        const res = await deps.pool.withRead(
+        const res = await deps.pool.withWrite(
           "abap_run",
+          void 0,
           (conn) => abapRun(conn, args, deps.cfg.maxResponseChars, deps.safety)
         );
         return ok2(res.text);
@@ -99174,8 +99183,9 @@ function registerTestTools(mcp, deps) {
           phase: "preflight"
         });
         await deps.ensureConnected();
-        const res = await deps.pool.withRead(
+        const res = await deps.pool.withWrite(
           "abap_test",
+          void 0,
           (conn) => abapTest(conn, args, deps.cfg.maxResponseChars, deps.safety)
         );
         return ok6(res.text);
@@ -116616,7 +116626,7 @@ var run = async (ctx, deps) => {
   const input = parseV1(RunInput, args);
   deps.safety.assert("execute", preflight({ object: input.object }), { phase: "preflight" });
   await deps.ensureConnected();
-  const res = await deps.pool.withRead("abap_run", (conn) => abapRun(conn, input, deps.cfg.maxResponseChars, deps.safety));
+  const res = await deps.pool.withWrite("abap_run", void 0, (conn) => abapRun(conn, input, deps.cfg.maxResponseChars, deps.safety));
   return doOk(res.text, journalNext("abap_run does not journal, but a preceding activate/write does."));
 };
 var test = async (ctx, deps) => {
@@ -116624,7 +116634,7 @@ var test = async (ctx, deps) => {
   const input = parseV1(TestInput, args);
   deps.safety.assert("execute", preflight({ object: input.object, type: input.type }), { phase: "preflight" });
   await deps.ensureConnected();
-  const res = await deps.pool.withRead("abap_test", (conn) => abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety));
+  const res = await deps.pool.withWrite("abap_test", void 0, (conn) => abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety));
   return doOk(res.text, []);
 };
 var undo = async (ctx, deps) => {
