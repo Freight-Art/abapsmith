@@ -657,30 +657,31 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     // type (2026-09-04); a generic Accept on the object GET was not tested.
     mediaType: "application/vnd.sap.adt.transformations+xml",
   },
-  // Two DDIC source types added 2026-09-04. Update, activate and delete were
-  // all exercised live through abapsmith on A4H (2026-09-04, $TMP objects)
-  // and worked end to end. Neither has a `CreatableTypes` row in
-  // abap-adt-api, so create goes through a hand-built skeleton like
-  // `BDEF/BDO`/`XSLT/VT` — the live objects named below were created with
-  // raw ADT POSTs outside abapsmith, so `verified` stays `"unverified"`
-  // until abapsmith's own choreography runs one live. `mediaType` is the
-  // vendor Accept actually used on the object URI (the sibling
-  // DCLS/DL/DDLA/ADF URIs 406 without it) — a generic Accept was not tried.
+  // Two DDIC source types added 2026-09-04. Full create → write → activate →
+  // read-back → delete cycles ran live through abapsmith on A4H (2026-09-04,
+  // $TMP objects: ZTMDY for TYPE/DG, ZTMD_DRUL_02 for DRUL/DRL) and worked
+  // end to end. Neither has a `CreatableTypes` row in abap-adt-api, so
+  // create goes through a hand-built skeleton like `BDEF/BDO`/`XSLT/VT`.
+  // `mediaType` is the vendor Accept actually used on the object URI (the
+  // sibling DCLS/DL/DDLA/ADF URIs 406 without it) — a generic Accept was not
+  // tried.
   //
   // Type group: GET .../ddic/typegroups/trexc → 200, root
   // `<atypgr:abapTypeGroup ... adtcore:type="TYPE/DG">`; GET .../source/main
   // with Accept: text/plain → 200, real `TYPE-POOL trexc. CONSTANTS: …`.
-  // Live on ZTMDX ($TMP): write → activate → delete → NOT_FOUND, all clean.
-  // Wire quirk: ADT rejects underscores in type-group names ("Do not use
-  // underscores in type group names", 403) and caps them at 5 characters
-  // (TYPE-POOL naming rule).
+  // Live full cycle on ZTMDY ($TMP) through abapsmith 2026-09-04: create
+  // (skeleton POST then source PUT, check clean, activated) → update (added
+  // a CONSTANTS line, changed, activated) → read back both lines → delete →
+  // NOT_FOUND. Wire quirk: ADT rejects underscores in type-group names ("Do
+  // not use underscores in type group names", 403 — confirmed again on
+  // ZTMD_TG_01) and caps them at 5 characters (TYPE-POOL naming rule).
   "TYPE/DG": {
     label: "Type group",
     write: { shape: "source" },
-    // Raw POST .../ddic/typegroups, Content-Type
-    // application/vnd.sap.adt.ddic.typegroups.v2+xml, → 200, empty body, no
-    // Location; GET .../typegroups/ztmdx/source/main → server-seeded
-    // `TYPE-POOL ztmdx.` (2026-09-04). Outside abapsmith, hence unverified.
+    // Skeleton POST .../ddic/typegroups, Content-Type
+    // application/vnd.sap.adt.ddic.typegroups.v2+xml, then a source PUT —
+    // full cycle via abap_write on A4H 2026-09-04 (ZTMDY, $TMP):
+    // created: true, check clean, activated: true.
     create: {
       vendor: false,
       skeleton: {
@@ -688,7 +689,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         namespace: 'xmlns:atypgr="http://www.sap.com/adt/ddic/typegroups"',
         contentType: "application/vnd.sap.adt.ddic.typegroups.v2+xml",
       },
-      verified: "unverified",
+      verified: true,
     },
     delete: true,
     activate: true,
@@ -698,17 +699,18 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   // title "Dependency Rule"; GET .../drul/sources/demo_drul_1 → 200, root
   // `<blue:blueSource adtcore:type="DRUL/DRL">`; .../source/main → 200, real
   // `DEFINE FILTER DEPENDENCY RULE demo_drul_1 ON demo_parts_1 …`.
-  // Live on ZTMD_DRUL_01 ($TMP): write saved source (activation skipped —
-  // the test rule had a deliberate syntax error), delete → NOT_FOUND. Raw
-  // POST create returned 201 with Location .../drul/sources/ztmd_drul_01.
+  // Live full cycle on ZTMD_DRUL_02 ($TMP) through abapsmith 2026-09-04:
+  // create with activate: false (created: true, check clean, source landed
+  // on the create PUT) → rewrite with the same source (changed: false,
+  // activated: true) → read back the 4-line rule → delete → NOT_FOUND.
   "DRUL/DRL": {
     label: "Dependency rule",
     write: { shape: "source" },
-    // Raw POST .../ddic/drul/sources, Content-Type
-    // application/vnd.sap.adt.ddic.drul.v1+xml, → 201, Location
-    // .../drul/sources/ztmd_drul_01; created source is empty, so the caller
-    // must PUT the DEFINE FILTER DEPENDENCY RULE text afterwards
-    // (2026-09-04). Outside abapsmith, hence unverified.
+    // Skeleton POST .../ddic/drul/sources, Content-Type
+    // application/vnd.sap.adt.ddic.drul.v1+xml — the created source is
+    // empty, so the caller PUTs the DEFINE FILTER DEPENDENCY RULE text
+    // afterwards. Full cycle via abap_write on A4H 2026-09-04
+    // (ZTMD_DRUL_02, $TMP).
     create: {
       vendor: false,
       skeleton: {
@@ -716,7 +718,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         namespace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
         contentType: "application/vnd.sap.adt.ddic.drul.v1+xml",
       },
-      verified: "unverified",
+      verified: true,
     },
     delete: true,
     activate: true,

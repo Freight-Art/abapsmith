@@ -1,14 +1,13 @@
 /**
  * Pinning test for two ADT object types added 2026-09-04 from live A4H
- * recon: TYPE/DG "Type group" and DRUL/DRL "Dependency rule". Both now carry
- * a hand-built `create` skeleton (`vendor: false`, `verified: "unverified"`)
- * — the live objects that proved read/write/activate/delete were created
- * with raw ADT POSTs outside abapsmith, not through this repo's own create
- * choreography, so `verified` stays `"unverified"` and `writeObject`'s
- * create gate still refuses a create even though the type is now a
- * WRITABLE_TYPES/CREATABLE_TYPES member. Update, activate and delete were
- * all exercised live through abapsmith on A4H 2026-09-04 ($TMP objects) and
- * worked, so `delete` is `true` and both types are DELETABLE_TYPES members.
+ * recon: TYPE/DG "Type group" and DRUL/DRL "Dependency rule". Both carry a
+ * hand-built `create` skeleton (`vendor: false`) — neither has a
+ * `CreatableTypes` row in abap-adt-api. The full create → write → activate
+ * → read-back → delete cycle ran live through abapsmith's own tool surface
+ * on A4H 2026-09-04 ($TMP: ZTMDY for TYPE/DG, ZTMD_DRUL_02 for DRUL/DRL) and
+ * worked end to end, so `create.verified` and `delete` are both `true` and
+ * both types are VERIFIED_CREATABLE_TYPES/CREATABLE_TYPES/DELETABLE_TYPES
+ * members — `writeObject`'s create gate lets them through pre-flight.
  *
  * One behavior below is pinned as discovered, not as the background spec
  * assumed: `specForKeyword("type")` alone resolves to TYPE/DG, via
@@ -47,6 +46,8 @@ import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.
 interface Recorded {
   method: string;
   url: string;
+  qs?: Record<string, string>;
+  body?: string;
   headers?: Record<string, unknown>;
 }
 
@@ -58,10 +59,16 @@ const resp = (
   ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
 
 const OK_XML = { "content-type": "application/xml" };
+const OK_TEXT = { "content-type": "text/plain" };
 const LOGIN_HEADERS = { "content-type": "application/xml", "x-csrf-token": "TOKEN123" };
 const NOT_FOUND_XML = `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">
   <namespace id="com.sap.adt"/><type id="ExceptionResourceNotFound"/>
   <message lang="EN">does not exist</message><properties/></exc:exception>`;
+const LOCK_XML = (handle = "H1") =>
+  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
+  `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR></CORRNR><CORRUSER/><CORRTEXT/>` +
+  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
+  `</DATA></asx:values></asx:abap>`;
 
 class FakeAdt implements HttpClient {
   readonly calls: Recorded[] = [];
@@ -70,6 +77,8 @@ class FakeAdt implements HttpClient {
     const rec: Recorded = {
       method: (o.method ?? "GET").toUpperCase(),
       url: o.url,
+      qs: o.qs as Record<string, string> | undefined,
+      body: o.body,
       headers: o.headers as Record<string, unknown> | undefined,
     };
     this.calls.push(rec);
@@ -297,7 +306,7 @@ describe("TYPE/DG and DRUL/DRL: read path (FakeAdt)", () => {
 });
 
 describe("TYPE/DG and DRUL/DRL registry: write, create, activate, media type", () => {
-  it("TYPE/DG capabilities: source write, activatable, deletable, unverified create", () => {
+  it("TYPE/DG capabilities: source write, activatable, deletable, verified create", () => {
     const cap = capabilitiesFor("TYPE/DG");
     expect(cap?.label).toBe("Type group");
     expect(cap?.write?.shape).toBe("source");
@@ -305,10 +314,10 @@ describe("TYPE/DG and DRUL/DRL registry: write, create, activate, media type", (
     expect(cap?.delete).toBe(true);
     expect(cap?.mediaType).toBe("application/vnd.sap.adt.ddic.typegroups.v2+xml");
     expect(cap?.create?.vendor).toBe(false);
-    expect(cap?.create?.verified).toBe("unverified");
+    expect(cap?.create?.verified).toBe(true);
   });
 
-  it("DRUL/DRL capabilities: source write, activatable, deletable, unverified create", () => {
+  it("DRUL/DRL capabilities: source write, activatable, deletable, verified create", () => {
     const cap = capabilitiesFor("DRUL/DRL");
     expect(cap?.label).toBe("Dependency rule");
     expect(cap?.write?.shape).toBe("source");
@@ -316,25 +325,17 @@ describe("TYPE/DG and DRUL/DRL registry: write, create, activate, media type", (
     expect(cap?.delete).toBe(true);
     expect(cap?.mediaType).toBe("application/vnd.sap.adt.ddic.drul.v1+xml");
     expect(cap?.create?.vendor).toBe(false);
-    expect(cap?.create?.verified).toBe("unverified");
+    expect(cap?.create?.verified).toBe(true);
   });
 
   /**
    * `create.skeleton` pinned exactly, mirroring the BDEF/BDO precedent
    * (test/write.test.ts, "is registered as source-shape, no-vendor, with
-   * the blueSource skeleton"). Both bodies come from raw ADT POSTs made
-   * OUTSIDE abapsmith on A4H, 2026-09-04:
-   *   - typegroups: POST .../ddic/typegroups with this skeleton's
-   *     Content-Type → 200, empty body, no Location; the type group came
-   *     into existence with server-seeded source `TYPE-POOL ztmdx.`.
-   *   - drul/sources: POST .../ddic/drul/sources with this skeleton's
-   *     Content-Type → 201, `Location: .../ddic/drul/sources/ztmd_drul_01`;
-   *     the created source is EMPTY, so the caller must PUT the actual
-   *     `DEFINE FILTER DEPENDENCY RULE …` text afterwards.
-   * Because `verified` is `"unverified"` for both, `writeObject`'s create
-   * gate (`createNewObject`, src/adt/write.ts) refuses before ever sending
-   * this skeleton as a POST body — this suite cannot and does not exercise
-   * the create body end to end; it only pins the shape captured live.
+   * the blueSource skeleton"). Both shapes were captured from the raw ADT
+   * POSTs used before abapsmith's own choreography ran a full cycle
+   * (2026-09-04); the full cycle then confirmed them live through
+   * `abap_write` itself — see the describe block below and each type's
+   * REGISTRY comment in capabilities.ts.
    */
   it("TYPE/DG and DRUL/DRL create skeletons are pinned exactly", () => {
     expect(capabilitiesFor("TYPE/DG")?.create).toEqual({
@@ -344,7 +345,7 @@ describe("TYPE/DG and DRUL/DRL registry: write, create, activate, media type", (
         namespace: 'xmlns:atypgr="http://www.sap.com/adt/ddic/typegroups"',
         contentType: "application/vnd.sap.adt.ddic.typegroups.v2+xml",
       },
-      verified: "unverified",
+      verified: true,
     });
     expect(capabilitiesFor("DRUL/DRL")?.create).toEqual({
       vendor: false,
@@ -353,7 +354,7 @@ describe("TYPE/DG and DRUL/DRL registry: write, create, activate, media type", (
         namespace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
         contentType: "application/vnd.sap.adt.ddic.drul.v1+xml",
       },
-      verified: "unverified",
+      verified: true,
     });
   });
 
@@ -374,45 +375,93 @@ describe("TYPE/DG and DRUL/DRL registry: write, create, activate, media type", (
   });
 });
 
-describe("TYPE/DG and DRUL/DRL: create exists but is unverified — writeObject still refuses", () => {
-  it("both types are in CREATABLE_TYPES, neither is in VERIFIED_CREATABLE_TYPES", () => {
+describe("TYPE/DG and DRUL/DRL: create is verified — writeObject lets it through pre-flight", () => {
+  it("both types are in CREATABLE_TYPES AND VERIFIED_CREATABLE_TYPES", () => {
     expect(CREATABLE_TYPES).toContain("TYPE/DG");
     expect(CREATABLE_TYPES).toContain("DRUL/DRL");
-    expect(VERIFIED_CREATABLE_TYPES).not.toContain("TYPE/DG");
-    expect(VERIFIED_CREATABLE_TYPES).not.toContain("DRUL/DRL");
+    expect(VERIFIED_CREATABLE_TYPES).toContain("TYPE/DG");
+    expect(VERIFIED_CREATABLE_TYPES).toContain("DRUL/DRL");
   });
 
-  it("writeObject on an absent TYPE/DG object throws UNSUPPORTED after exactly one non-mutating GET", async () => {
-    const { conn, adt } = await connected(ABSENT_ROUTE);
-    // ZTMDX: legal under both of resolveWriteTarget's TYPE/DG-specific name
-    // checks (5 characters, no underscore) — this test exists to prove the
-    // CREATE gate (createNewObject's `verified !== true` check) still fires
-    // for an unverified-create type, not to re-prove the name checks below.
-    const target = await authorizeMutation(conn, DEFAULT_GATE, "write", { type: "TYPE/DG", name: "ZTMDX" });
-    // resolveWriteTarget's existence-check GET (404, exists:false) is the
-    // only network call before writeObject's own create gate fires;
-    // readCurrentSource is zero-cost when !t.exists.
-    const e = await catchErr(
-      writeObject(conn, target, { source: "TYPE-POOL ztmdx. CONSTANTS: c1 TYPE i VALUE 1." }),
+  /**
+   * Full create flow via a fake ADT, mirroring XSLT/VT's own skeleton-create
+   * test (test/write.test.ts, "XSLT/VT — skeleton create carries
+   * rootAttributes"): skeleton POST to the typegroups collection, then a
+   * LOCK/PUT/UNLOCK cycle puts the caller's source on `/source/main`. This
+   * is the same choreography that ran live against A4H on ZTMDY
+   * 2026-09-04 (created: true, check clean, activated: true).
+   */
+  it("creates a missing TYPE/DG object with the atypgr:abapTypeGroup skeleton", async () => {
+    const TG_URI = "/sap/bc/adt/ddic/typegroups/ztmdy";
+    const TG_SRC = `${TG_URI}/source/main`;
+    const TG_COLLECTION = "/sap/bc/adt/ddic/typegroups";
+    const SOURCE = "TYPE-POOL ztmdy.";
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === TG_URI && r.method === "GET") return resp(404, NOT_FOUND_XML, OK_XML);
+      if (r.url === TG_COLLECTION && r.method === "POST") return resp(200, "", {});
+      if (r.qs?._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
+      if (r.qs?._action === "UNLOCK") return resp(200, "", OK_TEXT);
+      if (r.url === TG_SRC && r.method === "PUT") return resp(200, "", OK_TEXT);
+      return undefined;
+    });
+
+    const target = await authorizeMutation(conn, DEFAULT_GATE, "write", { type: "TYPE/DG", name: "ZTMDY" });
+    const res = await writeObject(conn, target, { source: SOURCE });
+    expect(res.created).toBe(true);
+
+    const create = adt.calls.find((c) => c.url === TG_COLLECTION && c.method === "POST")!;
+    expect(create.body).toBe(
+      '<atypgr:abapTypeGroup xmlns:atypgr="http://www.sap.com/adt/ddic/typegroups" ' +
+        'xmlns:adtcore="http://www.sap.com/adt/core" ' +
+        'adtcore:description="Type group ZTMDY" ' +
+        'adtcore:name="ZTMDY" adtcore:type="TYPE/DG" ' +
+        'adtcore:language="EN" adtcore:masterLanguage="EN" ' +
+        'adtcore:responsible="DEVELOPER">' +
+        '<adtcore:packageRef adtcore:name="$TMP"/>' +
+        "</atypgr:abapTypeGroup>",
     );
-    expect(isAbapError(e)).toBe(true);
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/TYPE\/DG/);
-    expect(adt.calls).toHaveLength(1);
-    expect(adt.calls[0].method).toBe("GET");
+    expect(create.headers?.["Content-Type"]).toBe("application/vnd.sap.adt.ddic.typegroups.v2+xml");
+
+    const put = adt.calls.find((c) => c.url === TG_SRC && c.method === "PUT")!;
+    expect(put.body).toBe(SOURCE);
   });
 
-  it("writeObject on an absent DRUL/DRL object throws UNSUPPORTED after exactly one non-mutating GET", async () => {
-    const { conn, adt } = await connected(ABSENT_ROUTE);
-    const target = await authorizeMutation(conn, DEFAULT_GATE, "write", { type: "DRUL/DRL", name: "ZDEMO_DRUL_1" });
-    const e = await catchErr(
-      writeObject(conn, target, { source: "DEFINE FILTER DEPENDENCY RULE zdemo_drul_1 ON demo_parts_1" }),
+  /** Same shape as the TYPE/DG test above, mirroring ZTMD_DRUL_02's live cycle 2026-09-04. */
+  it("creates a missing DRUL/DRL object with the blue:blueSource skeleton", async () => {
+    const DRUL_URI = "/sap/bc/adt/ddic/drul/sources/ztmd_drul_02";
+    const DRUL_SRC = `${DRUL_URI}/source/main`;
+    const DRUL_COLLECTION = "/sap/bc/adt/ddic/drul/sources";
+    const SOURCE = "DEFINE FILTER DEPENDENCY RULE ztmd_drul_02 ON demo_parts_1";
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === DRUL_URI && r.method === "GET") return resp(404, NOT_FOUND_XML, OK_XML);
+      if (r.url === DRUL_COLLECTION && r.method === "POST") return resp(201, "", {});
+      if (r.qs?._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
+      if (r.qs?._action === "UNLOCK") return resp(200, "", OK_TEXT);
+      if (r.url === DRUL_SRC && r.method === "PUT") return resp(200, "", OK_TEXT);
+      return undefined;
+    });
+
+    const target = await authorizeMutation(conn, DEFAULT_GATE, "write", { type: "DRUL/DRL", name: "ZTMD_DRUL_02" });
+    const res = await writeObject(conn, target, { source: SOURCE });
+    expect(res.created).toBe(true);
+
+    const create = adt.calls.find((c) => c.url === DRUL_COLLECTION && c.method === "POST")!;
+    expect(create.body).toBe(
+      '<blue:blueSource xmlns:blue="http://www.sap.com/wbobj/blue" ' +
+        'xmlns:adtcore="http://www.sap.com/adt/core" ' +
+        'adtcore:description="Dependency rule ZTMD_DRUL_02" ' +
+        'adtcore:name="ZTMD_DRUL_02" adtcore:type="DRUL/DRL" ' +
+        'adtcore:language="EN" adtcore:masterLanguage="EN" ' +
+        'adtcore:responsible="DEVELOPER">' +
+        '<adtcore:packageRef adtcore:name="$TMP"/>' +
+        "</blue:blueSource>",
     );
-    expect(isAbapError(e)).toBe(true);
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/DRUL\/DRL/);
-    expect(adt.calls).toHaveLength(1);
-    expect(adt.calls[0].method).toBe("GET");
+    expect(create.headers?.["Content-Type"]).toBe("application/vnd.sap.adt.ddic.drul.v1+xml");
+
+    const put = adt.calls.find((c) => c.url === DRUL_SRC && c.method === "PUT")!;
+    expect(put.body).toBe(SOURCE);
   });
 });
 
@@ -550,8 +599,9 @@ describe("TYPE/DG and DRUL/DRL: op \"write\" is allowed", () => {
 describe("TYPE/DG and DRUL/DRL derived-set membership", () => {
   it("neither is ENHANCEABLE_TYPES any more — both are ABAP_WRITE_TYPES", () => {
     // ENHANCEABLE_TYPES = codesWith(write defined AND create undefined).
-    // Gaining a `create` skeleton (even an unverified one) moved both types
-    // out of it — ENHANCEABLE_TYPES is now `["ENHO/XHH"]` alone.
+    // Gaining a `create` skeleton moved both types out of it (membership
+    // never looks at `verified`) — ENHANCEABLE_TYPES is now `["ENHO/XHH"]`
+    // alone.
     // ABAP_WRITE_TYPES (the union of CREATABLE_TYPES, BRIDGE_ONLY_CREATE_TYPES
     // and ENHANCEABLE_TYPES) still contains both, now via CREATABLE_TYPES
     // membership rather than ENHANCEABLE_TYPES.
@@ -562,11 +612,11 @@ describe("TYPE/DG and DRUL/DRL derived-set membership", () => {
     expect(ABAP_WRITE_TYPES).toContain("DRUL/DRL");
   });
 
-  it("both are WRITABLE_TYPES and CREATABLE_TYPES now, neither is VERIFIED_CREATABLE_TYPES — both stay DELETABLE_TYPES", () => {
+  it("both are WRITABLE_TYPES, CREATABLE_TYPES and VERIFIED_CREATABLE_TYPES, and stay DELETABLE_TYPES", () => {
     for (const type of ["TYPE/DG", "DRUL/DRL"] as const) {
       expect(WRITABLE_TYPES, type).toContain(type);
       expect(CREATABLE_TYPES, type).toContain(type);
-      expect(VERIFIED_CREATABLE_TYPES, type).not.toContain(type);
+      expect(VERIFIED_CREATABLE_TYPES, type).toContain(type);
       expect(DELETABLE_TYPES, type).toContain(type);
     }
   });

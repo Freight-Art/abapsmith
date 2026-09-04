@@ -685,9 +685,12 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     // read-back/delete for the flow exercised. See the PROVENANCE WARNING
     // on the REGISTRY entry in src/adt/capabilities.ts for the full
     // confirmed/caveated/still-inferred breakdown.
-    // TYPE/DG and DRUL/DRL joined once both gained a `create` skeleton
-    // (unverified — see capabilities.ts), moving them out of
-    // ENHANCEABLE_TYPES and into this set.
+    // TYPE/DG and DRUL/DRL joined once both gained a `create` skeleton,
+    // moving them out of ENHANCEABLE_TYPES and into this set. Both later
+    // had their full create → write → activate → read-back → delete cycle
+    // run live through abapsmith on A4H 2026-09-04 (ZTMDY, ZTMD_DRUL_02,
+    // $TMP), so `create.verified` and `delete` are both `true` — see
+    // capabilities.ts.
     expect(new Set(WRITABLE_TYPES)).toEqual(
       new Set([
         "CLAS/OC",
