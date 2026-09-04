@@ -276,8 +276,8 @@ export interface RunToolDeps {
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
 
 /**
- * Registers `abap_run`. Preflight-gated as `execute`, then runs in a READ
- * slot even though it mutates — see the handler body for why.
+ * Registers `abap_run`. Preflight-gated as `execute`, then runs in a WRITE
+ * slot so a dead-slot replay is gated — see the handler body for why.
  */
 export function registerRunTools(mcp: McpServer, deps: RunToolDeps): void {
   mcp.registerTool(
@@ -296,12 +296,11 @@ export function registerRunTools(mcp: McpServer, deps: RunToolDeps): void {
       try {
         deps.safety.assert("execute", preflight(args as { object: string }), { phase: "preflight" });
         await deps.ensureConnected();
-        // Deliberate READ slot (see pool.ts's ROLE SEMANTICS header) — not a
-        // claim abap_run is side-effect free. `adt/run.ts` resets
-        // conn.adt.httpClient.csrfToken under its own withFreshSession; doing
-        // that under a slot holding an open stateful edit would lose the
-        // session owning the enqueue.
-        const res = await deps.pool.withRead("abap_run", (conn) =>
+        // WRITE slot, no object gate: `adt/run.ts` can raise SESSION_DEAD after the
+        // classrun already ran, and only the write lane consults the replay gates.
+        // The lease is exclusive either way, so the CSRF reset still cannot land on
+        // a slot holding an open edit.
+        const res = await deps.pool.withWrite("abap_run", undefined, (conn) =>
           abapRun(conn, args as RunInput, deps.cfg.maxResponseChars, deps.safety),
         );
         return ok(res.text);
