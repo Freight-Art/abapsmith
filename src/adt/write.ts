@@ -1190,6 +1190,12 @@ export async function resolveWriteTarget(
 
   const activatable = op === "activate" && ACTIVATE_ONLY.has(spec.type);
   if (!CREATABLE.has(spec.type) && !ENHANCEABLE.has(spec.type) && !activatable) {
+    // ACTIVATE_ONLY types (ENHO/XH, ENHS/XS) land here on op:"delete" too —
+    // they never reach the DELETABLE gate below, since they have no
+    // write/create at all. A delete asked about delete, and abap_enh
+    // actually deletes both, so route through the delete refusal instead
+    // of the write one.
+    if (op === "delete") refuseDelete(spec);
     throw new AbapError(
       "UNSUPPORTED",
       `${spec.label} (${spec.type}) cannot be written by abapsmith. ${TERMINAL_REFUSAL_NOTE}`,
