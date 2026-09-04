@@ -137,7 +137,7 @@ export interface CreateCapability {
    * type, so `createNewObject()` reuses it unchanged.
    *
    * False ⇒ no vendor entry (checked directly against `objectcreator.js`'s
-   * map — `TTYP/DA`, `ENQU/DL`, `BDEF/BDO` are absent) — `write.ts` POSTs the
+   * map — `TTYP/DA`, `ENQU/DL`, `BDEF/BDO`, `XSLT/VT` are absent) — `write.ts` POSTs the
    * create body itself via `createByXml`, one of two ways, enforced by
    * {@link assertNoConflictingCapabilities}:
    *   - no `create.skeleton` — the caller's own write payload IS the create
@@ -147,7 +147,7 @@ export interface CreateCapability {
    *   - `create.skeleton` present — `write.ts` hand-builds the create XML
    *     from name/type/package (see {@link SkeletonCreate}); the payload is
    *     ABAP source and goes on the PUT that follows. Requires
-   *     `write.shape === "source"` — `BDEF/BDO`.
+   *     `write.shape === "source"` — `BDEF/BDO`, `XSLT/VT`.
    */
   vendor: boolean;
   /** See {@link ParentKind}. */
@@ -517,7 +517,31 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     delete: false,
     activate: true,
   },
-  "XSLT/VT": { label: "Transformation" },
+  // `create.vendor: false` — no XSLT/VT row in abap-adt-api's CreatableTypes
+  // (checked against objectcreator.js), so create needs a skeleton like
+  // BDEF/BDO. `rootName`/`namespace`/`contentType` come from the ADT
+  // discovery document (2026-09-04), not a create probe — no create has
+  // been attempted live. `contentType` carries no parameters, per
+  // SkeletonCreate.contentType's doc, as precaution rather than measurement
+  // here. `verified`/`delete: "unverified"` — no live create or delete run.
+  "XSLT/VT": {
+    label: "Transformation",
+    write: { shape: "source" },
+    create: {
+      vendor: false,
+      skeleton: {
+        rootName: "trans:transformation",
+        namespace: 'xmlns:trans="http://www.sap.com/adt/transformations"',
+        contentType: "application/vnd.sap.adt.transformations+xml",
+      },
+      verified: "unverified",
+    },
+    delete: "unverified",
+    activate: true,
+    // Discovery advertises this as the transformations collection's accept
+    // type (2026-09-04); a generic Accept on the object GET was not tested.
+    mediaType: "application/vnd.sap.adt.transformations+xml",
+  },
   // No write/create — an existing BAdI implementation is edited through
   // enhancement-write.ts's specialised document PUT (ENHANCEMENT_WRITE_TYPES),
   // not this registry's generic PUT. `activate: true` lets abap_activate
@@ -1322,7 +1346,7 @@ export function assertNoConflictingCapabilities(): void {
     // CreateCapability.vendor's doc comments): "properties" write shape with
     // no skeleton (payload IS the create body — TTYP/DA, ENQU/DL), or
     // "source" write shape WITH a skeleton (write.ts hand-builds the create
-    // XML — BDEF/BDO). Anything else has no body to POST.
+    // XML — BDEF/BDO, XSLT/VT). Anything else has no body to POST.
     if (cap.create?.vendor === false) {
       const shape = cap.write?.shape;
       const hasSkeleton = cap.create.skeleton !== undefined;

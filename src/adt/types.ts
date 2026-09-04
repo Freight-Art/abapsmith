@@ -191,11 +191,14 @@ export const TYPES: TypeSpec[] = [
     supportsSource: true,
     keywords: ["bdef", "behavior definition", "behaviour definition"],
   },
+  // `/xslt/sources/{name}` 404s live; `/xslt/transformations/{name}` 200s,
+  // including `.../source/main` with real XSLT source. Confirmed against
+  // ADT discovery and objectType search too (2026-09-04).
   {
     type: "XSLT/VT",
     kind: "XSLT",
     label: "Transformation",
-    path: "/sap/bc/adt/xslt/sources/{name}",
+    path: "/sap/bc/adt/xslt/transformations/{name}",
     mode: "source",
     supportsSource: true,
     keywords: ["xslt", "transformation"],

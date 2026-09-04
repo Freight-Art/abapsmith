@@ -430,13 +430,14 @@ describe("resolveWriteTarget", () => {
 
   it("refuses types it cannot create, and refuses to guess", async () => {
     // Was `DTEL/DE` until the properties-shape pass made data elements
-    // genuinely writable. `XSLT/VT` is the same shape of case it used to be:
-    // present in types.ts (so `specForType` finds it and this is NOT the
-    // "unknown type" BAD_INPUT), declared in capabilities.ts with neither
-    // `create` nor `write`, and therefore refused by the CREATABLE/ENHANCEABLE
-    // check before a single byte goes on the wire — which is what `offline`
-    // (a null connection) proves.
-    expect((await catchErr(resolveWriteTarget(offline, { type: "XSLT/VT", name: "ZX" }))).code).toBe(
+    // genuinely writable, then `XSLT/VT` until the corrected transformations
+    // path made it genuinely writable too. `PROG/I` is the same shape of case
+    // it used to be: present in types.ts (so `specForType` finds it and this
+    // is NOT the "unknown type" BAD_INPUT), declared in capabilities.ts with
+    // neither `create` nor `write`, and therefore refused by the
+    // CREATABLE/ENHANCEABLE check before a single byte goes on the wire —
+    // which is what `offline` (a null connection) proves.
+    expect((await catchErr(resolveWriteTarget(offline, { type: "PROG/I", name: "ZTMD_INC" }))).code).toBe(
       "UNSUPPORTED",
     );
     expect((await catchErr(resolveWriteTarget(offline, { name: "ZSOMETHING" }))).code).toBe(
@@ -627,12 +628,12 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     expect(() => assertWritableTypesAreReadable()).not.toThrow();
   });
 
-  it("WRITABLE_TYPES is exactly the source-shape eleven plus the properties-shape six", () => {
+  it("WRITABLE_TYPES is exactly the source-shape twelve plus the properties-shape six", () => {
     // Spelled as one exhaustive set on purpose: a type silently ACQUIRING a
     // write capability is as much a regression as one losing it, and only an
-    // exhaustive comparison catches the first. The eleven-plus-six split is:
+    // exhaustive comparison catches the first. The twelve-plus-six split is:
     //   source shape     — CLAS/OC INTF/OI PROG/P DDLS/DF DDLX/EX SRVD/SRV
-    //                      TABL/DT TABL/DS FUGR/FF FUGR/F BDEF/BDO
+    //                      TABL/DT TABL/DS FUGR/FF FUGR/F BDEF/BDO XSLT/VT
     //   properties shape — DTEL/DE DOMA/DD TTYP/DA MSAG/N ENQU/DL SRVB/SVB
     // FUGR/F joined on live evidence, not inference: its `/source/main` is the
     // TOP-include skeleton, and a PUT carrying a distinguishing marker line came
@@ -647,6 +648,12 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     // source-shape AND `create.vendor: false` at once — see capabilities.ts's
     // `SkeletonCreate` doc for why that combination needed a new mechanism
     // rather than reusing TTYP/ENQU's "payload doubles as create body" trick.
+    // XSLT/VT is the newest source-shape member: its read path is
+    // live-measured (`/xslt/transformations/…/source/main` returns real
+    // stylesheet source, 2026-09-04), but its create skeleton comes from the
+    // ADT discovery doc, not a live create — so `create.verified` and
+    // `delete` are both `"unverified"`, keeping it out of
+    // VERIFIED_CREATABLE_TYPES and DELETABLE_TYPES despite being writable.
     // SRVB/SVB joined properties shape on documentation, and its provenance
     // was contested for a while: a session scratchpad claimed a live run
     // (create 201, read-back 200 at 1664 bytes, activate 200 clean, delete
@@ -671,6 +678,7 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
         "FUGR/FF",
         "FUGR/F",
         "BDEF/BDO",
+        "XSLT/VT",
         "DTEL/DE",
         "DOMA/DD",
         "TTYP/DA",

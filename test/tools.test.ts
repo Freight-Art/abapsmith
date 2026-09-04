@@ -952,20 +952,21 @@ describe("abap_write — format (pretty-printer rider)", () => {
    * mocked in this file — the same way the DEVC/K delete refusal above
    * mirrors its real UNSUPPORTED rejection.
    *
-   * XSLT/VT (transformation) is the example: a bare `{ label }` entry in the
+   * PROG/I (bare include) is the example: a bare `{ label }` entry in the
    * registry (src/adt/capabilities.ts), with no `write`/`create` capability
-   * of its own. (This test used to target DDLX/EX; that type was admitted to
-   * WRITABLE_TYPES alongside SRVD/SRV in the same pass DDLS/DF joined it —
-   * see capabilities.ts — so it can no longer stand in for "a type this
-   * refusal actually fires for". XSLT/VT remains a genuinely unsupported
-   * type and takes over as the example.)
+   * of its own. (This test used to target DDLX/EX, then XSLT/VT; DDLX/EX was
+   * admitted to WRITABLE_TYPES alongside SRVD/SRV in the same pass DDLS/DF
+   * joined it, and XSLT/VT was admitted once its transformations path was
+   * corrected — see capabilities.ts — so neither can stand in for "a type
+   * this refusal actually fires for" any more. PROG/I remains a genuinely
+   * unsupported type and takes over as the example.)
    */
-  it("format:true against an XSLT/VT transformation target is refused with UNSUPPORTED via the pre-existing type check, not a bespoke branch", async () => {
+  it("format:true against a PROG/I include target is refused with UNSUPPORTED via the pre-existing type check, not a bespoke branch", async () => {
     adt.resolveWriteTarget.mockRejectedValue(
       new AbapError(
         "UNSUPPORTED",
-        "Transformation ZI_DEMO (XSLT/VT) cannot be written by abapsmith.",
-        { type: "XSLT/VT", name: "ZI_DEMO" },
+        "Include ZTMD_INC (PROG/I) cannot be written by abapsmith.",
+        { type: "PROG/I", name: "ZTMD_INC" },
         "Writable types are CLAS/OC, INTF/OI, PROG/P, DDLS/DF, DDLX/EX, SRVD/SRV, TABL/DT, TABL/DS.",
       ),
     );
@@ -976,9 +977,9 @@ describe("abap_write — format (pretty-printer rider)", () => {
     );
     const err = errorOf(
       await call(h, "abap_write", {
-        object: "ZI_DEMO",
+        object: "ZTMD_INC",
         package: "$TMP",
-        source: "<xsl:transform></xsl:transform>",
+        source: "* include body",
         format: true,
       }),
     );
