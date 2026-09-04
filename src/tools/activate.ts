@@ -55,6 +55,7 @@ import {
   renderMessages,
 } from "../adt/activate.js";
 import type {
+  ActivationDisposition,
   ActivationOutcome,
   ActivationTarget,
   AdtMessage,
@@ -147,8 +148,11 @@ interface ActivationJournalTarget {
 interface JournalledActivation<T> {
   /** Whatever the wrapped activation returned. */
   readonly result: T;
-  /** Settles every entry with its terminal outcome; a no-op if nothing was recorded. */
-  settle(patchFor: (index: number) => JournalFinishPatch): Promise<void>;
+  /**
+   * Settles every entry with its terminal outcome; a no-op if nothing was
+   * recorded. `null` leaves that entry `pending`.
+   */
+  settle(patchFor: (index: number) => JournalFinishPatch | null): Promise<void>;
 }
 
 /**
@@ -159,9 +163,10 @@ interface JournalledActivation<T> {
  * takes no lock (nothing to hook), and one `activateObjects` request can
  * cover up to `MAX_ACTIVATION_BATCH` objects — so this writes ONE ENTRY PER
  * OBJECT instead (see `abapActivateBatch`'s doc comment for why). Otherwise
- * identical contract: every entry on disk before the mutating request, a
- * throw settles every entry `failed`, disabled/absent journal is an inert
- * pass-through.
+ * identical contract: every entry on disk before the mutating request,
+ * disabled/absent journal is an inert pass-through. How a throw settles each
+ * entry is the caller's to decide via `onThrow` — it defaults to every entry
+ * `failed`, correct only when the call really is all-or-nothing.
  *
  * Entry shape: `irreversible: true` because ADT has no deactivate operation
  * at all (`undoBlocker()`, src/adt/undo.ts, already refuses by name — this
@@ -177,12 +182,21 @@ async function journalActivations<T>(
   conn: AbapConnection,
   items: ReadonlyArray<ActivationJournalTarget>,
   run: () => Promise<T>,
+  /**
+   * Patch for entry `index` when `run()` throws; `null` leaves it `pending`.
+   * Defaults to settling the whole set `failed` — correct only when the call
+   * really was all-or-nothing.
+   */
+  onThrow?: (e: unknown, index: number) => JournalFinishPatch | null,
 ): Promise<JournalledActivation<T>> {
   const ids: string[] = [];
 
-  const settleAll = async (patchFor: (index: number) => JournalFinishPatch): Promise<void> => {
+  const settleAll = async (patchFor: (index: number) => JournalFinishPatch | null): Promise<void> => {
     if (!journal) return;
-    for (let i = 0; i < ids.length; i++) await journal.finish(ids[i]!, patchFor(i));
+    for (let i = 0; i < ids.length; i++) {
+      const p = patchFor(i);
+      if (p) await journal.finish(ids[i]!, p);
+    }
   };
 
   if (journal) {
@@ -224,7 +238,7 @@ async function journalActivations<T>(
   try {
     result = await run();
   } catch (e) {
-    await settleAll(() => ({ outcome: "failed", error: String(e) }));
+    await settleAll((i) => (onThrow ? onThrow(e, i) : { outcome: "failed", error: String(e) }));
     throw e;
   }
   return { result, settle: settleAll };
@@ -244,6 +258,40 @@ function journalMessages(messages: readonly AdtMessage[]): string | undefined {
   const text = renderMessages([...messages]).trim();
   if (!text) return undefined;
   return truncateText(text, JOURNAL_MESSAGES_MAX);
+}
+
+/**
+ * How ONE object's journal entry settles when the batch as a whole threw.
+ * The batch is not one request: chunks are POSTed sequentially and ADT has no
+ * deactivate, so an earlier chunk that answered clean stays activated. `unknown`
+ * (that chunk's POST never answered) has no terminal outcome in the journal's
+ * `pending | succeeded | failed` model, so the entry deliberately stays
+ * `pending` and the fact is warned about — same convention as
+ * abap_transport_release's `unproven` verdict.
+ */
+function activationThrowPatch(
+  disposition: ActivationDisposition,
+  name: string,
+  e: unknown,
+): JournalFinishPatch | null {
+  switch (disposition) {
+    case "activated":
+      return { outcome: "succeeded", activation: { attempted: true, activated: true } };
+    case "unknown":
+      process.stderr.write(
+        `[abapsmith] WARNING: the journal entry for ${name} stays \`pending\` on purpose: the ` +
+          `activation request naming it did not answer, so whether it activated was never ` +
+          `observed. Re-read the object to see its state.\n`,
+      );
+      return null;
+    case "not-sent":
+      return {
+        outcome: "failed",
+        error: `no activation request naming ${name} was sent: an earlier chunk of the same batch failed first (${String(e)}).`,
+      };
+    case "not-activated":
+      return { outcome: "failed", error: String(e) };
+  }
 }
 
 /** Not `renderInactive` (adt/activate.ts): its closing line advises on an object still failing to activate — backwards here, since these already did. */
@@ -674,9 +722,9 @@ export async function abapActivate(
  * Cost: a 50-object batch appends 50 index lines and can evict a quarter of
  * the default 200-entry retention (`DEFAULT_MAX_ENTRIES`, tunable via
  * `ABAP_JOURNAL_MAX_ENTRIES`) — real, but not worth losing per-object search
- * for. The whole batch shares one outcome by construction
- * (`assertBatchActivated` refuses anything short of the entire set), so
- * per-object entries can never disagree about whether activation happened.
+ * for. The batch is POSTed in chunks (`chunkActivationTargets`), so entries
+ * CAN legitimately disagree — an earlier chunk activates and a later one
+ * fails — and each entry is settled from `BatchActivationOutcome.perObject[i].disposition`.
  *
  * Full rationale: the git history
  */
@@ -760,14 +808,26 @@ export async function abapActivateBatch(
     });
   }
 
-  // One entry per object, all on disk before the single POST.
-  // `assertBatchActivated` runs inside the wrapped mutation so a batch that
-  // didn't activate settles every entry `failed`, not 50 rows claiming success.
-  const journalled = await journalActivations(journal, conn, journalItems, async () => {
-    const o = await activateObjects(conn, targets);
-    assertBatchActivated(o, { what: "Activation" });
-    return o;
-  });
+  // Entries are on disk before any chunk's POST. `assertBatchActivated` runs
+  // inside the wrapped mutation, and on a throw each entry settles from its
+  // own object's disposition — the batch is chunked, so an earlier chunk that
+  // already answered clean stays activated whatever a later one does.
+  let dispositions: readonly ActivationDisposition[] = targets.map(() => "not-sent" as ActivationDisposition);
+  const journalled = await journalActivations(
+    journal,
+    conn,
+    journalItems,
+    async () => {
+      const o = await activateObjects(conn, targets, {
+        onDisposition: (d) => {
+          dispositions = d;
+        },
+      });
+      assertBatchActivated(o, { what: "Activation" });
+      return o;
+    },
+    (e, i) => activationThrowPatch(dispositions[i] ?? "unknown", targets[i]?.name ?? `object ${i + 1}`, e),
+  );
   const outcome = journalled.result;
   await journalled.settle((i) => {
     const per = outcome.perObject[i];
