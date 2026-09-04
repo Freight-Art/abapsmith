@@ -346,6 +346,15 @@ export function buildResponse(parts: ResponseParts): BuiltResponse {
 }
 
 /**
+ * Line count for a source string. `"".split("\n")` is `[""]` (length 1), which
+ * made an empty read look windowed and mint a `partial:` etag, blocking the
+ * caller's next full-source write. Same `"" ? 0 : ...` convention as `dumps.ts`/`run.ts`.
+ */
+export function countLines(text: string): number {
+  return text === "" ? 0 : text.replace(/\r\n/g, "\n").split("\n").length;
+}
+
+/**
  * Take a line window out of a source string.
  * `offset` is 1-based and inclusive, matching what the truncation hint emits.
  */
@@ -360,7 +369,7 @@ export function sliceLines(
   return {
     text: lines.slice(start, end).join("\n"),
     offset: start + 1,
-    total: lines.length,
+    total: countLines(source),
   };
 }
 
