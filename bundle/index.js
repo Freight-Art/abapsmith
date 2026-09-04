@@ -88845,7 +88845,7 @@ function chunkActivationTargets(targets, sizes) {
   if (current.length) chunks.push(current);
   return chunks;
 }
-async function activateObjects(conn, targets) {
+async function activateObjects(conn, targets, opts) {
   if (targets.length === 0) {
     throw new AbapError(
       "BAD_INPUT",
@@ -88869,6 +88869,9 @@ async function activateObjects(conn, targets) {
   });
   const buckets = /* @__PURE__ */ new Map();
   for (const t of targets) buckets.set(t, { messages: [], inactive: [] });
+  const disposition = new Map(
+    targets.map((t) => [t, "not-sent"])
+  );
   const unattributed = [];
   const unattributedInactive = [];
   const allMessages = [];
@@ -88881,56 +88884,68 @@ async function activateObjects(conn, targets) {
 `
     );
   }
-  for (const chunk of chunks) {
-    let result;
-    try {
-      result = await postActivation(conn, chunk, true);
-      const phase2 = await activateWithPreauditSet(conn, chunk, result);
-      if (phase2) {
-        result = phase2.result;
-        allPreaudit.push(...phase2.preaudit);
+  let dispatchError;
+  try {
+    for (const chunk of chunks) {
+      let result;
+      try {
+        result = await postActivation(conn, chunk, true);
+        const phase2 = await activateWithPreauditSet(conn, chunk, result);
+        if (phase2) {
+          result = phase2.result;
+          allPreaudit.push(...phase2.preaudit);
+        }
+      } catch (e) {
+        for (const t of chunk) disposition.set(t, "unknown");
+        if (isAbapError(e)) throw e;
+        throw translateActivationError(e, {
+          name: chunk.map((t) => t.name).join(" + "),
+          uri: chunk[0].uri
+        });
       }
-    } catch (e) {
-      if (isAbapError(e)) throw e;
-      throw translateActivationError(e, {
-        name: chunk.map((t) => t.name).join(" + "),
-        uri: chunk[0].uri
-      });
+      const messages = mapActivationMessages(result);
+      const inactive = mapInactiveObjects(result);
+      if (result.success === false) anyChunkFailed = true;
+      allMessages.push(...messages);
+      allInactive.push(...inactive);
+      const chunkActivated = result.success !== false && tally(messages).errors === 0 && inactive.length === 0;
+      for (const t of chunk) disposition.set(t, chunkActivated ? "activated" : "not-activated");
+      for (const m of messages) {
+        const owner = attributeToTarget(m, targets);
+        if (owner) buckets.get(owner).messages.push(m);
+        else unattributed.push(m);
+      }
+      for (const i of inactive) {
+        const owner = attributeToTarget({ uri: i.uri, objDescr: i.name }, targets);
+        if (owner) buckets.get(owner).inactive.push(i);
+        else unattributedInactive.push(i);
+      }
     }
-    const messages = mapActivationMessages(result);
-    const inactive = mapInactiveObjects(result);
-    if (result.success === false) anyChunkFailed = true;
-    allMessages.push(...messages);
-    allInactive.push(...inactive);
-    for (const m of messages) {
-      const owner = attributeToTarget(m, targets);
-      if (owner) buckets.get(owner).messages.push(m);
-      else unattributed.push(m);
-    }
-    for (const i of inactive) {
-      const owner = attributeToTarget({ uri: i.uri, objDescr: i.name }, targets);
-      if (owner) buckets.get(owner).inactive.push(i);
-      else unattributedInactive.push(i);
-    }
+  } catch (e) {
+    dispatchError = e;
   }
   const counts = tally(allMessages);
-  const activated = !anyChunkFailed && counts.errors === 0 && allInactive.length === 0;
+  const activated = dispatchError === void 0 && !anyChunkFailed && counts.errors === 0 && allInactive.length === 0;
   if (allPreaudit.length > 0 && !activated) await releaseActivationEnqueues(conn);
   const perObject = targets.map((target) => {
     const b = buckets.get(target);
     const c = tally(b.messages);
     const objOk = c.errors === 0 && b.inactive.length === 0;
+    const d = disposition.get(target);
     return {
       target,
       // See BatchActivationOutcome: the batch's verdict, not a per-object
       // observation. Never `true` for a member of a batch that failed.
       activated: activated && objOk,
       ok: objOk,
+      disposition: d === "activated" && !objOk ? "not-activated" : d,
       messages: b.messages,
       inactive: b.inactive,
       ...c
     };
   });
+  opts?.onDisposition?.(perObject.map((o) => o.disposition));
+  if (dispatchError !== void 0) throw dispatchError;
   return {
     activated,
     ok: counts.errors === 0 && allInactive.length === 0,
@@ -88971,6 +88986,7 @@ function assertBatchActivated(outcome, context = { what: "Activation" }) {
   const unplaced = outcome.unattributed.length + outcome.unattributedInactive.length;
   const who = names.length > 0 ? `${names.join(", ")} ${names.length === 1 ? "was" : "were"} blamed` : "no object could be blamed";
   const tail = unplaced > 0 ? ` ${unplaced} message(s) could not be tied to any object in the set and are reported as unattributed.` : "";
+  const alreadyActive = outcome.perObject.filter((o) => o.disposition === "activated").map((o) => o.target.name);
   throw new AbapError(
     "CHECK_FAILED",
     `${context.what} of ${outcome.targets.length} objects failed: ${summariseMessages(outcome) || "no details returned"}; ${who}.${tail}`,
@@ -88983,6 +88999,7 @@ function assertBatchActivated(outcome, context = { what: "Activation" }) {
       perObject: outcome.perObject.map((o) => ({
         object: o.target.name,
         ok: o.ok,
+        disposition: o.disposition,
         errors: o.errors,
         warnings: o.warnings,
         messages: o.messages,
@@ -88991,7 +89008,7 @@ function assertBatchActivated(outcome, context = { what: "Activation" }) {
       unattributed: outcome.unattributed,
       messages: renderBatch(outcome)
     },
-    names.length > 0 ? `Fix ${names.join(", ")} and activate the set again. The whole set is still inactive \u2014 objects with no messages of their own were not confirmed activated either, so re-activate the complete set rather than only the objects you edited.` : "The activation failed without naming an object in the set. Re-read the objects to see which are still inactive, and check the unattributed messages above."
+    names.length > 0 ? `Fix ${names.join(", ")} and activate the set again.` + (alreadyActive.length > 0 ? ` ${alreadyActive.join(", ")} already activated in an earlier request of this batch and stayed active \u2014 ADT has no deactivate. Re-activating the whole set is still the simplest way to finish.` : " The whole set is still inactive \u2014 objects with no messages of their own were not confirmed activated either, so re-activate the complete set rather than only the objects you edited.") : "The activation failed without naming an object in the set. Re-read the objects to see which are still inactive, and check the unattributed messages above."
   );
 }
 function translateActivationError(e, target) {
@@ -93655,11 +93672,14 @@ var activateInputSchema = {
   ).min(1).max(MAX_ACTIVATION_BATCH).optional().describe("Batch activate, 2+ objects; omit `object`. mode=activate only.")
 };
 var ActivateInput = external_exports.object(activateInputSchema);
-async function journalActivations(journal, conn, items, run2) {
+async function journalActivations(journal, conn, items, run2, onThrow) {
   const ids = [];
   const settleAll = async (patchFor) => {
     if (!journal) return;
-    for (let i = 0; i < ids.length; i++) await journal.finish(ids[i], patchFor(i));
+    for (let i = 0; i < ids.length; i++) {
+      const p = patchFor(i);
+      if (p) await journal.finish(ids[i], p);
+    }
   };
   if (journal) {
     try {
@@ -93696,7 +93716,7 @@ async function journalActivations(journal, conn, items, run2) {
   try {
     result = await run2();
   } catch (e) {
-    await settleAll(() => ({ outcome: "failed", error: String(e) }));
+    await settleAll((i) => onThrow ? onThrow(e, i) : { outcome: "failed", error: String(e) });
     throw e;
   }
   return { result, settle: settleAll };
@@ -93706,6 +93726,25 @@ function journalMessages(messages) {
   const text3 = renderMessages([...messages]).trim();
   if (!text3) return void 0;
   return truncateText(text3, JOURNAL_MESSAGES_MAX);
+}
+function activationThrowPatch(disposition, name, e) {
+  switch (disposition) {
+    case "activated":
+      return { outcome: "succeeded", activation: { attempted: true, activated: true } };
+    case "unknown":
+      process.stderr.write(
+        `[abapsmith] WARNING: the journal entry for ${name} stays \`pending\` on purpose: the activation request naming it did not answer, so whether it activated was never observed. Re-read the object to see its state.
+`
+      );
+      return null;
+    case "not-sent":
+      return {
+        outcome: "failed",
+        error: `no activation request naming ${name} was sent: an earlier chunk of the same batch failed first (${String(e)}).`
+      };
+    case "not-activated":
+      return { outcome: "failed", error: String(e) };
+  }
 }
 function renderCoActivated(preaudit) {
   const named = preaudit.filter((o) => !(o.name === "(unknown)" && o.type === "(unknown)"));
@@ -94003,11 +94042,22 @@ async function abapActivateBatch(conn, entries, maxChars, gate, transport, journ
       ...corrNr !== void 0 ? { corrNr } : {}
     });
   }
-  const journalled2 = await journalActivations(journal, conn, journalItems, async () => {
-    const o = await activateObjects(conn, targets);
-    assertBatchActivated(o, { what: "Activation" });
-    return o;
-  });
+  let dispositions = targets.map(() => "not-sent");
+  const journalled2 = await journalActivations(
+    journal,
+    conn,
+    journalItems,
+    async () => {
+      const o = await activateObjects(conn, targets, {
+        onDisposition: (d) => {
+          dispositions = d;
+        }
+      });
+      assertBatchActivated(o, { what: "Activation" });
+      return o;
+    },
+    (e, i) => activationThrowPatch(dispositions[i] ?? "unknown", targets[i]?.name ?? `object ${i + 1}`, e)
+  );
   const outcome = journalled2.result;
   await journalled2.settle((i) => {
     const per = outcome.perObject[i];
