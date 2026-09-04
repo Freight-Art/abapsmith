@@ -24,9 +24,10 @@
  *     (default `FileLockObjectGate`), never pool state.
  *  L6 A slot is dead only when `conn.isDead`/`onDead` says so, latched once into `slot.dead`.
  *
- * Roles: "read" (no enqueue, incl. `abap_run` — resets shared CSRF token, never shares a slot
- * with an open lock), "write" (LOCK -> modify -> UNLOCK, serialised per object URI via
- * `ObjectGate`), "debug" (long poll lease, capped at `DEBUG_CONCURRENCY`, never queues).
+ * Roles: "read" (no enqueue, no ABAP execution — dead-slot replay is unconditional here),
+ * "write" (LOCK -> modify -> UNLOCK, serialised per object URI via `ObjectGate`; also carries
+ * `abap_run`/`abap_test`, which take a slot but no object gate), "debug" (long poll lease,
+ * capped at `DEBUG_CONCURRENCY`, never queues).
  *
  * Idle eviction runs at release/checkout, never on a timer; the pinned primary slot is exempt.
  */
@@ -85,7 +86,11 @@ export interface PoolStats {
 }
 
 export interface SessionPool {
-  /** Run `fn` on a read-role slot. See "ROLE SEMANTICS" — `abap_run` is a READ. */
+  /**
+   * Run `fn` on a read-role slot. An op that executes customer ABAP is refused here — see
+   * `EXECUTES_ABAP_OPS` and the guard at the top of `AdtSessionPool.withRead` — because the
+   * read lane replays a dead-slot failure unconditionally.
+   */
   withRead<T>(op: string, fn: (conn: AbapConnection) => Promise<T>): Promise<T>;
   /**
    * Run `fn` on a write-role slot, routed through the {@link ObjectGate} on its object URI
@@ -304,6 +309,12 @@ function isCondemnedConnectionError(e: unknown): boolean {
  * not a proven bound — see archive. Only gates WRITE replay; reads never consult it.
  */
 const DEAD_ON_ARRIVAL_MS = 500;
+
+/**
+ * Ops that execute customer ABAP. The read lane replays a dead-slot failure without
+ * consulting either gate, which would run the code twice.
+ */
+const EXECUTES_ABAP_OPS: ReadonlySet<string> = new Set(["abap_run", "abap_test", "abap_bopf_test"]);
 
 /**
  * True for failures that are a property of the credentials or shared circuit breaker rather
@@ -678,6 +689,13 @@ export class AdtSessionPool implements SessionPool {
   }
 
   async withRead<T>(op: string, fn: (conn: AbapConnection) => Promise<T>): Promise<T> {
+    if (EXECUTES_ABAP_OPS.has(op)) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${op} executes ABAP and must be dispatched with withWrite — the read lane replays a dead-slot failure unconditionally.`,
+        { op },
+      );
+    }
     return this.runOn("read", op, fn);
   }
 

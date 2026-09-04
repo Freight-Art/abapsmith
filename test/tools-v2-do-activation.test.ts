@@ -68,37 +68,39 @@ describe("abap_do activation group (activate/run/test/undo)", () => {
     ).rejects.toMatchObject({ code: "BAD_INPUT" });
   });
 
-  it("run: uses a READ pool slot, not a write slot", async () => {
+  it("run: uses a WRITE pool slot, not a read slot", async () => {
     const { abapRun } = await import("../src/tools/run.js");
     vi.mocked(abapRun).mockResolvedValue(okResponse());
     const { ACTIVATION_HANDLERS } = await import("../src/tools/v2/handlers/do/activation.js");
 
-    const withRead = vi.fn((_op: string, fn: (c: unknown) => unknown) => fn({}));
-    const withWrite = vi.fn();
+    const withRead = vi.fn();
+    const withWrite = vi.fn((_op: string, _uri: unknown, fn: (c: unknown) => unknown) => fn({}));
     const deps = fakeDoDeps({ pool: { withRead, withWrite, primary: () => ({}), reserveDebug: async () => ({}) } as never });
 
     await ACTIVATION_HANDLERS.get("run")!({ action: "run", object: "ZCL_FOO", args: {} }, deps);
 
-    expect(withRead).toHaveBeenCalledTimes(1);
-    expect(withWrite).not.toHaveBeenCalled();
+    expect(withWrite).toHaveBeenCalledTimes(1);
+    expect(withWrite).toHaveBeenCalledWith("abap_run", undefined, expect.any(Function));
+    expect(withRead).not.toHaveBeenCalled();
     expect(abapRun).toHaveBeenCalledTimes(1);
     const [, input] = vi.mocked(abapRun).mock.calls[0]!;
     expect(input).toMatchObject({ object: "ZCL_FOO" });
   });
 
-  it("test: uses a READ pool slot and maps object -> v1 object", async () => {
+  it("test: uses a WRITE pool slot and maps object -> v1 object", async () => {
     const { abapTest } = await import("../src/tools/test.js");
     vi.mocked(abapTest).mockResolvedValue(okResponse());
     const { ACTIVATION_HANDLERS } = await import("../src/tools/v2/handlers/do/activation.js");
 
-    const withRead = vi.fn((_op: string, fn: (c: unknown) => unknown) => fn({}));
-    const withWrite = vi.fn();
+    const withRead = vi.fn();
+    const withWrite = vi.fn((_op: string, _uri: unknown, fn: (c: unknown) => unknown) => fn({}));
     const deps = fakeDoDeps({ pool: { withRead, withWrite, primary: () => ({}), reserveDebug: async () => ({}) } as never });
 
     await ACTIVATION_HANDLERS.get("test")!({ action: "test", object: "ZCL_FOO", args: { risk_level: "harmless" } }, deps);
 
-    expect(withRead).toHaveBeenCalledTimes(1);
-    expect(withWrite).not.toHaveBeenCalled();
+    expect(withWrite).toHaveBeenCalledTimes(1);
+    expect(withWrite).toHaveBeenCalledWith("abap_test", undefined, expect.any(Function));
+    expect(withRead).not.toHaveBeenCalled();
     const [, input] = vi.mocked(abapTest).mock.calls[0]!;
     expect(input).toMatchObject({ object: "ZCL_FOO", risk_level: "harmless" });
   });

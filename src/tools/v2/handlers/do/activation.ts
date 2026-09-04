@@ -53,10 +53,9 @@ const run: DoHandler = async (ctx, deps) => {
   deps.safety.assert("execute", preflight({ object: input.object }), { phase: "preflight" });
   await deps.ensureConnected();
 
-  // READ slot deliberately: run.ts resets the CSRF token on its connection;
-  // doing that under an open write slot could lose the session owning the
-  // enqueue. Do not "fix" this to withWrite.
-  const res = await deps.pool.withRead("abap_run", (conn) => abapRun(conn, input, deps.cfg.maxResponseChars, deps.safety));
+  // WRITE slot, no object gate: replicates registerRunTools' orchestration —
+  // see its comment for why a dead-slot replay must be gated here.
+  const res = await deps.pool.withWrite("abap_run", undefined, (conn) => abapRun(conn, input, deps.cfg.maxResponseChars, deps.safety));
   return doOk(res.text, journalNext("abap_run does not journal, but a preceding activate/write does."));
 };
 
@@ -67,8 +66,9 @@ const test: DoHandler = async (ctx, deps) => {
   deps.safety.assert("execute", preflight({ object: input.object, type: input.type }), { phase: "preflight" });
   await deps.ensureConnected();
 
-  // ABAP Unit runs take no ABAP enqueue — a read slot, same reasoning as `run`.
-  const res = await deps.pool.withRead("abap_test", (conn) => abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety));
+  // WRITE slot, no object gate: replicates registerTestTools' orchestration —
+  // same reasoning as `run` above.
+  const res = await deps.pool.withWrite("abap_test", undefined, (conn) => abapTest(conn, input, deps.cfg.maxResponseChars, deps.safety));
   return doOk(res.text, []);
 };
 

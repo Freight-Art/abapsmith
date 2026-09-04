@@ -221,7 +221,7 @@ export interface TestToolDeps {
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
 
-/** Registers `abap_test`: preflight-gated `execute`, runs in a READ pool slot. */
+/** Registers `abap_test`: preflight-gated `execute`, runs in a WRITE pool slot. */
 export function registerTestTools(mcp: McpServer, deps: TestToolDeps): void {
   mcp.registerTool(
     "abap_test",
@@ -239,8 +239,9 @@ export function registerTestTools(mcp: McpServer, deps: TestToolDeps): void {
           phase: "preflight",
         });
         await deps.ensureConnected();
-        // ATC/aUnit runs are READS per pool.ts's ROLE SEMANTICS (no ABAP enqueue).
-        const res = await deps.pool.withRead("abap_test", (conn) =>
+        // ABAP Unit executes customer code, so a dead-slot replay must be gated;
+        // no object gate is taken since the run holds no enqueue.
+        const res = await deps.pool.withWrite("abap_test", undefined, (conn) =>
           abapTest(conn, args as TestInput, deps.cfg.maxResponseChars, deps.safety),
         );
         return ok(res.text);
