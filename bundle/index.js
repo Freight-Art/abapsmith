@@ -65243,6 +65243,9 @@ ${bodyFit.kept}` : "",
     sectionsTruncated: Boolean(sectionsCut)
   };
 }
+function countLines(text3) {
+  return text3 === "" ? 0 : text3.replace(/\r\n/g, "\n").split("\n").length;
+}
 function sliceLines(source, offset = 1, limit) {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const start = Math.max(0, offset - 1);
@@ -65250,7 +65253,7 @@ function sliceLines(source, offset = 1, limit) {
   return {
     text: lines.slice(start, end).join("\n"),
     offset: start + 1,
-    total: lines.length
+    total: countLines(source)
   };
 }
 function textTable(rows, columns) {
@@ -98098,6 +98101,7 @@ function resourceEtag(canonicalBytes) {
   return canonicalEtag(canonicalBytes);
 }
 var TRUNCATED_SOURCE_NOTE = "INCOMPLETE \u2014 NOT the whole text (counts in TRUNCATED, below). The etag is marked `partial:`: abap_write REFUSES a full-source rewrite presenting it, since that would delete everything past the cut. Splice with edit={old_string,new_string}, or page it all in with offset/limit.";
+var EMPTY_SOURCE_NOTE = "Source is empty (0 bytes) \u2014 that is the whole body, not a truncated read; there is no SOURCE section below because there is nothing to show.";
 function buildSourceResponse(parts, etag, forceIncomplete = false) {
   const first = buildReadResponse(parts);
   if (!first.truncated && !forceIncomplete) return { ...first, etag };
@@ -98630,7 +98634,7 @@ async function abapRead(conn, input, maxChars) {
   if (input.outline) {
     if (!OUTLINE_KINDS.has(obj.kind)) {
       const built2 = buildReadResponse({
-        header: { ...header, totalLines: source.split("\n").length },
+        header: { ...header, totalLines: countLines(source) },
         body: `(outline is NOT SUPPORTED for ${obj.type} \u2014 it is implemented for classes and interfaces only, via the ADT component structure. This is a tool limitation, NOT a statement that ${obj.name} has no components.)`,
         bodyLabel: "OUTLINE",
         notes: [
@@ -98648,7 +98652,7 @@ async function abapRead(conn, input, maxChars) {
       header: {
         ...header,
         components: members.length,
-        totalLines: source.split("\n").length
+        totalLines: countLines(source)
       },
       body: outline ? window3.text : `(${obj.type} ${obj.name} really has no methods, attributes or events \u2014 the component structure came back empty.)`,
       bodyLabel: "OUTLINE",
@@ -98698,7 +98702,7 @@ async function abapRead(conn, input, maxChars) {
       bodyLabel: "SOURCE",
       bodyOffset: window2.offset,
       bodyTotalLines: window2.total,
-      notes: includeNotes,
+      notes: source === "" ? [...includeNotes, EMPTY_SOURCE_NOTE] : includeNotes,
       hints: sourceHints,
       pagingParam: "offset",
       maxChars

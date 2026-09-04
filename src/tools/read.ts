@@ -51,6 +51,7 @@ import { DEFAULT_CONTEXT_LINES, diffSources, renderHunks } from "../diff.js";
 import { classMembers, readMethod, readSource, renderOutline } from "../adt/source.js";
 import {
   buildResponse,
+  countLines,
   markEtagPartial,
   sliceLines,
   textTable,
@@ -360,6 +361,14 @@ const TRUNCATED_SOURCE_NOTE =
   "INCOMPLETE — NOT the whole text (counts in TRUNCATED, below). The etag is marked `partial:`: " +
   "abap_write REFUSES a full-source rewrite presenting it, since that would delete everything " +
   "past the cut. Splice with edit={old_string,new_string}, or page it all in with offset/limit.";
+
+/**
+ * buildResponse emits no `--- SOURCE ---` block for an empty body — say so, or
+ * an empty object reads as a failed/truncated one.
+ */
+const EMPTY_SOURCE_NOTE =
+  "Source is empty (0 bytes) — that is the whole body, not a truncated read; there is no SOURCE " +
+  "section below because there is nothing to show.";
 
 /**
  * Builds a response over (part of) the object's writable text; if the body
@@ -1268,7 +1277,7 @@ export async function abapRead(
     // other types "(no components)" would misread as "genuinely has none".
     if (!OUTLINE_KINDS.has(obj.kind)) {
       const built = buildReadResponse({
-        header: { ...header, totalLines: source.split("\n").length },
+        header: { ...header, totalLines: countLines(source) },
         body:
           `(outline is NOT SUPPORTED for ${obj.type} — it is implemented for classes and ` +
           `interfaces only, via the ADT component structure. This is a tool limitation, ` +
@@ -1290,7 +1299,7 @@ export async function abapRead(
       header: {
         ...header,
         components: members.length,
-        totalLines: source.split("\n").length,
+        totalLines: countLines(source),
       },
       body: outline
         ? window.text
@@ -1360,7 +1369,7 @@ export async function abapRead(
       bodyLabel: "SOURCE",
       bodyOffset: window.offset,
       bodyTotalLines: window.total,
-      notes: includeNotes,
+      notes: source === "" ? [...includeNotes, EMPTY_SOURCE_NOTE] : includeNotes,
       hints: sourceHints,
       pagingParam: "offset",
       maxChars,
