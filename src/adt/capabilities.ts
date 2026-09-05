@@ -93,7 +93,7 @@
  * `creationPath`, not from anything hard-coded in `createNewObject`.
  */
 import { ddicStrategy } from "./ddic.js";
-import { TYPES, type TypeSpec } from "./types.js";
+import { TYPES, specForType, type TypeSpec } from "./types.js";
 
 /** How a type's content is written: a plain-text source PUT, or a structured XML property PUT. */
 export type WriteShape = "source" | "properties";
@@ -1242,11 +1242,21 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
 
 const CODES = Object.keys(REGISTRY) as TypeCode[];
 
-/** Look up a type's capabilities by exact ADT code (case/whitespace-insensitive). `undefined` when the code is not one this registry knows at all. */
+/**
+ * Look up a type's capabilities by exact ADT code, or by the kind form
+ * (`CLAS`, `STRU`, ...) resolved to its canonical code through `specForType`
+ * (case/whitespace-insensitive). `undefined` when neither names a type this
+ * registry knows.
+ */
 export function capabilitiesFor(type: string | undefined): TypeCapabilities | undefined {
   if (!type) return undefined;
-  const code = type.trim().toUpperCase() as TypeCode;
-  return Object.prototype.hasOwnProperty.call(REGISTRY, code) ? REGISTRY[code] : undefined;
+  const code = type.trim().toUpperCase();
+  if (Object.prototype.hasOwnProperty.call(REGISTRY, code)) return REGISTRY[code as TypeCode];
+  // Kind forms ("CLAS", "STRU") resolve through the map specForType owns, never by guessing a suffix.
+  const canonical = specForType(code)?.type;
+  return canonical !== undefined && Object.prototype.hasOwnProperty.call(REGISTRY, canonical)
+    ? REGISTRY[canonical as TypeCode]
+    : undefined;
 }
 
 function codesWith(pred: (c: TypeCapabilities) => boolean): string[] {
@@ -1406,6 +1416,13 @@ export const NON_READABLE_TYPES: readonly string[] = codesWith(
 export const NON_WRITABLE_TYPES: readonly string[] = codesWith(
   (c) => c.create === undefined && c.bridgeCreate === undefined && c.write === undefined && c.activate !== true,
 );
+
+/**
+ * Types whose whole XML descriptor IS the write payload — the set
+ * `abap_read`'s `format="raw"` answers for. Includes `SRVB/SVB`, which is
+ * not DDIC, so caller-facing wording must not call this set "DDIC types".
+ */
+export const PROPERTIES_SHAPE_TYPES: readonly string[] = codesWith((c) => c.write?.shape === "properties");
 
 /**
  * The one caller-facing sentence naming what `abap_write` accepts, composed

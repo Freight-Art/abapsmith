@@ -67417,7 +67417,9 @@ var CODES = Object.keys(REGISTRY);
 function capabilitiesFor(type) {
   if (!type) return void 0;
   const code = type.trim().toUpperCase();
-  return Object.prototype.hasOwnProperty.call(REGISTRY, code) ? REGISTRY[code] : void 0;
+  if (Object.prototype.hasOwnProperty.call(REGISTRY, code)) return REGISTRY[code];
+  const canonical = specForType(code)?.type;
+  return canonical !== void 0 && Object.prototype.hasOwnProperty.call(REGISTRY, canonical) ? REGISTRY[canonical] : void 0;
 }
 function codesWith(pred) {
   return CODES.filter((c) => pred(REGISTRY[c]));
@@ -67456,6 +67458,7 @@ var NON_READABLE_TYPES = codesWith(
 var NON_WRITABLE_TYPES = codesWith(
   (c) => c.create === void 0 && c.bridgeCreate === void 0 && c.write === void 0 && c.activate !== true
 );
+var PROPERTIES_SHAPE_TYPES = codesWith((c) => c.write?.shape === "properties");
 function writableTypesHint() {
   const clauses = [`Writable types are ${WRITABLE_TYPES.join(", ")}.`];
   if (CREATE_ONLY_TYPES.length) {
@@ -98298,10 +98301,10 @@ var readInputSchema = {
   // handler runs, instead of zod silently stripping it and falling through
   // to whatever ADT reports as current. Never silently normalise.
   version: external_exports.enum(["active", "inactive"]).optional().describe("Default: current (active or newest inactive)."),
-  // Closes a gap: DOMA/DTEL/TTYP/MSAG/ENQU write a full XML descriptor PUT,
+  // Closes a gap: the properties-shape types write a full XML descriptor PUT,
   // but the default read only produced lossy pseudo-DDL (or UNSUPPORTED).
   // Gated by capabilitiesFor, not a type list — additive only.
-  format: external_exports.enum(["raw"]).optional().describe("raw: XML, not pseudo-DDL (DOMA/DTEL/TTYP/MSAG/ENQU only)."),
+  format: external_exports.enum(["raw"]).optional().describe(`raw: XML, not pseudo-DDL (${PROPERTIES_SHAPE_TYPES.join(" ")} only).`),
   // Enum for the same reason as version/format (G-08): reject a typo rather
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
@@ -98680,7 +98683,7 @@ function assertIncludeCompatible(input, obj) {
   if (input.format) {
     clash(
       'format="raw"',
-      "raw returns an object's whole XML descriptor, which exists only for the properties-shape DDIC types (DOMA/DTEL/TTYP/MSAG/ENQU) \u2014 a class has none, and a class include is source.",
+      `raw returns an object's whole XML descriptor, which exists only for the properties-shape types (${PROPERTIES_SHAPE_TYPES.join(", ")}) \u2014 a class has none, and a class include is source.`,
       "Drop format \u2014 an include read already returns exactly the source bytes a write of that include replaces."
     );
   }
@@ -98862,7 +98865,7 @@ async function abapRead(conn, input, maxChars) {
     if (capabilitiesFor(obj.type)?.write?.shape !== "properties") {
       throw new AbapError(
         "UNSUPPORTED",
-        `format="raw" is only defined for the properties-shape DDIC types (DOMA/DD, DTEL/DE, TTYP/DA, MSAG/N, ENQU/DL); ${obj.type} ${obj.name} is not one of those.`,
+        `format="raw" is only defined for the properties-shape types (${PROPERTIES_SHAPE_TYPES.join(", ")}); ${obj.type} ${obj.name} is not one of those.`,
         { type: obj.type, name: obj.name },
         `Omit format \u2014 the default read already returns ${obj.mode === "ddic" ? "a rendered definition" : "raw source"} for ${obj.type}, which is what a "source" shape write for this type needs anyway.`
       );
