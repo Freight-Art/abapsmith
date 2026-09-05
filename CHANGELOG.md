@@ -214,6 +214,19 @@ was last set to `0.3.0`.
   caller's own length instead of the fixed values the fixtures show —
   were found and corrected by review within the same change before it
   merged.
+- `TABL/DI` (a transparent table's secondary index) can now be created and
+  deleted through a generated classrun bridge calling
+  `DD_INDEX_INTERFACE` — there is no ADT REST route for indexes at all,
+  so there is no read and no change, only drop and recreate. The index's
+  package is the base table's, resolved by reading the table over ADT,
+  never the caller's; a caller-supplied `package` is only checked for
+  agreement. A transportable package requires `corr_nr` for both create
+  and delete, unlike the `VIEW/DV`/`TRAN/T` deletes, which refuse one —
+  `DD_INDEX_INTERFACE`'s delete takes a transport parameter too. The
+  create is never `verified` and never journalled: there is no resource
+  to read an index back from and so no undo path, only an explicit
+  delete. abapsmith's own bridge classes have not themselves been run
+  against a live system.
 
 ### Changed
 
