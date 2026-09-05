@@ -67327,13 +67327,12 @@ var REGISTRY = {
     bridgeCreate: {
       adtRest: "ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery collection advertises an empty <app:accept>. That GET is not a route a caller can take from here: with no collection there is nothing to resolve a name against, and abap_search rejects VIEW/DV as an unrecognised type, so there is no way to read a classic view through abapsmith either. Four independent recons agree. This entry previously read 'not reachable over ADT, every read and write 404s' and concluded the type was unwritable \u2014 the REST finding is right, the conclusion was not: SE11 does not use REST either.",
       via: "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE (function group SDIC \u2014 the same DD_VIEW_EXPAND/DD_VIEW_PUT/DD_VIEW_ACT primitives SE11's view editor drives), called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/view-create.ts and src/adt/ddic-bridge.ts.",
-      limits: "Creates nothing today: the create is refused client-side, before any ADT traffic (UNSUPPORTED), for EVERY package \u2014 $TMP and an omitted `package` included. What the bridge would build if it ran: a database view (DD25V view class 'D') projecting fields of ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here would have no maintenance view/dialog and SM30 would not open it. The refusal reason differs by package. A TRANSPORTABLE package: the interactive CTS request-selection dynpro that once blocked a transportable create (SAPLSTRD 0352) is already fixed by passing suppress_dialog = 'X', but RS_CORR_INSERT was then measured to reject the object key itself \u2014 object/object_class = 'DICT', sy-subrc=1, TK103 'This syntax cannot be used for an object name' \u2014 and because DDIF_VIEW_PUT had already committed by that point, that failed attempt stranded an active, packageRef-less view that abapsmith's own delete gate then refused to remove. The generated ABAP now builds the 44-character DICT object key RS_CORR_INSERT actually expects \u2014 4-character object type 'VIEW' then the name padded to 40, with global_lock = 'X' so it registers as R3TR/VIEW rather than LIMU/VIED \u2014 and calls RS_CORR_INSERT before DDIF_VIEW_PUT, so nothing is committed before registration and a rejected key can no longer strand an orphan. Both changes are read off the function module's source, not measured against a live system, so the create stays refused for every package until a live run proves them. A `$`-prefixed but non-$TMP package (e.g. $MYLOCAL): the TK103 object-key rejection above is NOT the obstacle here \u2014 a local package never enters CTS at all, so no RS_CORR_INSERT call is even generated for it; it is refused because no package is known to work and this one has never been tried \u2014 untried, not measured. $TMP: measured live, a $TMP create SUCCEEDS at landing an active view that is never registered in TADIR, so it carries no packageRef, so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably too \u2014 creating an object abapsmith is then obliged to refuse to remove, which is why that path is now closed rather than offered as the workaround. See src/adt/view-create.ts. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here.",
-      createRefused: "abapsmith refuses a VIEW/DV create for every package, $TMP and an omitted `package` included: $TMP is the only package ever attempted, and it was measured to leave the view active but unregistered in TADIR, with no packageRef \u2014 so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably. Create a classic view in SE11/SE14 by hand, or use a CDS view (DDLS/DF), which abapsmith both writes and reads."
+      limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (not through abap_read \u2014 that path stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package requires corr_nr; a LOCAL package refuses one (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts. The create is otherwise irreversible in the sense that abapsmith cannot read the view back to verify it: success is proven by the transcript markers, not by a read-back."
     },
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
       via: "DD_OBJ_DEL (object_type='VIEW', del_state='A' then 'N') clears DD25L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading DD25L and TADIR after COMMIT WORK, not by a clean FM return alone. See src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
-      limits: "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and abapsmith does NOT clear that lock (TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS is out of scope, deliberately unimplemented) \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. $TMP is no better: per bridgeCreate's own finding above, a $TMP create leaves the view active but unregistered in TADIR, so it carries no packageRef for the delete gate to accept (PACKAGE_UNKNOWN) \u2014 no live run has ever produced a view this delete path could act on, in any package, and abapsmith no longer creates one anywhere. This delete can still act on a view SOMETHING ELSE registered properly; it cannot clear the orphans an earlier $TMP create left behind."
+      limits: "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and abapsmith does NOT clear that lock (TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS is out of scope, deliberately unimplemented) \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. abapsmith's own create now registers every view in TADIR, including one in a `$` package, so the delete path acts on views abapsmith created \u2014 proven live on A4H 2026-09-05, where a bridge-created view in a LOCAL package was deleted with VIEW-DELETED / VIEW-GONE."
     }
   },
   "TRAN/T": {
@@ -100029,36 +100028,6 @@ function dictObjectKey(viewName) {
 function isLocalPackage(packageName) {
   return isLocalPackageName(packageName);
 }
-var MEASURED_PACKAGE = "$TMP";
-function isMeasuredPackage(packageName) {
-  return packageName.trim().toUpperCase() === MEASURED_PACKAGE;
-}
-function assertClassicViewCreateSupported(packageName) {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
-  const opening = `No retry will succeed for package ${JSON.stringify(validated)} or any other: abapsmith cannot create a classic view for any package, so create it in SE11/SE14 by hand instead. `;
-  if (isMeasuredPackage(validated)) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      opening + `$TMP is not the exception, and omitting \`package\` (which resolves to $TMP) does not reach one: it is the one package a create was ever attempted into, and the attempt is refused now because of what it did, not what it failed to do. Measured 2026-08-30, a $TMP create lands ACTIVE but unregistered in TADIR, so the view carries no packageRef, so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably too. Succeeding at minting an object abapsmith is then obliged to refuse to remove is not a working create. ${TERMINAL_REFUSAL_NOTE}`,
-      { packageName: validated },
-      "No retry will succeed. Create the view in SE11/SE14, or use a CDS view (DDLS/DF) \u2014 the modern equivalent, which abapsmith both writes and reads."
-    );
-  }
-  if (isLocalPackageName(validated)) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      opening + `It is local (\`$\`-prefixed) but not $TMP, so the object-key rejection a transportable package hits is not the obstacle here \u2014 a local package is never registered in CTS at all, and no TADIR-registration call is generated for it. This package itself has never been tried \u2014 that is untried, not measured \u2014 and $TMP, the one package that WAS tried, is refused too: measured 2026-08-30, a $TMP create lands active but unregistered in TADIR, so it carries no packageRef, so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably. Trying this package would risk minting another orphan abapsmith cannot clear. ${TERMINAL_REFUSAL_NOTE}`,
-      { packageName: validated },
-      "No retry will succeed. A stranded view needs SE11/SE14 to clear by hand."
-    );
-  }
-  throw new AbapError(
-    "UNSUPPORTED",
-    opening + `It is not $TMP. Two obstacles a transportable create hit live are now addressed in the generated ABAP, and neither is proven: RS_CORR_INSERT rejected the bare view name as its object key (object_class = 'DICT', sy-subrc=1, TK103 "This syntax cannot be used for an object name") and is now handed the 44-character DICT key that parameter reads, and it now runs BEFORE DDIF_VIEW_PUT rather than after its COMMIT WORK, so a rejected registration can no longer strand the active, packageRef-less view earlier attempts left behind. Both are read off the function module's source, not measured, so the create stays refused until a live run shows it working. $TMP is not an escape from any of this, and is no longer attempted at all: measured 2026-08-30, a $TMP create lands active but unregistered in TADIR, so it carries no packageRef, so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably too. ${TERMINAL_REFUSAL_NOTE}`,
-    { packageName: validated },
-    "No retry will succeed. A stranded view \u2014 from either path \u2014 needs SE11/SE14 to clear by hand."
-  );
-}
 function quotedIdentifier(value, what, opts = {}) {
   return abapLiteral(assertEnhIdentifier(value, what, { maxLength: VIEW_NAME_MAX2, ...opts }));
 }
@@ -100072,6 +100041,27 @@ function assertCorrNr2(value) {
     );
   }
   return value;
+}
+function assertClassicViewCreateTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
+  const local = isLocalPackage(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) view is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr2(corrNr);
+  return validated;
 }
 function validate3(p) {
   const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX2 });
@@ -100094,24 +100084,8 @@ function validate3(p) {
     (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX2 })
   );
   const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", PACKAGE_RULES2);
-  const local = isLocalPackage(packageName);
-  if (local && p.corrNr !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(p.corrNr)} was supplied for local package ${JSON.stringify(packageName)}, but a local ($-prefixed) view is never registered in CTS at all \u2014 RS_CORR_INSERT is not generated for it \u2014 so there is nothing here for a transport request to attach to.`,
-      { viewName, baseTable, packageName, corrNr: p.corrNr }
-    );
-  }
-  if (!local && p.corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
-      { viewName, baseTable, packageName },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
-    );
-  }
-  const corrNr = local ? void 0 : assertCorrNr2(p.corrNr);
+  const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
+  const corrNr = isLocalPackage(packageName) ? void 0 : p.corrNr;
   return { viewName, baseTable, fields, description, packageName, corrNr };
 }
 var VIEW_DATA_LINES = [
@@ -100126,34 +100100,33 @@ function classicViewFragment(p) {
   const { viewName, baseTable, fields, description, packageName, corrNr } = validate3(p);
   const view = quotedIdentifier(viewName, "viewName");
   const table = quotedIdentifier(baseTable, "baseTable");
+  const local = isLocalPackage(packageName);
   const lines = [];
-  if (!isLocalPackage(packageName)) {
-    lines.push(
-      // --- TADIR/transport registration, BEFORE any dictionary write: a key
-      //     RS_CORR_INSERT rejects then strands nothing. Skipped for any
-      //     local ($-prefixed) package — see isLocalPackage's doc comment;
-      //     do not make this unconditional without new live evidence.
-      "CALL FUNCTION 'RS_CORR_INSERT'",
-      // ABAP drops a text-field literal's trailing blanks; the formal
-      // parameter (DDOBJNAME, CHAR44) re-pads to its declared length, so the
-      // literal emitted here and the key SAP actually reads are the same
-      // 44-byte layout.
-      `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
-      "            object_class = 'DICT'",
-      `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES2)}`,
-      "            master_language = sy-langu",
-      "            mode = 'INSERT'",
-      // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
-      "            global_lock = 'X'",
-      // suppress_dialog = 'X' sets iv_dialog = 'D', suppressing the request-selection dynpro
-      // (korrnum alone reaches only iv_order).
-      `            korrnum = ${abapLiteral(corrNr)}`,
-      "            suppress_dialog = 'X'",
-      "  EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.",
-      ...subrcCheckFragment("RS_CORR_INSERT", "VIEW-REGISTERED"),
-      ""
-    );
-  }
+  lines.push(
+    // --- TADIR registration, BEFORE any dictionary write: a key
+    //     RS_CORR_INSERT rejects then strands nothing. Runs for every
+    //     package; only korrnum differs (TRKORR vs space) below.
+    "CALL FUNCTION 'RS_CORR_INSERT'",
+    // ABAP drops a text-field literal's trailing blanks; the formal
+    // parameter (DDOBJNAME, CHAR44) re-pads to its declared length, so the
+    // literal emitted here and the key SAP actually reads are the same
+    // 44-byte layout.
+    `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
+    "            object_class = 'DICT'",
+    `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES2)}`,
+    "            master_language = sy-langu",
+    "            mode = 'INSERT'",
+    // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
+    "            global_lock = 'X'",
+    // A local ($-prefixed) package has no transport request to name; space is ABAP's SPACE constant, not a quoted literal.
+    local ? "            korrnum = space" : `            korrnum = ${abapLiteral(corrNr)}`,
+    // suppress_dialog = 'X' sets iv_dialog = 'D', suppressing the request-selection dynpro
+    // (korrnum alone reaches only iv_order).
+    "            suppress_dialog = 'X'",
+    "  EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.",
+    ...subrcCheckFragment("RS_CORR_INSERT", "VIEW-REGISTERED"),
+    ""
+  );
   lines.push(
     // --- DD25V: the view header (field names/constants are ASSUMPTIONS, see doc comment above).
     "CLEAR ls_dd25v.",
@@ -100225,14 +100198,13 @@ function classicViewFragment(p) {
 function viewCreatePartialSuccess(viewName) {
   return {
     completed: {
-      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR and on the transport request, before any dictionary write \u2014 no view was created by it.`,
+      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR \u2014 on the transport request for a transportable package, with korrnum = space for a local one \u2014 before any dictionary write; no view was created by it.`,
       "VIEW-PUT": `DDIF_VIEW_PUT wrote ${viewName}, and the COMMIT WORK that follows it committed it, inactive.`
     },
-    hint: `If VIEW-PUT fired, ${viewName} exists AND is registered \u2014 abap_write mode="delete" type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only the TADIR/transport entry exists \u2014 remove it from the request in SE09/SE10, or reuse it by re-running the create into the same request.`
+    hint: `If VIEW-PUT fired, ${viewName} exists AND is registered \u2014 abap_write mode="delete" type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only the TADIR entry exists \u2014 for a transportable package, remove it from the request in SE09/SE10, or reuse it by re-running the create into the same request; for a local package (korrnum = space) it is registered but not on any request.`
   };
 }
 async function createClassicView(conn, gate, params) {
-  assertClassicViewCreateSupported(params.packageName);
   const validated = validate3(params);
   const { viewName, packageName, corrNr } = validated;
   const corr = isLocalPackage(packageName) ? void 0 : { kind: "transport", corrNr, source: "named" };
@@ -100246,7 +100218,7 @@ async function createClassicView(conn, gate, params) {
     VIEW_DATA_LINES,
     classicViewFragment(validated)
   );
-  const expectTags = isLocalPackage(packageName) ? ["VIEW-PUT", "VIEW-ACTIVATED"] : ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
+  const expectTags = ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
   const partial2 = viewCreatePartialSuccess(viewName);
   return runDdicBridge(conn, gate, {
     className: DDIC_BRIDGE_CLASS.createView,
@@ -100614,7 +100586,7 @@ var writeInputSchema = {
   // (src/tools/read.ts), turns a typo into a schema rejection.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe("CLAS/OC only; testclasses=ABAP Unit tests, default main."),
   package: external_exports.string().optional().describe(
-    "Package for a NEW object. Default $TMP. VIEW/DV: that create is refused for every package, and for an omitted one."
+    "Package for a NEW object. Default $TMP. VIEW/DV: a transportable one needs corr_nr, a $-package refuses it."
   ),
   description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
   // Structured create for the three XML-only DDIC types, so a
@@ -100646,7 +100618,7 @@ var writeInputSchema = {
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
   corr_nr: external_exports.string().optional().describe(
-    "Transport request. $TMP needs none. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete."
+    "Transport request. $TMP needs none. Required for a VIEW/DV create into a transportable package. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete."
   ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
@@ -100658,8 +100630,8 @@ var writeInputSchema = {
   // deliberately: schema prose is billed on every `tools/list`, while the
   // fuller guidance is billed only to a caller who gets it wrong
   // (`abapCreateViaBridge`, below) — see test/tools.test.ts's "tool surface".
-  base_table: external_exports.string().optional().describe("VIEW/DV only, and that create is refused: unreachable."),
-  view_fields: external_exports.array(external_exports.string()).optional().describe("VIEW/DV only, and that create is refused: unreachable."),
+  base_table: external_exports.string().optional().describe("VIEW/DV create only: the single base table the view projects."),
+  view_fields: external_exports.array(external_exports.string()).optional().describe("VIEW/DV create only: base-table fields to project, in order."),
   // "EXISTING" and "SUBMIT-only" are load-bearing: abapsmith checks the
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.
@@ -102224,7 +102196,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
     );
   }
   const packageName = target.packageName?.trim() || "$TMP";
-  if (type === "VIEW/DV") assertClassicViewCreateSupported(packageName);
+  if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
   const description = input.description?.trim();
   if (!description) {
     bad(
@@ -102351,7 +102323,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
         "CHECK_FAILED",
         `${bridgeClass} reported success (the transcript carries ${created.transcript.tags.join(", ")}) but a follow-up read at ${outcome.uri} (via ${outcome.via}) did not find ${target.name} \u2014 not proof the object is absent (the same gap was measured for VIEW/DV, over the same verification path). abapsmith will not report a create as successful when the follow-up read cannot find the object.` + (entryId !== void 0 ? ` This was already journalled as ${entryId}; whether undo has anything to act on is unresolved \u2014 the object may still exist.` : ""),
         { object: target.name, type, markers: created.transcript.tags.join(" ") },
-        "This is the exact failure mode VIEW/DV is refused over; if this recurs for TRAN/T, treat it as a live regression in the bridge, not a fluke."
+        "This is the exact failure mode VIEW/DV's read-back above guards against; if this recurs for TRAN/T, treat it as a live regression in the bridge, not a fluke."
       );
     }
     registration = bridgeCreateRegistration(outcome);
@@ -102510,7 +102482,7 @@ function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable. VIEW/DV create refused for every package. DEVC/K delete only if empty.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
