@@ -217,6 +217,11 @@ was last set to `0.3.0`.
 
 ### Changed
 
+- `abap_debug`'s `breakpoints` schema states the shared `condition`/`skipCount`
+  guidance once at the array level instead of once per union branch, trimming
+  the largest single property in the `tools/list` payload by about a third with
+  no validator change. The facts that left the schema now live in
+  `doc/TOOLS/debugger.md`; a test pins the property's size ceiling.
 - A failed connect is now classified instead of being labelled
   `AUTH_FAILED` unconditionally: 401/403 map to `AUTH_FAILED`, 5xx to
   `SYSTEM_UNAVAILABLE`, and anything unidentified to `ADT_ERROR` — never
@@ -332,6 +337,11 @@ was last set to `0.3.0`.
 
 ### Fixed
 
+- The generated capability table's "not readable either" line is now derived
+  registry-wide from the same predicate as `NON_READABLE_TYPES`, so it names all
+  eight non-readable types (it previously missed `VIEW/DV` and `TRAN/T`, the two a
+  caller is most likely to try to read back after a bridge create). A census
+  test pins the table to the constant so the drift cannot recur silently.
 - Correctness fixes found during a live-verification campaign against a
   real ABAP system: activation no longer silently drops an `affects`
   intent, the FPM lock path no longer treats a failed lock acquisition as

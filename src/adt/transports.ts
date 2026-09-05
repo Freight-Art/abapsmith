@@ -16,7 +16,7 @@
 import { XMLParser } from "fast-xml-parser";
 
 import type { AbapConnection } from "./connection.js";
-import { AbapError, describeUnknownError } from "./errors.js";
+import { AbapError, describeUnknownError, isAbapError } from "./errors.js";
 import {
   adtExceptionInfo,
   classifySessionFailure,
@@ -1473,6 +1473,38 @@ async function probe(
   }
 }
 
+// A status-bearing refusal means SAP answered "no" and deleted nothing; only a
+// session death or a response lost before any status was seen may have landed.
+function deleteMayHaveLanded(err: unknown): err is AbapError {
+  return (
+    isAbapError(err) &&
+    (err.code === "SESSION_DEAD" || (err.code === "TRANSPORT_ERROR" && err.details.status === undefined))
+  );
+}
+
+// Re-probes a landed-maybe DELETE and folds the outcome into the error's hint —
+// code/message untouched, same shape as discloseBridgeResidue in run.ts.
+async function discloseDeleteFailure(err: unknown, conn: AbapConnection, number: string): Promise<unknown> {
+  if (!deleteMayHaveLanded(err)) return err;
+  const after = await probe(conn, number);
+  const residueHint = after.error
+    ? "The outcome could not be verified: a post-failure check of the request also failed. " +
+      "Do not retry blindly — list or show it first."
+    : after.own
+      ? "A post-failure check found the request still present — nothing was deleted."
+      : "A post-failure check could not find the request anymore — the delete may have landed " +
+        "despite the failure. Do not retry blindly; list or show it first.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, postFailureProbe: after.error ? "failed" : after.own ? "present" : "gone" },
+    err.hint ? `${err.hint} ${residueHint}` : residueHint,
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
+  return disclosed;
+}
+
 /**
  * Delete a request, then prove it.
  *
@@ -1512,8 +1544,10 @@ export async function trDelete(
     httpStatus = resp.status;
   } catch (e) {
     // Real refusals do throw: 400 for "already released (not modifiable)" and
-    // for "cannot be deleted because it contains locked objects".
-    throw ctsError(e, "trDelete", number);
+    // for "cannot be deleted because it contains locked objects". But the DELETE
+    // may have landed anyway before the response was lost — re-probe to disclose
+    // what actually happened, same as the byte-identical-200 case below.
+    throw await discloseDeleteFailure(ctsError(e, "trDelete", number), conn, number);
   }
 
   const after = await probe(conn, number);
