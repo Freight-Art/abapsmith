@@ -1,0 +1,381 @@
+/**
+ * Tests for `src/adt/img-write.ts` — the deploy-then-execute orchestration
+ * over the probe/apply bridge (`img-write-bridge.ts`) and the
+ * customizing-request bridge (`customizing-request.ts`).
+ *
+ * Same harness shape as `test/img-tool.test.ts` (a `RecordingClient`
+ * implementing `HttpClient` directly, `bridgeHappyPath`-style routing), with
+ * one addition: every call here also goes through `ensureHelperPackage`
+ * first, so every route below also answers a GET on `$ZMCP_HELPERS`'s
+ * package URI (modelled on `test/helper-package.test.ts`'s `existingRoute` —
+ * the package already exists, so no create POST is ever needed to reach the
+ * bridge deploy).
+ *
+ * Plan validation, ABAP fragment generation and transcript parsing are
+ * already covered in `test/img-write-bridge.test.ts` and
+ * `test/customizing-request.test.ts` (not modified here) — this file only
+ * exercises what is unique to the orchestration layer: the deploy/activate/
+ * execute wiring, the $ZMCP_HELPERS package target, and each function's own
+ * bespoke activation-failure hint.
+ */
+import { describe, expect, it } from "vitest";
+import {
+  HttpClientException,
+  type HttpClient,
+  type HttpClientOptions,
+  type HttpClientResponse,
+} from "abap-adt-api/build/AdtHTTP.js";
+
+import { AbapConnection } from "../src/adt/connection.js";
+import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
+import { ConfigSchema, type Config } from "../src/config.js";
+import { SafetyGate } from "../src/safety.js";
+import { isAbapError } from "../src/adt/errors.js";
+import { HELPER_PACKAGE } from "../src/adt/helper-package.js";
+import { IMGW_BRIDGE_CLASS, type ImgApplyPlan, type ImgProbePlan } from "../src/adt/img-write-bridge.js";
+import { CUSTOMIZING_REQUEST_CLASS, type CustomizingRequestPlan } from "../src/adt/customizing-request.js";
+import { runImgProbe, runImgApply, runCreateCustomizingRequest } from "../src/adt/img-write.js";
+import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+
+// ----------------------------------------------------------------------- harness ---
+
+const cfg = (): Config =>
+  ConfigSchema.parse({
+    url: "http://sap.invalid:50000",
+    user: "TESTUSER",
+    password: "secret",
+    sid: "TST",
+    client: "001",
+    readOnly: false,
+  });
+
+const resp = (
+  status: number,
+  body = "",
+  headers: Record<string, unknown> = {},
+): HttpClientResponse => ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
+
+class RecordingClient implements HttpClient {
+  calls: HttpClientOptions[] = [];
+  constructor(private readonly respond: (o: HttpClientOptions) => HttpClientResponse) {}
+  async request(o: HttpClientOptions): Promise<HttpClientResponse> {
+    this.calls.push(o);
+    return this.respond(o);
+  }
+}
+
+const SESSION_URL = "/sap/bc/adt/compatibility/graph";
+const PKG_URI = "/sap/bc/adt/packages/%24zmcp_helpers";
+
+const LOCK_XML = (handle = "H1") =>
+  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
+  `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
+  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
+  `</DATA></asx:values></asx:abap>`;
+
+const PACKAGE_XML = (name: string): string =>
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${name}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${name}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage adtcore:name="$TMP"/>` +
+  `</pak:package>`;
+
+/** Base routes every test needs regardless of which bridge class is being deployed: login, the $ZMCP_HELPERS existence GET (already there — no create needed), and the two connect-time probes `AbapConnection.connect()` itself makes. */
+function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
+  if (o.url.includes(SESSION_URL)) {
+    return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+  }
+  if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+  if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
+  if (o.url === PKG_URI && (o.method ?? "GET").toUpperCase() === "GET") {
+    return resp(200, PACKAGE_XML(HELPER_PACKAGE), { "content-type": "application/xml" });
+  }
+  return undefined;
+}
+
+/** Full write -> activate -> classrun happy path for `className`, landing in `$ZMCP_HELPERS`. */
+function bridgeHappyPath(
+  className: string,
+  classrun: (o: HttpClientOptions) => HttpClientResponse,
+): (o: HttpClientOptions) => HttpClientResponse {
+  const classUri = `/sap/bc/adt/oo/classes/${className.toLowerCase()}`;
+  const sourceUri = `${classUri}/source/main`;
+  return (o: HttpClientOptions) => {
+    const base = baseRoute(o);
+    if (base) return base;
+    const qs = (o.qs ?? {}) as Record<string, string>;
+    const method = (o.method ?? "GET").toUpperCase();
+
+    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) return classrun(o);
+    if (o.url === classUri && method === "GET" && !qs._action) {
+      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
+      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+    }
+    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
+    if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
+    if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url === sourceUri && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+    return resp(200, "<ok/>", { "content-type": "application/xml" });
+  };
+}
+
+/** Bridge class write succeeds, but the activation POST itself reports a real compile error — same fixture shape as `test/run.test.ts`'s `runReport — activation refusal` describe block. */
+function bridgeActivationRefused(className: string): (o: HttpClientOptions) => HttpClientResponse {
+  const classUri = `/sap/bc/adt/oo/classes/${className.toLowerCase()}`;
+  const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
+<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
+  <msg objDescr="Class ${className}" type="E" line="1"
+       href="${classUri}/source/main#start=12,4" forceSupported="true">
+    <shortText><txt>Field "LV_UNDEFINED" is unknown. It is neither in one of the specified tables nor defined by a "DATA" statement.</txt></shortText>
+  </msg>
+</chkl:messages>`;
+  return (o: HttpClientOptions) => {
+    const base = baseRoute(o);
+    if (base) return base;
+    const qs = (o.qs ?? {}) as Record<string, string>;
+    const method = (o.method ?? "GET").toUpperCase();
+
+    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
+      throw new Error(`unrouted classrun call for ${className} — activation should have refused first`);
+    }
+    if (o.url === classUri && method === "GET" && !qs._action) {
+      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
+      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+    }
+    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
+    if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
+    if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url === `${classUri}/source/main` && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, ACTIVATION_ERROR, { "content-type": "application/xml" });
+    return resp(200, "<ok/>", { "content-type": "application/xml" });
+  };
+}
+
+/** A classrun POST that 500s — a scaffold-level failure below activation, with activation itself already having succeeded. */
+function bridgeClassrunBlowsUp(className: string): (o: HttpClientOptions) => HttpClientResponse {
+  return bridgeHappyPath(className, (o) => {
+    const r = resp(500, "<exc:exception/>", { "content-type": "application/xml" });
+    throw new HttpClientException("Request failed with status code 500", "500", 500, undefined, o, r);
+  });
+}
+
+async function connected(
+  route: (o: HttpClientOptions) => HttpClientResponse,
+): Promise<{ conn: AbapConnection; inner: RecordingClient }> {
+  const inner = new RecordingClient(route);
+  const conn = new AbapConnection(cfg(), { httpClient: inner, log: () => {}, breaker: new AuthCircuitBreaker() });
+  await conn.connect();
+  inner.calls.length = 0;
+  return { conn, inner };
+}
+
+const openGate = (): SafetyGate =>
+  new SafetyGate({ readOnly: false, allowPackages: ["*"], allowNamePrefixes: ["*"] });
+
+// ----------------------------------------------------------------------- plans ---
+
+const PROBE_PLAN: ImgProbePlan = {
+  table: "ZTEST_IMGW",
+  clientField: "MANDT",
+  keyFields: ["ZKEY"],
+  rows: [{ key: { ZKEY: "A" }, values: {} }],
+  language: "EN",
+};
+
+const APPLY_PLAN: ImgApplyPlan = {
+  ...PROBE_PLAN,
+  op: "upsert",
+  fields: [{ field: "ZDESC", key: false, dataType: "CHAR" }],
+  rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "Test row" } }],
+  corrNr: "A4HK900001",
+  expectedDeliveryClass: "C",
+  expectedClientDependent: true,
+  view: "ZTEST_IMGW_V",
+  masterType: "VDAT",
+};
+
+const REQUEST_PLAN: CustomizingRequestPlan = {
+  description: "Test customizing request",
+  owner: "TESTUSER",
+};
+
+// ===========================================================================
+
+describe("runImgProbe", () => {
+  const TRANSCRIPT =
+    `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+    `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+    `IMGW> FLD table=[ztest_imgw] field=[ZKEY] key=[X] type=[CHAR] len=[10] rollname=[ZKEY]\n` +
+    `IMGW> BVAL row=[0] field=[ZKEY] len=[1] value=[A]\n` +
+    `IMGW> PROBED rows=[1]\n`;
+
+  it("deploys ZCL_ZMCP_IMG_WPROBE into $ZMCP_HELPERS and returns the parsed transcript", async () => {
+    const { conn, inner } = await connected(bridgeHappyPath(IMGW_BRIDGE_CLASS.probe, () => resp(200, TRANSCRIPT)));
+
+    const result = await runImgProbe(conn, openGate(), PROBE_PLAN);
+
+    expect(result.bridgeClass).toBe(IMGW_BRIDGE_CLASS.probe);
+    expect(result.bridgeRefreshed).toBe(true);
+    expect(result.transcript.probed).toBe(true);
+    expect(result.transcript.table).toEqual({ table: "ztest_imgw", deliveryClass: "C", clientDependent: true });
+    expect(result.transcript.before).toEqual([{ row: 0, field: "ZKEY", len: 1, value: "A" }]);
+
+    const create = inner.calls.find((c) => c.url === "/sap/bc/adt/oo/classes" && (c.method ?? "GET").toUpperCase() === "POST");
+    expect(create?.body).toContain(`adtcore:name="${HELPER_PACKAGE}"`);
+  });
+
+  it("BAD_INPUT from validateProbePlan is thrown before any network call", async () => {
+    const { conn, inner } = await connected(bridgeHappyPath(IMGW_BRIDGE_CLASS.probe, () => resp(200, TRANSCRIPT)));
+
+    const badPlan: ImgProbePlan = { ...PROBE_PLAN, keyFields: [] };
+    const err = await runImgProbe(conn, openGate(), badPlan).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    expect((err as { code: string }).code).toBe("BAD_INPUT");
+    expect(inner.calls).toHaveLength(0);
+  });
+
+  it("an activation refusal surfaces as CHECK_FAILED carrying the probe's own bespoke hint, and never reaches classrun", async () => {
+    const { conn, inner } = await connected(bridgeActivationRefused(IMGW_BRIDGE_CLASS.probe));
+
+    const err = await runImgProbe(conn, openGate(), PROBE_PLAN).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    expect((err as { code: string }).code).toBe("CHECK_FAILED");
+    const hint = (err as { hint?: string }).hint ?? "";
+    expect(hint).toContain("SELECTs the target table plus DD02L/DD03L");
+    expect(hint).not.toContain("MODIFYs/DELETEs"); // not the apply bridge's hint
+    expect(inner.calls.some((c) => c.url.includes("/oo/classrun/"))).toBe(false);
+  });
+
+  it("a scaffold-level failure below activation (classrun itself 500s) surfaces as an error, not a silent empty result", async () => {
+    const { conn } = await connected(bridgeClassrunBlowsUp(IMGW_BRIDGE_CLASS.probe));
+
+    const outcome = await runImgProbe(conn, openGate(), PROBE_PLAN).then(
+      (r) => ({ ok: true as const, r }),
+      (e: unknown) => ({ ok: false as const, e }),
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(isAbapError(outcome.e) || outcome.e instanceof Error).toBe(true);
+  });
+});
+
+// ===========================================================================
+
+describe("runImgApply", () => {
+  const TRANSCRIPT =
+    `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+    `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+    `IMGW> BVAL row=[0] field=[ZDESC] len=[3] value=[Old]\n` +
+    `IMGW> TRKEY row=[0] trkorr=[A4HK900001] len=[10] value=[A4HK900001]\n` +
+    `IMGW> AVAL row=[0] field=[ZDESC] len=[8] value=[Test row]\n` +
+    `IMGW> APPLIED rows=[1]\n`;
+
+  it("deploys ZCL_ZMCP_IMG_WAPPLY into $ZMCP_HELPERS and returns the parsed transcript", async () => {
+    const { conn, inner } = await connected(bridgeHappyPath(IMGW_BRIDGE_CLASS.apply, () => resp(200, TRANSCRIPT)));
+
+    const result = await runImgApply(conn, openGate(), APPLY_PLAN);
+
+    expect(result.bridgeClass).toBe(IMGW_BRIDGE_CLASS.apply);
+    expect(result.transcript.applied).toBe(1);
+    expect(result.transcript.trkeys).toEqual([{ row: 0, trkorr: "A4HK900001", len: 10, value: "A4HK900001" }]);
+
+    const create = inner.calls.find((c) => c.url === "/sap/bc/adt/oo/classes" && (c.method ?? "GET").toUpperCase() === "POST");
+    expect(create?.body).toContain(`adtcore:name="${HELPER_PACKAGE}"`);
+  });
+
+  it("BAD_INPUT from validateApplyPlan (op missing a valid value) is thrown before any network call", async () => {
+    const { conn, inner } = await connected(bridgeHappyPath(IMGW_BRIDGE_CLASS.apply, () => resp(200, TRANSCRIPT)));
+
+    const badPlan = { ...APPLY_PLAN, op: "wipe" } as unknown as ImgApplyPlan;
+    const err = await runImgApply(conn, openGate(), badPlan).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    expect((err as { code: string }).code).toBe("BAD_INPUT");
+    expect(inner.calls).toHaveLength(0);
+  });
+
+  it("an activation refusal surfaces as CHECK_FAILED carrying the apply bridge's own bespoke hint (distinct from the probe's), and never reaches classrun", async () => {
+    const { conn, inner } = await connected(bridgeActivationRefused(IMGW_BRIDGE_CLASS.apply));
+
+    const err = await runImgApply(conn, openGate(), APPLY_PLAN).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    expect((err as { code: string }).code).toBe("CHECK_FAILED");
+    const hint = (err as { hint?: string }).hint ?? "";
+    expect(hint).toContain("MODIFYs/DELETEs the target table directly");
+    expect(hint).toContain("TR_OBJECTS_CHECK/TR_OBJECTS_INSERT");
+    expect(hint).not.toContain("SELECTs the target table plus"); // not the probe's hint
+    expect(inner.calls.some((c) => c.url.includes("/oo/classrun/"))).toBe(false);
+  });
+
+  it("a scaffold-level failure below activation (classrun itself 500s) surfaces as an error, not a silent empty result", async () => {
+    const { conn } = await connected(bridgeClassrunBlowsUp(IMGW_BRIDGE_CLASS.apply));
+
+    const outcome = await runImgApply(conn, openGate(), APPLY_PLAN).then(
+      (r) => ({ ok: true as const, r }),
+      (e: unknown) => ({ ok: false as const, e }),
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(isAbapError(outcome.e) || outcome.e instanceof Error).toBe(true);
+  });
+});
+
+// ===========================================================================
+
+describe("runCreateCustomizingRequest", () => {
+  const TRANSCRIPT = `CTSW> REQUEST len=[10] value=[A4HK900002]\nCTSW> TASK len=[10] value=[A4HK900003]\n`;
+
+  it("deploys ZCL_ZMCP_CTS_WREQ into $ZMCP_HELPERS and returns the parsed request/task numbers", async () => {
+    const { conn, inner } = await connected(bridgeHappyPath(CUSTOMIZING_REQUEST_CLASS, () => resp(200, TRANSCRIPT)));
+
+    const result = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN);
+
+    expect(result.bridgeClass).toBe(CUSTOMIZING_REQUEST_CLASS);
+    expect(result.transcript.request).toBe("A4HK900002");
+    expect(result.transcript.task).toBe("A4HK900003");
+
+    const create = inner.calls.find((c) => c.url === "/sap/bc/adt/oo/classes" && (c.method ?? "GET").toUpperCase() === "POST");
+    expect(create?.body).toContain(`adtcore:name="${HELPER_PACKAGE}"`);
+  });
+
+  it("BAD_INPUT from validateCustomizingRequestPlan (empty description) is thrown before any network call", async () => {
+    const { conn, inner } = await connected(bridgeHappyPath(CUSTOMIZING_REQUEST_CLASS, () => resp(200, TRANSCRIPT)));
+
+    const err = await runCreateCustomizingRequest(conn, openGate(), { description: "  " }).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    expect((err as { code: string }).code).toBe("BAD_INPUT");
+    expect(inner.calls).toHaveLength(0);
+  });
+
+  it("an activation refusal surfaces as CHECK_FAILED carrying the request bridge's own bespoke hint (distinct from probe/apply), and never reaches classrun", async () => {
+    const { conn, inner } = await connected(bridgeActivationRefused(CUSTOMIZING_REQUEST_CLASS));
+
+    const err = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    expect((err as { code: string }).code).toBe("CHECK_FAILED");
+    const hint = (err as { hint?: string }).hint ?? "";
+    expect(hint).toContain("TR_INSERT_REQUEST_WITH_TASKS");
+    expect(hint).not.toContain("SELECTs the target table plus");
+    expect(hint).not.toContain("MODIFYs/DELETEs the target table directly");
+    expect(inner.calls.some((c) => c.url.includes("/oo/classrun/"))).toBe(false);
+  });
+
+  it("a scaffold-level failure below activation (classrun itself 500s) surfaces as an error, not a silent empty result", async () => {
+    const { conn } = await connected(bridgeClassrunBlowsUp(CUSTOMIZING_REQUEST_CLASS));
+
+    const outcome = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN).then(
+      (r) => ({ ok: true as const, r }),
+      (e: unknown) => ({ ok: false as const, e }),
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(isAbapError(outcome.e) || outcome.e instanceof Error).toBe(true);
+  });
+});
