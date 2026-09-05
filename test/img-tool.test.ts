@@ -302,13 +302,48 @@ describe("abap_img — mode: show", () => {
     expect(text).toContain("activity: SIMG_ACT");
     expect(text).toContain("title: Configure Foo");
     expect(text).toContain("path: Enterprise Structure > Configure Foo");
-    expect(tableHeader(text, "TABLES")).toEqual(["object", "table", "client_dependent", "via"]);
+    expect(tableHeader(text, "TABLES")).toEqual(["object", "table", "client_dependent", "delivery_class", "via"]);
     expect(text).toContain("--- DOCUMENTATION ---");
     expect(text).toContain("SIMG_ACT: D/SIMG_ACT_DOC");
     expect(tableHeader(text, "MAINTENANCE OBJECTS")).toEqual(["kind", "name", "title"]);
     expect(text).toContain("V_T001");
     // exactly one table -> nextHint resolves it by name rather than a placeholder
     expect(text).toContain('abap_data_preview {"table":"T001"}');
+  });
+
+  it("shows the real delivery class and client dependence read from DD02L, not a blank", async () => {
+    const TRANSCRIPT =
+      `${IMG_LINE_PREFIX}ACT activity=[SIMG_ACT] objects=[1] nodes=[0] title=[Configure Foo]\n` +
+      `${IMG_LINE_PREFIX}OBJ activity=[SIMG_ACT] kind=[table] objtype=[] name=[T001] title=[]\n` +
+      `${IMG_LINE_PREFIX}TAB object=[T001] table=[T001] clidep=[X] delclass=[C] via=[OBJSL] title=[]\n`;
+    const { conn } = await connected(imgRoute("show", TRANSCRIPT));
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img", { mode: "show", activity: "SIMG_ACT" });
+    const text = okText(result);
+
+    const tablesRow = text
+      .slice(text.indexOf("--- TABLES ---"))
+      .split("\n")
+      .find((l) => l.includes("T001"));
+    expect(tablesRow).toBeDefined();
+    expect(tablesRow).toMatch(/T001\s+X\s+C/);
+  });
+
+  it("an activity behind several objects prints the ambiguity sentence naming them, instead of a placeholder hint", async () => {
+    const TRANSCRIPT =
+      `${IMG_LINE_PREFIX}ACT activity=[SIMG_ACT] objects=[2] nodes=[0] title=[Configure Foo]\n` +
+      `${IMG_LINE_PREFIX}OBJ activity=[SIMG_ACT] kind=[view] objtype=[] name=[V_T001] title=[]\n` +
+      `${IMG_LINE_PREFIX}OBJ activity=[SIMG_ACT] kind=[table] objtype=[] name=[T001] title=[]\n`;
+    const { conn } = await connected(imgRoute("show", TRANSCRIPT));
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img", { mode: "show", activity: "SIMG_ACT" });
+    const text = okText(result);
+
+    expect(text).toContain("V_T001");
+    expect(text).toContain("2 distinct objects");
+    expect(text).not.toContain('abap_data_preview {"table":"<table>"}');
   });
 
   it("an unknown activity renders empty (no rows) rather than crashing or claiming the activity does not exist", async () => {
@@ -394,7 +429,7 @@ describe("abap_img — mode: objects", () => {
   it("renders the object header, TABLES body, and a client-dependent FIELDS section", async () => {
     const TRANSCRIPT =
       `${IMG_LINE_PREFIX}OBJ activity=[] kind=[table] name=[T001] title=[Company Codes]\n` +
-      `${IMG_LINE_PREFIX}TAB object=[T001] table=[T001] clidep=[X] via=[DD02L] title=[Company Codes]\n` +
+      `${IMG_LINE_PREFIX}TAB object=[T001] table=[T001] clidep=[X] delclass=[A] via=[DD02L] title=[Company Codes]\n` +
       `${IMG_LINE_PREFIX}FLD table=[T001] field=[BUKRS] key=[X] pos=[1] type=[CHAR] len=[4] rollname=[BUKRS]\n` +
       `${IMG_LINE_PREFIX}FLD table=[T001] field=[BUTXT] key=[] pos=[2] type=[CHAR] len=[25] rollname=[BUTXT]\n`;
     const { conn } = await connected(imgRoute("objects", TRANSCRIPT));
@@ -406,7 +441,13 @@ describe("abap_img — mode: objects", () => {
     expect(text).toContain("mode: objects");
     expect(text).toContain("object: T001");
     expect(text).toContain("kind: table");
-    expect(tableHeader(text, "TABLES")).toEqual(["table", "client_dependent"]);
+    expect(tableHeader(text, "TABLES")).toEqual(["table", "client_dependent", "delivery_class"]);
+    const tablesRow = text
+      .slice(text.indexOf("--- TABLES ---"))
+      .split("\n")
+      .find((l) => l.includes("T001"));
+    expect(tablesRow).toBeDefined();
+    expect(tablesRow).toMatch(/T001\s+X\s+A/);
     expect(text).toContain("--- FIELDS T001 (client-dependent) ---");
     expect(tableHeader(text, "FIELDS T001 (client-dependent)")).toEqual(["field", "key", "type", "length", "data_element"]);
     expect(text).toContain("BUKRS");

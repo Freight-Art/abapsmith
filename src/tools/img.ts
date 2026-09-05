@@ -33,6 +33,7 @@ import {
   type ImgPageState,
 } from "../adt/img-bridge.js";
 import { IMG_CATALOG, IMG_CATALOG_VERIFIED, lowConfidenceTables } from "../adt/img-catalog.js";
+import { resolveActivity, resolveObject } from "../adt/img-resolve.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, textTable } from "../compact.js";
@@ -291,17 +292,22 @@ function renderShow(query: ImgShowQuery, result: ImgReadResult, maxChars: number
   const t = result.transcript;
   const notes = standingNotes();
 
-  const pathSorted = t.path.slice().sort((a, b) => a.position - b.position);
-  const title = t.activities[0]?.title || pathSorted[pathSorted.length - 1]?.title || undefined;
-  const pathLine = pathSorted.length ? pathSorted.map((p) => p.title || p.node).join(" > ") : undefined;
+  const r = resolveActivity(t);
+  // Display-level fallback only (not part of ResolvedActivity itself): an activity whose
+  // CUS_IMGACT text row is missing still has a title if its own reference-IMG node has one.
+  const title = r.title || r.path[r.path.length - 1]?.title || undefined;
+  const pathLine = r.path.length ? r.path.map((p) => p.title || p.node).join(" > ") : undefined;
 
-  const objRows = t.objects.map((o) => ({ kind: o.kind, name: o.name, title: o.title }));
-  const tableRows = t.tables.map((r) => ({
-    object: r.object,
-    table: r.table,
-    client_dependent: r.clientDependent ? "X" : "",
-    via: r.via,
-  }));
+  const objRows = r.objects.map((o) => ({ kind: o.kind, name: o.name, title: o.title }));
+  const tableRows = r.objects.flatMap((o) =>
+    o.tables.map((rt) => ({
+      object: o.name,
+      table: rt.table,
+      client_dependent: rt.clientDependent ? "X" : "",
+      delivery_class: rt.deliveryClass,
+      via: rt.via,
+    })),
+  );
   const docSection = t.docs.length
     ? { title: "DOCUMENTATION", content: t.docs.map((d) => `${d.activity}: ${d.docClass}/${d.docName}`).join("\n") }
     : undefined;
@@ -311,10 +317,11 @@ function renderShow(query: ImgShowQuery, result: ImgReadResult, maxChars: number
     notes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
   }
 
-  const resolvedTable = t.tables.length === 1 ? t.tables[0]!.table : undefined;
-  notes.push(nextHint(resolvedTable));
+  // An ambiguous activity (several objects, or one object spanning several tables) states why
+  // instead of pointing abap_data_preview at a guessed or placeholder table name.
+  notes.push(r.ambiguity ?? nextHint(r.primaryTable?.table));
 
-  const empty = t.objects.length === 0 && t.tables.length === 0 && pathSorted.length === 0;
+  const empty = t.objects.length === 0 && t.tables.length === 0 && t.path.length === 0;
   if (empty) notes.unshift(emptyNote("show", "activity"));
 
   return buildResponse({
@@ -329,7 +336,12 @@ function renderShow(query: ImgShowQuery, result: ImgReadResult, maxChars: number
     },
     sections: [
       ...(tableRows.length
-        ? [{ title: "TABLES", content: textTable(tableRows, ["object", "table", "client_dependent", "via"]) }]
+        ? [
+            {
+              title: "TABLES",
+              content: textTable(tableRows, ["object", "table", "client_dependent", "delivery_class", "via"]),
+            },
+          ]
         : []),
       ...(docSection ? [docSection] : []),
     ],
@@ -380,29 +392,25 @@ function renderObjects(query: ImgObjectsQuery, result: ImgReadResult, maxChars: 
   const t = result.transcript;
   const notes = standingNotes();
 
-  const obj = t.objects[0];
-  const tableRows = t.tables.map((r) => ({ table: r.table, client_dependent: r.clientDependent ? "X" : "" }));
+  const o = resolveObject(t);
+  const tables = o?.tables ?? [];
+  const tableRows = tables.map((rt) => ({
+    table: rt.table,
+    client_dependent: rt.clientDependent ? "X" : "",
+    delivery_class: rt.deliveryClass,
+  }));
 
-  const fieldsByTable = new Map<string, ImgFieldRow[]>();
-  for (const f of t.fields) {
-    const list = fieldsByTable.get(f.table) ?? [];
-    list.push(f);
-    fieldsByTable.set(f.table, list);
-  }
-  const fieldSections = t.tables.map((r) => {
-    const rows = fieldRows(fieldsByTable.get(r.table) ?? []);
-    return {
-      title: `FIELDS ${r.table}${r.clientDependent ? " (client-dependent)" : ""}`,
-      content: rows.length ? textTable(rows, ["field", "key", "type", "length", "data_element"]) : "(no fields)",
-    };
-  });
+  const fieldSections = tables.map((rt) => ({
+    title: `FIELDS ${rt.table}${rt.clientDependent ? " (client-dependent)" : ""}`,
+    content: rt.fields.length ? textTable(fieldRows(rt.fields), ["field", "key", "type", "length", "data_element"]) : "(no fields)",
+  }));
 
   if (t.errors.length) notes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) {
     notes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
   }
 
-  const resolvedTable = t.tables.length === 1 ? t.tables[0]!.table : undefined;
+  const resolvedTable = tables.length === 1 ? tables[0]!.table : undefined;
   notes.push(nextHint(resolvedTable));
 
   const empty = t.objects.length === 0 && t.tables.length === 0;
@@ -412,13 +420,13 @@ function renderObjects(query: ImgObjectsQuery, result: ImgReadResult, maxChars: 
     header: {
       mode: "objects",
       object: query.object,
-      kind: obj?.kind ?? query.kind,
+      kind: o?.kind ?? query.kind,
       language: query.language,
       bridgeClass: result.bridgeClass,
       bridgeRefreshed: result.bridgeRefreshed,
     },
     sections: fieldSections,
-    body: tableRows.length ? textTable(tableRows, ["table", "client_dependent"]) : "(no tables found)",
+    body: tableRows.length ? textTable(tableRows, ["table", "client_dependent", "delivery_class"]) : "(no tables found)",
     bodyLabel: "TABLES",
     notes,
     maxChars,
