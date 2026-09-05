@@ -1001,8 +1001,15 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character " +
         "DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` " +
         "devclass, and the created view was then removed cleanly by the delete bridge (see " +
-        "bridgeDelete below). A TRANSPORTABLE package requires corr_nr; a LOCAL package refuses " +
-        "one (BAD_INPUT). Registering the view in TADIR either way — with the caller's corr_nr " +
+        "bridgeDelete below). A TRANSPORTABLE package resolves a transport request the same way " +
+        "a DEVC/K create does: preflightPackageCorr (src/adt/write.ts) hands off to " +
+        "SessionTransport.resolveForNewTransportable, honouring the caller's corr_nr when given " +
+        "or else picking or creating one under the ABAP_ALLOW_TRANSPORTS policy (a pinned TRKORR " +
+        "from the list, or a fresh request when the policy is `*`/AUTO), gate-judged before the " +
+        "bridge runs. The resolver's own refusals surface as TRANSPORT_ERROR (policy disabled, " +
+        "or no usable request), TRANSPORT_LOCKED (a request pinned elsewhere), or BAD_INPUT (a " +
+        "malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the " +
+        "view in TADIR either way — with the caller's corr_nr " +
         "or with korrnum = space — is what makes the created view deletable afterwards. See " +
         "src/adt/view-create.ts. The create is otherwise irreversible in the sense that " +
         "abapsmith cannot read the view back to verify it: success is proven by the transcript " +

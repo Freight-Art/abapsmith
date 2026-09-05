@@ -150,10 +150,14 @@ The `Object` column values are the registry `label` fields, unreworded.
   creating one you cannot ask abapsmith what it looks like. There is no
   source write either, so an existing one cannot be changed — only deleted
   and recreated. Their `bridgeCreate.limits` text states this, and a test
-  requires it to. `VIEW/DV` and `TRAN/T` share the same package rule: a
-  transportable package requires `corr_nr` for the create, and a `$` package
-  (`$TMP` included) refuses one and registers with `korrnum = space` instead.
-  For `VIEW/DV`, the created view lands in TADIR either way, so the delete
+  requires it to. For `TRAN/T`, a transportable package requires `corr_nr`
+  for the create, and a `$` package (`$TMP` included) refuses one and
+  registers with `korrnum = space` instead. For `VIEW/DV`, a transportable
+  package resolves a transport request the same way a `DEVC/K` create
+  does — the caller's `corr_nr` if given, or else one picked or created
+  under `ABAP_ALLOW_TRANSPORTS`; a `$` package (`$TMP` included) still
+  refuses a `corr_nr` and registers with `korrnum = space` instead.
+  The created view lands in TADIR either way, so the delete
   bridge can remove it afterwards — proven live on A4H, 2026-09-04
   (transportable package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a
   `$`-prefixed package: view registered with `korrnum = space`, then deleted,
