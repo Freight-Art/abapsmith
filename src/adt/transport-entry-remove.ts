@@ -7,10 +7,11 @@
  * reaches CTS's own backend the way `./tran-delete.ts` / `./view-delete.ts`
  * reach theirs: a generated `IF_OO_ADT_CLASSRUN` class deployed to `$TMP`,
  * calling `TRINT_READ_REQUEST` to find the row and `TR_DELETE_COMM_OBJECT_KEYS`
- * to remove it. This route clears a `R3TR CLAS` deletion entry. A live run on
- * a live A4H appliance on 2026-09-05 found that for a `R3TR TABL` deletion
- * entry, `TR_DELETE_COMM_OBJECT_KEYS` returns a non-zero `sy-subrc`, leaving
- * the entry and its lock in place.
+ * to remove it. This route clears an entry whose request holds exactly one
+ * E071 row for it. A live run on 2026-09-05 found that CTS refuses the
+ * removal when the request's object list holds two or more E071 rows for the
+ * same PGMID+OBJECT+OBJ_NAME (E071's key is TRKORR+AS4POS, not object
+ * identity, so duplicates are legal); the bridge now detects that up front.
  */
 
 import type { AbapConnection } from "./connection.js";
@@ -44,16 +45,20 @@ export const TRANSPORT_ENTRY_REMOVE_DATA_LINES: readonly string[] = [
   "ls_msg TYPE symsg.",
   "lv_msgtext TYPE string.",
   "lv_readerr TYPE string.",
+  "ls_other TYPE e071.",
+  "lv_n TYPE i.",
+  "lv_positions TYPE string.",
 ];
 
 /**
  * The closed ABAP fragment. Exported for the generator/parser drift test —
  * re-validates both params since it is callable standalone.
  *
- * Seven steps: resolve the holder (trying the passed trkorr, then its
+ * Eight steps: resolve the holder (trying the passed trkorr, then its
  * tasks), refuse honestly if none carries the entry, name the resolved
- * holder, remove every matching row, tag success once for the whole batch,
- * commit, then prove E071 absence.
+ * holder, refuse if the holder has 2+ E071 rows for the object, remove
+ * every matching row, tag success once for the whole batch, commit, then
+ * prove E071 absence.
  */
 export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): string[] {
   const trkorr = assertTrkorr(p.trkorr, "transportEntryRemove");
@@ -85,7 +90,7 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
     "  lv_subrc = sy-subrc.",
     "  MOVE-CORRESPONDING sy TO ls_msg.",
     "  IF lv_subrc <> 0.",
-    "    lv_readerr = |{ lv_trkorr } sy-subrc={ lv_subrc } msg={ ls_msg-msgty }{ ls_msg-msgid }{ ls_msg-msgno } " +
+    "    lv_readerr = |{ lv_trkorr } sy-subrc={ lv_subrc } msg={ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } " +
       "v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
     "    CONTINUE.",
     "  ENDIF.",
@@ -117,11 +122,36 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
   // Step 3: the resolved holder may be a task of the number the caller passed.
   const step3 = ['" Step 3: name the resolved holder.', "out->write( |ZMCP-TREN-HOLDER { lv_holder }| )."];
 
-  // Step 4: is_e071_delete and cs_request are both mandatory — passing is_e071_delete alone
+  // Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name — checked
+  // before any FM call, so a duplicate can't leave one row removed and the next refused.
+  // The nested LOOP AT lt_rows uses its own work area (ls_other); each loop keeps its own cursor.
+  const step4 = [
+    '" Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name.',
+    "LOOP AT lt_rows INTO ls_e071.",
+    "  lv_n = 0.",
+    "  CLEAR lv_positions.",
+    "  LOOP AT lt_rows INTO ls_other WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object",
+    "                                  AND obj_name = ls_e071-obj_name.",
+    "    lv_n = lv_n + 1.",
+    "    IF lv_positions IS INITIAL.",
+    "      lv_positions = |{ ls_other-as4pos }|.",
+    "    ELSE.",
+    "      lv_positions = |{ lv_positions },{ ls_other-as4pos }|.",
+    "    ENDIF.",
+    "  ENDLOOP.",
+    "  IF lv_n >= 2.",
+    "    out->write( |ZMCP-DDIC-ERR> duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } " +
+      "{ ls_e071-obj_name } on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }| ).",
+    "    RETURN.",
+    "  ENDIF.",
+    "ENDLOOP.",
+  ];
+
+  // Step 5: is_e071_delete and cs_request are both mandatory — passing is_e071_delete alone
   // short-dumps on the missing CS_REQUEST. Tag is emitted once after the loop, not per row,
   // so subrcCheckFragment isn't used here.
-  const step4 = [
-    '" Step 4: remove every collected row.',
+  const step5 = [
+    '" Step 5: remove every collected row.',
     "LOOP AT lt_rows INTO ls_e071.",
     "  CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'",
     "    EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071",
@@ -130,10 +160,11 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
     "  lv_subrc = sy-subrc.",
     "  MOVE-CORRESPONDING sy TO ls_msg.",
     "  IF lv_subrc <> 0.",
-    // Classic EXCEPTIONS, not cx_root: OTHERS is used because the real signature can't be
-    // verified offline. sy-msg* is best-effort — a bare RAISE leaves it blank, so a blank
-    // msg= here proves nothing either way.
-    "    lv_msgtext = |{ ls_msg-msgty }{ ls_msg-msgid }{ ls_msg-msgno } v1={ ls_msg-msgv1 } " +
+    // OTHERS = 1, not a named exception: which exceptions exist is a property of the installed
+    // release; naming one absent here is a syntax error at class activation, not runtime —
+    // so sy-subrc/sy-msg* are read instead. sy-msg* is best-effort (bare RAISE leaves it blank);
+    // the duplicate case's E TR 292, blank v1-v4, is expected: MESSAGE e292(tr) takes no WITH operands.
+    "    lv_msgtext = |{ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } " +
       "v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
     "    out->write( |ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } " +
       "{ ls_e071-object } { ls_e071-obj_name }, sy-subrc={ lv_subrc }, msg={ lv_msgtext }| ).",
@@ -143,14 +174,14 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
     "ENDLOOP.",
   ];
 
-  const step5 = ['" Step 5: one success tag for the whole batch.', "out->write( 'TREN-REMOVED' )."];
+  const step6 = ['" Step 6: one success tag for the whole batch.', "out->write( 'TREN-REMOVED' )."];
 
-  // Step 6: a classrun return does not commit, and step 7 must read committed state.
-  const step6 = ['" Step 6: commit.', "COMMIT WORK AND WAIT."];
+  // Step 7: a classrun return does not commit, and step 8 must read committed state.
+  const step7 = ['" Step 7: commit.', "COMMIT WORK AND WAIT."];
 
-  // Step 7: proves only that the E071 row is gone.
-  const step7 = [
-    '" Step 7: prove absence.',
+  // Step 8: proves only that the E071 row is gone.
+  const step8 = [
+    '" Step 8: prove absence.',
     `SELECT SINGLE trkorr FROM e071 INTO @lv_check WHERE trkorr = @lv_holder AND obj_name = ${nameLit}.`,
     "IF sy-subrc = 0.",
     `  out->write( |ZMCP-DDIC-ERR> removal of ${objectName} reported no error but a row is still there| ).`,
@@ -159,7 +190,23 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
     "out->write( 'TREN-GONE' ).",
   ];
 
-  return [...step1, "", ...step2, "", ...step3, "", ...step4, "", ...step5, "", ...step6, "", ...step7];
+  return [
+    ...step1,
+    "",
+    ...step2,
+    "",
+    ...step3,
+    "",
+    ...step4,
+    "",
+    ...step5,
+    "",
+    ...step6,
+    "",
+    ...step7,
+    "",
+    ...step8,
+  ];
 }
 
 export interface TransportEntryRemoveResult {
@@ -203,6 +250,41 @@ export async function removeTransportEntryViaBridge(
   // Mirrors tran-delete.ts's beforeAssert: turn the known "no entry for" line into a
   // named refusal rather than the generic missing-tag CHECK_FAILED.
   const beforeAssert = (transcript: DdicTranscript): void => {
+    if (transcript.errorLine?.startsWith("duplicate E071 entries for")) {
+      const m =
+        /^duplicate E071 entries for (\S+) (\S+) (\S+) on (\S+): (\d+) rows at AS4POS (\S+)$/.exec(
+          transcript.errorLine,
+        );
+      if (!m) {
+        throw new AbapError(
+          "CTS_DUPLICATE_ENTRY",
+          `CTS refused to remove ${objectName} from ${trkorr}: duplicate E071 entries — nothing was removed. ` +
+            `Raw ABAP-side detail: ${transcript.errorLine}`,
+          { trkorr, objectName, raw: transcript.raw },
+        );
+      }
+      const pgmid = m[1]!;
+      const object = m[2]!;
+      const objName = m[3]!;
+      const holder = m[4]!;
+      const count = Number(m[5]);
+      const positions = m[6]!.split(",");
+      throw new AbapError(
+        "CTS_DUPLICATE_ENTRY",
+        `CTS refused to remove ${objName} from ${holder}: ${count} E071 rows share ` +
+          `${pgmid} ${object} ${objName} (AS4POS ${positions.join(", ")}) — nothing was removed. ` +
+          `Raw ABAP-side detail: ${transcript.errorLine}`,
+        { trkorr, objectName, holder, pgmid, object, count, positions, raw: transcript.raw },
+        "TRINT_DELETE_COMM_OBJECT_KEYS counts the request's E071 rows matching PGMID+OBJECT+OBJ_NAME " +
+          "and raises w_duplicate_entry (message TR 292) at two or more; TR_DELETE_COMM_OBJECT_KEYS has " +
+          "no parameter naming which AS4POS to drop, and the guard has no bypass. E071's key is " +
+          "TRKORR+AS4POS, so the duplicate rows are legal and usually come from creating and then " +
+          "deleting the same object under one request. SE03's \"Unlock Objects (Expert Tool)\" does " +
+          "NOT fix this on its own — the refusal counts E071 rows, not locks. The remedy is outside " +
+          "abapsmith: edit the request's object list in SE09/SE10 so at most one row remains for the " +
+          "object, then retry removeObject; or release the request, which is irreversible.",
+      );
+    }
     if (transcript.errorLine?.startsWith("no entry for")) {
       throw new AbapError(
         "NOT_FOUND",

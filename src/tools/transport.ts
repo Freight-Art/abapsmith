@@ -84,10 +84,10 @@ export const transportInputSchema = {
         "admin-only transport-delete ceiling (ABAP_MODE=admin — no legacy flag grants it) and " +
         "confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object " +
         "already deleted from the system, so its request can then be deleted — if the object " +
-        "still exists, its lock goes too; CTS has refused this for some entries, e.g. a " +
-        "deletion entry for an already-deleted DDIC object on a live A4H appliance, leaving " +
-        "the request undeletable through abapsmith) needs that same admin-only " +
-        "transport-delete ceiling and confirm." +
+        "still exists, its lock goes too; CTS refuses this when the request holds 2 or more " +
+        "E071 rows for that object (same PGMID+OBJECT+OBJ_NAME, e.g. a create and a delete " +
+        "both recorded under one request), leaving the request undeletable through abapsmith) " +
+        "needs that same admin-only transport-delete ceiling and confirm." +
         " Required args: list/users none; show transport; check object; create " +
         "package+description; addUser/setOwner transport+user; delete transport+confirm; " +
         "removeObject transport+object+confirm.",
@@ -1407,7 +1407,7 @@ async function opRemoveObject(
       },
       { kind: "unproven", reason: (e as Error).message },
     );
-    throw enrichCommObjectKeysRefusal(e, objectOnSystem);
+    throw enrichRemovalRefusal(e, objectOnSystem);
   }
   await recordMutation(
     journal,
@@ -1498,27 +1498,77 @@ async function probeObjectOnSystem(
 
 const COMM_OBJECT_KEYS_HINT =
   "The entry and its CTS lock are still on the request — it cannot be deleted while they are. " +
-  'Every remaining route is outside abapsmith: in SE03 run "Unlock Objects (Expert Tool)" for ' +
-  "this request, then delete the entry in SE09/SE10; or release the request (irreversible). " +
+  'If the refusal names a lock or an owner, SE03\'s "Unlock Objects (Expert Tool)" is the tool ' +
+  "for that — it does nothing for the duplicate-row guard (TR 292), which counts E071 rows, " +
+  "not locks. Every remaining route is outside abapsmith and not guaranteed to succeed: edit " +
+  "the request's object list in SE09/SE10; or release the request (irreversible). " +
   "The msg= fragment in the message above is the T100 message CTS itself raised — it may be " +
   "blank (a function module that raises with a bare RAISE sets no message) — but quote it " +
   "when reporting this failure.";
 
 /**
- * CTS's TR_DELETE_COMM_OBJECT_KEYS refusal (observed live for a TABL deletion entry — see
- * src/adt/transport-entry-remove.ts's header comment) leaves the entry and its lock in place,
- * so the caller needs to know what remains possible, not just that this call failed. Appends
- * to, never discards, any hint the original error already carried. Any other error is
- * returned unchanged.
+ * A late TR_DELETE_COMM_OBJECT_KEYS failure has no AS4POS values to report — unlike the
+ * bridge's own pre-check, which counted the rows before calling the FM.
  */
-function enrichCommObjectKeysRefusal(e: unknown, objectOnSystem: "present" | "absent" | "unknown"): unknown {
-  if (!(e instanceof AbapError) || e.code !== "CHECK_FAILED") return e;
-  if (!e.message.includes("TR_DELETE_COMM_OBJECT_KEYS")) return e;
-  return new AbapError(
-    e.code,
-    e.message,
-    { ...e.details, objectOnSystem },
-    [e.hint, COMM_OBJECT_KEYS_HINT].filter((h): h is string => h !== undefined).join(" "),
+const LATE_DUPLICATE_ENTRY_HINT =
+  "The request holds two or more E071 rows for this object (same PGMID+OBJECT+OBJ_NAME) — " +
+  "E071's key is TRKORR+AS4POS, not object identity, so a create and a delete of the same " +
+  "object under one request both get recorded, and TR_DELETE_COMM_OBJECT_KEYS refuses to pick " +
+  "one to drop. The entry and its lock are still on the request. Every remaining route is " +
+  "outside abapsmith and not guaranteed to succeed: edit the request's object list in " +
+  "SE09/SE10; or release the request (irreversible).";
+
+/**
+ * `new AbapError(...)` can't accept a prior stack/cause, so a reconstruction loses both unless
+ * they are copied over. `retryable` needs no such care here: it is
+ * `options?.retryable ?? defaultRetryable(code)`, and nothing that throws on these two paths
+ * passes `options`, so re-deriving it from the code gives the same answer the original had —
+ * and where the code deliberately changes (the TR 292 reclassification below), re-deriving is
+ * the point, since the new code's own default must win.
+ */
+function carryOrigin(fresh: AbapError, origin: AbapError): AbapError {
+  fresh.stack = origin.stack;
+  fresh.cause = origin.cause;
+  return fresh;
+}
+
+/**
+ * Both shapes of CTS's comm-object-keys refusal: the bridge's own pre-check throwing
+ * `CTS_DUPLICATE_ENTRY` (its message and hint already name the duplicate rows — this only
+ * attaches `objectOnSystem`), and a `CHECK_FAILED` that reached `TR_DELETE_COMM_OBJECT_KEYS`
+ * itself, which raises the same guard (`MESSAGE e292(tr)`, rendered `msg=E TR 292`) at 2+ E071
+ * rows for one PGMID+OBJECT+OBJ_NAME — E071's key is TRKORR+AS4POS, not object identity, so a
+ * create and a delete of the same object under one request both get recorded. That late case is
+ * reclassified as `CTS_DUPLICATE_ENTRY`; any other CHECK_FAILED naming the FM keeps its code and
+ * gets the generic hint appended. Any other error is returned unchanged.
+ */
+function enrichRemovalRefusal(e: unknown, objectOnSystem: "present" | "absent" | "unknown"): unknown {
+  if (!(e instanceof AbapError)) return e;
+  if (e.code === "CTS_DUPLICATE_ENTRY") {
+    return carryOrigin(new AbapError(e.code, e.message, { ...e.details, objectOnSystem }, e.hint), e);
+  }
+  if (e.code !== "CHECK_FAILED" || !e.message.includes("TR_DELETE_COMM_OBJECT_KEYS")) return e;
+  if (e.message.includes("msg=E TR 292")) {
+    // Reclassified to a different code, so CTS_DUPLICATE_ENTRY's own "terminal" default applies
+    // rather than CHECK_FAILED's "conditional" one — the refusal really is terminal.
+    return carryOrigin(
+      new AbapError(
+        "CTS_DUPLICATE_ENTRY",
+        e.message,
+        { ...e.details, objectOnSystem },
+        [e.hint, LATE_DUPLICATE_ENTRY_HINT].filter((h): h is string => h !== undefined).join(" "),
+      ),
+      e,
+    );
+  }
+  return carryOrigin(
+    new AbapError(
+      e.code,
+      e.message,
+      { ...e.details, objectOnSystem },
+      [e.hint, COMM_OBJECT_KEYS_HINT].filter((h): h is string => h !== undefined).join(" "),
+    ),
+    e,
   );
 }
 
