@@ -105919,6 +105919,9 @@ var ok10 = (text3, journalEntryId) => ({
   content: [{ type: "text", text: text3 }],
   ...journalEntryId ? { journalEntryId } : {}
 });
+var SHOW_NOTES = [
+  "This digest covers the business object's structural definition only (nodes, associations, actions, determinations, validations, queries, alternative keys). It does not include BOPF configuration/customizing \u2014 abapsmith has no read surface and no write surface of any kind for it."
+];
 function buildShowResponse(model, maxChars) {
   const header = {
     bo: model.name,
@@ -105945,7 +105948,7 @@ function buildShowResponse(model, maxChars) {
     ].filter((l) => l !== void 0);
     return { title: `NODE ${n.name}${n.rootNode ? " (root)" : ""}`, content: lines.join("\n") };
   });
-  return buildResponse({ header, sections, maxChars }).text;
+  return buildResponse({ header, sections, notes: SHOW_NOTES, maxChars }).text;
 }
 function buildRawResponse(bo, xml3, maxChars) {
   return buildResponse({
