@@ -399,6 +399,16 @@ was last set to `0.3.0`.
   answered 200 with the association silently discarded — so the removal
   is a settled negative for this endpoint on this release, not a gap
   waiting on evidence. See `doc/CAPABILITIES/bopf.md`.
+- `abap_bopf_edit operation:"create_bo"` now refuses with a new terminal
+  error code, `BOPF_CREATE_UNUSABLE`, when the landed root node is unnamed
+  (`bo:name=""`) or missing outright, instead of reporting success over an
+  object that can never be activated — BOPF generates the `Z*_C` constants
+  interface from the root node name at create time and never regenerates it,
+  so renaming the root afterward doesn't help. The object still exists
+  server-side (the journal still records `succeeded`, naming that entry's id;
+  remedy: `abap_bopf_delete` then recreate), and no activation request is
+  sent even with `activate: true`. A differently-named, non-empty root is
+  still only a discrepancy note. See `test/bopf-create-recovery.test.ts`.
 
 ### Fixed
 
