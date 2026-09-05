@@ -12982,7 +12982,7 @@ var require_AdtException = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isErrorMessageType = exports2.validateParseResult = exports2.fromError = exports2.fromResponse = exports2.isLoginError = exports2.AdtErrorException = exports2.SAPRC = void 0;
     exports2.isAdtError = isAdtError;
-    exports2.isCsrfError = isCsrfError3;
+    exports2.isCsrfError = isCsrfError4;
     exports2.isHttpError = isHttpError;
     exports2.isAdtException = isAdtException;
     exports2.fromException = fromException;
@@ -13072,16 +13072,16 @@ var require_AdtException = __commonJS({
     function isAdtError(e) {
       return (e === null || e === void 0 ? void 0 : e.typeID) === ADTEXTYPEID;
     }
-    function isCsrfError3(e) {
+    function isCsrfError4(e) {
       return (e === null || e === void 0 ? void 0 : e.typeID) === CSRFEXTYPEID;
     }
     function isHttpError(e) {
       return (e === null || e === void 0 ? void 0 : e.typeID) === HTTPEXTYPEID;
     }
     function isAdtException(e) {
-      return isAdtError(e) || isCsrfError3(e) || isHttpError(e);
+      return isAdtError(e) || isCsrfError4(e) || isHttpError(e);
     }
-    var isLoginError = (adtErr) => isHttpError(adtErr) && adtErr.status === 401 || isCsrfError3(adtErr);
+    var isLoginError = (adtErr) => isHttpError(adtErr) && adtErr.status === 401 || isCsrfError4(adtErr);
     exports2.isLoginError = isLoginError;
     var simpleError = (response) => adtException(`Error ${response.status}:${response.statusText}`, response.status);
     var fromResponse = (data, response) => {
@@ -65180,6 +65180,23 @@ async function probe(conn, trkorr) {
     return { error: e instanceof AbapError ? e : ctsError(e, "trShow", trkorr) };
   }
 }
+function deleteMayHaveLanded(err) {
+  return isAbapError(err) && (err.code === "SESSION_DEAD" || err.code === "TRANSPORT_ERROR" && err.details.status === void 0);
+}
+async function discloseDeleteFailure(err, conn, number4) {
+  if (!deleteMayHaveLanded(err)) return err;
+  const after = await probe(conn, number4);
+  const residueHint = after.error ? "The outcome could not be verified: a post-failure check of the request also failed. Do not retry blindly \u2014 list or show it first." : after.own ? "A post-failure check found the request still present \u2014 nothing was deleted." : "A post-failure check could not find the request anymore \u2014 the delete may have landed despite the failure. Do not retry blindly; list or show it first.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, postFailureProbe: after.error ? "failed" : after.own ? "present" : "gone" },
+    err.hint ? `${err.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
+  return disclosed;
+}
 async function trDelete(conn, trkorr, proof) {
   void proof;
   const number4 = assertTrkorr(trkorr, "trDelete");
@@ -65192,7 +65209,7 @@ async function trDelete(conn, trkorr, proof) {
     });
     httpStatus = resp.status;
   } catch (e) {
-    throw ctsError(e, "trDelete", number4);
+    throw await discloseDeleteFailure(ctsError(e, "trDelete", number4), conn, number4);
   }
   const after = await probe(conn, number4);
   const verified = !after.error;
@@ -89656,9 +89673,10 @@ function cleanUri(uri) {
 }
 
 // src/adt/write.ts
-var import_abap_adt_api7 = __toESM(require_build(), 1);
+var import_abap_adt_api8 = __toESM(require_build(), 1);
 
 // src/adt/run.ts
+var import_abap_adt_api7 = __toESM(require_build(), 1);
 import { createHash as createHash6 } from "node:crypto";
 
 // src/adt/dumps-query.ts
@@ -91020,18 +91038,21 @@ function translateRunFailure(conn, className, e) {
   }
   if (kind === "session-timeout") {
     invalidateSession(conn);
-    return new AbapError(
-      "SESSION_DEAD",
-      `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
-      { class: className, status: resp.status, kind },
-      "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
+    return discloseMutationRisk(
+      new AbapError(
+        "SESSION_DEAD",
+        `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
+        { class: className, status: resp.status, kind },
+        "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
+      )
     );
   }
-  return translateAdtError(e, {
+  const translated = translateAdtError(e, {
     operation: "run class",
     name: className,
     uri: `${CLASSRUN_PATH}${className}`
   });
+  return resp === void 0 && !(0, import_abap_adt_api7.isCsrfError)(e) ? discloseMutationRisk(translated) : translated;
 }
 var UNDEFINED_BODY_LITERAL = "undefined";
 var XML_OR_HTML_BODY_PREFIX = /^(<\?xml|<!DOCTYPE|<html)/i;
@@ -91169,6 +91190,18 @@ function discloseBridgeResidue(e, className, packageName, stage) {
   );
   disclosed.stack = e.stack;
   disclosed.cause = e.cause;
+  return disclosed;
+}
+function discloseMutationRisk(err) {
+  const disclosure = "The request may already have executed and committed on the server before this response was lost \u2014 do not blindly retry a mutating bridge. Re-read the object first to see whether it changed.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, mayHaveExecuted: true },
+    err.hint ? `${err.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
   return disclosed;
 }
 async function executeBridge(conn, gate, deployed) {
@@ -92271,7 +92304,7 @@ var NAME_LIMIT_OVERRIDES = {
   // TYPE-POOL naming rule (DD ABAP type-pool names are 5 characters)
 };
 function maxNameLength(type) {
-  return NAME_LIMIT_OVERRIDES[type] ?? import_abap_adt_api7.CreatableTypes.get(type)?.maxLen ?? 30;
+  return NAME_LIMIT_OVERRIDES[type] ?? import_abap_adt_api8.CreatableTypes.get(type)?.maxLen ?? 30;
 }
 function writeShapeOf(type) {
   return capabilitiesFor(type)?.write?.shape ?? "source";
@@ -93679,6 +93712,30 @@ async function tryCheckSource(conn, t, source) {
     return void 0;
   }
 }
+async function discloseDeleteUncertainty(conn, t, e) {
+  if (!isAbapError(e)) return e;
+  let verification;
+  try {
+    verification = await verifyObjectDeleted(conn, {
+      uri: contentUri(t),
+      accept: contentAccept(t),
+      objectName: t.name,
+      expectType: t.type
+    });
+  } catch {
+    return e;
+  }
+  const disclosure = verification.status === "confirmed-absent" ? `Despite this failure, ${t.spec.label} ${t.name} appears to have been deleted \u2014 it is no longer readable. Do not retry blindly; re-read first.` : verification.status === "confirmed" ? `${t.spec.label} ${t.name} is still there \u2014 nothing was deleted.` : `Whether ${t.spec.label} ${t.name} was deleted could not be settled. Re-read it before retrying.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, postFailureVerification: verification.status, postFailureVerificationUri: verification.uri },
+    e.hint ? `${e.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
 async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) {
   const t = target.target;
   const deleteInclude = t.include;
@@ -93777,6 +93834,8 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
       "A delete is only reversible through the before-image the journal records, and that image could not be captured. Nothing was locked and nothing was deleted \u2014 retry once the object reads cleanly."
     );
   }
+  let deleteIssued = false;
+  let deleteMayHaveLanded2 = false;
   await conn.withStatefulSession(async (session) => {
     const lock = await session.lock(t.uri);
     const fresh = await readCurrentSourceResult(conn, t);
@@ -93844,6 +93903,7 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
       throw transportRefusal(t, transport, "deleted", opts.transport !== void 0);
     }
     try {
+      deleteIssued = true;
       await conn.del(t.uri, {
         qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
       });
@@ -93854,10 +93914,13 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
         name: t.name,
         type: t.type
       });
+      deleteMayHaveLanded2 = err.code === "SESSION_DEAD" || !isAbapError(e) && adtExceptionInfo(e) === void 0;
       noteTransportDead(opts.transport, corr, err);
       throw err;
     }
     session.forgetLock(t.uri);
+  }).catch(async (e) => {
+    throw deleteIssued && deleteMayHaveLanded2 ? await discloseDeleteUncertainty(conn, t, e) : e;
   });
   let verification = await verifyObjectDeleted(conn, {
     uri: contentUri(t),
@@ -97382,6 +97445,30 @@ async function performBridgeCreateUndo(conn, gate, plan, onBeforeImage) {
   if (outcome.status === "confirmed-absent") return { deleted: true, verification: outcome };
   return { deleted: "unverified", verification: outcome };
 }
+function discloseUndoActivationFailure(e, target, entry, undoEntryId) {
+  if (!isAbapError(e)) return e;
+  const residueHint = `The restore itself already landed: ${target.name}'s before-image is saved on the server as the INACTIVE version, but activation failed, so the ACTIVE version is still the newer one this undo was trying to replace. This undo's own journal entry` + (undoEntryId ? ` (${undoEntryId})` : "") + ` is left \`pending\` on purpose \u2014 the outcome is not proven either way \u2014 and the original entry (${entry.id}) was NOT marked undone. Do not undo again blindly: re-read the object and activate it deliberately instead.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    {
+      ...e.details,
+      name: target.name,
+      type: target.type,
+      uri: target.uri,
+      operation: "undo",
+      phase: "post-restore-activation",
+      written: true,
+      activated: false,
+      entry: entry.id,
+      ...undoEntryId !== void 0 ? { journal: undoEntryId } : {}
+    },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
 async function performUndo(conn, journal, entry, opts) {
   if (typeof opts?.assertAllowed !== "function") {
     throw new AbapError(
@@ -97570,7 +97657,11 @@ async function performUndo(conn, journal, entry, opts) {
           "Another writer changed this object between abapsmith's PUT and its activation \u2014 the object lock does NOT span activation, and activation cannot be pinned to a version on this protocol. DO NOT simply undo again: the before-image already landed and was then overwritten, so a blind retry re-runs the same race and silently discards the other writer's work. Read the object (abap_read) to see what is actually there now, merge the two changes deliberately, and write the merged source. The last ACTIVE version is untouched and still what callers run."
         );
       }
-      activation = await activateObject(conn, written.target);
+      try {
+        activation = await activateObject(conn, written.target);
+      } catch (e) {
+        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
+      }
     }
     await settle({
       outcome: "succeeded",
@@ -103280,12 +103371,45 @@ async function opCreate(conn, input, maxChars, gate, journal, ownership) {
     maxChars
   });
 }
+function mutationMayHaveLanded(e) {
+  return e instanceof AbapError && (e.code === "SESSION_DEAD" || e.code === "TRANSPORT_ERROR" && e.details.status === void 0);
+}
+function discloseUnprovenMutation(e, trkorr) {
+  const residueHint = `Whether this reached ${trkorr} is unknown \u2014 the response was lost, not refused. Its journal entry stays \`pending\`; re-check with abap_transport {"operation":"show"} before retrying.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, trkorr },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
 async function opAddUser(conn, input, maxChars, gate, journal) {
   const trkorr = normTrkorr(input.transport, "addUser");
   const user = required2(input.user, "user", "addUser").toUpperCase();
   assertCeiling(gate, "plain", "addUser");
   const proof = authorizeCeiling(gate, "transport");
-  const res = await trAddUser(conn, trkorr, user, proof);
+  let res;
+  try {
+    res = await trAddUser(conn, trkorr, user, proof);
+  } catch (e) {
+    if (!mutationMayHaveLanded(e)) throw e;
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-add-user",
+        trkorr,
+        description: `addUser ${user} \u2014 POST response lost, outcome unproven`,
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_transport addUser"
+      },
+      { kind: "unproven", reason: e.message }
+    );
+    throw discloseUnprovenMutation(e, trkorr);
+  }
   await recordMutation(
     journal,
     {
@@ -103319,7 +103443,25 @@ async function opSetOwner(conn, input, maxChars, gate, journal) {
   const user = required2(input.user, "user", "setOwner").toUpperCase();
   assertCeiling(gate, "plain", "setOwner");
   const proof = authorizeCeiling(gate, "transport");
-  const res = await trSetOwner(conn, trkorr, user, proof);
+  let res;
+  try {
+    res = await trSetOwner(conn, trkorr, user, proof);
+  } catch (e) {
+    if (!mutationMayHaveLanded(e)) throw e;
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-set-owner",
+        trkorr,
+        description: `setOwner ${user} \u2014 PUT response lost, outcome unproven`,
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_transport setOwner"
+      },
+      { kind: "unproven", reason: e.message }
+    );
+    throw discloseUnprovenMutation(e, trkorr);
+  }
   await recordMutation(
     journal,
     {
@@ -105021,6 +105163,25 @@ function buildCreateBody(input) {
   const nodeId = mintGuid("node");
   return `<?xml version="1.0" encoding="UTF-8"?><bo:businessObject xmlns:bo="http://www.sap.com/bopf/bo/BusinessObject" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${xmlEscape(input.name.toUpperCase(), "adtcore:name")}" adtcore:type="${BOPF_TYPE}"${desc}><adtcore:packageRef adtcore:name="${xmlEscape(input.packageName.toUpperCase(), "adtcore:packageRef/@adtcore:name")}"/><bo:nodes bo:name="${xmlEscape(rootName, "bo:nodes/@bo:name")}" bo:nodeID="${nodeId}" bo:xmlName="${xmlEscape(rootName, "bo:nodes/@bo:xmlName")}" bo:objectModelGenerated="false" bo:authorizationCheck="false" bo:isExtensible="false" bo:isDependentObjectNode="false" bo:textNode="false" bo:createEnabled="true" bo:updateEnabled="true" bo:deleteEnabled="true" bo:rootNode="true" bo:objectModelObsolete="false"/></bo:businessObject>`;
 }
+async function discloseFailedPut(conn, bo, base) {
+  let note;
+  try {
+    await readModel(conn, bo);
+    note = "a re-read after the failed PUT still succeeds \u2014 inspect the current model before assuming nothing changed.";
+  } catch (probeErr) {
+    note = `a re-read after the failed PUT also failed: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosure = `A failed PUT is not proof the model is unchanged \u2014 ${note}`;
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
 async function putModel(conn, session, bo, mutate, authorized) {
   assertAuthorizedMatches(authorized, { name: bo }, "putModel");
   const uri = bopfUri(bo);
@@ -105055,8 +105216,9 @@ async function putModel(conn, session, bo, mutate, authorized) {
           body: payload
         });
       } catch (e) {
-        if (isAbapError(e)) throw e;
-        throw translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+        const base = isAbapError(e) ? e : translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+        const mayHaveLanded = base.code === "SESSION_DEAD" || !isAbapError(e) && adtExceptionInfo(e) === void 0;
+        throw mayHaveLanded ? await discloseFailedPut(conn, bo, base) : base;
       }
       return payload;
     }
@@ -105109,6 +105271,24 @@ async function activateBusinessObject(conn, bo) {
 function ddicSparedReason(refSite) {
   return `referenced via ${refSite} \u2014 the model does not record whether this BO generated it, so it is not deleted`;
 }
+async function discloseDeleteFailureProbe(conn, bo, base) {
+  let note;
+  try {
+    await conn.get(bopfUri(bo), { headers: { Accept: BOPF_ACCEPT_V4 } });
+    note = "a re-read right after the failed DELETE still finds the object \u2014 the delete did not land.";
+  } catch (probeErr) {
+    note = isNotFoundLike(probeErr) ? "a re-read right after the failed DELETE no longer finds the object \u2014 the delete may have landed despite the failure; re-read before retrying." : `a re-read right after the failed DELETE could not be settled: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${note}` : note
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
 async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = {}) {
   assertAuthorizedMatches(authorized, { name: bo }, "deleteBusinessObject");
   if (opts.cascadeDdic && !gate.config.allowCascadeDelete) {
@@ -105159,8 +105339,8 @@ async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = 
       await session.unlock(uri);
     } catch {
     }
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
+    const base = isAbapError(e) ? e : translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
+    throw await discloseDeleteFailureProbe(conn, bo, base);
   }
   try {
     await session.unlock(uri);
@@ -105265,14 +105445,37 @@ async function deleteDdicCandidate(conn, session, cand, authorized) {
   try {
     await conn.del(cand.uri, { qs: { lockHandle: lock.handle } });
   } catch (e) {
-    return {
-      name: cand.name,
-      kind: cand.kind,
-      uri: cand.uri,
-      existed: true,
-      deleted: false,
-      reason: `delete failed: ${describeUnknownError(e)}`
-    };
+    const deleteFailure = `delete failed: ${describeUnknownError(e)}`;
+    try {
+      await conn.get(cand.uri, { headers: { Accept: "*/*" } });
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: false,
+        reason: `${deleteFailure}; a read-back of the same URI still finds the object`
+      };
+    } catch (probeErr) {
+      if (isNotFoundLike(probeErr)) {
+        return {
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          existed: true,
+          deleted: true,
+          reason: `${deleteFailure}, but a read-back of the same URI confirms the object is gone`
+        };
+      }
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: "unverified",
+        reason: `${deleteFailure}; the read-back to confirm it also failed: ${describeUnknownError(probeErr)}`
+      };
+    }
   } finally {
     try {
       await session.unlock(cand.uri);
@@ -111892,12 +112095,19 @@ function parseEnhancementTranscript(raw) {
   }
   return { tags, errorLine, raw };
 }
+function epilogueFailureHint(tags) {
+  if (tags.length === 0) {
+    return "The bridge raised before writing any progress marker, so nothing here shows the object was created, saved, or locked. Do not assume either outcome \u2014 read the object before deciding whether to run the bridge again.";
+  }
+  return `Already landed per the transcript: ${tags.join(", ")}. The generated bridge's SAVE may have committed before ACTIVATE raised, and its UNLOCK never ran afterwards, so the object may still hold an enqueue lock. Do not blindly re-run the bridge \u2014 re-read the object first to see what actually landed. A stranded lock clears in SM12, or on its own once the owning session ends.`;
+}
 function assertEnhTranscript(result, expectTags, what) {
   if (result.errorLine) {
     throw new AbapError(
       "CHECK_FAILED",
       `${what} raised an ABAP exception: ${result.errorLine}`,
-      { raw: result.raw }
+      { raw: result.raw, ...result.tags.length ? { landedTags: result.tags } : {} },
+      epilogueFailureHint(result.tags)
     );
   }
   const missing = expectTags.filter((t) => !result.tags.includes(t));
