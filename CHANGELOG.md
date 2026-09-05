@@ -220,6 +220,36 @@ was last set to `0.3.0`.
   caller's own length instead of the fixed values the fixtures show —
   were found and corrected by review within the same change before it
   merged.
+- `TABL/DI` (a transparent table's secondary index) can now be created and
+  deleted through a generated classrun bridge calling
+  `DD_INDEX_INTERFACE` — there is no ADT REST route for indexes at all,
+  so there is no read and no change, only drop and recreate. The index's
+  package is the base table's, resolved by reading the table over ADT,
+  never the caller's; a caller-supplied `package` is only checked for
+  agreement. A transportable package requires `corr_nr` for both create
+  and delete, unlike the `VIEW/DV`/`TRAN/T` deletes, which refuse one —
+  `DD_INDEX_INTERFACE`'s delete takes a transport parameter too. The
+  create is never `verified` and never journalled: there is no resource
+  to read an index back from and so no undo path, only an explicit
+  delete. A non-unique create and a unique create with the base table's
+  client field were both proven live on A4H in a `$TMP` package, across
+  two live rounds; omitting the client field is refused `BAD_INPUT` before
+  the FM runs. The delete originally omitted `DD_INDEX_INTERFACE`'s
+  mandatory `INDEX_FIELDS` parameter; fixed and confirmed deployed. A
+  delete can still report `ACTFAILED` even after it already took effect;
+  the fix for that — commit regardless, then re-verify via a post-commit
+  `DD12V`/`DD17S` re-read — turned out to never run: its own added message
+  line exceeded ABAP's 255-character source-line limit, so every delete
+  failed the class-source PUT before `DD_INDEX_INTERFACE` was ever called,
+  leaving the deployed bridge class on its pre-fix body. The
+  `ACTFAILED`-tolerant read-back has therefore never executed live. Fixed
+  again — the long messages are now built up in a variable across short
+  lines, and every generated bridge class body is now rejected before it
+  is written if any line exceeds 255 characters — but that fix is proven
+  by measurement and unit test, not yet by a live delete. A later cleanup
+  deleted a base table whose indexes' catalog rows may still have existed;
+  whether the delete cascaded them away or left them orphaned is
+  unverified. The transportable-package path is unexercised.
 - Four new `abap_bopf_edit` operations — `add_representative_node` /
   `remove_representative_node` for cross-BO representative nodes, and
   `embed_dependent_object` / `remove_dependent_object` for delegated

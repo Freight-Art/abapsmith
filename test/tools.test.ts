@@ -2021,10 +2021,20 @@ describe("tool surface", () => {
     // "refused" framing left to assert, since neither field's absence alone
     // is what a caller gets refused for (that's corr_nr/package's job).
     expect(props.base_table?.description).toBe(
-      "VIEW/DV create only: the single base table the view projects.",
+      "VIEW/DV create: the single base table the view projects. TABL/DI create+delete, " +
+        "required: the table the index belongs to.",
     );
     expect(props.view_fields?.description).toBe(
       "VIEW/DV create only: base-table fields to project, in order.",
+    );
+    expect(props.index_fields?.description).toBe(
+      "TABL/DI create only, required: base-table fields the index covers, in order.",
+    );
+    expect(props.index_unique?.description).toBe(
+      "TABL/DI create only: mark the index UNIQUE. Default false. On a client-dependent base " +
+        "table, a unique index must include the table's client field (usually MANDT) in " +
+        "`index_fields` — a create that omits it is refused rather than left to fail activation " +
+        "on the server.",
     );
   });
 
@@ -2081,9 +2091,10 @@ describe("tool surface", () => {
     // ($ package create, either type's delete) — pin the whole string so all
     // of that contract stays honest.
     expect(props.corr_nr?.description).toBe(
-      "Transport request. $TMP needs none. Required for a TRAN/T create into a transportable " +
-        "package; optional for a VIEW/DV create, which resolves one under ABAP_ALLOW_TRANSPORTS " +
-        "when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T delete.",
+      "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a " +
+        "transportable package; optional for a VIEW/DV create, which resolves one under " +
+        "ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T " +
+        "delete. TABL/DI delete: same package-derived requirement as its create, not refused.",
     );
     // package's TRAN/T clause states the corr_nr/package pairing rule; its
     // VIEW/DV clause instead states that a transportable one resolves its own
@@ -2091,7 +2102,9 @@ describe("tool surface", () => {
     // substring match would pass even if the rule reversed.
     expect(props.package?.description).toBe(
       "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. " +
-        "VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr.",
+        "VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr. " +
+        "TABL/DI: ignored except to check agreement — an index's package is always the base " +
+        "table's, never caller-chosen.",
     );
   });
 

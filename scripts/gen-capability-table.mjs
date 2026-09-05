@@ -73,6 +73,19 @@ const BRIDGE_NOTE = {
     "optional and forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert " +
     "defaults to space so the registration always runs. No live create into a transportable " +
     "package has been run.",
+  "TABL/DI":
+    "creates a secondary index on an existing table via DD_INDEX_INTERFACE (ACTION='I'); there " +
+    "is no ADT-readable index route at all, so success is proven only by re-reading DD12V/DD17S " +
+    "after COMMIT WORK. The package is the base table's, not the caller's; a transportable " +
+    "package requires corr_nr, a `$` package sets NO_TRANSP_REQUEST='X' and refuses one, the " +
+    "same rule VIEW/DV uses. Change is not supported either. Proven live on A4H 2026-09-05: a " +
+    "non-unique single-field index created in `$TMP`, confirmed by a post-commit DD12V/DD17S " +
+    "re-read. The client-field requirement for a unique index on a client-dependent table, " +
+    "once suspected, is now CONFIRMED live (A4H, 2026-09-05): the generated DD03L guard " +
+    "refuses an omitting create with BAD_INPUT before the FM runs, and an including create " +
+    "succeeds with all three markers. A third live round re-ran both creates the same day " +
+    "and got all three markers again for each — the round-3 delete-path defect below never " +
+    "touched create.",
   "DEVC/K":
     "`software_component: \"LOCAL\"` goes over ADT REST; anything else needs the bridge and a " +
     "transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects.",
@@ -96,6 +109,27 @@ const BRIDGE_DELETE_NOTE = {
     "runs over the same bridge (src/adt/package-delete.ts) the create uses, gated by the same " +
     "empty-package limit noted above; the create's journal entry no longer marks itself " +
     "irreversible; but IF_PACKAGE~DELETE's failure behaviour is not itself live-verified.",
+  "TABL/DI":
+    "deletes any index it finds in DD12V for the given table by name, not only ones the bridge " +
+    "itself created — no provenance check exists. Unlike the VIEW/DV/TRAN/T deletes, this " +
+    "DELETE takes the same transport pair as create — DD_INDEX_INTERFACE ACTION='D' needs it " +
+    "too. The DD12V pre-check is proven live (2026-09-05: NOT_FOUND for a nonexistent index). " +
+    "The missing mandatory INDEX_FIELDS table parameter is fixed and confirmed deployed live " +
+    "(2026-09-05). A second defect surfaced live: ACTION='D' reports ACTFAILED='X' even when " +
+    "the delete already took effect. The round-2 fix for that — commit regardless, then " +
+    "re-verify via a post-commit DD12V/DD17S re-read — never ran: its own added note line " +
+    "rendered as a 272-character ABAP source line (292 at the longest legal names), over the " +
+    "255-character class-source limit, so every delete failed the class-source PUT " +
+    "(ADT_ERROR / TooLongLine, SEDI_ADT15) before DD_INDEX_INTERFACE was ever called, and the " +
+    "deployed bridge class silently stayed on its pre-fix body. The ACTFAILED-tolerant " +
+    "read-back has therefore never executed live, not once. Fixed again: the fragment's long " +
+    "messages are now built up in a variable across short lines, and every generated bridge " +
+    "class body is now rejected before it is written if any line exceeds 255 characters — " +
+    "correct by measurement and unit test, not yet by a live delete. A base-table delete is " +
+    "not blocked by an index still on it (round 1); a later cleanup deleted a base table " +
+    "while its indexes' DD12V rows may still have existed, and whether the delete cascaded " +
+    "them away or left them orphaned is unverified — abap_data_preview has no WHERE filter, " +
+    "so a targeted check was not practical.",
 };
 
 /** Buckets every type in the given REGISTRY and renders the generated block. Exported so tests can inspect the bucketing directly instead of re-deriving it from REGISTRY by hand. */
