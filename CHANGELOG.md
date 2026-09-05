@@ -5,15 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/). It is
 pre-1.0, so the usual semver caveat applies: minor versions may still contain
-breaking changes to configuration or tool schemas. No version has been
-tagged or published yet; everything below has landed since `package.json`
-was last set to `0.3.0`.
+breaking changes to configuration or tool schemas. `0.3.0` was set in both
+manifests but never tagged, so `v0.3.1` is the first tagged release. The
+`0.3.1` section below therefore carries everything that landed since the
+version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-05
+
 ### Added
 
-- Release procedure in CONTRIBUTING.md (version bump in both manifests, CHANGELOG section, bundle rebuild, `vX.Y.Z` tag, GitHub release) and a README note on pinning the marketplace to a release tag for rollbacks.
+- A GitHub Actions workflow (`.github/workflows/release.yml`) that tags every push to `main` as `vX.Y.Z` and publishes a GitHub release whose notes are that version's CHANGELOG section, extracted by `scripts/changelog-section.mjs`; every merged PR now carries a version bump, since the plugin marketplace only detects an update when the manifest version changes.
+- Release procedure in CONTRIBUTING.md (version bump in both manifests, CHANGELOG section, bundle rebuild) and a README note on pinning the marketplace to a release tag for rollbacks.
 - Core MCP server over ADT (`/sap/bc/adt/*`): connect, read source and DDIC
   (rendered as pseudo-DDL), fuzzy object resolution, and repository search.
 - Write path: create, change, delete, activate, and run ABAP objects and
