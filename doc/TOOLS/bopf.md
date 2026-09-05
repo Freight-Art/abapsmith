@@ -245,12 +245,10 @@ another BO's node, and `spec.implementationClassRef` naming an XBO class
 it, named `REP_<random>` (observed `REP_TYVJRJ3REEP6DKVELQE77P7WKA`),
 carrying only the fixed `KEY`/`PARENT_KEY`/`ROOT_KEY` properties — the
 same shape `abap_bopf show` labels `representative`. The node name is
-server-assigned and cannot be chosen. Observed live: with the cross-BO
-association absent from the payload, the server does not keep the minted
-node either, so `remove_association` should remove it — the discovery
-run never actually issued a `remove_association` against a minted node,
-so this is an inference from that absence, not a result of the operation
-itself. There is no dedicated create or remove for it.
+server-assigned and cannot be chosen. Confirmed live: issuing
+`remove_association` against the cross-BO association removes the
+minted node too — `nodeCount` fell from 2 to 1 and the node was gone
+from the read-back. There is no dedicated create or remove for it.
 `abap_bopf_edit` emits two notes on such a write recording this
 recipe, including the observation (once, not confirmed as a rule) that
 activating a BO with a cross-BO association present destroyed the ABAP

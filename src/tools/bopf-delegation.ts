@@ -356,9 +356,9 @@ export function delegationNotes(input: DelegationInput): readonly string[] {
         `Cross-BO association: targetNodeRef names "${targetName}", a node on another business object. Observed on ` +
           `this release: the server answers such a write by minting a representative node of its own, named ` +
           `REP_<random> — the name is server-assigned and cannot be chosen, and a client-written parentless node is ` +
-          `rejected outright by the /BOBF/ST_CONF_ADT deserializer. Observed live only as the node's absence once ` +
-          `the association was gone, so remove_association should remove the minted node too — the operation ` +
-          `itself was not exercised against one.`,
+          `rejected outright by the /BOBF/ST_CONF_ADT deserializer. Confirmed live: running remove_association on ` +
+          `this cross-BO association removes the minted node too — abap_bopf show's nodeCount fell from 2 to 1 ` +
+          `and the node was gone from the read-back.`,
         `Cross-BO associations captured from SAP's own business objects also carry an implementationClassRef (an ` +
           `XBO class such as /BOBF/CL_C_DEMO_CUSTOMER_XBO); without one, activation reported "Association has to ` +
           `have exactly one Attribute Binding". Observed once on this release: activating a business object with a ` +

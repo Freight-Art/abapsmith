@@ -381,9 +381,9 @@ was last set to `0.3.0`.
   `add_association` (an `Association` `spec.targetNodeRef` naming
   another BO's node, plus a `spec.implementationClassRef` naming an XBO
   class) causes the server to mint a parentless node itself, named
-  `REP_<random>`; `remove_association` should remove it too, observed
-  live only as the node's absence once the association was gone, not as
-  the removal operation itself being run against one.
+  `REP_<random>`; confirmed live that `remove_association` removes it
+  too — `nodeCount` fell from 2 to 1 and the node was gone from the
+  read-back.
   There is no replacement for creating an embedded dependent object.
   `remove_dependent_object` is unchanged, its refusal path having been
   exercised correctly against the live system, as are the `abap_bopf`

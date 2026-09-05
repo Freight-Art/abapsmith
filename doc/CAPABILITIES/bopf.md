@@ -16,7 +16,7 @@ the XML tree is never round-tripped.
 | Query | yes | yes | partial | yes | n/a | mixed | `add_query` / `remove_query`. `set_query_fields` patches xmlName, category, objectModelGenerated, dataTypeRef and implementationClassRef in place; renaming (`name`) is refused. Add/remove are live; `set_query_fields` is covered by tests only. |
 | Alternative key | partial | yes | partial | yes | n/a | mixed | `add_alternative_key` has never been confirmed to succeed on any node, even with a clean preflight, and demands an explicit acknowledgement flag. `set_alternative_key_fields` patches xmlName, uniqueness, checkAfterModify, checkBeforeSave, noCheck, objectModelGenerated, dataTypeRef and dataTableTypeRef in place, and demands the same `i_know_this_may_not_activate: true` acknowledgement as `add_alternative_key`; `keyElements` and renaming (`name`) are refused. Add/remove attempts are live (never confirmed to succeed); `set_alternative_key_fields` is covered by tests only. |
 | Delegated / dependent object | no | yes | no | yes | n/a | mixed | `remove_dependent_object` deletes the parent-node association and the embedded node in one PUT when a genuine `DoComposition` embedding already exists; its guard against removing the wrong association was exercised live and refused correctly. There is no operation that creates an embedding on this release. See below. |
-| Representative node | no | yes | no | no | n/a | live | Minted by the server as a side effect of a cross-BO `add_association`, named `REP_<random>`; observed live that it disappears from the read-back once the association is gone, so `remove_association` should remove it (not itself exercised against a minted node). Nothing creates or removes it directly. See below. |
+| Representative node | no | yes | no | no | n/a | live | Minted by the server as a side effect of a cross-BO `add_association`, named `REP_<random>`; confirmed live that `remove_association` removes it too — `nodeCount` fell from 2 to 1 once the association was gone. Nothing creates or removes it directly. See below. |
 | Configuration / customizing | no | no | no | no | n/a | unverified | No read surface and no write surface of any kind. |
 
 - **Patch, don't replace.** Every child kind has its own `set_*_fields`
@@ -50,11 +50,10 @@ the XML tree is never round-tripped.
   `REP_TYVJRJ3REEP6DKVEMU4P7PSWKA`), carrying exactly the fixed
   `KEY`/`PARENT_KEY`/`ROOT_KEY` properties — the same shape `show`
   already classifies as `representative`. The name is server-assigned
-  and cannot be chosen. Observed live: with the cross-BO association
-  absent from the payload, the server does not keep the minted node
-  either, so `remove_association` should remove it — the operation
-  itself was not exercised against a minted node in the discovery run.
-  There is no dedicated remove for it either.
+  and cannot be chosen. Confirmed live: removing the cross-BO
+  association with `remove_association` removes the minted node too —
+  `abap_bopf show`'s `nodeCount` fell from 2 to 1 and the node was gone
+  from the read-back. There is no dedicated remove for it either.
   `abap_bopf_edit` emits two notes on such a write recording exactly
   this recipe and the short-dump observation below. `add_node` and
   `add_association` still refuse a hand-assembled delegation —

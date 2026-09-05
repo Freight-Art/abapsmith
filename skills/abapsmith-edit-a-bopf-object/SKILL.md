@@ -97,10 +97,10 @@ Never retry a create blind.
   (observed `REP_TYVJRJ3REEP6DKVELQE77P7WKA`) — no structure refs, just
   the fixed `KEY`/`PARENT_KEY`/`ROOT_KEY` properties, the same shape
   `abap_bopf show` labels `representative`. The name is server-assigned
-  and cannot be chosen or predicted. Observed live: the node vanishes
-  once its association is gone, so `bopf_remove_association` should
-  remove it too — not itself exercised against a minted node. No
-  dedicated create or remove exists for it.
+  and cannot be chosen or predicted. Confirmed live:
+  `bopf_remove_association` removes it too — the node count fell from
+  2 to 1 once the association was gone. No dedicated create or remove
+  exists for it.
   ```
   add_association(node: "ROOT", name: "TO_CUSTOMER",
     spec: { implementationType: "Association",
@@ -260,10 +260,9 @@ parent-node association and its node, in one call. It refuses while any
 other association still targets the node being removed — remove that
 association first. It runs the same post-write re-read as every other
 `remove_*` operation. A representative node has no dedicated remove:
-removing the link with `bopf_remove_association` should take the
-server-minted node with it (observed live as the node vanishing once the
-association was gone, not as the operation itself run against one), see
-Adding elements above.
+removing the link with `bopf_remove_association` takes the server-minted
+node with it — confirmed live, the node count fell from 2 to 1 once the
+association was gone. See Adding elements above.
 
 **Duplicate-name symptom**: a BO that stops activating because it carries two
 elements of the same kind and name. Re-adding under an existing `name`
