@@ -28,7 +28,11 @@
   `korrnum = space` instead — proven live on A4H, 2026-09-04 (transportable
   package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a `$`-prefixed
   package: `RS_CORR_INSERT` registered the view with `korrnum = space`,
-  then the delete bridge removed it). What does not change: there is no
+  then the delete bridge removed it). The same rule now applies to a
+  `TRAN/T` create: `RPY_TRANSACTION_INSERT`'s signature was read live on
+  A4H 2026-09-05 and forwards `transport_number` verbatim to
+  `RS_CORR_INSERT` as `korrnum`, but no create into a transportable
+  package has been run. What does not change: there is no
   ADT-readable collection for a classic view, so a view just created cannot
   be read back by abapsmith, ever — SE11/SE14 is the only way to inspect
   one. There is no update route either: only delete and recreate.

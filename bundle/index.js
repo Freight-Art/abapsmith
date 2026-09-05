@@ -67351,12 +67351,12 @@ var REGISTRY = {
     bridgeCreate: {
       adtRest: "ADT exposes a transaction read-only through the generic VIT bridge and returns 405 ExceptionMethodNotSupported on every mutating verb; there is no writable ADT collection for TRAN/T. (The ADT type code is TRAN/T, not TSTC \u2014 TSTC is the underlying database table, not an ADT object type.)",
       via: "RPY_TRANSACTION_INSERT (function group SEUA) \u2014 SE93's own backend: it collision-checks TSTC, runs RS_ACCESS_PERMISSION, fires the SWBM_C_OP_CREATE BAdI check, calls RS_CORR_INSERT for transport/TADIR registration, then inserts TSTC/TSTCT/TSTCC. Called from a generated IF_OO_ADT_CLASSRUN bridge \u2014 see src/adt/tran-create.ts.",
-      limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Changing an existing transaction is still not supported: abapsmith implements no update route for TRAN/T \u2014 the bridge implements create and delete only. Whether function group SEUA offers any change FM at all \u2014 and whether SE93's own edit path uses one \u2014 is unknown; that has never been investigated here, so this is a statement about what abapsmith implements, not a claim that the backend itself would refuse a change: unverified. Deleting one is attempted through a bridge whose delete FM parameter set is inferred, not live-verified \u2014 see this type's bridgeDelete entry below."
+      limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Changing an existing transaction is still not supported: abapsmith implements no update route for TRAN/T \u2014 the bridge implements create and delete only. Whether function group SEUA offers any change FM at all \u2014 and whether SE93's own edit path uses one \u2014 is unknown; that has never been investigated here, so this is a statement about what abapsmith implements, not a claim that the backend itself would refuse a change: unverified. Deleting one is attempted through a bridge whose delete FM parameter set is inferred (live-verified once for a $ package) \u2014 see this type's bridgeDelete entry below. A transportable package requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the transport/TADIR registration always runs. No live create with a transport has been run yet."
     },
     bridgeDelete: {
       adtRest: "Read-only through the generic VIT bridge, same as bridgeCreate: 405 ExceptionMethodNotSupported on every mutating verb, no writable ADT collection.",
       via: "RPY_TRANSACTION_DELETE (function group SEUA \u2014 SE93's own backend), called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading TSTC, not by a clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
-      limits: "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, not transcribed from a capture of the delete FM itself \u2014 not live-verified. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
+      limits: "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, not transcribed from a capture of the delete FM itself. Live-verified once, 2026-09-05: a $ package transaction was created and then deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
     }
   },
   // Not in types.ts — see the module doc. Program subobjects (not standalone
@@ -96869,15 +96869,48 @@ function assertTransactionCode(value, what = "tcode") {
 function quoted3(validatedIdentifier) {
   return `'${validatedIdentifier}'`;
 }
+function assertCorrNr(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value;
+}
+function assertTransactionCreateTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", {
+    maxLength: PACKAGE_MAX_LENGTH2,
+    allowLocal: true
+  });
+  const local = isLocalPackageName(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) transaction is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this transaction must be registered in CTS via RPY_TRANSACTION_INSERT's own RS_CORR_INSERT call, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr(corrNr);
+  return validated;
+}
 var TRAN_DATA_LINES = [];
 function transactionFragment(p) {
   const tcode = assertTransactionCode(p.tcode);
   const program = assertEnhIdentifier(p.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
   const description = assertAbapText(p.description, "description", TTEXT_MAX_LENGTH);
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH2,
-    allowLocal: true
-  });
+  const packageName = assertTransactionCreateTarget(p.packageName, p.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? void 0 : p.corrNr;
   return [
     "CALL FUNCTION 'RPY_TRANSACTION_INSERT'",
     `  EXPORTING transaction       = ${quoted3(tcode)}`,
@@ -96885,6 +96918,8 @@ function transactionFragment(p) {
     `            dynpro            = ${quoted3(REPORT_DYNPRO)}`,
     "            language          = sy-langu",
     `            development_class = ${quoted3(packageName)}`,
+    // A local ($-prefixed) package has no transport request to name; space is ABAP's SPACE constant, not a quoted literal.
+    local ? "            transport_number  = space" : `            transport_number  = ${quoted3(corrNr)}`,
     `            transaction_type  = ${quoted3(TRANSACTION_TYPE_REPORT)}`,
     `            shorttext         = ${abapLiteral(description)}`,
     "  EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3",
@@ -96903,15 +96938,19 @@ async function createTransaction(conn, gate, params) {
   const tcode = assertTransactionCode(params.tcode);
   const program = assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
   const description = assertAbapText(params.description, "description", TTEXT_MAX_LENGTH);
-  const packageName = assertEnhIdentifier(params.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH2,
-    allowLocal: true
-  });
-  assertBridgeMutation(gate, { type: "TRAN/T", name: tcode, packageName }, { activate: false });
+  const packageName = assertTransactionCreateTarget(params.packageName, params.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? void 0 : params.corrNr;
+  const corr = local ? void 0 : { kind: "transport", corrNr, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, ...corr !== void 0 ? { corr } : {} }
+  );
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.createTransaction,
     TRAN_DATA_LINES,
-    transactionFragment({ tcode, program, description, packageName })
+    transactionFragment({ tcode, program, description, packageName, corrNr })
   );
   return runDdicBridge(conn, gate, {
     className: DDIC_BRIDGE_CLASS.createTransaction,
@@ -99856,7 +99895,7 @@ function assertSoftwareComponent(value, what = "softwareComponent") {
   }
   return value;
 }
-function assertCorrNr(value) {
+function assertCorrNr2(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -99910,7 +99949,7 @@ function packageFragment(p) {
   const packageName = assertEnhIdentifier(p.packageName, "packageName", { maxLength: PACKAGE_MAX_LENGTH4 });
   const description = assertAbapText(p.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(p.softwareComponent);
-  const corrNr = assertCorrNr(p.corrNr);
+  const corrNr = assertCorrNr2(p.corrNr);
   const packType = assertPackageType(p.packageType);
   const superPackage = p.superPackage === void 0 ? void 0 : assertEnhIdentifier(p.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const lines = [
@@ -100074,7 +100113,7 @@ async function createPackageViaBridge(conn, gate, params) {
   });
   const description = assertAbapText(params.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(params.softwareComponent);
-  const corrNr = assertCorrNr(params.corrNr);
+  const corrNr = assertCorrNr2(params.corrNr);
   assertPackageType(params.packageType);
   const superPackage = params.superPackage === void 0 ? void 0 : assertEnhIdentifier(params.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const corr = { kind: "transport", corrNr, source: params.corrSource ?? "auto" };
@@ -100138,7 +100177,7 @@ function quotedIdentifier(value, what, opts = {}) {
   return abapLiteral(assertEnhIdentifier(value, what, { maxLength: VIEW_NAME_MAX2, ...opts }));
 }
 var PACKAGE_RULES2 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
-function assertCorrNr2(value) {
+function assertCorrNr3(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -100166,7 +100205,7 @@ function assertClassicViewCreateTarget(packageName, corrNr) {
       "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
     );
   }
-  if (corrNr !== void 0) assertCorrNr2(corrNr);
+  if (corrNr !== void 0) assertCorrNr3(corrNr);
   return validated;
 }
 function validate3(p) {
@@ -100692,7 +100731,7 @@ var writeInputSchema = {
   // (src/tools/read.ts), turns a typo into a schema rejection.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe("CLAS/OC only; testclasses=ABAP Unit tests, default main."),
   package: external_exports.string().optional().describe(
-    "Package for a NEW object. Default $TMP. VIEW/DV: a transportable one needs corr_nr, a $-package refuses it."
+    "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs corr_nr, a $-package refuses it."
   ),
   description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
   // Structured create for the three XML-only DDIC types, so a
@@ -100724,7 +100763,7 @@ var writeInputSchema = {
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
   corr_nr: external_exports.string().optional().describe(
-    "Transport request. $TMP needs none. Required for a VIEW/DV create into a transportable package. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete."
+    "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete."
   ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
@@ -102298,14 +102337,9 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
   if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
     bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
   }
-  if (type === "TRAN/T" && normalizeCorrNr(input.corr_nr) !== void 0) {
-    bad(
-      "`corr_nr` cannot be honoured for a TRAN/T create: RPY_TRANSACTION_INSERT runs its own RS_CORR_INSERT internally, and abapsmith's own call passes no transport parameter for it to act on, so a supplied corr_nr would be dropped silently (whether the FM itself accepts one is unverified).",
-      "Create into $TMP, or let RPY_TRANSACTION_INSERT's own RS_CORR_INSERT assign the request."
-    );
-  }
   const packageName = target.packageName?.trim() || "$TMP";
   if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
+  if (type === "TRAN/T") assertTransactionCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
   const description = input.description?.trim();
   if (!description) {
     bad(
@@ -102413,13 +102447,14 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
       );
     }
     bridgeClass = DDIC_BRIDGE_CLASS.createTransaction;
+    const corrNr = normalizeCorrNr(input.corr_nr);
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
       { name: target.name, type, uri: objectUri, packageName, description },
       beforeCapture,
-      void 0,
-      () => createTransaction(conn, gate, { ...common, tcode: target.name, program })
+      corrNr,
+      () => createTransaction(conn, gate, { ...common, tcode: target.name, program, corrNr })
     ));
     detail = `report transaction starting ${program} (dynpro 1000)`;
     const outcome = await verifyObjectCreated(conn, {
@@ -102593,7 +102628,7 @@ function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },

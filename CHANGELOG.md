@@ -328,6 +328,14 @@ was last set to `0.3.0`.
   unpageable raw XML; `abap_debug`/`abap_enh` tool-schema descriptions
   were trimmed to reduce `tools/list` token cost, with the displaced
   reference material moved into `doc/TOOLS/`.
+- `TRAN/T` create now threads a transport request through to
+  `RPY_TRANSACTION_INSERT`'s `transport_number` parameter, mirroring
+  `VIEW/DV`'s package rule: a transportable package requires `corr_nr`
+  (`TRANSPORT_ERROR` without one), and a `$` package refuses one
+  (`BAD_INPUT`) and registers with `korrnum = space`. The FM's signature
+  was read live on A4H 2026-09-05, confirming `transport_number` is
+  forwarded verbatim to `RS_CORR_INSERT` as `korrnum`; no live create into
+  a transportable package has been run yet.
 - The live suites `integration-undo` and `integration-fpm-lock` now pair
   their whole-file `describe.skip` with a `liveSuiteSkipReason` case stating
   why, under the greppable `APPLIANCE STATE:` prefix, instead of just

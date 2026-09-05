@@ -25,7 +25,7 @@ import type {
 import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
-import { SafetyGate } from "../src/safety.js";
+import { SafetyGate, type EvaluateOptions, type Operation, type SafetyTarget } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
 import {
@@ -38,10 +38,12 @@ import {
 } from "../src/adt/ddic-bridge.js";
 import {
   TRAN_DATA_LINES,
+  assertTransactionCreateTarget,
   createTransaction,
   transactionFragment,
   type TransactionParams,
 } from "../src/adt/tran-create.js";
+import { isLocalPackageName } from "../src/adt/transports.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 
 // ---------------------------------------------------------------------------
@@ -197,11 +199,15 @@ const bridgeOnlyGate = (): SafetyGate =>
 // Fixtures
 // ---------------------------------------------------------------------------
 
+/** A syntactically valid TRKORR — the shape `isTrkorr` (src/adt/transports.ts) accepts. */
+const CORR_NR = "A4HK900121";
+
 const PARAMS: TransactionParams = {
   tcode: "ZTM_CARRIERS",
   program: "ZTM_CARRIER_LIST",
   description: "Carrier list",
   packageName: "ZTM",
+  corrNr: CORR_NR,
 };
 
 const sourceFor = (p: TransactionParams = PARAMS): string =>
@@ -527,13 +533,14 @@ describe("createTransaction happy path", () => {
     expect(body).toContain("dynpro            = '1000'");
     expect(body).toContain("language          = sy-langu");
     expect(body).toContain("development_class = 'ZTM'");
+    expect(body).toContain(`transport_number  = '${CORR_NR}'`);
     expect(body).toContain("transaction_type  = 'R'");
     expect(body).toContain("shorttext         = 'Carrier list'");
     expect(body).toContain("EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3");
   });
 
   it("accepts a $TMP package (allowLocal) without widening anything else", () => {
-    const source = sourceFor({ ...PARAMS, packageName: "$TMP" });
+    const source = sourceFor({ ...PARAMS, packageName: "$TMP", corrNr: undefined });
     expect(source).toContain("development_class = '$TMP'");
   });
 
@@ -558,7 +565,8 @@ describe("scope — this module binds a transaction to a caller-supplied program
   it("no exported string of the module carries that vocabulary either", () => {
     expect(TRAN_DATA_LINES.join("\n")).not.toMatch(FORBIDDEN);
     for (const pkg of ["ZTM", "$TMP"]) {
-      expect(sourceFor({ ...PARAMS, packageName: pkg })).not.toMatch(FORBIDDEN);
+      const corrNr = pkg.startsWith("$") ? undefined : CORR_NR;
+      expect(sourceFor({ ...PARAMS, packageName: pkg, corrNr })).not.toMatch(FORBIDDEN);
     }
   });
 
@@ -566,5 +574,107 @@ describe("scope — this module binds a transaction to a caller-supplied program
     const here = dirname(fileURLToPath(import.meta.url));
     const module = readFileSync(join(here, "..", "src", "adt", "tran-create.ts"), "utf8");
     expect(module).not.toMatch(FORBIDDEN);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9 — transport_number / assertTransactionCreateTarget
+// ---------------------------------------------------------------------------
+//
+// RPY_TRANSACTION_INSERT's own RS_CORR_INSERT call (read verbatim live on
+// A4H 2026-09-05) needs a transport request to register a transportable
+// package's transaction in CTS. This threads a caller-supplied, already
+// gate-judged TRKORR through as `transport_number`, mirroring
+// `view-create.ts`'s `corrNr` discipline for `RS_CORR_INSERT`'s `korrnum`.
+
+describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
+  it("emits transport_number carrying the exact corrNr, quoted, for a transportable package", () => {
+    const lines = transactionFragment(PARAMS);
+    expect(lines).toContain(`            transport_number  = '${CORR_NR}'`);
+    expect(lines.join("\n").toLowerCase()).not.toContain("suppress_corr_insert");
+  });
+
+  it("emits transport_number = space (unquoted) for a $TMP package, and still no suppress_corr_insert", () => {
+    const lines = transactionFragment({ ...PARAMS, packageName: "$TMP", corrNr: undefined });
+    expect(lines).toContain("            transport_number  = space");
+    expect(lines.join("\n").toLowerCase()).not.toContain("suppress_corr_insert");
+  });
+
+  it("assertTransactionCreateTarget: $TMP with no corrNr returns the validated name and throws nothing", () => {
+    expect(assertTransactionCreateTarget("$TMP", undefined)).toBe("$TMP");
+    expect(isLocalPackageName("$TMP")).toBe(true);
+  });
+
+  it("assertTransactionCreateTarget: a transportable package with a valid corrNr likewise returns the validated name", () => {
+    expect(assertTransactionCreateTarget("ZTM", CORR_NR)).toBe("ZTM");
+  });
+
+  it("a transportable package with no corr_nr is TRANSPORT_ERROR, mentions corr_nr, with ZERO network calls", async () => {
+    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
+    const { conn, inner } = await connected(route);
+    const { corrNr: _drop, ...withoutCorr } = PARAMS;
+    const err = await catchErr(createTransaction(conn, allowingGate(), withoutCorr as TransactionParams));
+    expect(err.code).toBe("TRANSPORT_ERROR");
+    expect(err.message).toContain("corr_nr");
+    expect(inner.calls.length).toBe(0);
+  });
+
+  it("a $TMP package given a corr_nr is BAD_INPUT, mentions corr_nr and the package, with ZERO network calls", async () => {
+    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
+    const { conn, inner } = await connected(route);
+    const err = await catchErr(
+      createTransaction(conn, allowingGate(), { ...PARAMS, packageName: "$TMP", corrNr: CORR_NR }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("corr_nr");
+    expect(err.message).toContain("$TMP");
+    expect(inner.calls.length).toBe(0);
+  });
+
+  it("a malformed corr_nr on a transportable package is BAD_INPUT", async () => {
+    const err = await catchErr(
+      createTransaction(null as unknown as AbapConnection, allowingGate(), { ...PARAMS, corrNr: "not-a-request" }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+    expect(() => transactionFragment({ ...PARAMS, corrNr: "not-a-request" })).toThrow();
+  });
+
+  it("createTransaction passes the corr to the safety gate as { kind: 'transport', corrNr, source: 'named' } for a transportable package", async () => {
+    const seen: Array<Parameters<SafetyGate["assert"]>[2]> = [];
+    class RecordingGate extends SafetyGate {
+      override assert(op: Operation, obj?: SafetyTarget, opts: EvaluateOptions = {}): void {
+        if (obj?.type === "TRAN/T") seen.push(opts);
+        super.assert(op, obj, opts);
+      }
+    }
+    const gate = new RecordingGate({
+      readOnly: false,
+      allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+      allowTransports: ["*"],
+      writesLockedOut: false,
+    });
+    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
+    const { conn } = await connected(route);
+    await createTransaction(conn, gate, PARAMS);
+    expect(seen).toEqual([{ corr: { kind: "transport", corrNr: CORR_NR, source: "named" } }]);
+  });
+
+  it("createTransaction passes NO corr to the safety gate for a $TMP package", async () => {
+    const seen: Array<Parameters<SafetyGate["assert"]>[2]> = [];
+    class RecordingGate extends SafetyGate {
+      override assert(op: Operation, obj?: SafetyTarget, opts: EvaluateOptions = {}): void {
+        if (obj?.type === "TRAN/T") seen.push(opts);
+        super.assert(op, obj, opts);
+      }
+    }
+    const gate = new RecordingGate({
+      readOnly: false,
+      allowPackages: [DDIC_BRIDGE_PACKAGE, "$TMP"],
+      writesLockedOut: false,
+    });
+    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
+    const { conn } = await connected(route);
+    await createTransaction(conn, gate, { ...PARAMS, packageName: "$TMP", corrNr: undefined });
+    expect(seen).toEqual([{}]);
   });
 });

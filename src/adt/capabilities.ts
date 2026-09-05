@@ -1058,8 +1058,14 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "path uses one — is unknown; that has never been investigated here, so this is a " +
         "statement about what abapsmith implements, not a claim that the backend itself would " +
         "refuse a change: unverified. Deleting one is " +
-        "attempted through a bridge whose delete FM parameter set is inferred, not " +
-        "live-verified — see this type's bridgeDelete entry below.",
+        "attempted through a bridge whose delete FM parameter set is inferred (live-verified " +
+        "once for a $ package) — see this type's bridgeDelete entry below. A transportable package " +
+        "requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) " +
+        "and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live " +
+        "on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to " +
+        "RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the " +
+        "transport/TADIR registration always runs. No live create with a transport has been " +
+        "run yet.",
     },
     bridgeDelete: {
       adtRest:
@@ -1071,8 +1077,10 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
       limits:
         "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's " +
-        "`transaction` parameter name, not transcribed from a capture of the delete FM itself " +
-        "— not live-verified. This bridgeCreate entry's own `via` already records that " +
+        "`transaction` parameter name, not transcribed from a capture of the delete FM itself. " +
+        "Live-verified once, 2026-09-05: a $ package transaction was created and then deleted " +
+        "with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. " +
+        "This bridgeCreate entry's own `via` already records that " +
         "RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether " +
         "RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a " +
         "TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way " +
@@ -1313,7 +1321,7 @@ export function isBridgeOnlyCreateType(type: string | undefined): boolean {
   return cap?.bridgeCreate !== undefined && cap.create === undefined;
 }
 
-/** Types declaring `bridgeDelete` (today: `DEVC/K`) — the classrun-bridge delete route, disjoint from `DELETABLE_TYPES`. */
+/** Types declaring `bridgeDelete` (`DEVC/K`, `VIEW/DV`, `TRAN/T`) — the classrun-bridge delete route, disjoint from `DELETABLE_TYPES`. */
 export const BRIDGE_DELETABLE_TYPES: readonly string[] = codesWith((c) => c.bridgeDelete !== undefined);
 
 /** True for a type deleted via the classrun bridge rather than ADT REST. See {@link BRIDGE_DELETABLE_TYPES}. */
