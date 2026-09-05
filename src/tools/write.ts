@@ -35,6 +35,12 @@ import {
 } from "../adt/capabilities.js";
 import { DDIC_BRIDGE_CLASS, type DdicTranscript } from "../adt/ddic-bridge.js";
 import { discardedDescriptorValues, type DiscardedValue } from "../adt/descriptor-fidelity.js";
+import {
+  assertSecondaryIndexTarget,
+  createSecondaryIndex,
+  deleteSecondaryIndexViaBridge,
+  resolveIndexOwner,
+} from "../adt/index-create.js";
 import { createPackageViaBridge, tdevcDiscrepancies } from "../adt/package-create.js";
 import type { RunResult } from "../adt/run.js";
 import { serverPackage } from "../adt/resolved-package.js";
@@ -153,7 +159,9 @@ export const writeInputSchema = {
     .optional()
     .describe(
       "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. " +
-        "VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr.",
+        "VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr. " +
+        "TABL/DI: ignored except to check agreement — an index's package is always the base " +
+        "table's, never caller-chosen.",
     ),
   description: z
     .string()
@@ -203,9 +211,10 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Transport request. $TMP needs none. Required for a TRAN/T create into a transportable " +
-        "package; optional for a VIEW/DV create, which resolves one under ABAP_ALLOW_TRANSPORTS " +
-        "when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T delete.",
+      "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a " +
+        "transportable package; optional for a VIEW/DV create, which resolves one under " +
+        "ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T " +
+        "delete. TABL/DI delete: same package-derived requirement as its create, not refused.",
     ),
   software_component: z.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: z.string().optional().describe("DEVC/K only. Default development."),
@@ -217,11 +226,30 @@ export const writeInputSchema = {
   // deliberately: schema prose is billed on every `tools/list`, while the
   // fuller guidance is billed only to a caller who gets it wrong
   // (`abapCreateViaBridge`, below) — see test/tools.test.ts's "tool surface".
-  base_table: z.string().optional().describe("VIEW/DV create only: the single base table the view projects."),
+  base_table: z
+    .string()
+    .optional()
+    .describe(
+      "VIEW/DV create: the single base table the view projects. TABL/DI create+delete, " +
+        "required: the table the index belongs to.",
+    ),
   view_fields: z
     .array(z.string())
     .optional()
     .describe("VIEW/DV create only: base-table fields to project, in order."),
+  index_fields: z
+    .array(z.string())
+    .optional()
+    .describe("TABL/DI create only, required: base-table fields the index covers, in order."),
+  index_unique: z
+    .boolean()
+    .optional()
+    .describe(
+      "TABL/DI create only: mark the index UNIQUE. Default false. On a client-dependent base " +
+        "table, a unique index must include the table's client field (usually MANDT) in " +
+        "`index_fields` — a create that omits it is refused rather than left to fail activation " +
+        "on the server.",
+    ),
   // "EXISTING" and "SUBMIT-only" are load-bearing: abapsmith checks the
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.
@@ -1206,6 +1234,8 @@ export async function abapWrite(
         "transport_layer",
         "base_table",
         "view_fields",
+        "index_fields",
+        "index_unique",
         "program",
         "affects",
         "ddic",
@@ -1276,11 +1306,11 @@ export async function abapWrite(
 
   // Hoisted ABOVE the delete branch, unlike DEVC/K's routing below, and for
   // EVERY mode, not just create: `resolveWriteTarget` refuses these
-  // two types outright, so `mode=delete` would otherwise reach it and get a
+  // types outright, so `mode=delete` would otherwise reach it and get a
   // generic "cannot be written" refusal instead of the specific reason, or
   // (worse) leave `resolveWriteTarget`'s own delete gate as a second route
-  // that must be kept in sync with this one. `abapBridgeCrud` owns both
-  // types and both modes.
+  // that must be kept in sync with this one. `abapBridgeCrud` owns all
+  // three types and both modes.
   //
   // `isBridgeOnlyCreateType`, not `isBridgeCreatableType`: DEVC/K now also
   // declares `bridgeCreate`, but it already has its own routing
@@ -3028,11 +3058,15 @@ async function abapCreatePackage(
 }
 
 /**
- * `VIEW/DV` / `TRAN/T` — both create and delete, through the classrun bridge.
- * `resolveWriteTarget` refuses these two types outright for ANY op (see the
+ * `VIEW/DV` / `TRAN/T` / `TABL/DI` — both create and delete, through the classrun bridge.
+ * `resolveWriteTarget` refuses these types outright for ANY op (see the
  * `isBridgeOnlyCreateType` refusal in `src/adt/write.ts`) — there is no writable ADT
- * collection to resolve a URI against — so this is the ONLY place either type's write or
- * delete is gated. Dispatches on `mode` before either sibling below is reached.
+ * collection to resolve a URI against — so this is the ONLY place any of them is gated.
+ * `TABL/DI` is dispatched to its own pair of functions first: the `vitType` ternary
+ * `abapCreateViaBridge`/`abapDeleteViaBridge` use below has no VIT bridge object type for
+ * a secondary index (it has no ADT resource at all, VIT or otherwise), so a third type
+ * cannot be folded into that pair without breaking it. Dispatches on `mode` before any
+ * sibling below is reached.
  */
 async function abapBridgeCrud(
   conn: AbapConnection,
@@ -3043,6 +3077,12 @@ async function abapBridgeCrud(
   journal?: Journal,
   transport?: SessionTransport,
 ): Promise<BuiltResponse> {
+  const type = (input.type ?? "").trim().toUpperCase();
+  if (type === "TABL/DI") {
+    return (input.mode ?? "write") === "delete"
+      ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate)
+      : abapCreateIndexViaBridge(conn, target, input, maxChars, gate);
+  }
   return (input.mode ?? "write") === "delete"
     ? abapDeleteViaBridge(conn, target, input, maxChars, gate)
     : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
@@ -3740,6 +3780,325 @@ async function abapDeleteViaBridge(
         "restore this object. To bring it back, create it again with a fresh abap_write call.",
       isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName),
     ].filter((n) => n !== ""),
+    maxChars,
+  });
+}
+
+/**
+ * `TABL/DI` (secondary index) create, through the `DD_INDEX_INTERFACE`
+ * classrun bridge (`src/adt/index-create.ts`). A sibling of
+ * {@link abapCreateViaBridge}, but never folded into it — see
+ * `abapBridgeCrud`'s doc comment for why a third type can't join that
+ * function's `vitType` ternary.
+ *
+ * Every field with no meaning on an index create is refused zero-network,
+ * mirroring `abapCreateViaBridge`'s own refusals. Exactly one network read
+ * follows: `resolveIndexOwner` (`src/adt/index-create.ts`) — an index has no
+ * package of its own to be asked for, it inherits its base table's, so the
+ * table is read once and a caller-supplied `package` is only ever checked
+ * for AGREEMENT against that answer, never trusted or substituted (the same
+ * reasoning `abapDeleteViaBridge`'s own package read above uses, applied
+ * here to a create rather than a delete).
+ *
+ * No `journal` parameter: `src/adt/undo.ts`'s `vitTypeFor()` has no case for
+ * TABL/DI and throws SAFETY_DENIED "INTERNAL INVARIANT VIOLATED" for a type
+ * it does not recognise, so accepting one here would let a later
+ * `abap_journal mode=undo` hit that invariant instead of a clean refusal.
+ * Reversal is `abap_write { mode: "delete", type: "TABL/DI" }`, never undo.
+ *
+ * `verified` is always `false`: there is no ADT resource of any kind to read
+ * an index back from (this type's REGISTRY entry, `src/adt/capabilities.ts`,
+ * has no route at all). `INDEX-ACTIVE`/`INDEX-FIELDS` in the transcript come
+ * from the generated bridge fragment's own post-`COMMIT WORK` `SELECT
+ * COUNT( * )` on DD12V/DD17S inside the same classrun execution, not a
+ * second, independent confirmation — so this never calls `verifyObjectCreated`
+ * or `verifyViaVitBridge`.
+ */
+async function abapCreateIndexViaBridge(
+  conn: AbapConnection,
+  target: WriteTarget,
+  input: WriteInput,
+  maxChars: number,
+  gate: SafetyGate,
+): Promise<BuiltResponse> {
+  const type = "TABL/DI";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message: string, hint?: string): never => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+
+  if (input.source !== undefined || input.edit !== undefined || input.method !== undefined) {
+    bad(
+      `A ${label} (${type}) has no source: it is created from its definition, not from ABAP text. ` +
+        "Omit `source`, `edit` and `method`.",
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply.`);
+  if (input.include !== undefined) {
+    bad(`\`include\` is a CLAS/OC field; a ${label} (${type}) has no class includes.`);
+  }
+  if (input.expect_etag !== undefined) {
+    bad(`\`expect_etag\` does not apply to a ${label} create — there is no prior version to compare.`);
+  }
+  if (
+    input.software_component !== undefined ||
+    input.package_type !== undefined ||
+    input.transport_layer !== undefined
+  ) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
+  }
+  if (input.program !== undefined) bad("`program` is a TRAN/T field; an index does not start a program.");
+  if (input.view_fields !== undefined) {
+    bad("`view_fields` is a VIEW/DV field; an index projects nothing of its own — use `index_fields`.");
+  }
+  if (input.activate === false) {
+    bad(
+      "A secondary index cannot be created without activating it: DD_INDEX_INTERFACE runs with " +
+        "ACTIVATE = 'X'. Omit `activate`.",
+    );
+  }
+  if (!input.description?.trim()) {
+    bad(
+      `\`description\` is required to create a ${label} (${type}) — it is the index's short text ` +
+        "(DD12V-DDTEXT), and the API has no default for it.",
+    );
+  }
+  if (!input.base_table?.trim()) {
+    bad(
+      `\`base_table\` is required to create a ${label} (${type}): the existing table the index is ` +
+        "built over, e.g. ZMCP_CARRIER.",
+    );
+  }
+  if (!input.index_fields || input.index_fields.length === 0) {
+    bad(
+      `\`index_fields\` is required to create a ${label} (${type}): the base-table fields the index ` +
+        'covers, in order, e.g. ["CARRIER_ID"]. There is no "all fields" default.',
+    );
+  }
+  // `bad()` always throws, but TS's never-return narrowing doesn't follow a call
+  // through a local `const` arrow function (same cast a few lines down for TRAN/T's `program`).
+  const description = (input.description as string).trim();
+  const baseTable = (input.base_table as string).trim();
+  const indexFields = input.index_fields as string[];
+
+  // The one network read this function makes — see this function's doc comment.
+  const owner = await resolveIndexOwner(conn, baseTable);
+  const requestedPackage = target.packageName?.trim().toUpperCase();
+  if (requestedPackage && requestedPackage !== owner.packageName.name) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Base table ${baseTable} is in package ${owner.packageName.name}, but the request asked for ` +
+        `${requestedPackage}. abapsmith does not move objects between packages, and will not create ` +
+        "an index in a package other than its base table's.",
+      { object: target.name, type, baseTable, serverPackage: owner.packageName.name, requestedPackage },
+      "Drop the `package` argument to create the index where its base table actually lives, or " +
+        "correct it if this named the wrong table.",
+    );
+  }
+
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  // Zero-network package/corr_nr check against the SERVER-resolved package,
+  // same discipline as VIEW/DV's `assertClassicViewCreateTarget` call in
+  // `abapCreateViaBridge` above — `createSecondaryIndex`'s own `validate()`
+  // repeats this as defence in depth, not the only enforcement point.
+  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+
+  const created = await createSecondaryIndex(conn, gate, {
+    indexName: target.name,
+    baseTable,
+    fields: indexFields,
+    description,
+    packageName: owner.packageName,
+    corrNr,
+    unique: input.index_unique,
+  });
+
+  const detail =
+    `secondary index over ${indexFields.length} field(s) of ${baseTable}` +
+    (input.index_unique ? ", unique" : "");
+
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: owner.packageName.name,
+      mode: "create-bridge",
+      created: true,
+      verified: false,
+      detail,
+      bridge_class: DDIC_BRIDGE_CLASS.createIndex,
+      markers: created.transcript.tags.join(" "),
+      journal: "off (never journalled — see notes)",
+    },
+    notes: [
+      `Created by running a generated ${DDIC_BRIDGE_CLASS.createIndex} classrun bridge, not over ` +
+        `ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
+      cap?.bridgeCreate?.limits ?? "",
+      "NOT independently verified: a secondary index has no ADT resource of its own to read back " +
+        "from (see this type's REGISTRY entry in src/adt/capabilities.ts). The INDEX-ACTIVE and " +
+        "INDEX-FIELDS markers above come from the generated bridge's own post-COMMIT WORK SELECT " +
+        "COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, " +
+        "independent read — abapsmith still reports created:true, trusting that transcript, but " +
+        "verified is always false here.",
+      "NOT journalled: an index create has no undo path (src/adt/undo.ts recognises no TABL/DI " +
+        "shape and would throw on one). To reverse this, delete the index with a fresh " +
+        'abap_write { mode: "delete", type: "TABL/DI" } call, not abap_journal mode=undo.',
+    ].filter((n) => n !== ""),
+    maxChars,
+  });
+}
+
+/**
+ * `TABL/DI` (secondary index) delete. Sibling of {@link abapDeleteViaBridge}
+ * above, never folded into it for the same reasons
+ * {@link abapCreateIndexViaBridge}'s doc comment gives.
+ *
+ * `base_table` is REQUIRED here, unlike `abapDeleteViaBridge`'s VIEW/DV and
+ * TRAN/T deletes, which blanket-refuse it: an index has no identity apart
+ * from its base table — `DD_INDEX_INTERFACE`'s `ACTION = 'D'` call needs both
+ * together, and `resolveIndexOwner` needs it to find the owning package.
+ *
+ * `corr_nr` is deliberately NOT blanket-refused, a divergence from VIEW/DV's
+ * and TRAN/T's deletes above (neither of their delete bridges takes a
+ * transport parameter at all): `DD_INDEX_INTERFACE`'s `ACTION = 'D'` call
+ * DOES take one, so a transportable package's index delete needs one —
+ * governed by `assertSecondaryIndexTarget` against the server-resolved
+ * package, the same as the create side.
+ *
+ * Same "never trust the caller's `package`" rule as `abapDeleteViaBridge`:
+ * `resolveIndexOwner` reads the base table's real package once, and a
+ * caller-supplied `package` is only ever checked for agreement.
+ *
+ * `verified` is always `false` — see {@link abapCreateIndexViaBridge}'s doc
+ * comment: there is no ADT resource to read an index back from, so this
+ * never calls `verifyObjectDeleted`.
+ */
+async function abapDeleteIndexViaBridge(
+  conn: AbapConnection,
+  target: WriteTarget,
+  input: WriteInput,
+  maxChars: number,
+  gate: SafetyGate,
+): Promise<BuiltResponse> {
+  const type = "TABL/DI";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message: string, hint?: string): never => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+
+  if (
+    input.source !== undefined ||
+    input.edit !== undefined ||
+    input.method !== undefined ||
+    input.include !== undefined
+  ) {
+    bad(
+      `A ${label} (${type}) delete has no source to touch: omit \`source\`, \`edit\`, \`method\` ` +
+        "and `include`.",
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply to a delete.`);
+  if (input.expect_etag !== undefined) {
+    bad(`\`expect_etag\` does not apply to a ${label} delete — the classrun bridge has no etag to compare.`);
+  }
+  if (input.description !== undefined) {
+    bad("`description` is a create-only field; a delete does not rename anything.");
+  }
+  if (input.activate !== undefined) bad("`activate` is a create-only field; a delete has nothing to activate.");
+  if (input.view_fields !== undefined) bad("`view_fields` is a VIEW/DV create field; an index delete needs none.");
+  if (input.program !== undefined) bad("`program` is a TRAN/T create field; an index delete needs no program.");
+  if (
+    input.software_component !== undefined ||
+    input.package_type !== undefined ||
+    input.transport_layer !== undefined
+  ) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K create fields only.");
+  }
+  if (input.index_fields !== undefined) {
+    bad("`index_fields` is a create-only field; a delete removes the index as it already stands.");
+  }
+  if (input.index_unique !== undefined) {
+    bad("`index_unique` is a create-only field; a delete removes the index as it already stands.");
+  }
+  if (!input.base_table?.trim()) {
+    bad(
+      `\`base_table\` is required to delete a ${label} (${type}): DD_INDEX_INTERFACE deletes an ` +
+        "index by base table and index name together, and abapsmith needs it to find the owning " +
+        "package too.",
+    );
+  }
+  // `bad()` always throws, but TS's never-return narrowing doesn't follow a call
+  // through a local `const` arrow function (same cast a few lines down for TRAN/T's `program`).
+  const baseTable = (input.base_table as string).trim();
+
+  // Same reasoning as abapCreateIndexViaBridge above: an index has no
+  // package of its own, it inherits the base table's — one network read,
+  // never the caller's `package` trusted or substituted.
+  const owner = await resolveIndexOwner(conn, baseTable);
+  const requestedPackage = target.packageName?.trim().toUpperCase();
+  if (requestedPackage && requestedPackage !== owner.packageName.name) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Base table ${baseTable} is in package ${owner.packageName.name}, but the request asked for ` +
+        `${requestedPackage}. abapsmith does not move objects between packages, and will not ` +
+        "delete against the wrong one.",
+      { object: target.name, type, baseTable, serverPackage: owner.packageName.name, requestedPackage },
+      "Drop the `package` argument to delete the index where its base table actually lives, or " +
+        "correct it if this named the wrong table.",
+    );
+  }
+
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  // Divergence from abapDeleteViaBridge's blanket corr_nr refusal — see this
+  // function's doc comment: DD_INDEX_INTERFACE's ACTION='D' call DOES take a
+  // transport parameter, so a transportable package's index delete needs one.
+  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+
+  const deleted = await deleteSecondaryIndexViaBridge(conn, gate, {
+    indexName: target.name,
+    baseTable,
+    packageName: owner.packageName,
+    corrNr,
+  });
+
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: owner.packageName.name,
+      mode: "delete-bridge",
+      deleted: true,
+      verified: false,
+      bridge_class: DDIC_BRIDGE_CLASS.deleteIndex,
+      markers: deleted.transcript.tags.join(" "),
+      journal: "off (not journalled — see notes)",
+    },
+    notes: [
+      `Deleted by running a generated ${DDIC_BRIDGE_CLASS.deleteIndex} classrun bridge, not over ` +
+        `ADT REST — ${type} has no writable ADT collection at all (see this type's REGISTRY entry ` +
+        "in src/adt/capabilities.ts).",
+      "NOT independently verified: a secondary index has no ADT resource of its own to read back " +
+        "from. The INDEX-GONE marker above comes from the generated bridge's own post-COMMIT WORK " +
+        "SELECT COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, " +
+        "independent read — abapsmith still reports deleted:true, trusting that transcript, but " +
+        "verified is always false here.",
+      "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot " +
+        "restore this index. To bring it back, create it again with a fresh abap_write call.",
+      ...(deleted.transcript.tags.includes("INDEX-DELETED-ACTFAILED")
+        ? [
+            "ACTFAILED: DD_INDEX_INTERFACE itself reported ACTFAILED = 'X' for this delete, but the " +
+              "bridge's post-COMMIT WORK re-read of DD12V (both unfiltered and AS4LOCAL = 'A') and " +
+              "DD17S found no rows left for this index, so abapsmith reports deleted:true anyway. " +
+              "This was observed live on 2026-09-05 and its cause is not established — it may mean " +
+              "the database-level index drop or the table's re-activation failed rather than the " +
+              "dictionary removal itself. If the table's runtime behaviour looks wrong, check it in " +
+              "SE11/SE14 rather than assuming the delete was clean; abapsmith performs no further " +
+              "check on this path.",
+          ]
+        : []),
+    ],
     maxChars,
   });
 }

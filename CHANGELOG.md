@@ -220,6 +220,38 @@ was last set to `0.3.0`.
   caller's own length instead of the fixed values the fixtures show —
   were found and corrected by review within the same change before it
   merged.
+- `TABL/DI` (a transparent table's secondary index) can now be created and
+  deleted through a generated classrun bridge calling
+  `DD_INDEX_INTERFACE` — there is no ADT REST route for indexes at all,
+  so there is no read and no change, only drop and recreate. The index's
+  package is the base table's, resolved by reading the table over ADT,
+  never the caller's; a caller-supplied `package` is only checked for
+  agreement. A transportable package requires `corr_nr` for both create
+  and delete, unlike the `VIEW/DV`/`TRAN/T` deletes, which refuse one —
+  `DD_INDEX_INTERFACE`'s delete takes a transport parameter too. The
+  create is never `verified` and never journalled: there is no resource
+  to read an index back from and so no undo path, only an explicit
+  delete. A non-unique create and a unique create with the base table's
+  client field were both proven live on A4H in a `$TMP` package, across
+  two live rounds; omitting the client field is refused `BAD_INPUT` before
+  the FM runs. The delete originally omitted `DD_INDEX_INTERFACE`'s
+  mandatory `INDEX_FIELDS` parameter; fixed and confirmed deployed. A
+  delete can still report `ACTFAILED` even after it already took effect;
+  the fix for that — commit regardless, then re-verify via a post-commit
+  `DD12V`/`DD17S` re-read — turned out to never run: its own added message
+  line exceeded ABAP's 255-character source-line limit, so every delete
+  failed the class-source PUT before `DD_INDEX_INTERFACE` was ever called,
+  leaving the deployed bridge class on its pre-fix body. The
+  `ACTFAILED`-tolerant read-back had therefore never executed live. Fixed
+  again — the long messages are now built up in a variable across short
+  lines, and every generated bridge class body is now rejected before it
+  is written if any line exceeds 255 characters — and a fourth live round
+  then deleted a non-unique and a unique index through the redeployed
+  bridge, with `NOT_FOUND` on a re-delete: delete is live-proven in `$TMP`.
+  `ACTFAILED` is still set on a delete that took effect. A later cleanup
+  deleted a base table whose indexes' catalog rows may still have existed;
+  whether the delete cascaded them away or left them orphaned is
+  unverified. The transportable-package path is unexercised.
 - Four new `abap_bopf_edit` operations — `add_representative_node` /
   `remove_representative_node` for cross-BO representative nodes, and
   `embed_dependent_object` / `remove_dependent_object` for delegated
@@ -412,6 +444,16 @@ was last set to `0.3.0`.
   answered 200 with the association silently discarded — so the removal
   is a settled negative for this endpoint on this release, not a gap
   waiting on evidence. See `doc/CAPABILITIES/bopf.md`.
+- `abap_bopf_edit operation:"create_bo"` now refuses with a new terminal
+  error code, `BOPF_CREATE_UNUSABLE`, when the landed root node is unnamed
+  (`bo:name=""`) or missing outright, instead of reporting success over an
+  object that can never be activated — BOPF generates the `Z*_C` constants
+  interface from the root node name at create time and never regenerates it,
+  so renaming the root afterward doesn't help. The object still exists
+  server-side (the journal still records `succeeded`, naming that entry's id;
+  remedy: `abap_bopf_delete` then recreate), and no activation request is
+  sent even with `activate: true`. A differently-named, non-empty root is
+  still only a discrepancy note. See `test/bopf-create-recovery.test.ts`.
 
 ### Fixed
 
@@ -533,6 +575,15 @@ was last set to `0.3.0`.
   creates are now correctly marked irreversible in the tool's own
   response (packages have since gained a real, limited delete path for
   empty packages — see Added).
+- A `$`-named local package (`DEVC/K`) can be deleted via `abap_write
+  mode=delete`, its create undone via `abap_journal mode=undo` — both
+  previously failed `SAFETY_DENIED` / `PACKAGE_UNKNOWN`. It reads back
+  with no `<adtcore:packageRef>` element, and the gate resolves an
+  existing package to itself; one fix covers both, since delete and
+  undo share the same target-resolution step. The delete bridge also
+  rejected `$`-prefixed names as `BAD_INPUT` — fixed. Empty packages
+  only, unchanged; the package-create response's claim about these
+  routes is now accurate, having promised two that failed.
 - Corrected a false claim that `abap_write` has no surgical string edit —
   it has long supported targeted `edit` (unique-match splice) and
   `method` (single method-block replace) fields; clarified that the

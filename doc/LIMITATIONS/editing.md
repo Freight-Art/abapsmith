@@ -115,22 +115,35 @@
   returns a basic-properties stub (name/description/package) with no field
   list and no permission values, not a usable read of the object's actual
   content. SU21 is the only way to view or edit an authorization object.
-- **No table secondary index (TABL/DI) create or change.** `TABL/DI` is not a
-  writable type and there is no other route to create or change a table's
-  secondary index through abapsmith. Two in-band routes were tried on
-  A4H and both failed: appending a second `define index ...` statement to a
-  `TABL/DT` source write is rejected at check time (the table source grammar
-  accepts one statement), and `abap_ui` cannot drive SE11's Indexes tab (SE11
-  reports CINFO=84, so `press` refuses it). Unlike the SHLP/DH and SUSO/B
-  entries above, this one rests on no live ADT recon: nobody has probed the
-  table-child resource at
-  `/sap/bc/adt/ddic/tables/{table}/indexes/{id}`, so it records abapsmith's
-  own reach, not a proven limit of ADT. `abap_write`/`abap_read` with
-  `type: "TABL/DI"` now return this specific refusal instead of a generic
-  "Unknown object type". Create or change the index by hand in SE11 (the
-  table's "Indexes" button) or ADT's table editor — the table itself stays
-  writable here as `TABL/DT`, so a table built through abapsmith can be
-  indexed afterwards.
+- **No table secondary index (TABL/DI) change or read; create and delete are
+  bridge-only.** A live probe on A4H 2026-09-05 confirmed there is no ADT
+  REST route for indexes at all — every route under a table 404s. Creation
+  and deletion instead run through `DD_INDEX_INTERFACE` via a classrun
+  bridge (see `src/adt/capabilities.ts`); the bridge cannot update an
+  existing index — drop and recreate instead — and there is no read-back
+  for `TABL/DI` through abapsmith either way. Create is live-proven and
+  unaffected by anything below: a non-unique index and a unique index that
+  includes the base table's client field both succeed, an omitting create
+  is refused `BAD_INPUT` before the FM runs, and a third live round the
+  same day reran both and got the same result. A delete can report
+  `ACTFAILED` even after it already took effect; the fix for that — commit
+  regardless, then re-verify via `DD12V`/`DD17S` — never ran live, because
+  the fix's own added message rendered as a source line over the
+  255-character ABAP limit, so every delete failed the class-source PUT
+  before `DD_INDEX_INTERFACE` was ever called and the deployed bridge
+  class stayed on its pre-fix body. That was fixed again, with a line-length
+  guard on every generated bridge class body, not just this one, and a
+  fourth live round the same day deleted both a non-unique and a unique
+  index through the redeployed bridge and got `NOT_FOUND` on a re-delete —
+  delete is live-proven in `$TMP`. `ACTFAILED` still comes back set on a
+  delete that took effect, so treat the flag as noise, not a result. Deleting the
+  base table is not blocked by a surviving secondary index; a later
+  cleanup deleted a base table whose indexes' catalog rows may still have
+  existed, and whether they were cascaded away or orphaned is unverified —
+  there is nothing to read back either way, and `abap_data_preview` has no
+  `WHERE` filter to target one. SE11 (the table's "Indexes" button) is the
+  only way to inspect one directly; the table itself stays writable here
+  as `TABL/DT`.
 
 ## FPM / Web Dynpro configuration is read-only, deliberately
 

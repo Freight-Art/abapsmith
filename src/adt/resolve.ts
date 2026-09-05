@@ -353,8 +353,8 @@ export async function resolveObject(
       );
     }
     // DEVC/K also declares bridgeCreate but has a real ADT collection
-    // and resolves fine, so it's excluded here; only VIEW/DV and TRAN/T truly
-    // have none.
+    // and resolves fine, so it's excluded here; only VIEW/DV, TRAN/T, and
+    // TABL/DI truly have none.
     if (cap?.bridgeCreate && isBridgeOnlyCreateType(opts.type)) {
       throw new AbapError(
         "UNSUPPORTED",
