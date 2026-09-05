@@ -325,10 +325,11 @@ export interface BridgeMutationTarget {
  * a literal `"auto"` transport nobody named. Previously,
  * only the first assert got `corr` — the activate assert always fabricated
  * `"auto"`, so `ABAP_ALLOW_TRANSPORTS=<the pinned request>` satisfied the
- * first gate and was refused by the second. Callers that have no transport
- * to offer (`TRAN/T` — its backing FM takes no transport parameter at all;
- * `VIEW/DV` create would supply one, but is refused before it can)
- * omit it, unchanged; both asserts then fall back to the gate's own default.
+ * first gate and was refused by the second. Both `VIEW/DV` and `TRAN/T`
+ * creates now pass `corr` for a transportable package; callers that have no
+ * transport to name — a `$`-package create (its `RS_CORR_INSERT` runs with
+ * `korrnum = space`) and the delete paths — omit it, unchanged; both asserts
+ * then fall back to the gate's own default.
  */
 export function assertBridgeMutation(
   gate: SafetyGate,

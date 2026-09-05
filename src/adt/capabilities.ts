@@ -1065,7 +1065,13 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "statement about what abapsmith implements, not a claim that the backend itself would " +
         "refuse a change: unverified. Deleting one is " +
         "attempted through a bridge whose delete FM parameter set is inferred, not " +
-        "live-verified — see this type's bridgeDelete entry below.",
+        "live-verified — see this type's bridgeDelete entry below. A transportable package " +
+        "requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) " +
+        "and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live " +
+        "on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to " +
+        "RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the " +
+        "transport/TADIR registration always runs. No live create with a transport has been " +
+        "run yet.",
     },
     bridgeDelete: {
       adtRest:

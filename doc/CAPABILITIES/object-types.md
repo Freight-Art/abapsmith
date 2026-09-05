@@ -147,14 +147,19 @@ The `Object` column values are the registry `label` fields, unreworded.
   creating one you cannot ask abapsmith what it looks like. There is no
   source write either, so an existing one cannot be changed — only deleted
   and recreated. Their `bridgeCreate.limits` text states this, and a test
-  requires it to. `VIEW/DV` has its own package rule: a transportable
-  package requires `corr_nr` for the create, and a `$` package (`$TMP`
-  included) refuses one and registers with `korrnum = space` instead.
-  Either way the created view lands in TADIR, so the delete bridge can
-  remove it afterwards — proven live on A4H, 2026-09-04 (transportable
-  package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a `$`-prefixed
-  package: view registered with `korrnum = space`, then deleted,
-  VIEW-DELETED / VIEW-GONE).
+  requires it to. `VIEW/DV` and `TRAN/T` share the same package rule: a
+  transportable package requires `corr_nr` for the create, and a `$` package
+  (`$TMP` included) refuses one and registers with `korrnum = space` instead.
+  For `VIEW/DV`, the created view lands in TADIR either way, so the delete
+  bridge can remove it afterwards — proven live on A4H, 2026-09-04
+  (transportable package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a
+  `$`-prefixed package: view registered with `korrnum = space`, then deleted,
+  VIEW-DELETED / VIEW-GONE). For `TRAN/T`, only `RPY_TRANSACTION_INSERT`'s
+  signature was read live on A4H 2026-09-05 — `transport_number` is optional
+  and forwarded verbatim to `RS_CORR_INSERT` as `korrnum`, and
+  `suppress_corr_insert` defaults to space so registration always runs. No
+  create into a transportable package has been run, and the delete round-trip
+  is not live-verified.
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and

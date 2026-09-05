@@ -223,6 +223,7 @@ const TRAN_PARAMS: TransactionParams = {
   program: "SAPMZTM_CARRIERS",
   description: "Test transaction",
   packageName: "ZTM",
+  corrNr: "A4HK900121",
 };
 
 const EXERCISE_PARAMS: ExerciseParams = {

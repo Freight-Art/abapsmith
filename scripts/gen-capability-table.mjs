@@ -63,7 +63,14 @@ const BRIDGE_NOTE = {
     "2026-09-04 into the transportable package ZBOPF_Q1PKG with a corr_nr; 2026-09-05, " +
     "RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR " +
     "row), then removed by the delete bridge. Change is not supported either.",
-  "TRAN/T": "creates a REPORT transaction (dynpro 1000) starting an existing program; change is still not supported.",
+  "TRAN/T":
+    "creates a REPORT transaction (dynpro 1000) starting an existing program, via " +
+    "RPY_TRANSACTION_INSERT; change is still not supported. A transportable package requires " +
+    "corr_nr; a `$` package refuses one and registers with korrnum = space instead. " +
+    "RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is " +
+    "optional and forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert " +
+    "defaults to space so the registration always runs. No live create into a transportable " +
+    "package has been run.",
   "DEVC/K":
     "`software_component: \"LOCAL\"` goes over ADT REST; anything else needs the bridge and a " +
     "transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects.",

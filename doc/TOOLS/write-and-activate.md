@@ -22,7 +22,7 @@ syntax-checks, activates. Locking is handled for you.
 | `activate` | boolean | no | `true` | Activate after a successful write. |
 | `verify` | boolean | no | — | Raise this one call to `verified` mode — reads the object back after a successful write. Raise-only: cannot lower a server `ABAP_VERIFY_WRITES=verified` default. |
 | `format` | boolean | no | — | Pretty-print the source before writing. |
-| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Required for a `VIEW/DV` create into a transportable package; refused for one into a `$` package. |
+| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Required for a `VIEW/DV` or `TRAN/T` create into a transportable package; refused for one into a `$` package. |
 | `software_component` | string | no | — | `DEVC/K` (package) only: `LOCAL`, or a transportable component (e.g. `HOME`) — the latter needs `corr_nr` unless the package is `$TMP`-local. |
 | `package_type` | string | no | `development` | `DEVC/K` only. |
 | `transport_layer` | string | no | — | `DEVC/K` only. |
