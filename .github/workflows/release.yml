@@ -1,0 +1,64 @@
+name: Release tag
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # tag check and changelog extraction both need full history and tags
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Read and verify version
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          PLUGIN_VERSION=$(node -p "require('./.claude-plugin/plugin.json').version")
+          if [ "$PKG_VERSION" != "$PLUGIN_VERSION" ]; then
+            echo "package.json version ($PKG_VERSION) and .claude-plugin/plugin.json version ($PLUGIN_VERSION) differ" >&2
+            exit 1
+          fi
+          echo "VERSION=$PKG_VERSION" >> "$GITHUB_ENV"
+
+      - name: Check tag does not already exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "tag v$VERSION already exists: main moved without a version bump; fix with a follow-up bump PR, not a re-tag or a moved tag" >&2
+            exit 1
+          fi
+
+      - name: Extract changelog section
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/changelog-section.mjs "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Create release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # creates the tag and the release together, no separate tag push
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
