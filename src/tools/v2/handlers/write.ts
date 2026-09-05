@@ -145,28 +145,37 @@ export async function handleAbapWrite(args: unknown, deps: V2ToolDeps): Promise<
       ),
     );
 
-    // Read-back is mode-gated: `verified` wants proof, `speculative` (default)
-    // treats a clean write as sufficient and does not spend a read on it.
-    // `version:"active"` is required — an unactivated object would otherwise
-    // read back as its newer INACTIVE version, defeating the check.
-    const next: readonly NextCall[] =
-      deps.cfg.verifyWrites === "verified"
-        ? [
-            {
-              tool: "abap_read",
-              args: { object: objectName, version: "active" },
-              why: "verify: already confirmed presence and activation — read back to confirm the CONTENT matches what you intended.",
-            },
-          ]
-        : writeMode !== "delete" && a.activate === false
+    const next: readonly NextCall[] = a.dry_run
+      ? [
+          {
+            tool: "abap_write",
+            args: { object: objectName },
+            why: "This was a preview — nothing was written. Repeat the same call without `dry_run`: " +
+              "for `edit`/`method` writes pass `expect_etag` as the preview reported it; for a plain " +
+              "`{object, source}` write, pass the preview's `current_etag` instead.",
+          },
+        ]
+      : // Read-back is mode-gated: `verified` wants proof, `speculative` (default)
+        // treats a clean write as sufficient and does not spend a read on it.
+        // `version:"active"` is required — an unactivated object would otherwise
+        // read back as its newer INACTIVE version, defeating the check.
+        deps.cfg.verifyWrites === "verified"
           ? [
               {
-                tool: "abap_do",
-                args: { action: "activate", object: objectName },
-                why: "activate:false skipped activation on this write — activate it separately when ready.",
+                tool: "abap_read",
+                args: { object: objectName, version: "active" },
+                why: "verify: already confirmed presence and activation — read back to confirm the CONTENT matches what you intended.",
               },
             ]
-          : [];
+          : writeMode !== "delete" && a.activate === false
+            ? [
+                {
+                  tool: "abap_do",
+                  args: { action: "activate", object: objectName },
+                  why: "activate:false skipped activation on this write — activate it separately when ready.",
+                },
+              ]
+            : [];
     const ok: V2Ok<string> = { ok: true, tool: "abap_write", data: result.text, next };
     return v2Result(ok);
   } catch (e) {
