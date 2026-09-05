@@ -26,6 +26,7 @@ import {
   buildObjectTextsQuery,
   buildTableDeliveryClassQuery,
   buildNodeRefsQuery,
+  buildNodesByRefObjectQuery,
   buildTableFieldsQuery,
   buildTableTextsQuery,
   buildTransactionsQuery,
@@ -33,6 +34,7 @@ import {
   buildSelect,
   buildTreeChildrenQuery,
   buildTreeDirectoryQuery,
+  buildTreeNodeByIdQuery,
   buildTreeNodeQuery,
   buildTreeRootProbeQuery,
   buildViewBaseTablesQuery,
@@ -286,6 +288,29 @@ describe("SQL builders — exact strings", () => {
     );
   });
 
+  it("buildNodesByRefObjectQuery: inverse of buildNodeRefsQuery, keyed by REF_OBJECT + REF_TYPE, ordered by NODE_ID", () => {
+    expect(buildNodesByRefObjectQuery("/IWBEP/BATCH_CONFIG", "COBJ")).toBe(
+      "SELECT NODE_ID, REF_TYPE, REF_OBJECT\nFROM TNODEIMGR\n" +
+        "WHERE REF_OBJECT = '/IWBEP/BATCH_CONFIG'\n  AND REF_TYPE = 'COBJ'\nORDER BY NODE_ID",
+    );
+  });
+
+  it("buildTreeNodeByIdQuery: same JOIN shape as buildTreeNodeQuery, scoped by NODE_ID alone, TREE_ID added to SELECT", () => {
+    expect(buildTreeNodeByIdQuery("NODE1", "E")).toBe(
+      "SELECT n~TREE_ID, n~NODE_ID, n~NODE_TYPE, n~PARENT_ID, n~BROTHER_ID, n~REFTREE_ID, n~REFNODE_ID, t~TEXT\n" +
+        "FROM TNODEIMG AS n\n" +
+        "LEFT OUTER JOIN TNODEIMGT AS t ON t~TREE_ID = n~TREE_ID\n" +
+        "  AND t~NODE_ID = n~NODE_ID AND t~SPRAS = 'E'\n" +
+        "WHERE n~NODE_ID = 'NODE1'\n" +
+        "ORDER BY n~TREE_ID",
+    );
+  });
+
+  it("buildTreeNodeByIdQuery: no TREE_ID predicate in WHERE (that is the whole point of this builder)", () => {
+    const where = buildTreeNodeByIdQuery("NODE1", "E").split("\nWHERE ")[1]!.split("\nORDER")[0]!;
+    expect(where).not.toContain("TREE_ID");
+  });
+
   it("no test value anywhere above is a 32-character hex GUID (tree ids/node ids are opaque test strings)", () => {
     const guidLike = /\b[0-9A-Fa-f]{32}\b/;
     expect(guidLike.test("TREE1")).toBe(false);
@@ -330,6 +355,7 @@ function noJoinBuilderOutputs(): { name: string; sql: string }[] {
     },
     { name: "buildTreeRootProbeQuery", sql: buildTreeRootProbeQuery("E") },
     { name: "buildNodeRefsQuery", sql: buildNodeRefsQuery(["NODE1", "NODE2"]) },
+    { name: "buildNodesByRefObjectQuery", sql: buildNodesByRefObjectQuery("/IWBEP/BATCH_CONFIG", "COBJ") },
     { name: "buildTreeDirectoryQuery", sql: buildTreeDirectoryQuery(["TREE1", "TREE2"]) },
     // Worst case for line-length among the tree-key builders: the 50-value cap, at
     // the longest permitted tree-key length (32 chars, assertTreeKeyValue's CHAR
@@ -351,6 +377,7 @@ function joinBuilderOutputs(): { name: string; sql: string }[] {
   return [
     { name: "buildTreeChildrenQuery", sql: buildTreeChildrenQuery("TREE1", "PARENT1", "E", "NODEAFTER1") },
     { name: "buildTreeNodeQuery", sql: buildTreeNodeQuery("TREE1", "NODE1", "E") },
+    { name: "buildTreeNodeByIdQuery", sql: buildTreeNodeByIdQuery("NODE1", "E") },
   ];
 }
 
@@ -496,6 +523,43 @@ describe("transaction code validation (via buildTransactionsQuery)", () => {
 
   it("refuses a tcode over 20 characters", () => {
     expectBadInput(() => buildTransactionsQuery(["A".repeat(21)]));
+  });
+});
+
+describe("buildNodesByRefObjectQuery validation", () => {
+  it("refuses a refObject with a disallowed character (injection attempt via embedded quote)", () => {
+    expectBadInput(() => buildNodesByRefObjectQuery("A' OR '1'='1", "COBJ"));
+  });
+
+  it("refuses a refObject over 20 characters", () => {
+    expectBadInput(() => buildNodesByRefObjectQuery("A".repeat(21), "COBJ"));
+  });
+
+  it("refuses a refType over 10 characters", () => {
+    expectBadInput(() => buildNodesByRefObjectQuery("ACT1", "A".repeat(11)));
+  });
+
+  it("refuses a refType containing a newline (assertSqlValue's control-character gate)", () => {
+    expectBadInput(() => buildNodesByRefObjectQuery("ACT1", "COBJ\nDROP"));
+  });
+});
+
+describe("buildTreeNodeByIdQuery validation", () => {
+  it("refuses a nodeId over 32 characters (assertTreeKeyValue's CHAR 32 domain)", () => {
+    expectBadInput(() => buildTreeNodeByIdQuery("N".repeat(33), "E"));
+  });
+
+  it("escapes rather than rejects an embedded quote (assertTreeKeyValue has no charset check, per its own doc comment — sqlLiteral is the safety net)", () => {
+    const sql = buildTreeNodeByIdQuery("N1' OR '1'='1", "E");
+    expect(sql).toContain("n~NODE_ID = 'N1'' OR ''1''=''1'");
+  });
+
+  it("refuses a nodeId containing a newline (assertSqlValue's control-character gate)", () => {
+    expectBadInput(() => buildTreeNodeByIdQuery("N1\nDROP", "E"));
+  });
+
+  it("refuses a malformed language", () => {
+    expectBadInput(() => buildTreeNodeByIdQuery("NODE1", "ENG"));
   });
 });
 

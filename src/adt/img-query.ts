@@ -663,6 +663,81 @@ export function buildNodeRefsQuery(nodeIds: readonly string[]): string {
   return buildSelect(`${nodeIdF}, ${extKeyF}, ${refTypeF}, ${refObjectF}`, tbl("imgTreeNodeRef"), where);
 }
 
+/**
+ * Inverse of `buildNodeRefsQuery`: given a customizing-activity id and a
+ * TNODEIMGR.REF_TYPE (normally `IMG_ACTIVITY_REF_TYPE`), finds the node
+ * id(s) that mount it. `refObject` is validated as an activity id
+ * (CUS_IMGACH.ACTIVITY / CUS_ACTOBJ.ACT_ID shape) since that is the only
+ * REF_OBJECT domain this module's callers ever look up by; `refType` is a
+ * short catalogued literal (`assertSqlValue`, not a charset-specific
+ * validator — there is no fixed enum of REF_TYPE values documented here).
+ *
+ * TNODEIMGR has no TREE_ID column (see `IMG_CATALOG.imgTreeNodeRef`'s own
+ * note), so this alone cannot tell a caller which tree a returned NODE_ID
+ * lives in — pair it with `buildTreeNodeByIdQuery` to learn that.
+ */
+export function buildNodesByRefObjectQuery(refObject: string, refType: string): string {
+  const nodeIdF = fld("imgTreeNodeRef", "nodeId");
+  const refTypeF = fld("imgTreeNodeRef", "refType");
+  const refObjectF = fld("imgTreeNodeRef", "refObject");
+  const where = [
+    `${refObjectF} = ${sqlLiteral(assertActivityId(refObject, "refObject"))}`,
+    `${refTypeF} = ${sqlLiteral(assertSqlValue(refType, "refType", 10))}`,
+  ];
+  return buildSelect(`${nodeIdF}, ${refTypeF}, ${refObjectF}`, tbl("imgTreeNodeRef"), where, nodeIdF);
+}
+
+/**
+ * Not part of the teammate's literal ask, but required to act on its
+ * result: `buildNodesByRefObjectQuery` above returns a bare NODE_ID with no
+ * TREE_ID (TNODEIMGR has none), while `buildTreeNodeQuery` — the builder
+ * named for the ancestor walk — requires a `treeId` argument to run at
+ * all. This is the same TNODEIMG/TNODEIMGT LEFT JOIN as
+ * `buildTreeNodeQuery`, scoped by NODE_ID alone (no TREE_ID predicate) and
+ * with TREE_ID added to the SELECT list, so a caller can bootstrap: run
+ * this once for the REF-mounted node id to learn its tree, then use
+ * `buildTreeNodeQuery` (which already knows the tree) for every step after
+ * that.
+ *
+ * TNODEIMG's own documented key is TREE_ID+EXTENSION+NODE_ID+EXT_KEY, not
+ * NODE_ID alone, so a NODE_ID-only WHERE can legitimately return more than
+ * one row (a real cross-tree id collision, or an EXTENSION/EXT_KEY variant
+ * — both already ignored the same way by `buildTreeNodeQuery`, which never
+ * filters on either). The caller is responsible for treating more than one
+ * returned row as a fact to report, not to pick from silently.
+ */
+export function buildTreeNodeByIdQuery(nodeId: string, language: string): string {
+  const node = tbl("imgTreeNode");
+  const nodeText = tbl("imgTreeNodeText");
+  const treeIdF = fld("imgTreeNode", "treeId");
+  const nodeIdF = fld("imgTreeNode", "nodeId");
+  const parentIdF = fld("imgTreeNode", "parentId");
+  const nodeTypeF = fld("imgTreeNode", "nodeType");
+  const brotherIdF = fld("imgTreeNode", "brotherId");
+  const refTreeIdF = fld("imgTreeNode", "refTreeId");
+  const refNodeIdF = fld("imgTreeNode", "refNodeId");
+  const textLangF = fld("imgTreeNodeText", "language");
+  const textNodeIdF = fld("imgTreeNodeText", "nodeId");
+  const textTreeIdF = fld("imgTreeNodeText", "treeId");
+  const textF = fld("imgTreeNodeText", "text");
+  const select = [
+    `n~${treeIdF}`,
+    `n~${nodeIdF}`,
+    `n~${nodeTypeF}`,
+    `n~${parentIdF}`,
+    `n~${brotherIdF}`,
+    `n~${refTreeIdF}`,
+    `n~${refNodeIdF}`,
+    `t~${textF}`,
+  ].join(", ");
+  const from =
+    `${node} AS n\n` +
+    `LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}\n` +
+    `  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertLanguage(language))}`;
+  const where = [`n~${nodeIdF} = ${sqlLiteral(assertTreeKeyValue(nodeId, "nodeId"))}`];
+  return buildSelect(select, from, where, `n~${treeIdF}`);
+}
+
 /** TTREE rows for a batch of tree ids, so a REF mount's target tree can be resolved to its root node. */
 export function buildTreeDirectoryQuery(treeIds: readonly string[]): string {
   const idF = fld("treeDirectory", "id");
