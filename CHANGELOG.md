@@ -326,6 +326,11 @@ was last set to `0.3.0`.
 
 ### Fixed
 
+- The generated capability table's "not readable either" line is now derived
+  registry-wide from the same predicate as `NON_READABLE_TYPES`, so it names all
+  eight non-readable types (it previously missed `VIEW/DV` and `TRAN/T`, the two a
+  caller is most likely to try to read back after a bridge create). A census
+  test pins the table to the constant so the drift cannot recur silently.
 - Correctness fixes found during a live-verification campaign against a
   real ABAP system: activation no longer silently drops an `affects`
   intent, the FPM lock path no longer treats a failed lock acquisition as

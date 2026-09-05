@@ -38,7 +38,7 @@ Check here before planning any create.
 - `ENQU/DL` — write shape `properties`, delete: yes
 - `SRVB/SVB` — write shape `properties`, delete: yes
 
-**Bridge-only create types (3).** ADT REST has no usable create for these, so abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The bridge never updates an existing object. Whether it can delete one — and so whether the create is reversible — differs per type; see each bullet. A bullet marked **create REFUSED** creates nothing at all: the bridge is described but abapsmith will not run it, in any package (0 of 3 today).
+**Bridge-only create types (3).** ADT REST has no usable create for these, so abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The bridge never updates an existing object. Whether it can delete one — and so whether the create is reversible — differs per type; see each bullet.
 
 - `DEVC/K` — `software_component: "LOCAL"` goes over ADT REST; anything else needs the bridge and a transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects. Delete: runs over the same bridge (src/adt/package-delete.ts) the create uses, gated by the same empty-package limit noted above; the create's journal entry no longer marks itself irreversible; but IF_PACKAGE~DELETE's failure behaviour is not itself live-verified.
 - `VIEW/DV` — builds a single-table database view (DD25V class 'D') via RS_CORR_INSERT then DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE; no joins, no SE54 maintenance dialog. A transportable package requires corr_nr; a `$` package refuses one and registers with korrnum = space instead. There is no read-back: abapsmith cannot read a classic view through ADT, so success is proven only by transcript markers. Proven live on A4H: 2026-09-04 into the transportable package ZBOPF_Q1PKG with a corr_nr; 2026-09-05, RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR row), then removed by the delete bridge. Change is not supported either. Delete: abapsmith's own create registers every view in TADIR, so the delete bridge (src/adt/view-delete.ts) always has one to act on. Proven live on A4H 2026-09-05: a bridge-created view in a `$`-prefixed package was removed cleanly, VIEW-DELETED / VIEW-GONE.
@@ -57,12 +57,14 @@ Check here before planning any create.
 **Not reachable by any write (6).** Do not probe for a write route.
 
 - Readable, not writable (0): _(none)_
-- Not readable either (6) — `abap_read` refuses these with UNSUPPORTED, from the same `unsupported` entry in src/adt/capabilities.ts: `SHLP/DH` `PROG/PS` `PROG/PC` `PROG/PT` `SUSO/B` `TABL/DI`
+- Not readable either (8) — `abap_read` refuses these before any network call, from an `unsupported` entry or a bridge-only create with no ADT-readable collection (NON_READABLE_TYPES, src/adt/capabilities.ts): `SHLP/DH` `VIEW/DV` `TRAN/T` `PROG/PS` `PROG/PC` `PROG/PT` `SUSO/B` `TABL/DI`. Registry-wide, not just this bucket: `VIEW/DV` `TRAN/T` — creatable through the bridge above, still unreadable.
 
 <!-- END generated -->
 
-A type in either bullet above has **no write route at all**. Searching for a workaround wastes
-turns. Say it is out of scope and stop.
+The **Not reachable by any write** bucket is the write-side list: those types have no write route
+at all, so searching for a workaround wastes turns — say it is out of scope and stop. The "not
+readable either" bullet is the read-side list and registry-wide: some types in it are
+bridge-creatable.
 
 ## What abap_read refuses outright
 
