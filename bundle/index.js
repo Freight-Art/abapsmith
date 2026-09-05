@@ -95354,36 +95354,28 @@ function clampMaxChars(maxChars) {
   return Math.min(maxChars, DEBUG_MAX_CHARS);
 }
 var breakpointConditionFields = {
-  condition: external_exports.string().trim().min(1).max(255).optional().describe(
-    'ABAP condition expression \u2014 breakpoint suspends only when true, e.g. "sy-tabix = 500".'
-  ),
-  skipCount: external_exports.number().int().nonnegative().max(1e6).optional().describe(
-    'Hits to ignore before suspending (0 = every hit). NOT ENFORCED by this backend \u2014 every hit still suspends; use step:"continue" instead.'
-  )
+  condition: external_exports.string().trim().min(1).max(255).optional(),
+  skipCount: external_exports.number().int().nonnegative().max(1e6).optional()
 };
 var lineBreakpointSchema = external_exports.object({
   ...breakpointConditionFields,
   kind: external_exports.literal("line"),
-  object: external_exports.string().describe(
-    'The class or report to break in (any form abap_read/abap_run accept: bare name, "class ZCL_FOO", a raw ADT URI, ...). Resolved server-side to a source URI.'
-  ),
+  object: external_exports.string().describe("Class or report to break in \u2014 any form abap_read/abap_run accept."),
   line: external_exports.number().int().min(1).max(999999).describe(
-    "1-based source line to break at. SAP may snap this to the nearest executable statement \u2014 if it does, the start response reports the corrected line."
+    "1-based; SAP may snap it to the nearest executable statement (the start response reports the correction)."
   )
 });
 var exceptionBreakpointSchema = external_exports.object({
   ...breakpointConditionFields,
   kind: external_exports.literal("exception"),
-  exceptionClass: external_exports.string().describe(
-    "ABAP exception class to break on when it is raised anywhere, e.g. CX_SY_ZERODIVIDE."
-  )
+  exceptionClass: external_exports.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE.")
 });
 var debugInputSchema = {
   action: external_exports.enum(["start", "step", "stack", "frame", "keepalive", "stop", "status"]).describe(
     "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. keepalive/stop/status need nothing."
   ),
   breakpoints: external_exports.array(external_exports.discriminatedUnion("kind", [lineBreakpointSchema, exceptionBreakpointSchema])).optional().describe(
-    '\u22651 entry, required only for action="start". Line/exception kinds may mix; validated against SAP before arming.'
+    '\u22651 entry, required for action="start"; kinds may mix and are validated against SAP before arming. Both kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
   ),
   run: external_exports.object({
     object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
