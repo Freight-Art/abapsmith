@@ -83,6 +83,12 @@ const VIEW_TEXT_MAX = 60;
 /** Keeps the zero-padded `DD27P-OBJPOS` position (4 numeric chars) inside `0001`-`9999`; see {@link classicViewFragment}. */
 const MAX_VIEW_FIELDS = 249;
 
+/** `RS_CORR_INSERT`'s `object` for `object_class = 'DICT'` is a 44-char key: 4-char transport object type, then the name in 40. A bare name lands its first 4 characters in the type field (TK103). */
+const DICT_KEY_NAME_LENGTH = 40;
+function dictObjectKey(viewName: string): string {
+  return `VIEW${viewName.padEnd(DICT_KEY_NAME_LENGTH)}`;
+}
+
 /**
  * Local (non-transportable) package: ANY `$`-prefixed package, per
  * {@link isLocalPackageName} (`safety.ts:1677`/`transport.ts:876`'s rule, not
@@ -96,8 +102,9 @@ const MAX_VIEW_FIELDS = 249;
  * {@link MEASURED_PACKAGE}/{@link assertClassicViewCreateSupported} — but
  * "is this local" is still the right question for whether the fragment emits
  * `RS_CORR_INSERT`, so the two predicates stay separate. A transportable
- * package hits the object-key rejection below; `$TMP` lands an active view
- * unregistered in TADIR, undeletable and unundoable.
+ * package now gets the fixed DICT key shape and registration-before-PUT
+ * ordering below, unproven live; `$TMP` lands an active view unregistered in
+ * TADIR, undeletable and unundoable.
  */
 function isLocalPackage(packageName: string): boolean {
   return isLocalPackageName(packageName);
@@ -171,12 +178,14 @@ export function assertClassicViewCreateSupported(packageName: string): void {
   throw new AbapError(
     "UNSUPPORTED",
     opening +
-      "It is not $TMP, and the interactive CTS request-selection dynpro that once blocked a " +
-      "transportable create is fixed, but RS_CORR_INSERT then rejects the object key itself " +
-      "(object/object_class = 'DICT', sy-subrc=1, TK103 \"This syntax cannot " +
-      "be used for an object name\"), and because DDIF_VIEW_PUT already committed by that " +
-      "point, a failed attempt strands an active, packageRef-less view that abapsmith's own delete " +
-      "gate then refuses to remove. $TMP is not an escape from any of this, and is no longer " +
+      "It is not $TMP. Two obstacles a transportable create hit live are now addressed in the " +
+      "generated ABAP, and neither is proven: RS_CORR_INSERT rejected the bare view name as its " +
+      "object key (object_class = 'DICT', sy-subrc=1, TK103 \"This syntax cannot be used for an " +
+      "object name\") and is now handed the 44-character DICT key that parameter reads, and it now " +
+      "runs BEFORE DDIF_VIEW_PUT rather than after its COMMIT WORK, so a rejected registration can " +
+      "no longer strand the active, packageRef-less view earlier attempts left behind. Both are " +
+      "read off the function module's source, not measured, so the create stays refused until a " +
+      "live run shows it working. $TMP is not an escape from any of this, and is no longer " +
       "attempted at all: measured 2026-08-30, a $TMP create lands active but unregistered in " +
       "TADIR, so it carries no packageRef, so abap_write mode=delete refuses it " +
       `(PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably too. ${TERMINAL_REFUSAL_NOTE}`,
@@ -307,9 +316,11 @@ export const VIEW_DATA_LINES: readonly string[] = [
  * live; everything else here — DD25V/DD26V/DD27P field names and constants,
  * which TABLES parameter carries which payload, `DDIF_VIEW_ACTIVATE`'s
  * signature — is an unconfirmed ASSUMPTION. `RS_CORR_INSERT`'s parameters
- * were read off the live function group `SCOR` and confirmed live, but the
- * object key they build (`object`/`object_class = 'DICT'`) is rejected
- * (TK103) — the transportable path is disabled pending a fix. A wrong
+ * were read off the live function group `SCOR` and confirmed live; the
+ * object key they build (`object`/`object_class = 'DICT'`) now uses the
+ * 44-char DICT layout {@link dictObjectKey} builds, and registration now
+ * runs before any dictionary write — both unproven live (see
+ * {@link assertClassicViewCreateSupported}). A wrong
  * field/parameter name fails loud (syntax error at activation); a
  * wrong constant or a wrong TABLES-parameter reading fails quiet (a view
  * with no fields), which is why a live run must read the created view back,
@@ -326,8 +337,9 @@ export const VIEW_DATA_LINES: readonly string[] = [
  *  - Two explicit `COMMIT WORK` statements (after PUT, after ACTIVATE) work
  *    around `DDIF_VIEW_PUT` being an uncommitted update-task-style write; a
  *    live run without them reproduced a false success (tags present,
- *    `sy-subrc = 0`, but the view absent on read-back). This fix is itself
- *    still UNTESTED in isolation — `write.ts`'s `abapCreateViaBridge`
+ *    `sy-subrc = 0`, but the view absent on read-back). Registration now runs
+ *    BEFORE the first of the two, so nothing is committed before it. This fix
+ *    is itself still UNTESTED in isolation — `write.ts`'s `abapCreateViaBridge`
  *    read-back is what actually catches it if it fails.
  *
  * NOT GENERATED, deliberately: any SE54/`VIEW_MAINTENANCE_GENERATE`/`SE55`
@@ -338,7 +350,37 @@ export function classicViewFragment(p: ClassicViewParams): string[] {
   const view = quotedIdentifier(viewName, "viewName");
   const table = quotedIdentifier(baseTable, "baseTable");
 
-  const lines: string[] = [
+  const lines: string[] = [];
+
+  if (!isLocalPackage(packageName)) {
+    lines.push(
+      // --- TADIR/transport registration, BEFORE any dictionary write: a key
+      //     RS_CORR_INSERT rejects then strands nothing. Skipped for any
+      //     local ($-prefixed) package — see isLocalPackage's doc comment;
+      //     do not make this unconditional without new live evidence.
+      "CALL FUNCTION 'RS_CORR_INSERT'",
+      // ABAP drops a text-field literal's trailing blanks; the formal
+      // parameter (DDOBJNAME, CHAR44) re-pads to its declared length, so the
+      // literal emitted here and the key SAP actually reads are the same
+      // 44-byte layout.
+      `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
+      "            object_class = 'DICT'",
+      `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES)}`,
+      "            master_language = sy-langu",
+      "            mode = 'INSERT'",
+      // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
+      "            global_lock = 'X'",
+      // suppress_dialog = 'X' sets iv_dialog = 'D', suppressing the request-selection dynpro
+      // (korrnum alone reaches only iv_order).
+      `            korrnum = ${abapLiteral(corrNr as string)}`,
+      "            suppress_dialog = 'X'",
+      "  EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.",
+      ...subrcCheckFragment("RS_CORR_INSERT", "VIEW-REGISTERED"),
+      "",
+    );
+  }
+
+  lines.push(
     // --- DD25V: the view header (field names/constants are ASSUMPTIONS, see doc comment above).
     "CLEAR ls_dd25v.",
     `ls_dd25v-viewname   = ${view}.`,
@@ -360,7 +402,7 @@ export function classicViewFragment(p: ClassicViewParams): string[] {
     "",
     // --- DD27P: one row per projected field, in the caller's order.
     "CLEAR lt_dd27p.",
-  ];
+  );
 
   fields.forEach((field, index) => {
     const quoted = quotedIdentifier(field, `fields[${index}]`);
@@ -390,31 +432,11 @@ export function classicViewFragment(p: ClassicViewParams): string[] {
     // sy-subrc, not an exception CATCH cx_root sees — subrcCheckFragment gates the success tag on it.
     ...subrcCheckFragment("DDIF_VIEW_PUT", "VIEW-PUT"),
     "",
-    // Commits the staged PUT before RS_CORR_INSERT/ACTIVATE touch it — see doc comment above (false-success incident).
+    // Commits the staged PUT before ACTIVATE touches it — see doc comment above (false-success
+    // incident). Registration (above, if generated) already ran before this, so nothing is
+    // stranded if a later step fails.
     "COMMIT WORK.",
   );
-
-  if (!isLocalPackage(packageName)) {
-    lines.push(
-      "",
-      // --- TADIR/transport registration. Skipped for any local ($-prefixed)
-      //     package — see isLocalPackage's doc comment; do not make this
-      //     unconditional without new live evidence.
-      "CALL FUNCTION 'RS_CORR_INSERT'",
-      `  EXPORTING object = ${view}`,
-      "            object_class = 'DICT'",
-      `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES)}`,
-      "            master_language = sy-langu",
-      "            mode = 'INSERT'",
-      "            global_lock = 'X'",
-      // suppress_dialog = 'X' sets iv_dialog = 'D', suppressing the request-selection dynpro
-      // (korrnum alone reaches only iv_order).
-      `            korrnum = ${abapLiteral(corrNr as string)}`,
-      "            suppress_dialog = 'X'",
-      "  EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.",
-      ...subrcCheckFragment("RS_CORR_INSERT", "VIEW-REGISTERED"),
-    );
-  }
 
   lines.push(
     "",
@@ -436,6 +458,30 @@ export function classicViewFragment(p: ClassicViewParams): string[] {
 // ---------------------------------------------------------------------------
 // The operation
 // ---------------------------------------------------------------------------
+
+/**
+ * `completed`/`hint` for {@link runDdicBridge}'s partial-success reporting on
+ * a transportable create: `RS_CORR_INSERT` now runs before `DDIF_VIEW_PUT`
+ * (see {@link classicViewFragment}), so a later failure can leave either just
+ * a TADIR/transport entry, or that plus a committed-but-inactive view.
+ * Exported so the shape is testable without a live transcript.
+ */
+export function viewCreatePartialSuccess(viewName: string): {
+  completed: Readonly<Partial<Record<DdicTag, string>>>;
+  hint: string;
+} {
+  return {
+    completed: {
+      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR and on the transport request, before any dictionary write — no view was created by it.`,
+      "VIEW-PUT": `DDIF_VIEW_PUT wrote ${viewName}, and the COMMIT WORK that follows it committed it, inactive.`,
+    },
+    hint:
+      `If VIEW-PUT fired, ${viewName} exists AND is registered — abap_write mode="delete" ` +
+      `type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only ` +
+      "the TADIR/transport entry exists — remove it from the request in SE09/SE10, or reuse it by " +
+      "re-running the create into the same request.",
+  };
+}
 
 /**
  * Create one classic database view: refuse EVERY package
@@ -491,13 +537,16 @@ export async function createClassicView(
 
   const expectTags: DdicTag[] = isLocalPackage(packageName)
     ? ["VIEW-PUT", "VIEW-ACTIVATED"]
-    : ["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"];
+    : ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
 
+  const partial = viewCreatePartialSuccess(viewName);
   return runDdicBridge(conn, gate, {
     className: DDIC_BRIDGE_CLASS.createView,
     source,
     description: `abapsmith create-classic-view bridge (${viewName})`,
     what: `Creating classic view ${viewName}`,
     expectTags,
+    completed: partial.completed,
+    partialHint: partial.hint,
   });
 }

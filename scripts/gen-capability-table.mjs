@@ -58,8 +58,10 @@ const BRIDGE_NOTE = {
     "the bridge would build a single-table database view (DD25V class 'D'); no joins, no SE54 " +
     "maintenance dialog. It is never run: the create is refused client-side, before any ADT " +
     "traffic, for every package — $TMP and an omitted `package` included. A transportable " +
-    "package fails RS_CORR_INSERT (TK103); $TMP is the one package ever attempted, and it lands " +
-    "an active view unregistered in TADIR, so undeletable and unundoable here. Create the view " +
+    "package's TK103 object-key rejection and its registration-after-commit ordering are now " +
+    "corrected in the generated ABAP but unproven live, so the refusal stands; $TMP is the one " +
+    "package ever attempted, and it lands an active view unregistered in TADIR, so undeletable " +
+    "and unundoable here. Create the view " +
     "in SE11/SE14, or use a CDS view (DDLS/DF). Change is not supported either.",
   "TRAN/T": "creates a REPORT transaction (dynpro 1000) starting an existing program; change is still not supported.",
   "DEVC/K":

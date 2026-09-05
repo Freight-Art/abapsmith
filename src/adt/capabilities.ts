@@ -1001,11 +1001,18 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "created here would have no maintenance view/dialog and SM30 would not open it. The " +
         "refusal reason differs by package. A TRANSPORTABLE package: the interactive CTS " +
         "request-selection dynpro that once blocked a transportable create (SAPLSTRD 0352) is " +
-        "already fixed by passing suppress_dialog = 'X', but RS_CORR_INSERT then rejects the " +
-        "object key itself — object/object_class = 'DICT', sy-subrc=1, TK103 'This syntax " +
-        "cannot be used for an object name' — and because DDIF_VIEW_PUT already committed by " +
-        "that point, a failed attempt strands an active, packageRef-less view that abapsmith's " +
-        "own delete gate then refuses to remove. A `$`-prefixed but non-$TMP package (e.g. " +
+        "already fixed by passing suppress_dialog = 'X', but RS_CORR_INSERT was then measured " +
+        "to reject the object key itself — object/object_class = 'DICT', sy-subrc=1, TK103 " +
+        "'This syntax cannot be used for an object name' — and because DDIF_VIEW_PUT had " +
+        "already committed by that point, that failed attempt stranded an active, " +
+        "packageRef-less view that abapsmith's own delete gate then refused to remove. The " +
+        "generated ABAP now builds the 44-character DICT object key RS_CORR_INSERT actually " +
+        "expects — 4-character object type 'VIEW' then the name padded to 40, with " +
+        "global_lock = 'X' so it registers as R3TR/VIEW rather than LIMU/VIED — and calls " +
+        "RS_CORR_INSERT before DDIF_VIEW_PUT, so nothing is committed before registration and " +
+        "a rejected key can no longer strand an orphan. Both changes are read off the function " +
+        "module's source, not measured against a live system, so the create stays refused for " +
+        "every package until a live run proves them. A `$`-prefixed but non-$TMP package (e.g. " +
         "$MYLOCAL): the TK103 object-key rejection above is NOT the obstacle here — a local " +
         "package never enters CTS at all, so no RS_CORR_INSERT call is even generated for it; " +
         "it is refused because no package is known to work and this one has never been tried — " +
