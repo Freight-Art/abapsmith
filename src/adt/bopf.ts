@@ -33,7 +33,7 @@
  */
 import type { AbapConnection } from "./connection.js";
 import type { LockInfo, StatefulSession } from "./session.js";
-import { translateAdtError } from "./session.js";
+import { translateAdtError, adtExceptionInfo } from "./session.js";
 import type { SessionTransport } from "./session-transport.js";
 import { toAbapError } from "./session-transport.js";
 import { transportFromLock, readCurrentSource, type ResolvedTarget } from "./write.js";
@@ -401,6 +401,30 @@ function buildCreateBody(input: CreateBusinessObjectInput): string {
 // ---------------------------------------------------------------------------
 
 /**
+ * Only SESSION_DEAD or a response-less transport failure may have landed —
+ * re-read and fold the finding into `hint`; a plain refusal is unaffected.
+ */
+async function discloseFailedPut(conn: AbapConnection, bo: string, base: AbapError): Promise<AbapError> {
+  let note: string;
+  try {
+    await readModel(conn, bo);
+    note = "a re-read after the failed PUT still succeeds — inspect the current model before assuming nothing changed.";
+  } catch (probeErr) {
+    note = `a re-read after the failed PUT also failed: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosure = `A failed PUT is not proof the model is unchanged — ${note}`;
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${disclosure}` : disclosure,
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
+
+/**
  * Whole-model PUT built on `withRelockRetry` (`./relock.js`, see its header
  * for the re-lock-after-failure rationale). Supplies four callbacks:
  *  - `reread`: re-GET raw bytes only (never the parsed `BoModel` — mutation
@@ -462,8 +486,10 @@ export async function putModel(
           body: payload,
         });
       } catch (e) {
-        if (isAbapError(e)) throw e;
-        throw translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+        const base = isAbapError(e) ? e : translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+        // No response at all (bare network/socket failure) reads the same as SESSION_DEAD here: neither rules out the PUT landing.
+        const mayHaveLanded = base.code === "SESSION_DEAD" || (!isAbapError(e) && adtExceptionInfo(e) === undefined);
+        throw mayHaveLanded ? await discloseFailedPut(conn, bo, base) : base;
       }
       return payload;
     },
@@ -653,6 +679,28 @@ export function ddicSparedReason(refSite: DdicRefSite): string {
   return `referenced via ${refSite} — the model does not record whether this BO generated it, so it is not deleted`;
 }
 
+/** A raw `conn.get`, not `readModel` — `readModel` pre-translates the error and defeats `isNotFoundLike`. */
+async function discloseDeleteFailureProbe(conn: AbapConnection, bo: string, base: AbapError): Promise<AbapError> {
+  let note: string;
+  try {
+    await conn.get(bopfUri(bo), { headers: { Accept: BOPF_ACCEPT_V4 } });
+    note = "a re-read right after the failed DELETE still finds the object — the delete did not land.";
+  } catch (probeErr) {
+    note = isNotFoundLike(probeErr)
+      ? "a re-read right after the failed DELETE no longer finds the object — the delete may have landed despite the failure; re-read before retrying."
+      : `a re-read right after the failed DELETE could not be settled: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${note}` : note,
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
+
 /**
  * Deletes a BOPF business object, and — if `opts.cascadeDdic` — sweeps up
  * the DDIC objects the BO's own delete does NOT remove (tables, structures,
@@ -794,8 +842,8 @@ export async function deleteBusinessObject(
     } catch {
       // best-effort
     }
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
+    const base = isAbapError(e) ? e : translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
+    throw await discloseDeleteFailureProbe(conn, bo, base);
   }
   try {
     await session.unlock(uri);
@@ -983,14 +1031,38 @@ async function deleteDdicCandidate(
   try {
     await conn.del(cand.uri, { qs: { lockHandle: lock.handle } });
   } catch (e) {
-    return {
-      name: cand.name,
-      kind: cand.kind,
-      uri: cand.uri,
-      existed: true,
-      deleted: false,
-      reason: `delete failed: ${describeUnknownError(e)}`,
-    };
+    const deleteFailure = `delete failed: ${describeUnknownError(e)}`;
+    // DELETE throwing isn't proof it didn't land — re-probe like the success path below, same tri-state.
+    try {
+      await conn.get(cand.uri, { headers: { Accept: "*/*" } });
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: false,
+        reason: `${deleteFailure}; a read-back of the same URI still finds the object`,
+      };
+    } catch (probeErr) {
+      if (isNotFoundLike(probeErr)) {
+        return {
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          existed: true,
+          deleted: true,
+          reason: `${deleteFailure}, but a read-back of the same URI confirms the object is gone`,
+        };
+      }
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: "unverified",
+        reason: `${deleteFailure}; the read-back to confirm it also failed: ${describeUnknownError(probeErr)}`,
+      };
+    }
   } finally {
     try {
       await session.unlock(cand.uri);

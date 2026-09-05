@@ -3752,6 +3752,43 @@ export type DeleteOptions = TransportOptions & {
 };
 
 /**
+ * A DELETE that throws after being issued is indistinguishable from one that
+ * never ran, so this pays for the same read-back the success path already does.
+ */
+async function discloseDeleteUncertainty(conn: AbapConnection, t: ResolvedTarget, e: unknown): Promise<unknown> {
+  if (!isAbapError(e)) return e;
+  let verification: VerifyOutcome;
+  try {
+    verification = await verifyObjectDeleted(conn, {
+      uri: contentUri(t),
+      accept: contentAccept(t),
+      objectName: t.name,
+      expectType: t.type,
+    });
+  } catch {
+    return e;
+  }
+
+  const disclosure =
+    verification.status === "confirmed-absent"
+      ? `Despite this failure, ${t.spec.label} ${t.name} appears to have been deleted — it is no ` +
+        "longer readable. Do not retry blindly; re-read first."
+      : verification.status === "confirmed"
+        ? `${t.spec.label} ${t.name} is still there — nothing was deleted.`
+        : `Whether ${t.spec.label} ${t.name} was deleted could not be settled. Re-read it before retrying.`;
+
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, postFailureVerification: verification.status, postFailureVerificationUri: verification.uri },
+    e.hint ? `${e.hint} ${disclosure}` : disclosure,
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
+
+/**
  * `lock → DELETE → (the lock is gone with the object)`.
  *
  * Unlike `writeObject`, this pays for the before-image: no compare-before-
@@ -3985,6 +4022,12 @@ export async function deleteObject(
     );
   }
 
+  // Set only right before the DELETE — everything above fails before any
+  // request could have landed, so those throws reach the caller unchanged.
+  let deleteIssued = false;
+  // Set from the raw error in the DELETE catch below — a real refusal rules
+  // out landing; only a dead session or a response-less failure qualifies.
+  let deleteMayHaveLanded = false;
   await conn.withStatefulSession(async (session) => {
     const lock = await session.lock(t.uri);
 
@@ -4095,6 +4138,7 @@ export async function deleteObject(
       // `DELETE {uri}?lockHandle=…`, stateful. `corrNr` emitted only when
       // present — two literal shapes, not a spread of an optional field
       // (see `WriteCorr`). 1.4-5.9s.
+      deleteIssued = true;
       await conn.del(t.uri, {
         qs:
           corr.kind === "transport"
@@ -4110,12 +4154,20 @@ export async function deleteObject(
           name: t.name,
           type: t.type,
         });
+      // No response at all (bare network/socket failure) reads the same as
+      // SESSION_DEAD here: neither rules out the DELETE landing.
+      deleteMayHaveLanded = err.code === "SESSION_DEAD" || (!isAbapError(e) && adtExceptionInfo(e) === undefined);
       noteTransportDead(opts.transport, corr, err);
       throw err;
     }
     // The object is gone and so is its enqueue: an UNLOCK now would just be a
     // wasted request against a 404. Deleting a class takes its includes with it.
     session.forgetLock(t.uri);
+  }).catch(async (e: unknown) => {
+    // Below this point the session/stateful scope may already be dead (a
+    // SESSION_DEAD DELETE catch is the live case) — verifyObjectDeleted and
+    // its probes reconnect once on their own, so a fresh `conn` still works.
+    throw deleteIssued && deleteMayHaveLanded ? await discloseDeleteUncertainty(conn, t, e) : e;
   });
 
   // The DELETE resolving is not evidence by itself — a read-back
