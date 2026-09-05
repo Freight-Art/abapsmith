@@ -68,8 +68,11 @@ describe("scripts/changelog-section.mjs", () => {
     expect(changelogSection(FIXTURE, "9.9.9")).toBeNull();
   });
 
-  it("matches the version literally, not as a regex (a dot must not act as wildcard)", () => {
-    expect(changelogSection(FIXTURE, "0x3y1")).toBeNull();
+  it("matches the version literally: a dot in the version must not act as a wildcard", () => {
+    // If the dots in "0.3.1" were treated as regex wildcards, this heading (with
+    // "x" and "y" standing where the dots would match) would wrongly match.
+    const fixture = `# Changelog\n\n## [0x3y1]\n\n- should not match.\n`;
+    expect(changelogSection(fixture, "0.3.1")).toBeNull();
   });
 
   it("runs to end of file when the section is the last one, and trims the result", () => {
