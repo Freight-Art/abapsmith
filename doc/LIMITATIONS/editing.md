@@ -19,32 +19,30 @@
   remedy, and SE19 is SAPGUI.
 - **No search-help (SHLP/DH) write.** No dedicated ADT collection exists — not
   gated, not broken, simply absent from the server's own routing table.
-- **`VIEW/DV` create is refused for every package; a package is
-  deletable, but only while empty.** `VIEW/DV` (classic/DDIC view) create is
-  refused client-side, before any ADT traffic, for every package — `$TMP` and
-  an omitted `package` (which resolves to `$TMP`) included. `$TMP` was the one
-  package ever attempted, and it is refused for what it did, not for failing:
-  measured live, a `$TMP` create commits at
-  `DDIF_VIEW_PUT`/`DDIF_VIEW_ACTIVATE` but is never registered in TADIR, so
-  the resulting view has no `packageRef` and `abap_write mode=delete`/
-  `abap_journal mode=undo` both refuse to touch it — clearing one
-  needs SE11/SE14, which is also where a new classic view has to be created
-  (a CDS view, `DDLS/DF`, is the modern equivalent abapsmith both writes and
-  reads). A transportable package was refused for a different, measured
-  reason: `RS_CORR_INSERT` rejected the object key itself (`TK103`). The
-  generated ABAP now builds the 44-character DICT object key the FM expects
-  and registers before `DDIF_VIEW_PUT` runs, but that fix is read off the
-  FM's source, not live-verified, so the create stays refused for every
-  package until a live run proves it.
+- **`VIEW/DV` cannot be read back or changed once created; a package is
+  deletable, but only while empty.** `VIEW/DV` (classic/DDIC view) is
+  created through a generated `IF_OO_ADT_CLASSRUN` bridge (`RS_CORR_INSERT`
+  then `DDIF_VIEW_PUT` then `DDIF_VIEW_ACTIVATE`, see
+  `src/adt/view-create.ts`). A transportable package requires `corr_nr`; a
+  `$` package (`$TMP` included) refuses one and registers with
+  `korrnum = space` instead — proven live on A4H, 2026-09-04 (transportable
+  package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a `$`-prefixed
+  package: `RS_CORR_INSERT` registered the view with `korrnum = space`,
+  then the delete bridge removed it). What does not change: there is no
+  ADT-readable collection for a classic view, so a view just created cannot
+  be read back by abapsmith, ever — SE11/SE14 is the only way to inspect
+  one. There is no update route either: only delete and recreate.
   `VIEW/DV` and `TRAN/T` do each have a bridge delete
   endpoint (`src/adt/view-delete.ts`, `src/adt/tran-delete.ts`), so
-  `resolveWriteTarget` can reach one with a delete — but neither round-trip
-  is live-exercised: no live run has ever produced a registered `VIEW/DV`
-  for that endpoint to delete, and `TRAN/T`'s `RPY_TRANSACTION_DELETE`
-  parameter set is inferred from the create FM's `transaction` parameter
-  rather than transcribed from a capture of the delete FM itself, so it is
-  not live-verified either. Neither type can be updated at all: the bridge
-  implements create and delete only, with no update route for either.
+  `resolveWriteTarget` can reach one with a delete. `VIEW/DV`'s round-trip is
+  live-exercised: abapsmith's own create registers every view in TADIR, and a
+  view that `RS_CORR_INSERT` registered in a `$`-prefixed package was deleted
+  cleanly on A4H 2026-09-05 (VIEW-DELETED / VIEW-GONE). `TRAN/T`'s
+  `RPY_TRANSACTION_DELETE` parameter set is inferred from the create FM's
+  `transaction` parameter rather than transcribed from a capture of the
+  delete FM itself, so it is not live-verified. Neither type can be
+  updated at all: the bridge implements create and delete only, with no
+  update route for either.
   `DEVC/K` (package) is different:
   `abap_write mode=delete` (or `abap_journal mode=undo` on the create entry)
   loads the package via `CL_PACKAGE_FACTORY=>LOAD_PACKAGE` and calls

@@ -36,7 +36,7 @@ const catchSync = (fn: () => unknown): AbapError => {
 describe("viewCreatePartialSuccess", () => {
   const partial = viewCreatePartialSuccess(VIEW_NAME);
 
-  it("declares completed only for tags the transportable fragment actually emits", () => {
+  it("declares completed only for tags the fragment actually emits", () => {
     for (const tag of Object.keys(partial.completed)) {
       expect(DDIC_TAGS).toContain(tag as DdicTag);
     }

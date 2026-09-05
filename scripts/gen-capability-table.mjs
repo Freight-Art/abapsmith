@@ -55,14 +55,14 @@ export const OUT_OF_REGISTRY_CREATE = {
 // `bridgeCreate` entry in src/adt/capabilities.ts.
 const BRIDGE_NOTE = {
   "VIEW/DV":
-    "the bridge would build a single-table database view (DD25V class 'D'); no joins, no SE54 " +
-    "maintenance dialog. It is never run: the create is refused client-side, before any ADT " +
-    "traffic, for every package — $TMP and an omitted `package` included. A transportable " +
-    "package's TK103 object-key rejection and its registration-after-commit ordering are now " +
-    "corrected in the generated ABAP but unproven live, so the refusal stands; $TMP is the one " +
-    "package ever attempted, and it lands an active view unregistered in TADIR, so undeletable " +
-    "and unundoable here. Create the view " +
-    "in SE11/SE14, or use a CDS view (DDLS/DF). Change is not supported either.",
+    "builds a single-table database view (DD25V class 'D') via RS_CORR_INSERT then " +
+    "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE; no joins, no SE54 maintenance dialog. A " +
+    "transportable package requires corr_nr; a `$` package refuses one and registers with " +
+    "korrnum = space instead. There is no read-back: abapsmith cannot read a classic view " +
+    "through ADT, so success is proven only by transcript markers. Proven live on A4H: " +
+    "2026-09-04 into the transportable package ZBOPF_Q1PKG with a corr_nr; 2026-09-05, " +
+    "RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR " +
+    "row), then removed by the delete bridge. Change is not supported either.",
   "TRAN/T": "creates a REPORT transaction (dynpro 1000) starting an existing program; change is still not supported.",
   "DEVC/K":
     "`software_component: \"LOCAL\"` goes over ADT REST; anything else needs the bridge and a " +
@@ -74,9 +74,10 @@ const BRIDGE_NOTE = {
 // is a build error (see the throw below), not an inherited guarantee.
 const BRIDGE_DELETE_NOTE = {
   "VIEW/DV":
-    "a bridge delete endpoint exists (src/adt/view-delete.ts), but no live run has ever produced " +
-    "a registered view for it to delete, and abapsmith no longer creates one — unexercised, not " +
-    "proven.",
+    "abapsmith's own create registers every view in TADIR, so the delete bridge " +
+    "(src/adt/view-delete.ts) always has one to act on. Proven live on A4H 2026-09-05: a " +
+    "bridge-created view in a `$`-prefixed package was removed cleanly, VIEW-DELETED / " +
+    "VIEW-GONE.",
   "TRAN/T":
     "the bridge calls RPY_TRANSACTION_DELETE, but its parameter set is inferred from " +
     "RPY_TRANSACTION_INSERT's `transaction` parameter, not transcribed from a capture of the " +

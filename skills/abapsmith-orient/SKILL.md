@@ -37,10 +37,10 @@ Check here before planning any create.
 - `MSAG/N` — write shape `properties`, delete: yes
 - `SRVB/SVB` — write shape `properties`, delete: yes
 
-**Bridge-only create types (3).** ADT REST has no usable create for these, so abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The bridge never updates an existing object. Whether it can delete one — and so whether the create is reversible — differs per type; see each bullet. A bullet marked **create REFUSED** creates nothing at all: the bridge is described but abapsmith will not run it, in any package (1 of 3 today).
+**Bridge-only create types (3).** ADT REST has no usable create for these, so abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The bridge never updates an existing object. Whether it can delete one — and so whether the create is reversible — differs per type; see each bullet. A bullet marked **create REFUSED** creates nothing at all: the bridge is described but abapsmith will not run it, in any package (0 of 3 today).
 
 - `DEVC/K` — `software_component: "LOCAL"` goes over ADT REST; anything else needs the bridge and a transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects. Delete: runs over the same bridge (src/adt/package-delete.ts) the create uses, gated by the same empty-package limit noted above; the create's journal entry no longer marks itself irreversible; but IF_PACKAGE~DELETE's failure behaviour is not itself live-verified.
-- `VIEW/DV` — **create REFUSED** — the bridge would build a single-table database view (DD25V class 'D'); no joins, no SE54 maintenance dialog. It is never run: the create is refused client-side, before any ADT traffic, for every package — $TMP and an omitted `package` included. A transportable package's TK103 object-key rejection and its registration-after-commit ordering are now corrected in the generated ABAP but unproven live, so the refusal stands; $TMP is the one package ever attempted, and it lands an active view unregistered in TADIR, so undeletable and unundoable here. Create the view in SE11/SE14, or use a CDS view (DDLS/DF). Change is not supported either. Delete: a bridge delete endpoint exists (src/adt/view-delete.ts), but no live run has ever produced a registered view for it to delete, and abapsmith no longer creates one — unexercised, not proven.
+- `VIEW/DV` — builds a single-table database view (DD25V class 'D') via RS_CORR_INSERT then DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE; no joins, no SE54 maintenance dialog. A transportable package requires corr_nr; a `$` package refuses one and registers with korrnum = space instead. There is no read-back: abapsmith cannot read a classic view through ADT, so success is proven only by transcript markers. Proven live on A4H: 2026-09-04 into the transportable package ZBOPF_Q1PKG with a corr_nr; 2026-09-05, RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR row), then removed by the delete bridge. Change is not supported either. Delete: abapsmith's own create registers every view in TADIR, so the delete bridge (src/adt/view-delete.ts) always has one to act on. Proven live on A4H 2026-09-05: a bridge-created view in a `$`-prefixed package was removed cleanly, VIEW-DELETED / VIEW-GONE.
 - `TRAN/T` — creates a REPORT transaction (dynpro 1000) starting an existing program; change is still not supported. Delete: the bridge calls RPY_TRANSACTION_DELETE, but its parameter set is inferred from RPY_TRANSACTION_INSERT's `transaction` parameter, not transcribed from a capture of the delete FM itself — not live-verified, and whether it registers in TADIR/transport is unknown.
 
 **Creatable, but the create site is outside this registry (3).** No `create` field in `REGISTRY` at all — these bypass the `create.verified` gate on purpose (src/adt/capabilities.ts, ~lines 52-57). Not a classrun bridge: each has its own create call.
@@ -73,12 +73,11 @@ collection exists for them, so there is no URI to build. Menu Painter /
 Screen Painter / SE11-subobject territory.
 
 `VIEW/DV` and `TRAN/T` are different: real ADT concepts, but with no
-ADT-readable collection to resolve a URI against. `abap_write` can create a
-transaction through the classrun bridge, but there is no read-back — a
-transaction you just created cannot be read again by abapsmith, ever. A
-classic view cannot be created either: that bridge exists but is refused for
-every package, `$TMP` included, so `VIEW/DV` is neither readable nor
-creatable here. Use SE11/SE14, or a CDS view (`DDLS/DF`).
+ADT-readable collection to resolve a URI against. `abap_write` can create
+either through the classrun bridge — a view needs `corr_nr` for a
+transportable package and refuses one for a `$` package — but there is no
+read-back for either: an object you just created cannot be read again by
+abapsmith, ever. For a readable object, use a CDS view (`DDLS/DF`) instead.
 
 ## Two write shapes
 

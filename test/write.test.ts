@@ -933,23 +933,25 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
   );
 
   /**
-   * The two types diverge on the create half. TRAN/T's bridge create runs, so
-   * its hint names the call. VIEW/DV's is refused for every package, so the
-   * same hint must NOT send a caller to a create `abap_write` will refuse —
-   * it is sourced from `bridgeCreate.createRefused`, the single string the
-   * read hint and the write refusal both render, so the three cannot drift
-   * apart into contradicting each other.
+   * The two types no longer diverge on the create half: neither REGISTRY
+   * entry declares `bridgeCreate.createRefused` any more (RS_CORR_INSERT
+   * registers a VIEW/DV create for every package now), so both hints fall
+   * back to the same generic "no mode=create" call-out. What must NOT
+   * collapse is each hint's own `limits` text — that is still the only
+   * place a caller learns what the bridge for THIS type can and cannot do,
+   * so each hint is pinned on content unique to its type.
    */
-  it("TRAN/T's hint names the create call that works; VIEW/DV's names the refusal and the alternatives instead", async () => {
+  it("TRAN/T's and VIEW/DV's hints share the generic create call-out but keep their own type-specific limits", async () => {
     const tran = await catchErr(resolveWriteTarget(offline, { type: "TRAN/T", name: "ZX" }));
     expect(String(tran.hint ?? "")).toMatch(/no mode=create/);
+    expect(String(tran.hint ?? "")).toMatch(/REPORT transaction/);
+    expect(String(tran.hint ?? "")).not.toMatch(/base table/);
 
     const view = await catchErr(resolveWriteTarget(offline, { type: "VIEW/DV", name: "ZX" }));
-    expect(String(view.hint ?? "")).not.toMatch(/no mode=create/);
-    expect(String(view.hint ?? "")).toMatch(/refuses a VIEW\/DV create for every package/);
-    expect(String(view.hint ?? "")).toMatch(/\$TMP and an omitted `package` included/);
-    expect(String(view.hint ?? "")).toMatch(/SE11\/SE14/);
-    expect(String(view.hint ?? "")).toMatch(/DDLS\/DF/);
+    expect(String(view.hint ?? "")).toMatch(/no mode=create/);
+    expect(String(view.hint ?? "")).toMatch(/exactly\s+ONE base table/);
+    expect(String(view.hint ?? "")).toMatch(/TRANSPORTABLE package requires corr_nr/);
+    expect(String(view.hint ?? "")).not.toMatch(/REPORT transaction/);
   });
 
   it("TRAN/T's refusal explicitly distinguishes itself from TSTC, the underlying table", async () => {
@@ -5760,13 +5762,14 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
     expect(String(e.message)).toMatch(/no source/i);
   });
 
-  // `view_fields`, `base_table` and `description` each used to earn their own
-  // BAD_INPUT here, naming the missing field. The VIEW/DV create is now refused
-  // for every package before any field is looked at, so what these three pin
-  // instead is the ORDER: an incomplete VIEW/DV must get the policy refusal,
-  // never a field-shaped one that implies filling the field in would work.
-  // The TRAN/T tests below still cover the field-naming behaviour itself.
-  it("a VIEW/DV with no `view_fields` is refused UNSUPPORTED, not a BAD_INPUT naming view_fields", async () => {
+  // The VIEW/DV create now REACHES the bridge for every package, so a missing
+  // `view_fields`/`base_table`/`description` is refused the same way TRAN/T's
+  // missing `program`/`description` is below: BAD_INPUT, naming the field,
+  // zero network calls. Nothing here implies the field alone would complete
+  // the create — corr_nr/package pairing is checked first (assertClassicViewCreateTarget)
+  // and $TMP needs none — but a missing field is now a field-shaped refusal,
+  // not a blanket policy one.
+  it("a VIEW/DV with no `view_fields` is refused BAD_INPUT, and the refusal NAMES view_fields", async () => {
     const e = await catchErr(
       abapWrite(
         offline,
@@ -5781,9 +5784,8 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
         gate,
       ),
     );
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(e.retryable).toBe(false);
-    expect(String(e.message)).not.toMatch(/view_fields/);
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/view_fields/);
   });
 
   it("a TRAN/T with no `program` is refused BAD_INPUT, and the refusal NAMES program", async () => {
@@ -5823,7 +5825,7 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
     expect(String(e.message)).toMatch(/base_table/);
   });
 
-  it("a VIEW/DV with no `base_table` is refused UNSUPPORTED, not a BAD_INPUT naming base_table", async () => {
+  it("a VIEW/DV with no `base_table` is refused BAD_INPUT, and the refusal NAMES base_table", async () => {
     const e = await catchErr(
       abapWrite(
         offline,
@@ -5838,13 +5840,12 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
         gate,
       ),
     );
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(e.retryable).toBe(false);
-    expect(String(e.message)).not.toMatch(/base_table/);
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/base_table/);
   });
 
-  it("a VIEW/DV with no `description` is refused UNSUPPORTED, not a BAD_INPUT naming description — and a COMPLETE one is refused identically", async () => {
-    const missing = await catchErr(
+  it("a VIEW/DV with no `description` is refused BAD_INPUT, and the refusal NAMES description", async () => {
+    const e = await catchErr(
       abapWrite(
         offline,
         {
@@ -5858,28 +5859,8 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
         gate,
       ),
     );
-    expect(missing.code).toBe("UNSUPPORTED");
-    expect(String(missing.message)).not.toMatch(/`description` is required/);
-
-    // The point of the pairing: no input completes this create, so the two
-    // refusals must be the same refusal.
-    const complete = await catchErr(
-      abapWrite(
-        offline,
-        {
-          object: "ZMCP_V_CARRIER",
-          type: "VIEW/DV",
-          package: "$TMP",
-          description: "Carriers",
-          base_table: "ZMCP_CARRIER",
-          view_fields: ["CARRIER_ID", "NAME"],
-        },
-        MAX,
-        gate,
-      ),
-    );
-    expect(complete.code).toBe("UNSUPPORTED");
-    expect(String(complete.message)).toBe(String(missing.message));
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/description/);
   });
 
   it("a TRAN/T with no `description` is refused BAD_INPUT, and the refusal NAMES description", async () => {
@@ -5897,31 +5878,21 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
 });
 
 /**
- * DEFECT 1 / DEFECT 2 (this fix): the two describe blocks below close the gap
- * the invariant-and-routing blocks above do not reach. Those prove a
+ * DEFECT 1 (VIEW/DV) / DEFECT 2 (TRAN/T): the two describe blocks below close
+ * the gap the invariant-and-routing blocks above do not reach. Those prove a
  * MALFORMED VIEW/DV or TRAN/T request is refused before any network call —
  * they never exercise a WELL-FORMED one, so they cannot see whether a valid
- * VIEW/DV create still slips through to `createClassicView` (it must not:
- * DEFECT 1, reproduced live — `created: true` for a view that was never
- * there), or whether a TRAN/T create ever points at a program nobody checked
- * (DEFECT 2) or claims success for a transaction a follow-up read proves is
- * not there (the same DEFECT 1 shape, closed the same way — see
+ * create claims success without a read-back proving the object is really
+ * there. DEFECT 1 was reproduced live for VIEW/DV: `created: true` off the
+ * classrun transcript alone, for a view a follow-up read could not find.
+ * RS_CORR_INSERT now registers a VIEW/DV create for every package — the
+ * describe block below proves the create itself REACHES the bridge (for a
+ * transportable package with corr_nr, and for $TMP with korrnum = space) and
+ * that DEFECT 1's read-back guard still holds, the same shape TRAN/T's
+ * DEFECT 2 block below proves for its own create (see
  * src/adt/write-verify.ts's module doc for the full argument).
  */
-describe("abap_write → bridge creation: the VIEW/DV create is refused for every package, $TMP included", () => {
-  // The design moved twice. VIEW/DV was refused UNSUPPORTED before any bridge
-  // class was generated; then the refusal became CONDITIONAL on a read-back
-  // (attempt-then-verify, TRAN/T's shape) after a cheap fix — an explicit
-  // `COMMIT WORK`, since `DDIF_VIEW_PUT` is an update-task-style DDIC write
-  // with no commit of its own — was worth trying. A live run then measured
-  // what a $TMP create actually does: it lands the view ACTIVE but
-  // unregistered in TADIR, so it carries no packageRef, so delete and undo
-  // both refuse to remove it. Succeeding at minting an object abapsmith must
-  // then refuse to remove is not a working create, so the refusal is
-  // unconditional again — and, unlike the first time, it covers $TMP too.
-  // The routes below are kept intact and fully answered on purpose: they are
-  // what a create WOULD need, so the refusal, not a missing route, is what
-  // these tests observe stopping it.
+describe("abap_write → bridge creation: DEFECT 1 closed for VIEW/DV (create runs for every package, post-create verification)", () => {
   const gate = new SafetyGate({
     readOnly: false,
     allowPackages: ["*"],
@@ -5981,15 +5952,11 @@ describe("abap_write → bridge creation: the VIEW/DV create is refused for ever
       );
     };
 
+  // Every package now emits all three tags — RS_CORR_INSERT runs unconditionally
+  // (korrnum = space for a local package, the caller's TRKORR otherwise), so
+  // VIEW-REGISTERED fires the same for $TMP as for a transportable package.
   const happyRoute = (vitMode: "confirmed" | "absent" | "indeterminate"): Route => {
-    // `classicViewFragment` briefly emitted `RS_CORR_INSERT`/
-    // `VIEW-REGISTERED` unconditionally, including for `$TMP`, until a live
-    // run showed the unconditional call itself failing — see view-create.ts's
-    // `LOCAL_PACKAGE` doc comment and test/view-create.test.ts's "$TMP skips
-    // RS_CORR_INSERT/VIEW-REGISTERED" describe block. `validInput` below uses
-    // `package: "$TMP"`, so the classrun transcript this fake server returns
-    // must (once again) carry only the two tags a real $TMP fragment emits.
-    const classrun = classrunRoute(["VIEW-PUT", "VIEW-ACTIVATED"]);
+    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
     const vit = vitRoute(vitMode, VIEW);
     return (r) => bridgeDeployRoute(r) ?? classrun(r) ?? vit(r);
   };
@@ -6003,50 +5970,63 @@ describe("abap_write → bridge creation: the VIEW/DV create is refused for ever
     view_fields: ["CARRIER_ID", "NAME"],
   };
 
-  it("a well-formed create into $TMP, with every route it would need answered, is still refused UNSUPPORTED — and not one byte goes on the wire", async () => {
-    const { conn, adt } = await connected(happyRoute("confirmed"));
-    const e = await catchErr(abapWrite(conn, validInput, MAX, gate));
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(e.retryable).toBe(false);
-    // No bridge class deployed, no classrun executed, no read-back attempted.
-    expect(adt.calls.length).toBe(0);
+  it("into $TMP: RS_CORR_INSERT registers it with korrnum = space, then the VIT bridge confirms present — created:true and verified:true", async () => {
+    const { conn } = await connected(happyRoute("confirmed"));
+    const result = await abapWrite(conn, validInput, MAX, gate);
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).toMatch(/verified:\s*true/);
+    expect(result.text).toMatch(/package:\s*\$TMP/);
+    expect(result.text).toMatch(/NOTE: Read back and confirmed present/);
   });
 
-  it("the refusal says what a $TMP create was MEASURED to do, not that it fails — the false claim this replaces", async () => {
+  it("into a transportable package with a valid corr_nr: creates, then confirms present — created:true and verified:true", async () => {
     const { conn } = await connected(happyRoute("confirmed"));
-    const e = await catchErr(abapWrite(conn, validInput, MAX, gate));
-    const message = String(e.message);
-    // It succeeds at minting an object nothing here can remove: that, not a
-    // failure, is the reason. A message that only claimed "no package works"
-    // while $TMP was let through is exactly what this pins shut.
-    expect(message).toMatch(/lands ACTIVE but unregistered in TADIR/);
-    expect(message).toMatch(/no packageRef/);
-    expect(message).toMatch(/PACKAGE_UNKNOWN/);
-    expect(message).toMatch(/non-overridably/);
-    expect(message).toMatch(/not what it failed to do/);
-    // The opening promises the caller no retry helps, naming the package it
-    // resolved — including the one an omitted `package` defaults to.
-    expect(message).toMatch(/No retry will succeed for package "\$TMP" or any other/);
-    expect(String(e.hint ?? "")).toMatch(/SE11\/SE14/);
-    expect(String(e.hint ?? "")).toMatch(/DDLS\/DF/);
+    const result = await abapWrite(
+      conn,
+      { ...validInput, package: "ZTM", corr_nr: "TR1K900123" },
+      MAX,
+      gate,
+    );
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).toMatch(/verified:\s*true/);
   });
 
-  it("a transportable package and a non-$TMP local package are refused with the SAME opening sentence — one refusal, not three that could drift apart", async () => {
-    const { conn } = await connected(happyRoute("confirmed"));
-    const opening = (message: string): string => message.split(". ")[0] ?? "";
-    const tmp = await catchErr(abapWrite(conn, validInput, MAX, gate));
-    const local = await catchErr(
-      abapWrite(conn, { ...validInput, package: "$MYLOCAL" }, MAX, gate),
+  it("with an unconfirmable read-back: still reports created:true (trusting the transcript), but verified:false and says why", async () => {
+    const { conn } = await connected(happyRoute("indeterminate"));
+    const result = await abapWrite(conn, validInput, MAX, gate);
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).toMatch(/verified:\s*false/);
+    expect(result.text).toMatch(/NOTE: NOT independently confirmed present/);
+  });
+
+  it("when the read-back proves the view is NOT there, throws CHECK_FAILED instead of ever reporting created:true — the exact DEFECT 1 shape, closed", async () => {
+    const { conn } = await connected(happyRoute("absent"));
+    const e = await catchErr(abapWrite(conn, validInput, MAX, gate));
+    expect(e.code).toBe("CHECK_FAILED");
+    expect(String(e.message)).toMatch(/did not find/);
+    expect(String(e.message)).toMatch(/not proof the object is absent/);
+    expect(String(e.message)).toMatch(/VIEW-REGISTERED/);
+    expect(String(e.message)).toMatch(/VIEW-PUT/);
+    expect(String(e.message)).toMatch(/VIEW-ACTIVATED/);
+  });
+
+  it("a $ package WITH a corr_nr is refused BAD_INPUT before any network call — the pairing check runs before the bridge is ever reached", async () => {
+    const offline = null as unknown as AbapConnection;
+    const e = await catchErr(
+      abapWrite(offline, { ...validInput, package: "$TMP", corr_nr: "TR1K900123" }, MAX, gate),
     );
-    const transportable = await catchErr(
-      abapWrite(conn, { ...validInput, package: "ZTM", corr_nr: "TR1K900123" }, MAX, gate),
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/corr_nr/);
+    expect(String(e.message)).toMatch(/\$TMP/);
+  });
+
+  it("a transportable package with NO corr_nr is refused TRANSPORT_ERROR before any network call", async () => {
+    const offline = null as unknown as AbapConnection;
+    const e = await catchErr(
+      abapWrite(offline, { ...validInput, package: "ZTM" }, MAX, gate),
     );
-    for (const e of [tmp, local, transportable]) {
-      expect(e.code).toBe("UNSUPPORTED");
-      expect(opening(String(e.message))).toMatch(
-        /abapsmith cannot create a classic view for any package/,
-      );
-    }
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(String(e.message)).toMatch(/corr_nr/);
   });
 });
 
