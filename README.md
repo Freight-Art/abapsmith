@@ -59,7 +59,7 @@ its tag instead of at `main`; every release is a `vX.Y.Z` tag with a CHANGELOG s
 name:
 
 ```
-/plugin marketplace add Freight-Art/abapsmith#v0.3.0
+/plugin marketplace add Freight-Art/abapsmith#v0.3.1
 /plugin install abapsmith@abapsmith
 ```
 
