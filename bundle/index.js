@@ -67413,13 +67413,13 @@ var REGISTRY = {
     label: "Table secondary index",
     bridgeCreate: {
       adtRest: `Probed live on A4H 2026-09-05: GET /sap/bc/adt/ddic/tables/t000/indexes 404s, and PUT /sap/bc/adt/ddic/tables/t000/indexes/z01 404s for any body and any content type \u2014 there is no writable (or even readable) index collection under a table. The table XML itself (application/vnd.sap.adt.tables.v2+xml) carries exactly one index-related link, rel="http://www.sap.com/adt/relations/indexes" pointing at /sap/bc/adt/vit/wb/object_type/tabldt/object_name/<TABLE>#view=INDX with type="application/vnd.sap.sapgui" \u2014 a GUI handoff (SE11's Indexes tab), not a REST resource. No discovery collection mentions indexes either.`,
-      via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. What was actually run live is a hand-written throwaway classrun class in $TMP \u2014 not this bridge \u2014 calling DD_INDEX_INTERFACE directly with ACTION='I' against a $TMP table: sy-subrc 0, and the DD12V and DD17S rows appeared. That probe class was deleted afterward. abapsmith's own ZCL_ZMCP_DDIC_CINDX bridge class has not itself been run against a live system.",
-      limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, the same as VIEW/DV and TRAN/T \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI either way, before or after this change \u2014 there is genuinely no ADT-readable resource to read, per adtRest above. The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
+      via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read.",
+      limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, the same as VIEW/DV and TRAN/T \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A unique create over two non-client fields of a client-dependent table returned ACTFAILED='X' live on A4H 2026-09-05; DD_INDEX_INTERFACE exports no activation log, so no server-side reason was captured. The suspected cause, unconfirmed, is that a UNIQUE index on a client-dependent table must include that table's client field. The generated create now looks up the client field in DD03L (DATATYPE='CLNT') and refuses a client-field-omitting unique index with BAD_INPUT before calling the FM; neither that refusal nor a well-formed unique create has been run live since. The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
     },
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
-      via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The same hand-written throwaway $TMP classrun probe then called ACTION='D' against that table: sy-subrc 0, and the DD12V and DD17S rows disappeared. abapsmith's own ZCL_ZMCP_DDIC_DINDX bridge class has not itself been run against a live system.",
-      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. What was actually probed live is narrower still: the same throwaway $TMP classrun calling DD_INDEX_INTERFACE with ACTION='D' directly, not this bridge \u2014 see bridgeCreate.via above. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does."
+      via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Every delete of a real index was then rejected by the server: the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS. The generated delete now passes an empty INDEX_FIELDS table \u2014 fixed, not re-run live.",
+      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does."
     }
   }
 };
@@ -100071,9 +100071,12 @@ var INDEX_DATA_LINES = [
   "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
   "lv_actfailed TYPE ddrefstruc-flag.",
   "lv_dd12v_count TYPE i.",
-  "lv_dd17s_count TYPE i."
+  "lv_dd12v_any TYPE i.",
+  "lv_dd17s_count TYPE i.",
+  "lv_client_field TYPE dd03l-fieldname."
 ];
 var INDEX_DELETE_DATA_LINES = [
+  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
   "lv_actfailed TYPE ddrefstruc-flag.",
   "lv_dd12v_count TYPE i.",
   "lv_dd17s_count TYPE i."
@@ -100090,6 +100093,19 @@ function secondaryIndexFragment(p) {
     lines.push(`APPEND VALUE #( name = ${quoted6} ) TO lt_fields.`);
   });
   lines.push("");
+  if (unique) {
+    lines.push(
+      `SELECT SINGLE fieldname FROM dd03l INTO @lv_client_field WHERE tabname = ${table} AND as4local = 'A' AND datatype = 'CLNT'.`,
+      "IF sy-subrc = 0 AND lv_client_field IS NOT INITIAL.",
+      "  READ TABLE lt_fields TRANSPORTING NO FIELDS WITH KEY name = lv_client_field.",
+      "  IF sy-subrc <> 0.",
+      `    out->write( |ZMCP-DDIC-ERR> unique index ${indexName} on ${baseTable} omits the client field { lv_client_field }| ).`,
+      "    RETURN.",
+      "  ENDIF.",
+      "ENDIF.",
+      ""
+    );
+  }
   lines.push(
     "CALL FUNCTION 'DD_INDEX_INTERFACE'",
     "  EXPORTING",
@@ -100108,7 +100124,10 @@ function secondaryIndexFragment(p) {
     ...ddIndexExceptionsClause(),
     ...subrcGuardFragment(CREATE_FM_WHAT),
     "IF lv_actfailed = 'X'.",
-    `  out->write( |ZMCP-DDIC-ERR> ${CREATE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}| ).`,
+    // DD_INDEX_INTERFACE exports no activation log; the cheapest evidence of what a failed
+    // activation left behind is a DD12V row count with no AS4LOCAL filter at all.
+    `  SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_any WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `  out->write( |ZMCP-DDIC-ERR> ${CREATE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}; DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_any }| ).`,
     "  RETURN.",
     "ENDIF.",
     "out->write( 'INDEX-CREATED' ).",
@@ -100159,11 +100178,18 @@ function indexDeleteFragment(p) {
     transportParamLine(local, corrNr),
     "  IMPORTING",
     "    actfailed = lv_actfailed",
+    // DD_INDEX_INTERFACE requires INDEX_FIELDS for every ACTION, content or not; omitting it
+    // failed live on 2026-09-05 with "the mandatory parameter INDEX_FIELDS was not filled".
+    "  TABLES",
+    "    index_fields = lt_fields",
     "  EXCEPTIONS",
     ...ddIndexExceptionsClause(),
     ...subrcGuardFragment(DELETE_FM_WHAT),
     "IF lv_actfailed = 'X'.",
-    `  out->write( |ZMCP-DDIC-ERR> ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}| ).`,
+    // Same rationale as the create side: no activation log, so the DD12V row count is the
+    // cheapest evidence of what a failed activation left behind.
+    `  SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `  out->write( |ZMCP-DDIC-ERR> ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}; DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_count }| ).`,
     "  RETURN.",
     "ENDIF.",
     "out->write( 'INDEX-DELETED' ).",
@@ -100205,6 +100231,14 @@ function indexBridgeErrorHook(what, indexName, baseTable) {
         "NOT_FOUND",
         `Index ${indexName} on ${baseTable} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${line}`,
         { indexName, baseTable, raw: transcript.raw }
+      );
+    }
+    if (line.includes(`unique index ${indexName} on ${baseTable} omits the client field`)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Index ${indexName} was not created: a unique secondary index on client-dependent base table ${baseTable} must include that table's client field. Raw ABAP-side detail: ${line}`,
+        { indexName, baseTable, raw: transcript.raw },
+        `Add ${baseTable}'s client field to index_fields, or create ${indexName} without index_unique.`
       );
     }
     const m = subrcRe.exec(line);
@@ -101170,7 +101204,9 @@ var writeInputSchema = {
   ),
   view_fields: external_exports.array(external_exports.string()).optional().describe("VIEW/DV create only: base-table fields to project, in order."),
   index_fields: external_exports.array(external_exports.string()).optional().describe("TABL/DI create only, required: base-table fields the index covers, in order."),
-  index_unique: external_exports.boolean().optional().describe("TABL/DI create only: mark the index UNIQUE. Default false."),
+  index_unique: external_exports.boolean().optional().describe(
+    "TABL/DI create only: mark the index UNIQUE. Default false. On a client-dependent base table, a unique index must include the table's client field (usually MANDT) in `index_fields` \u2014 a create that omits it is refused rather than left to fail activation on the server."
+  ),
   // "EXISTING" and "SUBMIT-only" are load-bearing: abapsmith checks the
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.
