@@ -31,16 +31,14 @@ npm run check:cassettes
 
 ### `npm test` is offline
 
-`npm test` runs `vitest run` with no filter — everything under `test/`. Five
-files (`test/integration.test.ts`, `test/integration-debug.test.ts`,
-`test/integration-undo.test.ts`, `test/integration-fpm-lock.test.ts`,
-`test/integration-class-includes.test.ts`) are live integration suites, and
-`vitest.config.ts` excludes them by name from every run that is not
-`VITEST_LIVE=1` — `LIVE_INTEGRATION_TESTS` in that file is the authoritative
-list, so `grep LIVE_INTEGRATION_TESTS -A6 vitest.config.ts` always answers
-"which ones" without relying on this paragraph staying in sync. The exclusion
-is config-level rather than a CLI flag, so it also holds if you name one of
-those files explicitly.
+`npm test` runs `vitest run` with no filter — everything under `test/`. The
+live integration suites — six as of this writing — are excluded by name
+from every run that is not `VITEST_LIVE=1`; `vitest.config.ts` holds the
+authoritative list in `LIVE_INTEGRATION_TESTS` — don't hand-copy it here,
+since a transcribed list drifts. Enumerate it yourself with
+`VITEST_LIVE=1 npx vitest list --filesOnly` (plain `vitest list` prints
+nothing in this repo). The exclusion is config-level rather than a CLI flag,
+so it also holds if you name one of those files explicitly.
 
 `VITEST_LIVE` is the only switch. A repo-root `.env` left over from
 configuring a real connection does not change this — no offline test reads
@@ -59,23 +57,24 @@ layers, and the tool surface (both `ABAP_TOOL_SURFACE` values). Full layout:
 
 ### Live tests need a real SAP system
 
-`npm run test:live` (`VITEST_LIVE=1 vitest run`) runs the six live suites
-above. **You almost certainly cannot run these** unless you have your own
-ABAP system with ADT enabled (`/sap/bc/adt/*` reachable over HTTP) and a
-technical user with `S_DEVELOP` and a writable `$TMP` package. They perform
-real logons, writes, activations, runs, and a live debugger attach against
-that system. All six collect under `ABAP_URL` alone, but four
-(`integration-undo`, `integration-fpm-lock`, `integration-class-includes`,
-`integration-lock-handle`) additionally need write access configured —
-`ABAP_MODE=edit` or `admin`, or (only when `ABAP_MODE` is unset) the legacy
-`ABAP_ALLOW_WRITE=true` — or they collect and skip; see
-`LIVE_INTEGRATION_TESTS` in `vitest.config.ts` for exactly which. Do not
-point `ABAP_URL` at anything productive, and do not run `test:live` against a
-system you are not prepared to see mutated — the server does not confine
-writes to `$TMP` unless you set `ABAP_ALLOW_PACKAGES`, so the live suites are
-not sandboxed at all beyond what you configure, and they serialize (one
-connection, no parallel logons) because a shared sandbox has a finite
-failed-login budget before the technical user locks.
+`npm run test:live` (`VITEST_LIVE=1 vitest run`) runs the six live suites in
+`LIVE_INTEGRATION_TESTS`. **You almost certainly cannot run these** unless
+you have your own ABAP system with ADT enabled (`/sap/bc/adt/*` reachable
+over HTTP) and a technical user with `S_DEVELOP` and a writable `$TMP`
+package. They perform real logons, writes, activations, runs, and a live
+debugger attach against that system. All six collect under `ABAP_URL` alone,
+but four (`integration-undo`, `integration-fpm-lock`,
+`integration-class-includes`, `integration-lock-handle`) additionally need
+write access configured — `ABAP_MODE=edit` or `admin`, or (only when
+`ABAP_MODE` is unset) the legacy `ABAP_ALLOW_WRITE=true` — or they collect
+and skip; see `LIVE_INTEGRATION_TESTS` in `vitest.config.ts` for exactly
+which. Do not point `ABAP_URL` at anything productive, and do not run
+`test:live` against a system you are not prepared to see mutated — the
+server does not confine writes to `$TMP` unless you set
+`ABAP_ALLOW_PACKAGES`, so the live suites are not sandboxed at all beyond
+what you configure, and they serialize (one connection, no parallel logons)
+because a shared sandbox has a finite failed-login budget before the
+technical user locks.
 
 If you don't have an SAP appliance to test against, that's fine — most
 contributions are reviewable and testable through the offline suite alone.

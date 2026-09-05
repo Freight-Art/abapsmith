@@ -42,7 +42,7 @@ import { SafetyGate } from "../src/safety.js";
 import { authorizeMutation, writeObject } from "../src/adt/write.js";
 import { activateObject, assertNoErrors } from "../src/adt/activate.js";
 import { runClass } from "../src/adt/run.js";
-import { liveWriteConfigured } from "./helpers/live-write-gate.js";
+import { liveSuiteSkipReason, skipForApplianceState } from "./live-appliance-state.js";
 import {
   fpmLockKey,
   buildLockedOperationSource,
@@ -55,9 +55,10 @@ import {
 } from "../src/adt/fpm-lock.js";
 
 loadEnvFile(); // so a .env in the repo root enables the live suite
-const live = Boolean(process.env.ABAP_URL);
-const liveWrite = live && liveWriteConfigured();
-const dw = liveWrite ? describe : describe.skip;
+const notRun = liveSuiteSkipReason({ write: true });
+const dw = notRun === undefined ? describe : describe.skip;
+// A collection-time skip is counted but never says why; state the reason once, greppably.
+if (notRun !== undefined) it("live A4H fpm-lock protocol: suite not run", (ctx) => skipForApplianceState(ctx, notRun));
 
 dw("live A4H fpm-lock protocol (write path, $TMP only)", () => {
   let conn: AbapConnection;
