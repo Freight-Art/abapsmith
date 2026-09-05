@@ -39,6 +39,7 @@ import { registerTransportTools } from "./tools/transport.js";
 import { registerBopfTools } from "./tools/bopf.js";
 import { registerBopfTestTool, createBopfTestDeps } from "./tools/bopf-test.js";
 import { registerFpmTools } from "./tools/fpm.js";
+import { registerImgTools } from "./tools/img.js";
 import { registerUiTools } from "./tools/ui.js";
 import { registerEnhancementTools } from "./tools/enh.js";
 import { registerDataPreviewTools } from "./tools/data-preview.js";
@@ -609,6 +610,9 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     if (toolCapabilities.canWrite) {
       registerBopfTestTool(mcp, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
       registerFpmTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+      // `abap_img` is read-only in effect but its first call deploys/activates a $TMP bridge class,
+      // so `SafetyGate` refuses it as a write under ABAP_MODE=read before $TMP leniency applies — same reason `abap_fpm_read` sits here.
+      registerImgTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       // `abap_ui`'s `screen` mode deploys a throwaway $TMP bridge class, so
       // it needs write capability just to register. `press` (committing) is
       // gated far more tightly at call time — `assertPressEnabled` in
