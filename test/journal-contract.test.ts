@@ -643,6 +643,19 @@ const NOT_REPOSITORY_MUTATIONS: ReadonlyMap<string, string> = new Map([
       "one of these. If a future debugger feature ever writes to the repository (editing a " +
       "source line from the debugger, say), it must journal and this entry must be re-examined.",
   ],
+  [
+    "adt/quickfix.ts",
+    "Two POSTs, `evaluateQuickFixes` (quick-fix evaluation) and " +
+      "`fetchQuickFixDelta` (one proposal's own `uri`), both of which compute a fix from source " +
+      "posted in the request body. Neither creates, changes or deletes a repository object, so " +
+      "no `JournalOperation` value could describe them — the same reason `tools/test.ts`'s ABAP " +
+      "Unit POST is here. The repository change a quick fix DOES make is journalled one hop up: " +
+      "`src/tools/quickfix.ts` applies the chosen delta and calls `abapWrite`, whose " +
+      "`withJournalledMutation` writes the create/update entry, with `tool: \"abap_quick_fix\"` " +
+      "(the `toolLabel` argument) rather than `\"abap_write\"`. If a future quick-fix code path " +
+      "ever POSTs something that changes a repository object directly, it must journal and this " +
+      "entry must be re-examined.",
+  ],
 ]);
 
 describe("journal contract (heuristic, see file header)", () => {
@@ -660,6 +673,7 @@ describe("journal contract (heuristic, see file header)", () => {
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
+        "adt/quickfix.ts",
         "adt/transports.ts",
         "adt/write.ts",
         "debug/transport.ts",

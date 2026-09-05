@@ -186,16 +186,15 @@ was last set to `0.3.0`.
   payloads suggest roughly 3.2x smaller responses for `app` and 1.7x for
   `find`; this ratio itself has not been confirmed against a live system.
   `detail` has no effect on `outline` or `locks`.
-- Bridge delete and `abap_journal mode=undo` were added for `TRAN`/`T` and
-  `VIEW`/`DV`. Live testing done as part of this same work found the
-  create side much less solid than the addition implies: creating a
-  transportable (non-`$TMP`) classic view now fails fast with a clear
-  refusal instead of silently going wrong, and a `$TMP` classic view
-  create still succeeds but produces an object with no package reference
-  that neither the delete gate nor undo can currently reach — so a `$TMP`
-  classic-view create should not be treated as a working, reversible round
-  trip yet, despite what earlier commits in this same effort claimed
-  before later live runs corrected them.
+- Bridge delete and `abap_journal mode=undo` were added for `TRAN`/`T`
+  and `VIEW`/`DV`. A `$TMP` classic-view create registers the view in
+  TADIR (`RS_CORR_INSERT` with `korrnum = space`), so it reads back with
+  a package reference and both `abap_write mode=delete` and `abap_journal
+  mode=undo` reach it; a view that reads back with no `<adtcore:packageRef>`
+  is still refused `SAFETY_DENIED` / `PACKAGE_UNKNOWN` on both routes,
+  deliberately. This corrects the entry's own earlier wording, which said
+  the `$TMP` round trip could not be reached — superseded by later live
+  runs within this same effort.
 - Journal entries can now record an `actor` (from `ABAP_ACTOR` or the MCP
   client's declared name) and a `sessionId` distinguishing concurrent
   conversations against the same system; `abap_journal mode=list` gained
@@ -268,6 +267,11 @@ was last set to `0.3.0`.
   preserved byte-for-byte. `null` clears an attribute or a ref, as
   `set_node_flags` already did. Each re-reads after the write and fails
   `CHECK_FAILED` if a named field did not stick.
+- `abap_quick_fix` — lists and applies ADT position-driven quick fixes
+  (`mode: "list"` / `mode: "apply"`), routed through the same journalled
+  write pipeline as `abap_write` and undoable. `mode: "list"` is itself
+  gated as a write because it posts the whole object source; v1 accepts
+  deterministic proposals only, refusing a parameterized one `BAD_INPUT`.
 
 ### Changed
 

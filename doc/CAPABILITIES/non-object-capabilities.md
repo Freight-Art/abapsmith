@@ -6,6 +6,7 @@
 | Breakpoints | yes | yes | no | yes | n/a | live | Armed only as part of starting a session, deleted only when it ends, and only ones this session created. No standalone list or remove. `skipCount` is accepted by the server and not enforced, so expect a stop on every hit. |
 | ABAP Unit | n/a | yes | n/a | n/a | n/a | mixed | Runs existing tests; cannot write or delete them, and never requests coverage. See the outcome breakdown below. |
 | ATC | partial | yes | no | no | n/a | mixed | A run creates a server-side worklist as a side effect; there is no worklist delete, no variant create, and exemption management is deliberately absent. |
+| Quick fixes | no | yes | yes | no | yes | mixed | Position-driven only, not finding-driven — the ATC route was tried and rejected. Deterministic proposals only; a parameterized one is refused `BAD_INPUT`. Listing is gated as a write because it posts the whole object source. |
 | Runtime dumps | n/a | yes | n/a | no | n/a | live | Read-only feed with a residence window that cannot be widened. The variables chapter is absent from the schema unless an operator enables it. |
 | Object activation | n/a | n/a | n/a | n/a | yes | live | Check-only and activate modes, single and batched. There is no deactivate in ADT, which is why activation can never be undone. |
 | Transport requests | yes | yes | partial | yes | n/a | live | Create, add a user, and set an owner. Delete is admin-gated and requires echoing the request identifier. Objects cannot be added or removed directly, and a locked entry cannot be unlocked. |
@@ -41,6 +42,21 @@
   zero-findings run, and no error path. The worklist-read capture exists in
   the tree but is not wired into any test, so findings parsing is covered by
   synthetic documents only.
+- **Quick fixes.** Both wire hops — the position-based evaluation POST and
+  the per-proposal delta POST — are grounded in 12 live captures against a
+  sandbox appliance, replayed in `test/quickfix-wire.test.ts`: URLs, media
+  types, request bodies, response shapes, and every delta-range semantic
+  (1-based lines, 0-based columns, end-exclusive ranges, unsorted units, LF
+  content newlines regardless of the object's own line ending). The
+  end-to-end apply path — lock, PUT, unlock, activate, journal — is tested
+  only against an in-process fake ADT server, not a live one. Determinism
+  filtering is code-verified against the same captures, not live-applied: a
+  non-empty `userContent` is the server's own pre-filled dialog input, and
+  fixtures 806/811 show hop 2 still returns a valid but no-attributes delta
+  if that input is dropped — a wrong result, not an error — while a
+  fix-type deny-list catches the opposite gap, `rename_quickfix`, which
+  ships no `userContent` at all (802) yet whose empty-input delta is an
+  identity no-op (803).
 - **Debugger.** The most thoroughly live-covered area: real cassettes exist
   for token fetch, stack read, listener hit, attach bootstrap, listener
   conflict, and both breakpoint accept and reject. Two exceptions: the
