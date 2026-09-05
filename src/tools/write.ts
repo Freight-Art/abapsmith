@@ -41,7 +41,7 @@ import { serverPackage } from "../adt/resolved-package.js";
 import { isLocalPackageName } from "../adt/transports.js";
 import { assertTransactionCreateTarget, createTransaction } from "../adt/tran-create.js";
 import { deleteTransactionViaBridge } from "../adt/tran-delete.js";
-import { assertClassicViewCreateTarget, createClassicView } from "../adt/view-create.js";
+import { assertClassicViewCreateTarget, classicViewUri, createClassicView } from "../adt/view-create.js";
 import { deleteClassicViewViaBridge } from "../adt/view-delete.js";
 import {
   verifyObjectCreated,
@@ -152,8 +152,8 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs " +
-        "corr_nr, a $-package refuses it.",
+      "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. " +
+        "VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr.",
     ),
   description: z
     .string()
@@ -203,8 +203,9 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a " +
-        "transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete.",
+      "Transport request. $TMP needs none. Required for a TRAN/T create into a transportable " +
+        "package; optional for a VIEW/DV create, which resolves one under ABAP_ALLOW_TRANSPORTS " +
+        "when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T delete.",
     ),
   software_component: z.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: z.string().optional().describe("DEVC/K only. Default development."),
@@ -1282,7 +1283,7 @@ export async function abapWrite(
   // below (`isPackageType`) that handles both its REST and bridge routes.
   if (isBridgeOnlyCreateType(input.type)) {
     if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
-    return await abapBridgeCrud(conn, target, input, maxChars, gate, journal);
+    return await abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport);
   }
 
   /** Transport plumbing, spread into both mutation calls so write/delete can't drift apart on it. */
@@ -3036,10 +3037,11 @@ async function abapBridgeCrud(
   maxChars: number,
   gate: SafetyGate,
   journal?: Journal,
+  transport?: SessionTransport,
 ): Promise<BuiltResponse> {
   return (input.mode ?? "write") === "delete"
     ? abapDeleteViaBridge(conn, target, input, maxChars, gate)
-    : abapCreateViaBridge(conn, target, input, maxChars, gate, journal);
+    : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
 }
 
 /**
@@ -3200,6 +3202,7 @@ async function abapCreateViaBridge(
   maxChars: number,
   gate: SafetyGate,
   journal?: Journal,
+  transport?: SessionTransport,
 ): Promise<BuiltResponse> {
   const type = (input.type ?? "").trim().toUpperCase();
   const cap = capabilitiesFor(type);
@@ -3228,9 +3231,11 @@ async function abapCreateViaBridge(
   }
   const packageName = target.packageName?.trim() || "$TMP";
   // Zero-network package/corr_nr check for a VIEW/DV create, done here so a bad
-  // combination costs no request: a transportable package needs corr_nr, a $-package
-  // (including this $TMP default) must not have one. view-create.ts's own `validate`
-  // repeats this as defence in depth, not the only enforcement point.
+  // combination costs no request: a $-package (including this $TMP default) must not
+  // carry corr_nr, and a supplied corr_nr must be TRKORR-shaped. A transportable
+  // package needing a request is resolved below (preflightPackageCorr), not asserted
+  // here — view-create.ts's own `validate` still refuses an unresolved one as defence
+  // in depth, not the only enforcement point.
   if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
   // Same pairing for TRAN/T: RPY_TRANSACTION_INSERT's own RS_CORR_INSERT needs the request.
   if (type === "TRAN/T") assertTransactionCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
@@ -3250,6 +3255,9 @@ async function abapCreateViaBridge(
   let verifyNote: string;
   let entryId: string | undefined;
   let registration: BridgeRegistration;
+  // Set only for a transportable VIEW/DV create, once preflightPackageCorr resolves a
+  // request; stays undefined for a local VIEW/DV (no transport) and for TRAN/T (unchanged).
+  let transportInfo: TransportInfo | undefined;
 
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
   const objectUri = vitBridgeUri(vitType, target.name);
@@ -3304,7 +3312,47 @@ async function abapCreateViaBridge(
     // COMMIT WORK fix closes the gap is NOT assumed here — the read-back below decides,
     // live, on every call.
     bridgeClass = DDIC_BRIDGE_CLASS.createView;
-    const corrNr = normalizeCorrNr(input.corr_nr);
+    const named = normalizeCorrNr(input.corr_nr);
+    const localPkg = isLocalPackageName(packageName);
+    let corrNr: string | undefined;
+    let corrSource: "named" | "auto" | undefined;
+    if (localPkg) {
+      // assertClassicViewCreateTarget above already proved this is undefined for a local package.
+      corrNr = named;
+    } else {
+      // Internal wiring failure, not a caller mistake — same shape as abapCreatePackage's
+      // bridge route below: every other transportable mutation reaches here with a
+      // transport manager already resolved.
+      if (transport === undefined) {
+        throw new AbapError(
+          "TRANSPORT_ERROR",
+          `${target.name} needs a transport request (package ${packageName} is not local), but no ` +
+            "transport manager is wired into this call. This is an internal wiring failure in " +
+            "abapsmith, not a mistake in the request.",
+          { name: target.name, packageName },
+        );
+      }
+      const preflightTarget: PreflightTarget = {
+        uri: classicViewUri(target.name),
+        name: target.name,
+        type: "VIEW/DV",
+        packageName,
+        exists: false,
+      };
+      // The URI is synthesized because the view doesn't exist yet — resolveForNewTransportable
+      // (src/adt/session-transport.ts) never sends it to a CTS classification check; it only
+      // reaches the wire as <REF> if a new request is created, exactly as a DEVC/K create's own
+      // not-yet-existing URI does. Any refusal here (resolver denial, or the gate) propagates
+      // untouched.
+      const corr = await preflightPackageCorr(conn, preflightTarget, {
+        transport,
+        gate,
+        ...(named !== undefined ? { corrNr: named } : {}),
+      });
+      corrNr = corr.corrNr;
+      corrSource = corr.source;
+    }
+    if (corrNr !== undefined) transportInfo = { status: "transport", required: true, corrNr };
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
@@ -3318,6 +3366,7 @@ async function abapCreateViaBridge(
           baseTable,
           fields: viewFields,
           corrNr,
+          ...(corrSource !== undefined ? { corrSource } : {}),
         }),
     ));
     detail = `database view (DD25V class 'D') projecting ${viewFields.length} field(s) of ${baseTable}`;
@@ -3455,6 +3504,7 @@ async function abapCreateViaBridge(
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName,
+      ...(transportInfo !== undefined ? { transport: transportHeaderText(transportInfo) } : {}),
       mode: "create-bridge",
       created: true,
       verified,
@@ -3713,8 +3763,9 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
       description:
         "Create, change or delete an ABAP object: save/check/activate; locking handled. " +
         "TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. " +
-        "VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't " +
-        "be read back via abap_read. DEVC/K delete only if empty. " +
+        "VIEW/DV create resolves its own corr_nr for a transportable package (supply one to pin it), " +
+        "none for a $ one; the view can't be read back via abap_read. " +
+        "DEVC/K delete only if empty. " +
         "dry_run previews the diff and expect_etag without writing anything.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true },

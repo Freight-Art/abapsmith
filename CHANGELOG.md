@@ -239,6 +239,14 @@ was last set to `0.3.0`.
 
 ### Changed
 
+- `VIEW/DV` create into a transportable package resolves a transport
+  request the same way a `DEVC/K` create does — `preflightPackageCorr`
+  honours the caller's `corr_nr` when given, or else picks or creates one
+  under `ABAP_ALLOW_TRANSPORTS`, gated before the write proceeds. The
+  resolver's own refusals surface as `TRANSPORT_ERROR` (policy disabled, or
+  no usable request), `TRANSPORT_LOCKED` (a request pinned elsewhere), or
+  `BAD_INPUT` (a malformed number). A `$` package still refuses a `corr_nr`
+  (`BAD_INPUT`).
 - `abap_debug`'s `breakpoints` schema states the shared `condition`/`skipCount`
   guidance once at the array level instead of once per union branch, trimming
   the largest single property in the `tools/list` payload by about a third with
