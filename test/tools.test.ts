@@ -2021,10 +2021,17 @@ describe("tool surface", () => {
     // "refused" framing left to assert, since neither field's absence alone
     // is what a caller gets refused for (that's corr_nr/package's job).
     expect(props.base_table?.description).toBe(
-      "VIEW/DV create only: the single base table the view projects.",
+      "VIEW/DV create: the single base table the view projects. TABL/DI create+delete, " +
+        "required: the table the index belongs to.",
     );
     expect(props.view_fields?.description).toBe(
       "VIEW/DV create only: base-table fields to project, in order.",
+    );
+    expect(props.index_fields?.description).toBe(
+      "TABL/DI create only, required: base-table fields the index covers, in order.",
+    );
+    expect(props.index_unique?.description).toBe(
+      "TABL/DI create only: mark the index UNIQUE. Default false.",
     );
   });
 
@@ -2079,15 +2086,17 @@ describe("tool surface", () => {
     // as well as conditionally refused (TRAN/T create, either type's delete)
     // — pin the whole string so both halves of that contract stay honest.
     expect(props.corr_nr?.description).toBe(
-      "Transport request. $TMP needs none. Required for a VIEW/DV create into a " +
-        "transportable package. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete.",
+      "Transport request. $TMP needs none. Required for a VIEW/DV or TABL/DI create into a " +
+        "transportable package. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete. " +
+        "TABL/DI delete: same package-derived requirement as its create, not refused.",
     );
     // package's VIEW/DV clause states the corr_nr/package pairing rule, not a
     // blanket refusal — pin it verbatim rather than substring-matching, since
     // a substring match would pass even if the rule reversed.
     expect(props.package?.description).toBe(
       "Package for a NEW object. Default $TMP. VIEW/DV: a transportable one needs corr_nr, " +
-        "a $-package refuses it.",
+        "a $-package refuses it. TABL/DI: ignored except to check agreement — an index's " +
+        "package is always the base table's, never caller-chosen.",
     );
   });
 

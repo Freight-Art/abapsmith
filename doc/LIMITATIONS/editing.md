@@ -101,22 +101,16 @@
   returns a basic-properties stub (name/description/package) with no field
   list and no permission values, not a usable read of the object's actual
   content. SU21 is the only way to view or edit an authorization object.
-- **No table secondary index (TABL/DI) create or change.** `TABL/DI` is not a
-  writable type and there is no other route to create or change a table's
-  secondary index through abapsmith. Two in-band routes were tried on
-  A4H and both failed: appending a second `define index ...` statement to a
-  `TABL/DT` source write is rejected at check time (the table source grammar
-  accepts one statement), and `abap_ui` cannot drive SE11's Indexes tab (SE11
-  reports CINFO=84, so `press` refuses it). Unlike the SHLP/DH and SUSO/B
-  entries above, this one rests on no live ADT recon: nobody has probed the
-  table-child resource at
-  `/sap/bc/adt/ddic/tables/{table}/indexes/{id}`, so it records abapsmith's
-  own reach, not a proven limit of ADT. `abap_write`/`abap_read` with
-  `type: "TABL/DI"` now return this specific refusal instead of a generic
-  "Unknown object type". Create or change the index by hand in SE11 (the
-  table's "Indexes" button) or ADT's table editor — the table itself stays
-  writable here as `TABL/DT`, so a table built through abapsmith can be
-  indexed afterwards.
+- **No table secondary index (TABL/DI) change or read; create and delete are
+  bridge-only.** A live probe on A4H 2026-09-05 confirmed there is no ADT
+  REST route for indexes at all — every route under a table 404s, and the
+  table XML's only index link is a GUI handoff to SE11's Indexes tab, not a
+  REST resource. Creation and deletion instead run through
+  `DD_INDEX_INTERFACE` via a classrun bridge (see `src/adt/capabilities.ts`);
+  the bridge cannot update an existing index — drop and recreate instead —
+  and there is no read-back for `TABL/DI` through abapsmith either way. SE11
+  (the table's "Indexes" button) is the only way to inspect one directly; the
+  table itself stays writable here as `TABL/DT`.
 
 ## FPM / Web Dynpro configuration is read-only, deliberately
 

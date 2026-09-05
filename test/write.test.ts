@@ -755,10 +755,9 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     );
   });
 
-  // TABL/DI (table secondary index) is an `unsupported` entry,
-  // not a capability — registering it must not widen any write surface.
-  // This is the negative-space check the exhaustive set comparison above
-  // doesn't itself make explicit for a brand-new registry member.
+  // TABL/DI is bridge-only (bridgeCreate/bridgeDelete, no REST create/write/
+  // delete), so it must stay out of these three ADT-REST-route derived sets
+  // even though abap_write can now create and delete it via the classrun bridge.
   it("TABL/DI is not in WRITABLE_TYPES, CREATABLE_TYPES or DELETABLE_TYPES", () => {
     expect(WRITABLE_TYPES).not.toContain("TABL/DI");
     expect(CREATABLE_TYPES).not.toContain("TABL/DI");
@@ -871,21 +870,12 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
    * added: IS a registered ADT object type (unlike the PROG
    * subobjects), but has no discovery collection and no writable route
    * either — the VIT bridge answers with a basic-properties stub only, live
-   * recon via a manual probe script (not shipped in this release). `TABL/DI` (table secondary
-   * index) is the eighth member and a DIFFERENT KIND of entry
-   * from the other seven: SHLP/DH through SUSO/B all rest on live recon —
-   * someone drove a real request at ADT and recorded what came back. TABL/DI
-   * rests on abapsmith's OWN reach instead — no writable type code exists
-   * for it, and the two in-band routes (a second `define index` statement
-   * appended to a TABL/DT source PUT, and driving SE11's Indexes tab through
-   * abap_ui) both fail, reproduced directly against this repo's own reach — but ADT's own
-   * /sap/bc/adt/ddic/tables/{table}/indexes/{id} resource has never been
-   * probed from this repo, so its entry does not claim ADT itself refuses
-   * it. None of the eight are in `types.ts`'s `TYPES` array, so this
-   * exercises the dedicated registry-sourced short-circuit in
-   * `resolveWriteTarget`, not the ordinary `specForType`/`specForKeyword`
-   * lookup — and it must fire before any network call, exactly like the
-   * DTEL/DE and ENHO/XH refusals above.
+   * recon via a manual probe script (not shipped in this release). None of
+   * the seven are in `types.ts`'s `TYPES` array, so this exercises the
+   * dedicated registry-sourced short-circuit in `resolveWriteTarget`, not
+   * the ordinary `specForType`/`specForKeyword` lookup — and it must fire
+   * before any network call, exactly like the DTEL/DE and ENHO/XH refusals
+   * above.
    */
   it.each([
     ["SHLP/DH", "search help"],
@@ -893,7 +883,6 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     ["PROG/PC", "GUI status"],
     ["PROG/PT", "GUI title"],
     ["SUSO/B", "authorization object"],
-    ["TABL/DI", "table secondary index"],
   ])("refuses %s with a specific UNSUPPORTED, offline, not the generic BAD_INPUT", async (type) => {
     const e = await catchErr(resolveWriteTarget(offline, { type, name: "ZX" }));
     expect(e.code).toBe("UNSUPPORTED");
@@ -1002,24 +991,28 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
   });
 
   /**
-   * A table's secondary index reached only a generic BAD_INPUT
-   * "Unknown object type" before this entry existed — no route, no
-   * explanation, no pointer to SE11. This pins the fix and, unlike the
-   * SUSO/B test above, also pins the honesty caveat this entry is careful
-   * to state: the refusal is abapsmith admitting it has no route of its
-   * own, NOT a claim that ADT's own table-index resource was probed and
-   * refused it.
+   * TABL/DI joined VIEW/DV and TRAN/T as a `bridgeCreate`-only type once the
+   * classrun bridge landed — same `resolveWriteTarget` branch as the
+   * VIEW/DV/TRAN/T `it.each` above, so it deserves the same shape of pin:
+   * still UNSUPPORTED offline (`offline` is `null`, so any network call
+   * would throw before an assertion ran), and the message must name the
+   * in-band bridge route rather than the flat "cannot be written by
+   * abapsmith" a plain `unsupported` entry gets. Its own `adtRest` finding
+   * doesn't match VIEW/DV's or TRAN/T's (404s on a GET/PUT to a collection
+   * that was never there, not 405 on one that exists but refuses writes),
+   * so it gets its own test rather than a third `it.each` row.
    */
-  it("TABL/DI's refusal names the real ADT type code, names the closed in-band routes, states that ADT itself was never probed, and hints SE11 with the table staying writable as TABL/DT", async () => {
+  it("TABL/DI's refusal names the real ADT type code, cites the live 404 finding, and names the bridge route instead of a bare 'unsupported'", async () => {
     const e = await catchErr(resolveWriteTarget(offline, { type: "TABL/DI", name: "ZTMC_TORDER" }));
     expect(e.code).toBe("UNSUPPORTED");
     expect(String(e.message)).toMatch(/TABL\/DI/);
     expect(String(e.message)).toMatch(/secondary index/i);
-    expect(String(e.message)).toMatch(/define index/i);
-    expect(String(e.message)).toMatch(/SE11|CINFO/);
-    expect(String(e.message)).toMatch(/NOT established|never been probed/);
-    expect(String(e.hint ?? "")).toMatch(/SE11/);
-    expect(String(e.hint ?? "")).toMatch(/TABL\/DT/);
+    expect(String(e.message)).toMatch(/no writable ADT collection/i);
+    expect(String(e.message)).toMatch(/404s/);
+    expect(String(e.message)).not.toMatch(/cannot be written by abapsmith/i);
+    expect(String(e.hint ?? "")).toMatch(/abap_write/);
+    expect(String(e.hint ?? "")).toMatch(/no update route/);
+    expect(String(e.hint ?? "")).toMatch(/TABL\/DI/);
   });
 });
 
@@ -5345,6 +5338,11 @@ describe("invariant: no REGISTRY type may declare `bridgeCreate` without a routi
     // defaults). `corr_nr` is excluded — its absence is judged by transport
     // policy (preflightPackageCorr), not field-presence, like VIEW/DV/TRAN/T.
     "DEVC/K": ["object", "type", "software_component"],
+    // TABL/DI: `package` is excluded — an index has no package of its own,
+    // abapsmith reads the base table's and only checks a caller-supplied
+    // one for agreement, never requires it. `corr_nr` is excluded for the
+    // same reason as DEVC/K's: judged by package policy, not presence.
+    "TABL/DI": ["object", "type", "description", "base_table", "index_fields"],
   };
 
   /** The walk. Deliberately over the real REGISTRY, not over BRIDGE_CREATABLE_TYPES. */

@@ -93,7 +93,7 @@ inputs to this derivation rather than registry fields:
 | `PROG/PC` | GUI status (CUA status) | no | no | no | no | no | tests |
 | `PROG/PT` | GUI title (titlebar) | no | no | no | no | no | tests |
 | `SUSO/B` | Authorization object | no | no | no | no | no | tests |
-| `TABL/DI` | Table secondary index | no | no | no | no | no | tests |
+| `TABL/DI` | Table secondary index | partial | no | no | partial | no | unverified |
 
 The `Object` column values are the registry `label` fields, unreworded.
 
@@ -154,7 +154,10 @@ The `Object` column values are the registry `label` fields, unreworded.
   remove it afterwards — proven live on A4H, 2026-09-04 (transportable
   package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a `$`-prefixed
   package: view registered with `korrnum = space`, then deleted,
-  VIEW-DELETED / VIEW-GONE).
+  VIEW-DELETED / VIEW-GONE). `TABL/DI` (a table's secondary index) joins them
+  as a third bridge create/delete-only type with no read route: ADT REST has
+  no index collection at all (404 on every route probed live on A4H
+  2026-09-05), so creation goes through DD_INDEX_INTERFACE the same way.
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and
@@ -167,13 +170,11 @@ The `Object` column values are the registry `label` fields, unreworded.
   equality. Hook anchors on a class are discoverable, but creating a hook
   implementation on one is refused; a function group would be refused the
   same way.
-- `SHLP/DH`, `PROG/PS`, `PROG/PC`, `PROG/PT`, `SUSO/B`, `TABL/DI` — carry an
-  `unsupported` entry: no read, no write, no URI. All but `TABL/DI` state a
-  reason established by live reconnaissance — 404s on every collection, 405s
-  on every write verb, content-free VIT stubs — so the `tests` in their
+- `SHLP/DH`, `PROG/PS`, `PROG/PC`, `PROG/PT`, `SUSO/B` — carry an
+  `unsupported` entry: no read, no write, no URI. Each states a reason
+  established by live reconnaissance — 404s on every collection, 405s on
+  every write verb, content-free VIT stubs — so the `tests` in their
   Evidence column grades the refusal the tests pin, not the recon behind it.
-  For `TABL/DI` the registry's stated reason is abapsmith's own reach,
-  explicitly not a proven ADT limitation, and no ADT probe has been run.
 - `PROG/I` — `create.verified` and `delete` are both `true`, live-verified
   full cycle on A4H 2026-09-04: create, check, activate, re-write, read-back,
   delete. Create goes through the vendor `CreatableTypes` route, not a

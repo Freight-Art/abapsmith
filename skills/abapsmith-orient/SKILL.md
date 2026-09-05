@@ -37,11 +37,12 @@ Check here before planning any create.
 - `MSAG/N` — write shape `properties`, delete: yes
 - `SRVB/SVB` — write shape `properties`, delete: yes
 
-**Bridge-only create types (3).** ADT REST has no usable create for these, so abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The bridge never updates an existing object. Whether it can delete one — and so whether the create is reversible — differs per type; see each bullet. A bullet marked **create REFUSED** creates nothing at all: the bridge is described but abapsmith will not run it, in any package (0 of 3 today).
+**Bridge-only create types (4).** ADT REST has no usable create for these, so abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The bridge never updates an existing object. Whether it can delete one — and so whether the create is reversible — differs per type; see each bullet. A bullet marked **create REFUSED** creates nothing at all: the bridge is described but abapsmith will not run it, in any package (0 of 4 today).
 
 - `DEVC/K` — `software_component: "LOCAL"` goes over ADT REST; anything else needs the bridge and a transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects. Delete: runs over the same bridge (src/adt/package-delete.ts) the create uses, gated by the same empty-package limit noted above; the create's journal entry no longer marks itself irreversible; but IF_PACKAGE~DELETE's failure behaviour is not itself live-verified.
 - `VIEW/DV` — builds a single-table database view (DD25V class 'D') via RS_CORR_INSERT then DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE; no joins, no SE54 maintenance dialog. A transportable package requires corr_nr; a `$` package refuses one and registers with korrnum = space instead. There is no read-back: abapsmith cannot read a classic view through ADT, so success is proven only by transcript markers. Proven live on A4H: 2026-09-04 into the transportable package ZBOPF_Q1PKG with a corr_nr; 2026-09-05, RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR row), then removed by the delete bridge. Change is not supported either. Delete: abapsmith's own create registers every view in TADIR, so the delete bridge (src/adt/view-delete.ts) always has one to act on. Proven live on A4H 2026-09-05: a bridge-created view in a `$`-prefixed package was removed cleanly, VIEW-DELETED / VIEW-GONE.
 - `TRAN/T` — creates a REPORT transaction (dynpro 1000) starting an existing program; change is still not supported. Delete: the bridge calls RPY_TRANSACTION_DELETE, but its parameter set is inferred from RPY_TRANSACTION_INSERT's `transaction` parameter, not transcribed from a capture of the delete FM itself — not live-verified, and whether it registers in TADIR/transport is unknown.
+- `TABL/DI` — creates a secondary index on an existing table via DD_INDEX_INTERFACE (ACTION='I'); there is no ADT-readable index route at all, so success is proven only by re-reading DD12V/DD17S after COMMIT WORK. The package is the base table's, not the caller's; a transportable package requires corr_nr, a `$` package sets NO_TRANSP_REQUEST='X' and refuses one, the same rule VIEW/DV uses. Change is not supported either. Live evidence is a hand-written throwaway $TMP classrun probing the FM directly, not this bridge. Delete: deletes any index it finds in DD12V for the given table by name, not only ones the bridge itself created — no provenance check exists. Unlike the VIEW/DV/TRAN/T deletes, this DELETE takes the same transport pair as create — DD_INDEX_INTERFACE ACTION='D' needs it too. Live evidence is the same throwaway $TMP classrun probing ACTION='D' directly, not this bridge: sy-subrc 0, DD12V/DD17S rows gone.
 
 **Creatable, but the create site is outside this registry (3).** No `create` field in `REGISTRY` at all — these bypass the `create.verified` gate on purpose (src/adt/capabilities.ts, ~lines 52-57). Not a classrun bridge: each has its own create call.
 
@@ -53,10 +54,10 @@ Check here before planning any create.
 
 `DDLA/ADF` `ENQU/DL`
 
-**Not reachable by any write (6).** Do not probe for a write route.
+**Not reachable by any write (5).** Do not probe for a write route.
 
 - Readable, not writable (0): _(none)_
-- Not readable either (6) — `abap_read` refuses these with UNSUPPORTED, from the same `unsupported` entry in src/adt/capabilities.ts: `SHLP/DH` `PROG/PS` `PROG/PC` `PROG/PT` `SUSO/B` `TABL/DI`
+- Not readable either (5) — `abap_read` refuses these with UNSUPPORTED, from the same `unsupported` entry in src/adt/capabilities.ts: `SHLP/DH` `PROG/PS` `PROG/PC` `PROG/PT` `SUSO/B`
 
 <!-- END generated -->
 
@@ -68,16 +69,18 @@ turns. Say it is out of scope and stop.
 `abap_read` refuses eight types before any network call, without probing:
 `SHLP/DH` `VIEW/DV` `TRAN/T` `PROG/PS` `PROG/PC` `PROG/PT` `SUSO/B` `TABL/DI`.
 
-Six of these are not real ADT object types on this release — no discovery
+Five of these are not real ADT object types on this release — no discovery
 collection exists for them, so there is no URI to build. Menu Painter /
 Screen Painter / SE11-subobject territory.
 
-`VIEW/DV` and `TRAN/T` are different: real ADT concepts, but with no
-ADT-readable collection to resolve a URI against. `abap_write` can create
-either through the classrun bridge — a view needs `corr_nr` for a
-transportable package and refuses one for a `$` package — but there is no
-read-back for either: an object you just created cannot be read again by
-abapsmith, ever. For a readable object, use a CDS view (`DDLS/DF`) instead.
+`VIEW/DV`, `TRAN/T`, and `TABL/DI` are different: real ADT concepts, but with
+no ADT-readable collection to resolve a URI against. `abap_write` can create
+any of these through the classrun bridge — a view needs `corr_nr` for a
+transportable package and refuses one for a `$` package, and an index takes
+the same corr_nr rule under its base table's package, never the caller's —
+but there is no read-back for any of them: an object you just created cannot
+be read again by abapsmith, ever. For a readable object, use a CDS view
+(`DDLS/DF`) instead.
 
 ## Two write shapes
 

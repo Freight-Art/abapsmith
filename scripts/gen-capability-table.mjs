@@ -64,6 +64,13 @@ const BRIDGE_NOTE = {
     "RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR " +
     "row), then removed by the delete bridge. Change is not supported either.",
   "TRAN/T": "creates a REPORT transaction (dynpro 1000) starting an existing program; change is still not supported.",
+  "TABL/DI":
+    "creates a secondary index on an existing table via DD_INDEX_INTERFACE (ACTION='I'); there " +
+    "is no ADT-readable index route at all, so success is proven only by re-reading DD12V/DD17S " +
+    "after COMMIT WORK. The package is the base table's, not the caller's; a transportable " +
+    "package requires corr_nr, a `$` package sets NO_TRANSP_REQUEST='X' and refuses one, the " +
+    "same rule VIEW/DV uses. Change is not supported either. Live evidence is a hand-written " +
+    "throwaway $TMP classrun probing the FM directly, not this bridge.",
   "DEVC/K":
     "`software_component: \"LOCAL\"` goes over ADT REST; anything else needs the bridge and a " +
     "transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects.",
@@ -87,6 +94,12 @@ const BRIDGE_DELETE_NOTE = {
     "runs over the same bridge (src/adt/package-delete.ts) the create uses, gated by the same " +
     "empty-package limit noted above; the create's journal entry no longer marks itself " +
     "irreversible; but IF_PACKAGE~DELETE's failure behaviour is not itself live-verified.",
+  "TABL/DI":
+    "deletes any index it finds in DD12V for the given table by name, not only ones the bridge " +
+    "itself created — no provenance check exists. Unlike the VIEW/DV/TRAN/T deletes, this " +
+    "DELETE takes the same transport pair as create — DD_INDEX_INTERFACE ACTION='D' needs it " +
+    "too. Live evidence is the same throwaway $TMP classrun probing ACTION='D' directly, not " +
+    "this bridge: sy-subrc 0, DD12V/DD17S rows gone.",
 };
 
 /** Buckets every type in the given REGISTRY and renders the generated block. Exported so tests can inspect the bucketing directly instead of re-deriving it from REGISTRY by hand. */

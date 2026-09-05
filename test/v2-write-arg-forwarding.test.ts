@@ -615,6 +615,13 @@ describe("§4 every field of every v2 schema survives the SDK boundary", () => {
 const KNOWN_V1_ONLY_WRITE_FIELDS = [
   "affects",
   "base_table",
+  // TABL/DI index-create also needs `base_table`, already on this list, so
+  // the whole index-create route is v1-only — widening v2 for
+  // `index_fields`/`index_unique` alone would declare two fields v2 could
+  // never make use of. Closing this gap means adding `base_table` at the
+  // same time, not these two on their own.
+  "index_fields",
+  "index_unique",
   "objects",
   "package_type",
   "program",
