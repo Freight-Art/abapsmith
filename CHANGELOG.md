@@ -560,6 +560,15 @@ was last set to `0.3.0`.
   creates are now correctly marked irreversible in the tool's own
   response (packages have since gained a real, limited delete path for
   empty packages — see Added).
+- A `$`-named local package (`DEVC/K`) can be deleted via `abap_write
+  mode=delete`, its create undone via `abap_journal mode=undo` — both
+  previously failed `SAFETY_DENIED` / `PACKAGE_UNKNOWN`. It reads back
+  with no `<adtcore:packageRef>` element, and the gate resolves an
+  existing package to itself; one fix covers both, since delete and
+  undo share the same target-resolution step. The delete bridge also
+  rejected `$`-prefixed names as `BAD_INPUT` — fixed. Empty packages
+  only, unchanged; the package-create response's claim about these
+  routes is now accurate, having promised two that failed.
 - Corrected a false claim that `abap_write` has no surgical string edit —
   it has long supported targeted `edit` (unique-match splice) and
   `method` (single method-block replace) fields; clarified that the
