@@ -1012,7 +1012,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "DDIF_VIEW_PUT would behave as an upsert against a view that already exists is " +
         "inferred, not live-verified: no create-over-an-existing-view call has ever been " +
         "attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE " +
-        "package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / " +
+        "a transportable package with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / " +
         "VIEW-ACTIVATED, the view read back with its fields (not through abap_read — that path " +
         "stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT " +
         "called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character " +
