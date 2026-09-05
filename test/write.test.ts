@@ -933,23 +933,25 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
   );
 
   /**
-   * The two types diverge on the create half. TRAN/T's bridge create runs, so
-   * its hint names the call. VIEW/DV's is refused for every package, so the
-   * same hint must NOT send a caller to a create `abap_write` will refuse —
-   * it is sourced from `bridgeCreate.createRefused`, the single string the
-   * read hint and the write refusal both render, so the three cannot drift
-   * apart into contradicting each other.
+   * The two types no longer diverge on the create half: neither REGISTRY
+   * entry declares `bridgeCreate.createRefused` any more (RS_CORR_INSERT
+   * registers a VIEW/DV create for every package now), so both hints fall
+   * back to the same generic "no mode=create" call-out. What must NOT
+   * collapse is each hint's own `limits` text — that is still the only
+   * place a caller learns what the bridge for THIS type can and cannot do,
+   * so each hint is pinned on content unique to its type.
    */
-  it("TRAN/T's hint names the create call that works; VIEW/DV's names the refusal and the alternatives instead", async () => {
+  it("TRAN/T's and VIEW/DV's hints share the generic create call-out but keep their own type-specific limits", async () => {
     const tran = await catchErr(resolveWriteTarget(offline, { type: "TRAN/T", name: "ZX" }));
     expect(String(tran.hint ?? "")).toMatch(/no mode=create/);
+    expect(String(tran.hint ?? "")).toMatch(/REPORT transaction/);
+    expect(String(tran.hint ?? "")).not.toMatch(/base table/);
 
     const view = await catchErr(resolveWriteTarget(offline, { type: "VIEW/DV", name: "ZX" }));
-    expect(String(view.hint ?? "")).not.toMatch(/no mode=create/);
-    expect(String(view.hint ?? "")).toMatch(/refuses a VIEW\/DV create for every package/);
-    expect(String(view.hint ?? "")).toMatch(/\$TMP and an omitted `package` included/);
-    expect(String(view.hint ?? "")).toMatch(/SE11\/SE14/);
-    expect(String(view.hint ?? "")).toMatch(/DDLS\/DF/);
+    expect(String(view.hint ?? "")).toMatch(/no mode=create/);
+    expect(String(view.hint ?? "")).toMatch(/exactly\s+ONE base table/);
+    expect(String(view.hint ?? "")).toMatch(/TRANSPORTABLE package requires corr_nr/);
+    expect(String(view.hint ?? "")).not.toMatch(/REPORT transaction/);
   });
 
   it("TRAN/T's refusal explicitly distinguishes itself from TSTC, the underlying table", async () => {
@@ -1030,10 +1032,11 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
  * `resolveWriteTarget` refuses UNSUPPORTED — with zero requests on the wire —
  * for a type whose registry entry is `false` (BDEF/BDO, disproven live: the
  * DELETE call reports success but the object remains readable afterwards)
- * and for one that is `"unverified"` (ENQU/DL, whose CREATE could not be
- * gotten to succeed live, so delete was never reachable to test). A type
- * verified live (CLAS/OC) is checked as a same-shape control so this isn't
- * accidentally refusing everything.
+ * and for one that is `"unverified"` (DDLA/ADF, whose CREATE is DISPROVEN —
+ * not merely untried — live 403 `ExceptionNoAnnotationDefinitionAuthorization`,
+ * so delete was never reachable to test either). A type verified live
+ * (CLAS/OC) is checked as a same-shape control so this isn't accidentally
+ * refusing everything.
  */
 describe("resolveWriteTarget: op:'delete' gate", () => {
   const offline = null as unknown as AbapConnection;
@@ -1046,12 +1049,18 @@ describe("resolveWriteTarget: op:'delete' gate", () => {
     expect(DELETABLE_TYPES).toContain("FUGR/FF");
     expect(DELETABLE_TYPES).toContain("DDLS/DF");
     expect(DELETABLE_TYPES).toContain("MSAG/N");
+    // ENQU/DL: create AND delete both live-verified true on A4H 2026-09-05
+    // (EZTMD_I30 in $TMP over table T000 — 201 create, 200 delete, confirmed
+    // absent on read-back). Must appear here now; it does not sit alongside
+    // the disproven/unverified exemplars below any more.
+    expect(DELETABLE_TYPES).toContain("ENQU/DL");
     // BDEF/BDO: live delete "succeeds" but the object remains readable
     // afterwards — disproven, not merely untried. Must never appear here.
     expect(DELETABLE_TYPES).not.toContain("BDEF/BDO");
-    // ENQU/DL: CREATE could not be gotten to succeed live in either run, so
-    // delete was never actually exercised. "unverified", not `true`.
-    expect(DELETABLE_TYPES).not.toContain("ENQU/DL");
+    // DDLA/ADF: CREATE is DISPROVEN live (403, SAP-only object type on this
+    // system), so delete was never actually exercised. "unverified", not
+    // `true` — the replacement exemplar for the group this test protects.
+    expect(DELETABLE_TYPES).not.toContain("DDLA/ADF");
   });
 
   it("a BDEF/BDO delete is refused UNSUPPORTED with ZERO requests on the wire (disproven live)", async () => {
@@ -1070,18 +1079,18 @@ describe("resolveWriteTarget: op:'delete' gate", () => {
     expect(offlineErr.code).toBe("UNSUPPORTED");
   });
 
-  it("an ENQU/DL delete is refused UNSUPPORTED with ZERO requests on the wire (unverified)", async () => {
+  it("a DDLA/ADF delete is refused UNSUPPORTED with ZERO requests on the wire (unverified)", async () => {
     const { conn, adt } = await connected(ABSENT_ROUTE);
     const e = await catchErr(
-      resolveWriteTarget(conn, { type: "ENQU/DL", name: "EZLOCK" }, "delete"),
+      resolveWriteTarget(conn, { type: "DDLA/ADF", name: "ZTMD_ANNO_X" }, "delete"),
     );
     expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/ENQU\/DL/);
+    expect(String(e.message)).toMatch(/DDLA\/ADF/);
     expect(String(e.message)).toMatch(/delete/i);
     expect(adt.calls).toEqual([]);
 
     const offlineErr = await catchErr(
-      resolveWriteTarget(offline, { type: "ENQU/DL", name: "EZLOCK" }, "delete"),
+      resolveWriteTarget(offline, { type: "DDLA/ADF", name: "ZTMD_ANNO_X" }, "delete"),
     );
     expect(offlineErr.code).toBe("UNSUPPORTED");
   });
@@ -1122,45 +1131,76 @@ describe("resolveWriteTarget: op:'delete' gate", () => {
  * (`resolveWriteTarget`, inside `authorizeMutation`) has already gone out —
  * pinned exactly, not just "not a POST", in the test below.
  *
- * `ENQU/DL` anchors every test that needs a settled non-`true` type: its
- * `create.verified` is `false` — DISPROVEN, not merely untested (two
- * independent live attempts each got `400 ExceptionInvalidData`,
- * reproduced again by the live create-verification sweep) — and is explicitly NOT a sweep TODO,
- * so these tests cannot start failing when the sweep concludes. `CLAS/OC`
- * anchors the "verified:true still works" control: it was one of that live
- * sweep's own targets (2/2 FULL_CYCLE_OK, live on A4H 2026-08-19) and is
- * load-bearing for abapsmith's own internal bridge-class deploys, so it is
- * about as settled as `true` gets in this registry.
+ * `DDLA/ADF` anchors every test that needs a settled non-`true` type today:
+ * its `create.verified` is `false` — DISPROVEN, not merely untested. A
+ * 2026-09-04 live A4H probe refused BOTH `abap_write` (creating
+ * `ZTMD_ANNO_01` in `$TMP`) and a raw vendor-body `POST .../ddic/ddla/sources`
+ * with `403 ExceptionNoAnnotationDefinitionAuthorization` — annotation
+ * definitions are SAP-only on this system, so unlike a recipe that just
+ * hasn't been tried, this is an authorization wall no future sweep is
+ * expected to lift. `CLAS/OC` anchors the "verified:true still works"
+ * control: it was one of that live create-verification sweep's own targets
+ * (2/2 FULL_CYCLE_OK, live on A4H 2026-08-19) and is load-bearing for
+ * abapsmith's own internal bridge-class deploys, so it is about as settled
+ * as `true` gets in this registry.
  *
- * The tri-state matters and is pinned explicitly below: `ENQU/DL`
- * (`verified: false`, DISPROVEN) and `DEVC/K` (`verified: "unverified"`,
- * NEVER TRIED — package creation is structurally routed around this gate
- * entirely, through `abapCreatePackage`, never `createNewObject`) are
- * different findings that both fail the SAME strict `!== true` test and are
- * BOTH absent from `VERIFIED_CREATABLE_TYPES`. Collapsing the tri-state back
- * to a boolean would erase that distinction silently; it would not make any
- * test in this file fail unless something asserts on it directly.
+ * `ENQU/DL` used to be this describe block's anchor, and is exactly why the
+ * anchor moved: its `create.verified` was DISPROVEN (two independent
+ * `400 ExceptionInvalidData` live attempts), reproduced again by the live
+ * create-verification sweep, and yet a later attempt on 2026-09-05 found
+ * the real cause — the root element has to be lowercase `enqu:lockobject`
+ * in namespace `http://www.sap.com/adt/ddic/enqu`, not the camelCase
+ * `enqu:lockObject` in `http://www.sap.com/dictionary/lockobject` every
+ * earlier attempt sent — and flipped it live to `true`. A test suite that
+ * hardcodes today's disproven type as a fixture for "this will never
+ * create" eventually has to be unwound exactly the way this one just was;
+ * see the "properties-shape writes" describe block below for ENQU/DL's own
+ * (now positive) create test.
+ *
+ * The tri-state matters and is pinned explicitly below: `DDLA/ADF`
+ * (`verified: false`, DISPROVEN) is the settled-false leg. No entry in the
+ * registry carries `"unverified"` for `create` today — `DEVC/K`, the last
+ * type that did, was itself settled `true` by a live A4H run on
+ * 2026-09-04 — so the tri-state is asserted over the whole registry's legal
+ * values rather than pinned to one "unverified" exemplar.
  */
 describe("writeObject: create gate", () => {
   const offline = null as unknown as AbapConnection;
 
-  /** Well-formed ENQU/DL payload — carries `adtcore:name`/`adtcore:type` so it
-   * clears `assertPayloadMatchesTarget`'s (earlier, unrelated) payload-identity
-   * check and actually reaches the create gate. */
+  /**
+   * Well-formed ENQU/DL payload — lowercase `enqu:lockobject` root in
+   * namespace `http://www.sap.com/adt/ddic/enqu`, per the live-verified
+   * shape (2026-09-05, A4H) — carrying `adtcore:name`/`adtcore:type` so it
+   * clears `assertPayloadMatchesTarget`'s (earlier, unrelated)
+   * payload-identity check, and a complete
+   * `<enqu:primaryTable><enqu:tableName>…</enqu:tableName><enqu:lockMode>…`
+   * so it clears `assertLockObjectRoot` too (element order matters; omitting
+   * `lockMode` 400s live). Used below only by the ENQU/DL EDIT test — an
+   * edit of an EXISTING ENQU/DL must still work.
+   */
   const ENQU_154_XML =
     `<?xml version="1.0" encoding="UTF-8"?>` +
-    `<enqu:lockObject xmlns:enqu="http://www.sap.com/dictionary/lockobject" ` +
+    `<enqu:lockobject xmlns:enqu="http://www.sap.com/adt/ddic/enqu" ` +
     `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="EZ154_X" ` +
     `adtcore:type="ENQU/DL"><adtcore:packageRef adtcore:name="$TMP"/>` +
     `<enqu:content><enqu:primaryTable><enqu:tableName>ZTAB1</enqu:tableName>` +
-    `</enqu:primaryTable></enqu:content></enqu:lockObject>`;
+    `<enqu:lockMode>E</enqu:lockMode></enqu:primaryTable></enqu:content></enqu:lockobject>`;
+
+  /**
+   * DDLA/ADF is source-shape (ABAP annotation-definition DDL text, not XML),
+   * so none of the properties-shape guards above (`assertPayloadMatchesTarget`,
+   * `assertDomaMasterLanguage`, `assertLockObjectRoot`) apply to it — it
+   * reaches the create gate on content alone.
+   */
+  const DDLA_ANNO_SOURCE =
+    "@EndUserText.label: 'probe'\nannotate view ZI_TMD_ANNO_X with\n{\n}\n";
 
   it("VERIFIED_CREATABLE_TYPES is the strict c.create?.verified === true projection — a proper subset of CREATABLE_TYPES", () => {
-    // ENQU/DL must stay in the BROAD set (an EDIT of an existing ENQU/DL must
-    // still be reachable — see the "EDIT is not refused" test below) but must
-    // never appear in the narrow, live-verified set.
-    expect(CREATABLE_TYPES).toContain("ENQU/DL");
-    expect(VERIFIED_CREATABLE_TYPES).not.toContain("ENQU/DL");
+    // DDLA/ADF must stay in the BROAD set (an EDIT of an existing DDLA/ADF
+    // must still be reachable — see the "EDIT is not refused" test below) but
+    // must never appear in the narrow, live-verified set.
+    expect(CREATABLE_TYPES).toContain("DDLA/ADF");
+    expect(VERIFIED_CREATABLE_TYPES).not.toContain("DDLA/ADF");
 
     // The subset relationship is the design's whole point (module doc,
     // `src/adt/capabilities.ts`, "VERIFIED_CREATABLE_TYPES ... a proper
@@ -1177,20 +1217,19 @@ describe("writeObject: create gate", () => {
     expect(VERIFIED_CREATABLE_TYPES.length).toBeLessThan(CREATABLE_TYPES.length);
   });
 
-  it("an unverified type's CREATE is refused UNSUPPORTED — ENQU/DL, name EZ154_X", async () => {
-    // EZ154_X, not Z154_X: ENQU/DL overrides the global Z/Y name-prefix rule
-    // with its own ["EZ","EY"] (SAP itself refuses a lock object named
-    // `Z...`). A `Z...` name would be refused earlier, by the object-name
-    // safety preflight, with SAFETY_DENIED — a DIFFERENT check — which would
-    // make this test pass for the wrong reason.
+  it("an unverified type's CREATE is refused UNSUPPORTED — DDLA/ADF, name ZTMD_ANNO_X", async () => {
+    // DDLA/ADF has no namePrefixes override, so the global Z/Y rule applies
+    // and a plain `Z...` name is exactly right — unlike ENQU/DL, there is no
+    // second, type-specific name check that could make this test pass for
+    // the wrong reason.
     const { conn, adt } = await connected(ABSENT_ROUTE);
     const e = await catchErr(
-      writeObject(conn, await authWrite(conn, { type: "ENQU/DL", name: "EZ154_X" }), {
-        source: ENQU_154_XML,
+      writeObject(conn, await authWrite(conn, { type: "DDLA/ADF", name: "ZTMD_ANNO_X" }), {
+        source: DDLA_ANNO_SOURCE,
       }),
     );
     expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/ENQU\/DL/);
+    expect(String(e.message)).toMatch(/DDLA\/ADF/);
     expect(String(e.message)).toMatch(/cannot be created/i);
   });
 
@@ -1201,31 +1240,38 @@ describe("writeObject: create gate", () => {
     // be true, and is pinned here with `toEqual` on the WHOLE sequence rather
     // than `.not.toContain`, is that nothing past that GET reaches the wire —
     // in particular no POST to the create collection
-    // (`/sap/bc/adt/ddic/lockobjects/sources`) and no transport request
-    // minted (`preflightCorr`'s `/cts/transportchecks`), because the gate in
+    // (`/sap/bc/adt/ddic/ddla/sources`) and no transport request minted
+    // (`preflightCorr`'s `/cts/transportchecks`), because the gate in
     // `writeObject` sits BEFORE `preflightCorr` is ever called. A loose
     // `.not.toContain("POST")` could hide an unexpected extra GET or a stray
     // call this test never anticipated; `toEqual` on the full list cannot.
+    //
+    // DDLA/ADF is source-shape, so `readCurrentSource` (step 1, before the
+    // create gate) would normally GET `/source/main` too — but it short-
+    // circuits to `undefined` without a request whenever `!t.exists`
+    // (`src/adt/write.ts`, `readCurrentSource`), so the existence GET below
+    // really is the WHOLE transcript, same as it was for ENQU/DL's
+    // properties-shape version of this test.
     const { conn, adt } = await connected(ABSENT_ROUTE);
-    const ENQU_URI = "/sap/bc/adt/ddic/lockobjects/sources/ez154_x";
-    const target = await authWrite(conn, { type: "ENQU/DL", name: "EZ154_X" });
-    const e = await catchErr(writeObject(conn, target, { source: ENQU_154_XML }));
+    const DDLA_URI = "/sap/bc/adt/ddic/ddla/sources/ztmd_anno_x";
+    const target = await authWrite(conn, { type: "DDLA/ADF", name: "ZTMD_ANNO_X" });
+    const e = await catchErr(writeObject(conn, target, { source: DDLA_ANNO_SOURCE }));
     expect(e.code).toBe("UNSUPPORTED");
     // The ENTIRE transcript: one GET (the existence check), and nothing else
     // — no POST, no LOCK, no PUT, no UNLOCK, no /cts/transportchecks call.
     expect(adt.calls).toEqual([
-      expect.objectContaining({ method: "GET", url: ENQU_URI }),
+      expect.objectContaining({ method: "GET", url: DDLA_URI }),
     ]);
-    expect(adt.labels).toEqual([`GET ${ENQU_URI}`]);
+    expect(adt.labels).toEqual([`GET ${DDLA_URI}`]);
   });
 
-  it("an EDIT of an existing object of that same unverified type is NOT refused — created === false must never reach the gate", async () => {
-    // The regression that would matter most if someone later "simplified"
-    // this gate to key off `CREATABLE_TYPES`/the type alone instead of
-    // `created`: an existing ENQU/DL must remain editable even though its
-    // create is refused. The gate (`src/adt/write.ts`, ~line 3033) is
-    // deliberately `if (created && ...)` — gated on `created`, not on the
-    // type's capability alone — precisely so this keeps working.
+  it("an EDIT of an existing ENQU/DL still works (control, unrelated to the create gate now that ENQU/DL's create is verified)", async () => {
+    // This test predates ENQU/DL's create flipping to verified:true
+    // (2026-09-05) and originally proved the create-gate's "created===false
+    // must never reach the gate" property using ENQU/DL as the settled
+    // non-true anchor. That property is now proven by the DDLA/ADF test
+    // below instead — DDLA/ADF is today's settled-false type. Kept here,
+    // re-anchored, as a plain control: an ENQU/DL edit must still work.
     const uri = "/sap/bc/adt/ddic/lockobjects/sources/ez154_x";
     const before = ENQU_154_XML;
     const after = before.replace("ZTAB1", "ZTAB2");
@@ -1251,6 +1297,43 @@ describe("writeObject: create gate", () => {
     const res = await writeObject(conn, await authWrite(conn, { type: "ENQU/DL", name: "EZ154_X" }), {
       source: after,
     });
+    expect(res.created).toBe(false);
+    expect(res.changed).toBe(true);
+    expect(adt.verbs).toContain("PUT");
+    expect(adt.verbs).not.toContain("POST");
+  });
+
+  it("an EDIT of an existing DDLA/ADF is NOT refused — created === false must never reach the gate", async () => {
+    // The regression that would matter most if someone later "simplified"
+    // this gate to key off `CREATABLE_TYPES`/the type alone instead of
+    // `created`: an existing DDLA/ADF must remain editable even though its
+    // create is refused (403 ExceptionNoAnnotationDefinitionAuthorization,
+    // live). The gate (`src/adt/write.ts`, the `if (created && ...)` check
+    // right before `preflightCorr`) is deliberately gated on `created`, not
+    // on the type's capability alone — precisely so this keeps working.
+    // Source shape, not properties: DDLA/ADF's content lives at
+    // `/source/main`, unlike ENQU/DL's properties-shape object-URI-is-the-
+    // content — so none of `assertPayloadMatchesTarget`/
+    // `assertDomaMasterLanguage`/`assertLockObjectRoot` apply here either.
+    const uri = "/sap/bc/adt/ddic/ddla/sources/ztmd_anno_x";
+    const src = `${uri}/source/main`;
+    const before = DDLA_ANNO_SOURCE;
+    const after = before.replace("probe", "probe2");
+    const { conn, adt } = await connected((r) => {
+      if (r.url === uri && r.method === "GET" && !r.qs._action) {
+        return resp(200, OBJECT_XML("ZTMD_ANNO_X", "DDLA/ADF"), OK_XML);
+      }
+      if (r.url === src && r.method === "GET") return resp(200, before, OK_TEXT);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
+      if (r.url === src && r.method === "PUT") return resp(200, "", OK_TEXT);
+      return undefined;
+    });
+    const res = await writeObject(
+      conn,
+      await authWrite(conn, { type: "DDLA/ADF", name: "ZTMD_ANNO_X" }),
+      { source: after },
+    );
     expect(res.created).toBe(false);
     expect(res.changed).toBe(true);
     expect(adt.verbs).toContain("PUT");
@@ -1293,14 +1376,23 @@ describe("writeObject: create gate", () => {
     ]);
   });
 
-  it("create.verified is tri-state across the whole registry, and the false leg (ENQU/DL, disproven) still holds", () => {
+  it("create.verified is tri-state across the whole registry, and the false leg (DDLA/ADF, disproven) still holds", () => {
     // DEVC/K was this test's "unverified" exemplar until a live A4H run
-    // (2026-09-04) settled it to true; no entry carries "unverified" today,
-    // so the tri-state is asserted over the whole registry instead.
+    // (2026-09-04) settled it to true. ENQU/DL was the false-leg exemplar
+    // until a live A4H run (2026-09-05) settled ITS create to true as well
+    // (the real defect all along was the wire XML's root element, not the
+    // capability) — DDLA/ADF (403 ExceptionNoAnnotationDefinitionAuthorization,
+    // live 2026-09-04) is the false leg now.
+    const ddla = capabilitiesFor("DDLA/ADF");
+    expect(ddla?.create?.verified).toBe(false);
+    expect(ddla?.create?.verified).not.toBe(true);
+    expect(VERIFIED_CREATABLE_TYPES).not.toContain("DDLA/ADF");
+
+    // ENQU/DL's create flipped true — pinned explicitly here so a future
+    // regression of either exemplar trips this test, not just the other.
     const enqu = capabilitiesFor("ENQU/DL");
-    expect(enqu?.create?.verified).toBe(false);
-    expect(enqu?.create?.verified).not.toBe(true);
-    expect(VERIFIED_CREATABLE_TYPES).not.toContain("ENQU/DL");
+    expect(enqu?.create?.verified).toBe(true);
+    expect(VERIFIED_CREATABLE_TYPES).toContain("ENQU/DL");
 
     const devc = capabilitiesFor("DEVC/K");
     expect(devc?.create?.verified).toBe(true);
@@ -3863,13 +3955,17 @@ describe("properties-shape writes (DOMA, DTEL, TTYP, MSAG, ENQU)", () => {
     `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${name}" ` +
     `adtcore:type="TTYP/DA"><adtcore:packageRef adtcore:name="$TMP"/></ttyp:tableType>`;
 
+  // Root MUST be lowercase `enqu:lockobject` in the `.../ddic/enqu` namespace
+  // (not camelCase `enqu:lockObject` in `.../dictionary/lockobject` — that
+  // was the actual, long-unrecognised cause of every historical ENQU create
+  // failure; see `assertLockObjectRoot`, src/adt/write.ts).
   const enquXml = (name = "EZPROPW_LOCK"): string =>
     `<?xml version="1.0" encoding="UTF-8"?>` +
-    `<enqu:lockObject xmlns:enqu="http://www.sap.com/dictionary/lockobject" ` +
+    `<enqu:lockobject xmlns:enqu="http://www.sap.com/adt/ddic/enqu" ` +
     `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${name}" ` +
     `adtcore:type="ENQU/DL"><adtcore:packageRef adtcore:name="$TMP"/>` +
     `<enqu:content><enqu:primaryTable><enqu:tableName>ZPROPW_TAB</enqu:tableName>` +
-    `</enqu:primaryTable></enqu:content></enqu:lockObject>`;
+    `<enqu:lockMode>E</enqu:lockMode></enqu:primaryTable></enqu:content></enqu:lockobject>`;
 
   // ---- The registry is the single source of truth ------------------------
 
@@ -4192,25 +4288,22 @@ describe("properties-shape writes (DOMA, DTEL, TTYP, MSAG, ENQU)", () => {
   });
 
   /**
-   * This test used to assert that an ENQU/DL create SUCCEEDS, with a mock that
-   * answered the create POST `201`. It passed for years. It was fiction: the
-   * appliance answers that exact payload `400 ExceptionInvalidData` ("System
-   * expected the element '{http://www.sap.com/adt/ddic/enqu}lockobject'"),
-   * across three independent live attempts on two different namespaces and two
-   * different call paths, and re-reproduced by the live create-verification sweep as
-   * run E02. A mock that returns whatever the code hoped for cannot tell you
-   * a recipe works — which is the whole argument for `create.verified` being
-   * evidence about the LIVE system rather than about this file.
-   *
-   * So the assertion is inverted rather than deleted: `ENQU/DL`'s
-   * `create.verified` is `false` (DISPROVEN, not untested), and the create gate in
-   * `writeObject` now refuses the create outright instead of sending a POST
-   * that only a mock ever accepted. The `<enqu:content>`/`<enqu:primaryTable>`
-   * content requirement documented on the registry entry is NOT re-litigated
-   * here — it may well still be true; it was simply never the thing that made
-   * this create fail.
+   * This test used to assert that an ENQU/DL create is REFUSED
+   * (`create.verified: false`, DISPROVEN by three independent live attempts).
+   * That, too, was wrong — but not the way the old passing-for-years "it
+   * creates fine" mock test was wrong. All three disproving attempts sent a
+   * payload rooted at camelCase `<enqu:lockObject>` in the (plausible-looking
+   * but wrong) namespace `http://www.sap.com/dictionary/lockobject`; the
+   * appliance answered `400`/`403` every time because it never recognised
+   * that element as a lock-object descriptor at all. A live A4H run
+   * (2026-09-05) sending the correct root — lowercase `<enqu:lockobject>` in
+   * `http://www.sap.com/adt/ddic/enqu` — got `201`. So `create.verified` is
+   * `true`, `create.vendor` is still `false` (`abap-adt-api` has no ENQU/DL
+   * entry), and the real, lasting fix is the `assertLockObjectRoot` guard
+   * (src/adt/write.ts) that now refuses the OLD wrong-root document before
+   * any wire call, rather than a capability flag alone.
    */
-  it("refuses an ENQU create — verified:false, and the old 'it creates fine' assertion was mock fiction", async () => {
+  it("creates an ENQU by POSTing the caller's own XML to the collection (create.vendor = false)", async () => {
     const xml = enquXml();
     const { conn, adt } = await connected((r) => {
       if (r.url === ENQU_URI && r.method === "GET") return resp(404, NOT_FOUND_XML, OK_XML);
@@ -4221,17 +4314,25 @@ describe("properties-shape writes (DOMA, DTEL, TTYP, MSAG, ENQU)", () => {
       if (r.url === ENQU_URI && r.method === "PUT") return resp(200, xml, OK_XML);
       return undefined;
     });
-    const e = await catchErr(
-      writeObject(conn, await authWrite(conn, { type: "ENQU/DL", name: "EZPROPW_LOCK" }), {
-        source: xml,
-      }),
+    const res = await writeObject(
+      conn,
+      await authWrite(conn, { type: "ENQU/DL", name: "EZPROPW_LOCK" }),
+      { source: xml },
     );
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/cannot be created/i);
-    // The route above WOULD have answered the create POST `201` — pinning the
-    // whole transcript with `toEqual` is what proves the gate, not a lucky
-    // mock miss, is why no POST happened. One existence GET, nothing after it.
-    expect(adt.labels).toEqual([`GET ${ENQU_URI}`]);
+    expect(res.created).toBe(true);
+    expect(adt.labels).toEqual([
+      `GET ${ENQU_URI}`,
+      "POST /sap/bc/adt/ddic/lockobjects/sources",
+      `LOCK ${ENQU_URI}`,
+      `PUT ${ENQU_URI}`,
+      `UNLOCK ${ENQU_URI}`,
+    ]);
+    // The caller's descriptor verbatim — this is the only shape ENQU accepts
+    // (its create REQUIRES a non-empty <enqu:content>), and the correct
+    // lowercase root passes `assertLockObjectRoot` untouched.
+    expect(
+      adt.calls.find((c) => c.method === "POST" && c.url.endsWith("lockobjects/sources"))!.body,
+    ).toBe(xml);
   });
 
   // ---- The payload IS the identity ---------------------------------------
@@ -5760,13 +5861,14 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
     expect(String(e.message)).toMatch(/no source/i);
   });
 
-  // `view_fields`, `base_table` and `description` each used to earn their own
-  // BAD_INPUT here, naming the missing field. The VIEW/DV create is now refused
-  // for every package before any field is looked at, so what these three pin
-  // instead is the ORDER: an incomplete VIEW/DV must get the policy refusal,
-  // never a field-shaped one that implies filling the field in would work.
-  // The TRAN/T tests below still cover the field-naming behaviour itself.
-  it("a VIEW/DV with no `view_fields` is refused UNSUPPORTED, not a BAD_INPUT naming view_fields", async () => {
+  // The VIEW/DV create now REACHES the bridge for every package, so a missing
+  // `view_fields`/`base_table`/`description` is refused the same way TRAN/T's
+  // missing `program`/`description` is below: BAD_INPUT, naming the field,
+  // zero network calls. Nothing here implies the field alone would complete
+  // the create — corr_nr/package pairing is checked first (assertClassicViewCreateTarget)
+  // and $TMP needs none — but a missing field is now a field-shaped refusal,
+  // not a blanket policy one.
+  it("a VIEW/DV with no `view_fields` is refused BAD_INPUT, and the refusal NAMES view_fields", async () => {
     const e = await catchErr(
       abapWrite(
         offline,
@@ -5781,9 +5883,8 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
         gate,
       ),
     );
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(e.retryable).toBe(false);
-    expect(String(e.message)).not.toMatch(/view_fields/);
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/view_fields/);
   });
 
   it("a TRAN/T with no `program` is refused BAD_INPUT, and the refusal NAMES program", async () => {
@@ -5823,7 +5924,7 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
     expect(String(e.message)).toMatch(/base_table/);
   });
 
-  it("a VIEW/DV with no `base_table` is refused UNSUPPORTED, not a BAD_INPUT naming base_table", async () => {
+  it("a VIEW/DV with no `base_table` is refused BAD_INPUT, and the refusal NAMES base_table", async () => {
     const e = await catchErr(
       abapWrite(
         offline,
@@ -5838,13 +5939,12 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
         gate,
       ),
     );
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(e.retryable).toBe(false);
-    expect(String(e.message)).not.toMatch(/base_table/);
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/base_table/);
   });
 
-  it("a VIEW/DV with no `description` is refused UNSUPPORTED, not a BAD_INPUT naming description — and a COMPLETE one is refused identically", async () => {
-    const missing = await catchErr(
+  it("a VIEW/DV with no `description` is refused BAD_INPUT, and the refusal NAMES description", async () => {
+    const e = await catchErr(
       abapWrite(
         offline,
         {
@@ -5858,28 +5958,8 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
         gate,
       ),
     );
-    expect(missing.code).toBe("UNSUPPORTED");
-    expect(String(missing.message)).not.toMatch(/`description` is required/);
-
-    // The point of the pairing: no input completes this create, so the two
-    // refusals must be the same refusal.
-    const complete = await catchErr(
-      abapWrite(
-        offline,
-        {
-          object: "ZMCP_V_CARRIER",
-          type: "VIEW/DV",
-          package: "$TMP",
-          description: "Carriers",
-          base_table: "ZMCP_CARRIER",
-          view_fields: ["CARRIER_ID", "NAME"],
-        },
-        MAX,
-        gate,
-      ),
-    );
-    expect(complete.code).toBe("UNSUPPORTED");
-    expect(String(complete.message)).toBe(String(missing.message));
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/description/);
   });
 
   it("a TRAN/T with no `description` is refused BAD_INPUT, and the refusal NAMES description", async () => {
@@ -5897,31 +5977,21 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
 });
 
 /**
- * DEFECT 1 / DEFECT 2 (this fix): the two describe blocks below close the gap
- * the invariant-and-routing blocks above do not reach. Those prove a
+ * DEFECT 1 (VIEW/DV) / DEFECT 2 (TRAN/T): the two describe blocks below close
+ * the gap the invariant-and-routing blocks above do not reach. Those prove a
  * MALFORMED VIEW/DV or TRAN/T request is refused before any network call —
  * they never exercise a WELL-FORMED one, so they cannot see whether a valid
- * VIEW/DV create still slips through to `createClassicView` (it must not:
- * DEFECT 1, reproduced live — `created: true` for a view that was never
- * there), or whether a TRAN/T create ever points at a program nobody checked
- * (DEFECT 2) or claims success for a transaction a follow-up read proves is
- * not there (the same DEFECT 1 shape, closed the same way — see
+ * create claims success without a read-back proving the object is really
+ * there. DEFECT 1 was reproduced live for VIEW/DV: `created: true` off the
+ * classrun transcript alone, for a view a follow-up read could not find.
+ * RS_CORR_INSERT now registers a VIEW/DV create for every package — the
+ * describe block below proves the create itself REACHES the bridge (for a
+ * transportable package with corr_nr, and for $TMP with korrnum = space) and
+ * that DEFECT 1's read-back guard still holds, the same shape TRAN/T's
+ * DEFECT 2 block below proves for its own create (see
  * src/adt/write-verify.ts's module doc for the full argument).
  */
-describe("abap_write → bridge creation: the VIEW/DV create is refused for every package, $TMP included", () => {
-  // The design moved twice. VIEW/DV was refused UNSUPPORTED before any bridge
-  // class was generated; then the refusal became CONDITIONAL on a read-back
-  // (attempt-then-verify, TRAN/T's shape) after a cheap fix — an explicit
-  // `COMMIT WORK`, since `DDIF_VIEW_PUT` is an update-task-style DDIC write
-  // with no commit of its own — was worth trying. A live run then measured
-  // what a $TMP create actually does: it lands the view ACTIVE but
-  // unregistered in TADIR, so it carries no packageRef, so delete and undo
-  // both refuse to remove it. Succeeding at minting an object abapsmith must
-  // then refuse to remove is not a working create, so the refusal is
-  // unconditional again — and, unlike the first time, it covers $TMP too.
-  // The routes below are kept intact and fully answered on purpose: they are
-  // what a create WOULD need, so the refusal, not a missing route, is what
-  // these tests observe stopping it.
+describe("abap_write → bridge creation: DEFECT 1 closed for VIEW/DV (create runs for every package, post-create verification)", () => {
   const gate = new SafetyGate({
     readOnly: false,
     allowPackages: ["*"],
@@ -5981,15 +6051,11 @@ describe("abap_write → bridge creation: the VIEW/DV create is refused for ever
       );
     };
 
+  // Every package now emits all three tags — RS_CORR_INSERT runs unconditionally
+  // (korrnum = space for a local package, the caller's TRKORR otherwise), so
+  // VIEW-REGISTERED fires the same for $TMP as for a transportable package.
   const happyRoute = (vitMode: "confirmed" | "absent" | "indeterminate"): Route => {
-    // `classicViewFragment` briefly emitted `RS_CORR_INSERT`/
-    // `VIEW-REGISTERED` unconditionally, including for `$TMP`, until a live
-    // run showed the unconditional call itself failing — see view-create.ts's
-    // `LOCAL_PACKAGE` doc comment and test/view-create.test.ts's "$TMP skips
-    // RS_CORR_INSERT/VIEW-REGISTERED" describe block. `validInput` below uses
-    // `package: "$TMP"`, so the classrun transcript this fake server returns
-    // must (once again) carry only the two tags a real $TMP fragment emits.
-    const classrun = classrunRoute(["VIEW-PUT", "VIEW-ACTIVATED"]);
+    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
     const vit = vitRoute(vitMode, VIEW);
     return (r) => bridgeDeployRoute(r) ?? classrun(r) ?? vit(r);
   };
@@ -6003,50 +6069,63 @@ describe("abap_write → bridge creation: the VIEW/DV create is refused for ever
     view_fields: ["CARRIER_ID", "NAME"],
   };
 
-  it("a well-formed create into $TMP, with every route it would need answered, is still refused UNSUPPORTED — and not one byte goes on the wire", async () => {
-    const { conn, adt } = await connected(happyRoute("confirmed"));
-    const e = await catchErr(abapWrite(conn, validInput, MAX, gate));
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(e.retryable).toBe(false);
-    // No bridge class deployed, no classrun executed, no read-back attempted.
-    expect(adt.calls.length).toBe(0);
+  it("into $TMP: RS_CORR_INSERT registers it with korrnum = space, then the VIT bridge confirms present — created:true and verified:true", async () => {
+    const { conn } = await connected(happyRoute("confirmed"));
+    const result = await abapWrite(conn, validInput, MAX, gate);
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).toMatch(/verified:\s*true/);
+    expect(result.text).toMatch(/package:\s*\$TMP/);
+    expect(result.text).toMatch(/NOTE: Read back and confirmed present/);
   });
 
-  it("the refusal says what a $TMP create was MEASURED to do, not that it fails — the false claim this replaces", async () => {
+  it("into a transportable package with a valid corr_nr: creates, then confirms present — created:true and verified:true", async () => {
     const { conn } = await connected(happyRoute("confirmed"));
-    const e = await catchErr(abapWrite(conn, validInput, MAX, gate));
-    const message = String(e.message);
-    // It succeeds at minting an object nothing here can remove: that, not a
-    // failure, is the reason. A message that only claimed "no package works"
-    // while $TMP was let through is exactly what this pins shut.
-    expect(message).toMatch(/lands ACTIVE but unregistered in TADIR/);
-    expect(message).toMatch(/no packageRef/);
-    expect(message).toMatch(/PACKAGE_UNKNOWN/);
-    expect(message).toMatch(/non-overridably/);
-    expect(message).toMatch(/not what it failed to do/);
-    // The opening promises the caller no retry helps, naming the package it
-    // resolved — including the one an omitted `package` defaults to.
-    expect(message).toMatch(/No retry will succeed for package "\$TMP" or any other/);
-    expect(String(e.hint ?? "")).toMatch(/SE11\/SE14/);
-    expect(String(e.hint ?? "")).toMatch(/DDLS\/DF/);
+    const result = await abapWrite(
+      conn,
+      { ...validInput, package: "ZTM", corr_nr: "TR1K900123" },
+      MAX,
+      gate,
+    );
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).toMatch(/verified:\s*true/);
   });
 
-  it("a transportable package and a non-$TMP local package are refused with the SAME opening sentence — one refusal, not three that could drift apart", async () => {
-    const { conn } = await connected(happyRoute("confirmed"));
-    const opening = (message: string): string => message.split(". ")[0] ?? "";
-    const tmp = await catchErr(abapWrite(conn, validInput, MAX, gate));
-    const local = await catchErr(
-      abapWrite(conn, { ...validInput, package: "$MYLOCAL" }, MAX, gate),
+  it("with an unconfirmable read-back: still reports created:true (trusting the transcript), but verified:false and says why", async () => {
+    const { conn } = await connected(happyRoute("indeterminate"));
+    const result = await abapWrite(conn, validInput, MAX, gate);
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).toMatch(/verified:\s*false/);
+    expect(result.text).toMatch(/NOTE: NOT independently confirmed present/);
+  });
+
+  it("when the read-back proves the view is NOT there, throws CHECK_FAILED instead of ever reporting created:true — the exact DEFECT 1 shape, closed", async () => {
+    const { conn } = await connected(happyRoute("absent"));
+    const e = await catchErr(abapWrite(conn, validInput, MAX, gate));
+    expect(e.code).toBe("CHECK_FAILED");
+    expect(String(e.message)).toMatch(/did not find/);
+    expect(String(e.message)).toMatch(/not proof the object is absent/);
+    expect(String(e.message)).toMatch(/VIEW-REGISTERED/);
+    expect(String(e.message)).toMatch(/VIEW-PUT/);
+    expect(String(e.message)).toMatch(/VIEW-ACTIVATED/);
+  });
+
+  it("a $ package WITH a corr_nr is refused BAD_INPUT before any network call — the pairing check runs before the bridge is ever reached", async () => {
+    const offline = null as unknown as AbapConnection;
+    const e = await catchErr(
+      abapWrite(offline, { ...validInput, package: "$TMP", corr_nr: "TR1K900123" }, MAX, gate),
     );
-    const transportable = await catchErr(
-      abapWrite(conn, { ...validInput, package: "ZTM", corr_nr: "TR1K900123" }, MAX, gate),
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/corr_nr/);
+    expect(String(e.message)).toMatch(/\$TMP/);
+  });
+
+  it("a transportable package with NO corr_nr is refused TRANSPORT_ERROR before any network call", async () => {
+    const offline = null as unknown as AbapConnection;
+    const e = await catchErr(
+      abapWrite(offline, { ...validInput, package: "ZTM" }, MAX, gate),
     );
-    for (const e of [tmp, local, transportable]) {
-      expect(e.code).toBe("UNSUPPORTED");
-      expect(opening(String(e.message))).toMatch(
-        /abapsmith cannot create a classic view for any package/,
-      );
-    }
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(String(e.message)).toMatch(/corr_nr/);
   });
 });
 

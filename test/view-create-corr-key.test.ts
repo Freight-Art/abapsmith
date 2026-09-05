@@ -87,12 +87,25 @@ describe("emission order — nothing is committed before registration", () => {
   });
 });
 
-describe("$TMP shape is untouched by the key/ordering fix", () => {
-  it("emits no RS_CORR_INSERT, no object_class, and exactly the two-tag VIEW-PUT/VIEW-ACTIVATED sequence", () => {
+describe("the 44-char DICT key and korrnum = space also apply to a $-prefixed package", () => {
+  it("a $-package fragment carries RS_CORR_INSERT, the same 44-character DICT key, object_class = 'DICT', korrnum = space exactly, and the three tags in order", () => {
     const lines = classicViewFragment(LOCAL_VIEW);
-    expect(lines.some((l) => l.includes("RS_CORR_INSERT"))).toBe(false);
-    expect(lines.some((l) => l.includes("object_class"))).toBe(false);
-    expect(emittedTags(lines)).toEqual(["VIEW-PUT", "VIEW-ACTIVATED"]);
+    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
+
+    const objectLine = lines.find((l) => l.trim().startsWith("EXPORTING object ="));
+    expect(objectLine).toBeTruthy();
+    const m = /EXPORTING object = '(.*)'$/.exec(objectLine!.trim());
+    expect(m).toBeTruthy();
+    const key = m![1]!;
+    expect(key.length).toBe(44);
+    expect(key.slice(0, 4)).toBe("VIEW");
+    expect(key.slice(4)).toBe(LOCAL_VIEW.viewName.padEnd(40));
+
+    expect(lines).toContain("            object_class = 'DICT'");
+    expect(lines).toContain("            korrnum = space");
+    expect(lines.some((l) => /korrnum = '/.test(l))).toBe(false);
+
+    expect(emittedTags(lines)).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
     expect(lines.filter((l) => l === "COMMIT WORK.").length).toBe(2);
   });
 });

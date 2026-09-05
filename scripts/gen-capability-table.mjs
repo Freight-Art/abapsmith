@@ -55,15 +55,22 @@ export const OUT_OF_REGISTRY_CREATE = {
 // `bridgeCreate` entry in src/adt/capabilities.ts.
 const BRIDGE_NOTE = {
   "VIEW/DV":
-    "the bridge would build a single-table database view (DD25V class 'D'); no joins, no SE54 " +
-    "maintenance dialog. It is never run: the create is refused client-side, before any ADT " +
-    "traffic, for every package — $TMP and an omitted `package` included. A transportable " +
-    "package's TK103 object-key rejection and its registration-after-commit ordering are now " +
-    "corrected in the generated ABAP but unproven live, so the refusal stands; $TMP is the one " +
-    "package ever attempted, and it lands an active view unregistered in TADIR, so undeletable " +
-    "and unundoable here. Create the view " +
-    "in SE11/SE14, or use a CDS view (DDLS/DF). Change is not supported either.",
-  "TRAN/T": "creates a REPORT transaction (dynpro 1000) starting an existing program; change is still not supported.",
+    "builds a single-table database view (DD25V class 'D') via RS_CORR_INSERT then " +
+    "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE; no joins, no SE54 maintenance dialog. A " +
+    "transportable package requires corr_nr; a `$` package refuses one and registers with " +
+    "korrnum = space instead. There is no read-back: abapsmith cannot read a classic view " +
+    "through ADT, so success is proven only by transcript markers. Proven live on A4H: " +
+    "2026-09-04 into the transportable package ZBOPF_Q1PKG with a corr_nr; 2026-09-05, " +
+    "RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR " +
+    "row), then removed by the delete bridge. Change is not supported either.",
+  "TRAN/T":
+    "creates a REPORT transaction (dynpro 1000) starting an existing program, via " +
+    "RPY_TRANSACTION_INSERT; change is still not supported. A transportable package requires " +
+    "corr_nr; a `$` package refuses one and registers with korrnum = space instead. " +
+    "RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is " +
+    "optional and forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert " +
+    "defaults to space so the registration always runs. No live create into a transportable " +
+    "package has been run.",
   "DEVC/K":
     "`software_component: \"LOCAL\"` goes over ADT REST; anything else needs the bridge and a " +
     "transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects.",
@@ -74,9 +81,10 @@ const BRIDGE_NOTE = {
 // is a build error (see the throw below), not an inherited guarantee.
 const BRIDGE_DELETE_NOTE = {
   "VIEW/DV":
-    "a bridge delete endpoint exists (src/adt/view-delete.ts), but no live run has ever produced " +
-    "a registered view for it to delete, and abapsmith no longer creates one — unexercised, not " +
-    "proven.",
+    "abapsmith's own create registers every view in TADIR, so the delete bridge " +
+    "(src/adt/view-delete.ts) always has one to act on. Proven live on A4H 2026-09-05: a " +
+    "bridge-created view in a `$`-prefixed package was removed cleanly, VIEW-DELETED / " +
+    "VIEW-GONE.",
   "TRAN/T":
     "the bridge calls RPY_TRANSACTION_DELETE, but its parameter set is inferred from " +
     "RPY_TRANSACTION_INSERT's `transaction` parameter, not transcribed from a capture of the " +
@@ -117,7 +125,8 @@ export async function buildCapabilityTable(registry) {
       bridgeRefused: Boolean(cap.bridgeCreate?.createRefused),
       bridgeDel: Boolean(cap.bridgeDelete),
       outOfRegistry: type in OUT_OF_REGISTRY_CREATE,
-      unsupported: Boolean(cap.unsupported),
+      // Mirrors NON_READABLE_TYPES's predicate in src/adt/capabilities.ts.
+      nonReadable: Boolean(cap.unsupported) || (cap.bridgeCreate !== undefined && cap.create === undefined),
     };
   });
 
@@ -133,6 +142,7 @@ export async function buildCapabilityTable(registry) {
   const creatable = rest.filter((r) => r.create === "yes");
   const writableOnly = rest.filter((r) => r.create !== "yes" && r.write !== "—");
   const unreachable = rest.filter((r) => r.create !== "yes" && r.write === "—");
+  const nonReadable = rows.filter((r) => r.nonReadable);
 
   const fmt = (list) => list.map((r) => `\`${r.type}\``).join(" ");
 
@@ -146,9 +156,12 @@ export async function buildCapabilityTable(registry) {
     `**Bridge-only create types (${bridged.length}).** ADT REST has no usable create for these, so ` +
       "abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The " +
       "bridge never updates an existing object. Whether it can delete one — and so whether the " +
-      "create is reversible — differs per type; see each bullet. A bullet marked **create " +
-      "REFUSED** creates nothing at all: the bridge is described but abapsmith will not run it, " +
-      `in any package (${bridged.filter((r) => r.bridgeRefused).length} of ${bridged.length} today).`,
+      "create is reversible — differs per type; see each bullet." +
+      (bridged.some((r) => r.bridgeRefused)
+        ? " A bullet marked **create REFUSED** creates nothing at all: the bridge is described but " +
+          "abapsmith will not run it, in any package " +
+          `(${bridged.filter((r) => r.bridgeRefused).length} of ${bridged.length} today).`
+        : ""),
     "",
     ...bridged.map((r) => {
       if (r.bridgeDel && !(r.type in BRIDGE_DELETE_NOTE)) {
@@ -175,19 +188,26 @@ export async function buildCapabilityTable(registry) {
     `**Not reachable by any write (${unreachable.length}).** Do not probe for a write route.`,
     "",
     ...(() => {
-      const readable = unreachable.filter((r) => !r.unsupported);
-      const unreadable = unreachable.filter((r) => r.unsupported);
+      const readable = unreachable.filter((r) => !r.nonReadable);
+      // Registry-wide, not bucket-scoped: catches non-readable types (e.g. VIEW/DV, TRAN/T)
+      // that are bridge-creatable and so never land in `unreachable` at all.
+      const bridgeCreatableNonReadable = nonReadable.filter((r) => r.bridge && !unreachable.includes(r));
       return [
         `- Readable, not writable (${readable.length}): ${readable.length ? fmt(readable) : "_(none)_"}`,
-        `- Not readable either (${unreadable.length}) — \`abap_read\` refuses these with UNSUPPORTED, ` +
-          `from the same \`unsupported\` entry in src/adt/capabilities.ts: ${unreadable.length ? fmt(unreadable) : "_(none)_"}`,
+        `- Not readable either (${nonReadable.length}) — \`abap_read\` refuses these before any ` +
+          "network call, from an `unsupported` entry or a bridge-only create with no ADT-readable " +
+          `collection (NON_READABLE_TYPES, src/adt/capabilities.ts): ${nonReadable.length ? fmt(nonReadable) : "_(none)_"}.` +
+          (bridgeCreatableNonReadable.length
+            ? " Registry-wide, not just this bucket: " +
+              `${fmt(bridgeCreatableNonReadable)} — creatable through the bridge above, still unreadable.`
+            : ""),
       ];
     })(),
     "",
     END,
   ].join("\n");
 
-  return { table, buckets: { creatable, bridged, outOfRegistry, writableOnly, unreachable } };
+  return { table, buckets: { creatable, bridged, outOfRegistry, writableOnly, unreachable, nonReadable } };
 }
 
 /** CLI-only: loads REGISTRY from the compiled tree, since this script is plain Node and can't import the TypeScript source directly. */

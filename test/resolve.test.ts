@@ -15,7 +15,7 @@ import {
 } from "../src/adt/resolve.js";
 import { buildUri, specForType, specFromUri } from "../src/adt/types.js";
 import { isAbapError } from "../src/adt/errors.js";
-import { capabilitiesFor } from "../src/adt/capabilities.js";
+import { capabilitiesFor, REGISTRY, type TypeCode } from "../src/adt/capabilities.js";
 
 describe("parseObjectRef — fuzzy forms", () => {
   it("takes a bare name and guesses nothing it cannot justify", () => {
@@ -704,20 +704,20 @@ describe("resolveObject — explicit unsupported/bridgeCreate type hints refuse 
   /**
    * The read refusal's HINT used to tell a caller abapsmith could create a
    * classic view through the classrun bridge — advice `abap_write` then
-   * refused. Both sites, plus `writableTypesHint()`, now render one registry
-   * string (`bridgeCreate.createRefused`), so the identity assertion below is
-   * the guard: a reworded hint at either site has to move the registry, which
-   * moves both. TRAN/T keeps the generic text, because its create really runs.
+   * refused, via a dedicated `bridgeCreate.createRefused` registry string.
+   * RS_CORR_INSERT now registers a VIEW/DV create for every package, so that
+   * refusal is gone: no REGISTRY entry declares `createRefused` any more
+   * (asserted below on TRAN/T), and VIEW/DV's read hint falls back to the
+   * same generic bridge-create text TRAN/T's always used.
    */
-  it("VIEW/DV's read hint is the registry's own create-refusal string, not a create route", async () => {
+  it("VIEW/DV's read hint is the same generic bridge-create hint TRAN/T's is, now that the create is no longer refused", async () => {
     const err = await resolveObject(offline, "ZX", { type: "VIEW/DV" }).catch((e) => e);
     const hint = String(err.hint ?? "");
-    expect(hint).toBe(capabilitiesFor("VIEW/DV")?.bridgeCreate?.createRefused);
-    expect(hint).not.toMatch(/abapsmith can create this type/);
-    expect(hint).toMatch(/refuses a VIEW\/DV create for every package/);
-    expect(hint).toMatch(/\$TMP and an omitted `package` included/);
-    expect(hint).toMatch(/SE11\/SE14/);
-    expect(hint).toMatch(/DDLS\/DF/);
+    expect(capabilitiesFor("VIEW/DV")?.bridgeCreate?.createRefused).toBeUndefined();
+    expect(hint).toMatch(
+      /abapsmith can create this type through a generated classrun bridge \(see abap_write\)/,
+    );
+    expect(hint).toMatch(/cannot read one back/);
   });
 
   /**
@@ -737,9 +737,11 @@ describe("resolveObject — explicit unsupported/bridgeCreate type hints refuse 
     expect(adtRest).toMatch(/405/);
   });
 
-  it("TRAN/T's read hint still names the create that works — the narrowing was VIEW/DV's alone", async () => {
+  it("no REGISTRY entry declares bridgeCreate.createRefused any more, and TRAN/T's read hint still names the create that works", async () => {
+    for (const code of Object.keys(REGISTRY) as TypeCode[]) {
+      expect(REGISTRY[code].bridgeCreate?.createRefused, `${code} declares createRefused`).toBeUndefined();
+    }
     const err = await resolveObject(offline, "ZX", { type: "TRAN/T" }).catch((e) => e);
-    expect(capabilitiesFor("TRAN/T")?.bridgeCreate?.createRefused).toBeUndefined();
     expect(String(err.hint ?? "")).toMatch(/can create this type through a generated classrun bridge/);
   });
 

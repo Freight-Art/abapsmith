@@ -225,6 +225,11 @@ was last set to `0.3.0`.
 
 ### Changed
 
+- `abap_debug`'s `breakpoints` schema states the shared `condition`/`skipCount`
+  guidance once at the array level instead of once per union branch, trimming
+  the largest single property in the `tools/list` payload by about a third with
+  no validator change. The facts that left the schema now live in
+  `doc/TOOLS/debugger.md`; a test pins the property's size ceiling.
 - A failed connect is now classified instead of being labelled
   `AUTH_FAILED` unconditionally: 401/403 map to `AUTH_FAILED`, 5xx to
   `SYSTEM_UNAVAILABLE`, and anything unidentified to `ADT_ERROR` — never
@@ -335,9 +340,28 @@ was last set to `0.3.0`.
   validation/query/alternative-key now refuse a `name` that already exists
   on the target node, instead of silently creating a second element with
   that name.
+- `TRAN/T` create now threads a transport request through to
+  `RPY_TRANSACTION_INSERT`'s `transport_number` parameter, mirroring
+  `VIEW/DV`'s package rule: a transportable package requires `corr_nr`
+  (`TRANSPORT_ERROR` without one), and a `$` package refuses one
+  (`BAD_INPUT`) and registers with `korrnum = space`. The FM's signature
+  was read live on A4H 2026-09-05, confirming `transport_number` is
+  forwarded verbatim to `RS_CORR_INSERT` as `korrnum`; no live create into
+  a transportable package has been run yet.
+- The live suites `integration-undo` and `integration-fpm-lock` now pair
+  their whole-file `describe.skip` with a `liveSuiteSkipReason` case stating
+  why, under the greppable `APPLIANCE STATE:` prefix, instead of just
+  reporting "skipped" with no reason; the documented live-suite surface in
+  `CONTRIBUTING.md` and `doc/TESTING/README.md` was also corrected against
+  `LIVE_INTEGRATION_TESTS` in `vitest.config.ts`.
 
 ### Fixed
 
+- The generated capability table's "not readable either" line is now derived
+  registry-wide from the same predicate as `NON_READABLE_TYPES`, so it names all
+  eight non-readable types (it previously missed `VIEW/DV` and `TRAN/T`, the two a
+  caller is most likely to try to read back after a bridge create). A census
+  test pins the table to the constant so the drift cannot recur silently.
 - Correctness fixes found during a live-verification campaign against a
   real ABAP system: activation no longer silently drops an `affects`
   intent, the FPM lock path no longer treats a failed lock acquisition as
@@ -407,10 +431,17 @@ was last set to `0.3.0`.
   downgraded to unverified after the one genuine live create failure
   found in the sweep; the three types originally suspected broken
   (`DTEL/DE`, `MSAG/N`, `TABL/DT`) all created cleanly and were not
-  downgraded. `BDEF/BDO` delete was downgraded from verified-deletable to
-  false after delete was found to report success while leaving the
-  object readable, reproduced 3 times; the automatic rollback-on-failed-
-  create path now respects this same gate.
+  downgraded. `ENQU/DL` create and delete were re-verified live on
+  2026-09-05 once the real cause of those failures was found: the
+  descriptor's root element must be the lowercase `enqu:lockobject` in
+  namespace `http://www.sap.com/adt/ddic/enqu`, not the camelCase
+  `enqu:lockObject` in `http://www.sap.com/dictionary/lockobject` the
+  earlier attempts sent, so both flags are `true` again and `abap_write`
+  now refuses a wrong root element up front. `BDEF/BDO` delete was
+  downgraded from verified-deletable to false after delete was found to
+  report success while leaving the object readable, reproduced 3 times;
+  the automatic rollback-on-failed-create path now respects this same
+  gate.
 - Fixed a pooled connection that could leak an ABAP enqueue lock and
   never get swept — the leak-detection hook is now actually wired at
   session construction, and any detected leak now drops the whole
@@ -629,6 +660,13 @@ was last set to `0.3.0`.
   overwrite a result the server already committed. A death from a
   genuinely failed (non-2xx) response is unaffected and still applied
   immediately.
+- A pinned `ABAP_ALLOW_TRANSPORTS` previously refused every `VIEW/DV`/
+  `TRAN/T` bridge delete outright, because the gate synthesized an `auto`
+  transport request for a call that passes none; both delete bridges now
+  present the mutation as local, so the transport allowlist no longer
+  blocks them (an explicit deny-all still does), and the delete response
+  now flags any transport-request entry the object's create left behind
+  for `abap_transport removeObject` to clean up.
 
 ### Security
 

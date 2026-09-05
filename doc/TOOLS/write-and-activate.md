@@ -22,12 +22,12 @@ syntax-checks, activates. Locking is handled for you.
 | `activate` | boolean | no | `true` | Activate after a successful write. |
 | `verify` | boolean | no | — | Raise this one call to `verified` mode — reads the object back after a successful write. Raise-only: cannot lower a server `ABAP_VERIFY_WRITES=verified` default. |
 | `format` | boolean | no | — | Pretty-print the source before writing. |
-| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. |
+| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Required for a `VIEW/DV` or `TRAN/T` create into a transportable package; refused for one into a `$` package. Also refused for a `VIEW/DV`/`TRAN/T` delete — neither delete bridge takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. |
 | `software_component` | string | no | — | `DEVC/K` (package) only: `LOCAL`, or a transportable component (e.g. `HOME`) — the latter needs `corr_nr` unless the package is `$TMP`-local. |
 | `package_type` | string | no | `development` | `DEVC/K` only. |
 | `transport_layer` | string | no | — | `DEVC/K` only. |
-| `base_table` | string | no | — | `VIEW/DV` only — base DDIC table. Unreachable today: a `VIEW/DV` create is refused for every package. |
-| `view_fields` | array\<string\> | no | — | `VIEW/DV` only — fields to expose. Unreachable today, same refusal as `base_table`. |
+| `base_table` | string | no | — | `VIEW/DV` create only — the single base DDIC table. |
+| `view_fields` | array\<string\> | no | — | `VIEW/DV` create only — the fields to project, in order. |
 | `program` | string | no (required for `TRAN/T`) | — | `TRAN/T` only — program the transaction starts. |
 | `affects` | object `{name, packageName, masterSystem?, spotName?}` | no (required for `ENHO/XHH`) | — | The object this write's target enhancement binds to. |
 | `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. |

@@ -549,7 +549,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   // to create Annotation Definitions", from an admin user that creates every
   // other type. Annotation definitions are SAP-only on this system. `delete`
   // stays "unverified": create never succeeded, so delete was never once
-  // reachable to test — same reasoning as ENQU/DL above.
+  // reachable to test.
   "DDLA/ADF": {
     label: "Annotation definition",
     write: { shape: "source" },
@@ -829,30 +829,24 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     delete: true,
     activate: false,
   },
-  // Lock object. Odd one out, both server-enforced and live-verified: SAP
-  // refuses Z…/Y… names outright (hence namePrefixes), and create is
-  // rejected unless the body already carries a non-empty
-  // <enqu:content><enqu:primaryTable> — so create can't be a vendor skeleton
-  // POST followed by a PUT.
+  // Lock object. Server-enforced: SAP refuses Z…/Y… names outright (hence
+  // namePrefixes), and create is rejected unless the body already carries a
+  // non-empty <enqu:content><enqu:primaryTable> — so create can't be a
+  // vendor skeleton POST followed by a PUT.
   //
-  // `delete: "unverified"` — 2026-08-19: create itself is what
-  // blocked verification. Do not trust ENQU/DL's
-  // create claim, and do not re-attempt as a create-verification-sweep TODO, until that's
-  // resolved. Full incident record (three failed live attempts, two
-  // namespaces, XML_PATH diagnostics): the git history.
+  // create/delete verified 2026-09-05 on A4H (EZTMD_I30 in $TMP, table
+  // T000): the root must be lowercase <enqu:lockobject> in namespace
+  // http://www.sap.com/adt/ddic/enqu, not the camelCase <enqu:lockObject> /
+  // http://www.sap.com/dictionary/lockobject the earlier failed attempts
+  // sent. Content needs primaryTable/{tableName, lockMode} in that order;
+  // omitting lockMode 400s. POST 201'd as plain application/* — no
+  // mediaType override needed — and delete (LOCK/MODIFY handle, then
+  // DELETE?lockHandle=…) 200'd, confirmed absent on read-back.
   "ENQU/DL": {
     label: "Lock object",
     write: { shape: "properties" },
-    // verified: false — settled (not "unverified"): create is DISPROVEN by
-    // three independent live attempts (two namespace variants, both raw
-    // probe and abap_write), all failing identically with `400
-    // ExceptionInvalidData` rejecting the <enqu:lockObject> root element
-    // itself. `delete` above is correctly "unverified" for the opposite
-    // reason — create never succeeded, so delete was never once reachable
-    // to test. See the archive for the full run-by-run record and the
-    // lockobject/lockObject case-sensitivity lead.
-    create: { vendor: false, verified: false },
-    delete: "unverified",
+    create: { vendor: false, verified: true },
+    delete: true,
     activate: true,
     namePrefixes: ["EZ", "EY"],
   },
@@ -991,47 +985,28 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "DD_VIEW_PUT/DD_VIEW_ACT primitives SE11's view editor drives), called from a generated " +
         "IF_OO_ADT_CLASSRUN bridge. See src/adt/view-create.ts and src/adt/ddic-bridge.ts.",
       limits:
-        "Creates nothing today: the create is refused client-side, before any ADT traffic " +
-        "(UNSUPPORTED), for EVERY package — $TMP and an omitted `package` included. What the " +
-        "bridge would build if it ran: a database view (DD25V view class 'D') projecting fields " +
-        "of ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and " +
+        "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly " +
+        "ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and " +
         "search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance " +
         "dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION " +
         "'SE55' wrapper around an interactive wizard with no headless equivalent, so a view " +
-        "created here would have no maintenance view/dialog and SM30 would not open it. The " +
-        "refusal reason differs by package. A TRANSPORTABLE package: the interactive CTS " +
-        "request-selection dynpro that once blocked a transportable create (SAPLSTRD 0352) is " +
-        "already fixed by passing suppress_dialog = 'X', but RS_CORR_INSERT was then measured " +
-        "to reject the object key itself — object/object_class = 'DICT', sy-subrc=1, TK103 " +
-        "'This syntax cannot be used for an object name' — and because DDIF_VIEW_PUT had " +
-        "already committed by that point, that failed attempt stranded an active, " +
-        "packageRef-less view that abapsmith's own delete gate then refused to remove. The " +
-        "generated ABAP now builds the 44-character DICT object key RS_CORR_INSERT actually " +
-        "expects — 4-character object type 'VIEW' then the name padded to 40, with " +
-        "global_lock = 'X' so it registers as R3TR/VIEW rather than LIMU/VIED — and calls " +
-        "RS_CORR_INSERT before DDIF_VIEW_PUT, so nothing is committed before registration and " +
-        "a rejected key can no longer strand an orphan. Both changes are read off the function " +
-        "module's source, not measured against a live system, so the create stays refused for " +
-        "every package until a live run proves them. A `$`-prefixed but non-$TMP package (e.g. " +
-        "$MYLOCAL): the TK103 object-key rejection above is NOT the obstacle here — a local " +
-        "package never enters CTS at all, so no RS_CORR_INSERT call is even generated for it; " +
-        "it is refused because no package is known to work and this one has never been tried — " +
-        "untried, not measured. $TMP: measured live, a $TMP create SUCCEEDS at landing an " +
-        "active view that is never registered in TADIR, so it carries no packageRef, so " +
-        "abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses " +
-        "it non-overridably too — creating an object abapsmith is then obliged to refuse to " +
-        "remove, which is why that path is now closed rather than offered as the workaround. " +
-        "See src/adt/view-create.ts. The bridge creates and deletes only — " +
-        "changing an existing view is not supported. Whether DDIF_VIEW_PUT would " +
-        "behave as an upsert against a view that already exists is inferred, not live-verified: " +
-        "no create-over-an-existing-view call has ever been attempted here.",
-      createRefused:
-        "abapsmith refuses a VIEW/DV create for every package, $TMP and an omitted `package` " +
-        "included: $TMP is the only package ever attempted, and it was measured to leave the " +
-        "view active but unregistered in TADIR, with no packageRef — so abap_write mode=delete " +
-        "refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably. " +
-        "Create a classic view in SE11/SE14 by hand, or use a CDS view (DDLS/DF), which " +
-        "abapsmith both writes and reads.",
+        "created here has no maintenance view/dialog and SM30 will not open it. The bridge " +
+        "creates and deletes only — changing an existing view is not supported. Whether " +
+        "DDIF_VIEW_PUT would behave as an upsert against a view that already exists is " +
+        "inferred, not live-verified: no create-over-an-existing-view call has ever been " +
+        "attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE " +
+        "package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / " +
+        "VIEW-ACTIVATED, the view read back with its fields (not through abap_read — that path " +
+        "stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT " +
+        "called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character " +
+        "DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` " +
+        "devclass, and the created view was then removed cleanly by the delete bridge (see " +
+        "bridgeDelete below). A TRANSPORTABLE package requires corr_nr; a LOCAL package refuses " +
+        "one (BAD_INPUT). Registering the view in TADIR either way — with the caller's corr_nr " +
+        "or with korrnum = space — is what makes the created view deletable afterwards. See " +
+        "src/adt/view-create.ts. The create is otherwise irreversible in the sense that " +
+        "abapsmith cannot read the view back to verify it: success is proven by the transcript " +
+        "markers, not by a read-back.",
     },
     bridgeDelete: {
       adtRest:
@@ -1054,12 +1029,10 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "TR_DELETE_COMM_OBJECT_KEYS is out of scope, deliberately unimplemented) — so a locked " +
         "view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted " +
         "(src/tools/write.ts refuses one outright), so this path cannot fully remove a view " +
-        "sitting on an open transport request. $TMP is no better: per bridgeCreate's own " +
-        "finding above, a $TMP create leaves the view active but unregistered in TADIR, so it " +
-        "carries no packageRef for the delete gate to accept (PACKAGE_UNKNOWN) — no live run " +
-        "has ever produced a view this delete path could act on, in any package, and abapsmith " +
-        "no longer creates one anywhere. This delete can still act on a view SOMETHING ELSE " +
-        "registered properly; it cannot clear the orphans an earlier $TMP create left behind.",
+        "sitting on an open transport request. abapsmith's own create now registers every view " +
+        "in TADIR, including one in a `$` package, so the delete path acts on views abapsmith " +
+        "created — proven live on A4H 2026-09-05, where a bridge-created view in a LOCAL " +
+        "package was deleted with VIEW-DELETED / VIEW-GONE.",
     },
   },
   "TRAN/T": {
@@ -1085,8 +1058,14 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "path uses one — is unknown; that has never been investigated here, so this is a " +
         "statement about what abapsmith implements, not a claim that the backend itself would " +
         "refuse a change: unverified. Deleting one is " +
-        "attempted through a bridge whose delete FM parameter set is inferred, not " +
-        "live-verified — see this type's bridgeDelete entry below.",
+        "attempted through a bridge whose delete FM parameter set is inferred (live-verified " +
+        "once for a $ package) — see this type's bridgeDelete entry below. A transportable package " +
+        "requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) " +
+        "and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live " +
+        "on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to " +
+        "RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the " +
+        "transport/TADIR registration always runs. No live create with a transport has been " +
+        "run yet.",
     },
     bridgeDelete: {
       adtRest:
@@ -1098,8 +1077,10 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
       limits:
         "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's " +
-        "`transaction` parameter name, not transcribed from a capture of the delete FM itself " +
-        "— not live-verified. This bridgeCreate entry's own `via` already records that " +
+        "`transaction` parameter name, not transcribed from a capture of the delete FM itself. " +
+        "Live-verified once, 2026-09-05: a $ package transaction was created and then deleted " +
+        "with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. " +
+        "This bridgeCreate entry's own `via` already records that " +
         "RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether " +
         "RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a " +
         "TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way " +
@@ -1322,10 +1303,13 @@ export const BRIDGE_ONLY_CREATE_TYPES: readonly string[] = codesWith(
 );
 
 /**
- * Types that declare a bridge create abapsmith nonetheless refuses to run —
- * `VIEW/DV` today. Routing still sends them to the bridge dispatcher (which
- * is where the refusal is raised); this set exists so no hint anywhere
- * advertises a create that will never happen.
+ * Types that declare a bridge create abapsmith nonetheless refuses to run.
+ * Empty today: VIEW/DV's create is proven live on A4H (see its REGISTRY
+ * entry's `bridgeCreate.limits`) and is no longer refused. The mechanism
+ * stays for the next `bridgeCreate` type that needs it — routing would still
+ * send a member here to the bridge dispatcher, which is where the refusal
+ * is raised, and this set exists so no hint anywhere advertises a create
+ * that will never happen.
  */
 export const BRIDGE_CREATE_REFUSED_TYPES: readonly string[] = codesWith(
   (c) => c.bridgeCreate?.createRefused !== undefined,
@@ -1337,7 +1321,7 @@ export function isBridgeOnlyCreateType(type: string | undefined): boolean {
   return cap?.bridgeCreate !== undefined && cap.create === undefined;
 }
 
-/** Types declaring `bridgeDelete` (today: `DEVC/K`) — the classrun-bridge delete route, disjoint from `DELETABLE_TYPES`. */
+/** Types declaring `bridgeDelete` (`DEVC/K`, `VIEW/DV`, `TRAN/T`) — the classrun-bridge delete route, disjoint from `DELETABLE_TYPES`. */
 export const BRIDGE_DELETABLE_TYPES: readonly string[] = codesWith((c) => c.bridgeDelete !== undefined);
 
 /** True for a type deleted via the classrun bridge rather than ADT REST. See {@link BRIDGE_DELETABLE_TYPES}. */

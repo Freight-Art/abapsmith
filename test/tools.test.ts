@@ -1901,16 +1901,16 @@ describe("tool surface", () => {
    * A caller had no way to learn which bridge-created types it could
    * never take back, short of reading source or hitting a live refusal.
    * DEVC/K is deletable/undoable (bridge delete, while empty). TRAN/T is
-   * likewise deletable and undoable. VIEW/DV never gets that far: because a
-   * create leaves the view unregistered — undeletable and unundoable — the
-   * create itself is refused, for every package, so the honest disclosure is
-   * the refusal and its scope, not a delete/undo verdict. "Every package" is
-   * the load-bearing half: a description that says only "not supported" would
-   * be the earlier, false claim, made while $TMP was still let through.
-   * Asserted on substance (which types + the scope), not the exact sentence,
-   * so rewording alone can't break this.
+   * likewise deletable and undoable. VIEW/DV's clause is different in kind:
+   * RS_CORR_INSERT now registers the view for every package, so the create
+   * itself is no longer refused — the disclosure instead states the
+   * corr_nr/package pairing the create enforces, plus the one limitation the
+   * lift did not touch: a classic view has no ADT-readable collection, so
+   * `abap_read` still can't confirm what the bridge just wrote. Asserted on
+   * substance (which types + what's disclosed), not the exact sentence, so
+   * rewording alone can't break this.
    */
-  it("discloses TRAN/T as deletable and undoable, VIEW/DV's create as refused for EVERY package, and DEVC/K as deletable only while empty", async () => {
+  it("discloses TRAN/T as deletable and undoable, VIEW/DV's corr_nr/package pairing and its read-back limit, and DEVC/K as deletable only while empty", async () => {
     const h = await harness(openCfg());
     const { tools } = await h.client.listTools();
     const write = tools.find((t) => t.name === "abap_write");
@@ -1928,11 +1928,13 @@ describe("tool surface", () => {
     expect(viewClause).toContain("VIEW/DV");
     expect(viewClause).not.toContain("TRAN/T");
     expect(viewClause).not.toContain("DEVC/K");
-    expect(viewClause).toMatch(/refused/i);
-    expect(viewClause).toMatch(/create/i);
-    expect(viewClause).toMatch(/every package/i);
-    expect(viewClause).not.toMatch(/deletable/i);
-    expect(viewClause).not.toMatch(/undoable/i);
+    expect(viewClause).toMatch(/corr_nr/);
+    expect(viewClause).toMatch(/transportable package/i);
+    expect(viewClause).toMatch(/read back/i);
+    expect(viewClause).toMatch(/abap_read/);
+    // The old wording refused the create outright; the lift means no clause
+    // in this tool's description gets to say that about VIEW/DV any more.
+    expect(viewClause).not.toMatch(/refused/i);
 
     const devcClause = desc.match(/DEVC\/K[^.]*\./)?.[0] ?? "";
     expect(devcClause).toMatch(/delet/i);
@@ -2003,7 +2005,7 @@ describe("tool surface", () => {
     expect(props.description?.description).toContain("Required for operation=create");
   });
 
-  it("states each abap_write bridge-create param's conditional requirement in its own description", async () => {
+  it("states each abap_write bridge-create param's requirement in its own description", async () => {
     const h = await harness(openCfg());
     const { tools } = await h.client.listTools();
     const write = tools.find((t) => t.name === "abap_write");
@@ -2014,15 +2016,16 @@ describe("tool surface", () => {
     const props = schema?.properties ?? {};
     expect(props.description?.description).toContain("Required to create a TRAN/T");
     expect(props.program?.description).toMatch(/TRAN\/T, required/);
-    // VIEW/DV's two create-only fields must NOT read as "required" any more:
-    // the create they belong to is refused for every package, so a caller who
-    // fills them in gets a refusal, not a view. Saying "required" would be an
-    // invitation to a call that cannot succeed.
-    for (const field of [props.base_table, props.view_fields]) {
-      expect(field?.description).toMatch(/VIEW\/DV/);
-      expect(field?.description).not.toMatch(/required/i);
-      expect(field?.description).toMatch(/refused|unreachable/i);
-    }
+    // The bridge create runs now (RS_CORR_INSERT registers every package), so
+    // these two are plain "what to pass", pinned verbatim — no "required" or
+    // "refused" framing left to assert, since neither field's absence alone
+    // is what a caller gets refused for (that's corr_nr/package's job).
+    expect(props.base_table?.description).toBe(
+      "VIEW/DV create only: the single base table the view projects.",
+    );
+    expect(props.view_fields?.description).toBe(
+      "VIEW/DV create only: base-table fields to project, in order.",
+    );
   });
 
   it("derives abap_read's `type` not-readable list from the capabilities registry", async () => {
@@ -2061,7 +2064,7 @@ describe("tool surface", () => {
     expect(desc).not.toContain("ENHO/XH");
   });
 
-  it("states abap_write's description/corr_nr/package param limits and refusals", async () => {
+  it("states abap_write's description/corr_nr/package param limits verbatim", async () => {
     const h = await harness(openCfg());
     const { tools } = await h.client.listTools();
     const write = tools.find((t) => t.name === "abap_write");
@@ -2072,13 +2075,20 @@ describe("tool surface", () => {
     const props = schema?.properties ?? {};
     expect(props.description?.description).toContain("Required to create a TRAN/T");
     expect(props.description?.description).toContain("37");
-    expect(props.corr_nr?.description).toContain("TRAN/T create");
-    expect(props.package?.description).toContain("VIEW/DV");
-    expect(props.package?.description).toContain("$TMP");
-    // "no package works" also parses as "no-package works", i.e. omit it and
-    // the create succeeds — the one retry the refusal names as still refused.
-    expect(props.package?.description).not.toMatch(/no package works/);
-    expect(props.package?.description).toMatch(/refused for every package, and for an omitted one/);
+    // corr_nr is now conditionally REQUIRED (a transportable VIEW/DV or TRAN/T
+    // create) as well as conditionally refused ($ package create, either type's
+    // delete) — pin the whole string so both halves of that contract stay honest.
+    expect(props.corr_nr?.description).toBe(
+      "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a " +
+        "transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete.",
+    );
+    // package's VIEW/DV and TRAN/T clause states the corr_nr/package pairing rule,
+    // not a blanket refusal — pin it verbatim rather than substring-matching,
+    // since a substring match would pass even if the rule reversed.
+    expect(props.package?.description).toBe(
+      "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs " +
+        "corr_nr, a $-package refuses it.",
+    );
   });
 
   it("states abap_bopf_edit's `name` param's conditional requirement in its own description", async () => {

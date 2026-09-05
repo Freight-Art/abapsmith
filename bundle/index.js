@@ -12982,7 +12982,7 @@ var require_AdtException = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isErrorMessageType = exports2.validateParseResult = exports2.fromError = exports2.fromResponse = exports2.isLoginError = exports2.AdtErrorException = exports2.SAPRC = void 0;
     exports2.isAdtError = isAdtError;
-    exports2.isCsrfError = isCsrfError3;
+    exports2.isCsrfError = isCsrfError4;
     exports2.isHttpError = isHttpError;
     exports2.isAdtException = isAdtException;
     exports2.fromException = fromException;
@@ -13072,16 +13072,16 @@ var require_AdtException = __commonJS({
     function isAdtError(e) {
       return (e === null || e === void 0 ? void 0 : e.typeID) === ADTEXTYPEID;
     }
-    function isCsrfError3(e) {
+    function isCsrfError4(e) {
       return (e === null || e === void 0 ? void 0 : e.typeID) === CSRFEXTYPEID;
     }
     function isHttpError(e) {
       return (e === null || e === void 0 ? void 0 : e.typeID) === HTTPEXTYPEID;
     }
     function isAdtException(e) {
-      return isAdtError(e) || isCsrfError3(e) || isHttpError(e);
+      return isAdtError(e) || isCsrfError4(e) || isHttpError(e);
     }
-    var isLoginError = (adtErr) => isHttpError(adtErr) && adtErr.status === 401 || isCsrfError3(adtErr);
+    var isLoginError = (adtErr) => isHttpError(adtErr) && adtErr.status === 401 || isCsrfError4(adtErr);
     exports2.isLoginError = isLoginError;
     var simpleError = (response) => adtException(`Error ${response.status}:${response.statusText}`, response.status);
     var fromResponse = (data, response) => {
@@ -65180,6 +65180,23 @@ async function probe(conn, trkorr) {
     return { error: e instanceof AbapError ? e : ctsError(e, "trShow", trkorr) };
   }
 }
+function deleteMayHaveLanded(err) {
+  return isAbapError(err) && (err.code === "SESSION_DEAD" || err.code === "TRANSPORT_ERROR" && err.details.status === void 0);
+}
+async function discloseDeleteFailure(err, conn, number4) {
+  if (!deleteMayHaveLanded(err)) return err;
+  const after = await probe(conn, number4);
+  const residueHint = after.error ? "The outcome could not be verified: a post-failure check of the request also failed. Do not retry blindly \u2014 list or show it first." : after.own ? "A post-failure check found the request still present \u2014 nothing was deleted." : "A post-failure check could not find the request anymore \u2014 the delete may have landed despite the failure. Do not retry blindly; list or show it first.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, postFailureProbe: after.error ? "failed" : after.own ? "present" : "gone" },
+    err.hint ? `${err.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
+  return disclosed;
+}
 async function trDelete(conn, trkorr, proof) {
   void proof;
   const number4 = assertTrkorr(trkorr, "trDelete");
@@ -65192,7 +65209,7 @@ async function trDelete(conn, trkorr, proof) {
     });
     httpStatus = resp.status;
   } catch (e) {
-    throw ctsError(e, "trDelete", number4);
+    throw await discloseDeleteFailure(ctsError(e, "trDelete", number4), conn, number4);
   }
   const after = await probe(conn, number4);
   const verified = !after.error;
@@ -66935,7 +66952,7 @@ var REGISTRY = {
   // to create Annotation Definitions", from an admin user that creates every
   // other type. Annotation definitions are SAP-only on this system. `delete`
   // stays "unverified": create never succeeded, so delete was never once
-  // reachable to test — same reasoning as ENQU/DL above.
+  // reachable to test.
   "DDLA/ADF": {
     label: "Annotation definition",
     write: { shape: "source" },
@@ -67215,30 +67232,24 @@ var REGISTRY = {
     delete: true,
     activate: false
   },
-  // Lock object. Odd one out, both server-enforced and live-verified: SAP
-  // refuses Z…/Y… names outright (hence namePrefixes), and create is
-  // rejected unless the body already carries a non-empty
-  // <enqu:content><enqu:primaryTable> — so create can't be a vendor skeleton
-  // POST followed by a PUT.
+  // Lock object. Server-enforced: SAP refuses Z…/Y… names outright (hence
+  // namePrefixes), and create is rejected unless the body already carries a
+  // non-empty <enqu:content><enqu:primaryTable> — so create can't be a
+  // vendor skeleton POST followed by a PUT.
   //
-  // `delete: "unverified"` — 2026-08-19: create itself is what
-  // blocked verification. Do not trust ENQU/DL's
-  // create claim, and do not re-attempt as a create-verification-sweep TODO, until that's
-  // resolved. Full incident record (three failed live attempts, two
-  // namespaces, XML_PATH diagnostics): the git history.
+  // create/delete verified 2026-09-05 on A4H (EZTMD_I30 in $TMP, table
+  // T000): the root must be lowercase <enqu:lockobject> in namespace
+  // http://www.sap.com/adt/ddic/enqu, not the camelCase <enqu:lockObject> /
+  // http://www.sap.com/dictionary/lockobject the earlier failed attempts
+  // sent. Content needs primaryTable/{tableName, lockMode} in that order;
+  // omitting lockMode 400s. POST 201'd as plain application/* — no
+  // mediaType override needed — and delete (LOCK/MODIFY handle, then
+  // DELETE?lockHandle=…) 200'd, confirmed absent on read-back.
   "ENQU/DL": {
     label: "Lock object",
     write: { shape: "properties" },
-    // verified: false — settled (not "unverified"): create is DISPROVEN by
-    // three independent live attempts (two namespace variants, both raw
-    // probe and abap_write), all failing identically with `400
-    // ExceptionInvalidData` rejecting the <enqu:lockObject> root element
-    // itself. `delete` above is correctly "unverified" for the opposite
-    // reason — create never succeeded, so delete was never once reachable
-    // to test. See the archive for the full run-by-run record and the
-    // lockobject/lockObject case-sensitivity lead.
-    create: { vendor: false, verified: false },
-    delete: "unverified",
+    create: { vendor: false, verified: true },
+    delete: true,
     activate: true,
     namePrefixes: ["EZ", "EY"]
   },
@@ -67327,13 +67338,12 @@ var REGISTRY = {
     bridgeCreate: {
       adtRest: "ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery collection advertises an empty <app:accept>. That GET is not a route a caller can take from here: with no collection there is nothing to resolve a name against, and abap_search rejects VIEW/DV as an unrecognised type, so there is no way to read a classic view through abapsmith either. Four independent recons agree. This entry previously read 'not reachable over ADT, every read and write 404s' and concluded the type was unwritable \u2014 the REST finding is right, the conclusion was not: SE11 does not use REST either.",
       via: "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE (function group SDIC \u2014 the same DD_VIEW_EXPAND/DD_VIEW_PUT/DD_VIEW_ACT primitives SE11's view editor drives), called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/view-create.ts and src/adt/ddic-bridge.ts.",
-      limits: "Creates nothing today: the create is refused client-side, before any ADT traffic (UNSUPPORTED), for EVERY package \u2014 $TMP and an omitted `package` included. What the bridge would build if it ran: a database view (DD25V view class 'D') projecting fields of ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here would have no maintenance view/dialog and SM30 would not open it. The refusal reason differs by package. A TRANSPORTABLE package: the interactive CTS request-selection dynpro that once blocked a transportable create (SAPLSTRD 0352) is already fixed by passing suppress_dialog = 'X', but RS_CORR_INSERT was then measured to reject the object key itself \u2014 object/object_class = 'DICT', sy-subrc=1, TK103 'This syntax cannot be used for an object name' \u2014 and because DDIF_VIEW_PUT had already committed by that point, that failed attempt stranded an active, packageRef-less view that abapsmith's own delete gate then refused to remove. The generated ABAP now builds the 44-character DICT object key RS_CORR_INSERT actually expects \u2014 4-character object type 'VIEW' then the name padded to 40, with global_lock = 'X' so it registers as R3TR/VIEW rather than LIMU/VIED \u2014 and calls RS_CORR_INSERT before DDIF_VIEW_PUT, so nothing is committed before registration and a rejected key can no longer strand an orphan. Both changes are read off the function module's source, not measured against a live system, so the create stays refused for every package until a live run proves them. A `$`-prefixed but non-$TMP package (e.g. $MYLOCAL): the TK103 object-key rejection above is NOT the obstacle here \u2014 a local package never enters CTS at all, so no RS_CORR_INSERT call is even generated for it; it is refused because no package is known to work and this one has never been tried \u2014 untried, not measured. $TMP: measured live, a $TMP create SUCCEEDS at landing an active view that is never registered in TADIR, so it carries no packageRef, so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably too \u2014 creating an object abapsmith is then obliged to refuse to remove, which is why that path is now closed rather than offered as the workaround. See src/adt/view-create.ts. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here.",
-      createRefused: "abapsmith refuses a VIEW/DV create for every package, $TMP and an omitted `package` included: $TMP is the only package ever attempted, and it was measured to leave the view active but unregistered in TADIR, with no packageRef \u2014 so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably. Create a classic view in SE11/SE14 by hand, or use a CDS view (DDLS/DF), which abapsmith both writes and reads."
+      limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (not through abap_read \u2014 that path stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package requires corr_nr; a LOCAL package refuses one (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts. The create is otherwise irreversible in the sense that abapsmith cannot read the view back to verify it: success is proven by the transcript markers, not by a read-back."
     },
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
       via: "DD_OBJ_DEL (object_type='VIEW', del_state='A' then 'N') clears DD25L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading DD25L and TADIR after COMMIT WORK, not by a clean FM return alone. See src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
-      limits: "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and abapsmith does NOT clear that lock (TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS is out of scope, deliberately unimplemented) \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. $TMP is no better: per bridgeCreate's own finding above, a $TMP create leaves the view active but unregistered in TADIR, so it carries no packageRef for the delete gate to accept (PACKAGE_UNKNOWN) \u2014 no live run has ever produced a view this delete path could act on, in any package, and abapsmith no longer creates one anywhere. This delete can still act on a view SOMETHING ELSE registered properly; it cannot clear the orphans an earlier $TMP create left behind."
+      limits: "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and abapsmith does NOT clear that lock (TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS is out of scope, deliberately unimplemented) \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. abapsmith's own create now registers every view in TADIR, including one in a `$` package, so the delete path acts on views abapsmith created \u2014 proven live on A4H 2026-09-05, where a bridge-created view in a LOCAL package was deleted with VIEW-DELETED / VIEW-GONE."
     }
   },
   "TRAN/T": {
@@ -67341,12 +67351,12 @@ var REGISTRY = {
     bridgeCreate: {
       adtRest: "ADT exposes a transaction read-only through the generic VIT bridge and returns 405 ExceptionMethodNotSupported on every mutating verb; there is no writable ADT collection for TRAN/T. (The ADT type code is TRAN/T, not TSTC \u2014 TSTC is the underlying database table, not an ADT object type.)",
       via: "RPY_TRANSACTION_INSERT (function group SEUA) \u2014 SE93's own backend: it collision-checks TSTC, runs RS_ACCESS_PERMISSION, fires the SWBM_C_OP_CREATE BAdI check, calls RS_CORR_INSERT for transport/TADIR registration, then inserts TSTC/TSTCT/TSTCC. Called from a generated IF_OO_ADT_CLASSRUN bridge \u2014 see src/adt/tran-create.ts.",
-      limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Changing an existing transaction is still not supported: abapsmith implements no update route for TRAN/T \u2014 the bridge implements create and delete only. Whether function group SEUA offers any change FM at all \u2014 and whether SE93's own edit path uses one \u2014 is unknown; that has never been investigated here, so this is a statement about what abapsmith implements, not a claim that the backend itself would refuse a change: unverified. Deleting one is attempted through a bridge whose delete FM parameter set is inferred, not live-verified \u2014 see this type's bridgeDelete entry below."
+      limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Changing an existing transaction is still not supported: abapsmith implements no update route for TRAN/T \u2014 the bridge implements create and delete only. Whether function group SEUA offers any change FM at all \u2014 and whether SE93's own edit path uses one \u2014 is unknown; that has never been investigated here, so this is a statement about what abapsmith implements, not a claim that the backend itself would refuse a change: unverified. Deleting one is attempted through a bridge whose delete FM parameter set is inferred (live-verified once for a $ package) \u2014 see this type's bridgeDelete entry below. A transportable package requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the transport/TADIR registration always runs. No live create with a transport has been run yet."
     },
     bridgeDelete: {
       adtRest: "Read-only through the generic VIT bridge, same as bridgeCreate: 405 ExceptionMethodNotSupported on every mutating verb, no writable ADT collection.",
       via: "RPY_TRANSACTION_DELETE (function group SEUA \u2014 SE93's own backend), called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading TSTC, not by a clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
-      limits: "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, not transcribed from a capture of the delete FM itself \u2014 not live-verified. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
+      limits: "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, not transcribed from a capture of the delete FM itself. Live-verified once, 2026-09-05: a $ package transaction was created and then deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
     }
   },
   // Not in types.ts — see the module doc. Program subobjects (not standalone
@@ -89657,9 +89667,10 @@ function cleanUri(uri) {
 }
 
 // src/adt/write.ts
-var import_abap_adt_api7 = __toESM(require_build(), 1);
+var import_abap_adt_api8 = __toESM(require_build(), 1);
 
 // src/adt/run.ts
+var import_abap_adt_api7 = __toESM(require_build(), 1);
 import { createHash as createHash6 } from "node:crypto";
 
 // src/adt/dumps-query.ts
@@ -91021,18 +91032,21 @@ function translateRunFailure(conn, className, e) {
   }
   if (kind === "session-timeout") {
     invalidateSession(conn);
-    return new AbapError(
-      "SESSION_DEAD",
-      `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
-      { class: className, status: resp.status, kind },
-      "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
+    return discloseMutationRisk(
+      new AbapError(
+        "SESSION_DEAD",
+        `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
+        { class: className, status: resp.status, kind },
+        "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
+      )
     );
   }
-  return translateAdtError(e, {
+  const translated = translateAdtError(e, {
     operation: "run class",
     name: className,
     uri: `${CLASSRUN_PATH}${className}`
   });
+  return resp === void 0 && !(0, import_abap_adt_api7.isCsrfError)(e) ? discloseMutationRisk(translated) : translated;
 }
 var UNDEFINED_BODY_LITERAL = "undefined";
 var XML_OR_HTML_BODY_PREFIX = /^(<\?xml|<!DOCTYPE|<html)/i;
@@ -91170,6 +91184,18 @@ function discloseBridgeResidue(e, className, packageName, stage) {
   );
   disclosed.stack = e.stack;
   disclosed.cause = e.cause;
+  return disclosed;
+}
+function discloseMutationRisk(err) {
+  const disclosure = "The request may already have executed and committed on the server before this response was lost \u2014 do not blindly retry a mutating bridge. Re-read the object first to see whether it changed.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, mayHaveExecuted: true },
+    err.hint ? `${err.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
   return disclosed;
 }
 async function executeBridge(conn, gate, deployed) {
@@ -92272,7 +92298,7 @@ var NAME_LIMIT_OVERRIDES = {
   // TYPE-POOL naming rule (DD ABAP type-pool names are 5 characters)
 };
 function maxNameLength(type) {
-  return NAME_LIMIT_OVERRIDES[type] ?? import_abap_adt_api7.CreatableTypes.get(type)?.maxLen ?? 30;
+  return NAME_LIMIT_OVERRIDES[type] ?? import_abap_adt_api8.CreatableTypes.get(type)?.maxLen ?? 30;
 }
 function writeShapeOf(type) {
   return capabilitiesFor(type)?.write?.shape ?? "source";
@@ -92361,6 +92387,24 @@ function assertDomaMasterLanguage(t, xml3) {
     `The XML for ${t.spec.label} ${t.name} carries fixed-value <doma:text> content but its root element has no adtcore:masterLanguage attribute.`,
     { name: t.name, type: t.type, uri: t.uri },
     'Add adtcore:masterLanguage="EN" to the root element and re-send. Without it, ADT accepts the write and reports activated: true while silently discarding every <doma:fixedValue><doma:text> description \u2014 the fixed-value codes survive, only the text vanishes. Re-writing an already-damaged domain with the attribute present repairs it in place.'
+  );
+}
+var ROOT_TAG_NAME_RE = /^<(?:([A-Za-z_][\w.-]*):)?([A-Za-z_][\w.-]*)/;
+function assertLockObjectRoot(t, xml3) {
+  if (t.type !== "ENQU/DL") return;
+  const stripped = xml3.replace(XML_COMMENT_RE, "");
+  const root = XML_ROOT_ELEMENT_RE.exec(stripped)?.[0] ?? "";
+  const nameMatch = ROOT_TAG_NAME_RE.exec(root);
+  const prefix = nameMatch?.[1];
+  const localName2 = nameMatch?.[2] ?? "";
+  const nsAttrRe = prefix ? new RegExp(`(?:^|\\s)xmlns:${prefix}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`) : /(?:^|\s)xmlns\s*=\s*(?:"([^"]*)"|'([^']*)')/;
+  const ns = nsAttrRe.exec(root)?.slice(1).find((v) => v !== void 0);
+  if (localName2 === "lockobject" && ns === "http://www.sap.com/adt/ddic/enqu") return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `The XML for ${t.spec.label} ${t.name} has root element ${prefix ? `${prefix}:` : ""}${localName2 || "(none found)"}, not lockobject in namespace http://www.sap.com/adt/ddic/enqu.`,
+    { name: t.name, type: t.type, uri: t.uri, foundLocalName: localName2, foundPrefix: prefix },
+    'Object was NOT changed. The root element must be exactly lowercase enqu:lockobject in namespace "http://www.sap.com/adt/ddic/enqu" \u2014 the server rejects the root element itself before checking anything nested. Minimal working document: <enqu:lockobject xmlns:enqu="http://www.sap.com/adt/ddic/enqu" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="' + t.name + '" adtcore:type="ENQU/DL" adtcore:description="..."><adtcore:packageRef adtcore:name="$TMP"/><enqu:content><enqu:primaryTable><enqu:tableName>T000</enqu:tableName><enqu:lockMode>E</enqu:lockMode></enqu:primaryTable></enqu:content></enqu:lockobject>. Reading an existing lock object (e.g. E_TABLE) with format: "raw" shows the canonical shape.'
   );
 }
 var VALUE_INFORMATION_OPEN_RE = /<((?:[A-Za-z_][\w.-]*:)?)valueInformation\b([^>]*)>/gi;
@@ -93165,6 +93209,7 @@ async function writeObject(conn, target, opts) {
     opts = { ...opts, source: injectEmptyFixValues(t, opts.source) };
     assertPayloadMatchesTarget(t, opts.source);
     assertDomaMasterLanguage(t, opts.source);
+    assertLockObjectRoot(t, opts.source);
   }
   const current = await readCurrentSource(conn, t);
   const previousEtag = current === void 0 ? void 0 : canonicalEtag(current);
@@ -93468,6 +93513,7 @@ async function createByXml(conn, t, corr, payload) {
     }
     assertPayloadMatchesTarget(t, payload);
     assertDomaMasterLanguage(t, payload);
+    assertLockObjectRoot(t, payload);
     body = injectEmptyFixValues(t, payload);
     contentTypeHeader = contentType(t);
   }
@@ -93552,6 +93598,7 @@ async function putContent(conn, t, source, lockHandle, corr) {
   if (properties) {
     assertPayloadMatchesTarget(t, source);
     assertDomaMasterLanguage(t, source);
+    assertLockObjectRoot(t, source);
     source = injectEmptyFixValues(t, source);
   }
   let body;
@@ -93680,6 +93727,30 @@ async function tryCheckSource(conn, t, source) {
     return void 0;
   }
 }
+async function discloseDeleteUncertainty(conn, t, e) {
+  if (!isAbapError(e)) return e;
+  let verification;
+  try {
+    verification = await verifyObjectDeleted(conn, {
+      uri: contentUri(t),
+      accept: contentAccept(t),
+      objectName: t.name,
+      expectType: t.type
+    });
+  } catch {
+    return e;
+  }
+  const disclosure = verification.status === "confirmed-absent" ? `Despite this failure, ${t.spec.label} ${t.name} appears to have been deleted \u2014 it is no longer readable. Do not retry blindly; re-read first.` : verification.status === "confirmed" ? `${t.spec.label} ${t.name} is still there \u2014 nothing was deleted.` : `Whether ${t.spec.label} ${t.name} was deleted could not be settled. Re-read it before retrying.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, postFailureVerification: verification.status, postFailureVerificationUri: verification.uri },
+    e.hint ? `${e.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
 async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) {
   const t = target.target;
   const deleteInclude = t.include;
@@ -93778,6 +93849,8 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
       "A delete is only reversible through the before-image the journal records, and that image could not be captured. Nothing was locked and nothing was deleted \u2014 retry once the object reads cleanly."
     );
   }
+  let deleteIssued = false;
+  let deleteMayHaveLanded2 = false;
   await conn.withStatefulSession(async (session) => {
     const lock = await session.lock(t.uri);
     const fresh = await readCurrentSourceResult(conn, t);
@@ -93845,6 +93918,7 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
       throw transportRefusal(t, transport, "deleted", opts.transport !== void 0);
     }
     try {
+      deleteIssued = true;
       await conn.del(t.uri, {
         qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
       });
@@ -93855,10 +93929,13 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
         name: t.name,
         type: t.type
       });
+      deleteMayHaveLanded2 = err.code === "SESSION_DEAD" || !isAbapError(e) && adtExceptionInfo(e) === void 0;
       noteTransportDead(opts.transport, corr, err);
       throw err;
     }
     session.forgetLock(t.uri);
+  }).catch(async (e) => {
+    throw deleteIssued && deleteMayHaveLanded2 ? await discloseDeleteUncertainty(conn, t, e) : e;
   });
   let verification = await verifyObjectDeleted(conn, {
     uri: contentUri(t),
@@ -95355,36 +95432,28 @@ function clampMaxChars(maxChars) {
   return Math.min(maxChars, DEBUG_MAX_CHARS);
 }
 var breakpointConditionFields = {
-  condition: external_exports.string().trim().min(1).max(255).optional().describe(
-    'ABAP condition expression \u2014 breakpoint suspends only when true, e.g. "sy-tabix = 500".'
-  ),
-  skipCount: external_exports.number().int().nonnegative().max(1e6).optional().describe(
-    'Hits to ignore before suspending (0 = every hit). NOT ENFORCED by this backend \u2014 every hit still suspends; use step:"continue" instead.'
-  )
+  condition: external_exports.string().trim().min(1).max(255).optional(),
+  skipCount: external_exports.number().int().nonnegative().max(1e6).optional()
 };
 var lineBreakpointSchema = external_exports.object({
   ...breakpointConditionFields,
   kind: external_exports.literal("line"),
-  object: external_exports.string().describe(
-    'The class or report to break in (any form abap_read/abap_run accept: bare name, "class ZCL_FOO", a raw ADT URI, ...). Resolved server-side to a source URI.'
-  ),
+  object: external_exports.string().describe("Class or report to break in \u2014 any form abap_read/abap_run accept."),
   line: external_exports.number().int().min(1).max(999999).describe(
-    "1-based source line to break at. SAP may snap this to the nearest executable statement \u2014 if it does, the start response reports the corrected line."
+    "1-based; SAP may snap it to the nearest executable statement (the start response reports the correction)."
   )
 });
 var exceptionBreakpointSchema = external_exports.object({
   ...breakpointConditionFields,
   kind: external_exports.literal("exception"),
-  exceptionClass: external_exports.string().describe(
-    "ABAP exception class to break on when it is raised anywhere, e.g. CX_SY_ZERODIVIDE."
-  )
+  exceptionClass: external_exports.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE.")
 });
 var debugInputSchema = {
   action: external_exports.enum(["start", "step", "stack", "frame", "keepalive", "stop", "status"]).describe(
     "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. keepalive/stop/status need nothing."
   ),
   breakpoints: external_exports.array(external_exports.discriminatedUnion("kind", [lineBreakpointSchema, exceptionBreakpointSchema])).optional().describe(
-    '\u22651 entry, required only for action="start". Line/exception kinds may mix; validated against SAP before arming.'
+    '\u22651 entry, required for action="start"; kinds may mix and are validated against SAP before arming. Both kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
   ),
   run: external_exports.object({
     object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
@@ -96750,7 +96819,11 @@ async function deleteClassicViewViaBridge(conn, gate, params) {
   assertServerPackage(params.packageName, `view ${params.viewName}`);
   const { viewName } = validate2(params);
   const packageName = params.packageName.name;
-  assertBridgeMutation(gate, { type: "VIEW/DV", name: viewName, packageName }, { activate: false, op: "delete" });
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.deleteView,
     VIEW_DELETE_DATA_LINES,
@@ -96796,15 +96869,48 @@ function assertTransactionCode(value, what = "tcode") {
 function quoted3(validatedIdentifier) {
   return `'${validatedIdentifier}'`;
 }
+function assertCorrNr(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value;
+}
+function assertTransactionCreateTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", {
+    maxLength: PACKAGE_MAX_LENGTH2,
+    allowLocal: true
+  });
+  const local = isLocalPackageName(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) transaction is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this transaction must be registered in CTS via RPY_TRANSACTION_INSERT's own RS_CORR_INSERT call, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr(corrNr);
+  return validated;
+}
 var TRAN_DATA_LINES = [];
 function transactionFragment(p) {
   const tcode = assertTransactionCode(p.tcode);
   const program = assertEnhIdentifier(p.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
   const description = assertAbapText(p.description, "description", TTEXT_MAX_LENGTH);
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH2,
-    allowLocal: true
-  });
+  const packageName = assertTransactionCreateTarget(p.packageName, p.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? void 0 : p.corrNr;
   return [
     "CALL FUNCTION 'RPY_TRANSACTION_INSERT'",
     `  EXPORTING transaction       = ${quoted3(tcode)}`,
@@ -96812,6 +96918,8 @@ function transactionFragment(p) {
     `            dynpro            = ${quoted3(REPORT_DYNPRO)}`,
     "            language          = sy-langu",
     `            development_class = ${quoted3(packageName)}`,
+    // A local ($-prefixed) package has no transport request to name; space is ABAP's SPACE constant, not a quoted literal.
+    local ? "            transport_number  = space" : `            transport_number  = ${quoted3(corrNr)}`,
     `            transaction_type  = ${quoted3(TRANSACTION_TYPE_REPORT)}`,
     `            shorttext         = ${abapLiteral(description)}`,
     "  EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3",
@@ -96830,15 +96938,19 @@ async function createTransaction(conn, gate, params) {
   const tcode = assertTransactionCode(params.tcode);
   const program = assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
   const description = assertAbapText(params.description, "description", TTEXT_MAX_LENGTH);
-  const packageName = assertEnhIdentifier(params.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH2,
-    allowLocal: true
-  });
-  assertBridgeMutation(gate, { type: "TRAN/T", name: tcode, packageName }, { activate: false });
+  const packageName = assertTransactionCreateTarget(params.packageName, params.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? void 0 : params.corrNr;
+  const corr = local ? void 0 : { kind: "transport", corrNr, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, ...corr !== void 0 ? { corr } : {} }
+  );
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.createTransaction,
     TRAN_DATA_LINES,
-    transactionFragment({ tcode, program, description, packageName })
+    transactionFragment({ tcode, program, description, packageName, corrNr })
   );
   return runDdicBridge(conn, gate, {
     className: DDIC_BRIDGE_CLASS.createTransaction,
@@ -96894,7 +97006,11 @@ async function deleteTransactionViaBridge(conn, gate, params) {
     maxLength: PACKAGE_MAX_LENGTH3,
     allowLocal: true
   });
-  assertBridgeMutation(gate, { type: "TRAN/T", name: tcode, packageName }, { activate: false, op: "delete" });
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.deleteTransaction,
     TRAN_DELETE_DATA_LINES,
@@ -97391,6 +97507,30 @@ async function performBridgeCreateUndo(conn, gate, plan, onBeforeImage) {
   if (outcome.status === "confirmed-absent") return { deleted: true, verification: outcome };
   return { deleted: "unverified", verification: outcome };
 }
+function discloseUndoActivationFailure(e, target, entry, undoEntryId) {
+  if (!isAbapError(e)) return e;
+  const residueHint = `The restore itself already landed: ${target.name}'s before-image is saved on the server as the INACTIVE version, but activation failed, so the ACTIVE version is still the newer one this undo was trying to replace. This undo's own journal entry` + (undoEntryId ? ` (${undoEntryId})` : "") + ` is left \`pending\` on purpose \u2014 the outcome is not proven either way \u2014 and the original entry (${entry.id}) was NOT marked undone. Do not undo again blindly: re-read the object and activate it deliberately instead.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    {
+      ...e.details,
+      name: target.name,
+      type: target.type,
+      uri: target.uri,
+      operation: "undo",
+      phase: "post-restore-activation",
+      written: true,
+      activated: false,
+      entry: entry.id,
+      ...undoEntryId !== void 0 ? { journal: undoEntryId } : {}
+    },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
 async function performUndo(conn, journal, entry, opts) {
   if (typeof opts?.assertAllowed !== "function") {
     throw new AbapError(
@@ -97579,7 +97719,11 @@ async function performUndo(conn, journal, entry, opts) {
           "Another writer changed this object between abapsmith's PUT and its activation \u2014 the object lock does NOT span activation, and activation cannot be pinned to a version on this protocol. DO NOT simply undo again: the before-image already landed and was then overwritten, so a blind retry re-runs the same race and silently discards the other writer's work. Read the object (abap_read) to see what is actually there now, merge the two changes deliberately, and write the merged source. The last ACTIVE version is untouched and still what callers run."
         );
       }
-      activation = await activateObject(conn, written.target);
+      try {
+        activation = await activateObject(conn, written.target);
+      } catch (e) {
+        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
+      }
     }
     await settle({
       outcome: "succeeded",
@@ -99751,7 +99895,7 @@ function assertSoftwareComponent(value, what = "softwareComponent") {
   }
   return value;
 }
-function assertCorrNr(value) {
+function assertCorrNr2(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -99805,7 +99949,7 @@ function packageFragment(p) {
   const packageName = assertEnhIdentifier(p.packageName, "packageName", { maxLength: PACKAGE_MAX_LENGTH4 });
   const description = assertAbapText(p.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(p.softwareComponent);
-  const corrNr = assertCorrNr(p.corrNr);
+  const corrNr = assertCorrNr2(p.corrNr);
   const packType = assertPackageType(p.packageType);
   const superPackage = p.superPackage === void 0 ? void 0 : assertEnhIdentifier(p.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const lines = [
@@ -99969,7 +100113,7 @@ async function createPackageViaBridge(conn, gate, params) {
   });
   const description = assertAbapText(params.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(params.softwareComponent);
-  const corrNr = assertCorrNr(params.corrNr);
+  const corrNr = assertCorrNr2(params.corrNr);
   assertPackageType(params.packageType);
   const superPackage = params.superPackage === void 0 ? void 0 : assertEnhIdentifier(params.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const corr = { kind: "transport", corrNr, source: params.corrSource ?? "auto" };
@@ -100029,41 +100173,11 @@ function dictObjectKey(viewName) {
 function isLocalPackage(packageName) {
   return isLocalPackageName(packageName);
 }
-var MEASURED_PACKAGE = "$TMP";
-function isMeasuredPackage(packageName) {
-  return packageName.trim().toUpperCase() === MEASURED_PACKAGE;
-}
-function assertClassicViewCreateSupported(packageName) {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
-  const opening = `No retry will succeed for package ${JSON.stringify(validated)} or any other: abapsmith cannot create a classic view for any package, so create it in SE11/SE14 by hand instead. `;
-  if (isMeasuredPackage(validated)) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      opening + `$TMP is not the exception, and omitting \`package\` (which resolves to $TMP) does not reach one: it is the one package a create was ever attempted into, and the attempt is refused now because of what it did, not what it failed to do. Measured 2026-08-30, a $TMP create lands ACTIVE but unregistered in TADIR, so the view carries no packageRef, so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably too. Succeeding at minting an object abapsmith is then obliged to refuse to remove is not a working create. ${TERMINAL_REFUSAL_NOTE}`,
-      { packageName: validated },
-      "No retry will succeed. Create the view in SE11/SE14, or use a CDS view (DDLS/DF) \u2014 the modern equivalent, which abapsmith both writes and reads."
-    );
-  }
-  if (isLocalPackageName(validated)) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      opening + `It is local (\`$\`-prefixed) but not $TMP, so the object-key rejection a transportable package hits is not the obstacle here \u2014 a local package is never registered in CTS at all, and no TADIR-registration call is generated for it. This package itself has never been tried \u2014 that is untried, not measured \u2014 and $TMP, the one package that WAS tried, is refused too: measured 2026-08-30, a $TMP create lands active but unregistered in TADIR, so it carries no packageRef, so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably. Trying this package would risk minting another orphan abapsmith cannot clear. ${TERMINAL_REFUSAL_NOTE}`,
-      { packageName: validated },
-      "No retry will succeed. A stranded view needs SE11/SE14 to clear by hand."
-    );
-  }
-  throw new AbapError(
-    "UNSUPPORTED",
-    opening + `It is not $TMP. Two obstacles a transportable create hit live are now addressed in the generated ABAP, and neither is proven: RS_CORR_INSERT rejected the bare view name as its object key (object_class = 'DICT', sy-subrc=1, TK103 "This syntax cannot be used for an object name") and is now handed the 44-character DICT key that parameter reads, and it now runs BEFORE DDIF_VIEW_PUT rather than after its COMMIT WORK, so a rejected registration can no longer strand the active, packageRef-less view earlier attempts left behind. Both are read off the function module's source, not measured, so the create stays refused until a live run shows it working. $TMP is not an escape from any of this, and is no longer attempted at all: measured 2026-08-30, a $TMP create lands active but unregistered in TADIR, so it carries no packageRef, so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably too. ${TERMINAL_REFUSAL_NOTE}`,
-    { packageName: validated },
-    "No retry will succeed. A stranded view \u2014 from either path \u2014 needs SE11/SE14 to clear by hand."
-  );
-}
 function quotedIdentifier(value, what, opts = {}) {
   return abapLiteral(assertEnhIdentifier(value, what, { maxLength: VIEW_NAME_MAX2, ...opts }));
 }
 var PACKAGE_RULES2 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
-function assertCorrNr2(value) {
+function assertCorrNr3(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -100072,6 +100186,27 @@ function assertCorrNr2(value) {
     );
   }
   return value;
+}
+function assertClassicViewCreateTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
+  const local = isLocalPackage(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) view is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr3(corrNr);
+  return validated;
 }
 function validate3(p) {
   const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX2 });
@@ -100094,24 +100229,8 @@ function validate3(p) {
     (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX2 })
   );
   const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", PACKAGE_RULES2);
-  const local = isLocalPackage(packageName);
-  if (local && p.corrNr !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(p.corrNr)} was supplied for local package ${JSON.stringify(packageName)}, but a local ($-prefixed) view is never registered in CTS at all \u2014 RS_CORR_INSERT is not generated for it \u2014 so there is nothing here for a transport request to attach to.`,
-      { viewName, baseTable, packageName, corrNr: p.corrNr }
-    );
-  }
-  if (!local && p.corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
-      { viewName, baseTable, packageName },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
-    );
-  }
-  const corrNr = local ? void 0 : assertCorrNr2(p.corrNr);
+  const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
+  const corrNr = isLocalPackage(packageName) ? void 0 : p.corrNr;
   return { viewName, baseTable, fields, description, packageName, corrNr };
 }
 var VIEW_DATA_LINES = [
@@ -100126,34 +100245,33 @@ function classicViewFragment(p) {
   const { viewName, baseTable, fields, description, packageName, corrNr } = validate3(p);
   const view = quotedIdentifier(viewName, "viewName");
   const table = quotedIdentifier(baseTable, "baseTable");
+  const local = isLocalPackage(packageName);
   const lines = [];
-  if (!isLocalPackage(packageName)) {
-    lines.push(
-      // --- TADIR/transport registration, BEFORE any dictionary write: a key
-      //     RS_CORR_INSERT rejects then strands nothing. Skipped for any
-      //     local ($-prefixed) package — see isLocalPackage's doc comment;
-      //     do not make this unconditional without new live evidence.
-      "CALL FUNCTION 'RS_CORR_INSERT'",
-      // ABAP drops a text-field literal's trailing blanks; the formal
-      // parameter (DDOBJNAME, CHAR44) re-pads to its declared length, so the
-      // literal emitted here and the key SAP actually reads are the same
-      // 44-byte layout.
-      `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
-      "            object_class = 'DICT'",
-      `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES2)}`,
-      "            master_language = sy-langu",
-      "            mode = 'INSERT'",
-      // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
-      "            global_lock = 'X'",
-      // suppress_dialog = 'X' sets iv_dialog = 'D', suppressing the request-selection dynpro
-      // (korrnum alone reaches only iv_order).
-      `            korrnum = ${abapLiteral(corrNr)}`,
-      "            suppress_dialog = 'X'",
-      "  EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.",
-      ...subrcCheckFragment("RS_CORR_INSERT", "VIEW-REGISTERED"),
-      ""
-    );
-  }
+  lines.push(
+    // --- TADIR registration, BEFORE any dictionary write: a key
+    //     RS_CORR_INSERT rejects then strands nothing. Runs for every
+    //     package; only korrnum differs (TRKORR vs space) below.
+    "CALL FUNCTION 'RS_CORR_INSERT'",
+    // ABAP drops a text-field literal's trailing blanks; the formal
+    // parameter (DDOBJNAME, CHAR44) re-pads to its declared length, so the
+    // literal emitted here and the key SAP actually reads are the same
+    // 44-byte layout.
+    `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
+    "            object_class = 'DICT'",
+    `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES2)}`,
+    "            master_language = sy-langu",
+    "            mode = 'INSERT'",
+    // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
+    "            global_lock = 'X'",
+    // A local ($-prefixed) package has no transport request to name; space is ABAP's SPACE constant, not a quoted literal.
+    local ? "            korrnum = space" : `            korrnum = ${abapLiteral(corrNr)}`,
+    // suppress_dialog = 'X' sets iv_dialog = 'D', suppressing the request-selection dynpro
+    // (korrnum alone reaches only iv_order).
+    "            suppress_dialog = 'X'",
+    "  EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.",
+    ...subrcCheckFragment("RS_CORR_INSERT", "VIEW-REGISTERED"),
+    ""
+  );
   lines.push(
     // --- DD25V: the view header (field names/constants are ASSUMPTIONS, see doc comment above).
     "CLEAR ls_dd25v.",
@@ -100225,14 +100343,13 @@ function classicViewFragment(p) {
 function viewCreatePartialSuccess(viewName) {
   return {
     completed: {
-      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR and on the transport request, before any dictionary write \u2014 no view was created by it.`,
+      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR \u2014 on the transport request for a transportable package, with korrnum = space for a local one \u2014 before any dictionary write; no view was created by it.`,
       "VIEW-PUT": `DDIF_VIEW_PUT wrote ${viewName}, and the COMMIT WORK that follows it committed it, inactive.`
     },
-    hint: `If VIEW-PUT fired, ${viewName} exists AND is registered \u2014 abap_write mode="delete" type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only the TADIR/transport entry exists \u2014 remove it from the request in SE09/SE10, or reuse it by re-running the create into the same request.`
+    hint: `If VIEW-PUT fired, ${viewName} exists AND is registered \u2014 abap_write mode="delete" type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only the TADIR entry exists \u2014 for a transportable package, remove it from the request in SE09/SE10, or reuse it by re-running the create into the same request; for a local package (korrnum = space) it is registered but not on any request.`
   };
 }
 async function createClassicView(conn, gate, params) {
-  assertClassicViewCreateSupported(params.packageName);
   const validated = validate3(params);
   const { viewName, packageName, corrNr } = validated;
   const corr = isLocalPackage(packageName) ? void 0 : { kind: "transport", corrNr, source: "named" };
@@ -100246,7 +100363,7 @@ async function createClassicView(conn, gate, params) {
     VIEW_DATA_LINES,
     classicViewFragment(validated)
   );
-  const expectTags = isLocalPackage(packageName) ? ["VIEW-PUT", "VIEW-ACTIVATED"] : ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
+  const expectTags = ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
   const partial2 = viewCreatePartialSuccess(viewName);
   return runDdicBridge(conn, gate, {
     className: DDIC_BRIDGE_CLASS.createView,
@@ -100614,7 +100731,7 @@ var writeInputSchema = {
   // (src/tools/read.ts), turns a typo into a schema rejection.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe("CLAS/OC only; testclasses=ABAP Unit tests, default main."),
   package: external_exports.string().optional().describe(
-    "Package for a NEW object. Default $TMP. VIEW/DV: that create is refused for every package, and for an omitted one."
+    "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs corr_nr, a $-package refuses it."
   ),
   description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
   // Structured create for the three XML-only DDIC types, so a
@@ -100646,7 +100763,7 @@ var writeInputSchema = {
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
   corr_nr: external_exports.string().optional().describe(
-    "Transport request. $TMP needs none. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete."
+    "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete."
   ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
@@ -100658,8 +100775,8 @@ var writeInputSchema = {
   // deliberately: schema prose is billed on every `tools/list`, while the
   // fuller guidance is billed only to a caller who gets it wrong
   // (`abapCreateViaBridge`, below) — see test/tools.test.ts's "tool surface".
-  base_table: external_exports.string().optional().describe("VIEW/DV only, and that create is refused: unreachable."),
-  view_fields: external_exports.array(external_exports.string()).optional().describe("VIEW/DV only, and that create is refused: unreachable."),
+  base_table: external_exports.string().optional().describe("VIEW/DV create only: the single base table the view projects."),
+  view_fields: external_exports.array(external_exports.string()).optional().describe("VIEW/DV create only: base-table fields to project, in order."),
   // "EXISTING" and "SUBMIT-only" are load-bearing: abapsmith checks the
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.
@@ -100810,6 +100927,9 @@ function deleteNotConfirmedSentence(type, name, verification) {
 }
 function packageDeleteTransportNote(corrNr) {
   return `Transport ${corrNr} was gate-approved and passed to the delete bridge, but on a live system this was observed to NOT record the deletion into ${corrNr} (or into any other request) \u2014 package deletes run through CL_PACKAGE_FACTORY's own SAVE, not the ordinary ADT DELETE this field usually confirms. Do not infer the deletion is captured in this transport.`;
+}
+function bridgeDeleteTransportEntryNote(label, name, packageName) {
+  return `${label} ${name} was in transportable package ${packageName}, but this delete recorded nothing in CTS \u2014 the bridge passes no request and issues no RS_CORR_INSERT. Any entry it already had on a transport request survives it; remove it with \`abap_transport\` operation: "removeObject" (transport, object, confirm), which needs ABAP_MODE=admin.`;
 }
 function resolvedObjectAdapter(conn, t) {
   return {
@@ -102094,9 +102214,9 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
   if (verifyOutcome.status === "confirmed-absent") {
     throw new AbapError(
       "CHECK_FAILED",
-      `${DDIC_BRIDGE_CLASS.createPackage} reported success (the transcript carries ${bridgeRes.transcript.tags.join(", ")}) but ${target.name} does not exist on a follow-up repository search (${verifyOutcome.uri}, via ${verifyOutcome.via}). This is the same false-success shape VIEW/DV was once reproduced against live for (see abapCreateViaBridge above) \u2014 abapsmith will not report a package create as successful when it can prove the package is not there. This was already journalled as created above: if CL_PACKAGE_FACTORY did leave something behind despite this, confirm it and delete it (abap_write mode=delete, while empty) or clean up by hand in SE21.`,
+      `${DDIC_BRIDGE_CLASS.createPackage} reported success (the transcript carries ${bridgeRes.transcript.tags.join(", ")}) but a follow-up repository search returned no hit for ${target.name} (${verifyOutcome.uri}, via ${verifyOutcome.via}) \u2014 the same false-success shape VIEW/DV was once reproduced against live for (see abapCreateViaBridge above). The search is calibrated for packages: live, a package present in TDEVC was found by it both as a local and as a transportable package, so a miss is strong evidence the create did not land \u2014 evidence, not proof of absence. This was already journalled as created above: confirm which it is before acting, and if CL_PACKAGE_FACTORY did leave something behind, delete it (abap_write mode=delete, while empty) or clean up by hand in SE21.`,
       { object: target.name, type: "DEVC/K", markers: bridgeRes.transcript.tags.join(" ") },
-      'Confirm by hand with abap_search mode=objects type="DEVC/K", or in SE21.'
+      'Confirm before acting: abap_search mode=objects type="DEVC" for this name, or read TDEVC directly (abap_data_preview, devclass = the package name). SE21 also shows it.'
     );
   } else if (verifyOutcome.status === "confirmed") {
     verified = true;
@@ -102217,14 +102337,9 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
   if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
     bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
   }
-  if (type === "TRAN/T" && normalizeCorrNr(input.corr_nr) !== void 0) {
-    bad(
-      "`corr_nr` cannot be honoured for a TRAN/T create: RPY_TRANSACTION_INSERT runs its own RS_CORR_INSERT internally, and abapsmith's own call passes no transport parameter for it to act on, so a supplied corr_nr would be dropped silently (whether the FM itself accepts one is unverified).",
-      "Create into $TMP, or let RPY_TRANSACTION_INSERT's own RS_CORR_INSERT assign the request."
-    );
-  }
   const packageName = target.packageName?.trim() || "$TMP";
-  if (type === "VIEW/DV") assertClassicViewCreateSupported(packageName);
+  if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
+  if (type === "TRAN/T") assertTransactionCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
   const description = input.description?.trim();
   if (!description) {
     bad(
@@ -102332,13 +102447,14 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
       );
     }
     bridgeClass = DDIC_BRIDGE_CLASS.createTransaction;
+    const corrNr = normalizeCorrNr(input.corr_nr);
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
       { name: target.name, type, uri: objectUri, packageName, description },
       beforeCapture,
-      void 0,
-      () => createTransaction(conn, gate, { ...common, tcode: target.name, program })
+      corrNr,
+      () => createTransaction(conn, gate, { ...common, tcode: target.name, program, corrNr })
     ));
     detail = `report transaction starting ${program} (dynpro 1000)`;
     const outcome = await verifyObjectCreated(conn, {
@@ -102351,7 +102467,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
         "CHECK_FAILED",
         `${bridgeClass} reported success (the transcript carries ${created.transcript.tags.join(", ")}) but a follow-up read at ${outcome.uri} (via ${outcome.via}) did not find ${target.name} \u2014 not proof the object is absent (the same gap was measured for VIEW/DV, over the same verification path). abapsmith will not report a create as successful when the follow-up read cannot find the object.` + (entryId !== void 0 ? ` This was already journalled as ${entryId}; whether undo has anything to act on is unresolved \u2014 the object may still exist.` : ""),
         { object: target.name, type, markers: created.transcript.tags.join(" ") },
-        "This is the exact failure mode VIEW/DV is refused over; if this recurs for TRAN/T, treat it as a live regression in the bridge, not a fluke."
+        "This is the exact failure mode VIEW/DV's read-back above guards against; if this recurs for TRAN/T, treat it as a live regression in the bridge, not a fluke."
       );
     }
     registration = bridgeCreateRegistration(outcome);
@@ -102414,7 +102530,8 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
   }
   if (normalizeCorrNr(input.corr_nr) !== void 0) {
     bad(
-      `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts), so abapsmith would be dropping the value silently.`
+      `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts). None is needed either \u2014 the delete registers nothing in CTS, so it is judged as a local mutation and no transport allowlist blocks it.`,
+      'Retry without `corr_nr`. Any entry the object already had on a transport request survives this delete; use `abap_transport` operation: "removeObject" (transport, object, confirm) for that, which needs ABAP_MODE=admin.'
     );
   }
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
@@ -102500,8 +102617,9 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
     notes: [
       `Deleted by running a generated ${bridgeClass} classrun bridge, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
       verifyNote,
-      "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this object. To bring it back, create it again with a fresh abap_write call."
-    ],
+      "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this object. To bring it back, create it again with a fresh abap_write call.",
+      isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName)
+    ].filter((n) => n !== ""),
     maxChars
   });
 }
@@ -102510,7 +102628,7 @@ function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable. VIEW/DV create refused for every package. DEVC/K delete only if empty.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -103316,12 +103434,45 @@ async function opCreate(conn, input, maxChars, gate, journal, ownership) {
     maxChars
   });
 }
+function mutationMayHaveLanded(e) {
+  return e instanceof AbapError && (e.code === "SESSION_DEAD" || e.code === "TRANSPORT_ERROR" && e.details.status === void 0);
+}
+function discloseUnprovenMutation(e, trkorr) {
+  const residueHint = `Whether this reached ${trkorr} is unknown \u2014 the response was lost, not refused. Its journal entry stays \`pending\`; re-check with abap_transport {"operation":"show"} before retrying.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, trkorr },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
 async function opAddUser(conn, input, maxChars, gate, journal) {
   const trkorr = normTrkorr(input.transport, "addUser");
   const user = required2(input.user, "user", "addUser").toUpperCase();
   assertCeiling(gate, "plain", "addUser");
   const proof = authorizeCeiling(gate, "transport");
-  const res = await trAddUser(conn, trkorr, user, proof);
+  let res;
+  try {
+    res = await trAddUser(conn, trkorr, user, proof);
+  } catch (e) {
+    if (!mutationMayHaveLanded(e)) throw e;
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-add-user",
+        trkorr,
+        description: `addUser ${user} \u2014 POST response lost, outcome unproven`,
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_transport addUser"
+      },
+      { kind: "unproven", reason: e.message }
+    );
+    throw discloseUnprovenMutation(e, trkorr);
+  }
   await recordMutation(
     journal,
     {
@@ -103355,7 +103506,25 @@ async function opSetOwner(conn, input, maxChars, gate, journal) {
   const user = required2(input.user, "user", "setOwner").toUpperCase();
   assertCeiling(gate, "plain", "setOwner");
   const proof = authorizeCeiling(gate, "transport");
-  const res = await trSetOwner(conn, trkorr, user, proof);
+  let res;
+  try {
+    res = await trSetOwner(conn, trkorr, user, proof);
+  } catch (e) {
+    if (!mutationMayHaveLanded(e)) throw e;
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-set-owner",
+        trkorr,
+        description: `setOwner ${user} \u2014 PUT response lost, outcome unproven`,
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_transport setOwner"
+      },
+      { kind: "unproven", reason: e.message }
+    );
+    throw discloseUnprovenMutation(e, trkorr);
+  }
   await recordMutation(
     journal,
     {
@@ -105087,6 +105256,25 @@ function buildCreateBody(input) {
   const nodeId = mintGuid("node");
   return `<?xml version="1.0" encoding="UTF-8"?><bo:businessObject xmlns:bo="http://www.sap.com/bopf/bo/BusinessObject" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${xmlEscape(input.name.toUpperCase(), "adtcore:name")}" adtcore:type="${BOPF_TYPE}"${desc}><adtcore:packageRef adtcore:name="${xmlEscape(input.packageName.toUpperCase(), "adtcore:packageRef/@adtcore:name")}"/><bo:nodes bo:name="${xmlEscape(rootName, "bo:nodes/@bo:name")}" bo:nodeID="${nodeId}" bo:xmlName="${xmlEscape(rootName, "bo:nodes/@bo:xmlName")}" bo:objectModelGenerated="false" bo:authorizationCheck="false" bo:isExtensible="false" bo:isDependentObjectNode="false" bo:textNode="false" bo:createEnabled="true" bo:updateEnabled="true" bo:deleteEnabled="true" bo:rootNode="true" bo:objectModelObsolete="false"/></bo:businessObject>`;
 }
+async function discloseFailedPut(conn, bo, base) {
+  let note;
+  try {
+    await readModel(conn, bo);
+    note = "a re-read after the failed PUT still succeeds \u2014 inspect the current model before assuming nothing changed.";
+  } catch (probeErr) {
+    note = `a re-read after the failed PUT also failed: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosure = `A failed PUT is not proof the model is unchanged \u2014 ${note}`;
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
 async function putModel(conn, session, bo, mutate, authorized) {
   assertAuthorizedMatches(authorized, { name: bo }, "putModel");
   const uri = bopfUri(bo);
@@ -105121,8 +105309,9 @@ async function putModel(conn, session, bo, mutate, authorized) {
           body: payload
         });
       } catch (e) {
-        if (isAbapError(e)) throw e;
-        throw translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+        const base = isAbapError(e) ? e : translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+        const mayHaveLanded = base.code === "SESSION_DEAD" || !isAbapError(e) && adtExceptionInfo(e) === void 0;
+        throw mayHaveLanded ? await discloseFailedPut(conn, bo, base) : base;
       }
       return payload;
     }
@@ -105175,6 +105364,24 @@ async function activateBusinessObject(conn, bo) {
 function ddicSparedReason(refSite) {
   return `referenced via ${refSite} \u2014 the model does not record whether this BO generated it, so it is not deleted`;
 }
+async function discloseDeleteFailureProbe(conn, bo, base) {
+  let note;
+  try {
+    await conn.get(bopfUri(bo), { headers: { Accept: BOPF_ACCEPT_V4 } });
+    note = "a re-read right after the failed DELETE still finds the object \u2014 the delete did not land.";
+  } catch (probeErr) {
+    note = isNotFoundLike(probeErr) ? "a re-read right after the failed DELETE no longer finds the object \u2014 the delete may have landed despite the failure; re-read before retrying." : `a re-read right after the failed DELETE could not be settled: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${note}` : note
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
 async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = {}) {
   assertAuthorizedMatches(authorized, { name: bo }, "deleteBusinessObject");
   if (opts.cascadeDdic && !gate.config.allowCascadeDelete) {
@@ -105225,8 +105432,8 @@ async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = 
       await session.unlock(uri);
     } catch {
     }
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
+    const base = isAbapError(e) ? e : translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
+    throw await discloseDeleteFailureProbe(conn, bo, base);
   }
   try {
     await session.unlock(uri);
@@ -105331,14 +105538,37 @@ async function deleteDdicCandidate(conn, session, cand, authorized) {
   try {
     await conn.del(cand.uri, { qs: { lockHandle: lock.handle } });
   } catch (e) {
-    return {
-      name: cand.name,
-      kind: cand.kind,
-      uri: cand.uri,
-      existed: true,
-      deleted: false,
-      reason: `delete failed: ${describeUnknownError(e)}`
-    };
+    const deleteFailure = `delete failed: ${describeUnknownError(e)}`;
+    try {
+      await conn.get(cand.uri, { headers: { Accept: "*/*" } });
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: false,
+        reason: `${deleteFailure}; a read-back of the same URI still finds the object`
+      };
+    } catch (probeErr) {
+      if (isNotFoundLike(probeErr)) {
+        return {
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          existed: true,
+          deleted: true,
+          reason: `${deleteFailure}, but a read-back of the same URI confirms the object is gone`
+        };
+      }
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: "unverified",
+        reason: `${deleteFailure}; the read-back to confirm it also failed: ${describeUnknownError(probeErr)}`
+      };
+    }
   } finally {
     try {
       await session.unlock(cand.uri);
@@ -112309,12 +112539,19 @@ function parseEnhancementTranscript(raw) {
   }
   return { tags, errorLine, raw };
 }
+function epilogueFailureHint(tags) {
+  if (tags.length === 0) {
+    return "The bridge raised before writing any progress marker, so nothing here shows the object was created, saved, or locked. Do not assume either outcome \u2014 read the object before deciding whether to run the bridge again.";
+  }
+  return `Already landed per the transcript: ${tags.join(", ")}. The generated bridge's SAVE may have committed before ACTIVATE raised, and its UNLOCK never ran afterwards, so the object may still hold an enqueue lock. Do not blindly re-run the bridge \u2014 re-read the object first to see what actually landed. A stranded lock clears in SM12, or on its own once the owning session ends.`;
+}
 function assertEnhTranscript(result, expectTags, what) {
   if (result.errorLine) {
     throw new AbapError(
       "CHECK_FAILED",
       `${what} raised an ABAP exception: ${result.errorLine}`,
-      { raw: result.raw }
+      { raw: result.raw, ...result.tags.length ? { landedTags: result.tags } : {} },
+      epilogueFailureHint(result.tags)
     );
   }
   const missing = expectTags.filter((t) => !result.tags.includes(t));

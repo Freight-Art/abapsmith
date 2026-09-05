@@ -4,10 +4,11 @@
  * touches a real SAP system. Same harness idiom as test/write.test.ts and
  * test/write-package.test.ts: REAL production code drives a fake socket.
  *
- * Scope: `abapCreateViaBridge`'s `corr_nr` handling and its VIEW/DV create
- * refusal (every package, `$TMP` and an omitted `package` included, so the
- * post-create notes below are asserted on TRAN/T, the one bridge create that
- * still runs), and the
+ * Scope: `abapCreateViaBridge`'s `corr_nr`/`package` pairing for VIEW/DV
+ * (RS_CORR_INSERT now registers a view for every package, so the create
+ * reaches the bridge for a transportable package WITH corr_nr, for $TMP, and
+ * for an omitted `package`; a bad pairing — corr_nr on a $ package, or none
+ * on a transportable one — is still refused, zero-network), and the
  * new `abapDeleteViaBridge` dispatch — most load-bearingly, that a
  * delete's package is judged against a SERVER-confirmed value via
  * `verifyViaVitBridge`, never a caller-supplied `package`. Neither delete
@@ -242,105 +243,73 @@ const TRAN_INPUT = {
 // Task 1: corr_nr narrowing on create
 // ---------------------------------------------------------------------------
 
-describe("abapCreateViaBridge — corr_nr handling, and the VIEW/DV create refused for every package", () => {
+describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV create runs for every package", () => {
   const VIEW = "ZMCP_V_CARRIER";
   const BRIDGE = DDIC_BRIDGE_CLASS.createView;
+  const validInput = {
+    object: VIEW,
+    type: "VIEW/DV",
+    description: "Carriers",
+    base_table: "ZMCP_CARRIER",
+    view_fields: ["CARRIER_ID", "NAME"],
+  };
 
-  it("VIEW/DV into a transportable package WITH corr_nr is refused UNSUPPORTED before any network call", async () => {
-    // A route that WOULD succeed if reached — proves the refusal, not a
-    // missing route, is what stops this.
-    const classrun = classrunRoute(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"]);
-    const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV");
-    const { conn, adt } = await connected(
-      both(bridgeDeployRoute(BRIDGE), classrun, vit),
+  it("a transportable package WITH a valid corr_nr reaches the bridge and the create succeeds", async () => {
+    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "ZTM");
+    const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const result = await abapWrite(
+      conn,
+      { ...validInput, package: "ZTM", corr_nr: "TR1K900123" },
+      MAX,
+      gate(),
     );
-    const e = await catchErr(
-      abapWrite(
-        conn,
-        {
-          object: VIEW,
-          type: "VIEW/DV",
-          package: "ZTM",
-          description: "Carriers",
-          base_table: "ZMCP_CARRIER",
-          view_fields: ["CARRIER_ID", "NAME"],
-          corr_nr: "TR1K900123",
-        },
-        MAX,
-        gate(),
-      ),
-    );
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(adt.calls.length).toBe(0);
+    expect(result.text).toMatch(/created: true/);
+    expect(result.text).toMatch(/verified: true/);
+    expect(result.text).toMatch(new RegExp(BRIDGE));
+    expect(adt.calls.length).toBeGreaterThan(0);
   });
 
-  it("VIEW/DV into a non-$TMP package WITHOUT corr_nr is refused UNSUPPORTED before any network call — abapCreateViaBridge's own guard, ahead of view-create.ts's validate()", async () => {
+  it("a transportable package with NO corr_nr is refused TRANSPORT_ERROR before any network call", async () => {
     const offline = null as unknown as AbapConnection;
     const e = await catchErr(
-      abapWrite(
-        offline,
-        {
-          object: VIEW,
-          type: "VIEW/DV",
-          package: "ZTM",
-          description: "Carriers",
-          base_table: "ZMCP_CARRIER",
-          view_fields: ["CARRIER_ID", "NAME"],
-        },
-        MAX,
-        gate(),
-      ),
+      abapWrite(offline, { ...validInput, package: "ZTM" }, MAX, gate()),
     );
-    expect(e.code).toBe("UNSUPPORTED");
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(String(e.message)).toMatch(/corr_nr/);
   });
 
-  it("VIEW/DV into $TMP is refused UNSUPPORTED too, with a route that WOULD have succeeded — $TMP is not the exception, it is the one package the refusal is measured on", async () => {
-    const classrun = classrunRoute(["VIEW-PUT", "VIEW-ACTIVATED"]);
+  it("$TMP reaches the bridge too — RS_CORR_INSERT registers it with korrnum = space, not a refusal", async () => {
+    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
     const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "$TMP");
     const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
-    const e = await catchErr(
-      abapWrite(
-        conn,
-        {
-          object: VIEW,
-          type: "VIEW/DV",
-          package: "$TMP",
-          description: "Carriers",
-          base_table: "ZMCP_CARRIER",
-          view_fields: ["CARRIER_ID", "NAME"],
-        },
-        MAX,
-        gate(),
-      ),
-    );
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/unregistered in TADIR/);
-    expect(String(e.message)).toMatch(/PACKAGE_UNKNOWN/);
-    expect(adt.calls.length).toBe(0);
+    const result = await abapWrite(conn, { ...validInput, package: "$TMP" }, MAX, gate());
+    expect(result.text).toMatch(/created: true/);
+    expect(result.text).toMatch(/package: \$TMP/);
+    expect(adt.calls.length).toBeGreaterThan(0);
   });
 
-  it("an OMITTED `package` is refused as well — it defaults to $TMP inside abapCreateViaBridge, so leaving the argument out must not be a way past the refusal", async () => {
+  it("an OMITTED `package` defaults to $TMP inside abapCreateViaBridge and reaches the bridge just the same", async () => {
+    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "$TMP");
+    const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const result = await abapWrite(conn, { ...validInput }, MAX, gate());
+    expect(result.text).toMatch(/created: true/);
+    expect(result.text).toMatch(/package: \$TMP/);
+    expect(adt.calls.length).toBeGreaterThan(0);
+  });
+
+  it("a $ package WITH a corr_nr is refused BAD_INPUT before any network call", async () => {
     const offline = null as unknown as AbapConnection;
     const e = await catchErr(
-      abapWrite(
-        offline,
-        {
-          object: VIEW,
-          type: "VIEW/DV",
-          description: "Carriers",
-          base_table: "ZMCP_CARRIER",
-          view_fields: ["CARRIER_ID", "NAME"],
-        },
-        MAX,
-        gate(),
-      ),
+      abapWrite(offline, { ...validInput, package: "$TMP", corr_nr: "TR1K900123" }, MAX, gate()),
     );
-    expect(e.code).toBe("UNSUPPORTED");
-    // The refusal names the package it actually resolved, not a blank.
-    expect(String(e.message)).toMatch(/"\$TMP"/);
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/corr_nr/);
+    expect(String(e.message)).toMatch(/\$TMP/);
   });
 
-  it("TRAN/T still refuses corr_nr, but with a TRAN/T-specific message (RPY_TRANSACTION_INSERT runs its own RS_CORR_INSERT) — not the old blanket claim", async () => {
+  it("TRAN/T into a transportable package with NO corr_nr is refused TRANSPORT_ERROR before any network call", async () => {
     const offline = null as unknown as AbapConnection;
     const e = await catchErr(
       abapWrite(
@@ -351,6 +320,26 @@ describe("abapCreateViaBridge — corr_nr handling, and the VIEW/DV create refus
           package: "ZTM",
           description: "Carrier list",
           program: "ZMCP_CARRIER_LIST",
+        },
+        MAX,
+        gate(),
+      ),
+    );
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(String(e.message)).toMatch(/corr_nr/);
+  });
+
+  it("TRAN/T into $TMP WITH a corr_nr is refused BAD_INPUT before any network call", async () => {
+    const offline = null as unknown as AbapConnection;
+    const e = await catchErr(
+      abapWrite(
+        offline,
+        {
+          object: "ZMCPT01",
+          type: "TRAN/T",
+          package: "$TMP",
+          description: "Carrier list",
+          program: "ZMCP_CARRIER_LIST",
           corr_nr: "TR1K900123",
         },
         MAX,
@@ -358,16 +347,29 @@ describe("abapCreateViaBridge — corr_nr handling, and the VIEW/DV create refus
       ),
     );
     expect(e.code).toBe("BAD_INPUT");
-    expect(String(e.message)).toMatch(/RPY_TRANSACTION_INSERT/);
-    expect(String(e.message)).toMatch(/RS_CORR_INSERT/);
-    // The old message claimed corr_nr never works for EITHER bridge type —
-    // that claim is now false for VIEW/DV, so it must not survive verbatim.
-    expect(String(e.message)).not.toMatch(/VIEW\/DV/);
+    expect(String(e.message)).toMatch(/corr_nr/);
+    expect(String(e.message)).toMatch(/\$TMP/);
+  });
+
+  it("TRAN/T into a transportable package WITH a corr_nr reaches the bridge and the create succeeds", async () => {
+    const classrun = classrunRoute(["TRAN-CREATED"]);
+    const vit = vitRoute("confirmed", "trant", TCODE, "TRAN/T", "ZTM");
+    const { conn, adt } = await connected(
+      both(programRoute(PROGRAM), bridgeDeployRoute(TRAN_BRIDGE), classrun, vit),
+    );
+    const result = await abapWrite(
+      conn,
+      { ...TRAN_INPUT, package: "ZTM", corr_nr: "TR1K900123" },
+      MAX,
+      gate(),
+    );
+    expect(result.text).toMatch(/created: true/);
+    expect(adt.calls.length).toBeGreaterThan(0);
   });
 
   // `bridgeReversalNote` (src/tools/write.ts) is shared by both bridge-create
-  // types, and VIEW/DV no longer reaches it, so the notes below are asserted
-  // on TRAN/T — the one type that still runs a bridge create.
+  // types — asserted here on TRAN/T; the describe above covers VIEW/DV's
+  // create running for every package, not this note's exact wording.
   it("the create-response closing note states abapsmith can REACH this type via bridge (not that delete is proven), and that create is still not journalled", async () => {
     const classrun = classrunRoute(["TRAN-CREATED"]);
     const vit = vitRoute("confirmed", "trant", TCODE, "TRAN/T", "$TMP");
@@ -386,8 +388,8 @@ describe("abapCreateViaBridge — corr_nr handling, and the VIEW/DV create refus
   it("entryId===undefined (not journalled) + unregistered: the reachability claim is dropped when this create's own read-back found it unregistered, not made unconditionally", async () => {
     const classrun = classrunRoute(["TRAN-CREATED"]);
     // No packageRef, but an enriched attribute (changedBy) so vitStubShowsExistence
-    // still calls it `confirmed` — the orphan shape measured on VIEW/DV, which is
-    // why that type's create is refused outright now; TRAN/T can still reach it.
+    // still calls it `confirmed` — the same orphan shape live-observed on VIEW/DV;
+    // TRAN/T's create runs the identical reachability logic over it.
     const vit: Route = (r) =>
       r.url === vitBridgeUri("trant", TCODE)
         ? resp(
