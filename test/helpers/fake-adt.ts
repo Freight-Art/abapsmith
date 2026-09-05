@@ -2102,6 +2102,16 @@ export function bopfLockTransportRoute(opts: { name: string; corrNr: string; cor
  * that want the REAL fixture bytes for a specific case should load the
  * fixture themselves and call `store.set(name, xml)` — this default only
  * covers the happy-path "create landed, now GET something plausible" case.
+ *
+ * Carries one root `bo:nodes` element named `ROOT` (`bo:rootNode="true"`),
+ * matching the shape `bodyWithRootNode` (`test/bopf-create-recovery.test.ts`)
+ * produces for an explicitly-named root. A real ADT read-back of a created
+ * business object always carries a root node — a create response with no
+ * `bo:nodes` element at all is not a shape the server produces, so this
+ * default should not model one either; the no-root-node-at-all and
+ * unnamed-root cases are exercised deliberately instead, via
+ * `bodyWithNoRootNode(name)` and `bodyWithRootNode(name, "")` respectively
+ * (both local to `test/bopf-create-recovery.test.ts`).
  */
 export function defaultBopfCreateBody(name: string): string {
   const upper = name.toUpperCase();
@@ -2111,6 +2121,10 @@ export function defaultBopfCreateBody(name: string): string {
     `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${upper}" adtcore:type="BOBF" ` +
     `adtcore:version="inactive" adtcore:description="created by bopfStore">` +
     `<adtcore:packageRef adtcore:name="$TMP"/>` +
+    `<bo:nodes bo:name="ROOT" bo:nodeID="Um9vdA==" bo:xmlName="Root" ` +
+    `bo:objectModelGenerated="false" bo:authorizationCheck="false" bo:isExtensible="false" ` +
+    `bo:isDependentObjectNode="false" bo:textNode="false" bo:createEnabled="true" ` +
+    `bo:updateEnabled="true" bo:deleteEnabled="true" bo:rootNode="true" bo:objectModelObsolete="false"/>` +
     `</bo:businessObject>`
   );
 }

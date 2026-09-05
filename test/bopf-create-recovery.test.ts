@@ -246,8 +246,9 @@ function genericFailingCreateRoute(store: BopfStore, opts: { landed: boolean }):
  * A `bo:businessObject` body with ONE explicit root `bo:nodes` element,
  * `rootName` substituted verbatim into `bo:name` (an empty string produces
  * exactly the `bo:name=""` shape the root-node-verification defect below is about). Unlike
- * `defaultBopfCreateBody` (no `bo:nodes` at all), this is what's needed to
- * exercise `createBoRootNodeNotes` (`src/tools/bopf.ts`), which reads
+ * `defaultBopfCreateBody` (which now also carries a named `ROOT` node — see
+ * its doc comment), this lets a test pick the root node's name deliberately,
+ * to exercise `createBoRootNodeNotes` (`src/tools/bopf.ts`), which reads
  * `model.nodes.find((n) => n.rootNode)`.
  */
 function bodyWithRootNode(name: string, rootName: string): string {
@@ -262,6 +263,27 @@ function bodyWithRootNode(name: string, rootName: string): string {
     `bo:objectModelGenerated="false" bo:authorizationCheck="false" bo:isExtensible="false" ` +
     `bo:isDependentObjectNode="false" bo:textNode="false" bo:createEnabled="true" ` +
     `bo:updateEnabled="true" bo:deleteEnabled="true" bo:rootNode="true" bo:objectModelObsolete="false"/>` +
+    `</bo:businessObject>`
+  );
+}
+
+/**
+ * A `bo:businessObject` body with NO `bo:nodes` element at all — the shape
+ * `defaultBopfCreateBody` used to produce before it was given a default
+ * `ROOT` node (see that function's doc comment: a real ADT read-back always
+ * carries a root node, so that shape is not one the real server produces).
+ * Kept here, deliberately synthetic, to exercise `checkRootNodeName`'s
+ * `actual === undefined` branch — "the model carries no root node at all" —
+ * distinctly from the unnamed-root (`actual === ""`) case above.
+ */
+function bodyWithNoRootNode(name: string): string {
+  const upper = name.toUpperCase();
+  return (
+    `<?xml version="1.0" encoding="utf-8"?>` +
+    `<bo:businessObject xmlns:bo="http://www.sap.com/wbobj/bopf/business_object" ` +
+    `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${upper}" adtcore:type="BOBF" ` +
+    `adtcore:version="inactive" adtcore:description="created by bopfStore">` +
+    `<adtcore:packageRef adtcore:name="$TMP"/>` +
     `</bo:businessObject>`
   );
 }
@@ -294,8 +316,10 @@ describe("abap_bopf_edit create_bo — recovering from a SESSION_DEAD on the cre
       // attempt during recovery would hit "Unrouted request" and fail the
       // whole `invoke` call before the `activationCalls` assertion below
       // ever ran — masking the exact regression this test exists to catch.
+      // The landed body names its root node ROOT (the default) so this
+      // SESSION_DEAD-recovery scenario isn't also an unusable-root-node one.
       const { pool, server } = poolHarness([
-        dyingCreateRoute(store, { landed: true }),
+        dyingCreateRouteWithBody(store, (name) => bodyWithRootNode(name, "ROOT")),
         store.route,
         activationRoute({ uri: bopfUri("ZQ364NEW") }),
       ]);
@@ -403,7 +427,9 @@ describe("abap_bopf_edit create_bo — a non-SESSION_DEAD create failure is left
 describe("abap_bopf_edit create_bo — ordinary happy path is unaffected by the restructure", () => {
   it("creates and sends activation normally; journal entry succeeded", async () => {
     await withJournal(async (journal) => {
-      const store = bopfStore();
+      // Seeded with a named root (the default "ROOT") so this ordinary
+      // create isn't also an unusable-root-node one.
+      const store = bopfStore({ zq364ok: bodyWithRootNode("ZQ364OK", "ROOT") });
       const { pool, server } = poolHarness([store.route, activationRoute({ uri: bopfUri("ZQ364OK") })]);
       const { tools } = await registered(pool, { journal });
 
@@ -435,17 +461,17 @@ describe("abap_bopf_edit create_bo — ordinary happy path is unaffected by the 
  * A `create_bo` SESSION_DEAD recovery (the suite above)
  * used to report `recovered: true` — a plain success — even when the object
  * that landed server-side has a root node BOPF itself auto-named `""`
- * instead of the caller's `rootNodeName`. That empty name is baked into the
- * generated `Z*_C` constants interface AT CREATE TIME and the interface is
- * never regenerated, so the BO can never activate — and renaming the root
- * node afterward does NOT repair it (live-observed, see
- * `doc/analysis/irreversible-operations.md`). `createBoRootNodeNotes`
- * (`src/tools/bopf.ts`) compares `effectiveRootNodeName(createRequest)`
- * against the actual root node on every create_bo return path — recovered
- * or not — and reports the mismatch instead of a bare success.
+ * instead of the caller's `rootNodeName`, or no root node at all. That name
+ * is baked into the generated `Z*_C` constants interface AT CREATE TIME and
+ * the interface is never regenerated, so the BO can never activate — and
+ * renaming the root node afterward does NOT repair it (live-observed; see
+ * the `create_bo` paragraph in `doc/TOOLS/bopf.md`). `runBopfEdit` now
+ * refuses with `BOPF_CREATE_UNUSABLE` on every create_bo return path —
+ * recovered or not — instead of reporting a bare success; only a root node
+ * that landed under a different NON-EMPTY name is still a reportable note.
  */
 describe("abap_bopf_edit create_bo — root node verification against what was actually requested", () => {
-  it("an empty-named root surviving a SESSION_DEAD recovery is reported as unactivatable, with the delete-and-recreate remedy", async () => {
+  it("an empty-named root surviving a SESSION_DEAD recovery refuses with BOPF_CREATE_UNUSABLE and the delete-and-recreate remedy", async () => {
     await withJournal(async (journal) => {
       const store = bopfStore();
       const { pool } = poolHarness([
@@ -462,16 +488,19 @@ describe("abap_bopf_edit create_bo — root node verification against what was a
         rootNodeName: "ITEM",
       });
 
-      const text = okText(result);
-      expect(text).toContain('requested root node "ITEM"');
-      expect(text).toContain('bo:name=""');
-      expect(text).toContain("UNNAMED");
-      expect(text).toContain("can never be activated");
-      expect(text).toContain('abap_bopf_delete "ZQ424BAD", then create it again');
-      expect(text).toContain("residue that must be cleaned up");
-      // Renaming is live-disproven as a repair (see doc/analysis/irreversible-operations.md)
-      // — the note must say so explicitly, not merely omit a rename suggestion.
-      expect(text).toContain("Renaming the root node afterward does NOT repair the interface");
+      const payload = errorPayload(result);
+      expect(payload.error).toBe("BOPF_CREATE_UNUSABLE");
+      expect(payload.retryable).toBe(false);
+      const message = String(payload.message);
+      expect(message).toContain('requested root node "ITEM"');
+      expect(message).toContain('bo:name=""');
+      expect(message).toContain("UNNAMED");
+      expect(message).toContain("can never be activated");
+      expect(message).toContain('abap_bopf_delete "ZQ424BAD", then create it again');
+      expect(message).toContain("residue that must be cleaned up");
+      // Renaming is live-disproven as a repair — the message must say so
+      // explicitly, not merely omit a rename suggestion.
+      expect(message).toContain("Renaming the root node afterward does NOT repair the interface");
     });
   }, 15_000);
 
@@ -538,7 +567,7 @@ describe("abap_bopf_edit create_bo — root node verification against what was a
     });
   }, 15_000);
 
-  it("SESSION_DEAD recovery, no silent success over a lost name: the landed root node came back unnamed", async () => {
+  it("SESSION_DEAD recovery, no silent success over a lost name: the landed root node came back unnamed refuses with BOPF_CREATE_UNUSABLE", async () => {
     await withJournal(async (journal) => {
       const store = bopfStore();
       const { pool } = poolHarness([
@@ -553,13 +582,17 @@ describe("abap_bopf_edit create_bo — root node verification against what was a
         package: "$TMP",
       });
 
-      const text = okText(result);
-      expect(text).not.toContain("Treated as a successful create.");
-      expect(text).toContain("NOT a clean create: the root node did not come back as requested");
+      const payload = errorPayload(result);
+      expect(payload.error).toBe("BOPF_CREATE_UNUSABLE");
+      expect(payload.retryable).toBe(false);
+      const message = String(payload.message);
+      expect(message).toContain("UNNAMED");
+      expect(message).toContain("can never be activated");
+      expect(message).toContain('abap_bopf_delete "ZQ424LOST", then create it again');
     });
   }, 15_000);
 
-  it("a clean live create's actual root node name is observable directly via the rootNode: header; the unnamed case renders rootNode: (unnamed)", async () => {
+  it("a clean live create's actual root node name is observable directly via the rootNode: header", async () => {
     await withJournal(async (journal) => {
       const store = bopfStore({ zq424hdr: bodyWithRootNode("ZQ424HDR", "HEADER") });
       const { pool } = poolHarness([store.route]);
@@ -575,7 +608,11 @@ describe("abap_bopf_edit create_bo — root node verification against what was a
       const text = okText(result);
       expect(text).toContain("rootNode: HEADER");
       expect(text).toContain('actually created is named "HEADER"');
+    });
+  });
 
+  it("a clean (non-recovery) create landing with an unnamed root refuses with BOPF_CREATE_UNUSABLE instead of rootNode: (unnamed)", async () => {
+    await withJournal(async (journal) => {
       const unnamedStore = bopfStore({ zq424unn: bodyWithRootNode("ZQ424UNN", "") });
       const { pool: unnamedPool } = poolHarness([unnamedStore.route]);
       const { tools: unnamedTools } = await registered(unnamedPool, { journal });
@@ -587,7 +624,86 @@ describe("abap_bopf_edit create_bo — root node verification against what was a
         rootNodeName: "ITEM",
       });
 
-      expect(okText(unnamedResult)).toContain("rootNode: (unnamed)");
+      const payload = errorPayload(unnamedResult);
+      expect(payload.error).toBe("BOPF_CREATE_UNUSABLE");
+      expect(payload.retryable).toBe(false);
+      const message = String(payload.message);
+      expect(message).toContain("UNNAMED");
+      expect(message).toContain('abap_bopf_delete "ZQ424UNN", then create it again');
+    });
+  });
+
+  it("a landed model with no root node at all refuses with BOPF_CREATE_UNUSABLE, wording distinct from the unnamed case", async () => {
+    await withJournal(async (journal) => {
+      // `bodyWithNoRootNode` (no `bo:nodes` at all) models a landed object
+      // whose read-back carries no root node, as opposed to
+      // `bodyWithRootNode(name, "")`'s explicit `bo:name=""`.
+      const store = bopfStore({ zq424none: bodyWithNoRootNode("ZQ424NONE") });
+      const { pool } = poolHarness([store.route]);
+      const { tools } = await registered(pool, { journal });
+
+      const result = await invoke(tools, "abap_bopf_edit", {
+        bo: "ZQ424NONE",
+        operation: "create_bo",
+        package: "$TMP",
+      });
+
+      const payload = errorPayload(result);
+      expect(payload.error).toBe("BOPF_CREATE_UNUSABLE");
+      expect(payload.retryable).toBe(false);
+      const message = String(payload.message);
+      expect(message).toContain("carries no root node at all");
+      expect(message).toContain("can never be activated");
+      expect(message).not.toContain("UNNAMED");
+      expect(message).toContain('abap_bopf_delete "ZQ424NONE", then create it again');
+    });
+  });
+
+  it("activate: true with an unnamed landed root refuses AND sends no activation request", async () => {
+    await withJournal(async (journal) => {
+      const store = bopfStore({ zq424act: bodyWithRootNode("ZQ424ACT", "") });
+      const { pool, server } = poolHarness([store.route, activationRoute({ uri: bopfUri("ZQ424ACT") })]);
+      const { tools } = await registered(pool, { journal });
+
+      const result = await invoke(tools, "abap_bopf_edit", {
+        bo: "ZQ424ACT",
+        operation: "create_bo",
+        package: "$TMP",
+        activate: true,
+      });
+
+      const payload = errorPayload(result);
+      expect(payload.error).toBe("BOPF_CREATE_UNUSABLE");
+      expect(String(payload.message)).toContain("No activation was attempted");
+
+      const activationCalls = server.calls.filter(
+        (r) => r.method === "POST" && r.path.includes("/sap/bc/adt/activation"),
+      );
+      expect(activationCalls).toHaveLength(0);
+    });
+  });
+
+  it("the journal entry stays succeeded (not failed) after the refusal, and details.journalEntryId matches it", async () => {
+    await withJournal(async (journal) => {
+      const store = bopfStore({ zq424jnl: bodyWithRootNode("ZQ424JNL", "") });
+      const { pool } = poolHarness([store.route]);
+      const { tools } = await registered(pool, { journal });
+
+      const result = await invoke(tools, "abap_bopf_edit", {
+        bo: "ZQ424JNL",
+        operation: "create_bo",
+        package: "$TMP",
+      });
+
+      const payload = errorPayload(result);
+      expect(payload.error).toBe("BOPF_CREATE_UNUSABLE");
+
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.outcome).toBe("succeeded");
+      expect(entries[0]!.object.name).toBe("ZQ424JNL");
+      const details = payload.details as Record<string, unknown>;
+      expect(details.journalEntryId).toBe(entries[0]!.id);
     });
   });
 });
