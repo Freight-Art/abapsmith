@@ -51,6 +51,7 @@ import { AbapError, isAbapError, describeUnknownError } from "./errors.js";
 import type { AuthorizedTarget, MutatingOperation, SafetyCorr, SafetyGate } from "../safety.js";
 import { parseModel, mintGuid } from "./bopf-xml.js";
 import { isCrossBoTarget, splitTargetNodeRef } from "./bopf-node-kinds.js";
+import { parsePackageRef } from "./package-ref.js";
 import type {
   BoModel,
   BoNode,
@@ -597,30 +598,41 @@ export async function activateBusinessObject(
 // Delete (DDIC cascade sweep, own fresh lock, transport refusal, Accept header)
 // ---------------------------------------------------------------------------
 
+/** Per-candidate outcome of a DDIC delete attempt — shared by `ddic` and `ddicRequested` on {@link DeleteBusinessObjectResult}. */
+export interface DdicDeleteReport {
+  readonly name: string;
+  readonly kind: string;
+  readonly uri: string;
+  readonly existed: boolean;
+  /**
+   * `true` only after a post-DELETE read-back of `uri` (the same literal
+   * `Accept: *\/*` the existence probe above uses) confirms the object is
+   * actually gone (404/not-found-like). `"unverified"` means the `DELETE`
+   * call itself resolved without throwing, but either the read-back still
+   * finds the object, or the read-back itself failed with something other
+   * than "not found" — in both cases this is NOT proof the delete failed:
+   * a `200` on that read-back can be a stale read, so
+   * `deleted` only ever goes `false` when `conn.del` itself threw. Same
+   * tri-state idiom as `deleted: boolean | "unverified"` on `deleteObject`
+   * in `src/adt/write.ts` — extended here to the DDIC
+   * cascade so `deleted: true` is never asserted purely from the DELETE
+   * HTTP call resolving.
+   */
+  readonly deleted: boolean | "unverified";
+  readonly reason?: string;
+}
+
 export interface DeleteBusinessObjectResult {
   readonly boDeleted: boolean;
-  readonly ddic: readonly {
-    name: string;
-    kind: string;
-    uri: string;
-    existed: boolean;
-    /**
-     * `true` only after a post-DELETE read-back of `uri` (the same literal
-     * `Accept: *\/*` the existence probe above uses) confirms the object is
-     * actually gone (404/not-found-like). `"unverified"` means the `DELETE`
-     * call itself resolved without throwing, but either the read-back still
-     * finds the object, or the read-back itself failed with something other
-     * than "not found" — in both cases this is NOT proof the delete failed:
-     * a `200` on that read-back can be a stale read, so
-     * `deleted` only ever goes `false` when `conn.del` itself threw. Same
-     * tri-state idiom as `deleted: boolean | "unverified"` on `deleteObject`
-     * in `src/adt/write.ts` — extended here to the DDIC
-     * cascade so `deleted: true` is never asserted purely from the DELETE
-     * HTTP call resolving.
-     */
-    deleted: boolean | "unverified";
-    reason?: string;
-  }[];
+  readonly ddic: readonly DdicDeleteReport[];
+  /**
+   * The `persistentTableRef`/`persistentStructureRef` objects the caller
+   * named explicitly via `cascade_persistent` — resolved and package-checked
+   * up front by `resolvePersistentCascadeRequest`/`probeRequestedPersistentTargets`
+   * before this function ever runs, so this array is never re-validated here.
+   * Always `[]` when nothing was requested.
+   */
+  readonly ddicRequested: readonly DdicDeleteReport[];
   /**
    * DDIC objects the model referenced via `persistentStructureRef`/
    * `persistentTableRef` that this cascade deliberately never attempted to
@@ -668,6 +680,21 @@ export interface DdicCandidate {
   readonly type: string;
   /** The ref element this candidate was read off — see {@link DdicRefSite}. */
   readonly refSite: DdicRefSite;
+}
+
+/**
+ * A `cascade_persistent`-named candidate, resolved (`resolvePersistentCascadeRequest`)
+ * and package-probed (`probeRequestedPersistentTargets`) before `deleteBusinessObject`
+ * ever sees it.
+ */
+export interface RequestedDdicTarget {
+  readonly candidate: DdicCandidate;
+  /** Whether the object was on the server when its package was probed, just before the BO delete. */
+  readonly present: boolean;
+  /** Package read off the object's own ADT document. Absent iff `!present`. */
+  readonly packageName?: string;
+  /** That same ADT document, kept so the caller can journal a before-image. Absent iff `!present`. */
+  readonly beforeSource?: string;
 }
 
 /**
@@ -760,6 +787,14 @@ async function discloseDeleteFailureProbe(conn: AbapConnection, bo: string, base
  * Every DDIC deletion attempt is reported individually — `existed`/`deleted`/
  * `reason` per candidate, never summarised as an aggregate. Spared
  * candidates are reported the same way, individually, in `ddicSpared`.
+ *
+ * **`opts.cascadePersistent`** is the one exception to the referenced/spared
+ * default above, and that default is otherwise unchanged. Its entries arrive
+ * already resolved and package-checked (`resolvePersistentCascadeRequest`,
+ * `probeRequestedPersistentTargets` — run by the tool layer before this
+ * function, and before any journal entry is opened); this function does not
+ * re-validate them. It runs as a final phase, after the generated-candidate
+ * cascade above, and only ever touches objects the caller named explicitly.
  */
 export async function deleteBusinessObject(
   conn: AbapConnection,
@@ -767,7 +802,7 @@ export async function deleteBusinessObject(
   bo: string,
   authorized: AuthorizedTarget<"delete">,
   gate: SafetyGate,
-  opts: { cascadeDdic?: boolean } = {},
+  opts: { cascadeDdic?: boolean; cascadePersistent?: readonly RequestedDdicTarget[] } = {},
 ): Promise<DeleteBusinessObjectResult> {
   assertAuthorizedMatches(authorized, { name: bo }, "deleteBusinessObject");
 
@@ -776,8 +811,11 @@ export async function deleteBusinessObject(
   // in src/safety.ts). Refuses the WHOLE delete rather than silently
   // downgrading to non-cascading — a caller who asked for cascadeDdic and
   // doesn't get it must not believe it happened anyway. Fails closed:
-  // `undefined`/below-admin is treated as `false`, never "allowed".
-  if (opts.cascadeDdic && !gate.config.allowCascadeDelete) {
+  // `undefined`/below-admin is treated as `false`, never "allowed". Applies
+  // identically when only `cascadePersistent` is set — naming DDIC objects
+  // to delete by hand must not be a way around the same ceiling.
+  const cascadePersistentRequested = (opts.cascadePersistent?.length ?? 0) > 0;
+  if ((opts.cascadeDdic || cascadePersistentRequested) && !gate.config.allowCascadeDelete) {
     throw new AbapError(
       "SAFETY_DENIED",
       `Cannot delete BOPF business object ${bo} with cascade_ddic: cascading DDIC ` +
@@ -852,7 +890,7 @@ export async function deleteBusinessObject(
     // best-effort — the BO delete itself already succeeded above.
   }
 
-  const ddic: DeleteBusinessObjectResult["ddic"][number][] = [];
+  const ddic: DdicDeleteReport[] = [];
   // Dependency order: tables (incl. table types, via combinedTableRef) →
   // structures → constants interface.
   const ordered = [
@@ -902,7 +940,58 @@ export async function deleteBusinessObject(
     reason: ddicSparedReason(cand.refSite),
   }));
 
-  return { boDeleted, ddic, ddicSpared, ddicEnumerated };
+  // Final phase: caller-named, already package-checked exceptions to the
+  // referenced/spared default above. Same table-before-structure order and
+  // ≤5 batching as the generated-candidate cascade.
+  const ddicRequested: DdicDeleteReport[] = [];
+  const requested = opts.cascadePersistent ?? [];
+  const orderedRequested = [
+    ...requested.filter((t) => t.candidate.kind === "table"),
+    ...requested.filter((t) => t.candidate.kind === "structure"),
+  ];
+  for (let i = 0; i < orderedRequested.length; i += 5) {
+    const batch = orderedRequested.slice(i, i + 5);
+    for (const target of batch) {
+      const cand = target.candidate;
+      if (!target.present) {
+        ddicRequested.push({
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          existed: false,
+          deleted: false,
+          reason: "the object was already absent when its package was probed just before this delete",
+        });
+        continue;
+      }
+      // Authorized under the PACKAGE READ OFF THE OBJECT ITSELF, not the
+      // parent BO's — unlike the generated loop above (which has no other
+      // package to reuse), the probe exists precisely so this one is checked
+      // against its own package, not borrowed from the BO.
+      let candAuthorized: AuthorizedTarget<"delete">;
+      try {
+        candAuthorized = gate.authorize(
+          "delete",
+          { name: cand.name, packageName: target.packageName, type: cand.type },
+          { phase: "final" },
+        );
+      } catch (e) {
+        ddicRequested.push({
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          // target.present is already true here — the probe above proved it.
+          existed: true,
+          deleted: false,
+          reason: `safety gate denied: ${describeUnknownError(e)}`,
+        });
+        continue;
+      }
+      ddicRequested.push(await deleteDdicCandidate(conn, session, cand, candAuthorized));
+    }
+  }
+
+  return { boDeleted, ddic, ddicRequested, ddicSpared, ddicEnumerated };
 }
 
 /**
@@ -982,6 +1071,90 @@ function ddicGuessUri(ref: AdtObjectRef, guessKind: DdicUriGuessKind): string | 
   return `/sap/bc/adt/ddic/${guessKind}/${ref.name.toLowerCase()}`;
 }
 
+/** One (node, slot) ref occurrence for a name — `node` absent iff `slot` is the BO-level `constantsInterfaceRef`, which has no owning node. */
+interface DdicRefOccurrence {
+  readonly slot: DdicRefSite;
+  readonly node?: string;
+}
+
+/** Every site a name is referenced from, across the whole model, one entry per (node, slot) — unlike `collectDdicCascadeCandidates`, which de-dupes by URI and keeps only the first site. */
+function ddicRefOccurrencesForName(model: BoModel, upperName: string): DdicRefOccurrence[] {
+  const seen = new Set<string>();
+  const occurrences: DdicRefOccurrence[] = [];
+  const mark = (ref: AdtObjectRef | undefined, slot: DdicRefSite, node?: string) => {
+    if (!ref?.name || ref.name.trim().toUpperCase() !== upperName) return;
+    const key = `${node ?? ""} ${slot}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    occurrences.push(node !== undefined ? { slot, node } : { slot });
+  };
+  for (const node of model.nodes) {
+    mark(node.persistentTableRef, "persistentTableRef", node.name);
+    mark(node.combinedTableRef, "combinedTableRef", node.name);
+    mark(node.persistentStructureRef, "persistentStructureRef", node.name);
+    mark(node.combinedStructureRef, "combinedStructureRef", node.name);
+  }
+  mark(model.constantsInterfaceRef, "constantsInterfaceRef");
+  return occurrences;
+}
+
+/** `"persistentTableRef on node ROOT"`, or bare slot name for the BO-level `constantsInterfaceRef`. */
+function describeDdicRefOccurrence(o: DdicRefOccurrence): string {
+  return o.node !== undefined ? `${o.slot} on node ${o.node}` : o.slot;
+}
+
+/**
+ * Resolves a `cascade_persistent` name list against this BO's own
+ * `persistentTableRef`/`persistentStructureRef` candidates — pure, no
+ * network. Names are compared upper-cased/trimmed and de-duplicated; a name
+ * not among those candidates, or one referenced from more than one site —
+ * counting each node separately, so the same slot on two different nodes
+ * counts as two sites — is refused outright rather than silently skipped,
+ * since deleting it would break the other reference.
+ */
+export function resolvePersistentCascadeRequest(
+  bo: string,
+  model: BoModel,
+  names: readonly string[],
+): DdicCandidate[] {
+  const wanted = new Set<string>();
+  for (const n of names) {
+    const norm = n.trim().toUpperCase();
+    if (norm) wanted.add(norm);
+  }
+
+  const { referenced } = collectDdicCascadeCandidates(model);
+  const byName = new Map(referenced.map((c) => [c.name.toUpperCase(), c]));
+
+  const resolved: DdicCandidate[] = [];
+  for (const norm of wanted) {
+    const cand = byName.get(norm);
+    if (!cand) {
+      const available = referenced.length
+        ? `objects currently referenced: ${referenced.map((c) => c.name).join(", ")}`
+        : "this business object's model carries no persistentTableRef/persistentStructureRef at all";
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${norm}" on BOPF business object ${bo}: it is not one of the ` +
+          `persistentTableRef/persistentStructureRef objects this BO's model references — ${available}.`,
+        { bo, name: norm },
+      );
+    }
+    const sites = ddicRefOccurrencesForName(model, norm);
+    if (sites.length > 1) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${norm}" on BOPF business object ${bo}: it is referenced from ` +
+          `more than one site in this BO's model (${sites.map(describeDdicRefOccurrence).join(", ")}) — deleting it would break the other reference.`,
+        { bo, name: norm, sites },
+      );
+    }
+    resolved.push(cand);
+  }
+
+  return [...resolved.filter((c) => c.kind === "table"), ...resolved.filter((c) => c.kind === "structure")];
+}
+
 /**
  * Existence-probe (literal `Accept: *\/*`), and if confirmed present,
  * delete under its OWN fresh lock (plain DDIC lock path — no accept
@@ -992,7 +1165,7 @@ async function deleteDdicCandidate(
   session: StatefulSession,
   cand: DdicCandidate,
   authorized: AuthorizedTarget<"delete">,
-): Promise<{ name: string; kind: string; uri: string; existed: boolean; deleted: boolean | "unverified"; reason?: string }> {
+): Promise<DdicDeleteReport> {
   assertAuthorizedMatches(authorized, { name: cand.name }, "deleteDdicCandidate");
 
   let existed: boolean;
@@ -1105,6 +1278,81 @@ async function deleteDdicCandidate(
       reason: `DELETE returned success but the read-back to confirm it failed: ${describeUnknownError(e)}`,
     };
   }
+}
+
+/**
+ * One GET per `cascade_persistent` candidate, before any mutation, to read
+ * back its own package — same reasoning as `resolveIndexOwner`
+ * (`./index-create.ts`), including its fail-closed refusal when no
+ * `<adtcore:packageRef>` comes back. Deliberately `Accept: application/*`,
+ * NOT the literal `*\/*` the existence probes elsewhere in this module use:
+ * those want a cheap yes/no (and `application/xml` risks a false 404 on a
+ * genuinely-existing object), but this probe needs the object's actual ADT
+ * XML *document* so `parsePackageRef` has something to read — the same
+ * Accept `resolveIndexOwner` already relies on live.
+ *
+ * Every throw here happens before any mutation, so "nothing was deleted" in
+ * each message is true.
+ */
+export async function probeRequestedPersistentTargets(
+  conn: AbapConnection,
+  bo: string,
+  boPackage: string | undefined,
+  candidates: readonly DdicCandidate[],
+): Promise<RequestedDdicTarget[]> {
+  const out: RequestedDdicTarget[] = [];
+  for (const cand of candidates) {
+    let body: string;
+    try {
+      const resp = await conn.get(cand.uri, { headers: { Accept: "application/*" } });
+      body = resp.body ?? "";
+    } catch (e) {
+      if (isNotFoundLike(e)) {
+        out.push({ candidate: cand, present: false });
+        continue;
+      }
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: probing it before the ` +
+          `delete failed: ${describeUnknownError(e)}. Nothing was deleted.`,
+        { bo, name: cand.name, uri: cand.uri },
+      );
+    }
+
+    const packageName = parsePackageRef(body);
+    if (!packageName) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: abapsmith could not ` +
+          `confirm which package "${cand.name}" belongs to — its ADT document carried no single, unambiguous ` +
+          "<adtcore:packageRef>. Nothing was deleted.",
+        { bo, name: cand.name, uri: cand.uri },
+      );
+    }
+
+    if (!boPackage || !boPackage.trim()) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: this BO's own package ` +
+          "could not be determined, so it cannot be compared against the package of the object being deleted. " +
+          "Nothing was deleted.",
+        { bo, name: cand.name },
+      );
+    }
+
+    if (packageName.trim().toUpperCase() !== boPackage.trim().toUpperCase()) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: it lives in package ` +
+          `${packageName}, not ${boPackage} — a DDIC object living in another package is never deleted this way. ` +
+          "Nothing was deleted.",
+        { bo, name: cand.name, objectPackage: packageName, boPackage },
+      );
+    }
+
+    out.push({ candidate: cand, present: true, packageName, beforeSource: body });
+  }
+  return out;
 }
 
 function isNotFoundLike(e: unknown): boolean {
