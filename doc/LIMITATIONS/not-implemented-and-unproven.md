@@ -11,53 +11,74 @@ exemption requests, contact-person lookup and check documentation are
 deliberately absent: an agent that can request an ATC exemption is an agent
 that can silence a finding instead of fixing it.
 
-**Removing one locked object entry from a transport request — implemented for
-some entries, not others; unlocking one without removing it is not.** CTS
-keeps an object entry locked to its request until the request is released —
-deleting the object does not clear the entry, and the child task refuses the
-same delete for the same reason: `abap_transport operation=delete` returns
-`TRANSPORT_LOCKED` on both. `abap_transport operation=removeObject`
-(admin-only ceiling, same as `delete`, plus `confirm`) drops one such entry's
-E071 row(s) and CTS lock — when CTS accepts the call. It does not use ADT's
-Transport Organizer `removeobject` link (see below) — instead it reaches
-CTS's own backend the way `tran-delete`/`view-delete` do, through a generated
-`$TMP` classrun calling `TRINT_READ_REQUEST` to find the row and
-`TR_DELETE_COMM_OBJECT_KEYS` (`is_e071_delete`, `iv_dialog_flag = space`) to
-remove it, then `COMMIT WORK`. Proven live on a live A4H appliance,
-2026-09-05, reproduced across two independent requests: for a `R3TR CLAS`
-deletion entry, the removal succeeds (`sy-subrc = 0`, the lock cleared, and
-a subsequent request delete succeeded); for a `R3TR TABL` deletion entry it
-does not — `TR_DELETE_COMM_OBJECT_KEYS` returns a non-zero `sy-subrc`, the
-entry and its lock stay, and the request is then undeletable through
-abapsmith — see "Locked DDIC deletion entry" below. The failure now surfaces
-that `sy-subrc` and, when CTS set one, the `sy-msg*` T100 message, as a
-`msg=` fragment on the `CHECK_FAILED` error.
+**Removing one locked object entry from a transport request — implemented,
+guarded against CTS's own duplicate-entry refusal; unlocking one without
+removing it is not.** CTS keeps an object entry locked to its request until
+the request is released — deleting the object does not clear the entry, and
+the child task refuses the same delete for the same reason: `abap_transport
+operation=delete` returns `TRANSPORT_LOCKED` on both. `abap_transport
+operation=removeObject` (admin-only ceiling, same as `delete`, plus
+`confirm`) drops one such entry's E071 row and CTS lock when the request
+holds exactly one E071 row for the object's PGMID+OBJECT+OBJ_NAME. It does
+not use ADT's Transport Organizer `removeobject` link (see below) — instead
+it reaches CTS's own backend the way `tran-delete`/`view-delete` do, through
+a generated `$TMP` classrun calling `TRINT_READ_REQUEST` to find the row(s)
+and `TR_DELETE_COMM_OBJECT_KEYS` (`is_e071_delete`, `iv_dialog_flag = space`)
+to remove them, then `COMMIT WORK`.
 
-**Locked DDIC deletion entry: no working unlock route.** You get into this by
-creating a DDIC object (observed: a table) under a transport request, then
-deleting that object with the same request as `corr_nr`. The delete
-succeeds, but the request keeps an E071 deletion entry for the object and
-the CTS lock that goes with it — `TR_DELETE_COMM_OBJECT_KEYS` refuses to
-clear it (above). The request can then never be deleted through abapsmith:
-`abap_transport operation=delete` fails `TRANSPORT_LOCKED` permanently, and
-`operation=removeObject`'s refusal was reproduced on two independent
-requests, with no retry succeeding. The correct CTS call sequence to clear this
-kind of entry could not be established from the ABAP API without reading the
-function modules' real signatures on a live system, and abapsmith does not
-guess at function-module signatures — naming a classic exception that isn't
-in the real signature is a hard activation-time syntax error, not a runtime
-one (see the doc comment on `subrcGuardFragment` in `src/adt/ddic-bridge.ts`).
-The only way out is manual: in SE03 run "Unlock Objects (Expert Tool)" for
-the request, then delete the entry in SE09/SE10; or release the request,
-which is irreversible.
+`TR_DELETE_COMM_OBJECT_KEYS` calls `TRINT_DELETE_COMM_OBJECT_KEYS`, which
+counts the request's E071 rows matching PGMID+OBJECT+OBJ_NAME — not
+qualified by activity or AS4POS — before touching anything: zero rows raises
+`n_object_entry_doesnt_exist` (`MESSAGE e101(tr)`), two or more raises
+`w_duplicate_entry` (`MESSAGE e292(tr)`), and only the exactly-one case
+proceeds. E071's primary key is TRKORR+AS4POS, not object identity, so two
+rows for the same object on one request are legal — creating an object and
+then deleting it under the same request is enough to record both. Censused
+live on A4H, 2026-09-05: two stuck fixture tasks each turned out
+to hold exactly two E071 rows for their object (same pgmid/object/obj_name,
+activity blank, lockflag X, differing only by AS4POS), no E071K rows, and
+one ordinary TLOCK row (`edtflag = X`) apiece — the row count, not the
+object's type, is what CTS refuses on. (A single-row entry removed cleanly
+in an earlier run; that row no longer exists to re-inspect, so this is
+evidence from that earlier run plus the function module's type-agnostic
+counting logic, not a fresh side-by-side reconfirmation.) The bridge now
+runs this same count itself before calling the function module, so a
+duplicate can't leave one row removed and the next refused mid-batch: the
+refusal surfaces as a terminal error code, `CTS_DUPLICATE_ENTRY`, naming the
+object, the holder, the row count and the AS4POS values; a late `TR 292`
+raised by `TR_DELETE_COMM_OBJECT_KEYS` itself maps to the same code. Any
+other refusal from the function module still surfaces its `sy-subrc` and,
+when CTS set one, the `sy-msg*` T100 message, as a `msg=` fragment on the
+`CHECK_FAILED` error — blank `sy-msg*` variables are expected there too,
+since `MESSAGE e292(tr)` carries no WITH operands.
+
+**Duplicate E071 entries for one object: no working function-module route to
+clear them.** You get into this by creating an object and then deleting it
+under the same transport request as `corr_nr`: CTS keeps both the creation's
+E071 row and the deletion's, and `TR_DELETE_COMM_OBJECT_KEYS` refuses to
+touch either while both are present (above). The request can then never be
+deleted through abapsmith: `abap_transport operation=delete` keeps returning
+`TRANSPORT_LOCKED`, and `operation=removeObject` now refuses up front with
+`CTS_DUPLICATE_ENTRY` instead of attempting a call CTS is going to reject.
+No supported function-module route removes just one of the two rows:
+`TR_DELETE_COMM_OBJECT_KEYS` has no parameter naming which AS4POS to drop,
+the duplicate guard inside `TRINT_DELETE_COMM_OBJECT_KEYS` has no bypass
+flag, and `TRINT_DELETE_COMM_KEYS` only touches E071K, never E071. SAP ships
+a raw Open SQL `DELETE e071` inside one of its own function modules, but it
+is unguarded — no lock,
+owner or status check, and no E071K cleanup — and abapsmith will not issue
+it. The remedy is outside abapsmith: edit the request's object list in
+SE09/SE10 so at most one row remains for the object, then retry
+`removeObject`; or release the request, which is irreversible. Neither route
+is guaranteed to work under a lock — they are outside what this tool
+controls, not a promised fix abapsmith can verify.
 
 Still missing: the ADT `removeobject` link's own verb and body remain
 unverified and are not used — a guessed mutating CTS call is not something to
 ship. There is still no way to *unlock* an entry without removing it — no
-equivalent of `lockobject`'s inverse exists. And the classrun route is now
-known to both succeed (a class deletion entry) and fail (a DDIC table
-deletion entry); it has not been exercised against every object type CTS can
-lock.
+equivalent of `lockobject`'s inverse exists. And the classrun route's guard
+is generic on pgmid+object+obj_name rather than tied to any one object
+type; it has not been exercised against every object type CTS can lock.
 
 Confirmed across the fixtures in `test/fixtures/cts/`: every `tm:abap_object`
 carries a `removeobject` link (title "Transport Organizer Remove Locked
@@ -76,9 +97,11 @@ resolving it.
 The ways to clear such a request now: `abap_transport operation=removeObject`
 for one entry at a time (admin mode, irreversible, does not itself prove the
 request becomes deletable — follow up with `operation=delete` — and does not
-work for a locked DDIC deletion entry, see above), release the request (also
-irreversible), or unlock it by hand in SAPGUI (SE03 "Unlock Objects (Expert
-Tool)", then SE09/SE10 to delete). This is a real cost of
+work when the request already holds two or more E071 rows for the object,
+see above), release the request (also irreversible), or unlock it by hand in
+SAPGUI (SE03 "Unlock Objects (Expert Tool)", then SE09/SE10 to delete — SE03
+here clears TLOCK and the lockflag, not E071 rows, so it does not by itself
+help the duplicate-row case above). This is a real cost of
 ordinary sessions: with
 `ABAP_ALLOW_PACKAGES` defaulting to `["*"]`, an ordinary write
 auto-creates a request only when it cannot adopt an existing one — a
