@@ -19,7 +19,7 @@ import { contentHash } from "../compact.js";
 import type { BeforeImageCapture, Journal, JournalEntry } from "../journal.js";
 import { journalRef, sourceFingerprint, systemKey, withJournalledMutation } from "../journal.js";
 import type { AbapConnection } from "./connection.js";
-import { AbapError } from "./errors.js";
+import { AbapError, isAbapError } from "./errors.js";
 import { activateObject, checkSource, type ActivationOutcome, type CheckOutcome } from "./activate.js";
 import type { SafetyGate } from "../safety.js";
 import { isNotFoundError } from "./session.js";
@@ -1192,6 +1192,50 @@ async function performBridgeCreateUndo(
   return { deleted: "unverified", verification: outcome };
 }
 
+/**
+ * By the time this runs the before-image is already saved server-side as the
+ * INACTIVE version; `settle()` is never reached on this path, so the undo's
+ * own entry is left `pending` by `withJournalledMutation` itself.
+ */
+function discloseUndoActivationFailure(
+  e: unknown,
+  target: ResolvedTarget,
+  entry: JournalEntry,
+  undoEntryId: string | undefined,
+): unknown {
+  if (!isAbapError(e)) return e;
+
+  const residueHint =
+    `The restore itself already landed: ${target.name}'s before-image is saved on the server ` +
+    "as the INACTIVE version, but activation failed, so the ACTIVE version is still the newer " +
+    "one this undo was trying to replace. This undo's own journal entry" +
+    (undoEntryId ? ` (${undoEntryId})` : "") +
+    " is left `pending` on purpose — the outcome is not proven either way — and the original " +
+    `entry (${entry.id}) was NOT marked undone. Do not undo again blindly: re-read the object ` +
+    "and activate it deliberately instead.";
+
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    {
+      ...e.details,
+      name: target.name,
+      type: target.type,
+      uri: target.uri,
+      operation: "undo",
+      phase: "post-restore-activation",
+      written: true,
+      activated: false,
+      entry: entry.id,
+      ...(undoEntryId !== undefined ? { journal: undoEntryId } : {}),
+    },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint,
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
+
 export interface UndoOptions {
   /** Proceed despite drift. The refusal is the feature; this is the escape. */
   force?: boolean;
@@ -1530,7 +1574,11 @@ export async function performUndo(
             "merged source. The last ACTIVE version is untouched and still what callers run.",
         );
       }
-      activation = await activateObject(conn, written.target);
+      try {
+        activation = await activateObject(conn, written.target);
+      } catch (e) {
+        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
+      }
     }
     await settle({
       outcome: "succeeded",

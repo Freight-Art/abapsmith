@@ -13,6 +13,7 @@
  * path. It only refuses input it cannot safely turn into ABAP.
  */
 import { createHash } from "node:crypto";
+import { isCsrfError } from "abap-adt-api";
 import type { AbapConnection } from "./connection.js";
 import { AbapError, isAbapError } from "./errors.js";
 import { truncateText, DUMP_SHORT_TEXT_MAX } from "../truncate.js";
@@ -675,23 +676,27 @@ function translateRunFailure(conn: AbapConnection, className: string, e: unknown
 
   if (kind === "session-timeout") {
     invalidateSession(conn);
-    return new AbapError(
-      "SESSION_DEAD",
-      `The ABAP session was gone while running ${className} (HTTP ${resp!.status}, "Session Timed Out").`,
-      { class: className, status: resp!.status, kind },
-      "This is NOT an authentication failure and does not count against the logon-attempt " +
-        "budget. The session has been discarded; retry the call and a fresh one is " +
-        "established. If it recurs, something dumped just before this request.",
+    return discloseMutationRisk(
+      new AbapError(
+        "SESSION_DEAD",
+        `The ABAP session was gone while running ${className} (HTTP ${resp!.status}, "Session Timed Out").`,
+        { class: className, status: resp!.status, kind },
+        "This is NOT an authentication failure and does not count against the logon-attempt " +
+          "budget. The session has been discarded; retry the call and a fresh one is " +
+          "established. If it recurs, something dumped just before this request.",
+      ),
     );
   }
 
   // Anything else is an ordinary ADT failure. session.translateAdtError() owns
   // that mapping (and guarantees no raw XML/HTML crosses the boundary).
-  return translateAdtError(e, {
+  const translated = translateAdtError(e, {
     operation: "run class",
     name: className,
     uri: `${CLASSRUN_PATH}${className}`,
   });
+  // A CSRF refusal never dispatched, so it is excluded here.
+  return resp === undefined && !isCsrfError(e) ? discloseMutationRisk(translated) : translated;
 }
 
 // ---------------------------------------------------------------------------
@@ -1076,6 +1081,26 @@ function discloseBridgeResidue(
   );
   disclosed.stack = e.stack;
   disclosed.cause = e.cause;
+  return disclosed;
+}
+
+/**
+ * A classrun bridge may already have executed and committed before this
+ * response was lost, so the stock "retry" wording would risk running it twice.
+ */
+function discloseMutationRisk(err: AbapError): AbapError {
+  const disclosure =
+    "The request may already have executed and committed on the server before this " +
+    "response was lost — do not blindly retry a mutating bridge. Re-read the object first " +
+    "to see whether it changed.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, mayHaveExecuted: true },
+    err.hint ? `${err.hint} ${disclosure}` : disclosure,
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
   return disclosed;
 }
 
