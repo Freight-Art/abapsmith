@@ -67419,13 +67419,13 @@ var REGISTRY = {
     label: "Table secondary index",
     bridgeCreate: {
       adtRest: `Probed live on A4H 2026-09-05: GET /sap/bc/adt/ddic/tables/t000/indexes 404s, and PUT /sap/bc/adt/ddic/tables/t000/indexes/z01 404s for any body and any content type \u2014 there is no writable (or even readable) index collection under a table. The table XML itself (application/vnd.sap.adt.tables.v2+xml) carries exactly one index-related link, rel="http://www.sap.com/adt/relations/indexes" pointing at /sap/bc/adt/vit/wb/object_type/tabldt/object_name/<TABLE>#view=INDX with type="application/vnd.sap.sapgui" \u2014 a GUI handoff (SE11's Indexes tab), not a REST resource. No discovery collection mentions indexes either.`,
-      via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read.",
+      via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates \u2014 non-unique Z01 and unique Z02 with MANDT \u2014 and each again returned all three markers; the round-3 delete-path defect below never touched create.",
       limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, the same as VIEW/DV and TRAN/T \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A unique create over two non-client fields of a client-dependent table returned ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that included the base table's client field (MANDT) returned INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever called \u2014 raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without index_unique.\" The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER \u2014 unexercised live in either direction. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
     },
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
-      via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. It now commits regardless, re-reads DD12V (unfiltered and AS4LOCAL='A') and DD17S, and reports success \u2014 tagging the transcript INDEX-DELETED-ACTFAILED with a caller-facing note \u2014 only when all three come back empty; a surviving row still fails CHECK_FAILED. What ACTFAILED means on this path is not established \u2014 it may reflect the index's database-level drop or the table's re-activation rather than the dictionary removal itself. Fixed but UNVERIFIED live: round 3 will test it.",
-      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does."
+      via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of ZCL_ZMCP_DDIC_DINDX) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above has therefore never executed live, not once. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Both are correct by measurement and unit test, not by live evidence \u2014 round 4 has not yet re-run this delete path live. What ACTFAILED itself means is therefore still not established.",
+      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and abap_data_preview was confirmed live to carry no WHERE filter, so a targeted DD12V check was not practical."
     }
   }
 };
@@ -91269,6 +91269,7 @@ var DDIC_BRIDGE_CLASS = {
   createIndex: "ZCL_ZMCP_DDIC_CINDX",
   deleteIndex: "ZCL_ZMCP_DDIC_DINDX"
 };
+var ABAP_SOURCE_LINE_MAX = 255;
 var DDIC_ERR_PREFIX = "ZMCP-DDIC-ERR>";
 var DDIC_NOTE_PREFIX = "ZMCP-DDIC-NOTE>";
 var DDIC_TAGS = [
@@ -91304,7 +91305,7 @@ function ddicBridgeSource(className, dataLines, bodyLines) {
   const cls = assertPlainName(className, "Class name").toLowerCase();
   const data = dataLines.map((l) => `    DATA ${l}`).join("\n");
   const body = bodyLines.map((l) => `    ${l}`).join("\n");
-  return `CLASS ${cls} DEFINITION
+  const source = `CLASS ${cls} DEFINITION
   PUBLIC FINAL
   CREATE PUBLIC.
 
@@ -91330,6 +91331,17 @@ ${body}
 
 ENDCLASS.
 `;
+  source.split("\n").forEach((line, i) => {
+    if (line.length > ABAP_SOURCE_LINE_MAX) {
+      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated bridge source line ${i + 1} is ${line.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
+        { line: i + 1, length: line.length, excerpt }
+      );
+    }
+  });
+  return source;
 }
 function subrcGuardFragment(what) {
   if (!/^[A-Za-z0-9_ ]+$/.test(what)) {
@@ -100132,7 +100144,10 @@ var INDEX_DELETE_DATA_LINES = [
   "lv_actfailed TYPE ddrefstruc-flag.",
   "lv_dd12v_count TYPE i.",
   "lv_dd12v_active TYPE i.",
-  "lv_dd17s_count TYPE i."
+  "lv_dd17s_count TYPE i.",
+  // built up over several assignments, not one literal — a 30-char baseTable pushes either
+  // message past the 255-char class-source line limit if written in one piece (live 2026-09-05).
+  "lv_msg TYPE string."
 ];
 function secondaryIndexFragment(p) {
   const v = validate3(p);
@@ -100249,11 +100264,17 @@ function indexDeleteFragment(p) {
   );
   lines.push(
     "IF lv_dd12v_count <> 0 OR lv_dd12v_active <> 0 OR lv_dd17s_count <> 0.",
-    `  out->write( |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} left rows behind after commit (DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }); ${DELETE_FM_WHAT} ACTFAILED = '{ lv_actfailed }'| ).`,
+    `  lv_msg = |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} left rows behind after commit |.`,
+    "  lv_msg = lv_msg && |(DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, |.",
+    `  lv_msg = lv_msg && |DD17S: { lv_dd17s_count }); ${DELETE_FM_WHAT} ACTFAILED = '{ lv_actfailed }'|.`,
+    "  out->write( lv_msg ).",
     "  RETURN.",
     "ENDIF.",
     "IF lv_actfailed = 'X'.",
-    `  out->write( |${DDIC_NOTE_PREFIX} ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}, but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }) \u2014 treating as deleted| ).`,
+    `  lv_msg = |${DDIC_NOTE_PREFIX} ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}, |.`,
+    "  lv_msg = lv_msg && |but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, |.",
+    "  lv_msg = lv_msg && |DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }) \u2014 treating as deleted|.",
+    "  out->write( lv_msg ).",
     "  out->write( 'INDEX-DELETED-ACTFAILED' ).",
     "ENDIF.",
     "out->write( 'INDEX-DELETED' ).",
