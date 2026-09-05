@@ -1,5 +1,5 @@
 /**
- * `abap_do`'s bopf group: 20 `bopf_*` actions delegating to v1's
+ * `abap_do`'s bopf group: 26 `bopf_*` actions delegating to v1's
  * `runBopfRead`/`runBopfEdit`/`runBopfDelete` (src/tools/bopf.ts) and
  * `runBopfTest` (src/tools/bopf-test.ts). Those v1 functions are self-contained
  * (own preflight/connect/pool slot/write-gating) and throw `AbapError` directly,
@@ -97,16 +97,22 @@ export const BOPF_HANDLERS: ReadonlyMap<string, DoHandler> = new Map<string, DoH
   ["bopf_remove_node", editOp("remove_node")],
   ["bopf_add_association", editOp("add_association")],
   ["bopf_remove_association", editOp("remove_association")],
+  ["bopf_set_association_fields", editOp("set_association_fields")],
   ["bopf_add_action", editOp("add_action")],
   ["bopf_remove_action", editOp("remove_action")],
+  ["bopf_set_action_fields", editOp("set_action_fields")],
   ["bopf_add_determination", editOp("add_determination")],
   ["bopf_remove_determination", editOp("remove_determination")],
+  ["bopf_set_determination_fields", editOp("set_determination_fields")],
   ["bopf_add_validation", editOp("add_validation")],
   ["bopf_remove_validation", editOp("remove_validation")],
+  ["bopf_set_validation_fields", editOp("set_validation_fields")],
   ["bopf_add_query", editOp("add_query")],
   ["bopf_remove_query", editOp("remove_query")],
+  ["bopf_set_query_fields", editOp("set_query_fields")],
   ["bopf_add_alternative_key", editOp("add_alternative_key")],
   ["bopf_remove_alternative_key", editOp("remove_alternative_key")],
+  ["bopf_set_alternative_key_fields", editOp("set_alternative_key_fields")],
   ["bopf_set_node_flags", editOp("set_node_flags")],
   ["bopf_activate", editOp("activate")],
   ["bopf_test", test],

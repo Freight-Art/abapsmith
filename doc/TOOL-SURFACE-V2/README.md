@@ -38,7 +38,7 @@ consolidates the same functionality into six:
 |---|---|
 | `abap_search` | `abap_find` (default kind, `where: repository \| usages`) |
 | `abap_bopf` | `abap_find` (`kind: "bo"`) / `abap_read` (`view: "bopf"`) / `abap_do` (`bopf_check_refs`) |
-| `abap_bopf_edit` | `abap_do` — `bopf_create`, `bopf_add_node`, `bopf_remove_node`, `bopf_add_association`, `bopf_remove_association`, `bopf_add_action`, `bopf_remove_action`, `bopf_add_determination`, `bopf_remove_determination`, `bopf_add_validation`, `bopf_remove_validation`, `bopf_add_query`, `bopf_remove_query`, `bopf_add_alternative_key`, `bopf_remove_alternative_key`, `bopf_set_node_flags`, `bopf_activate` |
+| `abap_bopf_edit` | `abap_do` — `bopf_create`, `bopf_add_node`, `bopf_remove_node`, `bopf_add_association`, `bopf_remove_association`, `bopf_add_action`, `bopf_remove_action`, `bopf_add_determination`, `bopf_remove_determination`, `bopf_add_validation`, `bopf_remove_validation`, `bopf_add_query`, `bopf_remove_query`, `bopf_add_alternative_key`, `bopf_remove_alternative_key`, `bopf_set_node_flags`, `bopf_set_association_fields`, `bopf_set_action_fields`, `bopf_set_determination_fields`, `bopf_set_validation_fields`, `bopf_set_query_fields`, `bopf_set_alternative_key_fields`, `bopf_activate` |
 | `abap_bopf_delete` | `abap_do` (`bopf_delete`) |
 | `abap_bopf_test` | `abap_do` (`bopf_test`) |
 | `abap_fpm_read` | `abap_find` (`kind: "fpm"`) / `abap_read` (`view: "fpm"`) |

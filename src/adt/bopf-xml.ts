@@ -329,6 +329,17 @@ function childTokensOfKind(tokens: readonly Token[], nodeTok: Token, kind: Child
   );
 }
 
+/** Find the `Token` for the element a selector names (node or child), or `undefined` if no match. */
+export function locateToken(tokens: readonly Token[], sel: Selector): Token | undefined {
+  const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
+  if (!nodeTok) return undefined;
+  if (!isChildSelector(sel)) return nodeTok;
+
+  return childTokensOfKind(tokens, nodeTok, sel.child).find(
+    (t) => t.attrs.get("bo:name") === sel.name && (sel.memberId === undefined || t.attrs.get("bo:nodeID") === sel.memberId),
+  );
+}
+
 /**
  * Find the byte range `[start, end)` of the element a selector names, or
  * `undefined` if no match. `range.start`/`range.end` are exactly
@@ -336,14 +347,8 @@ function childTokensOfKind(tokens: readonly Token[], nodeTok: Token, kind: Child
  * end of its closing `>` (or its own `/>` if self-closing).
  */
 export function locate(tokens: readonly Token[], sel: Selector): Range | undefined {
-  const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
-  if (!nodeTok) return undefined;
-  if (!isChildSelector(sel)) return { start: nodeTok.openStart, end: nodeTok.closeEnd };
-
-  const hit = childTokensOfKind(tokens, nodeTok, sel.child).find(
-    (t) => t.attrs.get("bo:name") === sel.name && (sel.memberId === undefined || t.attrs.get("bo:nodeID") === sel.memberId),
-  );
-  return hit ? { start: hit.openStart, end: hit.closeEnd } : undefined;
+  const t = locateToken(tokens, sel);
+  return t ? { start: t.openStart, end: t.closeEnd } : undefined;
 }
 
 /**
@@ -423,6 +428,38 @@ function promoteToContainer(xml: string, token: Token): string {
 }
 
 /**
+ * Patch `bo:`-prefixed attributes on one element's own open tag, in place;
+ * nothing past `token.openEnd` is touched, so the subtree survives
+ * byte-for-byte. Keys are BARE names (`"category"`, not `"bo:category"`);
+ * every attribute here is `unsettable` on the wire, so `null` REMOVES it
+ * rather than writing `"false"`. Attribute order inside a tag is not
+ * load-bearing on this wire (element order is).
+ */
+export function patchOpenTagAttrs(
+  xml: string,
+  token: Token,
+  attrs: ReadonlyMap<string, string | boolean | null>,
+): string {
+  let openTag = xml.slice(token.openStart, token.openEnd);
+  for (const [name, value] of attrs) {
+    const attrRe = new RegExp(`\\s+bo:${name}="[^"]*"`);
+    if (value === null) {
+      openTag = openTag.replace(attrRe, "");
+      continue;
+    }
+    const rendered = ` bo:${name}="${typeof value === "boolean" ? String(value) : escapeAttrValue(value, `bo:${name}`)}"`;
+    if (attrRe.test(openTag)) {
+      openTag = openTag.replace(attrRe, rendered);
+    } else {
+      const closesSelf = openTag.endsWith("/>");
+      const insertAt = closesSelf ? openTag.length - 2 : openTag.length - 1;
+      openTag = openTag.slice(0, insertAt) + rendered + openTag.slice(insertAt);
+    }
+  }
+  return xml.slice(0, token.openStart) + openTag + xml.slice(token.openEnd);
+}
+
+/**
  * Insert a pre-rendered `fragment` (from a `render*Element` function below) as a new
  * child of node `nodeName`, respecting ST order; promotes a self-closing node to a
  * container first if needed. Scoped to an *existing* node — whole-document/root
@@ -461,15 +498,62 @@ export const NODE_REF_KINDS = [
 export type NodeRefKind = (typeof NODE_REF_KINDS)[number];
 
 /**
+ * Set (insert or replace), or clear, one `refTag`-named singular ref child of
+ * `ownerToken`, respecting `childOrder`'s `xsd:sequence` position. `ref ===
+ * null` removes the element if present, no-op if already absent; replacing
+ * an existing ref overwrites in place — at most one of each singular ref per
+ * owner. `refTag` is the fully `bo:`-prefixed element name; `childOrder`
+ * entries are bare names.
+ */
+export function spliceSetElementRef(
+  xml: string,
+  tokens: readonly Token[],
+  ownerToken: Token,
+  refTag: string,
+  ref: AdtObjectRef | null,
+  childOrder: readonly string[],
+): string {
+  const existing = tokens.find(
+    (t) =>
+      t.name === refTag &&
+      t.depth === ownerToken.depth + 1 &&
+      t.openStart > ownerToken.openStart &&
+      t.openStart < ownerToken.closeEnd,
+  );
+
+  if (ref === null) {
+    return existing ? xml.slice(0, existing.openStart) + xml.slice(existing.closeEnd) : xml;
+  }
+
+  const fragment = renderRef(refTag, ref);
+  if (existing) {
+    return xml.slice(0, existing.openStart) + fragment + xml.slice(existing.closeEnd);
+  }
+
+  if (ownerToken.kind === "empty") {
+    const opened = promoteToContainer(xml, ownerToken);
+    const insertAt = ownerToken.openEnd - 1;
+    return splice(opened, insertAt, fragment);
+  }
+
+  const targetIdx = childOrder.indexOf(bareName(refTag));
+  let insertAt = ownerToken.openEnd;
+  for (const t of tokens) {
+    if (t.depth !== ownerToken.depth + 1) continue;
+    if (t.openStart <= ownerToken.openStart || t.openStart >= ownerToken.closeEnd) continue;
+    const idx = childOrder.indexOf(bareName(t.name));
+    if (idx === -1) continue;
+    if (idx <= targetIdx) insertAt = t.closeEnd;
+    else break;
+  }
+  return splice(xml, insertAt, fragment);
+}
+
+/**
  * Set (insert or replace), or clear, one of the eight singular ref children on an
  * existing node — without this, an auto-created ROOT node could never get a
  * `persistentStructureRef` after the fact, and activation always failed
  * (see the git history).
- *
- * `ref === null` removes the element if present (absent is a real state, not
- * "false", per this file's `unsettable` convention); no-op if already absent.
- * Replacing an existing ref overwrites in place — the schema allows at most
- * one of each singular ref per node.
  */
 export function spliceSetNodeRef(
   xml: string,
@@ -481,42 +565,7 @@ export function spliceSetNodeRef(
 ): string {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
   if (!nodeTok) fail(`node "${nodeName}" not found`, { node: nodeName });
-  const tag = `bo:${refKind}`;
-
-  const existing = tokens.find(
-    (t) =>
-      t.name === tag &&
-      t.depth === nodeTok.depth + 1 &&
-      t.openStart > nodeTok.openStart &&
-      t.openStart < nodeTok.closeEnd,
-  );
-
-  if (ref === null) {
-    return existing ? xml.slice(0, existing.openStart) + xml.slice(existing.closeEnd) : xml;
-  }
-
-  const fragment = renderRef(tag, ref);
-  if (existing) {
-    return xml.slice(0, existing.openStart) + fragment + xml.slice(existing.closeEnd);
-  }
-
-  if (nodeTok.kind === "empty") {
-    const opened = promoteToContainer(xml, nodeTok);
-    const insertAt = nodeTok.openEnd - 1;
-    return splice(opened, insertAt, fragment);
-  }
-
-  const targetIdx = NODE_CHILD_ORDER.indexOf(refKind);
-  let insertAt = nodeTok.openEnd;
-  for (const t of tokens) {
-    if (t.depth !== nodeTok.depth + 1) continue;
-    if (t.openStart <= nodeTok.openStart || t.openStart >= nodeTok.closeEnd) continue;
-    const idx = NODE_CHILD_ORDER.indexOf(bareName(t.name) as NodeChildTag);
-    if (idx === -1) continue;
-    if (idx <= targetIdx) insertAt = t.closeEnd;
-    else break;
-  }
-  return splice(xml, insertAt, fragment);
+  return spliceSetElementRef(xml, tokens, nodeTok, `bo:${refKind}`, ref, NODE_CHILD_ORDER);
 }
 
 // ---------------------------------------------------------------------------

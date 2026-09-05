@@ -118,6 +118,18 @@ where an empty value is folded into the unset `*` default on both the
 "refuse every write" is already expressed by `ABAP_ALLOW_PACKAGES=` or
 `ABAP_MODE=read`, so an empty prefix list has nothing distinct to fold to.
 
+A pinned `ABAP_ALLOW_TRANSPORTS` does not block a `VIEW/DV`/`TRAN/T` bridge
+delete (`src/adt/view-delete.ts`, `src/adt/tran-delete.ts`): the delete
+bridges pass no transport request and issue no `RS_CORR_INSERT` of their
+own, so abapsmith names no request for the allowlist to judge and the
+safety gate treats the delete as a local mutation. An explicitly empty
+`ABAP_ALLOW_TRANSPORTS=` still refuses both deletes, since that deny-all
+check runs first. Because the delete records nothing in CTS, whatever entry
+the object already had on a transport request (typically from its create)
+survives the delete; remove it separately with `abap_transport` operation
+`"removeObject"` — but that operation is itself gated by the admin-only
+transport-delete ceiling, so it needs `ABAP_MODE=admin`.
+
 **These allowlists govern writes this server makes, not ABAP it executes.**
 ABAP run via `abap_run`, `abap_test` or `abap_bopf_test` executes under the
 technical user's SAP authorisations and can call CTS APIs directly, naming a

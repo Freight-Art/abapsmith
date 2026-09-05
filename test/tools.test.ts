@@ -2075,19 +2075,19 @@ describe("tool surface", () => {
     const props = schema?.properties ?? {};
     expect(props.description?.description).toContain("Required to create a TRAN/T");
     expect(props.description?.description).toContain("37");
-    // corr_nr is now conditionally REQUIRED (a transportable VIEW/DV create)
-    // as well as conditionally refused (TRAN/T create, either type's delete)
-    // — pin the whole string so both halves of that contract stay honest.
+    // corr_nr is now conditionally REQUIRED (a transportable VIEW/DV or TRAN/T
+    // create) as well as conditionally refused ($ package create, either type's
+    // delete) — pin the whole string so both halves of that contract stay honest.
     expect(props.corr_nr?.description).toBe(
-      "Transport request. $TMP needs none. Required for a VIEW/DV create into a " +
-        "transportable package. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete.",
+      "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a " +
+        "transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete.",
     );
-    // package's VIEW/DV clause states the corr_nr/package pairing rule, not a
-    // blanket refusal — pin it verbatim rather than substring-matching, since
-    // a substring match would pass even if the rule reversed.
+    // package's VIEW/DV and TRAN/T clause states the corr_nr/package pairing rule,
+    // not a blanket refusal — pin it verbatim rather than substring-matching,
+    // since a substring match would pass even if the rule reversed.
     expect(props.package?.description).toBe(
-      "Package for a NEW object. Default $TMP. VIEW/DV: a transportable one needs corr_nr, " +
-        "a $-package refuses it.",
+      "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs " +
+        "corr_nr, a $-package refuses it.",
     );
   });
 
