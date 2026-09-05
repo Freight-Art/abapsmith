@@ -73,6 +73,7 @@ const COMPLETE_SPEC = {
   dataTypeRef: { name: "ZSORDER_ID", type: "TABL/DS" },
   dataTableTypeRef: { name: "ZTORDER_ID", type: "TTYP/DA" },
   keyElements: ["FIELD1"],
+  noCheck: true,
 };
 
 /**

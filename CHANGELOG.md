@@ -791,6 +791,10 @@ was last set to `0.3.0`.
   blocks them (an explicit deny-all still does), and the delete response
   now flags any transport-request entry the object's create left behind
   for `abap_transport removeObject` to clean up.
+- `abap_bopf_edit operation:"add_alternative_key"`/`"set_alternative_key_fields"`
+  now refuse the `checkAfterModify`/`checkBeforeSave`/`noCheck` combinations
+  that made BOPF's model mapper assert and take down the ADT session; `unique`/
+  `uniqueIfNotInitial` now require exactly one of `noCheck`/`checkAfterModify`.
 
 ### Security
 
