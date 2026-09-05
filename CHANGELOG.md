@@ -214,6 +214,14 @@ was last set to `0.3.0`.
   caller's own length instead of the fixed values the fixtures show —
   were found and corrected by review within the same change before it
   merged.
+- Six new `set_*_fields` BOPF operations (`set_association_fields`,
+  `set_action_fields`, `set_determination_fields`, `set_validation_fields`,
+  `set_query_fields`, `set_alternative_key_fields`), patching an existing
+  child element in place: only the fields named in `spec` change, and every
+  other attribute and every child element of the target element is
+  preserved byte-for-byte. `null` clears an attribute or a ref, as
+  `set_node_flags` already did. Each re-reads after the write and fails
+  `CHECK_FAILED` if a named field did not stick.
 
 ### Changed
 
@@ -328,6 +336,10 @@ was last set to `0.3.0`.
   unpageable raw XML; `abap_debug`/`abap_enh` tool-schema descriptions
   were trimmed to reduce `tools/list` token cost, with the displaced
   reference material moved into `doc/TOOLS/`.
+- The six `add_*` BOPF operations for association/action/determination/
+  validation/query/alternative-key now refuse a `name` that already exists
+  on the target node, instead of silently creating a second element with
+  that name.
 - `TRAN/T` create now threads a transport request through to
   `RPY_TRANSACTION_INSERT`'s `transport_number` parameter, mirroring
   `VIEW/DV`'s package rule: a transportable package requires `corr_nr`

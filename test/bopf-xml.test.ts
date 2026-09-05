@@ -14,10 +14,16 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { isAbapError } from "../src/adt/errors.js";
 import {
+  ACTION_CHILD_ORDER,
+  QUERY_CHILD_ORDER,
+} from "../src/adt/bopf-types.js";
+import {
   insertionPoint,
   locate,
+  locateToken,
   mintGuid,
   parseModel,
+  patchOpenTagAttrs,
   renderAlternativeKeyElement,
   renderAssociationElement,
   renderDeterminationElement,
@@ -32,6 +38,7 @@ import {
   scanModel,
   splice,
   spliceOut,
+  spliceSetElementRef,
 } from "../src/adt/bopf-xml.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "bopf");
@@ -273,6 +280,310 @@ describe("locate", () => {
     expect(
       locate(tokens, { node: "NO_SUCH_NODE_XYZ", child: "association", name: "X" }),
     ).toBeUndefined();
+  });
+});
+
+describe("locateToken: token-level counterpart of locate", () => {
+  it("for a node selector, returns the exact Token locate derives its range from", () => {
+    const xml = read("01-get-demo_sales_order.v4.xml");
+    const tokens = scanModel(xml);
+    const tok = locateToken(tokens, { node: "ROOT" });
+    const range = locate(tokens, { node: "ROOT" });
+    expect(tok).toBeDefined();
+    expect(range).toBeDefined();
+    if (!tok || !range) return;
+    expect(tok.name).toBe("bo:nodes");
+    expect(tok.openStart).toBe(range.start);
+    expect(tok.closeEnd).toBe(range.end);
+  });
+
+  it("for a child selector, returns the child's own Token (attrs, kind, depth included)", () => {
+    const xml = read("10-model-coverage-final.v4.xml");
+    const tokens = scanModel(xml);
+    const tok = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(tok).toBeDefined();
+    if (!tok) return;
+    expect(tok.name).toBe("bo:actions");
+    expect(tok.kind).toBe("container");
+    expect(tok.attrs.get("bo:name")).toBe("LOCK_ROOT");
+  });
+
+  it("returns undefined exactly where locate would (missing node, missing child)", () => {
+    const xml = read("01-get-demo_sales_order.v4.xml");
+    const tokens = scanModel(xml);
+    expect(locateToken(tokens, { node: "NO_SUCH_NODE_XYZ" })).toBeUndefined();
+    expect(locateToken(tokens, { node: "NO_SUCH_NODE_XYZ", child: "association", name: "X" })).toBeUndefined();
+  });
+});
+
+describe("patchOpenTagAttrs: open-tag attribute patcher", () => {
+  const xml = read("10-model-coverage-final.v4.xml");
+  const tokens = scanModel(xml);
+
+  /** Only bytes in [token.openStart, newOpenTagEnd) may differ from the original — this proves it by anchoring on the untouched prefix and the untouched suffix (everything from the original openEnd onward), which for a container includes every one of its child elements. */
+  function expectOnlyOpenTagChanged(patched: string, token: (typeof tokens)[number]): void {
+    expect(patched.slice(0, token.openStart)).toBe(xml.slice(0, token.openStart));
+    const suffix = xml.slice(token.openEnd);
+    expect(patched.endsWith(suffix)).toBe(true);
+  }
+
+  it("replaces an existing attribute in place", () => {
+    const token = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(token).toBeDefined();
+    if (!token) return;
+    const patched = patchOpenTagAttrs(xml, token, new Map([["category", "9"]]));
+    expectOnlyOpenTagChanged(patched, token);
+    const suffix = xml.slice(token.openEnd);
+    const newOpenTag = patched.slice(token.openStart, patched.length - suffix.length);
+    expect(newOpenTag).toContain('bo:category="9"');
+    expect(newOpenTag).not.toContain('bo:category="3"');
+    expect(scanModel(patched).length).toBe(tokens.length); // well-formed; no element gained or lost
+  });
+
+  it("string values pass through escapeAttrValue (quotes and ampersands escaped)", () => {
+    const token = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(token).toBeDefined();
+    if (!token) return;
+    const patched = patchOpenTagAttrs(xml, token, new Map([["xmlName", 'Lock "Root" & Release']]));
+    const suffix = xml.slice(token.openEnd);
+    const newOpenTag = patched.slice(token.openStart, patched.length - suffix.length);
+    expect(newOpenTag).toContain('bo:xmlName="Lock &quot;Root&quot; &amp; Release"');
+  });
+
+  it("patching bo:category does not touch the longer bo:exportingParameterCategoryType attribute", () => {
+    const token = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(token).toBeDefined();
+    if (!token) return;
+    expect(token.attrs.get("bo:exportingParameterCategoryType")).toBe("None");
+    const patched = patchOpenTagAttrs(xml, token, new Map([["category", "9"]]));
+    const suffix = xml.slice(token.openEnd);
+    const newOpenTag = patched.slice(token.openStart, patched.length - suffix.length);
+    expect(newOpenTag).toContain('bo:exportingParameterCategoryType="None"');
+    expect(newOpenTag).toContain('bo:category="9"');
+    expect(newOpenTag).not.toContain('bo:category="3"');
+  });
+
+  it("appends a missing attribute just before the closing '>'", () => {
+    const token = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(token).toBeDefined();
+    if (!token) return;
+    expect(token.attrs.has("bo:xmlName")).toBe(false);
+    const patched = patchOpenTagAttrs(xml, token, new Map([["xmlName", "Lock Root"]]));
+    expectOnlyOpenTagChanged(patched, token);
+    const suffix = xml.slice(token.openEnd);
+    const newOpenTag = patched.slice(token.openStart, patched.length - suffix.length);
+    expect(newOpenTag).toContain('bo:xmlName="Lock Root"');
+    expect(newOpenTag.endsWith(">")).toBe(true);
+    expect(newOpenTag.endsWith("/>")).toBe(false); // container form preserved
+  });
+
+  it("removes an attribute given null", () => {
+    const token = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(token).toBeDefined();
+    if (!token) return;
+    expect(token.attrs.has("bo:isExtensible")).toBe(true);
+    const patched = patchOpenTagAttrs(xml, token, new Map([["isExtensible", null]]));
+    expectOnlyOpenTagChanged(patched, token);
+    const suffix = xml.slice(token.openEnd);
+    const newOpenTag = patched.slice(token.openStart, patched.length - suffix.length);
+    expect(newOpenTag).not.toContain("bo:isExtensible");
+  });
+
+  it("preserves self-closing form on a self-closing element", () => {
+    const token = locateToken(tokens, { node: "ROOT", child: "query", name: "SELECT_ALL" });
+    expect(token).toBeDefined();
+    if (!token) return;
+    expect(token.kind).toBe("empty");
+    const patched = patchOpenTagAttrs(
+      xml,
+      token,
+      new Map<string, string | boolean | null>([
+        ["category", "selectNone"],
+        ["objectModelGenerated", true],
+      ]),
+    );
+    expectOnlyOpenTagChanged(patched, token);
+    const suffix = xml.slice(token.openEnd);
+    const newOpenTag = patched.slice(token.openStart, patched.length - suffix.length);
+    expect(newOpenTag.endsWith("/>")).toBe(true);
+    expect(newOpenTag).toContain('bo:category="selectNone"');
+    expect(newOpenTag).toContain('bo:objectModelGenerated="true"');
+    const reTokens = scanModel(patched);
+    expect(reTokens.length).toBe(tokens.length); // no element gained or lost
+  });
+
+  it("on a container tag, every child element downstream survives byte-for-byte", () => {
+    const token = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(token).toBeDefined();
+    if (!token) return;
+    const childText = xml.slice(token.openEnd, token.closeEnd); // implementationClassRef + parameterStructureRef + closing tag
+    const patched = patchOpenTagAttrs(
+      xml,
+      token,
+      new Map<string, string | boolean | null>([
+        ["category", "9"],
+        ["xmlName", "Lock Root"],
+        ["isExtensible", null],
+      ]),
+    );
+    const suffix = xml.slice(token.openEnd);
+    const newOpenTag = patched.slice(token.openStart, patched.length - suffix.length);
+    expect(patched.slice(patched.length - suffix.length, patched.length - suffix.length + childText.length)).toBe(
+      childText,
+    );
+    expect(newOpenTag).toContain('bo:category="9"');
+  });
+
+  it("changes no bytes anywhere else in the document (whole-document diff outside the patched tag)", () => {
+    const token = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(token).toBeDefined();
+    if (!token) return;
+    const patched = patchOpenTagAttrs(xml, token, new Map([["category", "9"]]));
+    expect(patched.slice(0, token.openStart)).toBe(xml.slice(0, token.openStart));
+    expect(patched.slice(patched.length - (xml.length - token.openEnd))).toBe(xml.slice(token.openEnd));
+  });
+});
+
+describe("spliceSetElementRef: generalised singular-ref splice for any container element", () => {
+  it("inserts a new ref respecting childOrder, after an earlier-ordered sibling", () => {
+    const xml = read("10-model-coverage-final.v4.xml");
+    const tokens = scanModel(xml);
+    // SELECT_BY_ELEMENTS has dataTypeRef only; QUERY_CHILD_ORDER puts implementationClassRef right after it.
+    const owner = locateToken(tokens, { node: "ROOT", child: "query", name: "SELECT_BY_ELEMENTS" });
+    expect(owner).toBeDefined();
+    if (!owner) return;
+    const result = spliceSetElementRef(
+      xml,
+      tokens,
+      owner,
+      "bo:implementationClassRef",
+      { name: "ZCL_QUERY_IMPL", type: "CLAS/OC" },
+      QUERY_CHILD_ORDER,
+    );
+    const reTokens = scanModel(result);
+    const reOwner = locateToken(reTokens, { node: "ROOT", child: "query", name: "SELECT_BY_ELEMENTS" });
+    expect(reOwner).toBeDefined();
+    if (!reOwner) return;
+    const body = result.slice(reOwner.openEnd, reOwner.closeEnd);
+    expect(body.startsWith("<bo:dataTypeRef")).toBe(true);
+    expect(body).toContain('<bo:implementationClassRef adtcore:type="CLAS/OC" adtcore:name="ZCL_QUERY_IMPL"/>');
+    const dataTypeIdx = body.indexOf("<bo:dataTypeRef");
+    const implIdx = body.indexOf("<bo:implementationClassRef");
+    expect(dataTypeIdx).toBeLessThan(implIdx);
+  });
+
+  it("inserts a new ref BEFORE an already-present later-ordered sibling", () => {
+    const synthetic =
+      `<?xml version="1.0" encoding="utf-8"?><bo:businessObject xmlns:bo="http://www.sap.com/bopf/bo/BusinessObject" ` +
+      `xmlns:adtcore="http://www.sap.com/adt/core"><bo:nodes bo:name="ROOT"><bo:actions bo:name="ACT1">` +
+      `<bo:parameterStructureRef adtcore:type="TABL/DS" adtcore:name="ZS1"/></bo:actions></bo:nodes></bo:businessObject>`;
+    const tokens = scanModel(synthetic);
+    const owner = locateToken(tokens, { node: "ROOT", child: "action", name: "ACT1" });
+    expect(owner).toBeDefined();
+    if (!owner) return;
+    // ACTION_CHILD_ORDER = [implementationClassRef, parameterStructureRef] — implementationClassRef must land BEFORE the existing parameterStructureRef.
+    const result = spliceSetElementRef(
+      synthetic,
+      tokens,
+      owner,
+      "bo:implementationClassRef",
+      { name: "ZCL1", type: "CLAS/OC" },
+      ACTION_CHILD_ORDER,
+    );
+    const reTokens = scanModel(result);
+    const reOwner = locateToken(reTokens, { node: "ROOT", child: "action", name: "ACT1" });
+    expect(reOwner).toBeDefined();
+    if (!reOwner) return;
+    const body = result.slice(reOwner.openEnd, reOwner.closeEnd);
+    expect(body.indexOf("<bo:implementationClassRef")).toBeLessThan(body.indexOf("<bo:parameterStructureRef"));
+  });
+
+  it("replaces an existing ref in place, leaving sibling refs untouched", () => {
+    const xml = read("10-model-coverage-final.v4.xml");
+    const tokens = scanModel(xml);
+    const owner = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(owner).toBeDefined();
+    if (!owner) return;
+    const paramRefBefore = xml.slice(
+      xml.indexOf("<bo:parameterStructureRef", owner.openStart),
+      xml.indexOf("/>", xml.indexOf("<bo:parameterStructureRef", owner.openStart)) + 2,
+    );
+    const result = spliceSetElementRef(
+      xml,
+      tokens,
+      owner,
+      "bo:implementationClassRef",
+      { name: "ZCL_REPLACED", type: "CLAS/OC" },
+      ACTION_CHILD_ORDER,
+    );
+    expect(result).toContain('<bo:implementationClassRef adtcore:type="CLAS/OC" adtcore:name="ZCL_REPLACED"/>');
+    expect(result).not.toContain("/BOBF/CL_LIB_A_LOCK");
+    expect(result).toContain(paramRefBefore); // sibling untouched
+  });
+
+  it("clears an existing ref given null", () => {
+    const xml = read("10-model-coverage-final.v4.xml");
+    const tokens = scanModel(xml);
+    const owner = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(owner).toBeDefined();
+    if (!owner) return;
+    const result = spliceSetElementRef(xml, tokens, owner, "bo:parameterStructureRef", null, ACTION_CHILD_ORDER);
+    expect(result).not.toContain("bo:parameterStructureRef");
+    expect(result).toContain("/BOBF/CL_LIB_A_LOCK"); // implementationClassRef, the sibling, survives
+    expect(scanModel(result).length).toBe(tokens.length - 1); // exactly the cleared element's token is gone
+  });
+
+  it("clearing a ref that is already absent is a no-op", () => {
+    const xml = read("10-model-coverage-final.v4.xml");
+    const tokens = scanModel(xml);
+    const owner = locateToken(tokens, { node: "ROOT", child: "action", name: "Z_ACTION" }); // has implementationClassRef only
+    expect(owner).toBeDefined();
+    if (!owner) return;
+    const result = spliceSetElementRef(xml, tokens, owner, "bo:parameterStructureRef", null, ACTION_CHILD_ORDER);
+    expect(result).toBe(xml);
+  });
+
+  it("promotes a self-closing owner to a container before inserting", () => {
+    const xml = read("10-model-coverage-final.v4.xml");
+    const tokens = scanModel(xml);
+    const owner = locateToken(tokens, { node: "ROOT", child: "query", name: "SELECT_ALL" });
+    expect(owner).toBeDefined();
+    if (!owner) return;
+    expect(owner.kind).toBe("empty");
+    const result = spliceSetElementRef(
+      xml,
+      tokens,
+      owner,
+      "bo:dataTypeRef",
+      { name: "ZTMD_S_ROOT6", type: "TABL/DS" },
+      QUERY_CHILD_ORDER,
+    );
+    const reTokens = scanModel(result);
+    const reOwner = locateToken(reTokens, { node: "ROOT", child: "query", name: "SELECT_ALL" });
+    expect(reOwner).toBeDefined();
+    if (!reOwner) return;
+    expect(reOwner.kind).toBe("container");
+    expect(result.slice(reOwner.openEnd, reOwner.closeEnd)).toBe(
+      '<bo:dataTypeRef adtcore:type="TABL/DS" adtcore:name="ZTMD_S_ROOT6"/></bo:queries>',
+    );
+  });
+
+  it("siblings elsewhere in the document are preserved byte-for-byte", () => {
+    const xml = read("10-model-coverage-final.v4.xml");
+    const tokens = scanModel(xml);
+    const owner = locateToken(tokens, { node: "ROOT", child: "action", name: "LOCK_ROOT" });
+    expect(owner).toBeDefined();
+    if (!owner) return;
+    const result = spliceSetElementRef(
+      xml,
+      tokens,
+      owner,
+      "bo:implementationClassRef",
+      { name: "ZCL_REPLACED", type: "CLAS/OC" },
+      ACTION_CHILD_ORDER,
+    );
+    expect(result.slice(0, owner.openStart)).toBe(xml.slice(0, owner.openStart));
+    expect(result.slice(result.length - (xml.length - owner.closeEnd))).toBe(xml.slice(owner.closeEnd));
   });
 });
 

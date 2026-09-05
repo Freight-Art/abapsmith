@@ -130,7 +130,7 @@ describe("abap_do activation group (activate/run/test/undo)", () => {
  * the tool schema, reaches the handler, and (before the fix) was dropped by
  * zod's stripping `z.object`, leaving an untransported activation reporting
  * `ok: true`. The guard is one diff against the v1 schema's own shape inside
- * `parseV1`, so it covers all 45 actions, not just this one.
+ * `parseV1`, so it covers all 51 actions, not just this one.
  */
 describe("abap_do args unknown-key rejection", () => {
   beforeEach(() => {
