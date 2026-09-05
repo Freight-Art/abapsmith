@@ -33,7 +33,11 @@
  *     to `BAD_INPUT`;
  * 13. both fragments' ACTFAILED branches disclosing an unfiltered DD12V row
  *     count, since `DD_INDEX_INTERFACE` exports no activation log;
- * 14. the bridge-refresh pin — a stale (pre-fix) server-side bridge class
+ * 14. `indexDeleteFragment`'s ACTFAILED-tolerant read-back (fix 3, live
+ *     2026-09-05 round 2) — the post-commit DD12V/DD17S read-back decides,
+ *     not ACTFAILED, so a delete that actually worked is reported success
+ *     instead of CHECK_FAILED;
+ * 15. the bridge-refresh pin — a stale (pre-fix) server-side bridge class
  *     body still gets PUT over with the current generated body, rather than
  *     skipped as unchanged.
  */
@@ -47,6 +51,8 @@ import { AbapError, isAbapError } from "../src/adt/errors.js";
 import {
   DDIC_BRIDGE_CLASS,
   DDIC_BRIDGE_PACKAGE,
+  DDIC_ERR_PREFIX,
+  DDIC_NOTE_PREFIX,
   DDIC_TAGS,
   assertDdicTranscript,
   ddicBridgeSource,
@@ -186,12 +192,16 @@ describe("generator/parser drift", () => {
 
   it("indexDeleteFragment emits exactly the tag set deleteSecondaryIndexViaBridge expects", () => {
     const tags = emittedTags(indexDeleteFragment(DELETE_INDEX));
-    expect(tags).toEqual(["INDEX-DELETED", "INDEX-GONE"]);
+    // expectTags itself, from deleteSecondaryIndexViaBridge — every one must still fire, in
+    // whatever sequence the fragment now emits it in.
+    for (const tag of ["INDEX-DELETED", "INDEX-GONE"]) expect(tags).toContain(tag);
+    expect(tags).toEqual(["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"]);
   });
 
   it("indexDeleteFragment emits the same tag set for $TMP", () => {
     const tags = emittedTags(indexDeleteFragment(LOCAL_DELETE_INDEX));
-    expect(tags).toEqual(["INDEX-DELETED", "INDEX-GONE"]);
+    for (const tag of ["INDEX-DELETED", "INDEX-GONE"]) expect(tags).toContain(tag);
+    expect(tags).toEqual(["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"]);
   });
 
   it("every tag either fragment writes is one parseDdicTranscript recognises", () => {
@@ -534,16 +544,100 @@ describe("ACTFAILED branches disclose an unfiltered DD12V row count", () => {
     expect(block.some((l) => l.includes("{ lv_dd12v_any }"))).toBe(true);
   });
 
-  it("indexDeleteFragment's ACTFAILED branch selects DD12V with no AS4LOCAL filter and interpolates the counter", () => {
-    const block = actfailedBlock(indexDeleteFragment(DELETE_INDEX));
-    expect(block.some((l) => l.includes("SELECT COUNT( * ) FROM dd12v"))).toBe(true);
-    expect(block.some((l) => l.includes("SELECT COUNT( * ) FROM dd12v") && l.includes("AS4LOCAL"))).toBe(false);
-    expect(block.some((l) => l.includes("{ lv_dd12v_count }"))).toBe(true);
+  it("indexDeleteFragment's post-commit read-back selects DD12V unfiltered, DD12V AS4LOCAL='A', and DD17S, then interpolates all three in the failure message", () => {
+    const lines = indexDeleteFragment(DELETE_INDEX);
+    const commitIdx = lines.findIndex((l) => l.trim() === "COMMIT WORK.");
+    expect(commitIdx).toBeGreaterThanOrEqual(0);
+    const readback = lines.slice(commitIdx + 1);
+
+    const dd12vAny = readback.find((l) => l.includes("SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count"));
+    const dd12vActive = readback.find((l) => l.includes("SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_active"));
+    const dd17s = readback.find((l) => l.includes("SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count"));
+    expect(dd12vAny).toBeDefined();
+    expect(dd12vActive).toBeDefined();
+    expect(dd17s).toBeDefined();
+    expect(dd12vAny!.toLowerCase()).not.toContain("as4local");
+    expect(dd12vActive!.toLowerCase()).toContain("as4local");
+
+    const errLine = readback.find((l) => l.includes(DDIC_ERR_PREFIX) && l.includes("left rows behind"));
+    expect(errLine).toBeDefined();
+    expect(errLine).toContain("{ lv_dd12v_count }");
+    expect(errLine).toContain("{ lv_dd12v_active }");
+    expect(errLine).toContain("{ lv_dd17s_count }");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 14 — bridge-refresh pin: a stale (pre-fix) server-side bridge class body
+// 14 — indexDeleteFragment's ACTFAILED-tolerant read-back (fix 3: live
+// 2026-09-05 round 2 — ACTFAILED = 'X' fired on delete after the index was
+// already gone from DD12V/DD17S; the old fragment RETURNed before COMMIT
+// WORK on that alone, reporting CHECK_FAILED for a delete that had worked)
+// ---------------------------------------------------------------------------
+
+describe("indexDeleteFragment's ACTFAILED-tolerant read-back", () => {
+  /** Extracts a note/error line's interpolated content, not hand-typed — tracks the fragment's own wording. */
+  function interpolatedText(line: string): string {
+    const m = /\|(.+)\|/.exec(line);
+    if (!m?.[1]) throw new Error(`no interpolated text in: ${line}`);
+    return m[1];
+  }
+
+  const DELETE_LINES = indexDeleteFragment(DELETE_INDEX);
+
+  it("an ACTFAILED-but-gone transcript parses as success: the note line never becomes errorLine", () => {
+    const noteLine = interpolatedText(DELETE_LINES.find((l) => l.includes(DDIC_NOTE_PREFIX))!);
+    expect(noteLine.startsWith(DDIC_NOTE_PREFIX)).toBe(true);
+    expect(noteLine).not.toContain(DDIC_ERR_PREFIX);
+
+    const raw = [noteLine, "INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"].join("\n");
+    const parsed = parseDdicTranscript(raw);
+    expect(parsed.errorLine).toBeUndefined();
+    expect(parsed.tags).toEqual(["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"]);
+  });
+
+  it("INDEX-DELETED-ACTFAILED precedes INDEX-DELETED in the emitted fragment", () => {
+    const tags = emittedTags(DELETE_LINES);
+    const actfailedIdx = tags.indexOf("INDEX-DELETED-ACTFAILED");
+    const deletedIdx = tags.indexOf("INDEX-DELETED");
+    expect(actfailedIdx).toBeGreaterThanOrEqual(0);
+    expect(deletedIdx).toBeGreaterThan(actfailedIdx);
+  });
+
+  it("rows still in DD12V/DD17S after commit is still a real failure, distinguishable from the ACTFAILED-but-gone note", () => {
+    const errLine = DELETE_LINES.find((l) => l.includes(DDIC_ERR_PREFIX) && l.includes("left rows behind"));
+    expect(errLine).toBeDefined();
+    expect(errLine).toContain("{ lv_dd12v_count }");
+    expect(errLine).toContain("{ lv_dd12v_active }");
+    expect(errLine).toContain("{ lv_dd17s_count }");
+    expect(errLine).toContain(`${DELETE_WHAT} ACTFAILED = '{ lv_actfailed }'`);
+    expect(errLine).not.toContain(DDIC_NOTE_PREFIX);
+
+    const errIdx = DELETE_LINES.indexOf(errLine!);
+    expect(DELETE_LINES[errIdx + 1]!.trim()).toBe("RETURN.");
+  });
+
+  it("no RETURN sits between the FM call's sy-subrc guard and COMMIT WORK — ACTFAILED can no longer short-circuit the commit", () => {
+    const guardErrIdx = DELETE_LINES.findIndex((l) => l.includes(`${DELETE_WHAT} failed, sy-subrc={ sy-subrc }`));
+    expect(guardErrIdx).toBeGreaterThanOrEqual(0);
+    const guardEndIdx = DELETE_LINES.findIndex((l, i) => i > guardErrIdx && l.trim() === "ENDIF.");
+    const commitIdx = DELETE_LINES.findIndex((l) => l.trim() === "COMMIT WORK.");
+    expect(guardEndIdx).toBeGreaterThan(guardErrIdx);
+    expect(commitIdx).toBeGreaterThan(guardEndIdx);
+
+    const between = DELETE_LINES.slice(guardEndIdx + 1, commitIdx);
+    expect(between.some((l) => l.trim() === "RETURN.")).toBe(false);
+  });
+
+  it('"INDEX-DELETED-ACTFAILED" is a recognised tag, not dropped as prose', () => {
+    expect(DDIC_TAGS).toContain("INDEX-DELETED-ACTFAILED");
+    const parsed = parseDdicTranscript("INDEX-DELETED-ACTFAILED");
+    expect(parsed.tags).toEqual(["INDEX-DELETED-ACTFAILED"]);
+    expect(parsed.errorLine).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 15 — bridge-refresh pin: a stale (pre-fix) server-side bridge class body
 // still gets PUT over, rather than skipped as "class exists, unchanged".
 // Fake HttpClient transport, harness copied from test/view-delete.test.ts /
 // test/bopf-runtime.test.ts's `bridgeRouteWarm` — the only network-touching

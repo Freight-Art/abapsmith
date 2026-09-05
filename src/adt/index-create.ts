@@ -15,11 +15,15 @@
  * guessed. Live evidence as of 2026-09-05, against A4H: this module's OWN
  * generated create bridge ran and created a non-unique, single-field index
  * in `$TMP`, all three read-back markers firing. The unique path failed
- * activation (ACTFAILED) there; the client-field guard below is an
- * unconfirmed diagnosis of why, not a proven fix. The delete bridge ran
- * too, but its `CALL FUNCTION` was rejected for a missing `TABLES`
- * parameter — fixed here, not yet re-run live. The transportable-package
- * path, either direction, remains unexercised.
+ * activation (ACTFAILED) there; round 2 confirmed live that the cause is
+ * the client field the guard below checks for — a unique create that
+ * included it produced all three markers, one that omitted it was refused
+ * by the guard before the FM was ever called. The delete bridge's missing
+ * `TABLES` parameter (round 1) is fixed and confirmed deployed live
+ * (round 2). Round 2 also found ACTFAILED = 'X' on delete can fire after
+ * the row is already gone from DD12V/DD17S — the ACTFAILED-tolerant
+ * read-back added to close that has NOT itself been run live yet. The
+ * transportable-package path, either direction, remains unexercised.
  *
  * Two independent gates, one closed template — same shape as `./view-create.ts`
  * and `./view-delete.ts`, which this file otherwise mirrors structurally.
@@ -31,6 +35,7 @@ import type { AbapIdentifierOptions, SafetyCorr, SafetyGate } from "../safety.js
 import type { RunResult } from "./run.js";
 import {
   DDIC_BRIDGE_CLASS,
+  DDIC_NOTE_PREFIX,
   assertBridgeMutation,
   ddicBridgeSource,
   runDdicBridge,
@@ -419,6 +424,7 @@ export const INDEX_DELETE_DATA_LINES: readonly string[] = [
   "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
   "lv_actfailed TYPE ddrefstruc-flag.",
   "lv_dd12v_count TYPE i.",
+  "lv_dd12v_active TYPE i.",
   "lv_dd17s_count TYPE i.",
 ];
 
@@ -449,8 +455,8 @@ export function secondaryIndexFragment(p: SecondaryIndexParams): string[] {
   lines.push("");
 
   // A unique secondary index on a client-dependent table must carry the client field, or
-  // activation fails; suspected cause of the live 2026-09-05 ACTFAILED on a unique index over a
-  // client-dependent table, not itself confirmed live.
+  // activation fails; confirmed live 2026-09-05 (round 2) as the cause of the ACTFAILED seen in
+  // round 1 on a unique index over a client-dependent table.
   if (unique) {
     lines.push(
       `SELECT SINGLE fieldname FROM dd03l INTO @lv_client_field WHERE tabname = ${table} AND as4local = 'A' AND datatype = 'CLNT'.`,
@@ -567,32 +573,41 @@ export function indexDeleteFragment(p: IndexDeleteParams): string[] {
     "  EXCEPTIONS",
     ...ddIndexExceptionsClause(),
     ...subrcGuardFragment(DELETE_FM_WHAT),
-    "IF lv_actfailed = 'X'.",
-    // Same rationale as the create side: no activation log, so the DD12V row count is the
-    // cheapest evidence of what a failed activation left behind.
-    `  SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    `  out->write( |ZMCP-DDIC-ERR> ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}; DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_count }| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'INDEX-DELETED' ).",
     "",
   );
 
-  // Step 3: commit.
+  // Step 3: commit — unconditional even when ACTFAILED = 'X'. Live 2026-09-05: on both a
+  // non-unique and a unique index, ACTFAILED = 'X' fired while the DD12V row was already gone,
+  // meaning the catalog change had already taken effect before this classrun's own commit point.
+  // ACTFAILED alone no longer decides anything below; it only flags the read-back as worth a note.
   lines.push("COMMIT WORK.", "");
 
-  // Step 4: re-read BOTH DD12V and DD17S — a clean FM return is never trusted alone.
+  // Step 4: read back all three signals before deciding — same discipline as the create side,
+  // now applied to ACTFAILED too instead of trusting it as fatal.
   lines.push(
     `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    "IF lv_dd12v_count <> 0.",
-    `  out->write( |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} reported no error but DD12V still has a row| ).`,
-    "  RETURN.",
-    "ENDIF.",
+    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_active WHERE sqltab = ${table} AND indexname = ${index} AND as4local = 'A'.`,
     `SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    "IF lv_dd17s_count <> 0.",
-    `  out->write( |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} cleared DD12V but DD17S still has a field row| ).`,
+    "",
+  );
+
+  // Step 5: the read-back decides, not ACTFAILED. All-zero is success even when ACTFAILED = 'X'
+  // fired (live 2026-09-05: the FM's own failure report lagged behind a catalog change that had
+  // already committed); any row surviving is still a real failure either way.
+  lines.push(
+    "IF lv_dd12v_count <> 0 OR lv_dd12v_active <> 0 OR lv_dd17s_count <> 0.",
+    `  out->write( |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} left rows behind after commit ` +
+      `(DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }); ` +
+      `${DELETE_FM_WHAT} ACTFAILED = '{ lv_actfailed }'| ).`,
     "  RETURN.",
     "ENDIF.",
+    "IF lv_actfailed = 'X'.",
+    `  out->write( |${DDIC_NOTE_PREFIX} ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}, ` +
+      `but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, DD12V active: ` +
+      `{ lv_dd12v_active }, DD17S: { lv_dd17s_count }) — treating as deleted| ).`,
+    "  out->write( 'INDEX-DELETED-ACTFAILED' ).",
+    "ENDIF.",
+    "out->write( 'INDEX-DELETED' ).",
     "out->write( 'INDEX-GONE' ).",
   );
 

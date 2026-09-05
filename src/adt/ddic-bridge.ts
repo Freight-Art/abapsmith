@@ -67,6 +67,9 @@ export const DDIC_BRIDGE_CLASS = {
 /** Prefix of the line the generated `CATCH cx_root` handler — and every explicit `sy-subrc` check — writes. */
 export const DDIC_ERR_PREFIX = "ZMCP-DDIC-ERR>";
 
+/** Informational-only prefix: `parseDdicTranscript` does not look for this, so a line with it never becomes `errorLine`. */
+export const DDIC_NOTE_PREFIX = "ZMCP-DDIC-NOTE>";
+
 /** Closed set of success markers any fragment may emit; each operation's test feeds a generator's real output through {@link parseDdicTranscript} to prove parser and generators haven't drifted apart. */
 export const DDIC_TAGS = [
   "VIEW-PUT",
@@ -94,6 +97,8 @@ export const DDIC_TAGS = [
   "INDEX-FIELDS",
   "INDEX-DELETED",
   "INDEX-GONE",
+  // FM reported ACTFAILED on delete but the post-commit DD12V/DD17S read-back found the index gone anyway — live 2026-09-05.
+  "INDEX-DELETED-ACTFAILED",
 ] as const;
 export type DdicTag = (typeof DDIC_TAGS)[number];
 

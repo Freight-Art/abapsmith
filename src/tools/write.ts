@@ -3984,6 +3984,18 @@ async function abapDeleteIndexViaBridge(
         "verified is always false here.",
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot " +
         "restore this index. To bring it back, create it again with a fresh abap_write call.",
+      ...(deleted.transcript.tags.includes("INDEX-DELETED-ACTFAILED")
+        ? [
+            "ACTFAILED: DD_INDEX_INTERFACE itself reported ACTFAILED = 'X' for this delete, but the " +
+              "bridge's post-COMMIT WORK re-read of DD12V (both unfiltered and AS4LOCAL = 'A') and " +
+              "DD17S found no rows left for this index, so abapsmith reports deleted:true anyway. " +
+              "This was observed live on 2026-09-05 and its cause is not established — it may mean " +
+              "the database-level index drop or the table's re-activation failed rather than the " +
+              "dictionary removal itself. If the table's runtime behaviour looks wrong, check it in " +
+              "SE11/SE14 rather than assuming the delete was clean; abapsmith performs no further " +
+              "check on this path.",
+          ]
+        : []),
     ],
     maxChars,
   });
