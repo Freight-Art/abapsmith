@@ -23,7 +23,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { AbapConnection } from "../adt/connection.js";
 import { fetchDdicXml, readDdic } from "../adt/ddic.js";
-import { capabilitiesFor, NON_READABLE_TYPES } from "../adt/capabilities.js";
+import { capabilitiesFor, NON_READABLE_TYPES, PROPERTIES_SHAPE_TYPES } from "../adt/capabilities.js";
 import { AbapError } from "../adt/errors.js";
 import {
   readBadiImplementation,
@@ -92,13 +92,13 @@ export const readInputSchema = {
     .enum(["active", "inactive"])
     .optional()
     .describe("Default: current (active or newest inactive)."),
-  // Closes a gap: DOMA/DTEL/TTYP/MSAG/ENQU write a full XML descriptor PUT,
+  // Closes a gap: the properties-shape types write a full XML descriptor PUT,
   // but the default read only produced lossy pseudo-DDL (or UNSUPPORTED).
   // Gated by capabilitiesFor, not a type list — additive only.
   format: z
     .enum(["raw"])
     .optional()
-    .describe("raw: XML, not pseudo-DDL (DOMA/DTEL/TTYP/MSAG/ENQU only)."),
+    .describe(`raw: XML, not pseudo-DDL (${PROPERTIES_SHAPE_TYPES.join(" ")} only).`),
   // Enum for the same reason as version/format (G-08): reject a typo rather
   // than silently falling through to an ordinary source read. Named `view`,
   // not `mode` — `mode` is already a response header key and `ResolvedObject.mode`.
@@ -749,7 +749,7 @@ function includeNote(include: ClassInclude | undefined): string[] {
  * The include an ORDINARY (non-`view`) read is about, refusing every
  * combination it cannot honour. `sourceUriFor` (adt/source.ts)
  * guarantees a non-`main` include is never silently answered from main — but
- * format:"raw" (properties-shape DDIC only, never a class), enhancements
+ * format:"raw" (properties-shape only, never a class), enhancements
  * (different document), and outline/method (both read `/objectstructure`,
  * which describes the GLOBAL class and numbers lines against `main`) would
  * each quietly mis-answer otherwise. Checked against the EFFECTIVE include
@@ -795,7 +795,7 @@ function assertIncludeCompatible(input: ReadInput, obj: ResolvedObject): ClassIn
     clash(
       'format="raw"',
       "raw returns an object's whole XML descriptor, which exists only for the properties-shape " +
-        "DDIC types (DOMA/DTEL/TTYP/MSAG/ENQU) — a class has none, and a class include is source.",
+        `types (${PROPERTIES_SHAPE_TYPES.join(", ")}) — a class has none, and a class include is source.`,
       "Drop format — an include read already returns exactly the source bytes a write of that " +
         "include replaces.",
     );
@@ -1068,8 +1068,8 @@ export async function abapRead(
     if (capabilitiesFor(obj.type)?.write?.shape !== "properties") {
       throw new AbapError(
         "UNSUPPORTED",
-        `format="raw" is only defined for the properties-shape DDIC types (DOMA/DD, DTEL/DE, ` +
-          `TTYP/DA, MSAG/N, ENQU/DL); ${obj.type} ${obj.name} is not one of those.`,
+        `format="raw" is only defined for the properties-shape types (${PROPERTIES_SHAPE_TYPES.join(", ")}); ` +
+          `${obj.type} ${obj.name} is not one of those.`,
         { type: obj.type, name: obj.name },
         `Omit format — the default read already returns ${
           obj.mode === "ddic" ? "a rendered definition" : "raw source"
