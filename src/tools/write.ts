@@ -38,6 +38,7 @@ import { discardedDescriptorValues, type DiscardedValue } from "../adt/descripto
 import { createPackageViaBridge, tdevcDiscrepancies } from "../adt/package-create.js";
 import type { RunResult } from "../adt/run.js";
 import { serverPackage } from "../adt/resolved-package.js";
+import { isLocalPackageName } from "../adt/transports.js";
 import { createTransaction } from "../adt/tran-create.js";
 import { deleteTransactionViaBridge } from "../adt/tran-delete.js";
 import { assertClassicViewCreateTarget, createClassicView } from "../adt/view-create.js";
@@ -521,6 +522,21 @@ function packageDeleteTransportNote(corrNr: string): string {
     `this was observed to NOT record the deletion into ${corrNr} (or into any other request) — ` +
     "package deletes run through CL_PACKAGE_FACTORY's own SAVE, not the ordinary ADT DELETE this " +
     "field usually confirms. Do not infer the deletion is captured in this transport."
+  );
+}
+
+/**
+ * VIEW/DV and TRAN/T bridge delete only, non-$ package: the bridge passes no
+ * request and issues no RS_CORR_INSERT, so this delete registers nothing in
+ * CTS — any entry the object already had on a transport request (typically
+ * its create) survives it.
+ */
+function bridgeDeleteTransportEntryNote(label: string, name: string, packageName: string): string {
+  return (
+    `${label} ${name} was in transportable package ${packageName}, but this delete recorded nothing ` +
+    "in CTS — the bridge passes no request and issues no RS_CORR_INSERT. Any entry it already had " +
+    'on a transport request survives it; remove it with `abap_transport` operation: "removeObject" ' +
+    "(transport, object, confirm), which needs ABAP_MODE=admin."
   );
 }
 
@@ -3497,8 +3513,12 @@ async function abapDeleteViaBridge(
   if (normalizeCorrNr(input.corr_nr) !== undefined) {
     bad(
       `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport ` +
-        "parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts), so abapsmith would be dropping " +
-        "the value silently.",
+        "parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts). None is needed either — the " +
+        "delete registers nothing in CTS, so it is judged as a local mutation and no transport " +
+        "allowlist blocks it.",
+      "Retry without `corr_nr`. Any entry the object already had on a transport request survives " +
+        'this delete; use `abap_transport` operation: "removeObject" (transport, object, confirm) ' +
+        "for that, which needs ABAP_MODE=admin.",
     );
   }
 
@@ -3631,7 +3651,8 @@ async function abapDeleteViaBridge(
       verifyNote,
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot " +
         "restore this object. To bring it back, create it again with a fresh abap_write call.",
-    ],
+      isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName),
+    ].filter((n) => n !== ""),
     maxChars,
   });
 }
