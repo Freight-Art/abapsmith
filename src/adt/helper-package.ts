@@ -13,14 +13,17 @@ import { authorizeMutation, createPackage, NO_JOURNAL } from "./write.js";
 
 /**
  * Renameable here and only here — a `$`-prefixed local package, non-transportable by construction.
- * That `$` is outside the default `ABAP_ALLOW_NAME_PREFIXES` (`["Z","Y"]`, `src/safety.ts:282`) —
- * fix a refusal by widening that setting, not by renaming to a `Z`/`Y` name (which would make it transportable).
+ * The `$` only trips `ABAP_ALLOW_NAME_PREFIXES` under a deliberate `["Z","Y"]` lockdown (a
+ * hand-built `SafetyGate`/`ConfigSchema.parse`) — `loadConfig()` resolves an unset setting to
+ * `["*"]` (`src/config.ts`), so a normal install never refuses this; widen the setting if it does,
+ * rather than renaming to a `Z`/`Y` name (which would make it transportable).
  */
 export const HELPER_PACKAGE = "$ZMCP_HELPERS";
 
 /** `SCOMPKDTLN-CTEXT` (CHAR60) for {@link HELPER_PACKAGE} when it is created. */
 export const HELPER_PACKAGE_DESCRIPTION = "abapsmith generated helper classes";
 
+// $TMP is $ZMCP_HELPERS's super package (parent), not a landing spot — generated classes still go into $ZMCP_HELPERS, never into $TMP itself.
 const NO_TMP_FALLBACK_HINT =
   `abapsmith does not fall back to $TMP for bridge/helper classes — if ${HELPER_PACKAGE} cannot ` +
   "be created or used, this is a hard refusal. Create it by hand (SE21, LOCAL software component) " +
@@ -36,7 +39,8 @@ const NO_TMP_FALLBACK_HINT =
 const SAFETY_DENIED_HINT =
   `${NO_TMP_FALLBACK_HINT} Creating it also needs ABAP_ALLOW_NAME_PREFIXES to cover "$" (or be ` +
   '"*") — the default Z/Y list refuses a $-named object — and, separately, ABAP_ALLOW_PACKAGES ' +
-  "to permit a root package; both apply only to the first call that creates it.";
+  "to permit $TMP, its super package (a package create's allowlist question is answered by the " +
+  "superpackage, not the package's own name); both apply only to the first call that creates it.";
 
 /** Which hint applies: the name-prefix/package sentences are noise on anything but a gate refusal. */
 function fallbackHintFor(code: string): string {
@@ -51,12 +55,16 @@ function fallbackHintFor(code: string): string {
 export async function ensureHelperPackage(
   conn: AbapConnection,
   gate: SafetyGate,
-): Promise<{ package: string; created: boolean }> {
+): Promise<{ package: string; created: boolean; superPackage?: string }> {
   try {
     const authorized = await authorizeMutation(conn, gate, "write", {
       type: "DEVC/K",
       name: HELPER_PACKAGE,
       description: HELPER_PACKAGE_DESCRIPTION,
+      // Super package for the create — verified live on 2026-09-05: SAP
+      // accepted $ZMCP_HELPERS under $TMP and read back
+      // pak:superPackage adtcore:name="$TMP". Not a guess.
+      packageName: "$TMP",
     });
 
     // Pre-check rather than letting createPackage throw its own "already
@@ -66,13 +74,13 @@ export async function ensureHelperPackage(
       return { package: HELPER_PACKAGE, created: false };
     }
 
-    await createPackage(conn, authorized, {
+    const created = await createPackage(conn, authorized, {
       softwareComponent: "LOCAL",
       // NO_JOURNAL: a generated helper package, not a user object — same idiom as deployBridge.
       onBeforeImage: NO_JOURNAL,
     });
 
-    return { package: HELPER_PACKAGE, created: true };
+    return { package: HELPER_PACKAGE, created: true, superPackage: created.superPackage };
   } catch (e) {
     if (isAbapError(e)) {
       const fallback = fallbackHintFor(e.code);

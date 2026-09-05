@@ -139,20 +139,21 @@ const createFailsRoute: Route = (r) => {
   return undefined;
 };
 
-// Root package create (no superpackage) needs the literal wildcard entry —
-// src/safety.ts ~line 1520. Any allowlist without "*" refuses it. The
-// default name-prefix rule (Z/Y only) also refuses a "$"-named object unless
-// widened — same file, ~line 1565 — so an operator wiring up automatic
-// helper-package creation must set ABAP_ALLOW_NAME_PREFIXES accordingly.
-const ALLOW_ROOT_GATE = new SafetyGate({
+// The create's superpackage is $TMP (ensureHelperPackage passes packageName:
+// "$TMP"), so ABAP_ALLOW_PACKAGES must permit $TMP — "*" does, src/safety.ts
+// ~line 1538. The default name-prefix rule (Z/Y only) also refuses the
+// "$"-named object itself unless widened — same file, ~line 1565 — so an
+// operator wiring up automatic helper-package creation must set
+// ABAP_ALLOW_NAME_PREFIXES accordingly.
+const ALLOW_GATE = new SafetyGate({
   readOnly: false,
   allowPackages: ["*"],
   allowNamePrefixes: ["*"],
 });
 const REFUSING_GATE = new SafetyGate({ readOnly: false, allowPackages: ["SOME_OTHER_PACKAGE"] });
 
-// Package allowlist wide open (root wildcard) so ONLY the name-prefix rule
-// can refuse this — isolates it from REFUSING_GATE's package-allowlist case.
+// Package allowlist wide open so ONLY the name-prefix rule can refuse this —
+// isolates it from REFUSING_GATE's package-allowlist case.
 const NAME_PREFIX_REFUSING_GATE = new SafetyGate({
   readOnly: false,
   allowPackages: ["*"],
@@ -175,22 +176,29 @@ describe("ensureHelperPackage", () => {
   it("returns created:false and issues NO create POST when the package already exists", async () => {
     const { conn, adt } = await connected(existingRoute);
 
-    const res = await ensureHelperPackage(conn, ALLOW_ROOT_GATE);
+    const res = await ensureHelperPackage(conn, ALLOW_GATE);
 
     expect(res).toEqual({ package: HELPER_PACKAGE, created: false });
+    // The already-exists path never ran createPackage, so there is no
+    // PackageCreateResult to read a superPackage off — must not fabricate one.
+    expect(res.superPackage).toBeUndefined();
     expect(adt.creates).toHaveLength(0);
   });
 
-  it("creates a LOCAL package and returns created:true when absent", async () => {
+  it("creates $ZMCP_HELPERS as a sub-package of $TMP and returns superPackage:$TMP when absent", async () => {
     const { conn, adt } = await connected(absentRoute);
 
-    const res = await ensureHelperPackage(conn, ALLOW_ROOT_GATE);
+    const res = await ensureHelperPackage(conn, ALLOW_GATE);
 
-    expect(res).toEqual({ package: HELPER_PACKAGE, created: true });
+    expect(res).toEqual({ package: HELPER_PACKAGE, created: true, superPackage: "$TMP" });
     expect(adt.creates).toHaveLength(1);
 
     const create = adt.creates[0]!;
     expect(create.body).toContain(`adtcore:name="${HELPER_PACKAGE}"`);
+    // $TMP as the super package — verified live on 2026-09-05 (see
+    // src/adt/helper-package.ts); a root package (no <pak:superPackage> name)
+    // is the bug this guards against.
+    expect(create.body).toContain('<pak:superPackage adtcore:name="$TMP"/>');
     expect(create.body).toContain('pak:name="LOCAL"');
     // A LOCAL create carries no corrNr — nothing to transport.
     expect(create.qs.corrNr).toBeUndefined();
@@ -205,6 +213,10 @@ describe("ensureHelperPackage", () => {
     const text = `${err.message} ${err.hint ?? ""}`;
     expect(text).toContain(HELPER_PACKAGE);
     expect(text.toLowerCase()).toContain("does not fall back to $tmp");
+    // The allowlist question for this create is $TMP (the super package),
+    // not "a root package" — that was the pre-fix (wrong) shape.
+    expect(text).toContain("$TMP, its super package");
+    expect(text).not.toContain("permit a root package");
 
     // No create POST at all (the gate refused before the wire), and nothing
     // recorded ever names $TMP.
@@ -228,6 +240,9 @@ describe("ensureHelperPackage", () => {
     expect(hint).toContain("ABAP_ALLOW_PACKAGES");
     expect(hint).toContain("$");
     expect(hint.toLowerCase()).toContain("does not fall back to $tmp");
+    // Corrected wording: the package clause names $TMP, not "a root package".
+    expect(hint).toContain("$TMP, its super package");
+    expect(hint).not.toContain("permit a root package");
 
     // Gate refuses before the wire — no create POST at all.
     expect(adt.creates).toHaveLength(0);
@@ -236,7 +251,7 @@ describe("ensureHelperPackage", () => {
   it("a non-safety failure (create POST 500s) keeps the generic no-$TMP-fallback hint but not the name-prefix/package sentence", async () => {
     const { conn, adt } = await connected(createFailsRoute);
 
-    const err = await catchErr(ensureHelperPackage(conn, ALLOW_ROOT_GATE));
+    const err = await catchErr(ensureHelperPackage(conn, ALLOW_GATE));
 
     expect(err.code).not.toBe("SAFETY_DENIED");
     const hint = err.hint ?? "";
