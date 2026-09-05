@@ -44,6 +44,7 @@ import { registerEnhancementTools } from "./tools/enh.js";
 import { registerDataPreviewTools } from "./tools/data-preview.js";
 import { registerDumpTools } from "./tools/dumps.js";
 import { registerAtcTools } from "./tools/atc.js";
+import { registerQuickFixTools } from "./tools/quickfix.js";
 import { registerServiceTools } from "./tools/service.js";
 // The six v2 consolidated tools, opt-in via `cfg.toolSurface` (see REGISTRATION below).
 import { registerV2Tools } from "./tools/v2/register.js";
@@ -625,6 +626,8 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       // rules, so gating it any weaker risks unbounded server-side checks
       // against SAP-standard packages. See src/adt/atc.ts.
       registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+      // Same reasoning: mode="list" POSTs the object's whole source for evaluation.
+      registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
     }
     // `journal` required on `ActivateToolDeps` — it was previously missing,
     // and `abap_activate` (up to 50 objects/call) changed executing
