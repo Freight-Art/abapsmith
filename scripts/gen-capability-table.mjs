@@ -57,8 +57,10 @@ const BRIDGE_NOTE = {
   "VIEW/DV":
     "builds a single-table database view (DD25V class 'D') via RS_CORR_INSERT then " +
     "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE; no joins, no SE54 maintenance dialog. A " +
-    "transportable package requires corr_nr; a `$` package refuses one and registers with " +
-    "korrnum = space instead. There is no read-back: abapsmith cannot read a classic view " +
+    "transportable package resolves a transport request the same way a DEVC/K create does — " +
+    "the caller's corr_nr, or else one picked or created under ABAP_ALLOW_TRANSPORTS; a `$` " +
+    "package refuses a corr_nr and registers with korrnum = space instead. There is no " +
+    "read-back: abapsmith cannot read a classic view " +
     "through ADT, so success is proven only by transcript markers. Proven live on A4H: " +
     "2026-09-04 into the transportable package ZBOPF_Q1PKG with a corr_nr; 2026-09-05, " +
     "RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR " +

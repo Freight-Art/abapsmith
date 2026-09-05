@@ -67344,7 +67344,7 @@ var REGISTRY = {
     bridgeCreate: {
       adtRest: "ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery collection advertises an empty <app:accept>. That GET is not a route a caller can take from here: with no collection there is nothing to resolve a name against, and abap_search rejects VIEW/DV as an unrecognised type, so there is no way to read a classic view through abapsmith either. Four independent recons agree. This entry previously read 'not reachable over ADT, every read and write 404s' and concluded the type was unwritable \u2014 the REST finding is right, the conclusion was not: SE11 does not use REST either.",
       via: "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE (function group SDIC \u2014 the same DD_VIEW_EXPAND/DD_VIEW_PUT/DD_VIEW_ACT primitives SE11's view editor drives), called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/view-create.ts and src/adt/ddic-bridge.ts.",
-      limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (not through abap_read \u2014 that path stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package requires corr_nr; a LOCAL package refuses one (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts. The create is otherwise irreversible in the sense that abapsmith cannot read the view back to verify it: success is proven by the transcript markers, not by a read-back."
+      limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (not through abap_read \u2014 that path stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package resolves a transport request the same way a DEVC/K create does: preflightPackageCorr (src/adt/write.ts) hands off to SessionTransport.resolveForNewTransportable, honouring the caller's corr_nr when given or else picking or creating one under the ABAP_ALLOW_TRANSPORTS policy (a pinned TRKORR from the list, or a fresh request when the policy is `*`/AUTO), gate-judged before the bridge runs. The resolver's own refusals surface as TRANSPORT_ERROR (policy disabled, or no usable request), TRANSPORT_LOCKED (a request pinned elsewhere), or BAD_INPUT (a malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts. The create is otherwise irreversible in the sense that abapsmith cannot read the view back to verify it: success is proven by the transcript markers, not by a read-back."
     },
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
@@ -100668,6 +100668,9 @@ function dictObjectKey(viewName) {
 function isLocalPackage2(packageName) {
   return isLocalPackageName(packageName);
 }
+function classicViewUri(viewName) {
+  return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
+}
 function quotedIdentifier2(value, what, opts = {}) {
   return abapLiteral(assertEnhIdentifier(value, what, { maxLength: VIEW_NAME_MAX2, ...opts }));
 }
@@ -100690,14 +100693,6 @@ function assertClassicViewCreateTarget(packageName, corrNr) {
       "BAD_INPUT",
       `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) view is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
       { packageName: validated, corrNr }
-    );
-  }
-  if (!local && corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
-      { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
     );
   }
   if (corrNr !== void 0) assertCorrNr4(corrNr);
@@ -100725,8 +100720,17 @@ function validate4(p) {
   );
   const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
   const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
-  const corrNr = isLocalPackage2(packageName) ? void 0 : p.corrNr;
-  return { viewName, baseTable, fields, description, packageName, corrNr };
+  const local = isLocalPackage2(packageName);
+  if (!local && p.corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  const corrNr = local ? void 0 : p.corrNr;
+  return { viewName, baseTable, fields, description, packageName, corrNr, corrSource: p.corrSource };
 }
 var VIEW_DATA_LINES = [
   "ls_dd25v TYPE dd25v.",
@@ -100846,8 +100850,8 @@ function viewCreatePartialSuccess(viewName) {
 }
 async function createClassicView(conn, gate, params) {
   const validated = validate4(params);
-  const { viewName, packageName, corrNr } = validated;
-  const corr = isLocalPackage2(packageName) ? void 0 : { kind: "transport", corrNr, source: "named" };
+  const { viewName, packageName, corrNr, corrSource } = validated;
+  const corr = isLocalPackage2(packageName) ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
   assertBridgeMutation(
     gate,
     { type: "VIEW/DV", name: viewName, packageName },
@@ -101357,7 +101361,7 @@ var writeInputSchema = {
   // (src/tools/read.ts), turns a typo into a schema rejection.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe("CLAS/OC only; testclasses=ABAP Unit tests, default main."),
   package: external_exports.string().optional().describe(
-    "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs corr_nr, a $-package refuses it. TABL/DI: ignored except to check agreement \u2014 an index's package is always the base table's, never caller-chosen."
+    "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr. TABL/DI: ignored except to check agreement \u2014 an index's package is always the base table's, never caller-chosen."
   ),
   description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
   // Structured create for the three XML-only DDIC types, so a
@@ -101392,7 +101396,7 @@ var writeInputSchema = {
     "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
   ),
   corr_nr: external_exports.string().optional().describe(
-    "Transport request. $TMP needs none. Required for a VIEW/DV, TRAN/T or TABL/DI create into a transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived requirement as its create, not refused."
+    "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a transportable package; optional for a VIEW/DV create, which resolves one under ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived requirement as its create, not refused."
   ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
@@ -101952,7 +101956,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   }
   if (isBridgeOnlyCreateType(input.type)) {
     if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
-    return await abapBridgeCrud(conn, target, input, maxChars, gate, journal);
+    return await abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport);
   }
   const corrNr = normalizeCorrNr(input.corr_nr);
   const trOpts = transport ? { transport, gate, ...corrNr ? { corrNr } : {}, ...input.affects ? { affects: input.affects } : {} } : { ...corrNr ? { corrNr } : {}, ...input.affects ? { affects: input.affects } : {} };
@@ -102929,12 +102933,12 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
     maxChars
   });
 }
-async function abapBridgeCrud(conn, target, input, maxChars, gate, journal) {
+async function abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport) {
   const type = (input.type ?? "").trim().toUpperCase();
   if (type === "TABL/DI") {
     return (input.mode ?? "write") === "delete" ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) : abapCreateIndexViaBridge(conn, target, input, maxChars, gate);
   }
-  return (input.mode ?? "write") === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal);
+  return (input.mode ?? "write") === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
 }
 async function journalBridgeCreate(journal, conn, ref2, beforeCapture, corrNr, mutate) {
   const { result, entryId, settle } = await withJournalledMutation(
@@ -102986,7 +102990,7 @@ function bridgeReversalNote(entryId, beforeCapture, registration, label, type, o
   }
   return `Journalled as ${entryId}. abap_journal mode=undo entry=${entryId} can reach it through the same classrun bridge abap_write mode="delete" uses if it is registered \u2014 but this create's read-back did not establish a package for it, and a bridge create can land active but unregistered in TADIR, in which case both refuse with SAFETY_DENIED / PACKAGE_UNKNOWN.`;
 }
-async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal) {
+async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport) {
   const type = (input.type ?? "").trim().toUpperCase();
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
@@ -103025,6 +103029,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
   let verifyNote;
   let entryId;
   let registration;
+  let transportInfo;
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
   const objectUri = vitBridgeUri(vitType, target.name);
   let beforeCapture = "failed";
@@ -103060,7 +103065,36 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
     const baseTable = input.base_table;
     const viewFields = input.view_fields;
     bridgeClass = DDIC_BRIDGE_CLASS.createView;
-    const corrNr = normalizeCorrNr(input.corr_nr);
+    const named = normalizeCorrNr(input.corr_nr);
+    const localPkg = isLocalPackageName(packageName);
+    let corrNr;
+    let corrSource;
+    if (localPkg) {
+      corrNr = named;
+    } else {
+      if (transport === void 0) {
+        throw new AbapError(
+          "TRANSPORT_ERROR",
+          `${target.name} needs a transport request (package ${packageName} is not local), but no transport manager is wired into this call. This is an internal wiring failure in abapsmith, not a mistake in the request.`,
+          { name: target.name, packageName }
+        );
+      }
+      const preflightTarget = {
+        uri: classicViewUri(target.name),
+        name: target.name,
+        type: "VIEW/DV",
+        packageName,
+        exists: false
+      };
+      const corr = await preflightPackageCorr(conn, preflightTarget, {
+        transport,
+        gate,
+        ...named !== void 0 ? { corrNr: named } : {}
+      });
+      corrNr = corr.corrNr;
+      corrSource = corr.source;
+    }
+    if (corrNr !== void 0) transportInfo = { status: "transport", required: true, corrNr };
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
@@ -103072,7 +103106,8 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
         viewName: target.name,
         baseTable,
         fields: viewFields,
-        corrNr
+        corrNr,
+        ...corrSource !== void 0 ? { corrSource } : {}
       })
     ));
     detail = `database view (DD25V class 'D') projecting ${viewFields.length} field(s) of ${baseTable}`;
@@ -103155,6 +103190,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName,
+      ...transportInfo !== void 0 ? { transport: transportHeaderText(transportInfo) } : {},
       mode: "create-bridge",
       created: true,
       verified,
@@ -103470,7 +103506,7 @@ function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty. dry_run previews the diff and expect_etag without writing anything.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create resolves its own corr_nr for a transportable package (supply one to pin it), none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty. dry_run previews the diff and expect_etag without writing anything.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },

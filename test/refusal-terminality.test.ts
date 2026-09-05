@@ -35,7 +35,7 @@ import {
 import { resolveObject } from "../src/adt/resolve.js";
 import { resolveWriteTarget } from "../src/adt/write.js";
 import type { AbapConnection } from "../src/adt/connection.js";
-import { assertClassicViewCreateTarget } from "../src/adt/view-create.js";
+import { assertClassicViewCreateTarget, classicViewFragment, type ClassicViewParams } from "../src/adt/view-create.js";
 import { SafetyGate } from "../src/safety.js";
 import { runUiTool, type UiInput, type UiToolDeps } from "../src/tools/ui.js";
 
@@ -159,7 +159,7 @@ describe("retryable on the error envelope", () => {
   });
 });
 
-describe("assertClassicViewCreateTarget derives retryable from RETRYABILITY with no 5th argument — neither refusal is terminal", () => {
+describe("assertClassicViewCreateTarget / classicViewFragment derive retryable from RETRYABILITY with no 5th argument — neither refusal is terminal", () => {
   const CORR_NR = "A4HK900121";
 
   it("a local package given a corrNr claims retryable:true (BAD_INPUT's default), not terminal", () => {
@@ -176,13 +176,23 @@ describe("assertClassicViewCreateTarget derives retryable from RETRYABILITY with
     expect(e.retryable).toBe(true);
   });
 
-  // TRANSPORT_ERROR's default is "conditional" — no claim either way, which
-  // is itself proof this refusal is not terminal (a terminal claim requires
-  // an explicit retryable:false, never a bare code default).
-  it("a transportable package given no corrNr claims no retryable value (TRANSPORT_ERROR's conditional default), not terminal", () => {
+  // `assertClassicViewCreateTarget` no longer refuses a transportable package
+  // with no corrNr — that invariant moved into view-create.ts's module-private
+  // `validate()`, which `classicViewFragment` calls. TRANSPORT_ERROR's default
+  // is "conditional" — no claim either way, which is itself proof this
+  // refusal is not terminal (a terminal claim requires an explicit
+  // retryable:false, never a bare code default).
+  it("classicViewFragment given a transportable package with no corrNr claims no retryable value (TRANSPORT_ERROR's conditional default), not terminal", () => {
+    const params: ClassicViewParams = {
+      viewName: "ZTM_V_CARRIER",
+      baseTable: "SCARR",
+      fields: ["CARRID"],
+      description: "Carriers",
+      packageName: "ZTM",
+    };
     let caught: unknown;
     try {
-      assertClassicViewCreateTarget("ZTM", undefined);
+      classicViewFragment(params);
     } catch (e) {
       caught = e;
     }

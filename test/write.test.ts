@@ -935,11 +935,12 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     expect(String(tran.hint ?? "")).toMatch(/no mode=create/);
     expect(String(tran.hint ?? "")).toMatch(/REPORT transaction/);
     expect(String(tran.hint ?? "")).not.toMatch(/base table/);
+    expect(String(tran.hint ?? "")).not.toMatch(/resolves a transport request the same way/);
 
     const view = await catchErr(resolveWriteTarget(offline, { type: "VIEW/DV", name: "ZX" }));
     expect(String(view.hint ?? "")).toMatch(/no mode=create/);
     expect(String(view.hint ?? "")).toMatch(/exactly\s+ONE base table/);
-    expect(String(view.hint ?? "")).toMatch(/TRANSPORTABLE package requires corr_nr/);
+    expect(String(view.hint ?? "")).toMatch(/resolves a transport request the same way a DEVC\/K create does/);
     expect(String(view.hint ?? "")).not.toMatch(/REPORT transaction/);
   });
 
@@ -5454,7 +5455,8 @@ describe("invariant: no REGISTRY type may declare `bridgeCreate` without a routi
     // DEVC/K: `software_component` is required (BAD_INPUT otherwise);
     // `package`/`description` are optional (root has no super, description
     // defaults). `corr_nr` is excluded — its absence is judged by transport
-    // policy (preflightPackageCorr), not field-presence, like VIEW/DV/TRAN/T.
+    // policy (preflightPackageCorr), not field-presence, same as VIEW/DV now.
+    // TRAN/T still judges corr_nr by field-presence.
     "DEVC/K": ["object", "type", "software_component"],
     // TABL/DI: `package` is excluded — an index has no package of its own,
     // abapsmith reads the base table's and only checks a caller-supplied
@@ -6097,11 +6099,32 @@ describe("abap_write → bridge creation: DEFECT 1 closed for VIEW/DV (create ru
 
   it("into a transportable package with a valid corr_nr: creates, then confirms present — created:true and verified:true", async () => {
     const { conn } = await connected(happyRoute("confirmed"));
+    // VIEW/DV now resolves its corr_nr through preflightPackageCorr, the same as
+    // a DEVC/K create — a caller-named number still needs a wired SessionTransport
+    // to check it (trShow), so this can no longer run with none wired at all.
+    const transport = new SessionTransport({
+      allowTransports: ["TR1K900123"],
+      cts: {
+        trShow: vi.fn(async () => ({
+          trkorr: "TR1K900123",
+          kind: "workbench" as const,
+          kindRaw: "K",
+          status: "modifiable" as const,
+          statusRaw: "D",
+          owner: "DEVELOPER",
+          description: "abapsmith session",
+          tasks: [],
+          objects: [],
+        })),
+      } as never,
+    });
     const result = await abapWrite(
       conn,
       { ...validInput, package: "ZTM", corr_nr: "TR1K900123" },
       MAX,
       gate,
+      undefined,
+      transport,
     );
     expect(result.text).toMatch(/created:\s*true/);
     expect(result.text).toMatch(/verified:\s*true/);
@@ -6136,13 +6159,18 @@ describe("abap_write → bridge creation: DEFECT 1 closed for VIEW/DV (create ru
     expect(String(e.message)).toMatch(/\$TMP/);
   });
 
-  it("a transportable package with NO corr_nr is refused TRANSPORT_ERROR before any network call", async () => {
+  it("a transportable package with NO corr_nr, transports disabled, is refused TRANSPORT_ERROR before any network call", async () => {
+    // No corr_nr no longer refuses outright — preflightPackageCorr would try
+    // to resolve or auto-create one. With ABAP_ALLOW_TRANSPORTS explicitly
+    // empty, SessionTransport's own Step 3 fails closed, zero-network, before
+    // resolveForNewTransportable ever touches `conn`.
     const offline = null as unknown as AbapConnection;
+    const deniedTransport = new SessionTransport({ allowTransports: [] });
     const e = await catchErr(
-      abapWrite(offline, { ...validInput, package: "ZTM" }, MAX, gate),
+      abapWrite(offline, { ...validInput, package: "ZTM" }, MAX, gate, undefined, deniedTransport),
     );
     expect(e.code).toBe("TRANSPORT_ERROR");
-    expect(String(e.message)).toMatch(/corr_nr/);
+    expect(String(e.message)).toMatch(/ABAP_ALLOW_TRANSPORTS/);
   });
 });
 
