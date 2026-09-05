@@ -1838,6 +1838,54 @@ const MEMBER_CHECK_BY_OP: Readonly<Record<string, { readonly kind: MemberKind; r
   remove_alternative_key: { kind: "alternativeKey", direction: "removed" },
 };
 
+type FlagMismatch = { readonly field: string; readonly sent: unknown; readonly readBack: unknown };
+
+function describeFlagValue(v: unknown): string {
+  if (v === null || v === undefined) return "absent";
+  if (typeof v === "object") {
+    const r = v as AdtObjectRef;
+    return `${r.name} (${r.type})`;
+  }
+  return String(v);
+}
+
+/**
+ * `set_node_flags` verification: a cleared boolean flag reads back as
+ * `false` (an absent `bo:*` attribute parses to `false` in `parseNodeXml`),
+ * and a cleared ref reads back as `undefined`. The `continue`s below skip
+ * values `patchNodeFlags` already rejected with BAD_INPUT before the PUT.
+ */
+function nodeFlagMismatches(node: BoNode, spec: Record<string, unknown>): FlagMismatch[] {
+  const out: FlagMismatch[] = [];
+  for (const flag of NODE_FLAG_NAMES) {
+    if (!(flag in spec)) continue;
+    const sent = spec[flag];
+    if (sent !== null && typeof sent !== "boolean") continue;
+    const expected = sent === null ? false : sent;
+    const readBack = node[flag];
+    if (readBack !== expected) out.push({ field: flag, sent, readBack });
+  }
+  for (const kind of NODE_REF_KINDS) {
+    if (!(kind in spec)) continue;
+    const sent = spec[kind];
+    const readBack = node[kind];
+    if (sent === null) {
+      if (readBack !== undefined) out.push({ field: kind, sent: null, readBack });
+      continue;
+    }
+    const wanted = ref(sent);
+    if (!wanted) continue;
+    if (
+      !readBack ||
+      readBack.name.toLowerCase() !== wanted.name.toLowerCase() ||
+      readBack.type.toLowerCase() !== wanted.type.toLowerCase()
+    ) {
+      out.push({ field: kind, sent: wanted, readBack: readBack ?? null });
+    }
+  }
+  return out;
+}
+
 /**
  * Attaches which `abap_bopf_edit` call killed the session to a `SESSION_DEAD`
  * error, so a caller running a sequence of edits can tell which one did it.
@@ -2288,6 +2336,51 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
                 `${memberCheck.direction}. A BOPF PUT answers 200 whether or not the server kept what was sent, ` +
                 `and nothing was activated.`,
               { bo, node: nodeName, name: member, kind: memberCheck.kind, countBefore, countAfter, journalEntryId: entryId },
+            );
+          }
+        }
+
+        if (input.operation === "set_node_flags") {
+          const sel = requireNode(input);
+          const sentSpec = (input.spec ?? {}) as Record<string, unknown>;
+          const renamedTo = typeof sentSpec.name === "string" ? sentSpec.name : undefined;
+          // nodeId narrows a duplicate name when it still matches; not a filter, since
+          // nothing guarantees the server keeps the id across a rename.
+          const locate = (wanted: string): BoNode | undefined => {
+            const named = afterMutate.model.nodes.filter((n) => n.name.toLowerCase() === wanted.toLowerCase());
+            return (sel.nodeId !== undefined ? named.find((n) => n.nodeId === sel.nodeId) : undefined) ?? named[0];
+          };
+          const expectedName = renamedTo ?? sel.node;
+          const renamed = locate(expectedName);
+          // A dropped rename leaves the node under its old name — diff the rest of the spec against it too.
+          const node = renamed ?? (renamedTo !== undefined ? locate(sel.node) : undefined);
+          if (!node) {
+            throw new AbapError(
+              "CHECK_FAILED",
+              `abap_bopf_edit set_node_flags on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ` +
+                `${entryId}) but a fresh re-read finds no node named "${expectedName}" on the model at all. Nodes ` +
+                `present after the write: ${afterMutate.model.nodes.map((n) => n.name || "(unnamed)").join(", ") || "none"}. ` +
+                `A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.`,
+              { bo, node: sel.node, expectedName, journalEntryId: entryId },
+            );
+          }
+          const mismatches: FlagMismatch[] = [
+            ...(renamed ? [] : [{ field: "name", sent: renamedTo, readBack: node.name }]),
+            ...nodeFlagMismatches(node, sentSpec),
+          ];
+          if (mismatches.length > 0) {
+            const detail = mismatches
+              .map((m) => `${m.field}: sent ${m.sent === null ? "cleared" : describeFlagValue(m.sent)}, read back ${describeFlagValue(m.readBack)}`)
+              .join("; ");
+            throw new AbapError(
+              "CHECK_FAILED",
+              `abap_bopf_edit set_node_flags on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ` +
+                `${entryId}) but a fresh re-read shows the server did not keep ${mismatches.length} of the ` +
+                `field(s) sent — ${detail}. A BOPF PUT answers 200 whether or not the server kept what was ` +
+                `sent, and nothing was activated.`,
+              { bo, node: sel.node, mismatches, journalEntryId: entryId },
+              `BOPF's model mapper discards payload it cannot map without erroring — check that a ref names an ` +
+                `object that actually exists, then re-send only the fields that did not stick.`,
             );
           }
         }

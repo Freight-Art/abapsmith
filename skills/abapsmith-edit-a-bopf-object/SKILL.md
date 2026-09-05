@@ -33,6 +33,9 @@ is terminal and admin-only.
 `bopf_create`'s auto-generated ROOT node has **none of its structural refs set**.
 Activation fails with *"Data structure is missing"*. `bopf_set_node_flags` with
 `spec.persistentStructureRef` is the only repair. Do this immediately after create.
+It re-reads after the write and fails `CHECK_FAILED` — naming the field, the
+value sent, and the value read back — if the server didn't keep a flag, ref,
+or rename, so a successful call here means the ref actually stuck.
 Address the node by **name** (`"ROOT"`); the raw nodeId string 404s.
 
 `spec` also accepts `combinedStructureRef`/`combinedTableRef`/`persistentTableRef`/
