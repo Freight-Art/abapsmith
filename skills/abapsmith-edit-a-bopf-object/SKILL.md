@@ -18,13 +18,15 @@ shapes, one tool instead of four. Check `tools/list` before assuming which.
 bopf_create
   → bopf_set_node_flags   ← not optional, see below
   → bopf_add_node / add_association / add_action /
-    add_determination / add_validation / add_query /
-    add_representative_node / embed_dependent_object
+    add_determination / add_validation / add_query
   → bopf_activate
 ```
 
-`bopf_check_refs` and `bopf_test` run any time. So do the nine `bopf_remove_*`
-operations — `remove_node` / `remove_representative_node` (`node` only) and
+A representative node is not on this list — it is minted by the server as
+a side effect of `bopf_add_association`, see below.
+
+`bopf_check_refs` and `bopf_test` run any time. So do the eight
+`bopf_remove_*` operations — `remove_node` (`node` only) and
 `remove_association` / `remove_action` / `remove_determination` /
 `remove_validation` / `remove_query` / `remove_alternative_key` /
 `remove_dependent_object` (`node` + `name`), see Deleting below. `bopf_delete`
@@ -72,59 +74,59 @@ Never retry a create blind.
   name) or **`spec.parentNodeId`**, either one — abapsmith resolves the other
   half from the model and writes both `bo:parent`/`bo:parentNodeID`, since BOPF
   200s and drops a node carrying only one of them. Neither given, without
-  `spec.rootNode: true`, is refused before anything is sent — and now, if
-  neither is given, the refusal also names `bopf_add_representative_node` as
-  the operation for a genuinely parentless node. `add_node` and
-  `add_association` both refuse a hand-assembled delegation attempt —
-  `implementationType: "DoComposition"` or a `doEmbeddingName` anywhere in
-  the spec — and name `bopf_embed_dependent_object` instead; there is no way
-  to build a delegated node through the generic operations any more.
+  `spec.rootNode: true`, is refused before anything is sent — a
+  client-written parentless node is hard-rejected by the server
+  (`An error occurred when deserializing in the simple transformation
+  program /BOBF/ST_CONF_ADT`), confirmed live three separate ways, so
+  `add_node` cannot build that shape at all. The refusal names the
+  `add_association` cross-BO recipe below instead. Two more hand-assembly
+  guardrails stay: `add_association` refuses `implementationType:
+  "DoComposition"` or any `doEmbeddingName`, and `add_node` refuses
+  `doEmbeddingName` or `isDependentObjectNode: true` anywhere in the
+  spec — there is no operation left that creates a delegated node; use
+  `bopf_remove_dependent_object` only to remove one that already exists.
   `add_node` re-reads after the write and fails if the node isn't there, so
   success means it exists.
-- `bopf_add_representative_node` (`name` = the new node's name,
-  `spec.representedBo` required, `spec.xmlName` optional) creates a
-  parentless, non-root node with no structure refs and exactly the
-  properties `KEY`, `PARENT_KEY`, `ROOT_KEY`, all three CUD flags `true`.
-  `representedBo` is preflighted — it must resolve to a real business
-  object — but it is **not written anywhere on the node**; it exists only
-  to stop the operation naming a business object that doesn't exist. The
-  actual cross-BO link is a separate step: `bopf_add_association` on
-  whatever node needs the reference, with `spec.implementationType:
-  "Association"` and `spec.targetNodeRef: { name:
-  "/BOBF/DEMO_CUSTOMER~ROOT", type: "BOBF" }` naming the represented BO's
-  own root node — real captures of that association also carry a
-  `spec.implementationClassRef` naming a generated `*_XBO` class, and BOPF
-  may require one too. Worked sequence:
+- **Representative node — no create operation, get one from
+  `bopf_add_association`.** Add a plain cross-BO association on the node
+  that should carry the link: `spec.implementationType: "Association"`,
+  `spec.targetNodeRef: { name: "/BOBF/DEMO_CUSTOMER~ROOT", type: "BOBF" }`
+  naming the other BO's root node, and `spec.implementationClassRef`
+  naming an XBO class (e.g. `/BOBF/CL_C_DEMO_CUSTOMER_XBO`). The server
+  mints a parentless, non-root node alongside it, named `REP_<random>`
+  (observed `REP_TYVJRJ3REEP6DKVELQE77P7WKA`) — no structure refs, just
+  the fixed `KEY`/`PARENT_KEY`/`ROOT_KEY` properties, the same shape
+  `abap_bopf show` labels `representative`. The name is server-assigned
+  and cannot be chosen or predicted. Observed live: the node vanishes
+  once its association is gone, so `bopf_remove_association` should
+  remove it too — not itself exercised against a minted node. No
+  dedicated create or remove exists for it.
   ```
-  add_representative_node(name: "CUSTOMER_REF", spec: { representedBo: "/BOBF/DEMO_CUSTOMER" })
-    → add_association(node: "ROOT", name: "TO_CUSTOMER",
-        spec: { implementationType: "Association",
-                targetNodeRef: { name: "/BOBF/DEMO_CUSTOMER~ROOT", type: "BOBF" } })
+  add_association(node: "ROOT", name: "TO_CUSTOMER",
+    spec: { implementationType: "Association",
+            targetNodeRef: { name: "/BOBF/DEMO_CUSTOMER~ROOT", type: "BOBF" },
+            implementationClassRef: { name: "/BOBF/CL_C_DEMO_CUSTOMER_XBO", type: "CLAS/OC" } })
   ```
-- `bopf_embed_dependent_object` (`node` = the parent node, `name` = the
-  embedding name `<EMB>`, `spec.dependentObject` required, `spec.xmlName`
-  optional, `spec.multiplicity` defaults to `0_1`,
-  `spec.implementationClassRef` defaults to
-  `/BOBF/CL_C_BOPF_2_BOPF_SIMPLE`) writes both halves of a delegated node
-  in one PUT: a `DoComposition` association on the parent plus a
-  `<EMB>.ROOT` node. `dependentObject` is preflighted with a `readModel`
-  that must report `objectCategory: "dependentObject"`, so an object that
-  isn't really a dependent object is refused before anything is sent.
-  Because the host BO's XML never names the dependent object, a 200 plus a
-  matching re-read still cannot confirm the embedding actually works, so
-  this operation also requires `i_know_this_may_not_activate: true` — refused
-  before anything is sent without it. Worked sequence:
-  ```
-  embed_dependent_object(node: "ROOT", name: "TEXT",
-    spec: { dependentObject: "/BOBF/DEMO_TEXT_COLLECTION" },
-    i_know_this_may_not_activate: true)
-  ```
-  One more thing this operation cannot give you: `isDependentObjectNode` is
-  written `false` on the generated `<EMB>.ROOT` node as part of the normal
-  shape, and setting it to `true` yourself through `bopf_set_node_flags`
-  does **not** create an embedding — the flag doesn't mark delegation on
-  this release. The post-write re-read confirms the node/association pair
-  exists, nothing more.
+  Observed once, not a confirmed rule: activating a BO with such a
+  cross-BO association present destroyed the ABAP session with an
+  `ASSERTION_FAILED` short dump in `/BOBF/CL_CONF_MODEL_API_MAP`. Treat it
+  as a hazard, not something proven deterministic — it was not retried.
+- **Embedded dependent object — removal only, no create operation.**
+  `bopf_remove_dependent_object` (`node` + `name`) deletes an existing
+  embedding's parent-node association and node in one PUT, and refuses
+  while any other association still targets the node being removed. There
+  is no way to create an embedding through abapsmith on this release: a
+  live discovery run found the write shape the removed
+  `embed_dependent_object` operation sent gets rewritten by the server
+  (`bo:implementationType` came back `Composition` with
+  `bo:doEmbeddingName` dropped) and the resulting node name is rejected at
+  activation. A second run tried the two remaining candidate shapes — a
+  byte-verbatim transplant of SAP's own `ROOT_LONG_TEXT` embedding, and a
+  `DoComposition` association naming the dependent object's own root — and
+  both failed too: the first threw at the `/BOBF/ST_CONF_ADT` deserializer,
+  the second answered 200 and silently discarded the association. Do not
+  attempt to hand-assemble one with `add_node` / `add_association` — both
+  refuse the shape outright, see above.
 - `bopf_add_determination`/`bopf_add_validation` cannot attach a trigger later.
   `spec.triggers` is read only inside the original `add_determination`/
   `add_validation` call — get it right or delete and recreate. Every other
@@ -252,12 +254,16 @@ next. They re-read after the write and fail `CHECK_FAILED`, naming both
 counts, if the count on that node didn't go down, and fail `NOT_FOUND`,
 listing what IS there, if nothing by that name exists.
 
-`bopf_remove_representative_node` (`node` only) and
 `bopf_remove_dependent_object` (`node` + `name` — the parent node and the
-embedding name) remove the pairs `add_representative_node` and
-`embed_dependent_object` create. Both refuse while any association still
-targets the node being removed — remove that association first. Both run
-the same post-write re-read as every other `remove_*` operation.
+embedding name) removes an existing dependent-object embedding — the
+parent-node association and its node, in one call. It refuses while any
+other association still targets the node being removed — remove that
+association first. It runs the same post-write re-read as every other
+`remove_*` operation. A representative node has no dedicated remove:
+removing the link with `bopf_remove_association` should take the
+server-minted node with it (observed live as the node vanishing once the
+association was gone, not as the operation itself run against one), see
+Adding elements above.
 
 **Duplicate-name symptom**: a BO that stops activating because it carries two
 elements of the same kind and name. Re-adding under an existing `name`

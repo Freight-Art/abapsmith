@@ -362,6 +362,37 @@ was last set to `0.3.0`.
   reporting "skipped" with no reason; the documented live-suite surface in
   `CONTRIBUTING.md` and `doc/TESTING/README.md` was also corrected against
   `LIVE_INTEGRATION_TESTS` in `vitest.config.ts`.
+- Three `abap_bopf_edit` operations — `add_representative_node`,
+  `remove_representative_node`, `embed_dependent_object` — are removed
+  after a live discovery run against a real SAP system proved the write
+  shapes they sent do not survive the endpoint: a client-written
+  parentless node is hard-rejected by the deserializer
+  (`/BOBF/ST_CONF_ADT`), and a `DoComposition` association plus embedded
+  node comes back with its `implementationType` rewritten to
+  `Composition` and its `doEmbeddingName` dropped, with the resulting
+  node name then refused at activation. A representative node is now
+  obtained the way the server actually produces one: a plain cross-BO
+  `add_association` (an `Association` `spec.targetNodeRef` naming
+  another BO's node, plus a `spec.implementationClassRef` naming an XBO
+  class) causes the server to mint a parentless node itself, named
+  `REP_<random>`; `remove_association` should remove it too, observed
+  live only as the node's absence once the association was gone, not as
+  the removal operation itself being run against one.
+  There is no replacement for creating an embedded dependent object.
+  `remove_dependent_object` is unchanged, its refusal path having been
+  exercised correctly against the live system, as are the `abap_bopf`
+  `show` node-kind labels (`root` / `standard` / `delegated` /
+  `representative`) and `check_refs`'s `unchecked` verdict for cross-BO
+  references. `abap_bopf_edit` now has 24 operations (was 27) and the v2
+  `abap_do` catalogue 52 actions (was 55), 27 of them in the `bopf` group
+  (was 30). A second live run then tried both remaining candidate
+  embedding shapes and both failed as well — a byte-verbatim transplant
+  of SAP's own `ROOT_LONG_TEXT` embedding threw at the same
+  `/BOBF/ST_CONF_ADT` deserializer even with the node correctly
+  parented, and an association naming the dependent object's own root
+  answered 200 with the association silently discarded — so the removal
+  is a settled negative for this endpoint on this release, not a gap
+  waiting on evidence. See `doc/CAPABILITIES/bopf.md`.
 
 ### Fixed
 
