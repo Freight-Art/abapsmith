@@ -3525,10 +3525,10 @@ var require_lib = __commonJS({
     var Type = (
       /** @class */
       (function() {
-        function Type2(name, is, validate4, encode3) {
+        function Type2(name, is, validate5, encode3) {
           this.name = name;
           this.is = is;
-          this.validate = validate4;
+          this.validate = validate5;
           this.encode = encode3;
           this.decode = this.decode.bind(this);
         }
@@ -4137,8 +4137,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(LiteralType2, _super);
-        function LiteralType2(name, is, validate4, encode3, value) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function LiteralType2(name, is, validate5, encode3, value) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.value = value;
           _this._tag = "LiteralType";
           return _this;
@@ -4163,8 +4163,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(KeyofType2, _super);
-        function KeyofType2(name, is, validate4, encode3, keys) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function KeyofType2(name, is, validate5, encode3, keys) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.keys = keys;
           _this._tag = "KeyofType";
           return _this;
@@ -4191,8 +4191,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(RefinementType2, _super);
-        function RefinementType2(name, is, validate4, encode3, type2, predicate) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function RefinementType2(name, is, validate5, encode3, type2, predicate) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this.predicate = predicate;
           _this._tag = "RefinementType";
@@ -4213,8 +4213,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(RecursiveType2, _super);
-        function RecursiveType2(name, is, validate4, encode3, runDefinition) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function RecursiveType2(name, is, validate5, encode3, runDefinition) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.runDefinition = runDefinition;
           _this._tag = "RecursiveType";
           return _this;
@@ -4253,8 +4253,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ArrayType2, _super);
-        function ArrayType2(name, is, validate4, encode3, type2) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function ArrayType2(name, is, validate5, encode3, type2) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this._tag = "ArrayType";
           return _this;
@@ -4303,8 +4303,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(InterfaceType2, _super);
-        function InterfaceType2(name, is, validate4, encode3, props) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function InterfaceType2(name, is, validate5, encode3, props) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.props = props;
           _this._tag = "InterfaceType";
           return _this;
@@ -4378,8 +4378,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(PartialType2, _super);
-        function PartialType2(name, is, validate4, encode3, props) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function PartialType2(name, is, validate5, encode3, props) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.props = props;
           _this._tag = "PartialType";
           return _this;
@@ -4454,8 +4454,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(DictionaryType2, _super);
-        function DictionaryType2(name, is, validate4, encode3, domain2, codomain) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function DictionaryType2(name, is, validate5, encode3, domain2, codomain) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.domain = domain2;
           _this.codomain = codomain;
           _this._tag = "DictionaryType";
@@ -4474,8 +4474,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(UnionType2, _super);
-        function UnionType2(name, is, validate4, encode3, types) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function UnionType2(name, is, validate5, encode3, types) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.types = types;
           _this._tag = "UnionType";
           return _this;
@@ -4559,8 +4559,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(IntersectionType2, _super);
-        function IntersectionType2(name, is, validate4, encode3, types) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function IntersectionType2(name, is, validate5, encode3, types) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.types = types;
           _this._tag = "IntersectionType";
           return _this;
@@ -4604,8 +4604,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(TupleType2, _super);
-        function TupleType2(name, is, validate4, encode3, types) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function TupleType2(name, is, validate5, encode3, types) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.types = types;
           _this._tag = "TupleType";
           return _this;
@@ -4661,8 +4661,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ReadonlyType2, _super);
-        function ReadonlyType2(name, is, validate4, encode3, type2) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function ReadonlyType2(name, is, validate5, encode3, type2) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this._tag = "ReadonlyType";
           return _this;
@@ -4682,8 +4682,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ReadonlyArrayType2, _super);
-        function ReadonlyArrayType2(name, is, validate4, encode3, type2) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function ReadonlyArrayType2(name, is, validate5, encode3, type2) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this._tag = "ReadonlyArrayType";
           return _this;
@@ -4708,8 +4708,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ExactType2, _super);
-        function ExactType2(name, is, validate4, encode3, type2) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function ExactType2(name, is, validate5, encode3, type2) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this._tag = "ExactType";
           return _this;
@@ -4827,8 +4827,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(TaggedUnionType2, _super);
-        function TaggedUnionType2(name, is, validate4, encode3, codecs, tag) {
-          var _this = _super.call(this, name, is, validate4, encode3, codecs) || this;
+        function TaggedUnionType2(name, is, validate5, encode3, codecs, tag) {
+          var _this = _super.call(this, name, is, validate5, encode3, codecs) || this;
           _this.tag = tag;
           return _this;
         }
@@ -4886,8 +4886,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(StrictType2, _super);
-        function StrictType2(name, is, validate4, encode3, props) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function StrictType2(name, is, validate5, encode3, props) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.props = props;
           _this._tag = "StrictType";
           return _this;
@@ -38651,8 +38651,8 @@ var require_keyword = __commonJS({
       var _a3;
       const { gen, keyword, schema, parentSchema, $data, it } = cxt;
       checkAsyncKeyword(it, def);
-      const validate4 = !$data && def.compile ? def.compile.call(it.self, schema, parentSchema, it) : def.validate;
-      const validateRef = useKeyword(gen, keyword, validate4);
+      const validate5 = !$data && def.compile ? def.compile.call(it.self, schema, parentSchema, it) : def.validate;
+      const validateRef = useKeyword(gen, keyword, validate5);
       const valid = gen.let("valid");
       cxt.block$data(valid, validateKeyword);
       cxt.ok((_a3 = def.valid) !== null && _a3 !== void 0 ? _a3 : valid);
@@ -39725,28 +39725,28 @@ var require_compile = __commonJS({
         if (this.opts.code.process)
           sourceCode = this.opts.code.process(sourceCode, sch);
         const makeValidate = new Function(`${names_1.default.self}`, `${names_1.default.scope}`, sourceCode);
-        const validate4 = makeValidate(this, this.scope.get());
-        this.scope.value(validateName, { ref: validate4 });
-        validate4.errors = null;
-        validate4.schema = sch.schema;
-        validate4.schemaEnv = sch;
+        const validate5 = makeValidate(this, this.scope.get());
+        this.scope.value(validateName, { ref: validate5 });
+        validate5.errors = null;
+        validate5.schema = sch.schema;
+        validate5.schemaEnv = sch;
         if (sch.$async)
-          validate4.$async = true;
+          validate5.$async = true;
         if (this.opts.code.source === true) {
-          validate4.source = { validateName, validateCode, scopeValues: gen._values };
+          validate5.source = { validateName, validateCode, scopeValues: gen._values };
         }
         if (this.opts.unevaluated) {
           const { props, items } = schemaCxt;
-          validate4.evaluated = {
+          validate5.evaluated = {
             props: props instanceof codegen_1.Name ? void 0 : props,
             items: items instanceof codegen_1.Name ? void 0 : items,
             dynamicProps: props instanceof codegen_1.Name,
             dynamicItems: items instanceof codegen_1.Name
           };
-          if (validate4.source)
-            validate4.source.evaluated = (0, codegen_1.stringify)(validate4.evaluated);
+          if (validate5.source)
+            validate5.source.evaluated = (0, codegen_1.stringify)(validate5.evaluated);
         }
-        sch.validate = validate4;
+        sch.validate = validate5;
         return sch;
       } catch (e) {
         delete sch.validate;
@@ -43365,8 +43365,8 @@ var require_formats = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.formatNames = exports2.fastFormats = exports2.fullFormats = void 0;
-    function fmtDef(validate4, compare) {
-      return { validate: validate4, compare };
+    function fmtDef(validate5, compare) {
+      return { validate: validate5, compare };
     }
     exports2.fullFormats = {
       // date: http://tools.ietf.org/html/rfc3339#section-5.6
@@ -67346,7 +67346,7 @@ var REGISTRY = {
     bridgeCreate: {
       adtRest: "ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery collection advertises an empty <app:accept>. That GET is not a route a caller can take from here: with no collection there is nothing to resolve a name against, and abap_search rejects VIEW/DV as an unrecognised type, so there is no way to read a classic view through abapsmith either. Four independent recons agree. This entry previously read 'not reachable over ADT, every read and write 404s' and concluded the type was unwritable \u2014 the REST finding is right, the conclusion was not: SE11 does not use REST either.",
       via: "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE (function group SDIC \u2014 the same DD_VIEW_EXPAND/DD_VIEW_PUT/DD_VIEW_ACT primitives SE11's view editor drives), called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/view-create.ts and src/adt/ddic-bridge.ts.",
-      limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (not through abap_read \u2014 that path stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package requires corr_nr; a LOCAL package refuses one (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts. The create is otherwise irreversible in the sense that abapsmith cannot read the view back to verify it: success is proven by the transcript markers, not by a read-back."
+      limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (not through abap_read \u2014 that path stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package resolves a transport request the same way a DEVC/K create does: preflightPackageCorr (src/adt/write.ts) hands off to SessionTransport.resolveForNewTransportable, honouring the caller's corr_nr when given or else picking or creating one under the ABAP_ALLOW_TRANSPORTS policy (a pinned TRKORR from the list, or a fresh request when the policy is `*`/AUTO), gate-judged before the bridge runs. The resolver's own refusals surface as TRANSPORT_ERROR (policy disabled, or no usable request), TRANSPORT_LOCKED (a request pinned elsewhere), or BAD_INPUT (a malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts. The create is otherwise irreversible in the sense that abapsmith cannot read the view back to verify it: success is proven by the transcript markers, not by a read-back."
     },
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
@@ -67408,26 +67408,26 @@ var REGISTRY = {
       alternative: "Authorization objects can only be created and edited in SU21, a SAPGUI transaction outside abapsmith's reach. There is no ABAP-code equivalent to fall back on."
     }
   },
-  // Not in types.ts — see the module doc. A table's secondary
-  // index was the one unreachable DDIC concept this registry did not name at
-  // all, so it appeared in NONE of the three buckets of the generated skill
-  // table and a caller could only learn the answer by burning three failed
-  // calls (abap_write TABL/DI, an inline `define index` in a TABL/DT source
-  // PUT, an abap_ui/SE11 probe). This entry exists to make the answer
-  // discoverable, NOT to record a proven ADT limitation — see the reason text.
-  //
-  // Type code chosen deliberately: `TABL/DI` is the code callers actually
-  // reach for, and the one consistent with
-  // this registry's own `TABL/DT`/`TABL/DS`. It is NOT confirmed against a
-  // live repository/informationsystem/objecttypes listing — no probe has been
-  // run — and the transport-layer name for an index (LIMU INDX) is
-  // deliberately not used here, for the same reason TRAN/T's entry refuses to
-  // conflate the ADT type code with the underlying table name TSTC.
+  // Not in types.ts — see the module doc. Type code chosen deliberately:
+  // `TABL/DI` is the code callers actually reach for, and the one consistent
+  // with this registry's own `TABL/DT`/`TABL/DS`; the transport-layer name
+  // for an index (LIMU INDX) is deliberately not used here, for the same
+  // reason TRAN/T's entry refuses to conflate the ADT type code with the
+  // underlying table name TSTC. Was `unsupported` (no probed ADT resource at
+  // all) until a live probe on A4H 2026-09-05 found the REST route
+  // conclusively absent and a working classrun-bridge route instead — see
+  // bridgeCreate/bridgeDelete below.
   "TABL/DI": {
     label: "Table secondary index",
-    unsupported: {
-      reason: "A table's secondary index is not an object abapsmith can reach in either direction: TABL/DI is on the not-writable list abap_write's `type` description carries (that parameter is a free-form string, not an enum), and neither in-band route works \u2014 appending a second `define index ...` statement to a TABL/DT source write is rejected at check time (the table source grammar accepts one statement), and abap_ui cannot drive SE11's Indexes tab (SE11 reports CINFO=84, so `press` refuses it). Both were reproduced on A4H. What is NOT established here: whether ADT itself can create an index. The table-child resource named (/sap/bc/adt/ddic/tables/{table}/indexes/{id}) has never been probed from this repo, so this entry states abapsmith's own reach, not a proven limit of ADT \u2014 unlike SHLP/DH or SUSO/B, whose reasons rest on live recon.",
-      alternative: "Create or change the index by hand in SE11 (the table's 'Indexes' button) or in ADT's table editor, both outside abapsmith. Nothing else about the table is affected: the table itself stays fully writable here as TABL/DT, so a table built through abapsmith can be indexed afterwards without redoing it. Do not spend turns hunting for a workaround inside abapsmith \u2014 there is none today."
+    bridgeCreate: {
+      adtRest: `Probed live on A4H 2026-09-05: GET /sap/bc/adt/ddic/tables/t000/indexes 404s, and PUT /sap/bc/adt/ddic/tables/t000/indexes/z01 404s for any body and any content type \u2014 there is no writable (or even readable) index collection under a table. The table XML itself (application/vnd.sap.adt.tables.v2+xml) carries exactly one index-related link, rel="http://www.sap.com/adt/relations/indexes" pointing at /sap/bc/adt/vit/wb/object_type/tabldt/object_name/<TABLE>#view=INDX with type="application/vnd.sap.sapgui" \u2014 a GUI handoff (SE11's Indexes tab), not a REST resource. No discovery collection mentions indexes either.`,
+      via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates \u2014 non-unique Z01 and unique Z02 with MANDT \u2014 and each again returned all three markers; the round-3 delete-path defect below never touched create.",
+      limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, the same as VIEW/DV and TRAN/T \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A unique create over two non-client fields of a client-dependent table returned ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that included the base table's client field (MANDT) returned INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever called \u2014 raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without index_unique.\" The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER \u2014 unexercised live in either direction. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
+    },
+    bridgeDelete: {
+      adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
+      via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of ZCL_ZMCP_DDIC_DINDX) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above had therefore never executed live before round 4. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the non-unique Z01 and the unique-with-client-field Z02 were each deleted with INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 returned NOT_FOUND from the DD12V pre-check, and the deployed ZCL_ZMCP_DDIC_DINDX body read back with the new read-back variable and no line over 255. So the ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both deletes while all three read-backs came back empty, so what the flag itself means is still not established, only that it does not mean the rows survived.",
+      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and abap_data_preview was confirmed live to carry no WHERE filter, so a targeted DD12V check was not practical."
     }
   }
 };
@@ -91267,9 +91267,13 @@ var DDIC_BRIDGE_CLASS = {
   deletePackage: "ZCL_ZMCP_DDIC_DPKG",
   deleteView: "ZCL_ZMCP_DDIC_DVIEW",
   deleteTransaction: "ZCL_ZMCP_DDIC_DTRAN",
-  removeTransportEntry: "ZCL_ZMCP_DDIC_TREN"
+  removeTransportEntry: "ZCL_ZMCP_DDIC_TREN",
+  createIndex: "ZCL_ZMCP_DDIC_CINDX",
+  deleteIndex: "ZCL_ZMCP_DDIC_DINDX"
 };
+var ABAP_SOURCE_LINE_MAX = 255;
 var DDIC_ERR_PREFIX = "ZMCP-DDIC-ERR>";
+var DDIC_NOTE_PREFIX = "ZMCP-DDIC-NOTE>";
 var DDIC_TAGS = [
   "VIEW-PUT",
   "VIEW-REGISTERED",
@@ -91289,13 +91293,21 @@ var DDIC_TAGS = [
   "TRAN-GONE",
   // transport-entry-remove bridge:
   "TREN-REMOVED",
-  "TREN-GONE"
+  "TREN-GONE",
+  // index-create / index-delete bridges (TABL/DI, DD_INDEX_INTERFACE):
+  "INDEX-CREATED",
+  "INDEX-ACTIVE",
+  "INDEX-FIELDS",
+  "INDEX-DELETED",
+  "INDEX-GONE",
+  // FM reported ACTFAILED on delete but the post-commit DD12V/DD17S read-back found the index gone anyway — live 2026-09-05.
+  "INDEX-DELETED-ACTFAILED"
 ];
 function ddicBridgeSource(className, dataLines, bodyLines) {
   const cls = assertPlainName(className, "Class name").toLowerCase();
   const data = dataLines.map((l) => `    DATA ${l}`).join("\n");
   const body = bodyLines.map((l) => `    ${l}`).join("\n");
-  return `CLASS ${cls} DEFINITION
+  const source = `CLASS ${cls} DEFINITION
   PUBLIC FINAL
   CREATE PUBLIC.
 
@@ -91321,6 +91333,17 @@ ${body}
 
 ENDCLASS.
 `;
+  source.split("\n").forEach((line, i) => {
+    if (line.length > ABAP_SOURCE_LINE_MAX) {
+      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated bridge source line ${i + 1} is ${line.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
+        { line: i + 1, length: line.length, excerpt }
+      );
+    }
+  });
+  return source;
 }
 function subrcGuardFragment(what) {
   if (!/^[A-Za-z0-9_ ]+$/.test(what)) {
@@ -99924,6 +99947,429 @@ function discardedDescriptorValues(sent, stored) {
   return out;
 }
 
+// src/adt/index-create.ts
+var INDEX_NAME_MAX = 3;
+var INDEX_TEXT_MAX = 60;
+var MAX_INDEX_FIELDS = 16;
+var INDEX_FIELD_NAME_MAX = 30;
+var BASE_TABLE_MAX = 30;
+var PACKAGE_MAX = 30;
+var PACKAGE_RULES2 = { maxLength: PACKAGE_MAX, allowLocal: true };
+var CREATE_FM_WHAT = "DD_INDEX_INTERFACE insert";
+var DELETE_FM_WHAT = "DD_INDEX_INTERFACE delete";
+async function resolveIndexOwner(conn, baseTable) {
+  const uri = buildUri(specForType("TABL/DT"), baseTable);
+  let body;
+  try {
+    const resp = await conn.get(uri, { headers: { Accept: "application/*" } });
+    body = resp.body ?? "";
+  } catch (e) {
+    if (isNotFoundError(e)) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Base table ${baseTable} does not exist, so there is nothing to index.`,
+        { baseTable, uri }
+      );
+    }
+    throw e;
+  }
+  const resolved = serverPackage({
+    status: "confirmed",
+    uri,
+    via: "read-back",
+    packageName: packageRefName(body)
+  });
+  if (!resolved) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `abapsmith could not determine which package base table ${baseTable} \u2014 and therefore any index on it \u2014 belongs to: the table's ADT XML answered but carried no <adtcore:packageRef adtcore:name> element.`,
+      { reason: "PACKAGE_UNKNOWN", baseTable, uri },
+      "Every write, delete and activation is judged against the object's real package. Rather than trust a caller-supplied or guessed value, abapsmith stops here. Confirm the table is registered with a real packageRef, then retry.",
+      { retryable: true }
+      // a failure to determine the package, not a policy verdict
+    );
+  }
+  return { packageName: resolved, uri };
+}
+function isLocalPackage(packageName) {
+  return isLocalPackageName(packageName);
+}
+function quotedIdentifier(value, what, opts) {
+  return abapLiteral(assertEnhIdentifier(value, what, opts));
+}
+function assertCorrNr2(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value.trim().toUpperCase();
+}
+function assertSecondaryIndexTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
+  const local = isLocalPackage(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) index is created with NO_TRANSP_REQUEST = 'X' rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this index must be created with TRANSPORT_NUMBER set, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  return local ? "" : assertCorrNr2(corrNr);
+}
+function indexGateName(baseTable, indexName) {
+  return `${baseTable}-${indexName}`;
+}
+function validate3(p) {
+  const indexName = assertEnhIdentifier(p.indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  if (!Array.isArray(p.fields) || p.fields.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "fields must be a non-empty list of base-table field names \u2014 a secondary index with no field at all is not one DD_INDEX_INTERFACE would accept.",
+      { indexName, baseTable }
+    );
+  }
+  if (p.fields.length > MAX_INDEX_FIELDS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `fields has ${p.fields.length} entries, more than the ${MAX_INDEX_FIELDS} this bridge generates.`,
+      { indexName, count: p.fields.length, max: MAX_INDEX_FIELDS }
+    );
+  }
+  const fields = p.fields.map(
+    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: INDEX_FIELD_NAME_MAX })
+  );
+  const description = assertAbapText(p.description, "description", INDEX_TEXT_MAX);
+  const packageNameStr = assertEnhIdentifier(p.packageName.name, "packageName", PACKAGE_RULES2);
+  const trkorr = assertSecondaryIndexTarget(packageNameStr, p.corrNr);
+  const corrNr = trkorr === "" ? void 0 : trkorr;
+  const unique = p.unique === true;
+  return { indexName, baseTable, fields, description, packageName: p.packageName, corrNr, unique };
+}
+function validateDelete(p) {
+  const indexName = assertEnhIdentifier(p.indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  const packageNameStr = assertEnhIdentifier(p.packageName.name, "packageName", PACKAGE_RULES2);
+  const trkorr = assertSecondaryIndexTarget(packageNameStr, p.corrNr);
+  const corrNr = trkorr === "" ? void 0 : trkorr;
+  return { indexName, baseTable, packageName: p.packageName, corrNr };
+}
+var DD_INDEX_EXCEPTIONS = [
+  {
+    subrc: 1,
+    name: "cancelled",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE was cancelled (CANCELLED) \u2014 typically a popup a headless bridge execution cannot answer.",
+    hint: "Retry once; a cancelled dialog is not evidence anything about the request itself was wrong."
+  },
+  {
+    subrc: 2,
+    name: "already_exist",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE reports this index already exists on the base table (ALREADY_EXIST).",
+    hint: 'Use mode: "delete" to remove the existing index first if a different definition is wanted, then create again.'
+  },
+  {
+    subrc: 3,
+    name: "permission_error",
+    code: "SAFETY_DENIED",
+    message: "DD_INDEX_INTERFACE refused its own authority check (PERMISSION_ERROR) \u2014 this is SAP's OWN MAKE_CORR_ENTRY authorization check inside the function module, not abapsmith's safety gate.",
+    hint: "The service user this bridge runs as lacks authority for this object; a different corr_nr will not change that."
+  },
+  {
+    subrc: 4,
+    name: "name_not_allowed",
+    code: "BAD_INPUT",
+    message: "DD_INDEX_INTERFACE refused this index name (NAME_NOT_ALLOWED) \u2014 commonly outside the customer namespace or already used elsewhere.",
+    hint: "Pick a different index name."
+  },
+  {
+    subrc: 5,
+    name: "db_access_error",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE hit a database access error (DB_ACCESS_ERROR) while writing the dictionary tables.",
+    hint: "Not a request-shape problem; check the base table for an inconsistent or locked dictionary state."
+  },
+  {
+    subrc: 6,
+    name: "basetab_error",
+    code: "NOT_FOUND",
+    message: "DD_INDEX_INTERFACE reports a problem with the base table (BASETAB_ERROR) \u2014 commonly that it does not exist or is inactive.",
+    hint: "Confirm the base table exists and is active before creating an index on it."
+  },
+  {
+    subrc: 7,
+    name: "not_exist",
+    code: "NOT_FOUND",
+    message: "DD_INDEX_INTERFACE reports this index does not exist (NOT_EXIST).",
+    hint: "Confirm the index name and base table; deleting a name that was never created returns this."
+  },
+  {
+    subrc: 8,
+    name: "others",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE failed with an unclassified exception (OTHERS).",
+    hint: void 0
+  }
+];
+function ddIndexExceptionsClause() {
+  return DD_INDEX_EXCEPTIONS.map((e, i) => {
+    const kw = e.name === "others" ? "OTHERS" : e.name;
+    const end = i === DD_INDEX_EXCEPTIONS.length - 1 ? "." : "";
+    return `    ${kw} = ${e.subrc}${end}`;
+  });
+}
+function transportParamLine(local, corrNr) {
+  return local ? "    no_transp_request   = 'X'" : `    transport_number    = ${abapLiteral(corrNr)}`;
+}
+var INDEX_DATA_LINES = [
+  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
+  "lv_actfailed TYPE ddrefstruc-flag.",
+  "lv_dd12v_count TYPE i.",
+  "lv_dd12v_any TYPE i.",
+  "lv_dd17s_count TYPE i.",
+  "lv_client_field TYPE dd03l-fieldname."
+];
+var INDEX_DELETE_DATA_LINES = [
+  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
+  "lv_actfailed TYPE ddrefstruc-flag.",
+  "lv_dd12v_count TYPE i.",
+  "lv_dd12v_active TYPE i.",
+  "lv_dd17s_count TYPE i.",
+  // built up over several assignments, not one literal — a 30-char baseTable pushes either
+  // message past the 255-char class-source line limit if written in one piece (live 2026-09-05).
+  "lv_msg TYPE string."
+];
+function secondaryIndexFragment(p) {
+  const v = validate3(p);
+  const { indexName, baseTable, fields, description, corrNr, unique } = v;
+  const index = quotedIdentifier(indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const table = quotedIdentifier(baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  const local = corrNr === void 0;
+  const lines = [];
+  fields.forEach((f, i) => {
+    const quoted6 = quotedIdentifier(f, `fields[${i}]`, { maxLength: INDEX_FIELD_NAME_MAX });
+    lines.push(`APPEND VALUE #( name = ${quoted6} ) TO lt_fields.`);
+  });
+  lines.push("");
+  if (unique) {
+    lines.push(
+      `SELECT SINGLE fieldname FROM dd03l INTO @lv_client_field WHERE tabname = ${table} AND as4local = 'A' AND datatype = 'CLNT'.`,
+      "IF sy-subrc = 0 AND lv_client_field IS NOT INITIAL.",
+      "  READ TABLE lt_fields TRANSPORTING NO FIELDS WITH KEY name = lv_client_field.",
+      "  IF sy-subrc <> 0.",
+      `    out->write( |ZMCP-DDIC-ERR> unique index ${indexName} on ${baseTable} omits the client field { lv_client_field }| ).`,
+      "    RETURN.",
+      "  ENDIF.",
+      "ENDIF.",
+      ""
+    );
+  }
+  lines.push(
+    "CALL FUNCTION 'DD_INDEX_INTERFACE'",
+    "  EXPORTING",
+    `    table_name          = ${table}`,
+    `    index_name          = ${index}`,
+    "    action              = 'I'",
+    `    shorttext           = ${abapLiteral(description)}`,
+    "    activate            = 'X'",
+    ...unique ? ["    unique              = 'X'"] : [],
+    transportParamLine(local, corrNr),
+    "  IMPORTING",
+    "    actfailed = lv_actfailed",
+    "  TABLES",
+    "    index_fields = lt_fields",
+    "  EXCEPTIONS",
+    ...ddIndexExceptionsClause(),
+    ...subrcGuardFragment(CREATE_FM_WHAT),
+    "IF lv_actfailed = 'X'.",
+    // DD_INDEX_INTERFACE exports no activation log; the cheapest evidence of what a failed
+    // activation left behind is a DD12V row count with no AS4LOCAL filter at all.
+    `  SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_any WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `  out->write( |ZMCP-DDIC-ERR> ${CREATE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}; DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_any }| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    "out->write( 'INDEX-CREATED' ).",
+    ""
+  );
+  lines.push("COMMIT WORK.", "");
+  lines.push(
+    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index} AND as4local = 'A'.`,
+    "IF lv_dd12v_count = 0.",
+    `  out->write( |ZMCP-DDIC-ERR> ${indexName} on ${baseTable} not found active (AS4LOCAL = 'A') in DD12V after commit| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    "out->write( 'INDEX-ACTIVE' ).",
+    ""
+  );
+  lines.push(
+    `SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `IF lv_dd17s_count < ${fields.length}.`,
+    `  out->write( |ZMCP-DDIC-ERR> expected at least ${fields.length} DD17S field row(s) for ${indexName} on ${baseTable}, got { lv_dd17s_count }| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    "out->write( 'INDEX-FIELDS' )."
+  );
+  return lines;
+}
+function indexDeleteFragment(p) {
+  const v = validateDelete(p);
+  const { indexName, baseTable, corrNr } = v;
+  const index = quotedIdentifier(indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const table = quotedIdentifier(baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  const local = corrNr === void 0;
+  const lines = [];
+  lines.push(
+    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    "IF lv_dd12v_count = 0.",
+    `  out->write( |ZMCP-DDIC-ERR> index ${indexName} on ${baseTable} does not exist| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    ""
+  );
+  lines.push(
+    "CALL FUNCTION 'DD_INDEX_INTERFACE'",
+    "  EXPORTING",
+    `    table_name          = ${table}`,
+    `    index_name          = ${index}`,
+    "    action              = 'D'",
+    "    activate            = 'X'",
+    transportParamLine(local, corrNr),
+    "  IMPORTING",
+    "    actfailed = lv_actfailed",
+    // DD_INDEX_INTERFACE requires INDEX_FIELDS for every ACTION, content or not; omitting it
+    // failed live on 2026-09-05 with "the mandatory parameter INDEX_FIELDS was not filled".
+    "  TABLES",
+    "    index_fields = lt_fields",
+    "  EXCEPTIONS",
+    ...ddIndexExceptionsClause(),
+    ...subrcGuardFragment(DELETE_FM_WHAT),
+    ""
+  );
+  lines.push("COMMIT WORK.", "");
+  lines.push(
+    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_active WHERE sqltab = ${table} AND indexname = ${index} AND as4local = 'A'.`,
+    `SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    ""
+  );
+  lines.push(
+    "IF lv_dd12v_count <> 0 OR lv_dd12v_active <> 0 OR lv_dd17s_count <> 0.",
+    `  lv_msg = |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} left rows behind after commit |.`,
+    "  lv_msg = lv_msg && |(DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, |.",
+    `  lv_msg = lv_msg && |DD17S: { lv_dd17s_count }); ${DELETE_FM_WHAT} ACTFAILED = '{ lv_actfailed }'|.`,
+    "  out->write( lv_msg ).",
+    "  RETURN.",
+    "ENDIF.",
+    "IF lv_actfailed = 'X'.",
+    `  lv_msg = |${DDIC_NOTE_PREFIX} ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}, |.`,
+    "  lv_msg = lv_msg && |but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, |.",
+    "  lv_msg = lv_msg && |DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }) \u2014 treating as deleted|.",
+    "  out->write( lv_msg ).",
+    "  out->write( 'INDEX-DELETED-ACTFAILED' ).",
+    "ENDIF.",
+    "out->write( 'INDEX-DELETED' ).",
+    "out->write( 'INDEX-GONE' )."
+  );
+  return lines;
+}
+function indexCreatePartialSuccess(indexName, baseTable) {
+  return {
+    completed: {
+      "INDEX-CREATED": `DD_INDEX_INTERFACE (action='I') created ${indexName} on ${baseTable}, and the COMMIT WORK that follows it committed it.`,
+      "INDEX-ACTIVE": `${indexName} was found active (AS4LOCAL = 'A') in DD12V on re-read after the commit.`
+    },
+    hint: `If INDEX-CREATED fired, ${indexName} exists on ${baseTable} \u2014 abap_write mode="delete" type="TABL/DI" can remove it rather than retrying the create, which would collide with it.`
+  };
+}
+function indexBridgeErrorHook(what, indexName, baseTable) {
+  const fmWhat = what === "insert" ? CREATE_FM_WHAT : DELETE_FM_WHAT;
+  const subrcRe = new RegExp(`^${fmWhat} failed, sy-subrc=(\\d+),`);
+  return (transcript) => {
+    const line = transcript.errorLine;
+    if (!line) return;
+    if (line.includes(`${indexName} on ${baseTable} does not exist`)) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Index ${indexName} on ${baseTable} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${line}`,
+        { indexName, baseTable, raw: transcript.raw }
+      );
+    }
+    if (line.includes(`unique index ${indexName} on ${baseTable} omits the client field`)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Index ${indexName} was not created: a unique secondary index on client-dependent base table ${baseTable} must include that table's client field. Raw ABAP-side detail: ${line}`,
+        { indexName, baseTable, raw: transcript.raw },
+        `Add ${baseTable}'s client field to index_fields, or create ${indexName} without index_unique.`
+      );
+    }
+    const m = subrcRe.exec(line);
+    if (!m) return;
+    const subrc = Number(m[1]);
+    const entry = DD_INDEX_EXCEPTIONS.find((e) => e.subrc === subrc);
+    if (!entry) return;
+    throw new AbapError(entry.code, entry.message, { indexName, baseTable, subrc, raw: transcript.raw }, entry.hint);
+  };
+}
+async function createSecondaryIndex(conn, gate, params) {
+  assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
+  const validated = validate3(params);
+  const { indexName, baseTable, packageName, corrNr } = validated;
+  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
+    { activate: true, ...corr !== void 0 ? { corr } : {} }
+  );
+  const source = ddicBridgeSource(DDIC_BRIDGE_CLASS.createIndex, INDEX_DATA_LINES, secondaryIndexFragment(validated));
+  const partial2 = indexCreatePartialSuccess(indexName, baseTable);
+  return runDdicBridge(conn, gate, {
+    className: DDIC_BRIDGE_CLASS.createIndex,
+    source,
+    description: `abapsmith create-secondary-index bridge (${indexName} on ${baseTable})`,
+    what: `Creating secondary index ${indexName} on ${baseTable}`,
+    expectTags: ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"],
+    beforeAssert: indexBridgeErrorHook("insert", indexName, baseTable),
+    completed: partial2.completed,
+    partialHint: partial2.hint
+  });
+}
+async function deleteSecondaryIndexViaBridge(conn, gate, params) {
+  assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
+  const validated = validateDelete(params);
+  const { indexName, baseTable, packageName, corrNr } = validated;
+  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
+    { activate: true, op: "delete", ...corr !== void 0 ? { corr } : {} }
+  );
+  const source = ddicBridgeSource(
+    DDIC_BRIDGE_CLASS.deleteIndex,
+    INDEX_DELETE_DATA_LINES,
+    indexDeleteFragment(validated)
+  );
+  return runDdicBridge(conn, gate, {
+    className: DDIC_BRIDGE_CLASS.deleteIndex,
+    source,
+    description: `abapsmith delete-secondary-index bridge (${indexName} on ${baseTable})`,
+    what: `Deleting secondary index ${indexName} on ${baseTable}`,
+    expectTags: ["INDEX-DELETED", "INDEX-GONE"],
+    beforeAssert: indexBridgeErrorHook("delete", indexName, baseTable)
+  });
+}
+
 // src/adt/package-create.ts
 var PACKAGE_MAX_LENGTH4 = 30;
 var CTEXT_MAX_LENGTH = 60;
@@ -99946,7 +100392,7 @@ function assertSoftwareComponent(value, what = "softwareComponent") {
   }
   return value;
 }
-function assertCorrNr2(value) {
+function assertCorrNr3(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -100000,7 +100446,7 @@ function packageFragment(p) {
   const packageName = assertEnhIdentifier(p.packageName, "packageName", { maxLength: PACKAGE_MAX_LENGTH4 });
   const description = assertAbapText(p.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(p.softwareComponent);
-  const corrNr = assertCorrNr2(p.corrNr);
+  const corrNr = assertCorrNr3(p.corrNr);
   const packType = assertPackageType(p.packageType);
   const superPackage = p.superPackage === void 0 ? void 0 : assertEnhIdentifier(p.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const lines = [
@@ -100164,7 +100610,7 @@ async function createPackageViaBridge(conn, gate, params) {
   });
   const description = assertAbapText(params.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(params.softwareComponent);
-  const corrNr = assertCorrNr2(params.corrNr);
+  const corrNr = assertCorrNr3(params.corrNr);
   assertPackageType(params.packageType);
   const superPackage = params.superPackage === void 0 ? void 0 : assertEnhIdentifier(params.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const corr = { kind: "transport", corrNr, source: params.corrSource ?? "auto" };
@@ -100221,14 +100667,17 @@ var DICT_KEY_NAME_LENGTH = 40;
 function dictObjectKey(viewName) {
   return `VIEW${viewName.padEnd(DICT_KEY_NAME_LENGTH)}`;
 }
-function isLocalPackage(packageName) {
+function isLocalPackage2(packageName) {
   return isLocalPackageName(packageName);
 }
-function quotedIdentifier(value, what, opts = {}) {
+function classicViewUri(viewName) {
+  return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
+}
+function quotedIdentifier2(value, what, opts = {}) {
   return abapLiteral(assertEnhIdentifier(value, what, { maxLength: VIEW_NAME_MAX2, ...opts }));
 }
-var PACKAGE_RULES2 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
-function assertCorrNr3(value) {
+var PACKAGE_RULES3 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
+function assertCorrNr4(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -100239,8 +100688,8 @@ function assertCorrNr3(value) {
   return value;
 }
 function assertClassicViewCreateTarget(packageName, corrNr) {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
-  const local = isLocalPackage(validated);
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES3);
+  const local = isLocalPackage2(validated);
   if (local && corrNr !== void 0) {
     throw new AbapError(
       "BAD_INPUT",
@@ -100248,18 +100697,10 @@ function assertClassicViewCreateTarget(packageName, corrNr) {
       { packageName: validated, corrNr }
     );
   }
-  if (!local && corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
-      { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
-    );
-  }
-  if (corrNr !== void 0) assertCorrNr3(corrNr);
+  if (corrNr !== void 0) assertCorrNr4(corrNr);
   return validated;
 }
-function validate3(p) {
+function validate4(p) {
   const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX2 });
   const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: VIEW_NAME_MAX2 });
   if (!Array.isArray(p.fields) || p.fields.length === 0) {
@@ -100281,8 +100722,17 @@ function validate3(p) {
   );
   const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
   const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
-  const corrNr = isLocalPackage(packageName) ? void 0 : p.corrNr;
-  return { viewName, baseTable, fields, description, packageName, corrNr };
+  const local = isLocalPackage2(packageName);
+  if (!local && p.corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  const corrNr = local ? void 0 : p.corrNr;
+  return { viewName, baseTable, fields, description, packageName, corrNr, corrSource: p.corrSource };
 }
 var VIEW_DATA_LINES = [
   "ls_dd25v TYPE dd25v.",
@@ -100293,10 +100743,10 @@ var VIEW_DATA_LINES = [
   "lv_rc TYPE sy-subrc."
 ];
 function classicViewFragment(p) {
-  const { viewName, baseTable, fields, description, packageName, corrNr } = validate3(p);
-  const view = quotedIdentifier(viewName, "viewName");
-  const table = quotedIdentifier(baseTable, "baseTable");
-  const local = isLocalPackage(packageName);
+  const { viewName, baseTable, fields, description, packageName, corrNr } = validate4(p);
+  const view = quotedIdentifier2(viewName, "viewName");
+  const table = quotedIdentifier2(baseTable, "baseTable");
+  const local = isLocalPackage2(packageName);
   const lines = [];
   lines.push(
     // --- TADIR registration, BEFORE any dictionary write: a key
@@ -100309,7 +100759,7 @@ function classicViewFragment(p) {
     // 44-byte layout.
     `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
     "            object_class = 'DICT'",
-    `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES2)}`,
+    `            devclass = ${quotedIdentifier2(packageName, "packageName", PACKAGE_RULES3)}`,
     "            master_language = sy-langu",
     "            mode = 'INSERT'",
     // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
@@ -100347,7 +100797,7 @@ function classicViewFragment(p) {
     "CLEAR lt_dd27p."
   );
   fields.forEach((field, index) => {
-    const quoted6 = quotedIdentifier(field, `fields[${index}]`);
+    const quoted6 = quotedIdentifier2(field, `fields[${index}]`);
     const objpos = String(index + 1).padStart(4, "0");
     lines.push(
       "CLEAR ls_dd27p.",
@@ -100401,9 +100851,9 @@ function viewCreatePartialSuccess(viewName) {
   };
 }
 async function createClassicView(conn, gate, params) {
-  const validated = validate3(params);
-  const { viewName, packageName, corrNr } = validated;
-  const corr = isLocalPackage(packageName) ? void 0 : { kind: "transport", corrNr, source: "named" };
+  const validated = validate4(params);
+  const { viewName, packageName, corrNr, corrSource } = validated;
+  const corr = isLocalPackage2(packageName) ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
   assertBridgeMutation(
     gate,
     { type: "VIEW/DV", name: viewName, packageName },
@@ -100913,7 +101363,7 @@ var writeInputSchema = {
   // (src/tools/read.ts), turns a typo into a schema rejection.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe("CLAS/OC only; testclasses=ABAP Unit tests, default main."),
   package: external_exports.string().optional().describe(
-    "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs corr_nr, a $-package refuses it."
+    "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr. TABL/DI: ignored except to check agreement \u2014 an index's package is always the base table's, never caller-chosen."
   ),
   description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
   // Structured create for the three XML-only DDIC types, so a
@@ -100948,7 +101398,7 @@ var writeInputSchema = {
     "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
   ),
   corr_nr: external_exports.string().optional().describe(
-    "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete."
+    "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a transportable package; optional for a VIEW/DV create, which resolves one under ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived requirement as its create, not refused."
   ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
@@ -100960,8 +101410,14 @@ var writeInputSchema = {
   // deliberately: schema prose is billed on every `tools/list`, while the
   // fuller guidance is billed only to a caller who gets it wrong
   // (`abapCreateViaBridge`, below) — see test/tools.test.ts's "tool surface".
-  base_table: external_exports.string().optional().describe("VIEW/DV create only: the single base table the view projects."),
+  base_table: external_exports.string().optional().describe(
+    "VIEW/DV create: the single base table the view projects. TABL/DI create+delete, required: the table the index belongs to."
+  ),
   view_fields: external_exports.array(external_exports.string()).optional().describe("VIEW/DV create only: base-table fields to project, in order."),
+  index_fields: external_exports.array(external_exports.string()).optional().describe("TABL/DI create only, required: base-table fields the index covers, in order."),
+  index_unique: external_exports.boolean().optional().describe(
+    "TABL/DI create only: mark the index UNIQUE. Default false. On a client-dependent base table, a unique index must include the table's client field (usually MANDT) in `index_fields` \u2014 a create that omits it is refused rather than left to fail activation on the server."
+  ),
   // "EXISTING" and "SUBMIT-only" are load-bearing: abapsmith checks the
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.
@@ -101454,6 +101910,8 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       "transport_layer",
       "base_table",
       "view_fields",
+      "index_fields",
+      "index_unique",
       "program",
       "affects",
       "ddic"
@@ -101500,7 +101958,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   }
   if (isBridgeOnlyCreateType(input.type)) {
     if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
-    return await abapBridgeCrud(conn, target, input, maxChars, gate, journal);
+    return await abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport);
   }
   const corrNr = normalizeCorrNr(input.corr_nr);
   const trOpts = transport ? { transport, gate, ...corrNr ? { corrNr } : {}, ...input.affects ? { affects: input.affects } : {} } : { ...corrNr ? { corrNr } : {}, ...input.affects ? { affects: input.affects } : {} };
@@ -102477,8 +102935,12 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
     maxChars
   });
 }
-async function abapBridgeCrud(conn, target, input, maxChars, gate, journal) {
-  return (input.mode ?? "write") === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal);
+async function abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport) {
+  const type = (input.type ?? "").trim().toUpperCase();
+  if (type === "TABL/DI") {
+    return (input.mode ?? "write") === "delete" ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) : abapCreateIndexViaBridge(conn, target, input, maxChars, gate);
+  }
+  return (input.mode ?? "write") === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
 }
 async function journalBridgeCreate(journal, conn, ref2, beforeCapture, corrNr, mutate) {
   const { result, entryId, settle } = await withJournalledMutation(
@@ -102530,7 +102992,7 @@ function bridgeReversalNote(entryId, beforeCapture, registration, label, type, o
   }
   return `Journalled as ${entryId}. abap_journal mode=undo entry=${entryId} can reach it through the same classrun bridge abap_write mode="delete" uses if it is registered \u2014 but this create's read-back did not establish a package for it, and a bridge create can land active but unregistered in TADIR, in which case both refuse with SAFETY_DENIED / PACKAGE_UNKNOWN.`;
 }
-async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal) {
+async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport) {
   const type = (input.type ?? "").trim().toUpperCase();
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
@@ -102569,6 +103031,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
   let verifyNote;
   let entryId;
   let registration;
+  let transportInfo;
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
   const objectUri = vitBridgeUri(vitType, target.name);
   let beforeCapture = "failed";
@@ -102604,7 +103067,36 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
     const baseTable = input.base_table;
     const viewFields = input.view_fields;
     bridgeClass = DDIC_BRIDGE_CLASS.createView;
-    const corrNr = normalizeCorrNr(input.corr_nr);
+    const named = normalizeCorrNr(input.corr_nr);
+    const localPkg = isLocalPackageName(packageName);
+    let corrNr;
+    let corrSource;
+    if (localPkg) {
+      corrNr = named;
+    } else {
+      if (transport === void 0) {
+        throw new AbapError(
+          "TRANSPORT_ERROR",
+          `${target.name} needs a transport request (package ${packageName} is not local), but no transport manager is wired into this call. This is an internal wiring failure in abapsmith, not a mistake in the request.`,
+          { name: target.name, packageName }
+        );
+      }
+      const preflightTarget = {
+        uri: classicViewUri(target.name),
+        name: target.name,
+        type: "VIEW/DV",
+        packageName,
+        exists: false
+      };
+      const corr = await preflightPackageCorr(conn, preflightTarget, {
+        transport,
+        gate,
+        ...named !== void 0 ? { corrNr: named } : {}
+      });
+      corrNr = corr.corrNr;
+      corrSource = corr.source;
+    }
+    if (corrNr !== void 0) transportInfo = { status: "transport", required: true, corrNr };
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
@@ -102616,7 +103108,8 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
         viewName: target.name,
         baseTable,
         fields: viewFields,
-        corrNr
+        corrNr,
+        ...corrSource !== void 0 ? { corrSource } : {}
       })
     ));
     detail = `database view (DD25V class 'D') projecting ${viewFields.length} field(s) of ${baseTable}`;
@@ -102699,6 +103192,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName,
+      ...transportInfo !== void 0 ? { transport: transportHeaderText(transportInfo) } : {},
       mode: "create-bridge",
       created: true,
       verified,
@@ -102838,12 +103332,183 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
     maxChars
   });
 }
+async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate) {
+  const type = "TABL/DI";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message, hint) => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+  if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0) {
+    bad(
+      `A ${label} (${type}) has no source: it is created from its definition, not from ABAP text. Omit \`source\`, \`edit\` and \`method\`.`
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply.`);
+  if (input.include !== void 0) {
+    bad(`\`include\` is a CLAS/OC field; a ${label} (${type}) has no class includes.`);
+  }
+  if (input.expect_etag !== void 0) {
+    bad(`\`expect_etag\` does not apply to a ${label} create \u2014 there is no prior version to compare.`);
+  }
+  if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
+  }
+  if (input.program !== void 0) bad("`program` is a TRAN/T field; an index does not start a program.");
+  if (input.view_fields !== void 0) {
+    bad("`view_fields` is a VIEW/DV field; an index projects nothing of its own \u2014 use `index_fields`.");
+  }
+  if (input.activate === false) {
+    bad(
+      "A secondary index cannot be created without activating it: DD_INDEX_INTERFACE runs with ACTIVATE = 'X'. Omit `activate`."
+    );
+  }
+  if (!input.description?.trim()) {
+    bad(
+      `\`description\` is required to create a ${label} (${type}) \u2014 it is the index's short text (DD12V-DDTEXT), and the API has no default for it.`
+    );
+  }
+  if (!input.base_table?.trim()) {
+    bad(
+      `\`base_table\` is required to create a ${label} (${type}): the existing table the index is built over, e.g. ZMCP_CARRIER.`
+    );
+  }
+  if (!input.index_fields || input.index_fields.length === 0) {
+    bad(
+      `\`index_fields\` is required to create a ${label} (${type}): the base-table fields the index covers, in order, e.g. ["CARRIER_ID"]. There is no "all fields" default.`
+    );
+  }
+  const description = input.description.trim();
+  const baseTable = input.base_table.trim();
+  const indexFields = input.index_fields;
+  const owner = await resolveIndexOwner(conn, baseTable);
+  const requestedPackage = target.packageName?.trim().toUpperCase();
+  if (requestedPackage && requestedPackage !== owner.packageName.name) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Base table ${baseTable} is in package ${owner.packageName.name}, but the request asked for ${requestedPackage}. abapsmith does not move objects between packages, and will not create an index in a package other than its base table's.`,
+      { object: target.name, type, baseTable, serverPackage: owner.packageName.name, requestedPackage },
+      "Drop the `package` argument to create the index where its base table actually lives, or correct it if this named the wrong table."
+    );
+  }
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+  const created = await createSecondaryIndex(conn, gate, {
+    indexName: target.name,
+    baseTable,
+    fields: indexFields,
+    description,
+    packageName: owner.packageName,
+    corrNr,
+    unique: input.index_unique
+  });
+  const detail = `secondary index over ${indexFields.length} field(s) of ${baseTable}` + (input.index_unique ? ", unique" : "");
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: owner.packageName.name,
+      mode: "create-bridge",
+      created: true,
+      verified: false,
+      detail,
+      bridge_class: DDIC_BRIDGE_CLASS.createIndex,
+      markers: created.transcript.tags.join(" "),
+      journal: "off (never journalled \u2014 see notes)"
+    },
+    notes: [
+      `Created by running a generated ${DDIC_BRIDGE_CLASS.createIndex} classrun bridge, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
+      cap?.bridgeCreate?.limits ?? "",
+      "NOT independently verified: a secondary index has no ADT resource of its own to read back from (see this type's REGISTRY entry in src/adt/capabilities.ts). The INDEX-ACTIVE and INDEX-FIELDS markers above come from the generated bridge's own post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, independent read \u2014 abapsmith still reports created:true, trusting that transcript, but verified is always false here.",
+      'NOT journalled: an index create has no undo path (src/adt/undo.ts recognises no TABL/DI shape and would throw on one). To reverse this, delete the index with a fresh abap_write { mode: "delete", type: "TABL/DI" } call, not abap_journal mode=undo.'
+    ].filter((n) => n !== ""),
+    maxChars
+  });
+}
+async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) {
+  const type = "TABL/DI";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message, hint) => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+  if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0 || input.include !== void 0) {
+    bad(
+      `A ${label} (${type}) delete has no source to touch: omit \`source\`, \`edit\`, \`method\` and \`include\`.`
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply to a delete.`);
+  if (input.expect_etag !== void 0) {
+    bad(`\`expect_etag\` does not apply to a ${label} delete \u2014 the classrun bridge has no etag to compare.`);
+  }
+  if (input.description !== void 0) {
+    bad("`description` is a create-only field; a delete does not rename anything.");
+  }
+  if (input.activate !== void 0) bad("`activate` is a create-only field; a delete has nothing to activate.");
+  if (input.view_fields !== void 0) bad("`view_fields` is a VIEW/DV create field; an index delete needs none.");
+  if (input.program !== void 0) bad("`program` is a TRAN/T create field; an index delete needs no program.");
+  if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K create fields only.");
+  }
+  if (input.index_fields !== void 0) {
+    bad("`index_fields` is a create-only field; a delete removes the index as it already stands.");
+  }
+  if (input.index_unique !== void 0) {
+    bad("`index_unique` is a create-only field; a delete removes the index as it already stands.");
+  }
+  if (!input.base_table?.trim()) {
+    bad(
+      `\`base_table\` is required to delete a ${label} (${type}): DD_INDEX_INTERFACE deletes an index by base table and index name together, and abapsmith needs it to find the owning package too.`
+    );
+  }
+  const baseTable = input.base_table.trim();
+  const owner = await resolveIndexOwner(conn, baseTable);
+  const requestedPackage = target.packageName?.trim().toUpperCase();
+  if (requestedPackage && requestedPackage !== owner.packageName.name) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Base table ${baseTable} is in package ${owner.packageName.name}, but the request asked for ${requestedPackage}. abapsmith does not move objects between packages, and will not delete against the wrong one.`,
+      { object: target.name, type, baseTable, serverPackage: owner.packageName.name, requestedPackage },
+      "Drop the `package` argument to delete the index where its base table actually lives, or correct it if this named the wrong table."
+    );
+  }
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+  const deleted = await deleteSecondaryIndexViaBridge(conn, gate, {
+    indexName: target.name,
+    baseTable,
+    packageName: owner.packageName,
+    corrNr
+  });
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: owner.packageName.name,
+      mode: "delete-bridge",
+      deleted: true,
+      verified: false,
+      bridge_class: DDIC_BRIDGE_CLASS.deleteIndex,
+      markers: deleted.transcript.tags.join(" "),
+      journal: "off (not journalled \u2014 see notes)"
+    },
+    notes: [
+      `Deleted by running a generated ${DDIC_BRIDGE_CLASS.deleteIndex} classrun bridge, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
+      "NOT independently verified: a secondary index has no ADT resource of its own to read back from. The INDEX-GONE marker above comes from the generated bridge's own post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, independent read \u2014 abapsmith still reports deleted:true, trusting that transcript, but verified is always false here.",
+      "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this index. To bring it back, create it again with a fresh abap_write call.",
+      ...deleted.transcript.tags.includes("INDEX-DELETED-ACTFAILED") ? [
+        "ACTFAILED: DD_INDEX_INTERFACE itself reported ACTFAILED = 'X' for this delete, but the bridge's post-COMMIT WORK re-read of DD12V (both unfiltered and AS4LOCAL = 'A') and DD17S found no rows left for this index, so abapsmith reports deleted:true anyway. This was observed live on 2026-09-05 and its cause is not established \u2014 it may mean the database-level index drop or the table's re-activation failed rather than the dictionary removal itself. If the table's runtime behaviour looks wrong, check it in SE11/SE14 rather than assuming the delete was clean; abapsmith performs no further check on this path."
+      ] : []
+    ],
+    maxChars
+  });
+}
 var ok8 = (text3) => ({ content: [{ type: "text", text: text3 }] });
 function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty. dry_run previews the diff and expect_etag without writing anything.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create resolves its own corr_nr for a transportable package (supply one to pin it), none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty. dry_run previews the diff and expect_etag without writing anything.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },

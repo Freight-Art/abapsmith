@@ -64,11 +64,13 @@ export interface ClassicViewParams {
    * one to register the view in CTS) and refuse it for a local, `$`-prefixed
    * package — a local create still calls `RS_CORR_INSERT` and registers the
    * view, but with `korrnum = space` (ABAP's SPACE constant), not a transport
-   * request (see {@link isLocalPackage}). Auto-acquiring a request for a
-   * transportable create is deliberately deferred until this module needs
-   * one — do not add it here.
+   * request (see {@link isLocalPackage}). The caller (`src/tools/write.ts`)
+   * resolves it before calling here — from `corr_nr` or via
+   * `preflightPackageCorr` — this module never acquires one itself.
    */
   corrNr?: string;
+  /** Whether `corrNr` was named by a human or picked by the server (`preflightPackageCorr`'s "named"/"auto") — see `SafetyCorr` (`../safety.js`). */
+  corrSource?: "named" | "auto";
 }
 
 /** `DDOBJNAME`/`TABNAME`/`FIELDNAME` are all CHAR30 — the same ceiling `assertEnhIdentifier` defaults to. */
@@ -105,6 +107,17 @@ function isLocalPackage(packageName: string): boolean {
 }
 
 /**
+ * The would-be ADT URI of a classic view that does not exist yet — the
+ * GET-only collection `capabilities.ts`'s `VIEW/DV.bridgeCreate.adtRest`
+ * advertises, synthesized because there is nothing to GET. Only ever used as
+ * the transport resolver's target label / `<REF>` on request creation, never
+ * sent to a CTS classification check.
+ */
+export function classicViewUri(viewName: string): string {
+  return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
+}
+
+/**
  * A validated identifier, as an ABAP string literal. Re-asserts at the point
  * of embedding rather than trusting the caller already did — same shape as
  * `enhancement-bridge.ts`'s `assertQuotedLiteral` — so a future call site
@@ -136,11 +149,13 @@ function assertCorrNr(value: string): string {
 }
 
 /**
- * No-network check: does this package/corr_nr pair make sense for a classic
- * view create? A local (`$`-prefixed) package refuses a `corrNr` — it
- * registers with `korrnum = space`, not a transport request, so there is
- * nothing for one to attach to. A transportable package requires a `corrNr`
- * in TRKORR format ({@link isTrkorr}). `abapCreateViaBridge`
+ * No-network check: does this package/corr_nr pairing make sense for a
+ * classic view create, on its own terms? A local (`$`-prefixed) package
+ * refuses a `corrNr` — it registers with `korrnum = space`, not a transport
+ * request, so there is nothing for one to attach to. A supplied `corrNr` must
+ * be TRKORR-shaped ({@link isTrkorr}). It does NOT require a `corrNr` for a
+ * transportable package — {@link validate} owns that invariant, since the
+ * caller may resolve one after this runs. `abapCreateViaBridge`
  * (`src/tools/write.ts`) calls this before its pre-create read, so a bad
  * pair fails before any ADT traffic.
  */
@@ -157,17 +172,6 @@ export function assertClassicViewCreateTarget(
         "but a local ($-prefixed) view is registered with korrnum = space rather than on a " +
         "transport request, so there is nothing here for one to attach to.",
       { packageName: validated, corrNr },
-    );
-  }
-  if (!local && corrNr === undefined) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this view must be ` +
-        "registered in CTS via RS_CORR_INSERT, which requires a transport request — pass corr_nr " +
-        "(an ALREADY gate-judged TRKORR, e.g. A4HK900121).",
-      { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write " +
-        "(see the abapsmith-put-work-on-a-transport skill).",
     );
   }
   if (corrNr !== undefined) assertCorrNr(corrNr);
@@ -200,8 +204,23 @@ function validate(p: ClassicViewParams): ClassicViewParams {
   );
   const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
   const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
-  const corrNr = isLocalPackage(packageName) ? undefined : (p.corrNr as string);
-  return { viewName, baseTable, fields, description, packageName, corrNr };
+  const local = isLocalPackage(packageName);
+  // This module never acquires a request itself — the caller resolves one (corr_nr, or
+  // preflightPackageCorr) before calling here — but a transportable package must still
+  // arrive with one: classicViewFragment can't emit korrnum from an undefined corrNr.
+  if (!local && p.corrNr === undefined) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be ` +
+        "registered in CTS via RS_CORR_INSERT, which requires a transport request — pass corr_nr " +
+        "(an ALREADY gate-judged TRKORR, e.g. A4HK900121).",
+      { packageName },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write " +
+        "(see the abapsmith-put-work-on-a-transport skill).",
+    );
+  }
+  const corrNr = local ? undefined : (p.corrNr as string);
+  return { viewName, baseTable, fields, description, packageName, corrNr, corrSource: p.corrSource };
 }
 
 // ---------------------------------------------------------------------------
@@ -428,8 +447,10 @@ export function viewCreatePartialSuccess(viewName: string): {
  * `$ZTMD_I09` with `korrnum = space` succeeded 2026-09-05 (sy-subrc 0, a
  * TADIR row written, the view then removed cleanly by the delete bridge).
  *
- * `corr`'s `source` is always `"named"`, never `"auto"` — unlike
- * `package-create.ts`, this module never auto-creates a request itself.
+ * `corr`'s `source` reflects however the caller resolved `corrNr` — `"named"`
+ * by default (a caller-supplied `corr_nr`), or `"auto"` when the caller
+ * passes `corrSource: "auto"` (`preflightPackageCorr` picked the request) —
+ * same shape as `package-create.ts`'s `createPackageViaBridge`.
  */
 export async function createClassicView(
   conn: AbapConnection,
@@ -437,11 +458,11 @@ export async function createClassicView(
   params: ClassicViewParams,
 ): Promise<{ run: RunResult; transcript: DdicTranscript }> {
   const validated = validate(params);
-  const { viewName, packageName, corrNr } = validated;
+  const { viewName, packageName, corrNr, corrSource } = validated;
 
   const corr: SafetyCorr | undefined = isLocalPackage(packageName)
     ? undefined
-    : { kind: "transport", corrNr: corrNr as string, source: "named" };
+    : { kind: "transport", corrNr: corrNr as string, source: corrSource ?? "named" };
 
   // Gate on the domain object itself — deployBridge only judges the bridge class, never this view/package.
   // activate: true because DDIF_VIEW_ACTIVATE runs inside the same bridge execution.

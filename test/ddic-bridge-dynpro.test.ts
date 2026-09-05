@@ -7,10 +7,12 @@
 import { describe, expect, it } from "vitest";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import {
+  ABAP_SOURCE_LINE_MAX,
   DDIC_BRIDGE_CLASS,
   DDIC_ERR_PREFIX,
   DDIC_TAGS,
   assertDdicTranscript,
+  ddicBridgeSource,
   isHeadlessDynproFailure,
   parseDdicTranscript,
   type DdicTranscript,
@@ -35,6 +37,35 @@ describe("isHeadlessDynproFailure", () => {
 
   it("is false for undefined", () => {
     expect(isHeadlessDynproFailure(undefined)).toBe(false);
+  });
+});
+
+describe("ddicBridgeSource — class-source line-length guard", () => {
+  const catchIt = (fn: () => unknown): AbapError => {
+    try {
+      fn();
+      throw new Error("expected ddicBridgeSource to throw");
+    } catch (e) {
+      if (!isAbapError(e)) throw e;
+      return e;
+    }
+  };
+
+  // dataLines is empty, so a single bodyLine lands at a fixed, 4-space-indented offset.
+  const oneLine = (len: number) => ddicBridgeSource("ZCL_ZMCP_TEST_LINELEN", [], ["x".repeat(len)]);
+
+  it("returns normally for a body line whose indented length is exactly ABAP_SOURCE_LINE_MAX", () => {
+    const source = oneLine(ABAP_SOURCE_LINE_MAX - 4);
+    expect(source.split("\n").some((l) => l.length > ABAP_SOURCE_LINE_MAX)).toBe(false);
+  });
+
+  it("throws CHECK_FAILED for a body line one char over ABAP_SOURCE_LINE_MAX once indented", () => {
+    const err = catchIt(() => oneLine(ABAP_SOURCE_LINE_MAX - 4 + 1));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.details.length).toBe(ABAP_SOURCE_LINE_MAX + 1);
+    expect(typeof err.details.line).toBe("number");
+    expect(err.message).toContain(`line ${err.details.line}`);
+    expect(err.message).toContain(`${ABAP_SOURCE_LINE_MAX + 1} chars`);
   });
 });
 

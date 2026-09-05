@@ -23,15 +23,15 @@
  *
  * Eight `TypeCode`s — `SHLP/DH`, `VIEW/DV`, `TRAN/T`, `PROG/PS`, `PROG/PC`,
  * `PROG/PT`, `SUSO/B`, `TABL/DI` — are deliberately NOT in `types.ts`'s
- * `TYPES` array. For the first seven: each is a real ADT concept that 404s
- * or 405s on every write (and often read) verb, and giving any of them a
- * `path`/`mode` there would let `abap_read`/search build a URI with no
- * reachable resource behind it. `TABL/DI` (a table's secondary index) is a
- * different kind of gap: it has no probed ADT resource at all — nobody has
- * recon'd it live — so giving it a `path`/`mode` in `types.ts` would let
- * `abap_read`/search build a URI nothing is known to answer, which is worse
- * than naming no URI. `resolveWriteTarget` checks the registry for these
- * codes directly, by exact code, before ever asking `types.ts` for a spec.
+ * `TYPES` array: each is a real ADT concept that 404s or 405s on every write
+ * (and often read) verb, and giving any of them a `path`/`mode` there would
+ * let `abap_read`/search build a URI with no reachable resource behind it.
+ * `TABL/DI` (a table's secondary index) joins `VIEW/DV`/`TRAN/T` in this: it
+ * has no ADT-readable collection — probed live on A4H 2026-09-05, 404 on
+ * every index route — and is creatable/deletable only through the classrun
+ * bridge (see its REGISTRY entry). `resolveWriteTarget` checks the registry
+ * for these codes directly, by exact code, before ever asking `types.ts` for
+ * a spec.
  * Full per-type recon (VIT-bridge stub behavior, which collections 404, live
  * probe scripts) is in the git history — read the relevant entry's
  * `unsupported`/`bridgeCreate` fields below for the live refusal text.
@@ -50,7 +50,7 @@
  * intercept the way `delete`/`activate` have, because creation is a side
  * effect `writeObject` discovers mid-write (an existence GET failing), not a
  * dispatched operation. It does NOT cover `bridgeCreate` (`VIEW/DV`,
- * `TRAN/T`, created by classrun bridge, not REST) or the three create sites
+ * `TRAN/T`, `TABL/DI`, created by classrun bridge, not REST) or the three create sites
  * that bypass this gate entirely on purpose because they carry no `create`
  * field at all: `enhancement-hook.ts` (`ENHO/XHH`), `enhancement-bridge.ts`
  * (`ENHS/XS`/`ENHO/XH`), `bopf.ts` (`BOBF`, not even a `TypeCode`). See the
@@ -1018,8 +1018,15 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character " +
         "DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` " +
         "devclass, and the created view was then removed cleanly by the delete bridge (see " +
-        "bridgeDelete below). A TRANSPORTABLE package requires corr_nr; a LOCAL package refuses " +
-        "one (BAD_INPUT). Registering the view in TADIR either way — with the caller's corr_nr " +
+        "bridgeDelete below). A TRANSPORTABLE package resolves a transport request the same way " +
+        "a DEVC/K create does: preflightPackageCorr (src/adt/write.ts) hands off to " +
+        "SessionTransport.resolveForNewTransportable, honouring the caller's corr_nr when given " +
+        "or else picking or creating one under the ABAP_ALLOW_TRANSPORTS policy (a pinned TRKORR " +
+        "from the list, or a fresh request when the policy is `*`/AUTO), gate-judged before the " +
+        "bridge runs. The resolver's own refusals surface as TRANSPORT_ERROR (policy disabled, " +
+        "or no usable request), TRANSPORT_LOCKED (a request pinned elsewhere), or BAD_INPUT (a " +
+        "malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the " +
+        "view in TADIR either way — with the caller's corr_nr " +
         "or with korrnum = space — is what makes the created view deletable afterwards. See " +
         "src/adt/view-create.ts. The create is otherwise irreversible in the sense that " +
         "abapsmith cannot read the view back to verify it: success is proven by the transcript " +
@@ -1198,42 +1205,118 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "outside abapsmith's reach. There is no ABAP-code equivalent to fall back on.",
     },
   },
-  // Not in types.ts — see the module doc. A table's secondary
-  // index was the one unreachable DDIC concept this registry did not name at
-  // all, so it appeared in NONE of the three buckets of the generated skill
-  // table and a caller could only learn the answer by burning three failed
-  // calls (abap_write TABL/DI, an inline `define index` in a TABL/DT source
-  // PUT, an abap_ui/SE11 probe). This entry exists to make the answer
-  // discoverable, NOT to record a proven ADT limitation — see the reason text.
-  //
-  // Type code chosen deliberately: `TABL/DI` is the code callers actually
-  // reach for, and the one consistent with
-  // this registry's own `TABL/DT`/`TABL/DS`. It is NOT confirmed against a
-  // live repository/informationsystem/objecttypes listing — no probe has been
-  // run — and the transport-layer name for an index (LIMU INDX) is
-  // deliberately not used here, for the same reason TRAN/T's entry refuses to
-  // conflate the ADT type code with the underlying table name TSTC.
+  // Not in types.ts — see the module doc. Type code chosen deliberately:
+  // `TABL/DI` is the code callers actually reach for, and the one consistent
+  // with this registry's own `TABL/DT`/`TABL/DS`; the transport-layer name
+  // for an index (LIMU INDX) is deliberately not used here, for the same
+  // reason TRAN/T's entry refuses to conflate the ADT type code with the
+  // underlying table name TSTC. Was `unsupported` (no probed ADT resource at
+  // all) until a live probe on A4H 2026-09-05 found the REST route
+  // conclusively absent and a working classrun-bridge route instead — see
+  // bridgeCreate/bridgeDelete below.
   "TABL/DI": {
     label: "Table secondary index",
-    unsupported: {
-      reason:
-        "A table's secondary index is not an object abapsmith can reach in either direction: " +
-        "TABL/DI is on the not-writable list abap_write's `type` description carries (that " +
-        "parameter is a free-form string, not an enum), and neither in-band route works — " +
-        "appending a second `define index ...` statement to a TABL/DT source write is rejected " +
-        "at check time (the table source grammar accepts one statement), and abap_ui cannot " +
-        "drive SE11's Indexes tab (SE11 reports CINFO=84, so `press` refuses it). Both were " +
-        "reproduced on A4H. What is NOT established here: whether ADT itself can " +
-        "create an index. The table-child resource named " +
-        "(/sap/bc/adt/ddic/tables/{table}/indexes/{id}) has never been probed from this repo, so " +
-        "this entry states abapsmith's own reach, not a proven limit of ADT — unlike SHLP/DH or " +
-        "SUSO/B, whose reasons rest on live recon.",
-      alternative:
-        "Create or change the index by hand in SE11 (the table's 'Indexes' button) or in ADT's " +
-        "table editor, both outside abapsmith. Nothing else about the table is affected: the " +
-        "table itself stays fully writable here as TABL/DT, so a table built through abapsmith " +
-        "can be indexed afterwards without redoing it. Do not spend turns hunting for a " +
-        "workaround inside abapsmith — there is none today.",
+    bridgeCreate: {
+      adtRest:
+        "Probed live on A4H 2026-09-05: GET /sap/bc/adt/ddic/tables/t000/indexes 404s, and " +
+        "PUT /sap/bc/adt/ddic/tables/t000/indexes/z01 404s for any body and any content type — " +
+        "there is no writable (or even readable) index collection under a table. The table XML " +
+        "itself (application/vnd.sap.adt.tables.v2+xml) carries exactly one index-related link, " +
+        "rel=\"http://www.sap.com/adt/relations/indexes\" pointing at " +
+        "/sap/bc/adt/vit/wb/object_type/tabldt/object_name/<TABLE>#view=INDX with " +
+        "type=\"application/vnd.sap.sapgui\" — a GUI handoff (SE11's Indexes tab), not a REST " +
+        "resource. No discovery collection mentions indexes either.",
+      via:
+        "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from a " +
+        "generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by " +
+        "re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone — " +
+        "the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an " +
+        "ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H " +
+        "2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this " +
+        "bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine " +
+        "post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates — " +
+        "non-unique Z01 and unique Z02 with MANDT — and each again returned all three " +
+        "markers; the round-3 delete-path defect below never touched create.",
+      limits:
+        "Changing or updating an existing index is not supported: the bridge creates and " +
+        "deletes only, the same as VIEW/DV and TRAN/T — drop the index (bridgeDelete) and " +
+        "recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A " +
+        "unique create over two non-client fields of a client-dependent table returned " +
+        "ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, " +
+        "is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that " +
+        "included the base table's client field (MANDT) returned INDEX-CREATED / " +
+        "INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused " +
+        "BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever " +
+        "called — raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", " +
+        "hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without " +
+        "index_unique.\" The package is not the caller's to choose: an index is DDIC " +
+        "content of its base table and belongs to the base table's package, so abap_write " +
+        "reads the base table's own ADT resource and gates on THAT package — a " +
+        "caller-supplied `package` is only ever checked for agreement, never trusted. The " +
+        "transport pairing itself mirrors VIEW/DV's: a `$` package sets " +
+        "NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable " +
+        "package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER — unexercised live " +
+        "in either direction. The create is not journalled — there is no ADT resource to capture " +
+        "a before-image from, and none existed before this create by definition — so reversal " +
+        "is `mode: \"delete\"`, not undo.",
+    },
+    bridgeDelete: {
+      adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
+      via:
+        "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated " +
+        "IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading " +
+        "DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See " +
+        "src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check " +
+        "is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned " +
+        "NOT_FOUND correctly, before ever calling the FM. Round 1's defect — the generated " +
+        "ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS — is " +
+        "fixed and deployed: confirmed live, A4H 2026-09-05, the class body of " +
+        "ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a " +
+        "second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took " +
+        "effect — the failure message's own DD12V read showed zero rows for the pair, and " +
+        "an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal " +
+        "and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and " +
+        "never recorded. The fix written for round 2 — commit regardless, re-read " +
+        "DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the " +
+        "transcript INDEX-DELETED-ACTFAILED) only when all three come back empty — never " +
+        "ran: round 3 found its own added ACTFAILED note line rendered as a " +
+        "272-character ABAP source line (292 at the longest legal names), over the " +
+        "255-character class-source limit, so every TABL/DI delete failed the " +
+        "class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of " +
+        "ZCL_ZMCP_DDIC_DINDX) before DD_INDEX_INTERFACE was ever called — the bridge " +
+        "class was never refreshed and stayed on its round-2 body. The " +
+        "ACTFAILED-tolerant read-back above had therefore never executed live before " +
+        "round 4. Round 4 fixes the generator two ways: this fragment's two long messages " +
+        "are now built up in a string variable across several short source lines and " +
+        "written once, so no generated line can exceed 255 for any legal name; and " +
+        "ddicBridgeSource — the single point every bridge class body is assembled " +
+        "through — now throws CHECK_FAILED before returning if any line exceeds 255, " +
+        "naming the line and its length, so this defect class cannot reach the server " +
+        "again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the " +
+        "non-unique Z01 and the unique-with-client-field Z02 were each deleted with " +
+        "INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 " +
+        "returned NOT_FOUND from the DD12V pre-check, and the deployed ZCL_ZMCP_DDIC_DINDX " +
+        "body read back with the new read-back variable and no line over 255. So the " +
+        "ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both " +
+        "deletes while all three read-backs came back empty, so what the flag itself " +
+        "means is still not established, only that it does not mean the rows survived.",
+      limits:
+        "The bridge deletes any index it finds in DD12V for the given table by name — it checks " +
+        "only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge " +
+        "itself created. Deleting the BASE TABLE is not itself blocked by an index still on " +
+        "it — live-proven on A4H 2026-09-05, the table delete succeeded with an index in " +
+        "place — but abapsmith cannot confirm the index went with it: no ADT resource can " +
+        "read an index back, per adtRest above, so a table delete's effect on its indexes is " +
+        "unverifiable either way. Same package rule as bridgeCreate: the base table's " +
+        "package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a " +
+        "caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create " +
+        "does — a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable " +
+        "package REQUIRES corr_nr as TRANSPORT_NUMBER — because DD_INDEX_INTERFACE with " +
+        "ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own " +
+        "DD12V/DD17S rows may still have existed; whether the base-table delete cascaded " +
+        "them away or orphaned them is unverified, not confirmed-absent — there is no ADT " +
+        "resource for TABL/DI to check with, and abap_data_preview was confirmed live to " +
+        "carry no WHERE filter, so a targeted DD12V check was not practical.",
     },
   },
 };
@@ -1293,16 +1376,17 @@ export const CREATE_ONLY_TYPES: readonly string[] = codesWith((c) => c.create !=
 export const CREATABLE_TYPES: readonly string[] = codesWith((c) => c.create !== undefined);
 
 /**
- * Types declaring `bridgeCreate` — `VIEW/DV`, `TRAN/T`, `DEVC/K`. NOT a
- * subset of {@link CREATABLE_TYPES}; `DEVC/K` also has a REST `create`
+ * Types declaring `bridgeCreate` — `VIEW/DV`, `TRAN/T`, `TABL/DI`, `DEVC/K`.
+ * NOT a subset of {@link CREATABLE_TYPES}; `DEVC/K` also has a REST `create`
  * (LOCAL only) — see {@link BRIDGE_ONLY_CREATE_TYPES} for the rest.
  */
 export const BRIDGE_CREATABLE_TYPES: readonly string[] = codesWith((c) => c.bridgeCreate !== undefined);
 
 /**
  * True for a type declaring `bridgeCreate` at all (`VIEW/DV`, `TRAN/T`,
- * `DEVC/K`) — not "only the bridge can create it": `DEVC/K` also has a REST
- * `create`. Use {@link isBridgeOnlyCreateType} when that distinction matters.
+ * `TABL/DI`, `DEVC/K`) — not "only the bridge can create it": `DEVC/K` also
+ * has a REST `create`. Use {@link isBridgeOnlyCreateType} when that
+ * distinction matters.
  */
 export function isBridgeCreatableType(type: string | undefined): boolean {
   const cap = capabilitiesFor(type);
@@ -1310,10 +1394,10 @@ export function isBridgeCreatableType(type: string | undefined): boolean {
 }
 
 /**
- * Types whose ONLY create route is the bridge — `VIEW/DV`, `TRAN/T`.
- * Excludes `DEVC/K`: it also has a REST create (LOCAL) and its own routing
- * branch in `src/tools/write.ts`. `resolveWriteTarget` must keep refusing
- * these outright — no ADT collection exists to resolve them against.
+ * Types whose ONLY create route is the bridge — `VIEW/DV`, `TRAN/T`,
+ * `TABL/DI`. Excludes `DEVC/K`: it also has a REST create (LOCAL) and its
+ * own routing branch in `src/tools/write.ts`. `resolveWriteTarget` must keep
+ * refusing these outright — no ADT collection exists to resolve them against.
  */
 export const BRIDGE_ONLY_CREATE_TYPES: readonly string[] = codesWith(
   (c) => c.bridgeCreate !== undefined && c.create === undefined,
@@ -1380,7 +1464,8 @@ export const DELETABLE_TYPES: readonly string[] = codesWith((c) => c.delete === 
  * {@link DELETABLE_TYPES}. A separate set from `CREATABLE_TYPES` rather than
  * a narrowing of it because `create` has no `resolveWriteTarget` `op` of its
  * own to gate inside; see the module doc. Does NOT include `VIEW/DV`/
- * `TRAN/T` — their `bridgeCreate` claims are a separate, untouched field.
+ * `TRAN/T`/`TABL/DI` — their `bridgeCreate` claims are a separate, untouched
+ * field.
  */
 export const VERIFIED_CREATABLE_TYPES: readonly string[] = codesWith((c) => c.create?.verified === true);
 
@@ -1388,8 +1473,8 @@ export const VERIFIED_CREATABLE_TYPES: readonly string[] = codesWith((c) => c.cr
  * Every type `abap_write` accepts in ANY mode — the discoverability list its
  * refusals advertise. Deliberately broader than {@link WRITABLE_TYPES} (which
  * means create-AND-write only): `WRITABLE_TYPES` alone under-reports the
- * create-only (`DEVC/K`), bridge-only-create (`VIEW/DV`, `TRAN/T`) and
- * write-only (`ENHO/XHH`) types. Union of {@link CREATABLE_TYPES},
+ * create-only (`DEVC/K`), bridge-only-create (`VIEW/DV`, `TRAN/T`, `TABL/DI`)
+ * and write-only (`ENHO/XHH`) types. Union of {@link CREATABLE_TYPES},
  * {@link BRIDGE_ONLY_CREATE_TYPES} and {@link ENHANCEABLE_TYPES}, de-duplicated
  * in REGISTRY order by construction (`DEVC/K` has both `create` and
  * `bridgeCreate` and appears once).
@@ -1400,9 +1485,9 @@ export const ABAP_WRITE_TYPES: readonly string[] = codesWith(
 
 /**
  * Types `abap_read`'s `resolveObject` refuses outright on an explicit type
- * hint, before any network call — the `unsupported` entries plus the two
+ * hint, before any network call — the `unsupported` entries plus the three
  * bridge-only-create types with no ADT-readable collection (`VIEW/DV`,
- * `TRAN/T`). Mirrors the check in `src/adt/resolve.ts`.
+ * `TRAN/T`, `TABL/DI`). Mirrors the check in `src/adt/resolve.ts`.
  */
 export const NON_READABLE_TYPES: readonly string[] = codesWith(
   (c) => c.unsupported !== undefined || (c.bridgeCreate !== undefined && c.create === undefined),

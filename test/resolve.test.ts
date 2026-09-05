@@ -654,9 +654,8 @@ describe("resolveObject — a naming convention is not evidence of existence (AR
 /**
  * An explicit `type` hint naming one of the capabilities
  * registry's `unsupported`/`bridgeCreate` codes (SHLP/DH, VIEW/DV, TRAN/T,
- * PROG/PS, PROG/PC, PROG/PT, SUSO/B — plus TABL/DI, added later for the
- * discoverability gap around table secondary indexes, not from live recon —
- * none of them in `types.ts`'s `TYPES` array) used to fall straight through
+ * PROG/PS, PROG/PC, PROG/PT, SUSO/B, TABL/DI — none of them in `types.ts`'s
+ * `TYPES` array) used to fall straight through
  * `resolveObject`'s "ambiguous → ask the server" branch: a live search, and
  * then either a generic NOT_FOUND (no
  * live system, or the object doesn't exist under that name) or an
@@ -682,7 +681,6 @@ describe("resolveObject — explicit unsupported/bridgeCreate type hints refuse 
     ["PROG/PC", "GUI status"],
     ["PROG/PT", "GUI title"],
     ["SUSO/B", "authorization object"],
-    ["TABL/DI", "table secondary index"],
   ])("refuses a %s read with a specific UNSUPPORTED, offline, not a live search", async (type) => {
     const err = await resolveObject(offline, "ZX", { type }).catch((e) => e);
     expect(isAbapError(err)).toBe(true);
@@ -691,7 +689,7 @@ describe("resolveObject — explicit unsupported/bridgeCreate type hints refuse 
     expect(String(err.message)).toMatch(new RegExp(type.replace("/", "\\/")));
   });
 
-  it.each(["VIEW/DV", "TRAN/T"])(
+  it.each(["VIEW/DV", "TRAN/T", "TABL/DI"])(
     "refuses a %s read on the source-read path with UNSUPPORTED, offline, naming the ADT-collection gap",
     async (type) => {
       const err = await resolveObject(offline, "ZX", { type }).catch((e) => e);
@@ -755,16 +753,24 @@ describe("resolveObject — explicit unsupported/bridgeCreate type hints refuse 
   });
 
   /**
-   * A read with an explicit TABL/DI hint gets the same offline,
-   * zero-network refusal as a write does (see write.test.ts's TABL/DI test)
-   * — `resolveObject` runs the identical `capabilitiesFor` check.
+   * TABL/DI moved from `unsupported` (SE11-only, no ADT resource probed at
+   * all) to `bridgeCreate` on 2026-09-05: REST is now confirmed absent (404
+   * on every index route) and the classrun bridge creates/deletes it — see
+   * the REGISTRY entry. The read refusal is now the same offline,
+   * zero-network "no ADT-readable collection" shape VIEW/DV and TRAN/T
+   * already get, not an SE11 pointer.
    */
-  it("TABL/DI's read refusal names the real ADT type code and hints SE11", async () => {
+  it("TABL/DI's read refusal names the real ADT type code and the generic bridge-create hint, not SE11", async () => {
     const err = await resolveObject(offline, "ZTMC_TORDER", { type: "TABL/DI" }).catch((e) => e);
     expect(isAbapError(err)).toBe(true);
     expect(err.code).toBe("UNSUPPORTED");
     expect(String(err.message)).toMatch(/TABL\/DI/);
-    expect(String(err.hint ?? "")).toMatch(/SE11/);
+    expect(String(err.message)).toMatch(/no ADT-readable collection/i);
+    expect(String(err.hint ?? "")).toMatch(
+      /abapsmith can create this type through a generated classrun bridge \(see abap_write\)/,
+    );
+    expect(String(err.hint ?? "")).toMatch(/cannot read one back/);
+    expect(String(err.hint ?? "")).not.toMatch(/SE11/);
   });
 
   it("a supported type (PROG/P) is unaffected — no false-positive refusal", async () => {
