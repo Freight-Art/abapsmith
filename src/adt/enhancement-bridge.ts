@@ -254,7 +254,7 @@ const ENH_TAGS = [
   "BADI-NO-FILTERS",
   "BADI-FILTER-CHECK-INCONCLUSIVE",
 ] as const;
-type EnhTag = (typeof ENH_TAGS)[number];
+export type EnhTag = (typeof ENH_TAGS)[number];
 
 export interface EnhTranscriptResult {
   /** Tags found, in the order the ABAP wrote them. */
@@ -282,17 +282,39 @@ export function parseEnhancementTranscript(raw: string): EnhTranscriptResult {
 }
 
 /**
+ * `bridgeSource`'s single TRY wraps the epilogue too, so a tag written before
+ * the CATCH fired proves that much progress landed — and no more.
+ */
+function epilogueFailureHint(tags: readonly EnhTag[]): string {
+  if (tags.length === 0) {
+    return (
+      "The bridge raised before writing any progress marker, so nothing here shows the object " +
+      "was created, saved, or locked. Do not assume either outcome — read the object before " +
+      "deciding whether to run the bridge again."
+    );
+  }
+  return (
+    `Already landed per the transcript: ${tags.join(", ")}. The generated bridge's SAVE may have ` +
+    "committed before ACTIVATE raised, and its UNLOCK never ran afterwards, so the object may " +
+    "still hold an enqueue lock. Do not blindly re-run the bridge — re-read the object first to " +
+    "see what actually landed. A stranded lock clears in SM12, or on its own once the owning " +
+    "session ends."
+  );
+}
+
+/**
  * Throws when the transcript shows the CATCH branch fired, or shows none of
  * the tags the caller expected — a 200 classrun response with no output (or
  * the wrong output) is exactly as much "silent failure shaped like success"
  * here as it is in `run.ts`/`bopf-runtime.ts`.
  */
-function assertEnhTranscript(result: EnhTranscriptResult, expectTags: readonly EnhTag[], what: string): void {
+export function assertEnhTranscript(result: EnhTranscriptResult, expectTags: readonly EnhTag[], what: string): void {
   if (result.errorLine) {
     throw new AbapError(
       "CHECK_FAILED",
       `${what} raised an ABAP exception: ${result.errorLine}`,
-      { raw: result.raw },
+      { raw: result.raw, ...(result.tags.length ? { landedTags: result.tags } : {}) },
+      epilogueFailureHint(result.tags),
     );
   }
   const missing = expectTags.filter((t) => !result.tags.includes(t));
