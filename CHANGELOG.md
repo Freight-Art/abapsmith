@@ -13,6 +13,7 @@ was last set to `0.3.0`.
 
 ### Added
 
+- Release procedure in CONTRIBUTING.md (version bump in both manifests, CHANGELOG section, bundle rebuild, `vX.Y.Z` tag, GitHub release) and a README note on pinning the marketplace to a release tag for rollbacks.
 - Core MCP server over ADT (`/sap/bc/adt/*`): connect, read source and DDIC
   (rendered as pseudo-DDL), fuzzy object resolution, and repository search.
 - Write path: create, change, delete, activate, and run ABAP objects and
