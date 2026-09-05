@@ -167,6 +167,47 @@ describe("IMG_CATALOG — pinned against live discovery", () => {
     expect(e.confidence).toBe("high");
   });
 
+  it("imgTreeNode: no subNodeCount key and no field mapped to W_SUBNODES — the flag is unreliable, not a count", () => {
+    const e = IMG_CATALOG.imgTreeNode;
+    expect(e.fields as Record<string, string>).not.toHaveProperty("subNodeCount");
+    expect(Object.values(e.fields)).not.toContain("W_SUBNODES");
+  });
+
+  it("imgTreeNode note: documents why W_SUBNODES was dropped, not just that it was", () => {
+    const note = IMG_CATALOG.imgTreeNode.note ?? "";
+    expect(note).toContain("W_SUBNODES");
+    // it must say what kind of field it really is (a flag, not a count) ...
+    expect(note.toLowerCase()).toContain("char 1");
+    expect(note.toLowerCase()).toContain("yes/no");
+    // ... and why that flag can't be trusted (blank on nodes that do have children) ...
+    expect(note.toLowerCase()).toContain("blank");
+    expect(note.toLowerCase()).toContain("children");
+    // ... and what a caller should do instead.
+    expect(note).toContain("PARENT_ID");
+  });
+
+  it("imgTreeNode note: BROTHER_ID is the PREVIOUS sibling, and the blank-BROTHER_ID child is FIRST", () => {
+    const note = IMG_CATALOG.imgTreeNode.note ?? "";
+    expect(note).toContain("PREVIOUS sibling");
+    expect(note).toContain("FIRST child");
+    // it must flag that the run's own summary got the direction backwards
+    expect(note.toLowerCase()).toContain("summary");
+    expect(note.toLowerCase()).toMatch(/wrong|backwards|other way round/);
+  });
+
+  it("imgTreeNode note: warns the BROTHER_ID chain may be branched or broken, not a clean list", () => {
+    const note = IMG_CATALOG.imgTreeNode.note ?? "";
+    expect(note.toLowerCase()).toContain("branched");
+    expect(note.toLowerCase()).toContain("broken");
+  });
+
+  it("treeDirectory note: TTREE.TREE_ID is blank; ID (not TREE_ID) is the key", () => {
+    const note = IMG_CATALOG.treeDirectory.note ?? "";
+    expect(note).toContain("TREE_ID");
+    expect(note.toLowerCase()).toContain("blank");
+    expect(note).toMatch(/\bID\b/);
+  });
+
   it("IMG_ACTIVITY_REF_TYPE is COBJ", () => {
     expect(IMG_ACTIVITY_REF_TYPE).toBe("COBJ");
   });

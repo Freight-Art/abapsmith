@@ -281,13 +281,32 @@ export const IMG_CATALOG = Object.freeze({
       refNodeId: "REFNODE_ID",
       refTreeId: "REFTREE_ID",
       nodeType: "NODE_TYPE",
-      subNodeCount: "W_SUBNODES",
     }),
     confidence: "high",
     note:
       MEASURED_NOTE +
       ": key is TREE_ID+EXTENSION+NODE_ID+EXT_KEY (include HIER_NODEK); no CHILD_ID — " +
-      "children are found by selecting on PARENT_ID; BROTHER_ID (next sibling) gives display order",
+      "children are found by selecting on PARENT_ID. " +
+      "BROTHER_ID names a node's PREVIOUS sibling, not its next one: the child whose own " +
+      "BROTHER_ID is blank is the FIRST child, and walking forward means repeatedly finding " +
+      "the sibling whose BROTHER_ID equals the id you are currently on, stopping when no such " +
+      "sibling exists. This was derived from the run's row-level BROTHER_ID chains, " +
+      "cross-checked against the titles those chains spell out, and against the reference IMG " +
+      "root: of its thirty depth-1 children exactly one has a blank BROTHER_ID, and that node " +
+      "is an activity leaf (NODE_TYPE IMG) carrying no chapter text — consistent with a first " +
+      "child being an activity rather than a chapter (the run recorded no title for that node, " +
+      "and none is claimed here). The discovery run's own summary prose states the BROTHER_ID " +
+      "direction the other way round (calls it 'next sibling') and is wrong. The chain is also " +
+      "not guaranteed to be a clean linked list on a live system: rows " +
+      "have been seen where more than one sibling under the same parent carries the same " +
+      "BROTHER_ID value, and where a sibling's BROTHER_ID names a node that is not among that " +
+      "parent's children at all — a walker must tolerate a branched or broken chain, not assume " +
+      "a perfect list. " +
+      "TNODEIMG also has a W_SUBNODES field (include HIER_NODED), but it is a CHAR 1 yes/no " +
+      "flag, not a child count, and it was found blank on every sampled row including chapter " +
+      "nodes that provably have children — on this system it carries no usable information, so " +
+      "it is deliberately left out of `fields` above; a caller that needs a child count must " +
+      "count PARENT_ID matches instead.",
   }),
   imgTreeNodeText: Object.freeze({
     table: "TNODEIMGT",
@@ -331,7 +350,13 @@ export const IMG_CATALOG = Object.freeze({
     confidence: "high",
     note:
       MEASURED_NOTE +
-      ": ID is the tree's GUID, not a mnemonic — WHERE id IN ('SIMG','SIMG_ALL','IMG','CUST') returned 0 rows; TTREE's own TREE_ID column is empty",
+      ": ID is the tree's GUID, not a mnemonic — WHERE id IN ('SIMG','SIMG_ALL','IMG','CUST') " +
+      "returned 0 rows (TTREET has no text rows for those ids either), so the reference IMG has " +
+      "to be found by title text in TNODEIMGT rather than by a well-known id. " +
+      "TTREE's own column literally named TREE_ID is blank on every row seen (filtering on " +
+      "tree_id IN (...) with real tree ids returned 0 rows; filtering the same tree by id = " +
+      "'<guid>' found it immediately, with TREE_ID blank in the returned row) — a tree's identity " +
+      "lives in TTREE.ID, and TREE_ID must never be used as a join key or lookup column.",
   }),
 } satisfies Record<string, CatalogTable>);
 
