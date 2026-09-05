@@ -96,6 +96,7 @@ export interface ImgNodeRow {
 export interface ImgObjectRow {
   activity: string;
   kind: ImgObjectKind;
+  objectType: string;
   name: string;
   title: string;
 }
@@ -104,6 +105,7 @@ export interface ImgTableRow {
   object: string;
   table: string;
   clientDependent: boolean;
+  deliveryClass: string;
   via: string;
   title: string;
 }
@@ -391,6 +393,7 @@ function showFragment(q: ImgShowQuery): { data: string[]; body: string[] } {
   const ddicTableTable = tbl("ddicTable");
   const fDT_table = fld("ddicTable", "table");
   const fDT_clidep = fld("ddicTable", "clientDependent");
+  const fDT_delclass = fld("ddicTable", "deliveryClass");
   const fDT_active = fld("ddicTable", "activeState");
 
   const body: string[] = [
@@ -449,20 +452,22 @@ function showFragment(q: ImgShowQuery): { data: string[]; body: string[] } {
     `  UP TO 200 ROWS.`,
     ...selectGuard("no customizing objects linked to this activity"),
     `LOOP AT lt_objs INTO DATA(ls_obj).`,
-    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[${activity}] kind=[unknown] | &&`,
+    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[${activity}] kind=[unknown] objtype=[] | &&`,
     `    |name=[{ ls_obj-${fO_object} }] title=[]| ).`,
     `  SELECT ${fOT_table} FROM ${objTblTable} WHERE ${fOT_object} = @ls_obj-${fO_object}`,
     `    INTO TABLE @DATA(lt_obj_tabs)`,
     `    UP TO 20 ROWS.`,
     `  LOOP AT lt_obj_tabs INTO DATA(ls_obj_tab).`,
-    `    SELECT SINGLE ${fDT_clidep} FROM ${ddicTableTable}`,
+    `    SELECT SINGLE ${fDT_clidep}, ${fDT_delclass} FROM ${ddicTableTable}`,
     `      WHERE ${fDT_table} = @ls_obj_tab-${fOT_table} AND ${fDT_active} = 'A'`,
-    `      INTO @DATA(lv_clidep).`,
+    `      INTO (@DATA(lv_clidep), @DATA(lv_delclass)).`,
     `    IF sy-subrc <> 0.`,
     `      CLEAR lv_clidep.`,
+    `      CLEAR lv_delclass.`,
     `    ENDIF.`,
     `    out->write( |${IMG_LINE_PREFIX}TAB object=[{ ls_obj-${fO_object} }] | &&`,
-    `      |table=[{ ls_obj_tab-${fOT_table} }] clidep=[{ lv_clidep }] via=[OBJSL] title=[]| ).`,
+    `      |table=[{ ls_obj_tab-${fOT_table} }] clidep=[{ lv_clidep }] | &&`,
+    `      |delclass=[{ lv_delclass }] via=[OBJSL] title=[]| ).`,
     `  ENDLOOP.`,
     `ENDLOOP.`,
   ];
@@ -537,6 +542,7 @@ function objectsTableFragment(object: string, objectLit: string, langLit: string
   const ddicTable = tbl("ddicTable");
   const fT_table = fld("ddicTable", "table");
   const fT_clidep = fld("ddicTable", "clientDependent");
+  const fT_delclass = fld("ddicTable", "deliveryClass");
   const fT_active = fld("ddicTable", "activeState");
 
   const textTable = tbl("ddicTableText");
@@ -556,17 +562,17 @@ function objectsTableFragment(object: string, objectLit: string, langLit: string
   const fF_active = fld("ddicField", "activeState");
 
   const body: string[] = [
-    `SELECT SINGLE ${fT_clidep} FROM ${ddicTable}`,
+    `SELECT SINGLE ${fT_clidep}, ${fT_delclass} FROM ${ddicTable}`,
     `  WHERE ${fT_table} = '${objectLit}' AND ${fT_active} = 'A'`,
-    `  INTO @DATA(lv_clidep).`,
+    `  INTO (@DATA(lv_clidep), @DATA(lv_delclass)).`,
     ...selectGuard("no active DD02L row for this table"),
     `SELECT SINGLE ${fTT_text} FROM ${textTable}`,
     `  WHERE ${fTT_table} = '${objectLit}' AND ${fTT_lang} = '${langLit}' AND ${fTT_active} = 'A'`,
     `  INTO @DATA(lv_title).`,
     ...selectGuard("no title for this table and language"),
-    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[table] name=[${object}] title=[{ lv_title }]| ).`,
+    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[table] objtype=[] name=[${object}] title=[{ lv_title }]| ).`,
     `out->write( |${IMG_LINE_PREFIX}TAB object=[${object}] table=[${object}] | &&`,
-    `  |clidep=[{ lv_clidep }] via=[DD02L] title=[{ lv_title }]| ).`,
+    `  |clidep=[{ lv_clidep }] delclass=[{ lv_delclass }] via=[DD02L] title=[{ lv_title }]| ).`,
     ``,
     `SELECT ${fF_field}, ${fF_key}, ${fF_pos}, ${fF_type}, ${fF_len}, ${fF_elem} FROM ${fieldTable}`,
     `  WHERE ${fF_table} = '${objectLit}' AND ${fF_active} = 'A'`,
@@ -613,12 +619,18 @@ function objectsViewFragment(object: string, objectLit: string, langLit: string)
   const fF_len = fld("ddicField", "length");
   const fF_active = fld("ddicField", "activeState");
 
+  const ddicTable = tbl("ddicTable");
+  const fT_table = fld("ddicTable", "table");
+  const fT_clidep = fld("ddicTable", "clientDependent");
+  const fT_delclass = fld("ddicTable", "deliveryClass");
+  const fT_active = fld("ddicTable", "activeState");
+
   const body: string[] = [
     `SELECT SINGLE ${fVT_text} FROM ${viewTextTable}`,
     `  WHERE ${fVT_view} = '${objectLit}' AND ${fVT_lang} = '${langLit}' AND ${fVT_active} = 'A'`,
     `  INTO @DATA(lv_title).`,
     ...selectGuard("no title for this view and language"),
-    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[view] name=[${object}] title=[{ lv_title }]| ).`,
+    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[view] objtype=[] name=[${object}] title=[{ lv_title }]| ).`,
     ``,
     `SELECT ${fB_table} FROM ${baseTable}`,
     `  WHERE ${fB_view} = '${objectLit}' AND ${fB_active} = 'A'`,
@@ -627,8 +639,15 @@ function objectsViewFragment(object: string, objectLit: string, langLit: string)
     `  UP TO 50 ROWS.`,
     ...selectGuard("no base tables for this view"),
     `LOOP AT lt_bases INTO DATA(ls_base).`,
+    `  SELECT SINGLE ${fT_clidep}, ${fT_delclass} FROM ${ddicTable}`,
+    `    WHERE ${fT_table} = @ls_base-${fB_table} AND ${fT_active} = 'A'`,
+    `    INTO (@DATA(lv_base_clidep), @DATA(lv_base_delclass)).`,
+    `  IF sy-subrc <> 0.`,
+    `    CLEAR lv_base_clidep.`,
+    `    CLEAR lv_base_delclass.`,
+    `  ENDIF.`,
     `  out->write( |${IMG_LINE_PREFIX}TAB object=[${object}] table=[{ ls_base-${fB_table} }] | &&`,
-    `    |clidep=[] via=[DD26S] title=[]| ).`,
+    `    |clidep=[{ lv_base_clidep }] delclass=[{ lv_base_delclass }] via=[DD26S] title=[]| ).`,
     `ENDLOOP.`,
     ``,
     `SELECT ${fVF_table}, ${fVF_field} FROM ${viewFieldTable}`,
@@ -663,19 +682,32 @@ function objectsClusterFragment(object: string, objectLit: string, langLit: stri
   const fM_cluster = fld("viewClusterMember", "cluster");
   const fM_object = fld("viewClusterMember", "object");
 
+  const ddicTable = tbl("ddicTable");
+  const fT_table = fld("ddicTable", "table");
+  const fT_clidep = fld("ddicTable", "clientDependent");
+  const fT_delclass = fld("ddicTable", "deliveryClass");
+  const fT_active = fld("ddicTable", "activeState");
+
   const body: string[] = [
     `SELECT SINGLE ${fCT_text} FROM ${clusterText}`,
     `  WHERE ${fCT_cluster} = '${objectLit}' AND ${fCT_lang} = '${langLit}'`,
     `  INTO @DATA(lv_title).`,
     ...selectGuard("no title for this cluster and language"),
-    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[cluster] name=[${object}] title=[{ lv_title }]| ).`,
+    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[cluster] objtype=[] name=[${object}] title=[{ lv_title }]| ).`,
     `SELECT ${fM_object} FROM ${memberTable} WHERE ${fM_cluster} = '${objectLit}'`,
     `  INTO TABLE @DATA(lt_members)`,
     `  UP TO 50 ROWS.`,
     ...selectGuard("no members for this cluster"),
     `LOOP AT lt_members INTO DATA(ls_member).`,
+    `  SELECT SINGLE ${fT_clidep}, ${fT_delclass} FROM ${ddicTable}`,
+    `    WHERE ${fT_table} = @ls_member-${fM_object} AND ${fT_active} = 'A'`,
+    `    INTO (@DATA(lv_member_clidep), @DATA(lv_member_delclass)).`,
+    `  IF sy-subrc <> 0.`,
+    `    CLEAR lv_member_clidep.`,
+    `    CLEAR lv_member_delclass.`,
+    `  ENDIF.`,
     `  out->write( |${IMG_LINE_PREFIX}TAB object=[${object}] table=[{ ls_member-${fM_object} }] | &&`,
-    `    |clidep=[] via=[VCLSTRUC] title=[]| ).`,
+    `    |clidep=[{ lv_member_clidep }] delclass=[{ lv_member_delclass }] via=[VCLSTRUC] title=[]| ).`,
     `ENDLOOP.`,
   ];
 
@@ -693,7 +725,7 @@ function objectsTransactionFragment(object: string, objectLit: string, langLit: 
     `  WHERE ${fTT_tcode} = '${objectLit}' AND ${fTT_lang} = '${langLit}'`,
     `  INTO @DATA(lv_title).`,
     ...selectGuard("no title for this transaction and language"),
-    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[transaction] name=[${object}] title=[{ lv_title }]| ).`,
+    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[transaction] objtype=[] name=[${object}] title=[{ lv_title }]| ).`,
   ];
 
   return { data: [], body };
@@ -702,22 +734,39 @@ function objectsTransactionFragment(object: string, objectLit: string, langLit: 
 function objectsCustomizingFragment(object: string, objectLit: string): { data: string[]; body: string[] } {
   const objHeader = tbl("cusObjectHeader");
   const fOH_object = fld("cusObjectHeader", "object");
+  const fOH_objectType = fld("cusObjectHeader", "objectType");
 
   const objTable = tbl("cusObjectTable");
   const fOT_object = fld("cusObjectTable", "object");
   const fOT_table = fld("cusObjectTable", "table");
 
+  const ddicTable = tbl("ddicTable");
+  const fT_table = fld("ddicTable", "table");
+  const fT_clidep = fld("ddicTable", "clientDependent");
+  const fT_delclass = fld("ddicTable", "deliveryClass");
+  const fT_active = fld("ddicTable", "activeState");
+
   const body: string[] = [
-    `SELECT SINGLE ${fOH_object} FROM ${objHeader} WHERE ${fOH_object} = '${objectLit}' INTO @DATA(lv_found).`,
+    `SELECT SINGLE ${fOH_object}, ${fOH_objectType} FROM ${objHeader}`,
+    `  WHERE ${fOH_object} = '${objectLit}'`,
+    `  INTO (@DATA(lv_found), @DATA(lv_objtype)).`,
     ...selectGuard("no OBJH row for this customizing object"),
-    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[customizing_object] name=[${object}] title=[]| ).`,
+    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[customizing_object] | &&`,
+    `  |objtype=[{ lv_objtype }] name=[${object}] title=[]| ).`,
     `SELECT ${fOT_table} FROM ${objTable} WHERE ${fOT_object} = '${objectLit}'`,
     `  INTO TABLE @DATA(lt_tabs)`,
     `  UP TO 50 ROWS.`,
     ...selectGuard("no tables linked to this customizing object"),
     `LOOP AT lt_tabs INTO DATA(ls_tab).`,
+    `  SELECT SINGLE ${fT_clidep}, ${fT_delclass} FROM ${ddicTable}`,
+    `    WHERE ${fT_table} = @ls_tab-${fOT_table} AND ${fT_active} = 'A'`,
+    `    INTO (@DATA(lv_tab_clidep), @DATA(lv_tab_delclass)).`,
+    `  IF sy-subrc <> 0.`,
+    `    CLEAR lv_tab_clidep.`,
+    `    CLEAR lv_tab_delclass.`,
+    `  ENDIF.`,
     `  out->write( |${IMG_LINE_PREFIX}TAB object=[${object}] table=[{ ls_tab-${fOT_table} }] | &&`,
-    `    |clidep=[] via=[OBJSL] title=[]| ).`,
+    `    |clidep=[{ lv_tab_clidep }] delclass=[{ lv_tab_delclass }] via=[OBJSL] title=[]| ).`,
     `ENDLOOP.`,
   ];
 
@@ -727,7 +776,7 @@ function objectsCustomizingFragment(object: string, objectLit: string): { data: 
 /** No catalog table for reports/programs is recorded — say so rather than guessing one. No SQL here, so no literal to quote. */
 function objectsReportFragment(object: string): { data: string[]; body: string[] } {
   const body: string[] = [
-    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[report] name=[${object}] title=[]| ).`,
+    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[report] objtype=[] name=[${object}] title=[]| ).`,
     `out->write( |${IMG_LINE_PREFIX}NOTE text=[no catalog table for reports is defined in this bridge]| ).`,
   ];
   return { data: [], body };
@@ -746,38 +795,42 @@ function objectsAutoFragment(object: string, objectLit: string): { data: string[
   const fVC_cluster = fld("viewCluster", "cluster");
   const objHeader = tbl("cusObjectHeader");
   const fOH_object = fld("cusObjectHeader", "object");
+  const fOH_objectType = fld("cusObjectHeader", "objectType");
 
   const body: string[] = [
     `SELECT SINGLE ${fTC_tcode} FROM ${tstc} WHERE ${fTC_tcode} = '${objectLit}' INTO @DATA(lv_tcode).`,
     `IF sy-subrc = 0.`,
-    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[transaction] name=[${object}] title=[]| ).`,
+    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[transaction] objtype=[] name=[${object}] title=[]| ).`,
     `  RETURN.`,
     `ENDIF.`,
     `SELECT SINGLE ${fDT_table} FROM ${ddicTable}`,
     `  WHERE ${fDT_table} = '${objectLit}' AND ${fDT_active} = 'A'`,
     `  INTO @DATA(lv_tabname).`,
     `IF sy-subrc = 0.`,
-    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[table] name=[${object}] title=[]| ).`,
+    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[table] objtype=[] name=[${object}] title=[]| ).`,
     `  RETURN.`,
     `ENDIF.`,
     `SELECT SINGLE ${fVH_view} FROM ${viewHeader}`,
     `  WHERE ${fVH_view} = '${objectLit}' AND ${fVH_active} = 'A'`,
     `  INTO @DATA(lv_viewname).`,
     `IF sy-subrc = 0.`,
-    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[view] name=[${object}] title=[]| ).`,
+    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[view] objtype=[] name=[${object}] title=[]| ).`,
     `  RETURN.`,
     `ENDIF.`,
     `SELECT SINGLE ${fVC_cluster} FROM ${viewCluster} WHERE ${fVC_cluster} = '${objectLit}' INTO @DATA(lv_clustername).`,
     `IF sy-subrc = 0.`,
-    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[cluster] name=[${object}] title=[]| ).`,
+    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[cluster] objtype=[] name=[${object}] title=[]| ).`,
     `  RETURN.`,
     `ENDIF.`,
-    `SELECT SINGLE ${fOH_object} FROM ${objHeader} WHERE ${fOH_object} = '${objectLit}' INTO @DATA(lv_objname).`,
+    `SELECT SINGLE ${fOH_object}, ${fOH_objectType} FROM ${objHeader}`,
+    `  WHERE ${fOH_object} = '${objectLit}'`,
+    `  INTO (@DATA(lv_objname), @DATA(lv_auto_objtype)).`,
     `IF sy-subrc = 0.`,
-    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[customizing_object] name=[${object}] title=[]| ).`,
+    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[customizing_object] | &&`,
+    `    |objtype=[{ lv_auto_objtype }] name=[${object}] title=[]| ).`,
     `  RETURN.`,
     `ENDIF.`,
-    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[unknown] name=[${object}] title=[]| ).`,
+    `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[unknown] objtype=[] name=[${object}] title=[]| ).`,
     `out->write( |${IMG_LINE_PREFIX}NOTE text=[object not found in any catalog table this bridge checks]| ).`,
   ];
 
@@ -929,7 +982,7 @@ export function parseImgTranscript(text: string): ImgTranscript {
             break;
           }
           const kind = (KNOWN_OBJECT_KINDS as readonly string[]).includes(fields.kind) ? (fields.kind as ImgObjectKind) : "unknown";
-          result.objects.push({ activity: fields.activity, kind, name: fields.name, title: fields.title });
+          result.objects.push({ activity: fields.activity, kind, objectType: fields.objtype ?? "", name: fields.name, title: fields.title });
           break;
         }
         case "TAB": {
@@ -937,7 +990,14 @@ export function parseImgTranscript(text: string): ImgTranscript {
             result.droppedLines++;
             break;
           }
-          result.tables.push({ object: fields.object, table: fields.table, clientDependent: fields.clidep === "X", via: fields.via, title: fields.title });
+          result.tables.push({
+            object: fields.object,
+            table: fields.table,
+            clientDependent: fields.clidep === "X",
+            deliveryClass: fields.delclass ?? "",
+            via: fields.via,
+            title: fields.title,
+          });
           break;
         }
         case "FLD": {

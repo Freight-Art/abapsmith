@@ -134,12 +134,25 @@ describe("parseImgTranscript — grammar", () => {
 
   it("parses OBJ with a recognised kind", () => {
     const t = parseImgTranscript(`${IMG_LINE_PREFIX}OBJ activity=[SIMG_ACT] kind=[table] name=[T001] title=[Company Codes]`);
-    expect(t.objects).toEqual([{ activity: "SIMG_ACT", kind: "table", name: "T001", title: "Company Codes" }]);
+    expect(t.objects).toEqual([{ activity: "SIMG_ACT", kind: "table", objectType: "", name: "T001", title: "Company Codes" }]);
   });
 
   it("normalises an unrecognised OBJ kind to 'unknown' rather than dropping the row", () => {
     const t = parseImgTranscript(`${IMG_LINE_PREFIX}OBJ activity=[SIMG_ACT] kind=[frobnicator] name=[X] title=[Y]`);
-    expect(t.objects).toEqual([{ activity: "SIMG_ACT", kind: "unknown", name: "X", title: "Y" }]);
+    expect(t.objects).toEqual([{ activity: "SIMG_ACT", kind: "unknown", objectType: "", name: "X", title: "Y" }]);
+    expect(t.droppedLines).toBe(0);
+  });
+
+  it("parses OBJ's objtype when present", () => {
+    const t = parseImgTranscript(
+      `${IMG_LINE_PREFIX}OBJ activity=[SIMG_ACT] kind=[customizing_object] objtype=[V] name=[V_T001] title=[]`,
+    );
+    expect(t.objects[0]!.objectType).toBe("V");
+  });
+
+  it("defaults OBJ's objtype to empty when the field is absent from the line entirely", () => {
+    const t = parseImgTranscript(`${IMG_LINE_PREFIX}OBJ activity=[SIMG_ACT] kind=[table] name=[T001] title=[X]`);
+    expect(t.objects[0]!.objectType).toBe("");
     expect(t.droppedLines).toBe(0);
   });
 
@@ -152,12 +165,27 @@ describe("parseImgTranscript — grammar", () => {
 
   it("parses TAB with clidep=X as client-dependent", () => {
     const t = parseImgTranscript(`${IMG_LINE_PREFIX}TAB object=[T001] table=[T001] clidep=[X] via=[DD02L] title=[Company Codes]`);
-    expect(t.tables).toEqual([{ object: "T001", table: "T001", clientDependent: true, via: "DD02L", title: "Company Codes" }]);
+    expect(t.tables).toEqual([
+      { object: "T001", table: "T001", clientDependent: true, deliveryClass: "", via: "DD02L", title: "Company Codes" },
+    ]);
   });
 
   it("parses TAB with clidep omitted as not client-dependent", () => {
     const t = parseImgTranscript(`${IMG_LINE_PREFIX}TAB object=[T001] table=[T001] clidep=[] via=[DD02L] title=[X]`);
     expect(t.tables[0]!.clientDependent).toBe(false);
+  });
+
+  it("parses TAB's delclass when present", () => {
+    const t = parseImgTranscript(
+      `${IMG_LINE_PREFIX}TAB object=[T001] table=[T001] clidep=[X] delclass=[A] via=[DD02L] title=[Company Codes]`,
+    );
+    expect(t.tables[0]!.deliveryClass).toBe("A");
+  });
+
+  it("defaults TAB's delclass to empty when the field is absent from the line entirely", () => {
+    const t = parseImgTranscript(`${IMG_LINE_PREFIX}TAB object=[T001] table=[T001] clidep=[X] via=[DD02L] title=[X]`);
+    expect(t.tables[0]!.deliveryClass).toBe("");
+    expect(t.droppedLines).toBe(0);
   });
 
   it("parses FLD with key=X as a key field", () => {
