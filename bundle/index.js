@@ -100735,7 +100735,7 @@ var writeInputSchema = {
   // (src/tools/read.ts), turns a typo into a schema rejection.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe("CLAS/OC only; testclasses=ABAP Unit tests, default main."),
   package: external_exports.string().optional().describe(
-    "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs corr_nr, a $-package refuses it."
+    "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr."
   ),
   description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
   // Structured create for the three XML-only DDIC types, so a
@@ -100767,7 +100767,7 @@ var writeInputSchema = {
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
   corr_nr: external_exports.string().optional().describe(
-    "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete."
+    "Transport request. $TMP needs none. Required for a TRAN/T create into a transportable package; optional for a VIEW/DV create, which resolves one under ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T delete."
   ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
@@ -102664,7 +102664,7 @@ function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create resolves its own corr_nr for a transportable package (supply one to pin it), none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
