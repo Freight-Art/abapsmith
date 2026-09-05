@@ -617,6 +617,13 @@ was last set to `0.3.0`.
   overwrite a result the server already committed. A death from a
   genuinely failed (non-2xx) response is unaffected and still applied
   immediately.
+- A pinned `ABAP_ALLOW_TRANSPORTS` previously refused every `VIEW/DV`/
+  `TRAN/T` bridge delete outright, because the gate synthesized an `auto`
+  transport request for a call that passes none; both delete bridges now
+  present the mutation as local, so the transport allowlist no longer
+  blocks them (an explicit deny-all still does), and the delete response
+  now flags any transport-request entry the object's create left behind
+  for `abap_transport removeObject` to clean up.
 
 ### Security
 

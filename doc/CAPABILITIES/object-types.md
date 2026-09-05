@@ -154,7 +154,11 @@ The `Object` column values are the registry `label` fields, unreworded.
   remove it afterwards — proven live on A4H, 2026-09-04 (transportable
   package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a `$`-prefixed
   package: view registered with `korrnum = space`, then deleted,
-  VIEW-DELETED / VIEW-GONE).
+  VIEW-DELETED / VIEW-GONE). Because neither delete bridge issues an
+  `RS_CORR_INSERT`, the delete records nothing in CTS: any entry the
+  object already had on a transport request (typically from its create)
+  survives the delete, and the safety gate judges the delete itself as a
+  local mutation rather than against `ABAP_ALLOW_TRANSPORTS`.
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and
