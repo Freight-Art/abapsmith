@@ -104230,6 +104230,12 @@ var NODE_CHILD_ORDER = [
   "determinations",
   "validations"
 ];
+var ASSOCIATION_CHILD_ORDER = ["targetNodeRef", "implementationClassRef", "parameterStructureRef"];
+var ACTION_CHILD_ORDER = ["implementationClassRef", "parameterStructureRef"];
+var DETERMINATION_CHILD_ORDER = ["implementationClassRef", "triggers", "relations"];
+var VALIDATION_CHILD_ORDER = ["implementationClassRef", "triggers"];
+var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef", "resultTableTypeRef"];
+var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
 
 // src/adt/bopf-xml.ts
 function fail2(message, details = {}) {
@@ -104413,14 +104419,17 @@ function childTokensOfKind(tokens, nodeTok, kind) {
     (t) => t.name === tag && t.depth === nodeTok.depth + 1 && t.openStart > nodeTok.openStart && t.openStart < nodeTok.closeEnd
   );
 }
-function locate(tokens, sel) {
+function locateToken(tokens, sel) {
   const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
   if (!nodeTok) return void 0;
-  if (!isChildSelector(sel)) return { start: nodeTok.openStart, end: nodeTok.closeEnd };
-  const hit = childTokensOfKind(tokens, nodeTok, sel.child).find(
+  if (!isChildSelector(sel)) return nodeTok;
+  return childTokensOfKind(tokens, nodeTok, sel.child).find(
     (t) => t.attrs.get("bo:name") === sel.name && (sel.memberId === void 0 || t.attrs.get("bo:nodeID") === sel.memberId)
   );
-  return hit ? { start: hit.openStart, end: hit.closeEnd } : void 0;
+}
+function locate(tokens, sel) {
+  const t = locateToken(tokens, sel);
+  return t ? { start: t.openStart, end: t.closeEnd } : void 0;
 }
 function listChildNames(tokens, sel, kind) {
   const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
@@ -104469,6 +104478,25 @@ function promoteToContainer(xml3, token) {
   const opened = tagText.slice(0, -2) + ">";
   return xml3.slice(0, token.openStart) + opened + `</${token.name}>` + xml3.slice(token.openEnd);
 }
+function patchOpenTagAttrs(xml3, token, attrs) {
+  let openTag = xml3.slice(token.openStart, token.openEnd);
+  for (const [name, value] of attrs) {
+    const attrRe = new RegExp(`\\s+bo:${name}="[^"]*"`);
+    if (value === null) {
+      openTag = openTag.replace(attrRe, "");
+      continue;
+    }
+    const rendered = ` bo:${name}="${typeof value === "boolean" ? String(value) : escapeAttrValue(value, `bo:${name}`)}"`;
+    if (attrRe.test(openTag)) {
+      openTag = openTag.replace(attrRe, rendered);
+    } else {
+      const closesSelf = openTag.endsWith("/>");
+      const insertAt = closesSelf ? openTag.length - 2 : openTag.length - 1;
+      openTag = openTag.slice(0, insertAt) + rendered + openTag.slice(insertAt);
+    }
+  }
+  return xml3.slice(0, token.openStart) + openTag + xml3.slice(token.openEnd);
+}
 function spliceInsertChild(xml3, tokens, nodeName, kind, fragment, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
   if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
@@ -104490,36 +104518,38 @@ var NODE_REF_KINDS = [
   "dataAccessClassRef",
   "authorizationClassRef"
 ];
-function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
-  const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
-  const tag = `bo:${refKind}`;
+function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder) {
   const existing = tokens.find(
-    (t) => t.name === tag && t.depth === nodeTok.depth + 1 && t.openStart > nodeTok.openStart && t.openStart < nodeTok.closeEnd
+    (t) => t.name === refTag && t.depth === ownerToken.depth + 1 && t.openStart > ownerToken.openStart && t.openStart < ownerToken.closeEnd
   );
   if (ref2 === null) {
     return existing ? xml3.slice(0, existing.openStart) + xml3.slice(existing.closeEnd) : xml3;
   }
-  const fragment = renderRef2(tag, ref2);
+  const fragment = renderRef2(refTag, ref2);
   if (existing) {
     return xml3.slice(0, existing.openStart) + fragment + xml3.slice(existing.closeEnd);
   }
-  if (nodeTok.kind === "empty") {
-    const opened = promoteToContainer(xml3, nodeTok);
-    const insertAt2 = nodeTok.openEnd - 1;
+  if (ownerToken.kind === "empty") {
+    const opened = promoteToContainer(xml3, ownerToken);
+    const insertAt2 = ownerToken.openEnd - 1;
     return splice(opened, insertAt2, fragment);
   }
-  const targetIdx = NODE_CHILD_ORDER.indexOf(refKind);
-  let insertAt = nodeTok.openEnd;
+  const targetIdx = childOrder.indexOf(bareName(refTag));
+  let insertAt = ownerToken.openEnd;
   for (const t of tokens) {
-    if (t.depth !== nodeTok.depth + 1) continue;
-    if (t.openStart <= nodeTok.openStart || t.openStart >= nodeTok.closeEnd) continue;
-    const idx = NODE_CHILD_ORDER.indexOf(bareName(t.name));
+    if (t.depth !== ownerToken.depth + 1) continue;
+    if (t.openStart <= ownerToken.openStart || t.openStart >= ownerToken.closeEnd) continue;
+    const idx = childOrder.indexOf(bareName(t.name));
     if (idx === -1) continue;
     if (idx <= targetIdx) insertAt = t.closeEnd;
     else break;
   }
   return splice(xml3, insertAt, fragment);
+}
+function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
+  const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
+  if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
+  return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
   if (v === "undefined" || v === "null") {
@@ -105662,6 +105692,78 @@ var SET_NODE_FLAGS_FIELDS = {
   dataAccessClassRef: "refOrNull",
   authorizationClassRef: "refOrNull"
 };
+var SET_ASSOCIATION_FIELDS = {
+  xmlName: "stringOrNull",
+  multiplicity: "stringOrNull",
+  implementationType: "stringOrNull",
+  doEmbeddingName: "stringOrNull",
+  objectModelGenerated: "booleanOrNull",
+  targetNodeRef: "refOrNull",
+  parameterStructureRef: "refOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_ACTION_FIELDS = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  instanceMultiplicity: "stringOrNull",
+  exportingParameterCategoryType: "stringOrNull",
+  exportParameterLink: "booleanOrNull",
+  isExtensible: "booleanOrNull",
+  objectModelGenerated: "booleanOrNull",
+  parameterStructureRef: "refOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_DETERMINATION_FIELDS = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  objectModelGenerated: "booleanOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_VALIDATION_FIELDS = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  checkBeforeSave: "booleanOrNull",
+  createNode: "booleanOrNull",
+  updateNode: "booleanOrNull",
+  deleteNode: "booleanOrNull",
+  objectModelGenerated: "booleanOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_QUERY_FIELDS = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  objectModelGenerated: "booleanOrNull",
+  dataTypeRef: "refOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_ALTERNATIVE_KEY_FIELDS = {
+  xmlName: "stringOrNull",
+  uniqueness: "stringOrNull",
+  checkAfterModify: "booleanOrNull",
+  checkBeforeSave: "booleanOrNull",
+  noCheck: "booleanOrNull",
+  objectModelGenerated: "booleanOrNull",
+  dataTypeRef: "refOrNull",
+  dataTableTypeRef: "refOrNull"
+};
+var SET_CHILD_FIELD_TABLES = {
+  set_association_fields: SET_ASSOCIATION_FIELDS,
+  set_action_fields: SET_ACTION_FIELDS,
+  set_determination_fields: SET_DETERMINATION_FIELDS,
+  set_validation_fields: SET_VALIDATION_FIELDS,
+  set_query_fields: SET_QUERY_FIELDS,
+  set_alternative_key_fields: SET_ALTERNATIVE_KEY_FIELDS
+};
 var OPERATION_FIELDS = {
   create_bo: NO_SPEC_FIELDS,
   add_node: ADD_NODE_FIELDS,
@@ -105679,6 +105781,7 @@ var OPERATION_FIELDS = {
   add_alternative_key: ADD_ALTERNATIVE_KEY_FIELDS,
   remove_alternative_key: NO_SPEC_FIELDS,
   set_node_flags: SET_NODE_FLAGS_FIELDS,
+  ...SET_CHILD_FIELD_TABLES,
   activate: NO_SPEC_FIELDS
 };
 var DETERMINATION_TRIGGER_FIELDS = {
@@ -105706,6 +105809,45 @@ var RELATION_FIELDS = {
   node: "string",
   determination: "string",
   relationType: "string"
+};
+var REMOVE_ADD_FOR_SET_OP = {
+  set_association_fields: ["remove_association", "add_association"],
+  set_action_fields: ["remove_action", "add_action"],
+  set_determination_fields: ["remove_determination", "add_determination"],
+  set_validation_fields: ["remove_validation", "add_validation"],
+  set_query_fields: ["remove_query", "add_query"],
+  set_alternative_key_fields: ["remove_alternative_key", "add_alternative_key"]
+};
+function nameRenameRefusedMessage(operation) {
+  const pair = REMOVE_ADD_FOR_SET_OP[operation];
+  const removeOp = pair ? pair[0] : "remove_*";
+  const addOp = pair ? pair[1] : "add_*";
+  return `spec.name on ${operation} is not supported: renaming is refused because a determination/validation trigger and a relation reference the element by name as an embedded XPath fragment, and a rename would silently orphan them. To rename, call ${removeOp} then ${addOp} again under the new name.`;
+}
+var DETERMINATION_WRITE_ONCE_MESSAGES = {
+  triggers: `spec.triggers on set_determination_fields is write-once: BOPF reads a determination's triggers only inside the original add_determination call, never on a later set_determination_fields. To change a trigger, call remove_determination then add_determination again with the full definition, including the corrected triggers.`,
+  relations: `spec.relations on set_determination_fields is write-once: BOPF reads a determination's relations only inside the original add_determination call, never on a later set_determination_fields. To change a relation, call remove_determination then add_determination again with the full definition, including the corrected relations.`
+};
+var VALIDATION_WRITE_ONCE_MESSAGES = {
+  triggers: `spec.triggers on set_validation_fields is write-once: BOPF reads a validation's triggers only inside the original add_validation call, never on a later set_validation_fields. To change a trigger, call remove_validation then add_validation again with the full definition, including the corrected triggers.`
+};
+var KEY_ELEMENTS_REFUSED_MESSAGE = `spec.keyElements on set_alternative_key_fields cannot be changed in place: an alternative key's key elements are fixed when the key is created. To change them, call remove_alternative_key then add_alternative_key again with the full corrected key.`;
+var RECOGNISED_BUT_REFUSED_FIELDS = {
+  set_association_fields: { name: nameRenameRefusedMessage("set_association_fields") },
+  set_action_fields: { name: nameRenameRefusedMessage("set_action_fields") },
+  set_determination_fields: {
+    ...DETERMINATION_WRITE_ONCE_MESSAGES,
+    name: nameRenameRefusedMessage("set_determination_fields")
+  },
+  set_validation_fields: {
+    ...VALIDATION_WRITE_ONCE_MESSAGES,
+    name: nameRenameRefusedMessage("set_validation_fields")
+  },
+  set_query_fields: { name: nameRenameRefusedMessage("set_query_fields") },
+  set_alternative_key_fields: {
+    keyElements: KEY_ELEMENTS_REFUSED_MESSAGE,
+    name: nameRenameRefusedMessage("set_alternative_key_fields")
+  }
 };
 function describeType(v) {
   if (v === null) return "null";
@@ -105753,6 +105895,8 @@ function shapeIssue(path6, shape, value) {
       return typeof value === "boolean" ? void 0 : { message: `${path6} must be a boolean, got ${describeType(value)}.`, detail: { path: path6, value } };
     case "booleanOrNull":
       return value === null || typeof value === "boolean" ? void 0 : { message: `${path6} must be a boolean or null, got ${describeType(value)}.`, detail: { path: path6, value } };
+    case "stringOrNull":
+      return value === null || typeof value === "string" ? void 0 : { message: `${path6} must be a string or null, got ${describeType(value)}.`, detail: { path: path6, value } };
     case "ref":
       return refShapeIssue(path6, value);
     case "refOrNull":
@@ -105804,8 +105948,14 @@ function unknownTopLevelIssue(operation, key, accepted) {
 function validateTopLevelFields(operation, spec) {
   const table = OPERATION_FIELDS[operation] ?? NO_SPEC_FIELDS;
   const accepted = Object.keys(table);
+  const refused = RECOGNISED_BUT_REFUSED_FIELDS[operation];
   const issues = [];
   for (const key of Object.keys(spec)) {
+    const refusedMessage = refused?.[key];
+    if (refusedMessage !== void 0) {
+      issues.push({ message: refusedMessage, detail: { operation, key, refused: true } });
+      continue;
+    }
     const shape = table[key];
     if (shape === void 0) {
       issues.push(unknownTopLevelIssue(operation, key, accepted));
@@ -105874,16 +106024,22 @@ var bopfEditInputSchema = {
     "remove_node",
     "add_association",
     "remove_association",
+    "set_association_fields",
     "add_action",
     "remove_action",
+    "set_action_fields",
     "add_determination",
     "remove_determination",
+    "set_determination_fields",
     "add_validation",
     "remove_validation",
+    "set_validation_fields",
     "add_query",
     "remove_query",
+    "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
+    "set_alternative_key_fields",
     "set_node_flags",
     "activate"
   ]).describe("The single edit to make."),
@@ -105893,7 +106049,7 @@ var bopfEditInputSchema = {
   spec: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe("Per-operation fields \u2014 see the abapsmith-edit-a-bopf-object skill."),
   activate: external_exports.boolean().optional().describe("Activate after the edit succeeds."),
   allow_dangling_ref: external_exports.boolean().optional().describe("Accepts the dangling-ref risk that otherwise refuses the write."),
-  i_know_this_may_not_activate: external_exports.boolean().optional().describe("Required true for add_alternative_key."),
+  i_know_this_may_not_activate: external_exports.boolean().optional().describe("Required true for add_alternative_key and set_alternative_key_fields."),
   package: external_exports.string().optional().describe("create_bo: local ($TMP-style) package, required."),
   description: external_exports.string().optional().describe("create_bo: optional description."),
   rootNodeName: external_exports.string().optional().describe('create_bo only: root node name, default "ROOT".')
@@ -106055,13 +106211,29 @@ function registerBopfTools(mcp, deps) {
     registerBopfDeleteTool(mcp, deps);
   }
 }
-var DANGLING_REF_OPS = /* @__PURE__ */ new Set(["add_action", "add_determination", "add_validation", "add_query"]);
+var DANGLING_REF_OPS = /* @__PURE__ */ new Set([
+  "add_action",
+  "add_determination",
+  "add_validation",
+  "add_query",
+  "set_action_fields",
+  "set_determination_fields",
+  "set_validation_fields",
+  "set_query_fields"
+]);
 var IMPL_INTERFACE_BY_OP = {
   add_action: "/BOBF/IF_FRW_ACTION",
   add_determination: "/BOBF/IF_FRW_DETERMINATION",
   add_validation: "/BOBF/IF_FRW_VALIDATION",
-  add_query: "/BOBF/IF_FRW_QUERY"
+  add_query: "/BOBF/IF_FRW_QUERY",
+  set_action_fields: "/BOBF/IF_FRW_ACTION",
+  set_determination_fields: "/BOBF/IF_FRW_DETERMINATION",
+  set_validation_fields: "/BOBF/IF_FRW_VALIDATION",
+  set_query_fields: "/BOBF/IF_FRW_QUERY"
 };
+function danglingRefElementLabel(operation) {
+  return operation.replace(/^(add|set)_/, "").replace(/_fields$/, "");
+}
 function str2(v) {
   return typeof v === "string" && v.trim() ? v : void 0;
 }
@@ -106132,7 +106304,7 @@ async function danglingRefPreflight(conn, operation, spec, allowDangling) {
       if (allowDangling) return { className, verdict: "allowed" };
       throw new AbapError(
         "BOPF_DANGLING_REF",
-        `Class ${className} does not exist as a source artifact \u2014 a ${operation.replace("add_", "")} bound to it would activate cleanly and then silently never fire at runtime.`,
+        `Class ${className} does not exist as a source artifact \u2014 a ${danglingRefElementLabel(operation)} bound to it would activate cleanly and then silently never fire at runtime.`,
         { class: className, operation },
         "Create the class first, or pass allow_dangling_ref: true to proceed anyway."
       );
@@ -106231,32 +106403,44 @@ function validateEditInputShape(input) {
     "remove_node",
     "add_association",
     "remove_association",
+    "set_association_fields",
     "add_action",
     "remove_action",
+    "set_action_fields",
     "add_determination",
     "remove_determination",
+    "set_determination_fields",
     "add_validation",
     "remove_validation",
+    "set_validation_fields",
     "add_query",
     "remove_query",
+    "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
+    "set_alternative_key_fields",
     "set_node_flags"
   ]);
   const needsName = /* @__PURE__ */ new Set([
     "add_node",
     "add_association",
     "remove_association",
+    "set_association_fields",
     "add_action",
     "remove_action",
+    "set_action_fields",
     "add_determination",
     "remove_determination",
+    "set_determination_fields",
     "add_validation",
     "remove_validation",
+    "set_validation_fields",
     "add_query",
     "remove_query",
+    "set_query_fields",
     "add_alternative_key",
-    "remove_alternative_key"
+    "remove_alternative_key",
+    "set_alternative_key_fields"
   ]);
   if (needsNode.has(input.operation)) requireNode(input);
   if (needsName.has(input.operation)) requireName(input);
@@ -106699,6 +106883,109 @@ function removeChildElement(freshXml, tokens, input, op) {
   }
   return spliceOut(freshXml, range);
 }
+var SET_CHILD_KIND = {
+  set_association_fields: "association",
+  set_action_fields: "action",
+  set_determination_fields: "determination",
+  set_validation_fields: "validation",
+  set_query_fields: "query",
+  set_alternative_key_fields: "alternativeKey"
+};
+var CHILD_ORDER_BY_KIND = {
+  association: ASSOCIATION_CHILD_ORDER,
+  action: ACTION_CHILD_ORDER,
+  determination: DETERMINATION_CHILD_ORDER,
+  validation: VALIDATION_CHILD_ORDER,
+  query: QUERY_CHILD_ORDER,
+  alternativeKey: ALTERNATIVE_KEY_CHILD_ORDER
+};
+function patchChildFields(freshXml, tokens, input, op) {
+  const kind = SET_CHILD_KIND[op];
+  const sel = requireNode(input);
+  const name = requireName(input);
+  const spec = input.spec ?? {};
+  const table = SET_CHILD_FIELD_TABLES[op] ?? {};
+  const token = locateToken(tokens, { ...sel, child: kind, name });
+  if (!token) {
+    const existing = listChildNames(tokens, sel, kind);
+    throw new AbapError(
+      "NOT_FOUND",
+      `${op} "${name}" on ${input.bo} node "${sel.node}": no ${CHILD_KIND_LABEL[kind]} of that name exists there. ${pluralChildKindLabel(kind)} present on that node: ${existing.length ? existing.join(", ") : "none"}.`,
+      { operation: op, bo: input.bo, node: sel.node, name, kind, existing }
+    );
+  }
+  if ((op === "set_determination_fields" || op === "set_validation_fields" || op === "set_query_fields") && "category" in spec && spec.category !== null) {
+    const categories = op === "set_determination_fields" ? DETERMINATION_CATEGORIES : op === "set_validation_fields" ? VALIDATION_CATEGORIES : QUERY_CATEGORIES;
+    strEnum(spec.category, categories, "category");
+  }
+  if (op === "set_alternative_key_fields" && "uniqueness" in spec && spec.uniqueness !== null) {
+    strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness");
+  }
+  const patchableFields = Object.keys(table).filter((k) => k !== "class" && k !== "implementationClass");
+  const implClassRefRequested = "implementationClassRef" in spec || "class" in spec || "implementationClass" in spec;
+  const anyFieldRequested = patchableFields.some((k) => k === "implementationClassRef" ? implClassRefRequested : k in spec);
+  if (!anyFieldRequested) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${op} on ${input.bo} node "${sel.node}" ("${name}") names no field to change \u2014 spec is empty, or names only fields this operation cannot change. Patchable field(s): ${patchableFields.join(", ")}.`,
+      { operation: op, bo: input.bo, node: sel.node, name, patchable: patchableFields }
+    );
+  }
+  const attrs = /* @__PURE__ */ new Map();
+  for (const [key, shape] of Object.entries(table)) {
+    if (shape !== "stringOrNull" && shape !== "booleanOrNull" || !(key in spec)) continue;
+    attrs.set(key, spec[key]);
+  }
+  let result = attrs.size > 0 ? patchOpenTagAttrs(freshXml, token, attrs) : freshXml;
+  const childOrder = CHILD_ORDER_BY_KIND[kind];
+  for (const [key, shape] of Object.entries(table)) {
+    if (shape !== "refOrNull") continue;
+    const isImplClassRef = key === "implementationClassRef";
+    if (isImplClassRef ? !implClassRefRequested : !(key in spec)) continue;
+    let value;
+    if (isImplClassRef) {
+      value = spec.implementationClassRef === null ? null : classRefFromSpec(spec) ?? null;
+    } else {
+      const raw = spec[key];
+      if (raw === null) {
+        value = null;
+      } else {
+        const parsed = ref(raw);
+        if (!parsed) continue;
+        value = parsed;
+      }
+    }
+    const freshTokens = scanModel(result);
+    const freshToken = locateToken(freshTokens, { ...sel, child: kind, name });
+    if (!freshToken) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${op}: lost track of "${name}" on node "${sel.node}" while splicing ref field "${key}" \u2014 internal error.`,
+        { operation: op, bo: input.bo, node: sel.node, name, key }
+      );
+    }
+    result = spliceSetElementRef(result, freshTokens, freshToken, `bo:${key}`, value, childOrder);
+  }
+  return result;
+}
+var CHILD_OP_SUFFIX = {
+  association: "association",
+  action: "action",
+  determination: "determination",
+  validation: "validation",
+  query: "query",
+  alternativeKey: "alternative_key"
+};
+function refuseDuplicateChild(tokens, input, sel, kind, name) {
+  const existing = listChildNames(tokens, sel, kind);
+  if (!existing.some((n) => n.toLowerCase() === name.toLowerCase())) return;
+  const suffix = CHILD_OP_SUFFIX[kind];
+  throw new AbapError(
+    "BAD_INPUT",
+    `${input.operation} "${name}" on ${input.bo} node "${sel.node}": a ${CHILD_KIND_LABEL[kind]} of that name already exists there. ${input.operation} is not an upsert \u2014 proceeding would create a second element named "${name}". BOPF writes are journalled but irreversible, so the duplicate could not be undone afterward. Use set_${suffix}_fields to change the existing one, or remove_${suffix} first.`,
+    { operation: input.operation, bo: input.bo, node: sel.node, name, kind, existing }
+  );
+}
 function mutateModel(freshXml, input) {
   const tokens = scanModel(freshXml);
   const spec = input.spec ?? {};
@@ -106722,38 +107009,50 @@ function mutateModel(freshXml, input) {
     }
     case "add_association": {
       const sel = requireNode(input);
-      const fields = buildAssociationFields(requireName(input), mintGuid("association"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "association", name);
+      const fields = buildAssociationFields(name, mintGuid("association"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "association", renderAssociationElement(fields), {
         nodeId: sel.nodeId
       });
     }
     case "add_action": {
       const sel = requireNode(input);
-      const fields = buildActionFields(requireName(input), mintGuid("action"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "action", name);
+      const fields = buildActionFields(name, mintGuid("action"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "action", renderActionElement(fields), { nodeId: sel.nodeId });
     }
     case "add_determination": {
       const sel = requireNode(input);
-      const fields = buildDeterminationFields(input.bo, sel.node, requireName(input), mintGuid("determination"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "determination", name);
+      const fields = buildDeterminationFields(input.bo, sel.node, name, mintGuid("determination"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "determination", renderDeterminationElement(fields), {
         nodeId: sel.nodeId
       });
     }
     case "add_validation": {
       const sel = requireNode(input);
-      const fields = buildValidationFields(input.bo, sel.node, requireName(input), mintGuid("validation"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "validation", name);
+      const fields = buildValidationFields(input.bo, sel.node, name, mintGuid("validation"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "validation", renderValidationElement(fields), {
         nodeId: sel.nodeId
       });
     }
     case "add_query": {
       const sel = requireNode(input);
-      const fields = buildQueryFields(requireName(input), mintGuid("query"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "query", name);
+      const fields = buildQueryFields(name, mintGuid("query"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "query", renderQueryElement(fields), { nodeId: sel.nodeId });
     }
     case "add_alternative_key": {
       const sel = requireNode(input);
-      const fields = buildAlternativeKeyFields(requireName(input), mintGuid("alternativeKey"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "alternativeKey", name);
+      const fields = buildAlternativeKeyFields(name, mintGuid("alternativeKey"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "alternativeKey", renderAlternativeKeyElement(fields), {
         nodeId: sel.nodeId
       });
@@ -106765,6 +107064,13 @@ function mutateModel(freshXml, input) {
     case "remove_query":
     case "remove_alternative_key":
       return removeChildElement(freshXml, tokens, input, input.operation);
+    case "set_association_fields":
+    case "set_action_fields":
+    case "set_determination_fields":
+    case "set_validation_fields":
+    case "set_query_fields":
+    case "set_alternative_key_fields":
+      return patchChildFields(freshXml, tokens, input, input.operation);
     case "set_node_flags":
       return patchNodeFlags(freshXml, tokens, requireNode(input), spec);
     case "create_bo":
@@ -106949,6 +107255,50 @@ function nodeFlagMismatches(node2, spec) {
   }
   return out;
 }
+function childFieldMismatches(element, spec, table) {
+  const out = [];
+  const implClassRefRequested = "implementationClassRef" in spec || "class" in spec || "implementationClass" in spec;
+  for (const [key, shape] of Object.entries(table)) {
+    if (key === "class" || key === "implementationClass") continue;
+    if (key === "implementationClassRef") {
+      if (!implClassRefRequested) continue;
+      const sent2 = spec.implementationClassRef === null ? null : classRefFromSpec(spec) ?? null;
+      const readBack = element[key];
+      if (sent2 === null) {
+        if (readBack !== void 0) out.push({ field: key, sent: null, readBack });
+        continue;
+      }
+      if (!readBack || readBack.name.toLowerCase() !== sent2.name.toLowerCase() || readBack.type.toLowerCase() !== sent2.type.toLowerCase()) {
+        out.push({ field: key, sent: sent2, readBack: readBack ?? null });
+      }
+      continue;
+    }
+    if (!(key in spec)) continue;
+    const sent = spec[key];
+    if (shape === "refOrNull") {
+      const readBack = element[key];
+      if (sent === null) {
+        if (readBack !== void 0) out.push({ field: key, sent: null, readBack });
+        continue;
+      }
+      const wanted = ref(sent);
+      if (!wanted) continue;
+      if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
+        out.push({ field: key, sent: wanted, readBack: readBack ?? null });
+      }
+    } else if (shape === "stringOrNull") {
+      const readBack = element[key];
+      const expected = sent === null ? void 0 : sent;
+      const same = expected === void 0 ? readBack === void 0 : typeof readBack === "string" && typeof expected === "string" && readBack.toLowerCase() === expected.toLowerCase();
+      if (!same) out.push({ field: key, sent, readBack: readBack ?? null });
+    } else if (shape === "booleanOrNull") {
+      const readBack = element[key];
+      const expected = sent === null ? void 0 : sent;
+      if (readBack !== expected) out.push({ field: key, sent, readBack: readBack ?? null });
+    }
+  }
+  return out;
+}
 function attributeSessionDeath(e, input) {
   if (!isAbapError(e) || e.code !== "SESSION_DEAD") return e;
   const node2 = input.node;
@@ -106965,17 +107315,17 @@ function attributeSessionDeath(e, input) {
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
   return new AbapError(e.code, message, details, hint);
 }
-var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key needs i_know_this_may_not_activate: true plus spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four.";
+var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 the same short-dump-prone mapper handles both; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four.";
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
 async function runBopfEdit(deps, args) {
   const input = args;
   const bo = input.bo;
-  if (input.operation === "add_alternative_key" && input.i_know_this_may_not_activate !== true) {
+  if ((input.operation === "add_alternative_key" || input.operation === "set_alternative_key_fields") && input.i_know_this_may_not_activate !== true) {
     throw new AbapError(
       "BAD_INPUT",
-      "add_alternative_key requires i_know_this_may_not_activate: true \u2014 the operation is not confirmed to succeed on any node.",
+      `${input.operation} requires i_know_this_may_not_activate: true \u2014 an alternative-key payload goes through /BOBF/CL_CONF_MODEL_API_MAP, the same mapper an invalid one has short-dumped, and the operation is not confirmed to succeed on any node.`,
       { operation: input.operation }
     );
   }
@@ -107288,6 +107638,37 @@ async function runBopfEdit(deps, args) {
               { bo, node: sel.node, mismatches, journalEntryId: entryId },
               `BOPF's model mapper discards payload it cannot map without erroring \u2014 check that a ref names an object that actually exists, then re-send only the fields that did not stick.`
             );
+          }
+        }
+        if (input.operation === "set_association_fields" || input.operation === "set_action_fields" || input.operation === "set_determination_fields" || input.operation === "set_validation_fields" || input.operation === "set_query_fields" || input.operation === "set_alternative_key_fields") {
+          const op = input.operation;
+          const sel = requireNode(input);
+          const name = requireName(input);
+          const kind = SET_CHILD_KIND[op];
+          const sentSpec = input.spec ?? {};
+          const countBefore = countMembers(initial.model, kind, sel.node, name);
+          const countAfter = countMembers(afterMutate.model, kind, sel.node, name);
+          if (countAfter === 0 || countAfter !== countBefore) {
+            throw new AbapError(
+              "CHECK_FAILED",
+              `abap_bopf_edit ${op} "${name}" on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${countAfter} ${kind}(s) named "${name}" on that node after the write, versus ${countBefore} before \u2014 the element either vanished or was duplicated instead of being patched in place. A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.`,
+              { bo, node: sel.node, name, kind, countBefore, countAfter, journalEntryId: entryId }
+            );
+          }
+          const node2 = afterMutate.model.nodes.find((n) => n.name.toLowerCase() === sel.node.toLowerCase());
+          const member = node2 && MEMBERS_BY_KIND[kind](node2).find((m) => m.name.toLowerCase() === name.toLowerCase());
+          if (member) {
+            const table = SET_CHILD_FIELD_TABLES[op] ?? {};
+            const mismatches = childFieldMismatches(member, sentSpec, table);
+            if (mismatches.length > 0) {
+              const detail = mismatches.map((m) => `${m.field}: sent ${m.sent === null ? "cleared" : describeFlagValue(m.sent)}, read back ${describeFlagValue(m.readBack)}`).join("; ");
+              throw new AbapError(
+                "CHECK_FAILED",
+                `abap_bopf_edit ${op} "${name}" on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows the server did not keep ${mismatches.length} of the field(s) sent \u2014 ${detail}. A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.`,
+                { bo, node: sel.node, name, kind, mismatches, journalEntryId: entryId },
+                `BOPF's model mapper discards payload it cannot map without erroring \u2014 check that a ref names an object that actually exists, then re-send only the fields that did not stick.`
+              );
+            }
           }
         }
       }
@@ -116966,6 +117347,14 @@ var ABAP_DO_ACTIONS = [
     args: "node, name, activate"
   },
   {
+    action: "bopf_set_association_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_association_fields"})',
+    summary: "Patch an association's fields in place.",
+    args: "node, name, spec, activate"
+  },
+  {
     action: "bopf_add_action",
     group: "bopf",
     minMode: "edit",
@@ -116980,6 +117369,14 @@ var ABAP_DO_ACTIONS = [
     v1: 'abap_bopf_edit({operation:"remove_action"})',
     summary: "Remove an action.",
     args: "node, name, activate"
+  },
+  {
+    action: "bopf_set_action_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_action_fields"})',
+    summary: "Patch an action's fields in place.",
+    args: "node, name, spec, activate"
   },
   {
     action: "bopf_add_determination",
@@ -116998,6 +117395,14 @@ var ABAP_DO_ACTIONS = [
     args: "node, name, activate"
   },
   {
+    action: "bopf_set_determination_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_determination_fields"})',
+    summary: "Patch a determination's fields in place.",
+    args: "node, name, spec, activate"
+  },
+  {
     action: "bopf_add_validation",
     group: "bopf",
     minMode: "edit",
@@ -117012,6 +117417,14 @@ var ABAP_DO_ACTIONS = [
     v1: 'abap_bopf_edit({operation:"remove_validation"})',
     summary: "Remove a validation.",
     args: "node, name, activate"
+  },
+  {
+    action: "bopf_set_validation_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_validation_fields"})',
+    summary: "Patch a validation's fields in place.",
+    args: "node, name, spec, activate"
   },
   {
     action: "bopf_add_query",
@@ -117030,6 +117443,14 @@ var ABAP_DO_ACTIONS = [
     args: "node, name, activate"
   },
   {
+    action: "bopf_set_query_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_query_fields"})',
+    summary: "Patch a query's fields in place.",
+    args: "node, name, spec, activate"
+  },
+  {
     action: "bopf_add_alternative_key",
     group: "bopf",
     minMode: "edit",
@@ -117044,6 +117465,14 @@ var ABAP_DO_ACTIONS = [
     v1: 'abap_bopf_edit({operation:"remove_alternative_key"})',
     summary: "Remove an alternative key.",
     args: "node, name, activate"
+  },
+  {
+    action: "bopf_set_alternative_key_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_alternative_key_fields"})',
+    summary: "Patch an alternative key's fields in place.",
+    args: "node, name, spec, i_know_this_may_not_activate (required true), activate"
   },
   {
     action: "bopf_set_node_flags",
@@ -117494,16 +117923,22 @@ var BOPF_HANDLERS = /* @__PURE__ */ new Map([
   ["bopf_remove_node", editOp("remove_node")],
   ["bopf_add_association", editOp("add_association")],
   ["bopf_remove_association", editOp("remove_association")],
+  ["bopf_set_association_fields", editOp("set_association_fields")],
   ["bopf_add_action", editOp("add_action")],
   ["bopf_remove_action", editOp("remove_action")],
+  ["bopf_set_action_fields", editOp("set_action_fields")],
   ["bopf_add_determination", editOp("add_determination")],
   ["bopf_remove_determination", editOp("remove_determination")],
+  ["bopf_set_determination_fields", editOp("set_determination_fields")],
   ["bopf_add_validation", editOp("add_validation")],
   ["bopf_remove_validation", editOp("remove_validation")],
+  ["bopf_set_validation_fields", editOp("set_validation_fields")],
   ["bopf_add_query", editOp("add_query")],
   ["bopf_remove_query", editOp("remove_query")],
+  ["bopf_set_query_fields", editOp("set_query_fields")],
   ["bopf_add_alternative_key", editOp("add_alternative_key")],
   ["bopf_remove_alternative_key", editOp("remove_alternative_key")],
+  ["bopf_set_alternative_key_fields", editOp("set_alternative_key_fields")],
   ["bopf_set_node_flags", editOp("set_node_flags")],
   ["bopf_activate", editOp("activate")],
   ["bopf_test", test2],
