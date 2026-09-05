@@ -39,7 +39,7 @@ export const abapReadInputSchema = {
 export const ABAP_WRITE_DESCRIPTION =
   "Change source. Prefer the edit splice — it is the cheapest and safest form. Forms: " +
   "{object,edit:{old_string,new_string}} unique-match splice; {object,method,source} whole-method " +
-  "replace; {object,source} full rewrite; {object,mode:'delete'}.";
+  "replace; {object,source} full rewrite; {object,mode:'delete'}. dry_run previews without writing.";
 export const abapWriteInputSchema = {
   object: z.string().optional().describe("Object name or ADT URI."),
   edit: z
@@ -66,6 +66,10 @@ export const abapWriteInputSchema = {
   corr_nr: z.string().optional().describe("Transport request."),
   activate: z.boolean().optional(),
   format: z.boolean().optional(),
+  dry_run: z
+    .boolean()
+    .optional()
+    .describe("Preview: return the diff and the expect_etag a real write would assert, without writing."),
   // Mirrors v1's `ddic` (src/tools/write.ts) field-for-field.
   ddic: z
     .object({

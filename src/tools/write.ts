@@ -99,6 +99,7 @@ import type { BeforeImageCapture, Journal } from "../journal.js";
 import { journalRef, systemKey, withJournalledMutation } from "../journal.js";
 import { normalizeCorrNr, type AuthorizedTarget, type MutatingOperation, type SafetyGate } from "../safety.js";
 import { applyEdit, describeEditFailure, EditInputError } from "./v2/edit.js";
+import { buildDeleteDryRunResponse, buildWriteDryRunResponse, dryRunNotSupported } from "./write-dry-run.js";
 import { enhancementPreflightIntent, preflight, writeGateKey } from "./preflight.js";
 
 // Mirrors the top-level `affects` field below, kept as a separate literal
@@ -190,6 +191,14 @@ export const writeInputSchema = {
   activate: z.boolean().optional().describe("Default true."),
   verify: z.boolean().optional().describe("Force verified mode; reads back after write."),
   format: z.boolean().optional().describe("Pretty-print source before writing."),
+  dry_run: z
+    .boolean()
+    .optional()
+    .describe(
+      "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the " +
+        "diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, " +
+        "activation, unlock or transport call and journals nothing.",
+    ),
   corr_nr: z
     .string()
     .optional()
@@ -995,7 +1004,12 @@ export async function resolveWriteSource(
   conn: AbapConnection,
   authorized: AuthorizedTarget<MutatingOperation, ResolvedTarget>,
   input: WriteInputV2,
-): Promise<{ source: string; expectEtag?: string }> {
+): Promise<{
+  source: string;
+  expectEtag?: string;
+  /** Server bytes the splice actually ran against — undefined for the plain-`source` form, which reads nothing. */
+  current?: string;
+}> {
   const t = authorized.target;
 
   if (input.edit) {
@@ -1061,6 +1075,7 @@ export async function resolveWriteSource(
     return {
       source: result.result,
       expectEtag: input.expect_etag ? stripPartialEtag(input.expect_etag) : canonicalEtag(current),
+      current,
     };
   }
 
@@ -1116,7 +1131,7 @@ export async function resolveWriteSource(
       ...(ms.implementationRange ? { range: ms.implementationRange } : {}),
       object: t.name,
     });
-    return { source: spliced, expectEtag: input.expect_etag ?? canonicalEtag(current) };
+    return { source: spliced, expectEtag: input.expect_etag ?? canonicalEtag(current), current };
   }
 
   if (input.source !== undefined) {
@@ -1166,6 +1181,7 @@ export async function abapWrite(
   // union), same as `abap_activate`'s `objects` field (activate.ts) — the
   // cross-field rules a union would encode are checked here by hand instead.
   if (input.objects !== undefined) {
+    if (input.dry_run) throw dryRunNotSupported("objects");
     const stray = (
       [
         "object",
@@ -1265,6 +1281,7 @@ export async function abapWrite(
   // declares `bridgeCreate`, but it already has its own routing
   // below (`isPackageType`) that handles both its REST and bridge routes.
   if (isBridgeOnlyCreateType(input.type)) {
+    if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
     return await abapBridgeCrud(conn, target, input, maxChars, gate, journal);
   }
 
@@ -1309,6 +1326,15 @@ export async function abapWrite(
     // A PACKAGE_UNKNOWN refusal here is the fail-closed rule, deliberately
     // not caught or softened.
     const authorized = await authorizeMutation(conn, gate, "delete", target);
+    if (input.dry_run) {
+      return buildDeleteDryRunResponse({
+        conn,
+        target: authorized.target,
+        input,
+        journalled: journal !== undefined,
+        maxChars,
+      });
+    }
     // `withJournalledMutation` (src/journal.ts) fires `begin()` from INSIDE
     // `deleteObject`'s call chain (entry lands on disk before the DELETE
     // goes out), captures the id, and patches the entry to `failed` on throw.
@@ -1447,6 +1473,7 @@ export async function abapWrite(
   // DEVC/K, so an absent `input.type` is never a package.
   const requestedSpec = input.type ? (specForType(input.type) ?? specForKeyword(input.type)) : undefined;
   if (isPackageType(requestedSpec?.type)) {
+    if (input.dry_run) throw dryRunNotSupported("package");
     return await abapCreatePackage(conn, target, input, maxChars, gate, trOpts, journal);
   }
 
@@ -1477,11 +1504,11 @@ export async function abapWrite(
   // Turns whichever of source/edit/method the caller used into the one thing
   // `writeObject` needs: a complete replacement `source`, plus (for
   // edit/method) an `expectEtag` pinned to the bytes just read.
-  const { source: resolvedSource, expectEtag: resolvedExpectEtag } = await resolveWriteSource(
-    conn,
-    authorized,
-    input,
-  );
+  const {
+    source: resolvedSource,
+    expectEtag: resolvedExpectEtag,
+    current: resolvedCurrent,
+  } = await resolveWriteSource(conn, authorized, input);
   // Pretty-print AFTER resolving the final source (post edit/method splice),
   // BEFORE the PUT: every downstream consumer of `source` must see the same
   // formatted bytes actually written to the server. `resolvedExpectEtag` is
@@ -1519,6 +1546,26 @@ export async function abapWrite(
   // no network write yet. No-ops for any type outside the three XML-only
   // DDIC properties shapes — see src/adt/ddic-payload.ts.
   assertDdicDescriptorShape(authorized.target.type, authorized.target.name, source);
+
+  if (input.dry_run) {
+    return buildWriteDryRunResponse({
+      conn,
+      target: authorized.target,
+      input,
+      source,
+      // The plain-{object,source} form reads nothing on a real write, so
+      // `resolvedCurrent` is undefined here even for an existing object —
+      // spend one extra GET so the preview can still show a diff and a
+      // candidate etag.
+      current:
+        resolvedCurrent ??
+        (authorized.target.exists ? await readCurrentSource(conn, authorized.target) : undefined),
+      expectEtag: resolvedExpectEtag,
+      formatted: formatted !== undefined,
+      journalled: journal !== undefined,
+      maxChars,
+    });
+  }
 
   // The before-image lands on disk BEFORE the create/lock/PUT, which is why
   // `withJournalledMutation` hands the hook INTO `writeObject` rather than
@@ -3667,7 +3714,8 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
         "Create, change or delete an ABAP object: save/check/activate; locking handled. " +
         "TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. " +
         "VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't " +
-        "be read back via abap_read. DEVC/K delete only if empty.",
+        "be read back via abap_read. DEVC/K delete only if empty. " +
+        "dry_run previews the diff and expect_etag without writing anything.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true },
     },

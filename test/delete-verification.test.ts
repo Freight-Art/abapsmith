@@ -1,10 +1,11 @@
 /**
  * `deleteObject` reported `deleted: true` from a hardcoded literal, the
- * moment the DELETE promise resolved — nothing verified anything. A live
- * incident recorded the consequence on `BDEF/BDO`: DELETE answers 200, a
- * read-back still returns the object, and a SECOND DELETE then answers
- * NOT_FOUND while a THIRD read still returns the object — so a `200`
- * read-back is not proof the delete failed, only a `404` is proof it worked.
+ * moment the DELETE promise resolved — nothing verified anything. The fix
+ * inverts that: a 404 read-back is treated as proof of success, but a 200
+ * read-back is never treated as proof of failure on its own — only an
+ * independent repository search (or a confirming GET at the bare object
+ * URI — for FUGR/FF's 500 read-back, or a blank body under
+ * `blankSourceOnAbsence`) can settle what a 200 alone cannot.
  *
  * Two harnesses, matching how the rest of the suite already tests each
  * piece: `verifyObjectDeleted` (src/adt/write-verify.ts) is exercised
@@ -115,7 +116,7 @@ describe("verifyObjectDeleted — the inversion: a 404 read-back is the success 
     expect(result.status).toBe("confirmed");
   });
 
-  it("indeterminate when the read-back answers 200 but the repository search finds nothing — the BDEF/BDO contradiction, named in the reason", async () => {
+  it("indeterminate when the read-back answers 200 but the repository search finds nothing — the stale 200 is named in the reason", async () => {
     const { conn } = await wired({
       routes: [
         (r) => (r.url === CONTENT_URI ? fakeResponse(200, "REPORT zpropw_del.", { "content-type": "text/plain" }) : undefined),
@@ -394,13 +395,13 @@ describe("deleteObject — deleted comes from a read-back, not from the DELETE r
    * returned `deleted: true` unconditionally; this is the test that carries
    * the regression.
    */
-  it("deleted: false when the DELETE answers 200 but both the read-back and the repository search still see the object (the BDEF/BDO case)", async () => {
+  it("deleted: false when the DELETE answers 200 but both the read-back and the repository search still see the object", async () => {
     let sourceReads = 0;
     const { conn, adt } = await connected((r) => {
       if (r.url === REPORT_SRC && r.method === "GET") {
         sourceReads += 1;
         // Every read, including the one after DELETE, still returns the
-        // object — exactly the stale-read shape recorded live for BDEF/BDO.
+        // object — the two-probes-agree shape the regression pin covers.
         return resp(200, SOURCE_CRLF, OK_TEXT);
       }
       if (r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
