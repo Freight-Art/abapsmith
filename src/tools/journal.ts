@@ -25,7 +25,7 @@ import {
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, sliceLines, type BuiltResponse } from "../compact.js";
-import { STALE_PENDING_MS, type Journal, type JournalEntry } from "../journal.js";
+import { STALE_PENDING_MS, type Journal, type JournalEntry, type JournalImagePart } from "../journal.js";
 import { textTable } from "../compact.js";
 import type { SafetyGate } from "../safety.js";
 
@@ -84,6 +84,20 @@ function row(e: JournalEntry): Record<string, string> {
 const LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
 /** `actor` spliced in before `flags` — only shown when the page has one to show. */
 const LIST_COLUMNS_WITH_ACTOR = LIST_COLUMNS.flatMap((c) => (c === "flags" ? ["actor", "flags"] : c));
+
+/** One `entry.parts[]` element as a table row. Provenance is per-part, not inherited from the primary object. */
+function partRow(p: JournalImagePart): Record<string, string> {
+  return {
+    object: `${p.object.type} ${p.object.name}`,
+    package: p.object.package,
+    existed: p.existedBefore ? "yes" : "no",
+    capture: p.beforeCapture,
+  };
+}
+
+const PART_COLUMNS = ["object", "existed", "capture"];
+/** `package` spliced in after `object` — only shown when at least one part carries one. */
+const PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => (c === "object" ? ["object", "package"] : c));
 
 /**
  * Journalled but not undoable, decided without a connection. Mirrors
@@ -306,6 +320,10 @@ export async function abapJournal(
           : "(none — the entry records that the object did not exist before this operation, " +
             `so undo would mean DELETE; provenance: beforeCapture="${entry.beforeCapture}")`,
       });
+    }
+    if (entry.parts?.length) {
+      const columns = entry.parts.some((p) => p.object.package) ? PART_COLUMNS_WITH_PACKAGE : PART_COLUMNS;
+      sections.push({ title: `ALSO TOUCHED (${entry.parts.length})`, content: textTable(entry.parts.map(partRow), columns) });
     }
 
     const notes: string[] = [];
