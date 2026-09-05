@@ -1980,11 +1980,11 @@ async function rollbackCreate(
 ): Promise<RollbackOutcome> {
   // This internal rollback path calls `conn.del`
   // directly and bypasses `resolveWriteTarget`'s delete gate. Without this
-  // check, a type the registry doesn't trust `delete` for (e.g. BDEF/BDO,
-  // live-proven to report DELETE success while the object survives) would
-  // still attempt cleanup here and print a false "nothing left behind" via
-  // `rollbackSuffix`. Strict `!== true` so both `false` and `"unverified"`
-  // refuse, covering all three call sites of `rollbackCreate`.
+  // check, a type the registry doesn't trust `delete` for (e.g. DDLA/ADF,
+  // still `"unverified"`) would still attempt cleanup here and print a false
+  // "nothing left behind" via `rollbackSuffix`. Strict `!== true` so both
+  // `false` and `"unverified"` refuse, covering all three call sites of
+  // `rollbackCreate`.
   if (capabilitiesFor(t.type)?.delete !== true) {
     return {
       rolledBack: false,

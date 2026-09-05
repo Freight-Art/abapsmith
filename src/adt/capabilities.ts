@@ -110,12 +110,11 @@ export type ParentKind = "package" | "container";
  * skeleton itself instead — `abap-adt-api` has no `CreatableTypes` entry for
  * `BDEF/BDO` at all.
  *
- * Provenance warning: the exact shape (root element, namespace, attrs) is a
- * raw-wire capture from a standalone probe against A4H, OUTSIDE abapsmith —
- * it proves the server accepts this XML, NOT that abapsmith's own
- * `createNewObject` → `putSource` → `activate` choreography has ever carried
- * it live (only the offline `test/write.test.ts` fakes have). See
- * the git history for the full capture record.
+ * The exact shape (root element, namespace, attrs) started as a raw-wire
+ * capture from a standalone probe against A4H, OUTSIDE abapsmith; abapsmith's
+ * own `createNewObject` → `putSource` → `activate` choreography has since
+ * carried it live for `BDEF/BDO` (2026-09-05: `created: true, activated:
+ * true`). See the git history for the full capture record.
  */
 export interface SkeletonCreate {
   /** The create body's root element, prefixed — e.g. `"blue:blueSource"`. */
@@ -171,11 +170,10 @@ export interface CreateCapability {
    * Live-verification tri-state for THIS type's create recipe — the
    * create-direction twin of {@link TypeCapabilities.delete}'s tri-state:
    *   - `true` a live create succeeded. Read the entry's own comment for
-   *     what backs it — strength varies: most are a full create → read-back
-   *     → delete → verify-absent cycle through abapsmith's own tool surface;
-   *     exactly one (`BDEF/BDO`) rests only on a raw-wire probe OUTSIDE
-   *     abapsmith, which proves the appliance accepts the shape but not that
-   *     abapsmith's own choreography has run it live.
+   *     what backs it — most are a full create → read-back → delete →
+   *     verify-absent cycle through abapsmith's own tool surface; `BDEF/BDO`
+   *     was a full create through `abap_write` (`created: true, activated:
+   *     true`, 2026-09-05), though its delete is so far only raw-wire.
    *   - `false` create was tried live and does not reliably work.
    *   - `"unverified"` no live create evidence exists — refused like `false`.
    *
@@ -235,6 +233,19 @@ export interface TypeCapabilities {
    * file already imports — that would be a cycle).
    */
   mediaType?: string;
+  /**
+   * This type's `/source/main` answers `200` with an EMPTY body for an
+   * object that does not exist, instead of `404` — a deleted `BDEF/BDO` and
+   * a name that was never created answered byte-identical 200/empty
+   * responses, live against A4H 2026-09-05. A blank source read therefore
+   * settles nothing about existence until the object URI is asked (see
+   * `write-verify.ts`'s `blankSourceIsAmbiguous`/`objectAcceptFor` and
+   * `source.ts`'s `readSource`). Set only on `BDEF/BDO` today — see that
+   * entry's own comment for scope. Whether `SRVD/SRV` and `DDLX/EX`, the
+   * other source-only types on this endpoint family, share the shape is
+   * unchecked — no cassette covers it and no live call was made.
+   */
+  blankSourceOnAbsence?: true;
   /**
    * Present ⇒ a NEW object of this type is created by a generated
    * `IF_OO_ADT_CLASSRUN` bridge (`src/adt/ddic-bridge.ts`), **not** by ADT
@@ -590,19 +601,25 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   // mechanism that fills the gap; see SkeletonCreate's doc for the shape and
   // its provenance caveat.
   //
-  // `implementation unmanaged` is the only usable flavour on-prem (SAP's own
-  // 1909 FPS00 RAP guide: managed is not possible on premises). On 7.56+
-  // BDEF strict mode the bare `implementation {managed|unmanaged};` header
-  // this skeleton pairs with is obsolete and becomes a syntax error — a known
-  // forward-compat limitation, not solved here.
+  // A `managed` behavior definition over a CDS root view with a persistent
+  // table was created and activated live on this release (A4H, 2026-09-05) —
+  // `implementation unmanaged` is NOT the only usable flavour on-prem, contra
+  // the 1909 FPS00 RAP guide. On 7.56+ BDEF strict mode the bare
+  // `implementation {managed|unmanaged};` header this skeleton pairs with is
+  // obsolete and becomes a syntax error — a known forward-compat limitation,
+  // not solved here.
   //
-  // `delete: false` — DISPROVEN 2026-08-19. A live-created BDEF/BDO
-  // survived two "successful" delete calls (DELETE reported success but
-  // abap_read still returned the object both times, including a THIRD read
-  // after a second DELETE reported NOT_FOUND). ZBD_D205A could not be
-  // removed through abapsmith's own tool surface and was left on A4H's $TMP
-  // package. `write`/`create` are untouched — only `delete` is downgraded.
-  // Full incident record: the git history.
+  // `delete: true` — a live lock + raw DELETE answered 200, and the absence
+  // was independently confirmed two ways: the repository search row was
+  // gone, and a GET of the object URI answered the identical
+  // "Error while importing object ... from the database" a never-existing
+  // name gets (A4H, 2026-09-05). The earlier "survived two deletes" reading
+  // was a misdiagnosis — the source endpoint answers 200 with an empty body
+  // for an absent BDEF/BDO (see `blankSourceOnAbsence` below), which reads as
+  // "still there" unless the object URI is also asked; `write-verify.ts` and
+  // `source.ts` now do that. Exercised so far only via a raw lock+DELETE, not
+  // yet through abapsmith's own `abap_write mode=delete` end to end — a live
+  // run is queued to confirm that path too.
   "BDEF/BDO": {
     label: "Behavior definition",
     write: { shape: "source" },
@@ -614,16 +631,16 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         // No `; charset=utf-8` — see SkeletonCreate.contentType's doc.
         contentType: "application/vnd.sap.adt.blues.v1+xml",
       },
-      // verified: true rests on the pre-existing raw-wire citation on
-      // SkeletonCreate's own doc comment above — an honest best-available
-      // signal, not a claim that abapsmith's own choreography has run this
-      // live. the create-verification sweep deliberately did NOT (re-)create a BDEF/BDO live,
-      // given the delete: false finding below (avoids leaking a second
-      // permanent object for the same known reason).
+      // verified: true — create ran live end to end through abap_write on
+      // A4H 2026-09-05 (table → classic CDS root view → BDEF with a
+      // `managed;` header): created: true, activated: true.
       verified: true,
     },
-    delete: false,
+    delete: true,
     activate: true,
+    // The source endpoint answers 200/empty for an absent object — see the
+    // field's own doc comment.
+    blankSourceOnAbsence: true,
   },
   // `create.vendor: false` — no XSLT/VT row in abap-adt-api's CreatableTypes
   // (checked against objectcreator.js), so create needs a skeleton like
@@ -1587,6 +1604,15 @@ export function assertNoConflictingCapabilities(): void {
         `src/adt/capabilities.ts REGISTRY entry ${code} declares an empty namePrefixes ` +
           "override, which would refuse every possible name for that type. Omit the field " +
           "to inherit the global list instead.",
+      );
+    }
+    // `blankSourceOnAbsence` is a claim about the `/source/main` endpoint —
+    // meaningless for a type that never reads through it.
+    if (cap.blankSourceOnAbsence && cap.write?.shape !== "source") {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares blankSourceOnAbsence but ` +
+          `write.shape is ${JSON.stringify(cap.write?.shape)} — this only makes sense for a ` +
+          'type whose write.shape is "source".',
       );
     }
   }
