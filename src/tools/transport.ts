@@ -50,6 +50,7 @@ import {
   trSetOwner,
   trShow,
   trUsers,
+  type TrAddUserResult,
   type TrCreated,
   type TrDeleteResult,
   type TrEntryHolder,
@@ -61,6 +62,7 @@ import {
   type TrReleaseResult,
   type TrRequest,
   type TrSearchConfig,
+  type TrSetOwnerResult,
   type TrStatus,
   type TrTask,
 } from "../adt/transports.js";
@@ -1116,6 +1118,33 @@ async function opCreate(
   });
 }
 
+// A status-bearing refusal means SAP answered "no" and changed nothing; only a
+// session death or a response lost before any status was seen may have landed.
+function mutationMayHaveLanded(e: unknown): e is AbapError {
+  return (
+    e instanceof AbapError &&
+    (e.code === "SESSION_DEAD" || (e.code === "TRANSPORT_ERROR" && e.details.status === undefined))
+  );
+}
+
+// Same shape as discloseBridgeResidue in run.ts: a new error, same code and
+// message, hint extended — never invents a verdict the caller didn't earn.
+function discloseUnprovenMutation(e: AbapError, trkorr: string): AbapError {
+  const residueHint =
+    `Whether this reached ${trkorr} is unknown — the response was lost, not refused. ` +
+    `Its journal entry stays \`pending\`; re-check with abap_transport {"operation":"show"} ` +
+    "before retrying.";
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, trkorr },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint,
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
+
 async function opAddUser(
   conn: AbapConnection,
   input: TransportInput,
@@ -1129,7 +1158,27 @@ async function opAddUser(
   // Guaranteed to succeed: assertCeiling above already threw on denial via
   // the same object-less evaluate() call authorizeCeiling makes internally.
   const proof = authorizeCeiling(gate, "transport");
-  const res = await trAddUser(conn, trkorr, user, proof);
+  let res: TrAddUserResult;
+  try {
+    res = await trAddUser(conn, trkorr, user, proof);
+  } catch (e) {
+    // A plain refusal (SAP said no) leaves this untouched — see the ACCEPTED
+    // FAILURE note below. Only a lost response gets a pending journal entry.
+    if (!mutationMayHaveLanded(e)) throw e;
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-add-user",
+        trkorr,
+        description: `addUser ${user} — POST response lost, outcome unproven`,
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_transport addUser",
+      },
+      { kind: "unproven", reason: e.message },
+    );
+    throw discloseUnprovenMutation(e, trkorr);
+  }
   // JOURNAL — after the POST: trAddUser throws on non-2xx (a pre-entry would
   // record refusals that changed nothing), and the minted task number doesn't
   // exist until the POST returns. ACCEPTED FAILURE: a crash between POST and
@@ -1178,7 +1227,25 @@ async function opSetOwner(
   const user = required(input.user, "user", "setOwner").toUpperCase();
   assertCeiling(gate, "plain", "setOwner");
   const proof = authorizeCeiling(gate, "transport");
-  const res = await trSetOwner(conn, trkorr, user, proof);
+  let res: TrSetOwnerResult;
+  try {
+    res = await trSetOwner(conn, trkorr, user, proof);
+  } catch (e) {
+    if (!mutationMayHaveLanded(e)) throw e;
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-set-owner",
+        trkorr,
+        description: `setOwner ${user} — PUT response lost, outcome unproven`,
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_transport setOwner",
+      },
+      { kind: "unproven", reason: e.message },
+    );
+    throw discloseUnprovenMutation(e, trkorr);
+  }
   // JOURNAL — after the PUT, same reasoning as addUser. ACCEPTED FAILURE: a
   // crash between PUT and entry loses the record — recoverable via "show".
   // NOT recoverable: the PREVIOUS owner (would be the before image, never

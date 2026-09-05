@@ -1707,10 +1707,13 @@ export class SafetyGate {
           code: "SAFETY_DENIED",
         };
       }
-      // `{kind:"local"}` skips step 10 for a transportable-looking package —
-      // reached only via `corrForMutation` seeing `lock.isLocal && !lock.corrNr`
-      // (`transportFromLock`, src/adt/write.ts), i.e. SAP itself saying no
-      // transport is involved. Not reachable with a fabricated value.
+      // `{kind:"local"}` skips step 10 for a transportable-looking package.
+      // Only a call site that knows no CTS call happens may mint it: SAP
+      // said so (`corrForMutation` via `transportFromLock`, src/adt/write.ts),
+      // or the code path provably issues none (BOPF create, src/adt/bopf.ts;
+      // the classic-view/transaction delete bridges, src/adt/view-delete.ts
+      // and src/adt/tran-delete.ts, which register nothing in CTS — no
+      // RS_CORR_INSERT).
       if (corr.kind === "local") {
         return {
           allowed: true,

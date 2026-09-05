@@ -34,12 +34,13 @@ import { abapJournal } from "../src/tools/journal.js";
 import { abapSearch } from "../src/tools/search.js";
 import { isAbapError } from "../src/adt/errors.js";
 import { SafetyGate } from "../src/safety.js";
-import { liveWriteConfigured } from "./helpers/live-write-gate.js";
+import { liveSuiteSkipReason, skipForApplianceState } from "./live-appliance-state.js";
 
 loadEnvFile();
-const live = Boolean(process.env.ABAP_URL);
-const liveWrite = live && liveWriteConfigured();
-const d = liveWrite ? describe : describe.skip;
+const notRun = liveSuiteSkipReason({ write: true });
+const d = notRun === undefined ? describe : describe.skip;
+// A collection-time skip is counted but never says why; state the reason once, greppably.
+if (notRun !== undefined) it("live journal + undo: suite not run", (ctx) => skipForApplianceState(ctx, notRun));
 
 const NAME = "ZMCP_UNDO_LIVE";
 const V1 = `REPORT zmcp_undo_live.\nWRITE: / 'version one'.\n`;
