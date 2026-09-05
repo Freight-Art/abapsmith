@@ -41,6 +41,11 @@ function main() {
     console.error(`changelog-section: no "## [${version}]" section found in CHANGELOG.md`);
     process.exit(1);
   }
+  // Refuse an empty section rather than shipping it as empty release notes.
+  if (section === "") {
+    console.error(`changelog-section: "## [${version}]" section exists but has no entries`);
+    process.exit(1);
+  }
   console.log(section);
 }
 

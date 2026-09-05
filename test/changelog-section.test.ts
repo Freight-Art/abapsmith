@@ -99,6 +99,13 @@ describe("scripts/changelog-section.mjs", () => {
     expect(body).toBe("- one bullet");
   });
 
+  it("returns an empty string, not null, for a heading with no body", () => {
+    const fixture = `# Changelog\n\n## [1.2.3]\n## [1.2.2]\n\n- older\n`;
+    const body = changelogSection(fixture, "1.2.3");
+    expect(body).not.toBeNull();
+    expect(body).toBe("");
+  });
+
   it("the real repo CHANGELOG.md is parseable, and reports null for a version that cannot exist", () => {
     const changelog = readFileSync(join(repoRoot, "CHANGELOG.md"), "utf8");
     expect(changelogSection(changelog, "0.0.0-does-not-exist")).toBeNull();
