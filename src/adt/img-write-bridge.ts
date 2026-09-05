@@ -47,28 +47,65 @@ export const IMGW_BRIDGE_CLASS = {
 export const IMGW_MAX_ROWS = 50;
 
 /**
- * The CTS bookkeeping call this module generates. NOT confirmed against a
- * live system — `confidence: "low"` — and discovery script
- * `LIVE-c01b-discovery.md` is what settles it. Repointing after that run is
- * a one-object edit: this record, nothing that calls it.
+ * The CTS bookkeeping call this module generates. Measured 2026-09-05
+ * against a live A4H appliance's `FUPARAREF` for function group `SAPLSTRD` —
+ * `confidence: "high"`. Repointing after a future finding is a one-object
+ * edit: this record, nothing that calls it.
  *
- * Best candidate among three: `TR_OBJECTS_INSERT` (over
- * `TR_APPEND_TO_COMM_OBJS_KEYS` / `TRINT_APPEND_COMM_OBJECTS`), taking
- * `wi_order` (the transport/task number), `wt_e071` (one `R3TR TABU <table>`
- * object header row) and `wt_e071k` (one `E071K` row per customizing key,
- * `TABKEY` carrying the cast key string).
+ * Two calls, in order: `TR_OBJECTS_CHECK` then `TR_OBJECTS_INSERT` — the
+ * insert FM's own long text requires the check FM to have already run for
+ * an object being edited for the first time, and both wrap
+ * `TRINT_OBJECTS_CHECK_AND_INSERT` with `iv_with_dialog = 'X'`, so both are
+ * dialog-capable and both need the two suppressor flags to run headless in
+ * a classrun. The objects table is `wt_ko200` (`TABLES`, type `KO200` —
+ * `INCLUDE E071` plus `AUTHOR`/`DEVCLASS`/`GENFLAG`/`MASTERLANG`/
+ * `OPERATION`/`EDTFLAG`), not `E071` itself; the keys table is `wt_e071k`
+ * (`TABLES`, type `E071K`). `wi_order` only exists on the insert FM — the
+ * check FM has no order parameter to check against.
+ *
+ * `TR_APPEND_TO_COMM_OBJS_KEYS` also exists (was one of the three
+ * candidates considered before this run) but its own long text calls it
+ * obsolete, so it is deliberately not used here.
  */
 export const CTS_INSERT_FM = Object.freeze({
-  fm: "TR_OBJECTS_INSERT",
+  checkFm: "TR_OBJECTS_CHECK",
+  insertFm: "TR_OBJECTS_INSERT",
   params: Object.freeze({
     order: "wi_order",
-    objects: "wt_e071",
+    noStandardEditor: "iv_no_standard_editor",
+    noShowOption: "iv_no_show_option",
+    objects: "wt_ko200",
     keys: "wt_e071k",
+    /**
+     * `TR_OBJECTS_INSERT`-only exports (`TRKORR`-typed): CTS may record the
+     * object into a *task* beneath the requested order rather than the
+     * order itself, so `weOrder`/`weTask` are what was actually chosen, not
+     * necessarily what `order` (`wi_order`) above asked for. Not present on
+     * `TR_OBJECTS_CHECK` — that FM never files anything, so it has nothing
+     * to report back.
+     */
+    weOrder: "we_order",
+    weTask: "we_task",
   }),
-  confidence: "low",
+  exceptions: Object.freeze({
+    cancelEditOtherError: "cancel_edit_other_error",
+    showOnlyOtherError: "show_only_other_error",
+  }),
+  confidence: "high",
   note:
-    "not run against a live system; discovery script LIVE-c01b-discovery.md settles the FM name " +
-    "and its parameters among TR_OBJECTS_INSERT / TR_APPEND_TO_COMM_OBJS_KEYS / TRINT_APPEND_COMM_OBJECTS.",
+    "UNPROVEN: neither function module below has ever actually been executed, on this or any system. " +
+    "What was read live on 2026-09-05 is FUPARAREF (parameter lists), DOKTL (long texts), the FMs' own " +
+    "source, and real E071/E071K rows — not a successful or failed call. The parameter names, types " +
+    "and the check-then-insert ordering here are read from the system's own dictionaries, not proven " +
+    "by execution; the first time this generated code actually runs is also the first time anyone " +
+    "learns whether the call itself is accepted — a runtime refusal on authority, lock, or request " +
+    "type is unproven territory, which is exactly why the exception names and sy-msg* capture below " +
+    "exist. Measured shape: objects table is WT_KO200 (type KO200), not WT_E071/E071; TR_OBJECTS_CHECK " +
+    "must run before TR_OBJECTS_INSERT; IV_NO_STANDARD_EDITOR and IV_NO_SHOW_OPTION must both be 'X' " +
+    "on both calls to suppress the dialog; both raise CANCEL_EDIT_OTHER_ERROR and " +
+    "SHOW_ONLY_OTHER_ERROR, the latter carrying the real reason in sy-msg*. " +
+    "TR_APPEND_TO_COMM_OBJS_KEYS also exists but its own long text calls it obsolete — deliberately " +
+    "not used.",
 } as const);
 
 // ---------------------------------------------------------------------------
@@ -110,6 +147,20 @@ export interface ImgApplyPlan extends ImgProbePlan {
    */
   readonly expectedDeliveryClass: string;
   readonly expectedClientDependent: boolean;
+  /**
+   * The maintenance view recording this write in the CTS: the `KO200`
+   * header row's `OBJ_NAME` and the `E071K` row's `MASTERNAME`/`VIEWNAME`
+   * (see {@link CTS_INSERT_FM}). Required — there is no other name to put
+   * there for an SM30-style customizing write.
+   */
+  readonly view: string;
+  /**
+   * `KO200`/`E071K`'s `OBJECT`/`MASTERTYPE`: `VDAT` for a maintenance view
+   * (the common case — `V_TB001` in the measured evidence), `CDAT` for a
+   * customizing object recorded directly (`/AIF/ACTIONS` in the measured
+   * evidence).
+   */
+  readonly masterType: "VDAT" | "CDAT";
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +285,11 @@ export function validateApplyPlan(p: ImgApplyPlan): void {
   assertSingleCharCode(p.expectedDeliveryClass, "expectedDeliveryClass");
   if (typeof p.expectedClientDependent !== "boolean") {
     throw new AbapError("BAD_INPUT", "expectedClientDependent must be a boolean.", {});
+  }
+
+  assertDdicIdentifier(p.view, "view");
+  if (p.masterType !== "VDAT" && p.masterType !== "CDAT") {
+    throw new AbapError("BAD_INPUT", `masterType must be "VDAT" or "CDAT".`, { masterType: p.masterType });
   }
 
   const fieldNamesUpper = new Set<string>();
@@ -425,46 +481,115 @@ export function imgProbeSource(p: ImgProbePlan): string {
  * entirely rather than guessing a transport, and the row write proceeds (or
  * is refused by the real system if one turns out to be required).
  *
- * The key structure (`ls_key`) is typed off the table's own key fields —
- * client excluded, matching how SAP records customizing TABKEYs — and cast
- * to a character string with `ASSIGN ... CASTING TYPE c`, per the brief's
- * T001/BUKRS example. This cast is sound only when every component of
+ * `KO200` header (one row: `PGMID R3TR`, `OBJECT` = `masterType`, `OBJ_NAME`
+ * = `view`, `OBJFUNC K`) plus one `E071K` row per row written (`PGMID
+ * R3TR`, `OBJECT TABU`, `OBJ_NAME` = base table, `MASTERTYPE` = `masterType`,
+ * `MASTERNAME`/`VIEWNAME` = `view`, `OBJFUNC` blank) — the shape SM30 itself
+ * records for view-maintained customizing, per the measured evidence in
+ * {@link CTS_INSERT_FM}.
+ *
+ * The key structure (`ls_key`) is typed off the table's own key fields only
+ * — client excluded — and cast to a character string with `ASSIGN ...
+ * CASTING TYPE c`; this cast is sound only when every component of
  * `ls_key` is character-like (CHAR/NUMC/CLNT/LANG/UNIT/...): a `P` or `X`
  * component would cast to raw bytes, not the padded text SAP expects in
  * `TABKEY`. This module does not check key field data types — that check
  * belongs to `img-write-policy.ts` (rule 8 there), run before a plan ever
- * reaches this generator.
+ * reaches this generator. `TABKEY` itself is `sy-mandt` (client) followed by
+ * the cast key: `ls_key` never carries the client field, so nothing here
+ * would double it.
+ *
+ * `TR_OBJECTS_CHECK` runs first — required before an object's first edit —
+ * then `TR_OBJECTS_INSERT`; both take the same suppressor flags and both
+ * name `CANCEL_EDIT_OTHER_ERROR`/`SHOW_ONLY_OTHER_ERROR` as distinct
+ * exceptions so a lock conflict's real reason (`sy-msg*`) survives into the
+ * transcript instead of being collapsed into a bare `sy-subrc`.
+ *
+ * `TR_OBJECTS_INSERT` also exports `WE_ORDER`/`WE_TASK` — what CTS actually
+ * recorded the object under, which may be a task beneath the requested
+ * order rather than the order itself. Both are captured (`lv_we_order`,
+ * `lv_we_task`, declared once by the caller, typed `trkorr` — this file's
+ * existing convention for a transport number, e.g. `transport-entry-remove.ts`)
+ * and appended to the `TRKEY` transcript line alongside the requested
+ * number, each behind its own `len=[n] value=[...]` guard — the same
+ * discipline the line's existing `value=[...]` already uses — so a
+ * divergence between requested and recorded is visible to a caller
+ * re-reading the request afterward, rather than assumed away.
  */
-function ctsRecordFragment(tableLower: string, tableLit: string, corrNr: string, rowNo: number): string[] {
+function ctsRecordFragment(
+  tableLower: string,
+  tableLit: string,
+  corrNr: string,
+  rowNo: number,
+  view: string,
+  masterType: "VDAT" | "CDAT",
+): string[] {
   const corrLit = abapLiteral(corrNr);
+  const viewLit = view.toUpperCase();
+  const P = CTS_INSERT_FM.params;
+  const X = CTS_INSERT_FM.exceptions;
+
+  const errorLines = (fm: string): string[] => [
+    "IF sy-subrc <> 0.",
+    `  out->write( |${DDIC_ERR_PREFIX} ${fm} failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc } | &&`,
+    `    |msgid=[{ sy-msgid }] msgty=[{ sy-msgty }] msgno=[{ sy-msgno }] msgv1=[{ sy-msgv1 }] | &&`,
+    `    |msgv2=[{ sy-msgv2 }] msgv3=[{ sy-msgv3 }] msgv4=[{ sy-msgv4 }]| ).`,
+    "  RETURN.",
+    "ENDIF.",
+  ];
+
   return [
-    "CLEAR ls_e071.",
-    "ls_e071-pgmid = 'R3TR'.",
-    "ls_e071-object = 'TABU'.",
-    `ls_e071-obj_name = '${tableLit}'.`,
-    "REFRESH lt_e071.",
-    "APPEND ls_e071 TO lt_e071.",
+    "CLEAR ls_ko200.",
+    "ls_ko200-pgmid = 'R3TR'.",
+    `ls_ko200-object = '${masterType}'.`,
+    `ls_ko200-obj_name = '${viewLit}'.`,
+    "ls_ko200-objfunc = 'K'.",
+    "REFRESH lt_ko200.",
+    "APPEND ls_ko200 TO lt_ko200.",
     "CLEAR ls_e071k.",
     "ls_e071k-pgmid = 'R3TR'.",
     "ls_e071k-object = 'TABU'.",
     `ls_e071k-obj_name = '${tableLit}'.`,
+    `ls_e071k-mastertype = '${masterType}'.`,
+    `ls_e071k-mastername = '${viewLit}'.`,
+    `ls_e071k-viewname = '${viewLit}'.`,
+    "ls_e071k-objfunc = ' '.",
     "ASSIGN ls_key TO <key_c> CASTING TYPE c.",
-    "ls_e071k-tabkey = <key_c>.",
+    "ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|.",
     "REFRESH lt_e071k.",
     "APPEND ls_e071k TO lt_e071k.",
-    `CALL FUNCTION '${CTS_INSERT_FM.fm}'`,
-    `  EXPORTING`,
-    `    ${CTS_INSERT_FM.params.order} = ${corrLit}`,
-    `  TABLES`,
-    `    ${CTS_INSERT_FM.params.objects} = lt_e071`,
-    `    ${CTS_INSERT_FM.params.keys}    = lt_e071k`,
+    `CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`,
+    "  EXPORTING",
+    `    ${P.noStandardEditor} = 'X'`,
+    `    ${P.noShowOption}     = 'X'`,
+    "  TABLES",
+    `    ${P.objects} = lt_ko200`,
+    `    ${P.keys}    = lt_e071k`,
     "  EXCEPTIONS",
-    "    OTHERS = 1.",
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} ${CTS_INSERT_FM.fm} failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc }| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    `out->write( |${IMGW_LINE_PREFIX}TRKEY row=[${rowNo}] trkorr=[${corrNr}] len=[{ strlen( <key_c> ) }] value=[{ <key_c> }]| ).`,
+    `    ${X.cancelEditOtherError} = 1`,
+    `    ${X.showOnlyOtherError}   = 2`,
+    "    OTHERS = 3.",
+    ...errorLines(CTS_INSERT_FM.checkFm),
+    `CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`,
+    "  EXPORTING",
+    `    ${P.order}            = ${corrLit}`,
+    `    ${P.noStandardEditor} = 'X'`,
+    `    ${P.noShowOption}     = 'X'`,
+    "  IMPORTING",
+    `    ${P.weOrder} = lv_we_order`,
+    `    ${P.weTask} = lv_we_task`,
+    "  TABLES",
+    `    ${P.objects} = lt_ko200`,
+    `    ${P.keys}    = lt_e071k`,
+    "  EXCEPTIONS",
+    `    ${X.cancelEditOtherError} = 1`,
+    `    ${X.showOnlyOtherError}   = 2`,
+    "    OTHERS = 3.",
+    ...errorLines(CTS_INSERT_FM.insertFm),
+    `out->write( |${IMGW_LINE_PREFIX}TRKEY row=[${rowNo}] trkorr=[${corrNr}] | &&`,
+    `  |order_len=[{ strlen( lv_we_order ) }] order=[{ lv_we_order }] | &&`,
+    `  |task_len=[{ strlen( lv_we_task ) }] task=[{ lv_we_task }] | &&`,
+    `  |len=[{ strlen( <key_c> ) }] value=[{ <key_c> }]| ).`,
   ];
 }
 
@@ -488,10 +613,12 @@ export function imgApplySource(p: ImgApplyPlan): string {
     ...keyDataLines,
     "END OF ls_key.",
     "FIELD-SYMBOLS <key_c> TYPE c.",
-    "DATA ls_e071 TYPE e071.",
-    "DATA lt_e071 TYPE STANDARD TABLE OF e071 WITH EMPTY KEY.",
+    "DATA ls_ko200 TYPE ko200.",
+    "DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH EMPTY KEY.",
     "DATA ls_e071k TYPE e071k.",
     "DATA lt_e071k TYPE STANDARD TABLE OF e071k WITH EMPTY KEY.",
+    "DATA lv_we_order TYPE trkorr.",
+    "DATA lv_we_task TYPE trkorr.",
     "",
     ...clientCheckFragment(),
     "",
@@ -527,7 +654,7 @@ export function imgApplySource(p: ImgApplyPlan): string {
         `ls_wa-${p.clientField.toLowerCase()} = sy-mandt.`,
       );
       if (p.corrNr !== undefined) {
-        body.push(...ctsRecordFragment(tableLower, tableLit, p.corrNr, rowNo));
+        body.push(...ctsRecordFragment(tableLower, tableLit, p.corrNr, rowNo, p.view, p.masterType));
       }
       // Only the fields THIS row named — never the whole plan's field list, and
       // never built from scratch: ls_wa already carries the before-image (or, if
@@ -553,7 +680,7 @@ export function imgApplySource(p: ImgApplyPlan): string {
         ...dumpRowFragment("BVAL", rowNo).map((l) => "  " + l),
       );
       if (p.corrNr !== undefined) {
-        body.push(...ctsRecordFragment(tableLower, tableLit, p.corrNr, rowNo).map((l) => "  " + l));
+        body.push(...ctsRecordFragment(tableLower, tableLit, p.corrNr, rowNo, p.view, p.masterType).map((l) => "  " + l));
       }
       body.push(
         // Key work area only — DELETE FROM never widens the key with a WHERE clause.
@@ -633,6 +760,17 @@ export interface ImgWriteTrKeyRow {
   trkorr: string;
   len: number;
   value: string;
+  /**
+   * `WE_ORDER`/`WE_TASK` as `TR_OBJECTS_INSERT` actually reported them —
+   * absent on an older-shaped line (before these two fields existed) or on
+   * any line the generated ABAP happened to emit without them. Not the same
+   * as `trkorr` above: CTS may have filed the object under a task beneath
+   * the requested order rather than the order itself, so a caller comparing
+   * `trkorr` against `recordedOrder`/`recordedTask` is how that divergence
+   * is meant to be noticed.
+   */
+  recordedOrder?: string;
+  recordedTask?: string;
 }
 
 export interface ImgWriteTranscript {
@@ -667,29 +805,42 @@ export interface ImgWriteTranscript {
  * with spaces, recovering the stripped blanks instead of corrupting the
  * value. Confirmed against both a clean and a stripped-trailing-blanks case
  * in this module's own tests.
+ *
+ * Also returns `rest`: whatever follows the consumed `len=[...] value=[...]`
+ * block. TRKEY chains this to pull further `len=[...] value=[...]`-shaped
+ * fields (`order_len=`/`order=`, `task_len=`/`task=`) off the front of the
+ * line before the final (and, unlike those two, mandatory) `value=[...]` —
+ * ordered that way so the line's last field stays the one this function's
+ * own trailing-blank fallback above already knows how to recover.
  */
 function extractLenPrefixedValue(
   afterHead: string,
   fieldsRe: RegExp,
-): { fields: string[]; value: string } | null {
+): { fields: string[]; value: string; rest: string } | null {
   const m = fieldsRe.exec(afterHead);
   if (!m) return null;
   const len = Number(m[m.length - 1]);
   if (Number.isNaN(len) || len < 0) return null;
-  const rest = afterHead.slice(m[0].length);
+  const tail = afterHead.slice(m[0].length);
   let raw: string;
-  if (rest.length > len && rest[len] === "]") {
-    raw = rest.slice(0, len);
+  let consumed: number;
+  if (tail.length > len && tail[len] === "]") {
+    raw = tail.slice(0, len);
+    consumed = len + 1;
   } else {
-    const lastBracket = rest.lastIndexOf("]");
+    const lastBracket = tail.lastIndexOf("]");
     if (lastBracket === -1) return null;
-    raw = rest.slice(0, lastBracket).padEnd(len, " ");
+    raw = tail.slice(0, lastBracket).padEnd(len, " ");
+    consumed = lastBracket + 1;
   }
-  return { fields: m.slice(1), value: raw };
+  return { fields: m.slice(1), value: raw, rest: tail.slice(consumed) };
 }
 
 const VAL_RE = /^row=\[(\d+)\] field=\[([A-Za-z0-9_/]{1,30})\] len=\[(\d+)\] value=\[/;
-const TRKEY_RE = /^row=\[(\d+)\] trkorr=\[([A-Za-z0-9]{1,12})\] len=\[(\d+)\] value=\[/;
+const TRKEY_HEAD_RE = /^row=\[(\d+)\] trkorr=\[([A-Za-z0-9]{1,12})\] /;
+const TRKEY_ORDER_RE = /^order_len=\[(\d+)\] order=\[/;
+const TRKEY_TASK_RE = /^task_len=\[(\d+)\] task=\[/;
+const TRKEY_VALUE_RE = /^len=\[(\d+)\] value=\[/;
 const ABSENT_RE = /^row=\[(\d+)\]$/;
 
 export function parseImgWriteTranscript(text: string): ImgWriteTranscript {
@@ -785,13 +936,45 @@ export function parseImgWriteTranscript(text: string): ImgWriteTranscript {
           break;
         }
         case "TRKEY": {
-          const parsed = extractLenPrefixedValue(remainder, TRKEY_RE);
-          if (!parsed) {
+          const headM = TRKEY_HEAD_RE.exec(remainder);
+          if (!headM) {
             result.droppedLines++;
             break;
           }
-          const [rowRaw, trkorr, lenRaw] = parsed.fields;
-          result.trkeys.push({ row: Number(rowRaw), trkorr: trkorr!, len: Number(lenRaw), value: parsed.value });
+          const row = Number(headM[1]);
+          const trkorr = headM[2]!;
+          let rest = remainder.slice(headM[0].length);
+
+          // Optional order/task pair — an older-shaped line, or one missing
+          // these two fields, simply skips straight to the mandatory
+          // len=[...] value=[...] below.
+          let recordedOrder: string | undefined;
+          let recordedTask: string | undefined;
+          const orderParsed = extractLenPrefixedValue(rest, TRKEY_ORDER_RE);
+          if (orderParsed) {
+            recordedOrder = orderParsed.value;
+            rest = orderParsed.rest.replace(/^ /, "");
+            const taskParsed = extractLenPrefixedValue(rest, TRKEY_TASK_RE);
+            if (taskParsed) {
+              recordedTask = taskParsed.value;
+              rest = taskParsed.rest.replace(/^ /, "");
+            }
+          }
+
+          const valParsed = extractLenPrefixedValue(rest, TRKEY_VALUE_RE);
+          if (!valParsed) {
+            result.droppedLines++;
+            break;
+          }
+          const entry: ImgWriteTrKeyRow = {
+            row,
+            trkorr,
+            len: Number(valParsed.fields[0]),
+            value: valParsed.value,
+          };
+          if (recordedOrder !== undefined) entry.recordedOrder = recordedOrder;
+          if (recordedTask !== undefined) entry.recordedTask = recordedTask;
+          result.trkeys.push(entry);
           break;
         }
         case "NOTE": {

@@ -23,6 +23,7 @@ const CLIENT_FIELD = "MANDT";
 const KEY_FIELD = "ZKEY";
 const VAL_FIELD = "ZTEXT";
 const VAL_FIELD2 = "ZFLAG";
+const VIEW = "V_ZTEST01";
 
 function baseProbe(overrides: Partial<ImgProbePlan> = {}): ImgProbePlan {
   return {
@@ -51,6 +52,8 @@ function baseApply(overrides: Partial<ImgApplyPlan> = {}): ImgApplyPlan {
     corrNr: "XXXK900001",
     expectedDeliveryClass: "C",
     expectedClientDependent: true,
+    view: VIEW,
+    masterType: "VDAT",
     rows: [{ key: { [KEY_FIELD]: "A1" }, values: { [VAL_FIELD]: "Hello" } }],
     ...overrides,
   };
@@ -80,10 +83,21 @@ describe("static exports", () => {
     expect(IMGW_BRIDGE_CLASS.apply).toBe("ZCL_ZMCP_IMG_WAPPLY");
   });
 
-  it("CTS_INSERT_FM is marked low confidence with a note", () => {
-    expect(CTS_INSERT_FM.confidence).toBe("low");
+  it("CTS_INSERT_FM is marked high confidence with a note, naming both FMs", () => {
+    expect(CTS_INSERT_FM.confidence).toBe("high");
     expect(CTS_INSERT_FM.note.length).toBeGreaterThan(0);
-    expect(CTS_INSERT_FM.fm).toBe("TR_OBJECTS_INSERT");
+    expect(CTS_INSERT_FM.checkFm).toBe("TR_OBJECTS_CHECK");
+    expect(CTS_INSERT_FM.insertFm).toBe("TR_OBJECTS_INSERT");
+    expect(CTS_INSERT_FM.params.objects).toBe("wt_ko200");
+    expect(CTS_INSERT_FM.exceptions.cancelEditOtherError).not.toBe(CTS_INSERT_FM.exceptions.showOnlyOtherError);
+  });
+
+  it("CTS_INSERT_FM's note says plainly, near the front, that no CTS call has ever been executed", () => {
+    const upfront = CTS_INSERT_FM.note.slice(0, 80).toUpperCase();
+    expect(upfront).toContain("UNPROVEN");
+    expect(CTS_INSERT_FM.note).toContain("has ever actually been executed");
+    expect(CTS_INSERT_FM.params.weOrder).toBe("we_order");
+    expect(CTS_INSERT_FM.params.weTask).toBe("we_task");
   });
 
   it("IMGW_MAX_ROWS is 50", () => {
@@ -227,6 +241,22 @@ describe("validateApplyPlan", () => {
       validateApplyPlan(baseApply({ rows: [{ key: { [KEY_FIELD]: "A1" }, values: { [VAL_FIELD]: "a\nb" } }] })),
     );
   });
+
+  it("rejects a missing view", () => {
+    expectBadInput(() => validateApplyPlan(baseApply({ view: "" })));
+  });
+
+  it("rejects a malformed view name", () => {
+    expectBadInput(() => validateApplyPlan(baseApply({ view: "bad view!" })));
+  });
+
+  it("accepts a masterType of CDAT", () => {
+    expect(() => validateApplyPlan(baseApply({ masterType: "CDAT" }))).not.toThrow();
+  });
+
+  it("rejects a masterType that is not VDAT or CDAT", () => {
+    expectBadInput(() => validateApplyPlan(baseApply({ masterType: "BOGUS" as never })));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -330,26 +360,104 @@ describe("imgApplySource: client field", () => {
 });
 
 describe("imgApplySource: CTS ordering", () => {
-  it("records the CTS key before the MODIFY on an upsert row", () => {
+  it("calls TR_OBJECTS_CHECK before TR_OBJECTS_INSERT, both before the MODIFY on an upsert row", () => {
     const src = imgApplySource(baseApply());
-    const ctsIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.fm}'`);
+    const checkIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
+    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
     const modifyIdx = src.indexOf(`MODIFY ${TABLE.toLowerCase()} FROM ls_wa.`);
-    expect(ctsIdx).toBeGreaterThan(-1);
-    expect(modifyIdx).toBeGreaterThan(ctsIdx);
+    expect(checkIdx).toBeGreaterThan(-1);
+    expect(insertIdx).toBeGreaterThan(checkIdx);
+    expect(modifyIdx).toBeGreaterThan(insertIdx);
   });
 
-  it("records the CTS key before the DELETE on a delete row", () => {
+  it("calls TR_OBJECTS_CHECK before TR_OBJECTS_INSERT, both before the DELETE on a delete row", () => {
     const src = imgApplySource(baseApply({ op: "delete", rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] }));
-    const ctsIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.fm}'`);
+    const checkIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
+    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
     const deleteIdx = src.indexOf(`DELETE ${TABLE.toLowerCase()} FROM ls_wa.`);
-    expect(ctsIdx).toBeGreaterThan(-1);
-    expect(deleteIdx).toBeGreaterThan(ctsIdx);
+    expect(checkIdx).toBeGreaterThan(-1);
+    expect(insertIdx).toBeGreaterThan(checkIdx);
+    expect(deleteIdx).toBeGreaterThan(insertIdx);
   });
 
   it("skips CTS bookkeeping entirely when no corrNr is given", () => {
     const plan = baseApply({ corrNr: undefined });
     const src = imgApplySource(plan);
-    expect(src).not.toContain(`CALL FUNCTION '${CTS_INSERT_FM.fm}'`);
+    expect(src).not.toContain(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
+    expect(src).not.toContain(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
+  });
+});
+
+describe("imgApplySource: CTS record shape", () => {
+  it("emits a KO200 header row typed VDAT with the view name and OBJFUNC K", () => {
+    const src = imgApplySource(baseApply());
+    expect(src).toContain("ls_ko200-pgmid = 'R3TR'.");
+    expect(src).toContain(`ls_ko200-object = 'VDAT'.`);
+    expect(src).toContain(`ls_ko200-obj_name = '${VIEW}'.`);
+    expect(src).toContain("ls_ko200-objfunc = 'K'.");
+  });
+
+  it("emits a KO200 header row typed CDAT when masterType is CDAT", () => {
+    const src = imgApplySource(baseApply({ masterType: "CDAT" }));
+    expect(src).toContain(`ls_ko200-object = 'CDAT'.`);
+    expect(src).not.toContain(`ls_ko200-object = 'VDAT'.`);
+  });
+
+  it("emits one E071K row per written row with all fields, MASTERNAME and VIEWNAME both the view", () => {
+    const src = imgApplySource(baseApply());
+    expect(src).toContain("ls_e071k-pgmid = 'R3TR'.");
+    expect(src).toContain("ls_e071k-object = 'TABU'.");
+    expect(src).toContain(`ls_e071k-obj_name = '${TABLE}'.`);
+    expect(src).toContain(`ls_e071k-mastertype = 'VDAT'.`);
+    expect(src).toContain(`ls_e071k-mastername = '${VIEW}'.`);
+    expect(src).toContain(`ls_e071k-viewname = '${VIEW}'.`);
+    expect(src).toContain("ls_e071k-objfunc = ' '.");
+    expect(src).toContain("ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|.");
+  });
+
+  it("passes both suppressor flags as 'X' on both TR_OBJECTS_CHECK and TR_OBJECTS_INSERT", () => {
+    const src = imgApplySource(baseApply());
+    const checkIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
+    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
+    const afterInsertIdx = src.indexOf("ENDIF.", insertIdx);
+    const checkBlock = src.slice(checkIdx, insertIdx);
+    const insertBlock = src.slice(insertIdx, afterInsertIdx);
+    for (const block of [checkBlock, insertBlock]) {
+      expect(block).toContain("iv_no_standard_editor = 'X'");
+      expect(block).toContain("iv_no_show_option     = 'X'");
+    }
+  });
+
+  it("names both exceptions with distinct sy-subrc values on both calls, and emits sy-msgid/sy-msgv1 on failure", () => {
+    const src = imgApplySource(baseApply());
+    expect(src).toContain("cancel_edit_other_error = 1");
+    expect(src).toContain("show_only_other_error   = 2");
+    expect(src).toContain("msgid=[{ sy-msgid }]");
+    expect(src).toContain("msgv1=[{ sy-msgv1 }]");
+    // failed on both FMs, not just one:
+    expect(src).toContain(`${CTS_INSERT_FM.checkFm} failed for row`);
+    expect(src).toContain(`${CTS_INSERT_FM.insertFm} failed for row`);
+  });
+
+  it("types the CTS objects table KO200, not a STANDARD TABLE OF e071", () => {
+    const src = imgApplySource(baseApply());
+    expect(src).toContain("DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH EMPTY KEY.");
+    expect(src).not.toMatch(/TYPE STANDARD TABLE OF e071\b/);
+  });
+
+  it("captures WE_ORDER/WE_TASK from TR_OBJECTS_INSERT and reports both on the TRKEY line, alongside the requested trkorr", () => {
+    const src = imgApplySource(baseApply());
+    expect(src).toContain("DATA lv_we_order TYPE trkorr.");
+    expect(src).toContain("DATA lv_we_task TYPE trkorr.");
+    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
+    const tablesIdx = src.indexOf("TABLES", insertIdx);
+    const importingBlock = src.slice(insertIdx, tablesIdx);
+    expect(importingBlock).toContain("IMPORTING");
+    expect(importingBlock).toContain(`${CTS_INSERT_FM.params.weOrder} = lv_we_order`);
+    expect(importingBlock).toContain(`${CTS_INSERT_FM.params.weTask} = lv_we_task`);
+    expect(src).toContain("trkorr=[XXXK900001]");
+    expect(src).toContain("order_len=[{ strlen( lv_we_order ) }] order=[{ lv_we_order }]");
+    expect(src).toContain("task_len=[{ strlen( lv_we_task ) }] task=[{ lv_we_task }]");
   });
 });
 
@@ -386,6 +494,8 @@ describe("imgApplySource: line length", () => {
       corrNr: "AAAK900050",
       expectedDeliveryClass: "C",
       expectedClientDependent: true,
+      view: "V" + "B".repeat(29),
+      masterType: "VDAT",
     };
     expect(maxLineLength(imgApplySource(plan))).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
   });
@@ -408,6 +518,8 @@ describe("imgApplySource: line length", () => {
       corrNr: "AAAK900050",
       expectedDeliveryClass: "C",
       expectedClientDependent: true,
+      view: "V" + "B".repeat(29),
+      masterType: "CDAT",
     };
     expect(maxLineLength(imgApplySource(plan))).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
   });
@@ -464,6 +576,33 @@ describe("parseImgWriteTranscript", () => {
     const text = `${IMGW_LINE_PREFIX}BVAL row=[1] field=[${VAL_FIELD}] len=[4] value=[Hi]`;
     const t = parseImgWriteTranscript(text);
     expect(t.before).toEqual([{ row: 1, field: VAL_FIELD, len: 4, value: "Hi  " }]);
+  });
+
+  it("parses a TRKEY line where the recorded task differs from the requested request, reporting both", () => {
+    const text = `${IMGW_LINE_PREFIX}TRKEY row=[1] trkorr=[XXXK900001] order_len=[10] order=[XXXK900001] task_len=[10] task=[XXXK900002] len=[7] value=[A1     ]`;
+    const t = parseImgWriteTranscript(text);
+    expect(t.droppedLines).toBe(0);
+    expect(t.trkeys).toEqual([
+      {
+        row: 1,
+        trkorr: "XXXK900001",
+        len: 7,
+        value: "A1     ",
+        recordedOrder: "XXXK900001",
+        recordedTask: "XXXK900002",
+      },
+    ]);
+    // the point of carrying both: the recorded task is not the requested request.
+    expect(t.trkeys[0]!.recordedTask).not.toBe(t.trkeys[0]!.trkorr);
+  });
+
+  it("still parses a TRKEY line missing the order/task fields (older-shaped line), leaving them undefined", () => {
+    const text = `${IMGW_LINE_PREFIX}TRKEY row=[1] trkorr=[XXXK900001] len=[7] value=[A1     ]`;
+    const t = parseImgWriteTranscript(text);
+    expect(t.droppedLines).toBe(0);
+    expect(t.trkeys).toEqual([{ row: 1, trkorr: "XXXK900001", len: 7, value: "A1     " }]);
+    expect(t.trkeys[0]!.recordedOrder).toBeUndefined();
+    expect(t.trkeys[0]!.recordedTask).toBeUndefined();
   });
 
   it("counts an unrecognized tag as a dropped line", () => {
