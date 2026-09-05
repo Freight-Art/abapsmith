@@ -39058,26 +39058,26 @@ var require_resolve = __commonJS({
         addAnchor.call(this, sch.$anchor);
         addAnchor.call(this, sch.$dynamicAnchor);
         baseIds[jsonPtr] = innerBaseId;
-        function addRef(ref3) {
+        function addRef(ref2) {
           const _resolve = this.opts.uriResolver.resolve;
-          ref3 = normalizeId(innerBaseId ? _resolve(innerBaseId, ref3) : ref3);
-          if (schemaRefs.has(ref3))
-            throw ambiguos(ref3);
-          schemaRefs.add(ref3);
-          let schOrRef = this.refs[ref3];
+          ref2 = normalizeId(innerBaseId ? _resolve(innerBaseId, ref2) : ref2);
+          if (schemaRefs.has(ref2))
+            throw ambiguos(ref2);
+          schemaRefs.add(ref2);
+          let schOrRef = this.refs[ref2];
           if (typeof schOrRef == "string")
             schOrRef = this.refs[schOrRef];
           if (typeof schOrRef == "object") {
-            checkAmbiguosRef(sch, schOrRef.schema, ref3);
-          } else if (ref3 !== normalizeId(fullPath)) {
-            if (ref3[0] === "#") {
-              checkAmbiguosRef(sch, localRefs[ref3], ref3);
-              localRefs[ref3] = sch;
+            checkAmbiguosRef(sch, schOrRef.schema, ref2);
+          } else if (ref2 !== normalizeId(fullPath)) {
+            if (ref2[0] === "#") {
+              checkAmbiguosRef(sch, localRefs[ref2], ref2);
+              localRefs[ref2] = sch;
             } else {
-              this.refs[ref3] = fullPath;
+              this.refs[ref2] = fullPath;
             }
           }
-          return ref3;
+          return ref2;
         }
         function addAnchor(anchor) {
           if (typeof anchor == "string") {
@@ -39088,12 +39088,12 @@ var require_resolve = __commonJS({
         }
       });
       return localRefs;
-      function checkAmbiguosRef(sch1, sch2, ref3) {
+      function checkAmbiguosRef(sch1, sch2, ref2) {
         if (sch2 !== void 0 && !equal(sch1, sch2))
-          throw ambiguos(ref3);
+          throw ambiguos(ref2);
       }
-      function ambiguos(ref3) {
-        return new Error(`reference "${ref3}" resolves to more than one schema`);
+      function ambiguos(ref2) {
+        return new Error(`reference "${ref2}" resolves to more than one schema`);
       }
     }
     exports2.getSchemaRefs = getSchemaRefs;
@@ -39631,9 +39631,9 @@ var require_ref_error = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     var resolve_1 = require_resolve();
     var MissingRefError = class extends Error {
-      constructor(resolver, baseId, ref3, msg) {
-        super(msg || `can't resolve reference ${ref3} from id ${baseId}`);
-        this.missingRef = (0, resolve_1.resolveUrl)(resolver, baseId, ref3);
+      constructor(resolver, baseId, ref2, msg) {
+        super(msg || `can't resolve reference ${ref2} from id ${baseId}`);
+        this.missingRef = (0, resolve_1.resolveUrl)(resolver, baseId, ref2);
         this.missingSchema = (0, resolve_1.normalizeId)((0, resolve_1.getFullPath)(resolver, this.missingRef));
       }
     };
@@ -39759,22 +39759,22 @@ var require_compile = __commonJS({
       }
     }
     exports2.compileSchema = compileSchema;
-    function resolveRef2(root, baseId, ref3) {
+    function resolveRef2(root, baseId, ref2) {
       var _a3;
-      ref3 = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, ref3);
-      const schOrFunc = root.refs[ref3];
+      ref2 = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, ref2);
+      const schOrFunc = root.refs[ref2];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve3.call(this, root, ref3);
+      let _sch = resolve3.call(this, root, ref2);
       if (_sch === void 0) {
-        const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref3];
+        const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref2];
         const { schemaId } = this.opts;
         if (schema)
           _sch = new SchemaEnv({ schema, schemaId, root, baseId });
       }
       if (_sch === void 0)
         return;
-      return root.refs[ref3] = inlineOrCompile.call(this, _sch);
+      return root.refs[ref2] = inlineOrCompile.call(this, _sch);
     }
     exports2.resolveRef = resolveRef2;
     function inlineOrCompile(sch) {
@@ -39792,14 +39792,14 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve3(root, ref3) {
+    function resolve3(root, ref2) {
       let sch;
-      while (typeof (sch = this.refs[ref3]) == "string")
-        ref3 = sch;
-      return sch || this.schemas[ref3] || resolveSchema.call(this, root, ref3);
+      while (typeof (sch = this.refs[ref2]) == "string")
+        ref2 = sch;
+      return sch || this.schemas[ref2] || resolveSchema.call(this, root, ref2);
     }
-    function resolveSchema(root, ref3) {
-      const p = this.opts.uriResolver.parse(ref3);
+    function resolveSchema(root, ref2) {
+      const p = this.opts.uriResolver.parse(ref2);
       const refPath = (0, resolve_1._getFullPath)(this.opts.uriResolver, p);
       let baseId = (0, resolve_1.getFullPath)(this.opts.uriResolver, root.baseId, void 0);
       if (Object.keys(root.schema).length > 0 && refPath === baseId) {
@@ -39817,7 +39817,7 @@ var require_compile = __commonJS({
         return;
       if (!schOrRef.validate)
         compileSchema.call(this, schOrRef);
-      if (id === (0, resolve_1.normalizeId)(ref3)) {
+      if (id === (0, resolve_1.normalizeId)(ref2)) {
         const { schema } = schOrRef;
         const { schemaId } = this.opts;
         const schId = schema[schemaId];
@@ -40910,26 +40910,26 @@ var require_core = __commonJS({
             return _compileAsync.call(this, sch);
           }
         }
-        function checkLoaded({ missingSchema: ref3, missingRef }) {
-          if (this.refs[ref3]) {
-            throw new Error(`AnySchema ${ref3} is loaded but ${missingRef} cannot be resolved`);
+        function checkLoaded({ missingSchema: ref2, missingRef }) {
+          if (this.refs[ref2]) {
+            throw new Error(`AnySchema ${ref2} is loaded but ${missingRef} cannot be resolved`);
           }
         }
-        async function loadMissingSchema(ref3) {
-          const _schema = await _loadSchema.call(this, ref3);
-          if (!this.refs[ref3])
+        async function loadMissingSchema(ref2) {
+          const _schema = await _loadSchema.call(this, ref2);
+          if (!this.refs[ref2])
             await loadMetaSchema.call(this, _schema.$schema);
-          if (!this.refs[ref3])
-            this.addSchema(_schema, ref3, meta3);
+          if (!this.refs[ref2])
+            this.addSchema(_schema, ref2, meta3);
         }
-        async function _loadSchema(ref3) {
-          const p = this._loading[ref3];
+        async function _loadSchema(ref2) {
+          const p = this._loading[ref2];
           if (p)
             return p;
           try {
-            return await (this._loading[ref3] = loadSchema(ref3));
+            return await (this._loading[ref2] = loadSchema(ref2));
           } finally {
-            delete this._loading[ref3];
+            delete this._loading[ref2];
           }
         }
       }
@@ -43088,12 +43088,12 @@ var require_discriminator = __commonJS({
           for (let i = 0; i < oneOf.length; i++) {
             let sch = oneOf[i];
             if ((sch === null || sch === void 0 ? void 0 : sch.$ref) && !(0, util_1.schemaHasRulesButRef)(sch, it.self.RULES)) {
-              const ref3 = sch.$ref;
-              sch = compile_1.resolveRef.call(it.self, it.schemaEnv.root, it.baseId, ref3);
+              const ref2 = sch.$ref;
+              sch = compile_1.resolveRef.call(it.self, it.schemaEnv.root, it.baseId, ref2);
               if (sch instanceof compile_1.SchemaEnv)
                 sch = sch.schema;
               if (sch === void 0)
-                throw new ref_error_1.default(it.opts.uriResolver, it.baseId, ref3);
+                throw new ref_error_1.default(it.opts.uriResolver, it.baseId, ref2);
             }
             const propSch = (_a3 = sch === null || sch === void 0 ? void 0 : sch.properties) === null || _a3 === void 0 ? void 0 : _a3[tagName];
             if (typeof propSch != "object") {
@@ -57509,7 +57509,7 @@ function extractDefs(ctx, schema) {
       return;
     }
     const seen = entry[1];
-    const { ref: ref3, defId } = makeURI(entry);
+    const { ref: ref2, defId } = makeURI(entry);
     seen.def = { ...seen.schema };
     if (defId)
       seen.defId = defId;
@@ -57517,7 +57517,7 @@ function extractDefs(ctx, schema) {
     for (const key in schema2) {
       delete schema2[key];
     }
-    schema2.$ref = ref3;
+    schema2.$ref = ref2;
   };
   if (ctx.cycles === "throw") {
     for (const entry of ctx.seen.entries()) {
@@ -57569,11 +57569,11 @@ function finalize(ctx, schema) {
       return;
     const schema2 = seen.def ?? seen.schema;
     const _cached = { ...schema2 };
-    const ref3 = seen.ref;
+    const ref2 = seen.ref;
     seen.ref = null;
-    if (ref3) {
-      flattenRef(ref3);
-      const refSeen = ctx.seen.get(ref3);
+    if (ref2) {
+      flattenRef(ref2);
+      const refSeen = ctx.seen.get(ref2);
       const refSchema = refSeen.schema;
       if (refSchema.$ref && (ctx.target === "draft-07" || ctx.target === "draft-04" || ctx.target === "openapi-3.0")) {
         schema2.allOf = schema2.allOf ?? [];
@@ -57582,7 +57582,7 @@ function finalize(ctx, schema) {
         Object.assign(schema2, refSchema);
       }
       Object.assign(schema2, _cached);
-      const isParentRef = zodSchema._zod.parent === ref3;
+      const isParentRef = zodSchema._zod.parent === ref2;
       if (isParentRef) {
         for (const key in schema2) {
           if (key === "$ref" || key === "allOf")
@@ -57603,7 +57603,7 @@ function finalize(ctx, schema) {
       }
     }
     const parent = zodSchema._zod.parent;
-    if (parent && parent !== ref3) {
+    if (parent && parent !== ref2) {
       flattenRef(parent);
       const parentSeen = ctx.seen.get(parent);
       if (parentSeen?.schema.$ref) {
@@ -60080,11 +60080,11 @@ function detectVersion(schema, defaultTarget) {
   }
   return defaultTarget ?? "draft-2020-12";
 }
-function resolveRef(ref3, ctx) {
-  if (!ref3.startsWith("#")) {
+function resolveRef(ref2, ctx) {
+  if (!ref2.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path6 = ref3.slice(1).split("/").filter(Boolean);
+  const path6 = ref2.slice(1).split("/").filter(Boolean);
   if (path6.length === 0) {
     return ctx.rootSchema;
   }
@@ -60092,11 +60092,11 @@ function resolveRef(ref3, ctx) {
   if (path6[0] === defsKey) {
     const key = path6[1];
     if (!key || !ctx.defs[key]) {
-      throw new Error(`Reference not found: ${ref3}`);
+      throw new Error(`Reference not found: ${ref2}`);
     }
     return ctx.defs[key];
   }
-  throw new Error(`Reference not found: ${ref3}`);
+  throw new Error(`Reference not found: ${ref2}`);
 }
 function convertBaseSchema(schema, ctx) {
   if (schema.not !== void 0) {
@@ -82409,13 +82409,13 @@ var McpServer = class {
     });
     this._completionHandlerInitialized = true;
   }
-  async handlePromptCompletion(request, ref3) {
-    const prompt = this._registeredPrompts[ref3.name];
+  async handlePromptCompletion(request, ref2) {
+    const prompt = this._registeredPrompts[ref2.name];
     if (!prompt) {
-      throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref3.name} not found`);
+      throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref2.name} not found`);
     }
     if (!prompt.enabled) {
-      throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref3.name} disabled`);
+      throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref2.name} disabled`);
     }
     if (!prompt.argsSchema) {
       return EMPTY_COMPLETION_RESULT;
@@ -82432,10 +82432,10 @@ var McpServer = class {
     const suggestions = await completer(request.params.argument.value, request.params.context);
     return createCompletionResult(suggestions);
   }
-  async handleResourceCompletion(request, ref3) {
-    const template = Object.values(this._registeredResourceTemplates).find((t) => t.resourceTemplate.uriTemplate.toString() === ref3.uri);
+  async handleResourceCompletion(request, ref2) {
+    const template = Object.values(this._registeredResourceTemplates).find((t) => t.resourceTemplate.uriTemplate.toString() === ref2.uri);
     if (!template) {
-      if (this._registeredResources[ref3.uri]) {
+      if (this._registeredResources[ref2.uri]) {
         return EMPTY_COMPLETION_RESULT;
       }
       throw new McpError(ErrorCode.InvalidParams, `Resource template ${request.params.ref.uri} not found`);
@@ -88672,9 +88672,9 @@ function displayInactive(inactive) {
   const objects = [];
   const seen = /* @__PURE__ */ new Set();
   let unnamed = 0;
-  for (const ref3 of inactive) {
-    const name = String(ref3.name ?? "").trim();
-    const type = String(ref3.type ?? "").trim();
+  for (const ref2 of inactive) {
+    const name = String(ref2.name ?? "").trim();
+    const type = String(ref2.type ?? "").trim();
     if (name === "(unknown)" && type === "(unknown)" || !name && !type) {
       unnamed++;
       continue;
@@ -88682,7 +88682,7 @@ function displayInactive(inactive) {
     const key = `${name.toLowerCase()} ${type.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    objects.push(ref3);
+    objects.push(ref2);
   }
   return { objects, unnamed };
 }
@@ -88958,24 +88958,24 @@ function preauditActivationSet(seeds, inactive) {
   const targets = [...seeds];
   const seen = new Set(seeds.map((s) => activationRefKey(s.uri)));
   let unaddressable = 0;
-  for (const ref3 of inactive) {
-    if (!ref3.uri) {
+  for (const ref2 of inactive) {
+    if (!ref2.uri) {
       unaddressable++;
       continue;
     }
-    const key = activationRefKey(ref3.uri);
+    const key = activationRefKey(ref2.uri);
     if (seen.has(key)) continue;
     seen.add(key);
-    targets.push({ name: ref3.name, uri: ref3.uri, ...ref3.type ? { type: ref3.type } : {} });
+    targets.push({ name: ref2.name, uri: ref2.uri, ...ref2.type ? { type: ref2.type } : {} });
   }
   return { targets, unaddressable };
 }
-function toInactiveRecord(ref3) {
+function toInactiveRecord(ref2) {
   return {
     object: {
-      "adtcore:name": ref3.name,
-      "adtcore:type": ref3.type,
-      ...ref3.uri ? { "adtcore:uri": ref3.uri } : {}
+      "adtcore:name": ref2.name,
+      "adtcore:type": ref2.type,
+      ...ref2.uri ? { "adtcore:uri": ref2.uri } : {}
     }
   };
 }
@@ -89304,11 +89304,11 @@ var wireOrderMatchesModel = (entries) => entries.every((entry, i) => {
 });
 function repairSearchDescriptions(refs) {
   const groups = /* @__PURE__ */ new Map();
-  refs.forEach((ref3, index) => {
-    const key = typeGroupOf(ref3);
+  refs.forEach((ref2, index) => {
+    const key = typeGroupOf(ref2);
     const bucket = groups.get(key);
-    if (bucket) bucket.push({ index, ref: ref3 });
-    else groups.set(key, [{ index, ref: ref3 }]);
+    if (bucket) bucket.push({ index, ref: ref2 });
+    else groups.set(key, [{ index, ref: ref2 }]);
   });
   const out = refs.slice();
   const repairedGroups = /* @__PURE__ */ new Set();
@@ -95308,8 +95308,8 @@ function createLiveDebugToolDeps(params) {
       c.dispose();
       return c;
     },
-    resolveObject(conn, ref3) {
-      return resolveObject(conn, ref3);
+    resolveObject(conn, ref2) {
+      return resolveObject(conn, ref2);
     },
     triggerRun(conn, input, maxChars, gate) {
       return abapRun(conn, input, maxChars, gate);
@@ -98465,9 +98465,9 @@ var readInputSchema = {
 var ReadInput = external_exports.object(readInputSchema);
 var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
 var ENHANCEMENT_KINDS = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS"]);
-function renderRef(ref3) {
-  if (!ref3?.name) return "(none)";
-  return ref3.type ? `${ref3.type} ${ref3.name}` : ref3.name;
+function renderRef(ref2) {
+  if (!ref2?.name) return "(none)";
+  return ref2.type ? `${ref2.type} ${ref2.name}` : ref2.name;
 }
 function renderFilterTree(node2, indent) {
   if (node2.kind === "filter") {
@@ -102265,13 +102265,13 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
 async function abapBridgeCrud(conn, target, input, maxChars, gate, journal) {
   return (input.mode ?? "write") === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal);
 }
-async function journalBridgeCreate(journal, conn, ref3, beforeCapture, corrNr, mutate) {
+async function journalBridgeCreate(journal, conn, ref2, beforeCapture, corrNr, mutate) {
   const { result, entryId, settle } = await withJournalledMutation(
     journal,
     {
       begin: () => ({
         operation: "create",
-        object: journalRef(ref3),
+        object: journalRef(ref2),
         existedBefore: false,
         beforeCapture,
         systemKey: systemKey(conn.cfg),
@@ -104362,16 +104362,6 @@ var ALTERNATIVE_KEY_ATTR_ORDER = [
   "checkBeforeSave",
   "noCheck"
 ];
-var PROPERTY_ATTR_ORDER = [
-  "name",
-  "enabled",
-  "readonly",
-  "mandatory",
-  "enabledFinal",
-  "readonlyFinal",
-  "mandatoryFinal",
-  "transientAttribute"
-];
 var DETERMINATION_TRIGGER_ATTR_ORDER = [
   "node",
   "association",
@@ -104697,14 +104687,14 @@ var NODE_REF_KINDS = [
   "dataAccessClassRef",
   "authorizationClassRef"
 ];
-function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref3, childOrder) {
+function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder) {
   const existing = tokens.find(
     (t) => t.name === refTag && t.depth === ownerToken.depth + 1 && t.openStart > ownerToken.openStart && t.openStart < ownerToken.closeEnd
   );
-  if (ref3 === null) {
+  if (ref2 === null) {
     return existing ? xml3.slice(0, existing.openStart) + xml3.slice(existing.closeEnd) : xml3;
   }
-  const fragment = renderRef2(refTag, ref3);
+  const fragment = renderRef2(refTag, ref2);
   if (existing) {
     return xml3.slice(0, existing.openStart) + fragment + xml3.slice(existing.closeEnd);
   }
@@ -104725,10 +104715,10 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref3, childOrder)
   }
   return splice(xml3, insertAt, fragment);
 }
-function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref3, opts) {
+function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
   if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
-  return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref3, NODE_CHILD_ORDER);
+  return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
   if (v === "undefined" || v === "null") {
@@ -104767,19 +104757,16 @@ function renderElement(kind, attrs, childrenXml) {
   if (!childrenXml) return `${open}/>`;
   return `${open}>${childrenXml}</${tag}>`;
 }
-function renderRef2(tag, ref3) {
+function renderRef2(tag, ref2) {
   const parts = [];
-  if (ref3.uri !== void 0) parts.push(`adtcore:uri="${escapeAttrValue(ref3.uri, `${tag}/@adtcore:uri`)}"`);
-  parts.push(`adtcore:type="${escapeAttrValue(ref3.type, `${tag}/@adtcore:type`)}"`);
-  parts.push(`adtcore:name="${escapeAttrValue(ref3.name, `${tag}/@adtcore:name`)}"`);
+  if (ref2.uri !== void 0) parts.push(`adtcore:uri="${escapeAttrValue(ref2.uri, `${tag}/@adtcore:uri`)}"`);
+  parts.push(`adtcore:type="${escapeAttrValue(ref2.type, `${tag}/@adtcore:type`)}"`);
+  parts.push(`adtcore:name="${escapeAttrValue(ref2.name, `${tag}/@adtcore:name`)}"`);
   return `<${tag} ${parts.join(" ")}/>`;
 }
 function renderLeaf(tag, order, attrs) {
   const t = renderAttrText(order, attrs, "bo");
   return `<${tag}${t ? " " + t : ""}/>`;
-}
-function renderProperty(p) {
-  return renderLeaf("bo:properties", PROPERTY_ATTR_ORDER, p);
 }
 function renderKeyElement(name) {
   return renderLeaf("bo:keyElements", KEY_ELEMENT_ATTR_ORDER, { name });
@@ -105592,16 +105579,16 @@ function collectDdicCascadeCandidates(model) {
   pushCandidate(generated, model.constantsInterfaceRef, "constants-interface", void 0, "constantsInterfaceRef");
   return { generated, referenced };
 }
-function pushCandidate(out, ref3, kind, guessKind, refSite) {
-  if (!ref3 || !ref3.name) return;
-  const uri = ref3.uri ?? ddicGuessUri(ref3, guessKind);
+function pushCandidate(out, ref2, kind, guessKind, refSite) {
+  if (!ref2 || !ref2.name) return;
+  const uri = ref2.uri ?? ddicGuessUri(ref2, guessKind);
   if (!uri) return;
   if (out.some((c) => c.uri === uri)) return;
-  out.push({ name: ref3.name, kind, uri, type: ref3.type, refSite });
+  out.push({ name: ref2.name, kind, uri, type: ref2.type, refSite });
 }
-function ddicGuessUri(ref3, guessKind) {
-  if (!ref3.name || !guessKind) return void 0;
-  return `/sap/bc/adt/ddic/${guessKind}/${ref3.name.toLowerCase()}`;
+function ddicGuessUri(ref2, guessKind) {
+  if (!ref2.name || !guessKind) return void 0;
+  return `/sap/bc/adt/ddic/${guessKind}/${ref2.name.toLowerCase()}`;
 }
 async function deleteDdicCandidate(conn, session, cand, authorized) {
   assertAuthorizedMatches(authorized, { name: cand.name }, "deleteDdicCandidate");
@@ -105783,15 +105770,15 @@ var DDIC_ELEMENTS = /* @__PURE__ */ new Set([
 ]);
 function collectRefSites(model) {
   const sites = [];
-  const push = (node2, owner, member, element, ref3, requiredInterface) => {
-    if (!ref3) return;
+  const push = (node2, owner, member, element, ref2, requiredInterface) => {
+    if (!ref2) return;
     sites.push({
       owner,
       node: node2,
       ...member !== void 0 ? { member } : {},
       element,
       kind: DDIC_ELEMENTS.has(element) ? "ddic" : "class",
-      ref: ref3,
+      ref: ref2,
       ...requiredInterface ? { requiredInterface } : {}
     });
   };
@@ -105863,11 +105850,11 @@ function evaluateTargetNodeRef(model, site) {
   return { site, verdict: found ? "present" : "missing" };
 }
 async function evaluateDdicRef(conn, site) {
-  const { ref: ref3, element } = site;
+  const { ref: ref2, element } = site;
   const isPendingKind = element === "combinedStructureRef" || element === "combinedTableRef" || element === "persistentTableRef";
-  const uri = ref3.uri ?? (ref3.name ? `/sap/bc/adt/ddic/tables/${ref3.name.toLowerCase()}` : void 0);
+  const uri = ref2.uri ?? (ref2.name ? `/sap/bc/adt/ddic/tables/${ref2.name.toLowerCase()}` : void 0);
   if (!uri) {
-    if (!ref3.name) return { site, verdict: "unchecked", detail: "ref has neither uri nor name" };
+    if (!ref2.name) return { site, verdict: "unchecked", detail: "ref has neither uri nor name" };
   }
   if (!uri) return { site, verdict: "unchecked", detail: "could not construct a probe uri" };
   try {
@@ -106033,16 +106020,6 @@ var SET_NODE_FLAGS_FIELDS = {
   dataAccessClassRef: "refOrNull",
   authorizationClassRef: "refOrNull"
 };
-var ADD_REPRESENTATIVE_NODE_FIELDS = {
-  representedBo: "string",
-  xmlName: "string"
-};
-var EMBED_DEPENDENT_OBJECT_FIELDS = {
-  dependentObject: "string",
-  xmlName: "string",
-  multiplicity: "string",
-  implementationClassRef: "ref"
-};
 var SET_ASSOCIATION_FIELDS = {
   xmlName: "stringOrNull",
   multiplicity: "stringOrNull",
@@ -106132,9 +106109,6 @@ var OPERATION_FIELDS = {
   add_alternative_key: ADD_ALTERNATIVE_KEY_FIELDS,
   remove_alternative_key: NO_SPEC_FIELDS,
   set_node_flags: SET_NODE_FLAGS_FIELDS,
-  add_representative_node: ADD_REPRESENTATIVE_NODE_FIELDS,
-  remove_representative_node: NO_SPEC_FIELDS,
-  embed_dependent_object: EMBED_DEPENDENT_OBJECT_FIELDS,
   remove_dependent_object: NO_SPEC_FIELDS,
   ...SET_CHILD_FIELD_TABLES,
   activate: NO_SPEC_FIELDS
@@ -106362,34 +106336,12 @@ function validateSpecKeys(operation, spec) {
 }
 
 // src/tools/bopf-delegation.ts
-var DELEGATION_OPERATIONS = [
-  "add_representative_node",
-  "remove_representative_node",
-  "embed_dependent_object",
-  "remove_dependent_object"
-];
+var DELEGATION_OPERATIONS = ["remove_dependent_object"];
 function isDelegationOperation(op) {
   return DELEGATION_OPERATIONS.includes(op);
 }
-var DEFAULT_EMBED_IMPL_CLASS_REF = {
-  uri: "/sap/bc/adt/oo/classes/%2fbobf%2fcl_c_bopf_2_bopf_simple",
-  type: "CLAS/OC",
-  name: "/BOBF/CL_C_BOPF_2_BOPF_SIMPLE"
-};
 function str2(v) {
   return typeof v === "string" && v.trim() ? v : void 0;
-}
-function ref(v) {
-  if (!v || typeof v !== "object") return void 0;
-  const o = v;
-  const name = str2(o.name);
-  const type = str2(o.type);
-  if (!name || !type) return void 0;
-  const uri = str2(o.uri);
-  return uri ? { uri, type, name } : { type, name };
-}
-function describeError(e) {
-  return e instanceof Error ? e.message : String(e);
 }
 function resolveTargetNodeName(target) {
   if (!target) return void 0;
@@ -106420,48 +106372,7 @@ function requireInputName(input) {
   return input.name;
 }
 function validateDelegationShape(input) {
-  const spec = input.spec ?? {};
   switch (input.operation) {
-    case "add_representative_node": {
-      requireInputName(input);
-      if (input.node !== void 0) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `add_representative_node does not take node \u2014 a representative node has no parent (it stands in for another BO, not a child of one). Name the new node with "name".`,
-          { operation: input.operation, node: input.node }
-        );
-      }
-      if (!str2(spec.representedBo)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `add_representative_node requires spec.representedBo (the BO this node will stand in for).`,
-          { operation: input.operation }
-        );
-      }
-      return;
-    }
-    case "remove_representative_node":
-      requireInputNode(input);
-      return;
-    case "embed_dependent_object": {
-      requireInputNode(input);
-      requireInputName(input);
-      if (!str2(spec.dependentObject)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `embed_dependent_object requires spec.dependentObject (the dependent object BO being embedded).`,
-          { operation: input.operation }
-        );
-      }
-      if (input.i_know_this_may_not_activate !== true) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `embed_dependent_object requires i_know_this_may_not_activate: true \u2014 this writes the exact wire shape observed for an embedding (an association plus a "<name>.ROOT" node), but the host BO's XML never names the dependent object anywhere, so a 200 plus a matching read-back is not confirmed to create a working embedding server-side.`,
-          { operation: input.operation }
-        );
-      }
-      return;
-    }
     case "remove_dependent_object":
       requireInputNode(input);
       requireInputName(input);
@@ -106480,7 +106391,7 @@ function refuseHandAssembledDelegation(operation, spec, name) {
     if (implementationType && implementationType.toLowerCase() === "docomposition" || doEmbeddingName !== void 0) {
       throw new AbapError(
         "BAD_INPUT",
-        `add_association${named} with implementationType "DoComposition" (or a doEmbeddingName) builds half of an embedding \u2014 the pair is the association plus a matching "<name>.ROOT" node, and BOPF silently discards a bare association written alone. Use embed_dependent_object instead.`,
+        `add_association${named} with implementationType "DoComposition" (or a doEmbeddingName) tries to build a dependent-object embedding, and abapsmith cannot create one on this release. That shape was sent to a real system: the PUT answered 200, but the read-back had implementationType rewritten to "Composition" with bo:doEmbeddingName dropped, and activation rejected the "<name>.ROOT" node the pair needs ("Node name contains characters that are not allowed"). No working request shape is known \u2014 see doc/CAPABILITIES/bopf.md. remove_dependent_object still removes an embedding that already exists.`,
         { operation, name, implementationType, doEmbeddingName }
       );
     }
@@ -106492,7 +106403,7 @@ function refuseHandAssembledDelegation(operation, spec, name) {
     if (doEmbeddingName !== void 0 || isDependentObjectNode) {
       throw new AbapError(
         "BAD_INPUT",
-        `add_node${named} with doEmbeddingName set (or isDependentObjectNode: true) builds half of an embedding by hand \u2014 use embed_dependent_object instead, which writes both the association and the node together.`,
+        `add_node${named} with doEmbeddingName set (or isDependentObjectNode: true) builds half of a dependent-object embedding by hand. abapsmith cannot create an embedding on this release, and the other half cannot be written either \u2014 see doc/CAPABILITIES/bopf.md.`,
         { operation, name, doEmbeddingName, isDependentObjectNode }
       );
     }
@@ -106500,45 +106411,8 @@ function refuseHandAssembledDelegation(operation, spec, name) {
     if (!hasParent && spec.rootNode !== true) {
       throw new AbapError(
         "BAD_INPUT",
-        `add_node${named} with no spec.parent/spec.parentNodeId and rootNode not true is a deliberately parentless node \u2014 that is add_representative_node, not add_node. BOPF answers 200 and silently discards a node it cannot place, rather than rejecting it.`,
+        `add_node${named} with no spec.parent/spec.parentNodeId and rootNode not true is a deliberately parentless node, and BOPF will not accept one: the server rejects a client-written parentless node outright in the /BOBF/ST_CONF_ADT deserializer. Parentless "representative" nodes do exist, but the server mints them itself \u2014 add a cross-BO association instead (add_association with spec.targetNodeRef naming OTHER_BO~ROOT and a spec.implementationClassRef), and the server creates a node named REP_<random> alongside it.`,
         { operation, name }
-      );
-    }
-    return;
-  }
-}
-async function delegationNetworkPreflight(input, readOtherModel) {
-  const spec = input.spec ?? {};
-  if (input.operation === "add_representative_node") {
-    const representedBo = str2(spec.representedBo) ?? "";
-    try {
-      await readOtherModel(representedBo);
-    } catch (e) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `add_representative_node: represented BO "${representedBo}" could not be read (${describeError(e)}) \u2014 the cross-BO association you add next would dangle against a BO that isn't there.`,
-        { operation: input.operation, representedBo }
-      );
-    }
-    return;
-  }
-  if (input.operation === "embed_dependent_object") {
-    const dependentObject = str2(spec.dependentObject) ?? "";
-    let model;
-    try {
-      model = await readOtherModel(dependentObject);
-    } catch (e) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `embed_dependent_object: dependent object "${dependentObject}" could not be read (${describeError(e)}).`,
-        { operation: input.operation, dependentObject }
-      );
-    }
-    if (model.objectCategory !== "dependentObject") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `embed_dependent_object: "${dependentObject}" has objectCategory "${model.objectCategory ?? "(none)"}", not "dependentObject" \u2014 only a BO created as a dependent object can be embedded this way.`,
-        { operation: input.operation, dependentObject, objectCategory: model.objectCategory }
       );
     }
     return;
@@ -106546,81 +106420,6 @@ async function delegationNetworkPreflight(input, readOtherModel) {
 }
 function delegationModelPreflight(model, input) {
   switch (input.operation) {
-    case "add_representative_node": {
-      const name = requireInputName(input);
-      if (findModelNode(model, name)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `node "${name}" already exists on ${model.name} \u2014 BOPF answers 200 and silently discards a duplicate.`,
-          { bo: model.name, node: name }
-        );
-      }
-      return;
-    }
-    case "remove_representative_node": {
-      const nodeName = requireInputNode(input);
-      const node2 = findModelNode(model, nodeName);
-      if (!node2) {
-        throw new AbapError(
-          "NOT_FOUND",
-          `node "${nodeName}" not found on ${model.name}. Nodes present: ${nodeNameList(model)}.`,
-          { bo: model.name, node: nodeName }
-        );
-      }
-      const kind = classifyNode(model, node2);
-      if (kind.kind !== "representative") {
-        const pointer = kind.kind === "delegated" ? "remove_dependent_object" : "remove_node";
-        throw new AbapError(
-          "BAD_INPUT",
-          `node "${node2.name}" is classified as "${kind.kind}", not a representative node \u2014 use ${pointer} instead.`,
-          { bo: model.name, node: node2.name, kind: kind.kind }
-        );
-      }
-      const offenders = [];
-      for (const n of model.nodes) {
-        for (const a of n.associations) {
-          if ((resolveTargetNodeName(a.targetNodeRef) ?? "").toLowerCase() === node2.name.toLowerCase()) {
-            offenders.push(`${n.name}.${a.name}`);
-          }
-        }
-      }
-      if (offenders.length) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `association(s) still target node "${node2.name}": ${offenders.join(", ")} \u2014 remove those first.`,
-          { bo: model.name, node: node2.name, offenders }
-        );
-      }
-      return;
-    }
-    case "embed_dependent_object": {
-      const nodeName = requireInputNode(input);
-      const emb = requireInputName(input);
-      const parent = findModelNode(model, nodeName);
-      if (!parent) {
-        throw new AbapError(
-          "NOT_FOUND",
-          `node "${nodeName}" not found on ${model.name}. Nodes present: ${nodeNameList(model)}.`,
-          { bo: model.name, node: nodeName }
-        );
-      }
-      if (parent.associations.some((a) => a.name.toLowerCase() === emb.toLowerCase())) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `association "${emb}" already exists on node "${parent.name}" \u2014 BOPF answers 200 and silently discards a duplicate.`,
-          { bo: model.name, node: parent.name, name: emb }
-        );
-      }
-      const embNodeName = `${emb}.ROOT`;
-      if (findModelNode(model, embNodeName)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `node "${embNodeName}" already exists on ${model.name} \u2014 BOPF answers 200 and silently discards a duplicate.`,
-          { bo: model.name, node: embNodeName }
-        );
-      }
-      return;
-    }
     case "remove_dependent_object": {
       const nodeName = requireInputNode(input);
       const emb = requireInputName(input);
@@ -106691,110 +106490,6 @@ function delegationModelPreflight(model, input) {
     }
   }
 }
-function findDepth1Node(tokens, name, nodeId) {
-  return tokens.find(
-    (t) => t.name === "bo:nodes" && t.depth === 1 && t.attrs.get("bo:name") === name && (nodeId === void 0 || t.attrs.get("bo:nodeID") === nodeId)
-  );
-}
-function mutateAddRepresentativeNode(freshXml, tokens, input, deps) {
-  const name = requireInputName(input);
-  const spec = input.spec ?? {};
-  const properties = ["KEY", "PARENT_KEY", "ROOT_KEY"].map(
-    (propName2) => renderProperty({
-      name: propName2,
-      enabled: true,
-      readonly: false,
-      mandatory: false,
-      enabledFinal: false,
-      readonlyFinal: false,
-      mandatoryFinal: false,
-      transientAttribute: false
-    })
-  );
-  const fields = {
-    name,
-    nodeId: mintGuid("node"),
-    xmlName: str2(spec.xmlName),
-    objectModelGenerated: false,
-    authorizationCheck: false,
-    isExtensible: false,
-    isDependentObjectNode: false,
-    textNode: false,
-    createEnabled: true,
-    updateEnabled: true,
-    deleteEnabled: true,
-    rootNode: false,
-    objectModelObsolete: false,
-    properties
-  };
-  return deps.insertNodeAtRoot(freshXml, tokens, renderNodeElement(fields));
-}
-function mutateRemoveRepresentativeNode(freshXml, tokens, input) {
-  const nodeName = requireInputNode(input);
-  const range = locate(tokens, { node: nodeName, nodeId: input.nodeId });
-  if (!range) {
-    throw new AbapError("NOT_FOUND", `node "${nodeName}" not found while removing it.`, { node: nodeName });
-  }
-  return spliceOut(freshXml, range);
-}
-function mutateEmbedDependentObject(freshXml, tokens, input, deps) {
-  const parentName = requireInputNode(input);
-  const emb = requireInputName(input);
-  const spec = input.spec ?? {};
-  const parentTok = findDepth1Node(tokens, parentName, input.nodeId);
-  if (!parentTok) {
-    throw new AbapError("NOT_FOUND", `parent node "${parentName}" not found while embedding "${emb}".`, {
-      node: parentName
-    });
-  }
-  const parentNodeId = parentTok.attrs.get("bo:nodeID");
-  if (!parentNodeId) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `parent node "${parentName}" has no bo:nodeID on the wire \u2014 the embedded node's bo:parentNodeID must be written together with it, and there is nothing to copy.`,
-      { node: parentName }
-    );
-  }
-  const xmlName = str2(spec.xmlName);
-  const embNodeName = `${emb}.ROOT`;
-  const nodeFields = {
-    name: embNodeName,
-    nodeId: mintGuid("node"),
-    parent: `#//bo:businessObject/bo:nodes[@bo:name='${parentName}']`,
-    parentNodeId,
-    xmlName,
-    objectModelGenerated: false,
-    authorizationCheck: false,
-    isExtensible: false,
-    isDependentObjectNode: false,
-    textNode: false,
-    createEnabled: false,
-    updateEnabled: false,
-    deleteEnabled: false,
-    rootNode: false,
-    objectModelObsolete: false
-  };
-  let xml3 = deps.insertNodeAtRoot(freshXml, tokens, renderNodeElement(nodeFields));
-  const tokens2 = scanModel(xml3);
-  const multiplicity = str2(spec.multiplicity) ?? "0_1";
-  const implementationClassRef = ref(spec.implementationClassRef) ?? DEFAULT_EMBED_IMPL_CLASS_REF;
-  const targetUri = `/sap/bc/adt/bopf/businessobjects/${encodeURIComponent(input.bo.toLowerCase()).toLowerCase()}#//bo:businessObject/bo:nodes[@bo:name='${embNodeName}']`;
-  const assocFields = {
-    name: emb,
-    nodeId: mintGuid("association"),
-    implementationType: "DoComposition",
-    objectModelGenerated: false,
-    xmlName,
-    doEmbeddingName: emb,
-    multiplicity,
-    targetNodeRef: { uri: targetUri, type: "BOBF", name: `${input.bo.toUpperCase()}~${embNodeName}` },
-    implementationClassRef
-  };
-  xml3 = spliceInsertChild(xml3, tokens2, parentName, "association", renderAssociationElement(assocFields), {
-    nodeId: input.nodeId
-  });
-  return xml3;
-}
 function mutateRemoveDependentObject(freshXml, tokens, input) {
   const parentName = requireInputNode(input);
   const emb = requireInputName(input);
@@ -106832,15 +106527,9 @@ function mutateRemoveDependentObject(freshXml, tokens, input) {
   xml3 = spliceOut(xml3, nodeRange);
   return xml3;
 }
-function mutateDelegation(freshXml, input, deps) {
+function mutateDelegation(freshXml, input) {
   const tokens = scanModel(freshXml);
   switch (input.operation) {
-    case "add_representative_node":
-      return mutateAddRepresentativeNode(freshXml, tokens, input, deps);
-    case "remove_representative_node":
-      return mutateRemoveRepresentativeNode(freshXml, tokens, input);
-    case "embed_dependent_object":
-      return mutateEmbedDependentObject(freshXml, tokens, input, deps);
     case "remove_dependent_object":
       return mutateRemoveDependentObject(freshXml, tokens, input);
     default:
@@ -106862,55 +106551,6 @@ var HOUSE_SENTENCE = "A BOPF PUT answers 200 whether or not the server kept what
 function verifyDelegation(input, before, after, journalEntryId) {
   const entryId = journalEntryId ?? "(none)";
   switch (input.operation) {
-    case "add_representative_node": {
-      const name = input.name ?? "";
-      const countBefore = countNodesNamed(before, name);
-      const countAfter = countNodesNamed(after, name);
-      if (countAfter <= countBefore) {
-        throw new AbapError(
-          "CHECK_FAILED",
-          `add_representative_node "${name}" on ${before.name}: the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${countAfter} node(s) named "${name}" after the write, versus ${countBefore} before \u2014 the node was not actually added. ${HOUSE_SENTENCE}`,
-          { bo: before.name, node: name, countBefore, countAfter, journalEntryId }
-        );
-      }
-      return;
-    }
-    case "remove_representative_node": {
-      const name = input.node ?? "";
-      const countBefore = countNodesNamed(before, name);
-      const countAfter = countNodesNamed(after, name);
-      if (countAfter >= countBefore) {
-        throw new AbapError(
-          "CHECK_FAILED",
-          `remove_representative_node "${name}" on ${before.name}: the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${countAfter} node(s) named "${name}" after the write, versus ${countBefore} before \u2014 the node was not actually removed. ${HOUSE_SENTENCE}`,
-          { bo: before.name, node: name, countBefore, countAfter, journalEntryId }
-        );
-      }
-      return;
-    }
-    case "embed_dependent_object": {
-      const parent = input.node ?? "";
-      const emb = input.name ?? "";
-      const embNodeName = `${emb}.ROOT`;
-      const nodeCountBefore = countNodesNamed(before, embNodeName);
-      const nodeCountAfter = countNodesNamed(after, embNodeName);
-      const assocCountBefore = countAssociationsNamed(before, parent, emb);
-      const assocCountAfter = countAssociationsNamed(after, parent, emb);
-      const nodeMissing = nodeCountAfter <= nodeCountBefore;
-      const assocMissing = assocCountAfter <= assocCountBefore;
-      if (nodeMissing || assocMissing) {
-        const missing = [
-          nodeMissing ? `the "${embNodeName}" node` : void 0,
-          assocMissing ? `the "${emb}" association on "${parent}"` : void 0
-        ].filter((x) => x !== void 0).join(" and ");
-        throw new AbapError(
-          "CHECK_FAILED",
-          `embed_dependent_object "${emb}" on ${before.name} node "${parent}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${missing} did not land \u2014 node count ${nodeCountBefore} -> ${nodeCountAfter}, association count ${assocCountBefore} -> ${assocCountAfter}. ${HOUSE_SENTENCE}`,
-          { bo: before.name, node: parent, name: emb, nodeCountBefore, nodeCountAfter, assocCountBefore, assocCountAfter, journalEntryId }
-        );
-      }
-      return;
-    }
     case "remove_dependent_object": {
       const parent = input.node ?? "";
       const emb = input.name ?? "";
@@ -106940,22 +106580,36 @@ function verifyDelegation(input, before, after, journalEntryId) {
 }
 function delegationNotes(input) {
   const spec = input.spec ?? {};
-  switch (input.operation) {
-    case "add_representative_node": {
-      const representedBo = str2(spec.representedBo) ?? "<REPRESENTED_BO>";
+  if (input.operation === "add_association") {
+    const targetRef = spec.targetNodeRef;
+    let targetName;
+    let targetBo;
+    if (targetRef && typeof targetRef === "object") {
+      const o = targetRef;
+      const name = str2(o.name);
+      if (name && name.includes("~")) {
+        targetName = name;
+        targetBo = name.slice(0, name.indexOf("~"));
+      } else {
+        const uri = str2(o.uri);
+        if (uri) {
+          const hashIdx = uri.indexOf("#");
+          const beforeHash = hashIdx >= 0 ? uri.slice(0, hashIdx) : uri;
+          const segments = beforeHash.split("/").filter(Boolean);
+          targetBo = segments[segments.length - 1];
+          targetName = name ?? targetBo;
+        }
+      }
+    }
+    if (targetBo && targetBo.toLowerCase() !== input.bo.toLowerCase()) {
       return [
-        `The wire carries no link from a representative node to the BO it represents \u2014 "${representedBo}" was checked for existence and deliberately NOT written to the node. Add the cross-BO association yourself: abap_bopf_edit add_association on the node that should carry the link, with spec.implementationType: "Association" and spec.targetNodeRef: { name: "${representedBo}~ROOT", type: "BOBF" }. Observed captures of real cross-BO associations also carry a spec.implementationClassRef (e.g. /BOBF/CL_C_DEMO_CUSTOMER_XBO for /BOBF/DEMO_CUSTOMER~ROOT) \u2014 BOPF may require one too.`
+        `Cross-BO association: targetNodeRef names "${targetName}", a node on another business object. Observed on this release: the server answers such a write by minting a representative node of its own, named REP_<random> \u2014 the name is server-assigned and cannot be chosen, and a client-written parentless node is rejected outright by the /BOBF/ST_CONF_ADT deserializer. Observed live only as the node's absence once the association was gone, so remove_association should remove the minted node too \u2014 the operation itself was not exercised against one.`,
+        `Cross-BO associations captured from SAP's own business objects also carry an implementationClassRef (an XBO class such as /BOBF/CL_C_DEMO_CUSTOMER_XBO); without one, activation reported "Association has to have exactly one Attribute Binding". Observed once on this release: activating a business object with a cross-BO association present destroyed the ABAP session with an ASSERTION_FAILED short dump in /BOBF/CL_CONF_MODEL_API_MAP. Neither behaviour is established as a rule.`
       ];
     }
-    case "embed_dependent_object": {
-      const dependentObject = str2(spec.dependentObject) ?? "<DEPENDENT_OBJECT>";
-      return [
-        `The host BO's XML never names the dependent object anywhere, so a 200 plus a read-back showing the association/node pair does NOT prove the dependent object is really embedded. spec.dependentObject ("${dependentObject}") was checked to exist and to have objectCategory "dependentObject" but is deliberately not written to the wire \u2014 activation and a runtime check are the only way to confirm the embedding actually works.`
-      ];
-    }
-    default:
-      return [];
+    return [];
   }
+  return [];
 }
 
 // src/tools/bopf.ts
@@ -106993,21 +106647,18 @@ var bopfEditInputSchema = {
     "remove_alternative_key",
     "set_alternative_key_fields",
     "set_node_flags",
-    "add_representative_node",
-    "remove_representative_node",
-    "embed_dependent_object",
     "remove_dependent_object",
     "activate"
   ]).describe("The single edit to make."),
   node: external_exports.string().optional().describe("Node the edit targets."),
   nodeId: external_exports.string().optional().describe("Disambiguator for a non-unique node name."),
   name: external_exports.string().optional().describe(
-    "Element name. Required except for create_bo/remove_node/set_node_flags/activate/remove_representative_node."
+    "Element name. Required except for create_bo/remove_node/set_node_flags/activate."
   ),
   spec: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe("Per-operation fields \u2014 see the abapsmith-edit-a-bopf-object skill."),
   activate: external_exports.boolean().optional().describe("Activate after the edit succeeds."),
   allow_dangling_ref: external_exports.boolean().optional().describe("Accepts the dangling-ref risk that otherwise refuses the write."),
-  i_know_this_may_not_activate: external_exports.boolean().optional().describe("Required true for add_alternative_key, set_alternative_key_fields and embed_dependent_object."),
+  i_know_this_may_not_activate: external_exports.boolean().optional().describe("Required true for add_alternative_key and set_alternative_key_fields."),
   package: external_exports.string().optional().describe("create_bo: local ($TMP-style) package, required."),
   description: external_exports.string().optional().describe("create_bo: optional description."),
   rootNodeName: external_exports.string().optional().describe('create_bo only: root node name, default "ROOT".')
@@ -107035,7 +106686,7 @@ var ok10 = (text3, journalEntryId) => ({
 });
 var SHOW_NOTES = [
   "This digest covers the business object's structural definition only (nodes, associations, actions, determinations, validations, queries, alternative keys). It does not include BOPF configuration/customizing \u2014 abapsmith has no read surface and no write surface of any kind for it.",
-  `"(representative)" marks a parentless node standing in for another BO (the link itself is a separate cross-BO association, never on the node); "(delegated via PARENT.ASSOC)" marks an embedded dependent object's node; a cross-BO association is suffixed "(-> OTHER_BO~NODE)".`
+  `"(representative)" marks a parentless node the server minted itself (named REP_<random>) in response to a cross-BO association \u2014 the link is the association, never the node, and abapsmith cannot create one of these nodes directly; "(delegated via PARENT.ASSOC)" marks an embedded dependent object's node; a cross-BO association is suffixed "(-> OTHER_BO~NODE)".`
 ];
 function buildShowResponse(model, maxChars) {
   const header = {
@@ -107218,7 +106869,7 @@ function strEnum(v, allowed, field) {
 function bool(v) {
   return typeof v === "boolean" ? v : void 0;
 }
-function ref2(v) {
+function ref(v) {
   if (!v || typeof v !== "object") return void 0;
   const o = v;
   const name = str3(o.name);
@@ -107233,14 +106884,14 @@ function strArray(v) {
   return out.length ? out : void 0;
 }
 function classRefFromSpec(spec) {
-  const explicit = ref2(spec.implementationClassRef);
+  const explicit = ref(spec.implementationClassRef);
   if (explicit) return explicit;
   const className = str3(spec.class) ?? str3(spec.implementationClass);
   return className ? { type: "CLAS/OC", name: className.toUpperCase() } : void 0;
 }
 function specClassName(spec) {
   if (!spec) return void 0;
-  const explicit = ref2(spec.implementationClassRef);
+  const explicit = ref(spec.implementationClassRef);
   if (explicit) return explicit.name;
   return str3(spec.class) ?? str3(spec.implementationClass);
 }
@@ -107352,8 +107003,8 @@ function validateAlternativeKeySpec(name, spec) {
   strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness");
   const missing = [];
   if (str3(spec.uniqueness) === void 0) missing.push("uniqueness");
-  if (ref2(spec.dataTypeRef) === void 0) missing.push("dataTypeRef");
-  if (ref2(spec.dataTableTypeRef) === void 0) missing.push("dataTableTypeRef");
+  if (ref(spec.dataTypeRef) === void 0) missing.push("dataTypeRef");
+  if (ref(spec.dataTableTypeRef) === void 0) missing.push("dataTableTypeRef");
   if (strArray(spec.keyElements) === void 0) missing.push("keyElements");
   if (missing.length === 0) return;
   throw new AbapError(
@@ -107385,8 +107036,6 @@ function validateEditInputShape(input) {
     "remove_alternative_key",
     "set_alternative_key_fields",
     "set_node_flags",
-    "remove_representative_node",
-    "embed_dependent_object",
     "remove_dependent_object"
   ]);
   const needsName = /* @__PURE__ */ new Set([
@@ -107408,8 +107057,6 @@ function validateEditInputShape(input) {
     "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
-    "add_representative_node",
-    "embed_dependent_object",
     "remove_dependent_object",
     "set_alternative_key_fields"
   ]);
@@ -107491,14 +107138,14 @@ function buildNodeFields(name, nodeId, spec, parentLink) {
     isExtensible: bool(spec.isExtensible),
     objectModelGenerated: bool(spec.objectModelGenerated),
     objectModelObsolete: bool(spec.objectModelObsolete),
-    persistentStructureRef: ref2(spec.persistentStructureRef),
-    transientStructureRef: ref2(spec.transientStructureRef),
-    combinedStructureRef: ref2(spec.combinedStructureRef),
-    combinedTableRef: ref2(spec.combinedTableRef),
-    persistentTableRef: ref2(spec.persistentTableRef),
-    defaultingClassRef: ref2(spec.defaultingClassRef),
-    dataAccessClassRef: ref2(spec.dataAccessClassRef),
-    authorizationClassRef: ref2(spec.authorizationClassRef)
+    persistentStructureRef: ref(spec.persistentStructureRef),
+    transientStructureRef: ref(spec.transientStructureRef),
+    combinedStructureRef: ref(spec.combinedStructureRef),
+    combinedTableRef: ref(spec.combinedTableRef),
+    persistentTableRef: ref(spec.persistentTableRef),
+    defaultingClassRef: ref(spec.defaultingClassRef),
+    dataAccessClassRef: ref(spec.dataAccessClassRef),
+    authorizationClassRef: ref(spec.authorizationClassRef)
   };
 }
 function buildAssociationFields(name, nodeId, spec) {
@@ -107510,9 +107157,9 @@ function buildAssociationFields(name, nodeId, spec) {
     implementationType: str3(spec.implementationType),
     objectModelGenerated: bool(spec.objectModelGenerated),
     doEmbeddingName: str3(spec.doEmbeddingName),
-    targetNodeRef: ref2(spec.targetNodeRef),
+    targetNodeRef: ref(spec.targetNodeRef),
     implementationClassRef: classRefFromSpec(spec),
-    parameterStructureRef: ref2(spec.parameterStructureRef)
+    parameterStructureRef: ref(spec.parameterStructureRef)
   };
 }
 function buildActionFields(name, nodeId, spec) {
@@ -107527,7 +107174,7 @@ function buildActionFields(name, nodeId, spec) {
     isExtensible: bool(spec.isExtensible),
     objectModelGenerated: bool(spec.objectModelGenerated),
     implementationClassRef: classRefFromSpec(spec),
-    parameterStructureRef: ref2(spec.parameterStructureRef)
+    parameterStructureRef: ref(spec.parameterStructureRef)
   };
 }
 function boNodeRef(boName, nodeName) {
@@ -107705,7 +107352,7 @@ function buildQueryFields(name, nodeId, spec) {
     xmlName: str3(spec.xmlName),
     category: strEnum(spec.category, QUERY_CATEGORIES, "category"),
     objectModelGenerated: bool(spec.objectModelGenerated),
-    dataTypeRef: ref2(spec.dataTypeRef),
+    dataTypeRef: ref(spec.dataTypeRef),
     implementationClassRef: classRefFromSpec(spec)
   };
 }
@@ -107719,8 +107366,8 @@ function buildAlternativeKeyFields(name, nodeId, spec) {
     checkBeforeSave: bool(spec.checkBeforeSave),
     noCheck: bool(spec.noCheck),
     objectModelGenerated: bool(spec.objectModelGenerated),
-    dataTypeRef: ref2(spec.dataTypeRef),
-    dataTableTypeRef: ref2(spec.dataTableTypeRef),
+    dataTypeRef: ref(spec.dataTypeRef),
+    dataTableTypeRef: ref(spec.dataTableTypeRef),
     keyElements: strArray(spec.keyElements)
   };
 }
@@ -107810,7 +107457,7 @@ function patchNodeFlags(xml3, tokens, sel, spec) {
       result = spliceSetNodeRef(result, freshTokens, currentName, refKind, null, { nodeId: sel.nodeId });
       continue;
     }
-    const r = ref2(value);
+    const r = ref(value);
     if (!r) {
       throw new AbapError(
         "BAD_INPUT",
@@ -107925,7 +107572,7 @@ function patchChildFields(freshXml, tokens, input, op) {
       if (raw === null) {
         value = null;
       } else {
-        const parsed = ref2(raw);
+        const parsed = ref(raw);
         if (!parsed) continue;
         value = parsed;
       }
@@ -108048,11 +107695,8 @@ function mutateModel(freshXml, input) {
       return patchChildFields(freshXml, tokens, input, input.operation);
     case "set_node_flags":
       return patchNodeFlags(freshXml, tokens, requireNode(input), spec);
-    case "add_representative_node":
-    case "remove_representative_node":
-    case "embed_dependent_object":
     case "remove_dependent_object":
-      return mutateDelegation(freshXml, input, { insertNodeAtRoot });
+      return mutateDelegation(freshXml, input);
     case "create_bo":
     case "activate":
       throw new AbapError(
@@ -108081,8 +107725,8 @@ function createBoActivatabilityNotes(model) {
     );
   }
   const autoAssigned = ["persistentTableRef", "persistentStructureRef"].flatMap((kind) => {
-    const ref3 = root[kind];
-    return ref3 ? [`${kind} ${ref3.name}`] : [];
+    const ref2 = root[kind];
+    return ref2 ? [`${kind} ${ref2.name}`] : [];
   });
   if (autoAssigned.length > 0) {
     notes.push(
@@ -108115,7 +107759,7 @@ function addNodeAutoAssignedRefsNote(input, model) {
   if (!node2) return void 0;
   const spec = input.spec ?? {};
   const autoAssigned = ["persistentTableRef", "persistentStructureRef"].flatMap((kind) => {
-    if (ref2(spec[kind])) return [];
+    if (ref(spec[kind])) return [];
     const r = node2[kind];
     return r ? [`${kind} ${r.name}`] : [];
   });
@@ -108171,14 +107815,14 @@ function countMembers(model, kind, node2, member) {
   const memberName = member.toLowerCase();
   return model.nodes.filter((n) => n.name.toLowerCase() === nodeName).flatMap((n) => MEMBERS_BY_KIND[kind](n)).filter((m) => m.name.toLowerCase() === memberName).length;
 }
-function resolveTargetNodeName2(ref3) {
-  if (!ref3) return void 0;
-  if (ref3.uri) {
-    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref3.uri);
+function resolveTargetNodeName2(ref2) {
+  if (!ref2) return void 0;
+  if (ref2.uri) {
+    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref2.uri);
     if (m) return m[1];
   }
-  const tilde = ref3.name.lastIndexOf("~");
-  return tilde >= 0 ? ref3.name.slice(tilde + 1) : ref3.name;
+  const tilde = ref2.name.lastIndexOf("~");
+  return tilde >= 0 ? ref2.name.slice(tilde + 1) : ref2.name;
 }
 function findEquivalentAssociation(node2, implementationType, targetNode) {
   const wantType = implementationType.toLowerCase();
@@ -108227,7 +107871,7 @@ function nodeFlagMismatches(node2, spec) {
       if (readBack !== void 0) out.push({ field: kind, sent: null, readBack });
       continue;
     }
-    const wanted = ref2(sent);
+    const wanted = ref(sent);
     if (!wanted) continue;
     if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
       out.push({ field: kind, sent: wanted, readBack: readBack ?? null });
@@ -108261,7 +107905,7 @@ function childFieldMismatches(element, spec, table) {
         if (readBack !== void 0) out.push({ field: key, sent: null, readBack });
         continue;
       }
-      const wanted = ref2(sent);
+      const wanted = ref(sent);
       if (!wanted) continue;
       if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
         out.push({ field: key, sent: wanted, readBack: readBack ?? null });
@@ -108295,7 +107939,7 @@ function attributeSessionDeath(e, input) {
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
   return new AbapError(e.code, message, details, hint);
 }
-var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 the same short-dump-prone mapper handles both; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four. add_representative_node adds a parentless node standing in for another BO (spec.representedBo required); embed_dependent_object embeds a dependent object under a node (spec.dependentObject required, plus i_know_this_may_not_activate: true \u2014 neither the represented BO nor the dependent object is ever written to the wire).";
+var BOPF_EDIT_TOOL_DESCRIPTION = 'One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 the same short-dump-prone mapper handles both; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four. remove_dependent_object removes an existing dependent-object embedding (its DoComposition association plus the matching "<name>.ROOT" node); abapsmith cannot create one \u2014 see doc/CAPABILITIES/bopf.md.';
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
@@ -108470,7 +108114,6 @@ async function runBopfEdit(deps, args) {
         );
       }
       if (isDelegationOperation(input.operation)) {
-        await delegationNetworkPreflight(input, async (other) => (await readModel(conn, other)).model);
         delegationModelPreflight(initial.model, input);
       }
       let afterMutate;
@@ -108557,7 +108200,7 @@ async function runBopfEdit(deps, args) {
             if (input.operation === "add_association") {
               const spec = input.spec ?? {};
               const implementationType = str3(spec.implementationType);
-              const requestedTarget = resolveTargetNodeName2(ref2(spec.targetNodeRef));
+              const requestedTarget = resolveTargetNodeName2(ref(spec.targetNodeRef));
               if (implementationType && requestedTarget) {
                 const targetNode = afterMutate.model.nodes.find((n) => n.name.toLowerCase() === nodeName.toLowerCase());
                 equivalent = targetNode && findEquivalentAssociation(targetNode, implementationType, requestedTarget);
@@ -108943,14 +108586,14 @@ function nodeStructureRef(node2) {
 function nodeTableRef(node2) {
   return node2.persistentTableRef?.name;
 }
-function targetNodeName(ref3) {
-  if (!ref3) return void 0;
-  if (ref3.uri) {
-    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref3.uri);
+function targetNodeName(ref2) {
+  if (!ref2) return void 0;
+  if (ref2.uri) {
+    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref2.uri);
     if (m) return m[1];
   }
-  const tilde = ref3.name.lastIndexOf("~");
-  return tilde >= 0 ? ref3.name.slice(tilde + 1) : ref3.name;
+  const tilde = ref2.name.lastIndexOf("~");
+  return tilde >= 0 ? ref2.name.slice(tilde + 1) : ref2.name;
 }
 function findAssociation(model, parentNodeName, wantedTargetNodeName) {
   const parent = model.nodes.find((n) => n.name === parentNodeName);
@@ -117125,8 +116768,8 @@ function parseEdmx(body) {
       const name = attr6(t, "Name");
       if (!name) continue;
       const keys = [];
-      for (const ref3 of list(child2(t, "Key"), "PropertyRef")) {
-        const k = attr6(ref3, "Name");
+      for (const ref2 of list(child2(t, "Key"), "PropertyRef")) {
+        const k = attr6(ref2, "Name");
         if (k) keys.push(k);
       }
       const properties = [];
@@ -118479,35 +118122,11 @@ var ABAP_DO_ACTIONS = [
     args: "node, nodeId, spec, activate"
   },
   {
-    action: "bopf_add_representative_node",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"add_representative_node"})',
-    summary: "Add a parentless representative node standing in for another BO.",
-    args: "name (new node name), spec.representedBo (required), spec.xmlName, activate"
-  },
-  {
-    action: "bopf_remove_representative_node",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_representative_node"})',
-    summary: "Remove a representative node.",
-    args: "node, nodeId, activate"
-  },
-  {
-    action: "bopf_embed_dependent_object",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"embed_dependent_object"})',
-    summary: 'Embed a dependent object under a node (a DoComposition association plus a "<name>.ROOT" node).',
-    args: "node (parent), name (new embedding/association name), spec.dependentObject (required), spec.xmlName, spec.multiplicity, spec.implementationClassRef, i_know_this_may_not_activate (required true), activate"
-  },
-  {
     action: "bopf_remove_dependent_object",
     group: "bopf",
     minMode: "edit",
     v1: 'abap_bopf_edit({operation:"remove_dependent_object"})',
-    summary: 'Remove an embedded dependent object (its association and "<name>.ROOT" node).',
+    summary: 'Remove an existing dependent-object embedding (its association and "<name>.ROOT" node).',
     args: "node (parent), name, activate"
   },
   {
@@ -118968,9 +118587,6 @@ var BOPF_HANDLERS = /* @__PURE__ */ new Map([
   ["bopf_remove_alternative_key", editOp("remove_alternative_key")],
   ["bopf_set_alternative_key_fields", editOp("set_alternative_key_fields")],
   ["bopf_set_node_flags", editOp("set_node_flags")],
-  ["bopf_add_representative_node", editOp("add_representative_node")],
-  ["bopf_remove_representative_node", editOp("remove_representative_node")],
-  ["bopf_embed_dependent_object", editOp("embed_dependent_object")],
   ["bopf_remove_dependent_object", editOp("remove_dependent_object")],
   ["bopf_activate", editOp("activate")],
   ["bopf_test", test2],
