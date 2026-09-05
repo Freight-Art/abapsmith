@@ -172,6 +172,17 @@ export function parsePreviewBody(body: string): {
   columns: PreviewColumn[];
   rows: string[][];
   messages: PreviewMessage[];
+  /**
+   * `<dataPreview:totalRows>`, parsed as a plain integer. On the `ddic`
+   * endpoint this is always 0 even when rows come back (pinned by the
+   * `ddic-t000-rows3` cassette's own capture notes) — it must never be read
+   * as a row count there. On `freestyle` it is the true total matching the
+   * statement's WHERE, independent of the `rowNumber` cap, which is what
+   * `img-read.ts` uses it for. Absent or not parseable as an integer stays
+   * `undefined` — never defaulted to `0`, which would be indistinguishable
+   * from a genuine "zero rows match" answer.
+   */
+  totalRows?: number;
 } {
   const doc = previewXml.parse(body) as Record<string, unknown>;
   const table = (doc.tableData ?? {}) as Record<string, unknown>;
@@ -218,7 +229,21 @@ export function parsePreviewBody(body: string): {
   for (let r = 0; r < rowCount; r++) {
     rows.push(values.map((v) => v[r] ?? ""));
   }
-  return { columns, rows, messages };
+
+  // `<dataPreview:totalRows>` is a direct child of `tableData`, sibling to
+  // `columns`/`message`, and is not in the `isArray` predicate, so it parses
+  // to a plain string (not an array) when present. A missing element or one
+  // that fails to parse as an integer must stay `undefined`; a genuinely
+  // parsed `0` (e.g. from the `ddic` endpoint, which always reports 0) is
+  // still reported as `0`.
+  let totalRows: number | undefined;
+  const totalRowsRaw = table.totalRows;
+  if (typeof totalRowsRaw === "string" && totalRowsRaw.trim() !== "") {
+    const parsed = Number.parseInt(totalRowsRaw, 10);
+    if (Number.isFinite(parsed)) totalRows = parsed;
+  }
+
+  return { columns, rows, messages, ...(totalRows === undefined ? {} : { totalRows }) };
 }
 
 // ---------------------------------------------------------------- failures ---
