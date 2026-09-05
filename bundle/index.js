@@ -87321,6 +87321,7 @@ var Journal = class _Journal {
       object: input.object,
       existedBefore: input.existedBefore,
       beforeCapture,
+      ...input.beforeKind ? { beforeKind: input.beforeKind } : {},
       outcome: "pending",
       ...input.undoOf ? { undoOf: input.undoOf } : {},
       ...input.tool ? { tool: input.tool } : {},
@@ -92698,6 +92699,14 @@ async function readCurrentSourceResult(conn, t) {
     return { ok: false, error: e };
   }
 }
+async function readPackageMetadata(conn, t) {
+  try {
+    const res = await conn.get(t.uri, { headers: { Accept: capabilitiesFor(t.spec.type)?.mediaType ?? "application/*" } });
+    return typeof res.body === "string" ? res.body : void 0;
+  } catch {
+    return void 0;
+  }
+}
 function enhancementIntentFor(t, affects) {
   return {
     enhancementName: t.name,
@@ -93684,8 +93693,9 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
     const preflight3 = await preflightCorr(conn, t, opts, "U", "delete");
     const corrNr = preflight3?.kind === "transport" ? preflight3.corrNr : "";
     if (opts.onBeforeImage) {
+      const metadata = opts.onBeforeImage === NO_JOURNAL ? void 0 : await readPackageMetadata(conn, t);
       await opts.onBeforeImage({
-        source: void 0,
+        ...metadata !== void 0 ? { source: metadata, sourceKind: "package-metadata" } : {},
         existed: true,
         sourceReadable: true,
         target: t,
@@ -96911,6 +96921,11 @@ function classIncludeBlocker(entry) {
   if (!include) return void 0;
   return `This entry records a write to the ${include} include of class ${entry.object.name} (${entry.object.sourceUri}), not to the class's main source. abapsmith restores a before-image through the ordinary write path, which addresses /source/main \u2014 so replaying this entry would write ${entry.object.name}'s ${include} include OVER its class body, destroying the real source and reporting it as a successful undo. That is refused rather than attempted. Nothing was changed. Restore the include by hand: read the recorded before-image (abap_journal mode=show), then write it back with abap_write using include="${include}". Include-aware undo is a known follow-up, not yet implemented.`;
 }
+function packageRecreateBlocker(entry) {
+  if (entry.operation !== "delete" || !isPackageType(entry.object.type)) return void 0;
+  const name = entry.object.name;
+  return `Undoing this entry would RE-CREATE package ${name}, and abapsmith does not re-create packages from a journal entry. The before-image is the package's metadata document (a package has no source), and abapsmith restores a before-image by writing it through the ordinary write path, which would PUT that XML at a URI that has no source document. That is refused rather than attempted. Nothing was changed. Re-create the package deliberately with abap_write type="DEVC/K" (abap_journal mode=show entry=<id> prints the recorded metadata), then move its contents back. This refusal cannot be overridden with force=true.`;
+}
 function undoBlocker(entry) {
   if (entry.operation === "transport-release") {
     return "a released transport cannot be recalled; create a corrective transport instead";
@@ -97152,7 +97167,7 @@ async function planUndo(conn, journal, entry) {
   const action = plannedAction(entry);
   const restoreSource = action === "delete" ? void 0 : await journal.beforeImage(entry);
   const transportWarning = await releasedTransportWarning(journal, entry);
-  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeBlocker(entry) ?? deleteEvidenceBlocker(entry);
+  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeBlocker(entry) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry);
   if (localBlocker) {
     return {
       entry,
@@ -97448,6 +97463,7 @@ async function performUndo(conn, journal, entry, opts) {
           beforeCapture: captureFor(img),
           systemKey: liveKey,
           ...img.source !== void 0 ? { beforeSource: img.source } : {},
+          ...img.sourceKind !== void 0 ? { beforeKind: img.sourceKind } : {},
           undoOf: entry.id,
           tool: "abap_journal undo"
         }),
@@ -97620,7 +97636,10 @@ function undoHint(e) {
     const refusal = deleteEvidenceBlocker(e);
     return refusal ? `undo would DELETE this object, and WILL BE REFUSED: ${refusal}` : "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
   }
-  if (action === "recreate") return "undo would RE-CREATE this object from the before-image";
+  if (action === "recreate") {
+    const refusal = packageRecreateBlocker(e);
+    return refusal ? `undo would RE-CREATE this object, and WILL BE REFUSED: ${refusal}` : "undo would RE-CREATE this object from the before-image";
+  }
   return "undo would restore the previous source";
 }
 function classWarning(e) {
@@ -97737,7 +97756,8 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
     const sections = [];
     if (before !== void 0) {
       const win = sliceLines(before, 1);
-      sections.push({ title: `BEFORE-IMAGE (${entry.before?.bytes ?? 0} bytes)`, content: win.text });
+      const label = entry.beforeKind === "package-metadata" ? "package metadata, " : "";
+      sections.push({ title: `BEFORE-IMAGE (${label}${entry.before?.bytes ?? 0} bytes)`, content: win.text });
     } else {
       sections.push({
         title: "BEFORE-IMAGE",
@@ -97751,7 +97771,7 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
       );
     }
     notes2.push(
-      `Before-image provenance: beforeCapture="${entry.beforeCapture}" \u2014 ` + (entry.beforeCapture === "captured" ? "the previous source was read successfully." : entry.beforeCapture === "confirmed-absent" ? "the object was positively confirmed absent beforehand." : entry.beforeCapture === "failed" ? "the before-image probe never completed or came back inconclusive, so `existedBefore` is a guess." : "not recorded (the entry predates provenance tracking), so `existedBefore` is unverified.")
+      `Before-image provenance: beforeCapture="${entry.beforeCapture}" \u2014 ` + (entry.beforeCapture === "captured" ? entry.beforeKind === "package-metadata" ? "the captured image is the package's metadata document, not source \u2014 undo will not re-create the package." : "the previous source was read successfully." : entry.beforeCapture === "confirmed-absent" ? "the object was positively confirmed absent beforehand." : entry.beforeCapture === "failed" ? "the before-image probe never completed or came back inconclusive, so `existedBefore` is a guess." : "not recorded (the entry predates provenance tracking), so `existedBefore` is unverified.")
     );
     notes2.push(undoHint(entry));
     const cls = classWarning(entry);
@@ -97773,6 +97793,7 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
         package: entry.object.package,
         existedBefore: entry.existedBefore,
         beforeCapture: entry.beforeCapture,
+        beforeKind: entry.beforeKind,
         outcome: entry.outcome,
         error: entry.error,
         beforeEtag: entry.before?.etag,
@@ -100744,7 +100765,10 @@ function captureOf(img) {
   if (!img.sourceReadable) return "failed";
   return img.source !== void 0 ? "captured" : "failed";
 }
-function deleteJournalNote(entryId, capture, type, name) {
+function deleteJournalNote(entryId, capture, type, name, kind) {
+  if (capture === "captured" && kind === "package-metadata") {
+    return `The package's metadata was journalled as ${entryId} before the delete \u2014 a package has no source, so that is the whole before-image, and abap_journal mode=undo will NOT re-create ${type} ${name} from it. Re-create it with abap_write type="DEVC/K" if you need it back.`;
+  }
   if (capture === "captured") {
     return `The source was journalled as ${entryId} before the delete \u2014 abap_journal mode=undo entry=${entryId} re-creates the object from it.`;
   }
@@ -101165,17 +101189,20 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     }
     const authorized2 = await authorizeMutation(conn, gate, "delete", target);
     let beforeCapture;
+    let beforeKind;
     const { result: res, entryId: entryId2, settle: settle2 } = await withJournalledMutation(
       journal,
       {
         begin: (img) => {
           beforeCapture = captureOf(img);
+          beforeKind = img.sourceKind;
           return {
             operation: "delete",
             object: journalRef(img.target),
             existedBefore: img.existed,
             beforeCapture,
             ...img.source !== void 0 ? { beforeSource: img.source } : {},
+            ...img.sourceKind !== void 0 ? { beforeKind: img.sourceKind } : {},
             // On begin(), not finish(): resolution is pre-flight, so the
             // request is already known — see BeforeImage.corrNr (src/adt/write.ts).
             ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
@@ -101235,7 +101262,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
           // `entryId`, so `entryId !== undefined` cannot happen without
           // `beforeCapture` having already been assigned. The `?? "failed"`
           // is a type-only fallback, never expected to fire.
-          deleteJournalNote(entryId2, beforeCapture ?? "failed", res.target.type, res.target.name)
+          deleteJournalNote(entryId2, beforeCapture ?? "failed", res.target.type, res.target.name, beforeKind)
         ) : "Nothing was journalled (the write journal is off or was not available), so abapsmith kept NO copy of the source: this deletion is IRREVERSIBLE from here.",
         // Package delete only: unlike the ordinary REST delete's hardcoded
         // `deleted: true`, this route's is backed by PKG-GONE — see the markers line.
@@ -101762,6 +101789,7 @@ async function abapWriteBatchDelete(conn, entries, maxChars, gate, journal, tran
             existedBefore: img.existed,
             beforeCapture: captureOf(img),
             ...img.source !== void 0 ? { beforeSource: img.source } : {},
+            ...img.sourceKind !== void 0 ? { beforeKind: img.sourceKind } : {},
             ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
             systemKey: systemKey(conn.cfg),
             tool: "abap_write"
