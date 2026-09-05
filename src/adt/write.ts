@@ -393,6 +393,12 @@ export interface BeforeImage {
    * overwrite a class's body with its test classes.
    */
   include?: ClassInclude;
+  /**
+   * `source` is not the object's source document but its metadata XML — a
+   * package has none of the former. A consumer that replays it through the
+   * ordinary write path would PUT XML at a URI with no source document.
+   */
+  sourceKind?: "package-metadata";
 }
 
 /**
@@ -1478,6 +1484,21 @@ export async function readCurrentSourceResult(
     // (this fn's one caller) refuses includes up front.
     if (isNotFoundError(e)) return { ok: true, source: undefined };
     return { ok: false, error: e };
+  }
+}
+
+/**
+ * A package has no source document — this reads its metadata XML as the
+ * before-image instead. Best-effort: any failure (including a 406, since
+ * `contentAccept()`'s `text/plain` is not acceptable here) returns `undefined`
+ * rather than failing the delete that called it.
+ */
+async function readPackageMetadata(conn: AbapConnection, t: ResolvedTarget): Promise<string | undefined> {
+  try {
+    const res = await conn.get(t.uri, { headers: { Accept: capabilitiesFor(t.spec.type)?.mediaType ?? "application/*" } });
+    return typeof res.body === "string" ? res.body : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -3858,8 +3879,11 @@ export async function deleteObject(
     const corrNr = preflight?.kind === "transport" ? preflight.corrNr : "";
 
     if (opts.onBeforeImage) {
+      // A package has no source document; its metadata XML is the whole
+      // before-image. Best-effort — a failed read must never fail the delete.
+      const metadata = opts.onBeforeImage === NO_JOURNAL ? undefined : await readPackageMetadata(conn, t);
       await opts.onBeforeImage({
-        source: undefined,
+        ...(metadata !== undefined ? { source: metadata, sourceKind: "package-metadata" as const } : {}),
         existed: true,
         sourceReadable: true,
         target: t,

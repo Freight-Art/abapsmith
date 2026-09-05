@@ -53,6 +53,7 @@ subset named above.
 | `object` | type, name, uri, package, description |
 | `existedBefore` | whether the object existed before this write |
 | `beforeCapture` | `captured` \| `confirmed-absent` \| `failed` \| `unknown` — provenance of `existedBefore`, see [Undo semantics](undo-and-recovery.md#undo-semantics) below |
+| `beforeKind` | present only when `before` is not the object's own source — `"package-metadata"` for a package (`DEVC/K`) delete. The entry preserves the package's metadata document, and undo will not replay it. |
 | `before` / `after` | `{ etag, fingerprint, bytes, blob?, serverEtag? }` — raw etag and canonical fingerprint, both kept, for different jobs (see [Drift detection](undo-and-recovery.md#drift-detection)) |
 | `outcome` | `pending` \| `succeeded` \| `failed` |
 | `undoOf` / `undoneBy` | links between an entry and the entry that later undid it |
