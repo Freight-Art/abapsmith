@@ -217,6 +217,11 @@ was last set to `0.3.0`.
 
 ### Changed
 
+- `abap_debug`'s `breakpoints` schema states the shared `condition`/`skipCount`
+  guidance once at the array level instead of once per union branch, trimming
+  the largest single property in the `tools/list` payload by about a third with
+  no validator change. The facts that left the schema now live in
+  `doc/TOOLS/debugger.md`; a test pins the property's size ceiling.
 - A failed connect is now classified instead of being labelled
   `AUTH_FAILED` unconditionally: 401/403 map to `AUTH_FAILED`, 5xx to
   `SYSTEM_UNAVAILABLE`, and anything unidentified to `ADT_ERROR` — never
