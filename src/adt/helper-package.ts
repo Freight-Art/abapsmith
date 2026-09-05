@@ -89,7 +89,8 @@ export async function ensureHelperPackage(
         e.message,
         e.details,
         e.hint ? `${e.hint} ${fallback}` : fallback,
-        { retryable: e.retryable },
+        { retryable: e.retryable }, // re-wrap, not an override — no site reachable here overrides RETRYABILITY today
+        // carries the caught error's retryable across instead of recomputing it, so that stays true if one ever does
       );
     }
     throw new AbapError(
