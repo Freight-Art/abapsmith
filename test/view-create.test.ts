@@ -13,24 +13,27 @@
  *  2. the closed-template defence — a quote, a period, a newline or a space in
  *     any identifier is refused, and no source is produced at all (not
  *     escaped, not stripped);
- *  3. the create refusal, and that it runs FIRST — before the safety gate,
- *     before validation, and proven by the fake server seeing zero requests
- *     rather than merely by the throw;
+ *  3. `assertClassicViewCreateTarget` — zero-network, and reached before the
+ *     safety gate and before any request, proven by the fake server seeing
+ *     zero requests rather than merely by the throw: a local package refuses
+ *     a `corrNr` (BAD_INPUT), a transportable one requires one
+ *     (TRANSPORT_ERROR), a malformed one is BAD_INPUT regardless;
  *  4. the `sy-subrc` guard between the `DDIF_VIEW_PUT` call and its success
  *     tag — these FMs report failure through classic EXCEPTIONS, which no
  *     `CATCH cx_root` sees, so a tag written unconditionally would report
  *     success for a call that did nothing;
  *  5. a failing transcript (empty output, or a `ZMCP-DDIC-ERR>` line) is a
  *     failure, not a success with nothing to say;
- *  6. `$TMP` vs a real package — `RS_CORR_INSERT`/`VIEW-REGISTERED` appear for
- *     one and not the other, and `expectTags` follows the fragment in both;
+ *  6. `$TMP` and a real package now generate the SAME shape — `RS_CORR_INSERT`
+ *     and `VIEW-REGISTERED` fire for both, `korrnum` the only thing that
+ *     differs (`space` vs the quoted TRKORR), and `expectTags` is the same
+ *     three-tag set for every package;
  *  7. the source the bridge would deploy, with the captured parameter names
- *     in it.
- *
- * There is no happy path left to test: `createClassicView` refuses every
- * package, `$TMP` included, so nothing past the refusal is reachable. What
- * remains reachable — the fragment, the generated source, the tag set, the
- * refusal itself — is what these tests assert against.
+ *     in it;
+ *  8. the happy path — `createClassicView` resolves for both a local and a
+ *     transportable package once the fake classrun reports all three tags,
+ *     and a transcript missing `VIEW-REGISTERED` is `CHECK_FAILED` for
+ *     either.
  */
 import { describe, expect, it } from "vitest";
 import type {
@@ -55,13 +58,12 @@ import {
 } from "../src/adt/ddic-bridge.js";
 import {
   VIEW_DATA_LINES,
-  assertClassicViewCreateSupported,
+  assertClassicViewCreateTarget,
   classicViewFragment,
   createClassicView,
   type ClassicViewParams,
 } from "../src/adt/view-create.js";
 import { isLocalPackageName } from "../src/adt/transports.js";
-import { TERMINAL_REFUSAL_NOTE } from "../src/adt/capabilities.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 
 // ---------------------------------------------------------------------------
@@ -275,9 +277,9 @@ describe("generator/parser drift", () => {
     expect(tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
   });
 
-  it("emits exactly the tag SET createClassicView expects, for $TMP (round 5: RS_CORR_INSERT/VIEW-REGISTERED skipped again)", () => {
+  it("emits exactly the tag SET createClassicView expects, for $TMP too — RS_CORR_INSERT/VIEW-REGISTERED now run for every package", () => {
     const tags = emittedTags(classicViewFragment(LOCAL_VIEW));
-    expect(new Set(tags)).toEqual(new Set(["VIEW-PUT", "VIEW-ACTIVATED"]));
+    expect(new Set(tags)).toEqual(new Set(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"]));
   });
 
   it("every tag the fragment writes is one parseDdicTranscript recognises", () => {
@@ -326,11 +328,10 @@ describe("generator/parser drift", () => {
 describe("closed template — an injection is refused, never escaped", () => {
   const bad = ["bad'name", "bad.name", "bad\nname", "bad name"];
 
-  // Asserted at the fragment level, not through createClassicView: the create
-  // is now refused for every package before validate() ever runs, so a
-  // createClassicView call would report UNSUPPORTED for an input this suite is
-  // about the SHAPE of. The fragment is where an injection would have to
-  // survive to reach a bridge class, so it is the load-bearing check.
+  // Asserted at the fragment level: assertEnhIdentifier refuses these
+  // regardless of package/corrNr, and the fragment is where an injection
+  // would have to survive to reach a bridge class, so it is the load-bearing
+  // check.
   for (const value of bad) {
     it(`refuses viewName ${JSON.stringify(value)} with BAD_INPUT, and produces no fragment at all`, () => {
       expect(catchSync(() => classicViewFragment({ ...LOCAL_VIEW, viewName: value })).code).toBe("BAD_INPUT");
@@ -369,9 +370,11 @@ describe("closed template — an injection is refused, never escaped", () => {
     expect(err.message).toContain("OBJPOS");
   });
 
-  it("createClassicView refuses the PACKAGE before it ever inspects an identifier — UNSUPPORTED, not BAD_INPUT, with no connection to reach", async () => {
-    const err = await catchErr(createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, viewName: "bad'name" }));
-    expect(err.code).toBe("UNSUPPORTED");
+  it("createClassicView refuses a malformed packageName with BAD_INPUT, with no connection to reach", async () => {
+    const err = await catchErr(
+      createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, packageName: "bad'name" }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
   });
 
   it("refuses an injected packageName with BAD_INPUT, at the fragment level (embedded raw in RS_CORR_INSERT)", () => {
@@ -392,26 +395,46 @@ describe("closed template — an injection is refused, never escaped", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3 — the second gate runs, and runs FIRST
+// 3 — assertClassicViewCreateTarget runs first, zero-network; the safety
+//     gate still governs the view itself, and runs before any request
 // ---------------------------------------------------------------------------
 
-describe("the create refusal runs before the gate, and before anything reaches the wire", () => {
-  // These two used to prove `assertBridgeMutation` ran, and ran first. The
-  // create is now refused for every package ahead of it, so the strongest
-  // statement left is the one that matters to a caller: not one byte leaves
-  // the process, whatever the gate would have said.
-  it("refuses with UNSUPPORTED and ZERO requests on the wire, even with a gate that would deny VIEW/DV anyway", async () => {
+describe("zero-network refusals ahead of the gate; the safety gate still governs the view", () => {
+  it("refuses a local package given a corrNr as BAD_INPUT, with ZERO requests reaching the fake server", async () => {
     const route = combine(
       objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-PUT", "VIEW-ACTIVATED"])),
+      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
     );
     const { conn, inner } = await connected(route);
-    const err = await catchErr(createClassicView(conn, viewDenyingGate(), LOCAL_VIEW));
-    expect(err.code).toBe("UNSUPPORTED");
+    const err = await catchErr(createClassicView(conn, allowingGate(), { ...LOCAL_VIEW, corrNr: CORR_NR }));
+    expect(err.code).toBe("BAD_INPUT");
     expect(inner.calls.length).toBe(0);
   });
 
-  it("never asks the gate about the view at all — the refusal is not a gate decision a permissive gate could reverse", async () => {
+  it("refuses a transportable package given no corrNr as TRANSPORT_ERROR, with ZERO requests reaching the fake server", async () => {
+    const route = combine(
+      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
+      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
+    );
+    const { conn, inner } = await connected(route);
+    const { corrNr: _drop, ...withoutCorr } = VIEW;
+    const err = await catchErr(createClassicView(conn, allowingGate(), withoutCorr as ClassicViewParams));
+    expect(err.code).toBe("TRANSPORT_ERROR");
+    expect(inner.calls.length).toBe(0);
+  });
+
+  it("the safety gate still governs a VIEW/DV create — a gate that denies VIEW/DV makes createClassicView throw SAFETY_DENIED, with ZERO requests reaching the fake server", async () => {
+    const route = combine(
+      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
+      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
+    );
+    const { conn, inner } = await connected(route);
+    const err = await catchErr(createClassicView(conn, viewDenyingGate(), LOCAL_VIEW));
+    expect(err.code).toBe("SAFETY_DENIED");
+    expect(inner.calls.length).toBe(0);
+  });
+
+  it("the gate IS asked about the view — a permissive gate lets the create proceed to the wire", async () => {
     const seen: Operation[] = [];
     class RecordingGate extends SafetyGate {
       override assert(op: Operation, obj?: SafetyTarget, opts: EvaluateOptions = {}): void {
@@ -426,13 +449,14 @@ describe("the create refusal runs before the gate, and before anything reaches t
     });
     const route = combine(
       objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-PUT", "VIEW-ACTIVATED"])),
+      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
     );
     const { conn, inner } = await connected(route);
-    const err = await catchErr(createClassicView(conn, gate, LOCAL_VIEW));
-    expect(err.code).toBe("UNSUPPORTED");
-    expect(seen).toEqual([]);
-    expect(inner.calls.length).toBe(0);
+    await createClassicView(conn, gate, LOCAL_VIEW);
+    // Both write and activate are gated — DDIF_VIEW_ACTIVATE runs inside the
+    // same bridge execution as the write, so the view's own create asserts both.
+    expect(seen).toEqual(["write", "activate"]);
+    expect(inner.calls.length).toBeGreaterThan(0);
   });
 });
 
@@ -487,11 +511,11 @@ describe("the sy-subrc guard — a classic EXCEPTIONS failure is never tagged as
 // 5 — a failing transcript is a failure
 // ---------------------------------------------------------------------------
 
-// Asserted against `assertDdicTranscript` with the view's own expected tags
-// rather than through `createClassicView`: no transcript can reach that
-// function any more, since it refuses every package before it deploys
-// anything. The tag SET is the fragment's own (see the drift suite above), so
-// a rename still fails here.
+// Asserted directly against `assertDdicTranscript` with a $TMP-shaped
+// two-tag expectation, rather than through `createClassicView` — the tag SET
+// is the fragment's own (see the drift suite above), so a rename still fails
+// here. (The happy-path describe below exercises the real, now-three-tag
+// expectation through `createClassicView` itself.)
 describe("a failing transcript is a failure, not a silent success", () => {
   const TMP_TAGS = ["VIEW-PUT", "VIEW-ACTIVATED"] as DdicTag[];
   const check = (output: string): AbapError =>
@@ -517,31 +541,20 @@ describe("a failing transcript is a failure, not a silent success", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6 — $TMP skips RS_CORR_INSERT/VIEW-REGISTERED; a transportable package
-//     gets both (round 5: restored after round 3's unconditional-call
-//     regression)
+// 6 — $TMP now matches a transportable package: RS_CORR_INSERT and
+//     VIEW-REGISTERED fire for every package (the create-target lift)
 // ---------------------------------------------------------------------------
 
 /**
- * ROUND 3 removed the `$TMP` skip and called `RS_CORR_INSERT`
- * unconditionally, reasoning by (unproven) analogy from `tran-create.ts` that
- * skipping TADIR registration was the leading suspect for a `$TMP` view
- * reproducing live as wholly absent. ROUND 5 (2026-08-14) reverted that after
- * a live run of the unconditional version reproduced something WORSE, not
- * better: `CHECK_FAILED`, "Sending of dynpro SAPLSTRD 0352 not possible: No
- * window system type specified", with the transcript showing `VIEW-PUT`
- * succeeding and the error coming from the very next generated statement
- * (`COMMIT WORK.` then `CALL FUNCTION 'RS_CORR_INSERT'`) — i.e.
- * `RS_CORR_INSERT` itself throwing up an interactive transport-request-
- * selection popup that `IF_OO_ADT_CLASSRUN` cannot display, aborting before
- * `DDIF_VIEW_ACTIVATE` ever ran. The original reasoning this codebase had —
- * "a `$TMP` object needs no TADIR / transport registration" — was right, not
- * merely unrefuted. See `src/adt/view-create.ts`'s `LOCAL_PACKAGE` doc
- * comment for the full account, including why the `tran-create.ts` analogy
- * did not transfer (that module never generates a direct `RS_CORR_INSERT`
- * call at all — see test/tran-create.test.ts and tran-create.ts itself).
+ * Round 5 (2026-08-14) skipped RS_CORR_INSERT for $TMP after a live run of an
+ * unconditional call reproduced a headless-dialog CHECK_FAILED. Two further
+ * live runs prove that reasoning wrong, not right: 2026-09-04 (transportable,
+ * ZBOPF_Q1PKG, a real corr_nr) and 2026-09-05 (local, `$ZTMD_I09`, `korrnum =
+ * space`) both registered cleanly, and the local registration is what let the
+ * delete bridge remove the view afterwards. See `src/adt/view-create.ts`'s
+ * `isLocalPackage` doc comment for the full account.
  */
-describe("$TMP skips RS_CORR_INSERT/VIEW-REGISTERED; a transportable package gets both (round 5)", () => {
+describe("$TMP now emits RS_CORR_INSERT/VIEW-REGISTERED the same as a transportable package", () => {
   it("generates RS_CORR_INSERT and the VIEW-REGISTERED tag for ZTM (transportable)", () => {
     const lines = classicViewFragment(VIEW);
     expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
@@ -550,40 +563,45 @@ describe("$TMP skips RS_CORR_INSERT/VIEW-REGISTERED; a transportable package get
     expect(lines).toContain("out->write( 'VIEW-REGISTERED' ).");
   });
 
-  it("emits NO RS_CORR_INSERT and NO VIEW-REGISTERED tag for $TMP", () => {
+  it("generates RS_CORR_INSERT, the DICT object key, object_class = 'DICT', the caller's devclass and VIEW-REGISTERED for $TMP too — korrnum = space, no quoted TRKORR anywhere", () => {
     const lines = classicViewFragment(LOCAL_VIEW);
-    expect(lines).not.toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-    expect(lines.some((l) => l.includes("RS_CORR_INSERT"))).toBe(false);
-    expect(lines).not.toContain("out->write( 'VIEW-REGISTERED' ).");
-    // The PUT and the activation are unaffected — only registration is skipped.
+    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
+    expect(lines.some((l) => l.trim().startsWith("EXPORTING object ="))).toBe(true);
+    expect(lines).toContain("            object_class = 'DICT'");
+    expect(lines).toContain("            devclass = '$TMP'");
+    expect(lines).toContain("            korrnum = space");
+    expect(lines.some((l) => /korrnum = '/.test(l))).toBe(false);
+    expect(lines).toContain("out->write( 'VIEW-REGISTERED' ).");
+    // The PUT and the activation are unaffected — registration is additive, not a replacement.
     expect(lines).toContain("CALL FUNCTION 'DDIF_VIEW_PUT'");
     expect(lines).toContain("CALL FUNCTION 'DDIF_VIEW_ACTIVATE'");
   });
 
-  it("treats lower-case $tmp exactly the same as $TMP — case-insensitive, same package to the server", () => {
+  it("treats lower-case $tmp exactly the same as $TMP — case-insensitive, korrnum = space either way", () => {
     const lines = classicViewFragment({ ...VIEW, packageName: "$tmp", corrNr: undefined });
-    expect(lines).not.toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-    expect(lines).not.toContain("out->write( 'VIEW-REGISTERED' ).");
+    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
+    expect(lines).toContain("            korrnum = space");
+    expect(lines).toContain("out->write( 'VIEW-REGISTERED' ).");
     expect(lines).toContain("CALL FUNCTION 'DDIF_VIEW_PUT'");
     expect(lines).toContain("CALL FUNCTION 'DDIF_VIEW_ACTIVATE'");
   });
 
-  it("treats ANY $-prefixed package as local, not just $TMP — no RS_CORR_INSERT for $FOO either (matches safety.ts's $-prefix rule)", () => {
+  it("treats ANY $-prefixed package as local, not just $TMP — $FOO registers with korrnum = space too (matches safety.ts's $-prefix rule)", () => {
     const lines = classicViewFragment({ ...VIEW, packageName: "$FOO", corrNr: undefined });
-    expect(lines).not.toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-    expect(lines.some((l) => l.includes("RS_CORR_INSERT"))).toBe(false);
-    expect(lines).not.toContain("out->write( 'VIEW-REGISTERED' ).");
+    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
+    expect(lines).toContain("            devclass = '$FOO'");
+    expect(lines).toContain("            korrnum = space");
+    expect(lines).toContain("out->write( 'VIEW-REGISTERED' ).");
   });
 
-  it("both COMMIT WORK statements are present in the $TMP shape (unaffected by the RS_CORR_INSERT skip)", () => {
+  it("both COMMIT WORK statements are present in the $TMP shape, in the same relative placement as the transportable shape", () => {
     const lines = classicViewFragment(LOCAL_VIEW);
     const commitCount = lines.filter((l) => l === "COMMIT WORK.").length;
     expect(commitCount).toBe(2);
     // One right after DDIF_VIEW_PUT's success tag, one at the very end (after
-    // DDIF_VIEW_ACTIVATE's success tag) — same relative placement as the
-    // transportable shape, just with no RS_CORR_INSERT block in between.
-    // A blank separator line sits between the tag and the COMMIT (same
-    // one-blank-line-then-statement style every block in this fragment uses).
+    // DDIF_VIEW_ACTIVATE's success tag). A blank separator line sits between
+    // the tag and the COMMIT (same one-blank-line-then-statement style every
+    // block in this fragment uses).
     const putTagIdx = lines.indexOf("out->write( 'VIEW-PUT' ).");
     const activateTagIdx = lines.indexOf("out->write( 'VIEW-ACTIVATED' ).");
     expect(lines[putTagIdx + 1]).toBe("");
@@ -602,20 +620,13 @@ describe("$TMP skips RS_CORR_INSERT/VIEW-REGISTERED; a transportable package get
     expect(lines[lines.length - 1]).toBe("COMMIT WORK.");
   });
 
-  it("the $TMP fragment emits exactly VIEW-PUT/VIEW-ACTIVATED — VIEW-REGISTERED is UNEXPECTED, and a two-tag transcript is accepted", () => {
+  it("emits all three tags, in VIEW-REGISTERED, VIEW-PUT, VIEW-ACTIVATED order, for $TMP exactly as for a transportable package", () => {
     const tags = emittedTags(classicViewFragment(LOCAL_VIEW));
-    expect(tags).toEqual(["VIEW-PUT", "VIEW-ACTIVATED"]);
+    expect(tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
     expect(() =>
       assertDdicTranscript(parseDdicTranscript(tags.join("\n")), tags as DdicTag[], "Creating classic view"),
     ).not.toThrow();
   });
-
-  // "expectTags still requires VIEW-REGISTERED for ZTM" (createClassicView,
-  // non-$TMP) deleted: that path is now unreachable, createClassicView
-  // forces $TMP before it ever runs. The underlying invariant — RS_CORR_INSERT
-  // and VIEW-REGISTERED rise and fall together — is pinned at the fragment
-  // level below ("expectTags for a non-$TMP create still requires
-  // VIEW-REGISTERED...").
 });
 
 // ---------------------------------------------------------------------------
@@ -666,7 +677,7 @@ describe("corrNr threaded into RS_CORR_INSERT's KORRNUM", () => {
     expect(err.message).toContain("transport request");
   });
 
-  it("createClassicView refuses a non-$TMP view with no corrNr as UNSUPPORTED, never TRANSPORT_ERROR — the guard runs before validate()", async () => {
+  it("createClassicView refuses a non-$TMP view with no corrNr as TRANSPORT_ERROR, with zero requests reaching the fake server — the guard runs before validate() ever produces a fragment", async () => {
     const route = combine(
       objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
       sharedRoute(classrunOutput(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"])),
@@ -674,24 +685,24 @@ describe("corrNr threaded into RS_CORR_INSERT's KORRNUM", () => {
     const { conn, inner } = await connected(route);
     const { corrNr: _drop, ...withoutCorr } = VIEW;
     const err = await catchErr(createClassicView(conn, allowingGate(), withoutCorr as ClassicViewParams));
-    expect(err.code).toBe("UNSUPPORTED");
+    expect(err.code).toBe("TRANSPORT_ERROR");
     expect(inner.calls.length).toBe(0);
   });
 
-  it("a $TMP fragment emits no RS_CORR_INSERT, no korrnum and no suppress_dialog, and expects only VIEW-PUT/VIEW-ACTIVATED", () => {
+  it("a $TMP fragment emits RS_CORR_INSERT, korrnum = space and suppress_dialog = 'X', and expects VIEW-REGISTERED/VIEW-PUT/VIEW-ACTIVATED", () => {
     const lines = classicViewFragment(LOCAL_VIEW);
-    expect(lines.some((l) => l.includes("RS_CORR_INSERT"))).toBe(false);
-    expect(lines.some((l) => l.includes("korrnum"))).toBe(false);
-    // No RS_CORR_INSERT call means no dialog to suppress in the first place.
-    expect(lines.some((l) => l.includes("suppress_dialog"))).toBe(false);
-    expect(emittedTags(lines)).toEqual(["VIEW-PUT", "VIEW-ACTIVATED"]);
+    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
+    expect(lines).toContain("            korrnum = space");
+    expect(lines).toContain("            suppress_dialog = 'X'");
+    expect(emittedTags(lines)).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
   });
 
-  it("a $TMP fragment WITH a corrNr is refused BAD_INPUT — a $TMP view is never registered in CTS", () => {
+  it("a $TMP fragment WITH a corrNr is refused BAD_INPUT — a $TMP view registers with korrnum = space, not on a transport request", () => {
     const params: ClassicViewParams = { ...LOCAL_VIEW, corrNr: CORR_NR };
     const err = catchSync(() => classicViewFragment(params));
     expect(err.code).toBe("BAD_INPUT");
     expect(err.message).toContain("$TMP");
+    expect(err.message).toContain("korrnum = space");
   });
 
   it("validate() still refuses a malformed corrNr as BAD_INPUT, via classicViewFragment", () => {
@@ -710,106 +721,40 @@ describe("corrNr threaded into RS_CORR_INSERT's KORRNUM", () => {
   });
 });
 
-describe("assertClassicViewCreateSupported", () => {
-  it("refuses a non-$TMP view, zero-network, message names the TK103 object-key rejection and the unregistered-in-TADIR strand risk, hint does not route to $TMP as a fix", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"])),
+describe("assertClassicViewCreateTarget", () => {
+  it("refuses a local package given a corrNr as BAD_INPUT, naming the package — reached with a null connection, i.e. zero network", async () => {
+    const err = await catchErr(createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, corrNr: CORR_NR }));
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("$TMP");
+    expect(err.message).toContain("korrnum = space");
+  });
+
+  it("refuses a transportable package given no corrNr as TRANSPORT_ERROR, naming corr_nr — reached with a null connection, i.e. zero network", async () => {
+    const { corrNr: _drop, ...withoutCorr } = VIEW;
+    const err = await catchErr(createClassicView(offline, allowingGate(), withoutCorr as ClassicViewParams));
+    expect(err.code).toBe("TRANSPORT_ERROR");
+    expect(err.message).toContain("corr_nr");
+  });
+
+  it("refuses a malformed corrNr as BAD_INPUT — reached with a null connection, i.e. zero network", async () => {
+    const err = await catchErr(createClassicView(offline, allowingGate(), { ...VIEW, corrNr: "not-a-request" }));
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("not-a-request");
+  });
+
+  it("refuses a malformed package name as BAD_INPUT, not TRANSPORT_ERROR, even with no corrNr — reached with a null connection, i.e. zero network", async () => {
+    const err = await catchErr(
+      createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, packageName: "bad'name", corrNr: undefined }),
     );
-    const { conn, inner } = await connected(route);
-    const err = await catchErr(createClassicView(conn, allowingGate(), VIEW));
-    expect(err.code).toBe("UNSUPPORTED");
-    expect(err.message).toContain("This syntax cannot be used for an object name");
-    expect(err.message).toContain("TK103");
-    expect(err.message).toContain("unregistered in TADIR");
-    expect(err.hint).toContain("stranded view");
-    expect(err.hint).toContain("SE11/SE14");
-    expect(err.hint).not.toContain("into $TMP instead");
-    expect(inner.calls.length).toBe(0);
+    expect(err.code).toBe("BAD_INPUT");
   });
 
-  it("leads with a terminal, imperative refusal naming SE11/SE14 as the alternative, and ends with TERMINAL_REFUSAL_NOTE", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"])),
-    );
-    const { conn } = await connected(route);
-    const err = await catchErr(createClassicView(conn, allowingGate(), VIEW));
-    expect(err.message.endsWith(TERMINAL_REFUSAL_NOTE)).toBe(true);
-    const firstSentence = err.message.split(". ")[0];
-    expect(firstSentence).toContain("No retry will succeed");
-    expect(firstSentence).toContain("SE11/SE14");
-    expect(firstSentence.toLowerCase()).not.toContain("try again");
+  it("$TMP with no corrNr returns the validated name and throws nothing — the lift itself, asserted directly", () => {
+    expect(assertClassicViewCreateTarget("$TMP", undefined)).toBe("$TMP");
   });
 
-  // The defect this closes: the opening sentence claimed no package works
-  // while $TMP was let through, and an omitted `package` resolves to $TMP —
-  // so the shortest possible call disproved the first thing the caller read.
-  it("throws UNSUPPORTED for $TMP too, in every casing isLocalPackage accepts", () => {
-    for (const value of ["$TMP", "$tmp", "$Tmp"]) {
-      const err = catchSync(() => assertClassicViewCreateSupported(value));
-      expect(err.code).toBe("UNSUPPORTED");
-      expect(err.message).toContain("unregistered in TADIR");
-    }
-  });
-
-  it("$TMP's refusal says why it is refused — the create SUCCEEDS and mints an object delete and undo then both refuse", () => {
-    const err = catchSync(() => assertClassicViewCreateSupported("$TMP"));
-    expect(err.message).toContain("$TMP is not the exception");
-    expect(err.message).toContain("omitting `package`");
-    expect(err.message).toContain("PACKAGE_UNKNOWN");
-    expect(err.message).toContain("non-overridably");
-    expect(err.message.endsWith(TERMINAL_REFUSAL_NOTE)).toBe(true);
-    expect(err.hint).toContain("SE11/SE14");
-    expect(err.hint).toContain("DDLS/DF");
-  });
-
-  // The opening sentence is one shared string, so it cannot be true for one
-  // package and false for another — which is exactly how the defect arose.
-  it("every package gets the same opening claim, and every package is refused", () => {
-    for (const value of ["$TMP", "$MYLOCAL", "ZTM"]) {
-      const err = catchSync(() => assertClassicViewCreateSupported(value));
-      expect(err.code).toBe("UNSUPPORTED");
-      expect(err.message).toContain(
-        `No retry will succeed for package ${JSON.stringify(value)} or any other: abapsmith cannot ` +
-          "create a classic view for any package, so create it in SE11/SE14 by hand instead.",
-      );
-    }
-  });
-
-  it("throws UNSUPPORTED for a transportable package", () => {
-    expect(catchSync(() => assertClassicViewCreateSupported("ZTM")).code).toBe("UNSUPPORTED");
-  });
-
-  it("throws UNSUPPORTED for $MYLOCAL — still not $TMP, but for the evidence reason (no package is known to produce a working create), not because it's considered transportable", () => {
-    const err = catchSync(() => assertClassicViewCreateSupported("$MYLOCAL"));
-    expect(err.code).toBe("UNSUPPORTED");
-    expect(err.message).not.toContain("RS_CORR_INSERT");
-    expect(err.message).not.toContain("TK103");
-    expect(err.message).toContain(
-      "abapsmith cannot create a classic view for any package, so create it in SE11/SE14 by hand",
-    );
-  });
-
-  it("$MYLOCAL's refusal also leads with the terminal claim and ends with TERMINAL_REFUSAL_NOTE", () => {
-    const err = catchSync(() => assertClassicViewCreateSupported("$MYLOCAL"));
-    expect(err.message.endsWith(TERMINAL_REFUSAL_NOTE)).toBe(true);
-    const firstSentence = err.message.split(". ")[0];
-    expect(firstSentence).toContain("No retry will succeed");
-    expect(firstSentence).toContain("SE11/SE14");
-    expect(firstSentence.toLowerCase()).not.toContain("try again");
-  });
-
-  it("assertClassicViewCreateSupported('ZTM') still mentions the TK103 object-key obstacle", () => {
-    const err = catchSync(() => assertClassicViewCreateSupported("ZTM"));
-    expect(err.code).toBe("UNSUPPORTED");
-    expect(err.message).toContain("TK103");
-  });
-
-  it("throws BAD_INPUT, not UNSUPPORTED, for a malformed package name", () => {
-    for (const value of ["bad'name", "bad.name", "bad\nname", "bad name"]) {
-      expect(catchSync(() => assertClassicViewCreateSupported(value)).code).toBe("BAD_INPUT");
-    }
+  it("a transportable package with a valid corrNr likewise returns the validated name and throws nothing", () => {
+    expect(assertClassicViewCreateTarget("ZTM", CORR_NR)).toBe("ZTM");
   });
 });
 
@@ -827,10 +772,12 @@ describe("isLocalPackageName", () => {
   });
 });
 
-describe("$MYLOCAL — local but not the attempted package", () => {
-  it("classicViewFragment emits NO RS_CORR_INSERT line for $MYLOCAL", () => {
+describe("any $-prefixed package behaves identically — $MYLOCAL is not special", () => {
+  it("classicViewFragment emits RS_CORR_INSERT and korrnum = space for $MYLOCAL, same as $TMP", () => {
     const lines = classicViewFragment({ ...VIEW, packageName: "$MYLOCAL", corrNr: undefined });
-    expect(lines.some((l) => l.includes("RS_CORR_INSERT"))).toBe(false);
+    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
+    expect(lines).toContain("            korrnum = space");
+    expect(lines).toContain("            devclass = '$MYLOCAL'");
   });
 
   it("classicViewFragment with $MYLOCAL and a valid corrNr throws BAD_INPUT, not TRANSPORT_ERROR — a local package has nothing for a request to attach to", () => {
@@ -842,15 +789,10 @@ describe("$MYLOCAL — local but not the attempted package", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 7 — the generated source (no happy path: every package is refused)
+// 7 — the generated source the create bridge deploys
 // ---------------------------------------------------------------------------
 
-// Nothing is ever put on the wire for a view any more, so this asserts the
-// source `createClassicView` would deploy — built from the same three inputs
-// it passes to `ddicBridgeSource` — rather than a captured PUT body. The
-// bridge stays in the tree as the record of the recon; this keeps that record
-// from rotting while it is unreachable.
-describe("the source the create bridge would deploy", () => {
+describe("the source the create bridge deploys", () => {
   it("carries the captured DDIF_VIEW_PUT/ACTIVATE parameter names and the generated DATA section", () => {
     const body = ddicBridgeSource(
       DDIC_BRIDGE_CLASS.createView,
@@ -878,9 +820,9 @@ describe("the source the create bridge would deploy", () => {
     expect(body).toContain("DATA ls_dd25v TYPE dd25v.");
     expect(body).toContain("DATA lt_dd27p TYPE STANDARD TABLE OF dd27p.");
 
-    // $TMP: no RS_CORR_INSERT/korrnum in the source at all.
-    expect(body).not.toContain("RS_CORR_INSERT");
-    expect(body).not.toContain("korrnum");
+    // $TMP: RS_CORR_INSERT and korrnum = space, same as a transportable package.
+    expect(body).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
+    expect(body).toContain("korrnum = space");
 
     // Explicitly out of scope, and it must stay out: no SE54 wizard call is
     // ever generated here.
@@ -902,5 +844,46 @@ describe("the source the create bridge would deploy", () => {
     expect(lines).toContain("ls_dd26v-tabname  = 'SCARR'.");
     expect(lines).toContain("ls_dd26v-tabpos   = '0001'.");
     expect(lines.filter((l) => l.startsWith("ls_dd26v-tabname")).length).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8 — the happy path: createClassicView resolves once the fake classrun
+//     reports all three tags, for a local package exactly as for a
+//     transportable one
+// ---------------------------------------------------------------------------
+
+describe("createClassicView happy path — the create-target lift proven end to end", () => {
+  it("resolves for $TMP — a $TMP create is no longer refused (the lift)", async () => {
+    const route = combine(
+      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
+      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
+    );
+    const { conn } = await connected(route);
+    const { transcript, run } = await createClassicView(conn, allowingGate(), LOCAL_VIEW);
+    expect(transcript.tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    expect(transcript.errorLine).toBeUndefined();
+    expect(run.output).toContain("VIEW-REGISTERED");
+  });
+
+  it("resolves for ZTM (transportable, with corr_nr) when the fake classrun returns all three tags", async () => {
+    const route = combine(
+      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
+      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
+    );
+    const { conn } = await connected(route);
+    const { transcript } = await createClassicView(conn, allowingGate(), VIEW);
+    expect(transcript.tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    expect(transcript.errorLine).toBeUndefined();
+  });
+
+  it("a transcript missing VIEW-REGISTERED is CHECK_FAILED for a $TMP create too — the whole point of the lift", async () => {
+    const route = combine(
+      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
+      sharedRoute(classrunOutput(["VIEW-PUT", "VIEW-ACTIVATED"])),
+    );
+    const { conn } = await connected(route);
+    const err = await catchErr(createClassicView(conn, allowingGate(), LOCAL_VIEW));
+    expect(err.code).toBe("CHECK_FAILED");
   });
 });

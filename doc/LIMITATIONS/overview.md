@@ -31,9 +31,7 @@ for those.
 capability-registry lookup (`REGISTRY` in `src/adt/capabilities.ts`) rather
 than hardcoded per message — so the day a type gains that capability, the
 refusal stops firing and the sentence disappears with it, rather than going
-stale. The one deliberate exception is the classic-view create refusal
-(`src/adt/view-create.ts`), which is terminal for every package rather than
-for a registry-listed type.
+stale.
 
 ## The v2 tool surface (`ABAP_TOOL_SURFACE=v2`)
 

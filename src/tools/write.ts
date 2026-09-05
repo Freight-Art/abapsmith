@@ -40,7 +40,7 @@ import type { RunResult } from "../adt/run.js";
 import { serverPackage } from "../adt/resolved-package.js";
 import { createTransaction } from "../adt/tran-create.js";
 import { deleteTransactionViaBridge } from "../adt/tran-delete.js";
-import { assertClassicViewCreateSupported, createClassicView } from "../adt/view-create.js";
+import { assertClassicViewCreateTarget, createClassicView } from "../adt/view-create.js";
 import { deleteClassicViewViaBridge } from "../adt/view-delete.js";
 import {
   verifyObjectCreated,
@@ -150,8 +150,8 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Package for a NEW object. Default $TMP. VIEW/DV: that create is refused for every " +
-        "package, and for an omitted one.",
+      "Package for a NEW object. Default $TMP. VIEW/DV: a transportable one needs corr_nr, " +
+        "a $-package refuses it.",
     ),
   description: z
     .string()
@@ -193,7 +193,8 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Transport request. $TMP needs none. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete.",
+      "Transport request. $TMP needs none. Required for a VIEW/DV create into a " +
+        "transportable package. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete.",
     ),
   software_component: z.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: z.string().optional().describe("DEVC/K only. Default development."),
@@ -205,11 +206,11 @@ export const writeInputSchema = {
   // deliberately: schema prose is billed on every `tools/list`, while the
   // fuller guidance is billed only to a caller who gets it wrong
   // (`abapCreateViaBridge`, below) — see test/tools.test.ts's "tool surface".
-  base_table: z.string().optional().describe("VIEW/DV only, and that create is refused: unreachable."),
+  base_table: z.string().optional().describe("VIEW/DV create only: the single base table the view projects."),
   view_fields: z
     .array(z.string())
     .optional()
-    .describe("VIEW/DV only, and that create is refused: unreachable."),
+    .describe("VIEW/DV create only: base-table fields to project, in order."),
   // "EXISTING" and "SUBMIT-only" are load-bearing: abapsmith checks the
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.
@@ -3160,9 +3161,7 @@ async function abapCreateViaBridge(
   // TRAN/T only: `src/adt/tran-create.ts`'s own RPY_TRANSACTION_INSERT call passes no
   // transport parameter — a named corr_nr would be dropped silently. That is all this refuses
   // on: whether the FM itself would accept one is UNVERIFIED (tran-create.ts's header).
-  // VIEW/DV has no corr_nr-drop hazard here — but the create itself is
-  // refused for EVERY package (assertClassicViewCreateSupported, below), $TMP and an
-  // omitted `package` included.
+  // VIEW/DV has no corr_nr-drop hazard here — it validates package/corr_nr instead, below.
   // Blank-normalised: a caller who templated the field to `""` named no request, so there
   // is nothing to refuse — refusing would contradict every other tool, which now reads `""` as
   // "auto".
@@ -3177,13 +3176,11 @@ async function abapCreateViaBridge(
   }
 
   const packageName = target.packageName?.trim() || "$TMP";
-  // Refuse here too, zero-network, before verifyViaVitBridge's ADT read below —
-  // view-create.ts's own call is defence-in-depth, not the only enforcement point.
-  // This default is exactly why the refusal has to cover $TMP: omitting `package`
-  // lands here, so anything $TMP-shaped that got through would be reachable by
-  // simply leaving the argument out. Everything below this line is unreachable
-  // for VIEW/DV today.
-  if (type === "VIEW/DV") assertClassicViewCreateSupported(packageName);
+  // Zero-network package/corr_nr check for a VIEW/DV create, done here so a bad
+  // combination costs no request: a transportable package needs corr_nr, a $-package
+  // (including this $TMP default) must not have one. view-create.ts's own `validate`
+  // repeats this as defence in depth, not the only enforcement point.
+  if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
   const description = input.description?.trim();
   if (!description) {
     bad(
@@ -3253,9 +3250,6 @@ async function abapCreateViaBridge(
     // See this function's doc comment for the live-observed defect and fix. Whether the
     // COMMIT WORK fix closes the gap is NOT assumed here — the read-back below decides,
     // live, on every call.
-    // Unreachable: assertClassicViewCreateSupported above refuses every package. Kept
-    // because it is the wiring the refusal is a policy gate over, not dead weight —
-    // see view-create.ts's createClassicView doc comment.
     bridgeClass = DDIC_BRIDGE_CLASS.createView;
     const corrNr = normalizeCorrNr(input.corr_nr);
     ({ result: created, entryId } = await journalBridgeCreate(
@@ -3385,8 +3379,8 @@ async function abapCreateViaBridge(
               "unresolved — the object may still exist."
             : ""),
         { object: target.name, type, markers: created.transcript.tags.join(" ") },
-        "This is the exact failure mode VIEW/DV is refused over; if this recurs for TRAN/T, treat it " +
-          "as a live regression in the bridge, not a fluke.",
+        "This is the exact failure mode VIEW/DV's read-back above guards against; if this recurs " +
+          "for TRAN/T, treat it as a live regression in the bridge, not a fluke.",
       );
     }
     registration = bridgeCreateRegistration(outcome);
@@ -3659,8 +3653,8 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
     {
       description:
         "Create, change or delete an ABAP object: save/check/activate; locking handled. " +
-        "TRAN/T deletable+undoable. VIEW/DV create refused for every package. " +
-        "DEVC/K delete only if empty.",
+        "TRAN/T deletable+undoable. VIEW/DV create needs corr_nr for a transportable package, " +
+        "none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true },
     },

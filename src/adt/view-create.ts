@@ -27,7 +27,6 @@
  * its package.
  */
 
-import { TERMINAL_REFUSAL_NOTE } from "./capabilities.js";
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
 import type { AbapIdentifierOptions, SafetyCorr, SafetyGate } from "../safety.js";
@@ -63,13 +62,11 @@ export interface ClassicViewParams {
    * An ALREADY gate-judged TRKORR. `validate()`/`classicViewFragment` require
    * it for a transportable (non-`$`-prefixed) package (`RS_CORR_INSERT` needs
    * one to register the view in CTS) and refuse it for a local, `$`-prefixed
-   * package (see {@link isLocalPackage}). `createClassicView` itself reaches
-   * no package at all today — see
-   * {@link assertClassicViewCreateSupported} — so this matters only to
-   * direct `classicViewFragment` callers. Not routing here isn't a fix in
-   * itself: no package, including `$TMP`, is known to produce a working
-   * create. Auto-acquiring a request for this path is
-   * deliberately deferred until one is — do not add it here.
+   * package — a local create still calls `RS_CORR_INSERT` and registers the
+   * view, but with `korrnum = space` (ABAP's SPACE constant), not a transport
+   * request (see {@link isLocalPackage}). Auto-acquiring a request for a
+   * transportable create is deliberately deferred until this module needs
+   * one — do not add it here.
    */
   corrNr?: string;
 }
@@ -93,105 +90,18 @@ function dictObjectKey(viewName: string): string {
  * Local (non-transportable) package: ANY `$`-prefixed package, per
  * {@link isLocalPackageName} (`safety.ts:1677`/`transport.ts:876`'s rule, not
  * just `$TMP`), compared case-insensitively (`$tmp` == `$TMP` to the
- * server). A local view skips RS_CORR_INSERT/CTS registration entirely (no
- * `VIEW-REGISTERED` tag expected) — `validate` refuses a `corrNr` supplied
- * for one rather than silently ignoring it. Delegates to `transports.ts`'s
- * shared `$`-prefix rule rather than re-inlining it.
- *
- * `createClassicView` no longer attempts ANY package — see
- * {@link MEASURED_PACKAGE}/{@link assertClassicViewCreateSupported} — but
- * "is this local" is still the right question for whether the fragment emits
- * `RS_CORR_INSERT`, so the two predicates stay separate. A transportable
- * package now gets the fixed DICT key shape and registration-before-PUT
- * ordering below, unproven live; `$TMP` lands an active view unregistered in
- * TADIR, undeletable and unundoable.
+ * server). A local view still runs `RS_CORR_INSERT` and is registered in
+ * TADIR (`VIEW-REGISTERED` tag expected the same as a transportable create),
+ * but with `korrnum = space` rather than a TRKORR — proven live on A4H
+ * 2026-09-05: a create into `$ZTMD_I09` with `korrnum = space` returned
+ * sy-subrc 0 and wrote a TADIR row with devclass `$ZTMD_I09`, and the view
+ * was afterwards removed cleanly by the delete bridge. `validate` still
+ * refuses a `corrNr` supplied for a local package rather than silently
+ * ignoring it — there is no transport request for it to attach to. Delegates
+ * to `transports.ts`'s shared `$`-prefix rule rather than re-inlining it.
  */
 function isLocalPackage(packageName: string): boolean {
   return isLocalPackageName(packageName);
-}
-
-/**
- * The one package a classic-view create was ever attempted into, and the one
- * whose failure is therefore MEASURED rather than inferred — see
- * {@link assertClassicViewCreateSupported}'s `$TMP` branch for what the
- * measurement found. Deliberately narrower than {@link isLocalPackage}:
- * whether a package is local is settled by SAP semantics (any `$`-prefix),
- * whereas this is a statement about evidence. Nothing is attempted today, so
- * this constant now only selects which refusal reason is honest.
- */
-const MEASURED_PACKAGE = "$TMP";
-
-/** Is this the one package whose create was actually measured (see {@link MEASURED_PACKAGE})? */
-function isMeasuredPackage(packageName: string): boolean {
-  return packageName.trim().toUpperCase() === MEASURED_PACKAGE;
-}
-
-/**
- * Refuses a classic view create client-side, before any ADT traffic, for
- * EVERY package — `$TMP` included, and an omitted `package` with it, since
- * `src/tools/write.ts` defaults that to `$TMP`. The three branches differ
- * only in which reason is honest for the package named (see
- * {@link MEASURED_PACKAGE}); all three refuse, which is what makes the shared
- * opening sentence true read literally.
- *
- * `$TMP` used to be let through. It was closed because it did not fail — it
- * SUCCEEDED, at creating an object neither `abap_write mode=delete` nor
- * `abap_journal mode=undo` can then remove.
- */
-export function assertClassicViewCreateSupported(packageName: string): void {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES);
-  const opening =
-    `No retry will succeed for package ${JSON.stringify(validated)} or any other: abapsmith ` +
-    "cannot create a classic view for any package, so create it in SE11/SE14 by hand instead. ";
-  if (isMeasuredPackage(validated)) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      opening +
-        "$TMP is not the exception, and omitting `package` (which resolves to $TMP) does not " +
-        "reach one: it is the one package a create was ever attempted into, and the attempt is " +
-        "refused now because of what it did, not what it failed to do. Measured 2026-08-30, a " +
-        "$TMP create lands ACTIVE but unregistered in TADIR, so the view carries no packageRef, " +
-        "so abap_write mode=delete refuses it (PACKAGE_UNKNOWN) and abap_journal mode=undo " +
-        "refuses it non-overridably too. Succeeding at minting an object abapsmith is then " +
-        `obliged to refuse to remove is not a working create. ${TERMINAL_REFUSAL_NOTE}`,
-      { packageName: validated },
-      "No retry will succeed. Create the view in SE11/SE14, or use a CDS view (DDLS/DF) — the " +
-        "modern equivalent, which abapsmith both writes and reads.",
-    );
-  }
-  if (isLocalPackageName(validated)) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      opening +
-        "It is local (`$`-prefixed) but not $TMP, so the object-key rejection a transportable " +
-        "package hits is not the obstacle here — a local package is never registered in CTS at " +
-        "all, and no TADIR-registration call is generated for it. This package itself has never " +
-        "been tried — that is untried, not measured — and $TMP, the one package that WAS tried, " +
-        "is refused too: measured 2026-08-30, a $TMP create lands active but unregistered in " +
-        "TADIR, so it carries no packageRef, so abap_write mode=delete refuses it " +
-        "(PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably. Trying this " +
-        `package would risk minting another orphan abapsmith cannot clear. ${TERMINAL_REFUSAL_NOTE}`,
-      { packageName: validated },
-      "No retry will succeed. A stranded view needs SE11/SE14 to clear by hand.",
-    );
-  }
-  throw new AbapError(
-    "UNSUPPORTED",
-    opening +
-      "It is not $TMP. Two obstacles a transportable create hit live are now addressed in the " +
-      "generated ABAP, and neither is proven: RS_CORR_INSERT rejected the bare view name as its " +
-      "object key (object_class = 'DICT', sy-subrc=1, TK103 \"This syntax cannot be used for an " +
-      "object name\") and is now handed the 44-character DICT key that parameter reads, and it now " +
-      "runs BEFORE DDIF_VIEW_PUT rather than after its COMMIT WORK, so a rejected registration can " +
-      "no longer strand the active, packageRef-less view earlier attempts left behind. Both are " +
-      "read off the function module's source, not measured, so the create stays refused until a " +
-      "live run shows it working. $TMP is not an escape from any of this, and is no longer " +
-      "attempted at all: measured 2026-08-30, a $TMP create lands active but unregistered in " +
-      "TADIR, so it carries no packageRef, so abap_write mode=delete refuses it " +
-      `(PACKAGE_UNKNOWN) and abap_journal mode=undo refuses it non-overridably too. ${TERMINAL_REFUSAL_NOTE}`,
-    { packageName: validated },
-    "No retry will succeed. A stranded view — from either path — needs SE11/SE14 to clear by hand.",
-  );
 }
 
 /**
@@ -225,6 +135,45 @@ function assertCorrNr(value: string): string {
   return value;
 }
 
+/**
+ * No-network check: does this package/corr_nr pair make sense for a classic
+ * view create? A local (`$`-prefixed) package refuses a `corrNr` — it
+ * registers with `korrnum = space`, not a transport request, so there is
+ * nothing for one to attach to. A transportable package requires a `corrNr`
+ * in TRKORR format ({@link isTrkorr}). `abapCreateViaBridge`
+ * (`src/tools/write.ts`) calls this before its pre-create read, so a bad
+ * pair fails before any ADT traffic.
+ */
+export function assertClassicViewCreateTarget(
+  packageName: string,
+  corrNr: string | undefined,
+): string {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES);
+  const local = isLocalPackage(validated);
+  if (local && corrNr !== undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, ` +
+        "but a local ($-prefixed) view is registered with korrnum = space rather than on a " +
+        "transport request, so there is nothing here for one to attach to.",
+      { packageName: validated, corrNr },
+    );
+  }
+  if (!local && corrNr === undefined) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this view must be ` +
+        "registered in CTS via RS_CORR_INSERT, which requires a transport request — pass corr_nr " +
+        "(an ALREADY gate-judged TRKORR, e.g. A4HK900121).",
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write " +
+        "(see the abapsmith-put-work-on-a-transport skill).",
+    );
+  }
+  if (corrNr !== undefined) assertCorrNr(corrNr);
+  return validated;
+}
+
 /** Every caller string validated once, so the fragment can never see a raw one. */
 function validate(p: ClassicViewParams): ClassicViewParams {
   const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX });
@@ -250,31 +199,8 @@ function validate(p: ClassicViewParams): ClassicViewParams {
     assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX }),
   );
   const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
-  // allowLocal for any $-prefixed package; embedded in RS_CORR_INSERT like every other identifier here.
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", PACKAGE_RULES);
-
-  const local = isLocalPackage(packageName);
-  if (local && p.corrNr !== undefined) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(p.corrNr)} was supplied for local package ${JSON.stringify(packageName)}, ` +
-        "but a local ($-prefixed) view is never registered in CTS at all — RS_CORR_INSERT is not " +
-        "generated for it — so there is nothing here for a transport request to attach to.",
-      { viewName, baseTable, packageName, corrNr: p.corrNr },
-    );
-  }
-  if (!local && p.corrNr === undefined) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be ` +
-        "registered in CTS via RS_CORR_INSERT, which requires a transport request — pass corr_nr " +
-        "(an ALREADY gate-judged TRKORR, e.g. A4HK900121).",
-      { viewName, baseTable, packageName },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write " +
-        "(see the abapsmith-put-work-on-a-transport skill).",
-    );
-  }
-  const corrNr = local ? undefined : assertCorrNr(p.corrNr as string);
+  const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
+  const corrNr = isLocalPackage(packageName) ? undefined : (p.corrNr as string);
   return { viewName, baseTable, fields, description, packageName, corrNr };
 }
 
@@ -317,10 +243,9 @@ export const VIEW_DATA_LINES: readonly string[] = [
  * which TABLES parameter carries which payload, `DDIF_VIEW_ACTIVATE`'s
  * signature — is an unconfirmed ASSUMPTION. `RS_CORR_INSERT`'s parameters
  * were read off the live function group `SCOR` and confirmed live; the
- * object key they build (`object`/`object_class = 'DICT'`) now uses the
- * 44-char DICT layout {@link dictObjectKey} builds, and registration now
- * runs before any dictionary write — both unproven live (see
- * {@link assertClassicViewCreateSupported}). A wrong
+ * object key they build (`object`/`object_class = 'DICT'`) uses the 44-char
+ * DICT layout {@link dictObjectKey} builds, and registration runs before any
+ * dictionary write — both proven live (see the two incidents below). A wrong
  * field/parameter name fails loud (syntax error at activation); a
  * wrong constant or a wrong TABLES-parameter reading fails quiet (a view
  * with no fields), which is why a live run must read the created view back,
@@ -328,19 +253,22 @@ export const VIEW_DATA_LINES: readonly string[] = [
  * the git history.
  *
  * Two live-tested incidents shape this fragment's structure:
- *  - `RS_CORR_INSERT` is generated ONLY for a transportable (non-`$`-prefixed)
- *    package (see {@link isLocalPackage}). `createClassicView` itself attempts
- *    no package at all today ({@link assertClassicViewCreateSupported}
- *    refuses every one), so this branch is exercised only by direct
- *    `classicViewFragment` callers — it stays because it records what the
- *    generated ABAP must look like the day a create is attempted again.
+ *  - `RS_CORR_INSERT` runs for every package, transportable or local (see
+ *    {@link isLocalPackage}) — only the `korrnum` line differs: a
+ *    transportable create passes its TRKORR, a local one passes `space`.
+ *    Proven live on A4H: a transportable create into ZBOPF_Q1PKG with a
+ *    modifiable task succeeded 2026-09-04 (VIEW-REGISTERED/VIEW-PUT/
+ *    VIEW-ACTIVATED, the view read back with its fields, a TADIR row
+ *    present); a local create into `$ZTMD_I09` with `korrnum = space`
+ *    succeeded 2026-09-05 (sy-subrc 0, a TADIR row with devclass
+ *    `$ZTMD_I09`, the view then removed cleanly by the delete bridge).
  *  - Two explicit `COMMIT WORK` statements (after PUT, after ACTIVATE) work
  *    around `DDIF_VIEW_PUT` being an uncommitted update-task-style write; a
  *    live run without them reproduced a false success (tags present,
- *    `sy-subrc = 0`, but the view absent on read-back). Registration now runs
- *    BEFORE the first of the two, so nothing is committed before it. This fix
- *    is itself still UNTESTED in isolation — `write.ts`'s `abapCreateViaBridge`
- *    read-back is what actually catches it if it fails.
+ *    `sy-subrc = 0`, but the view absent on read-back). Registration runs
+ *    BEFORE the first of the two, so nothing is committed before it —
+ *    confirmed by both live runs above, neither of which left an orphaned
+ *    view.
  *
  * NOT GENERATED, deliberately: any SE54/`VIEW_MAINTENANCE_GENERATE`/`SE55`
  * step — see this module's header.
@@ -349,36 +277,35 @@ export function classicViewFragment(p: ClassicViewParams): string[] {
   const { viewName, baseTable, fields, description, packageName, corrNr } = validate(p);
   const view = quotedIdentifier(viewName, "viewName");
   const table = quotedIdentifier(baseTable, "baseTable");
+  const local = isLocalPackage(packageName);
 
   const lines: string[] = [];
 
-  if (!isLocalPackage(packageName)) {
-    lines.push(
-      // --- TADIR/transport registration, BEFORE any dictionary write: a key
-      //     RS_CORR_INSERT rejects then strands nothing. Skipped for any
-      //     local ($-prefixed) package — see isLocalPackage's doc comment;
-      //     do not make this unconditional without new live evidence.
-      "CALL FUNCTION 'RS_CORR_INSERT'",
-      // ABAP drops a text-field literal's trailing blanks; the formal
-      // parameter (DDOBJNAME, CHAR44) re-pads to its declared length, so the
-      // literal emitted here and the key SAP actually reads are the same
-      // 44-byte layout.
-      `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
-      "            object_class = 'DICT'",
-      `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES)}`,
-      "            master_language = sy-langu",
-      "            mode = 'INSERT'",
-      // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
-      "            global_lock = 'X'",
-      // suppress_dialog = 'X' sets iv_dialog = 'D', suppressing the request-selection dynpro
-      // (korrnum alone reaches only iv_order).
-      `            korrnum = ${abapLiteral(corrNr as string)}`,
-      "            suppress_dialog = 'X'",
-      "  EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.",
-      ...subrcCheckFragment("RS_CORR_INSERT", "VIEW-REGISTERED"),
-      "",
-    );
-  }
+  lines.push(
+    // --- TADIR registration, BEFORE any dictionary write: a key
+    //     RS_CORR_INSERT rejects then strands nothing. Runs for every
+    //     package; only korrnum differs (TRKORR vs space) below.
+    "CALL FUNCTION 'RS_CORR_INSERT'",
+    // ABAP drops a text-field literal's trailing blanks; the formal
+    // parameter (DDOBJNAME, CHAR44) re-pads to its declared length, so the
+    // literal emitted here and the key SAP actually reads are the same
+    // 44-byte layout.
+    `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
+    "            object_class = 'DICT'",
+    `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES)}`,
+    "            master_language = sy-langu",
+    "            mode = 'INSERT'",
+    // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
+    "            global_lock = 'X'",
+    // A local ($-prefixed) package has no transport request to name; space is ABAP's SPACE constant, not a quoted literal.
+    local ? "            korrnum = space" : `            korrnum = ${abapLiteral(corrNr as string)}`,
+    // suppress_dialog = 'X' sets iv_dialog = 'D', suppressing the request-selection dynpro
+    // (korrnum alone reaches only iv_order).
+    "            suppress_dialog = 'X'",
+    "  EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.",
+    ...subrcCheckFragment("RS_CORR_INSERT", "VIEW-REGISTERED"),
+    "",
+  );
 
   lines.push(
     // --- DD25V: the view header (field names/constants are ASSUMPTIONS, see doc comment above).
@@ -460,11 +387,11 @@ export function classicViewFragment(p: ClassicViewParams): string[] {
 // ---------------------------------------------------------------------------
 
 /**
- * `completed`/`hint` for {@link runDdicBridge}'s partial-success reporting on
- * a transportable create: `RS_CORR_INSERT` now runs before `DDIF_VIEW_PUT`
- * (see {@link classicViewFragment}), so a later failure can leave either just
- * a TADIR/transport entry, or that plus a committed-but-inactive view.
- * Exported so the shape is testable without a live transcript.
+ * `completed`/`hint` for {@link runDdicBridge}'s partial-success reporting:
+ * `RS_CORR_INSERT` runs before `DDIF_VIEW_PUT` for every package (see
+ * {@link classicViewFragment}), so a later failure can leave either just a
+ * TADIR entry, or that plus a committed-but-inactive view. Exported so the
+ * shape is testable without a live transcript.
  */
 export function viewCreatePartialSuccess(viewName: string): {
   completed: Readonly<Partial<Record<DdicTag, string>>>;
@@ -472,38 +399,34 @@ export function viewCreatePartialSuccess(viewName: string): {
 } {
   return {
     completed: {
-      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR and on the transport request, before any dictionary write — no view was created by it.`,
+      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR — on the transport request for a transportable package, with korrnum = space for a local one — before any dictionary write; no view was created by it.`,
       "VIEW-PUT": `DDIF_VIEW_PUT wrote ${viewName}, and the COMMIT WORK that follows it committed it, inactive.`,
     },
     hint:
       `If VIEW-PUT fired, ${viewName} exists AND is registered — abap_write mode="delete" ` +
       `type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only ` +
-      "the TADIR/transport entry exists — remove it from the request in SE09/SE10, or reuse it by " +
-      "re-running the create into the same request.",
+      "the TADIR entry exists — for a transportable package, remove it from the request in " +
+      "SE09/SE10, or reuse it by re-running the create into the same request; for a local " +
+      "package (korrnum = space) it is registered but not on any request.",
   };
 }
 
 /**
- * Create one classic database view: refuse EVERY package
- * (see {@link assertClassicViewCreateSupported}), validate, gate the VIEW,
- * generate, deploy, run, assert the transcript. Everything past the refusal
- * is unreachable from the tool surface today and is kept deliberately: the
- * generated ABAP and its choreography are the record of the recon, and the
- * refusal is one policy call to lift once a `$TMP` create can be registered
- * in TADIR. {@link assertClassicViewCreateSupported}
- * runs first and BEFORE `validate()` — deliberately ahead of `validate()`'s
- * own `TRANSPORT_ERROR` for a missing `corr_nr`, so a refused caller is told
- * the create is unsupported rather than sent to acquire a transport request
- * that cannot help. Then `validate()` (`BAD_INPUT` before anything else
- * `ddic-bridge.ts`'s header requires), then {@link assertBridgeMutation} on
- * the VIEW (zero-network, so a refusal leaves no bridge class behind), only
- * then generate ABAP, then {@link runDdicBridge}.
+ * Create one classic database view: validate, gate the VIEW, generate,
+ * deploy, run, assert the transcript. `validate()` (via
+ * {@link assertClassicViewCreateTarget}) runs first — `BAD_INPUT`/
+ * `TRANSPORT_ERROR` before anything else `ddic-bridge.ts`'s header requires
+ * — then {@link assertBridgeMutation} on the VIEW (zero-network, so a
+ * refusal leaves no bridge class behind), only then generate ABAP, then
+ * {@link runDdicBridge}.
  *
- * `expectTags` mirrors the fragment: `VIEW-REGISTERED` is expected exactly
- * when {@link isLocalPackage} says `RS_CORR_INSERT` is generated, computed
- * from the same predicate so the two cannot drift. (No package reaches this
- * line today, but it is the right predicate for the question regardless of
- * which one eventually does.)
+ * `expectTags` is `VIEW-REGISTERED`, `VIEW-PUT`, `VIEW-ACTIVATED` for every
+ * package: `RS_CORR_INSERT` registers a local package too (with
+ * `korrnum = space`), so registration is expected regardless of
+ * {@link isLocalPackage}. Proven live on A4H: a transportable create into
+ * ZBOPF_Q1PKG with a task succeeded 2026-09-04; a local create into
+ * `$ZTMD_I09` with `korrnum = space` succeeded 2026-09-05 (sy-subrc 0, a
+ * TADIR row written, the view then removed cleanly by the delete bridge).
  *
  * `corr`'s `source` is always `"named"`, never `"auto"` — unlike
  * `package-create.ts`, this module never auto-creates a request itself.
@@ -513,7 +436,6 @@ export async function createClassicView(
   gate: SafetyGate,
   params: ClassicViewParams,
 ): Promise<{ run: RunResult; transcript: DdicTranscript }> {
-  assertClassicViewCreateSupported(params.packageName);
   const validated = validate(params);
   const { viewName, packageName, corrNr } = validated;
 
@@ -535,9 +457,7 @@ export async function createClassicView(
     classicViewFragment(validated),
   );
 
-  const expectTags: DdicTag[] = isLocalPackage(packageName)
-    ? ["VIEW-PUT", "VIEW-ACTIVATED"]
-    : ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
+  const expectTags: DdicTag[] = ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
 
   const partial = viewCreatePartialSuccess(viewName);
   return runDdicBridge(conn, gate, {

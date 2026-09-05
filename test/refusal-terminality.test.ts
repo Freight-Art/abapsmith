@@ -35,7 +35,7 @@ import {
 import { resolveObject } from "../src/adt/resolve.js";
 import { resolveWriteTarget } from "../src/adt/write.js";
 import type { AbapConnection } from "../src/adt/connection.js";
-import { assertClassicViewCreateSupported } from "../src/adt/view-create.js";
+import { assertClassicViewCreateTarget } from "../src/adt/view-create.js";
 import { SafetyGate } from "../src/safety.js";
 import { runUiTool, type UiInput, type UiToolDeps } from "../src/tools/ui.js";
 
@@ -159,50 +159,38 @@ describe("retryable on the error envelope", () => {
   });
 });
 
-describe("assertClassicViewCreateSupported derives retryable:false from UNSUPPORTED with no 5th argument", () => {
-  it("refuses a transportable (non-$TMP) package as terminal", () => {
+describe("assertClassicViewCreateTarget derives retryable from RETRYABILITY with no 5th argument — neither refusal is terminal", () => {
+  const CORR_NR = "A4HK900121";
+
+  it("a local package given a corrNr claims retryable:true (BAD_INPUT's default), not terminal", () => {
     let caught: unknown;
     try {
-      assertClassicViewCreateSupported("ZPACKAGE");
+      assertClassicViewCreateTarget("$TMP", CORR_NR);
     } catch (e) {
       caught = e;
     }
     expect(caught).toBeInstanceOf(AbapError);
     const e = caught as AbapError;
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(e.retryable).toBe(false);
-    expect(e.message.endsWith(TERMINAL_REFUSAL_NOTE)).toBe(true);
+    expect(e.code).toBe("BAD_INPUT");
+    expect(RETRYABILITY["BAD_INPUT"]).toBe("retryable");
+    expect(e.retryable).toBe(true);
   });
 
-  // $TMP is the branch that changed: it used to be the one package let
-  // through, so it is also the one whose terminality a regression would
-  // quietly undo. Same code, same note, same retryable — no exception.
-  it("refuses $TMP as terminal too, on the same derivation", () => {
+  // TRANSPORT_ERROR's default is "conditional" — no claim either way, which
+  // is itself proof this refusal is not terminal (a terminal claim requires
+  // an explicit retryable:false, never a bare code default).
+  it("a transportable package given no corrNr claims no retryable value (TRANSPORT_ERROR's conditional default), not terminal", () => {
     let caught: unknown;
     try {
-      assertClassicViewCreateSupported("$TMP");
+      assertClassicViewCreateTarget("ZTM", undefined);
     } catch (e) {
       caught = e;
     }
     expect(caught).toBeInstanceOf(AbapError);
     const e = caught as AbapError;
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(e.retryable).toBe(false);
-    expect(e.message.endsWith(TERMINAL_REFUSAL_NOTE)).toBe(true);
-  });
-
-  it("refuses a non-$TMP local ($) package as terminal", () => {
-    let caught: unknown;
-    try {
-      assertClassicViewCreateSupported("$MYLOCAL");
-    } catch (e) {
-      caught = e;
-    }
-    expect(caught).toBeInstanceOf(AbapError);
-    const e = caught as AbapError;
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(e.retryable).toBe(false);
-    expect(e.message.endsWith(TERMINAL_REFUSAL_NOTE)).toBe(true);
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(RETRYABILITY["TRANSPORT_ERROR"]).toBe("conditional");
+    expect(e.retryable).toBeUndefined();
   });
 });
 

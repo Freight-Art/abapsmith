@@ -10,7 +10,8 @@ reflected here fails the suite. See [legend.md](legend.md) for what `yes`,
 ### How the object rows are derived
 
 - **Create** — `yes` when the type is in `VERIFIED_CREATABLE_TYPES`; `no` when
-  it is in `BRIDGE_CREATE_REFUSED_TYPES`, which wins over the bridge rule
+  it is in `BRIDGE_CREATE_REFUSED_TYPES` (empty today — see the precedence
+  rule this set enforces when it isn't), which wins over the bridge rule
   below — the bridge is implemented and described, but abapsmith refuses to
   run it for any package, so nothing is created;
   `partial` when it is in `BRIDGE_CREATABLE_TYPES` (creation goes through a
@@ -86,7 +87,7 @@ inputs to this derivation rather than registry fields:
 | `DEVC/K` | Package | yes | yes | no | partial | no | live |
 | `SRVB/SVB` | Service binding | yes | partial | yes | yes | yes | live |
 | `SHLP/DH` | Search help | no | no | no | no | no | tests |
-| `VIEW/DV` | Classic view | no | no | no | partial | no | unverified |
+| `VIEW/DV` | Classic view | partial | no | no | partial | no | unverified |
 | `TRAN/T` | Transaction | partial | no | no | partial | no | unverified |
 | `PROG/PS` | Screen (dynpro) | no | no | no | no | no | tests |
 | `PROG/PC` | GUI status (CUA status) | no | no | no | no | no | tests |
@@ -146,11 +147,14 @@ The `Object` column values are the registry `label` fields, unreworded.
   creating one you cannot ask abapsmith what it looks like. There is no
   source write either, so an existing one cannot be changed — only deleted
   and recreated. Their `bridgeCreate.limits` text states this, and a test
-  requires it to. `VIEW/DV` is further restricted: its create is refused for
-  every package, `$TMP` and an omitted `package` included, so the Create cell
-  reads `no`. The bridge code and its recon stay in the tree behind that one
-  refusal — see the `createRefused` field on its registry entry, which is also
-  the single text `abap_read`'s hint and `abap_write`'s refusal both render.
+  requires it to. `VIEW/DV` has its own package rule: a transportable
+  package requires `corr_nr` for the create, and a `$` package (`$TMP`
+  included) refuses one and registers with `korrnum = space` instead.
+  Either way the created view lands in TADIR, so the delete bridge can
+  remove it afterwards — proven live on A4H, 2026-09-04 (transportable
+  package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a `$`-prefixed
+  package: view registered with `korrnum = space`, then deleted,
+  VIEW-DELETED / VIEW-GONE).
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and
