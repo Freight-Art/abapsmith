@@ -29,16 +29,18 @@ row.
   name (not an activity id) and want its underlying tables, key fields and
   client-dependence directly, skipping the activity.
 
-`search` and `tree` page via `offset`/`limit`; a response note says whether
-more rows follow. `show` and `objects` are not paged — one activity or
-object per call.
+`search` and `tree` page via a cursor: pass the `after` value a response's
+paging note gives you to get the next page — the freestyle endpoint has no
+`OFFSET`, so there is no numeric page index to jump to. `show` and
+`objects` are not paged — one activity or object per call.
 
-## The handoff to reading rows
+## The handoff to reading and changing rows
 
-`abap_img` never reads a customizing row — only structure. To read rows
-behind a resolved table, use `abap_data_preview` (the tool itself names it
-in a `next` hint whenever `show`/`objects` resolves exactly one table).
-That tool is a separate, much more restricted surface:
+`abap_img` never reads or writes a customizing row — only structure.
+
+To **read** rows behind a resolved table, use `abap_data_preview` (the tool
+itself names it in a `next` hint whenever `show`/`objects` resolves exactly
+one table). That tool is a separate, much more restricted surface:
 
 - Registered only when `ABAP_ALLOW_DATA_PREVIEW=true` — off by default.
 - Refuses outright on a system that reports itself productive, or that
@@ -46,13 +48,18 @@ That tool is a separate, much more restricted surface:
 - **Has no WHERE filter of any kind.** A preview is always the first N rows
   of the whole table, full stop.
 - Denies a built-in list of tables (credentials, payroll/HR, accounting
-  documents, personal data) that no setting can shrink.
+  documents, and personal data) that no setting can shrink.
 
 That "first N rows, no filter" limit means `abap_data_preview` is **useless**
 for a table with millions of rows and a targeted question ("find the entry
 for company code 1000") — it will hand back an arbitrary early slice, not
 the row you want. It answers "what does this table's structure/first rows
 look like", not "what is this specific customizing value".
+
+To **change** a resolved table's rows, use `abap_img_edit`, not this tool —
+see `abapsmith-maintain-img-customizing`. It takes the same
+activity/object vocabulary `abap_img` does, so a name found here can be
+passed straight through.
 
 ## Worked examples
 
@@ -86,20 +93,25 @@ against a real system; substitute whatever `search`/`tree` actually returns.
 
 ## The load-bearing caveat
 
-No catalog table or field name `abap_img` queries has been confirmed
-against a live SAP system (`IMG_CATALOG_VERIFIED` is `false` in
-`src/adt/img-catalog.ts`). Every single response says so, naming the
-specific unconfirmed tables it read against. Treat an empty result from a
-low-confidence table as **"the name may be wrong"**, not as "the IMG has
-nothing there" — check the note block on the response before concluding a
-search or tree call found nothing.
+Every entry in `IMG_CATALOG` (`src/adt/img-catalog.ts`) is now
+`confidence: "high"`, measured against a live system, and
+`IMG_CATALOG_VERIFIED` reads `true`. Two earlier, wrong guesses at the tree
+tables have been removed from the catalog entirely rather than kept as
+low-confidence placeholders — `lowConfidenceTables()` returns an empty list
+today, kept as a live regression check for any future low-confidence entry.
+The one caveat that still bites in practice is the reference-IMG root:
+it's found by matching English title text (there is no mnemonic tree id),
+so a `tree` call with no `node` finds nothing on a system whose
+customizing text is not English. Treat that specific case as "the text
+probe missed", not as "the IMG has nothing there."
 
 ## Availability
 
-Absent from `tools/list` under `ABAP_MODE=read`: `abap_img` is read-only in
-effect, but its first call per mode deploys and activates a `$TMP` bridge
-class, which is itself a write.
+`abap_img` generates no ABAP and deploys nothing, so it needs no write
+access and is present in `tools/list` under `ABAP_MODE=read` as well as
+`edit`/`admin`. `abap_img_edit` (see `abapsmith-maintain-img-customizing`)
+is a real write and is absent under `read`, same as any other write tool.
 
-`abap_img` and `abap_data_preview` are v1-only — as of this build neither
-has a v2 (`abap_do`) action. Check `tools/list` rather than assuming either
-is there under `ABAP_TOOL_SURFACE=v2`.
+`abap_img`, `abap_img_edit`, and `abap_data_preview` are v1-only — as of
+this build none has a v2 (`abap_do`) action. Check `tools/list` rather than
+assuming any is there under `ABAP_TOOL_SURFACE=v2`.

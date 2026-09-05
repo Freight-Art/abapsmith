@@ -23,7 +23,17 @@ Things a reader might expect and will not find here:
   at `uc_object_type_group/{samc|sapc}`; vendor Accept header, `/source/main` is
   asXML not ABAP text; fits neither `abap_read` nor `format: "raw"` (unverified
   write shape). Probed A4H 2026-09-04, omitted.
-- Reading or writing IMG customizing entries themselves, creating custom
-  IMG nodes or activities, and generating a maintenance dialog (SE54) —
-  `abap_img` navigates the structure only; the entries themselves are read
-  through `abap_data_preview`, not written anywhere.
+- Creating custom IMG nodes or activities, and generating a maintenance
+  dialog (SE54) — `abap_img` navigates the structure only, and
+  `abap_img_edit` writes rows, not nodes or dialogs.
+- Maintaining a customizing entry through the view's own SM30-generated
+  table-maintenance function module — its foreign-key checks, fixed-value
+  checks, and table-maintenance-generator events — is still absent, and for a
+  specific reason: that function module needs the view's field catalogue
+  and dynamic row layout supplied by the caller, and nothing established
+  how to build those outside the SM30 dialog itself. Guessing at that shape
+  would have produced generated code that looks faithful and is wrong in
+  ways this server cannot detect, so `abap_img_edit` writes the resolved
+  base table directly instead — a guarded `MODIFY`/`DELETE`, recorded on a
+  transport through the same CTS calls SM30 itself uses, but without the
+  view's own validation running.

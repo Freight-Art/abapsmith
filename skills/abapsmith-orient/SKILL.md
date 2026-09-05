@@ -95,9 +95,12 @@ delete it. Never send a partial descriptor.
 
 `read` < `edit` < `admin`. Write tools are absent from `tools/list` in `read`
 mode — a missing `abap_write` means the mode is wrong, not the tool.
-`abap_fpm_read` and `abap_img` are read-only in effect but are absent under
-`read` too, because their first call deploys a `$TMP` bridge class, which is
-itself a write.
+`abap_fpm_read` is read-only in effect but is absent under `read` too,
+because its first call deploys a `$TMP` bridge class, which is itself a
+write. `abap_img` is different: it generates no ABAP and deploys nothing, so
+it is genuinely present under `read`. `abap_img_edit` is a real write (it
+modifies customizing rows directly) and is absent under `read` like any
+other write tool.
 
 `ABAP_MODE` is the current way to set this. A legacy `ABAP_ALLOW_WRITE=true`
 flag grants ordinary write access too, but only when `ABAP_MODE` itself is
@@ -157,6 +160,7 @@ Two surfaces ship. **`v1` is the default** — one tool per job:
 | OData service contract | `abap_service` |
 | FPM / Web Dynpro (read-only) | `abap_fpm_read` |
 | Browse IMG (SPRO) customizing structure | `abap_img` |
+| Change IMG (SPRO) customizing values | `abap_img_edit` |
 | Table rows | `abap_data_preview` |
 | Open in GUI / browser | `abap_ui`, `abap_open_url` |
 
@@ -189,6 +193,7 @@ Default to `$TMP` unless the task says otherwise.
 | BAdI, enhancement spot, source plug-in | `abapsmith-enhance-standard-code` |
 | BOPF business object | `abapsmith-edit-a-bopf-object` |
 | Browse IMG (SPRO) customizing structure | `abapsmith-browse-img-customizing` |
+| Change an IMG (SPRO) customizing value | `abapsmith-maintain-img-customizing` |
 | Get a transport request, or release one | `abapsmith-put-work-on-a-transport` |
 | Undo a wrong write, or read undo's refusals | `abapsmith-recover-a-bad-write` |
 

@@ -15,8 +15,9 @@
 | Undo | n/a | n/a | yes | yes | n/a | tests | Reverts one journal entry. Refuses activation, transport release, enhancement, and every irreversible entry, with no override. |
 | Object search | n/a | yes | n/a | n/a | n/a | live | Name-pattern and where-used only. There is no source-text search. |
 | Where-used | n/a | yes | n/a | n/a | n/a | live | Static only; dynamic calls do not appear. The server ignores every limit parameter, so the whole result set is always fetched and `max` bounds only the display. |
-| Data preview | n/a | partial | no | n/a | n/a | mixed | One DDIC table or view per call, off by default, denylisted for sensitive tables, refused on any system that reports itself productive. No free-form SQL surface exists. |
-| IMG (customizing) navigation | no | partial | no | no | n/a | tests | Navigates the IMG structure only — activities, nodes, and the views/tables behind them — through a generated `$TMP` bridge over catalog tables named in `src/adt/img-catalog.ts`; those names are not yet confirmed against a live system. Reading the customizing entries themselves is `abap_data_preview`'s job, not this tool's. |
+| Data preview | n/a | partial | no | n/a | n/a | mixed | One DDIC table or view per call, off by default, denylisted for sensitive tables, refused on any system that reports itself productive. No free-form SQL surface exists for callers — the catalog-driven SELECTs the IMG structure tool assembles server-side are not a caller-facing SQL surface either, since a caller never supplies or influences the statement text. |
+| IMG (customizing) navigation | no | partial | no | no | n/a | tests | Navigates the IMG structure only — activities, nodes, and the views/tables behind them — via the ADT freestyle data-preview endpoint, with SQL assembled server-side from a fixed catalog in `src/adt/img-catalog.ts`; every table in the catalog is measured against a live system and `IMG_CATALOG_VERIFIED` is `true`. Generates no ABAP and deploys nothing, so it runs under `ABAP_MODE=read`. Reading the customizing entries themselves is `abap_data_preview`'s job; changing them is `abap_img_edit`'s. |
+| IMG (customizing) write | no | partial | yes | yes | n/a | tests | Writes a resolved base table's rows directly (a guarded `MODIFY`/`DELETE`), not through the view's own SM30-generated maintenance function module — its field-catalogue/dynamic-row-layout requirement was never established outside the SM30 dialog. Transport bookkeeping goes through the same CTS pair (`TR_OBJECTS_CHECK`/`TR_OBJECTS_INSERT`) SM30 itself uses; `create_request` makes the type-`W` request via `TR_INSERT_REQUEST_WITH_TASKS`. This server has never called any of these three function modules — their behavior from here is unproven, though all three are ordinary, heavily-used SAP function modules that SM30 and the CTS call routinely. Restricted to delivery classes `C`/`G`/`E`, at most 50 rows per call, and an armed write needs an exact `confirm` echo of the base table name. Generated helper classes go into the dedicated `$ZMCP_HELPERS` package, never `$TMP`. |
 | Running code | n/a | n/a | n/a | n/a | yes | live | Classes implementing the classrun interface, and classic reports through a generated bridge class. No interactive output. |
 | UI automation | n/a | yes | n/a | n/a | yes | mixed | Classic dynpro only, driven by generated batch input. Pressing commits immediately with no dry run and no rollback. |
 | Service and OData exposure | no | yes | no | no | n/a | tests | Metadata introspection only. Publication and business data are structurally refused. |
@@ -104,17 +105,33 @@
   the extra-row signal used to say "more rows exist," are backed by real
   captures; the name validation, gating, and refusal policy are code and
   test coverage only.
-- **IMG navigation.** ADT has no IMG REST route, so `abap_img` runs fixed,
-  parameterised SELECTs through a generated `IF_OO_ADT_CLASSRUN` bridge
-  class in `$TMP` — the same mechanism `abap_fpm_read` uses. Deploying that
-  bridge is a write on a `CLAS/OC` object, so the tool registers only when
-  the server can write, even though every call after the first deploy is a
-  pure read. The catalog table and field names it queries have not been
-  confirmed against a live system — `IMG_CATALOG_VERIFIED` stays `false`
-  until a live discovery run settles them, and every response says so while
-  it does. An empty result from a low-confidence table is therefore not
-  evidence the underlying customizing structure is empty; it could just as
-  easily mean the tool queried the wrong table or field.
+- **IMG navigation.** ADT has no IMG REST route, so `abap_img` sends fixed,
+  catalog-driven `SELECT`s to the ADT freestyle data-preview endpoint —
+  table and field names come only from `IMG_CATALOG`
+  (`src/adt/img-catalog.ts`), never from caller text, and no ABAP is
+  generated or deployed. Because nothing is deployed, the tool needs no
+  write access and registers under `ABAP_MODE=read`. Every table it
+  actually queries is `confidence: "high"`, measured against a live system.
+  The reference-IMG tree root is found by matching English title text,
+  since the tree has no mnemonic id — a system
+  whose customizing text is not English will see `tree` return nothing at
+  the root, which is a text-match miss, not a broken catalog table.
+- **IMG write.** `abap_img_edit` writes a resolved base table's rows
+  directly with a guarded `MODIFY`/`DELETE`, not through the view's own
+  SM30-generated table-maintenance function module — building that
+  module's required field-catalogue/dynamic-row-layout input outside the
+  SM30 dialog itself was never established, so none of the view's own
+  foreign-key checks, fixed-value checks, or table-maintenance-generator
+  events run. Transport bookkeeping still goes through the same CTS pair
+  (`TR_OBJECTS_CHECK`/`TR_OBJECTS_INSERT`) SM30 itself uses, and
+  `create_request` makes the type-`W` request via
+  `TR_INSERT_REQUEST_WITH_TASKS`. All three function modules are
+  ordinary, heavily-used SAP function modules — SM30 and the CTS call them
+  routinely — but their interfaces here are interface-only knowledge, read
+  from the system's own catalogue: this server has never itself called any
+  of the three, so their behavior from here is unproven. Generated helper
+  classes go into the dedicated, non-transportable `$ZMCP_HELPERS` package,
+  never `$TMP`, created on first use with no silent fallback if that fails.
 - **Search.** Every request goes out untyped and is filtered client side,
   because the server's own type filter drops fields and half-ignores the
   subtype; the fetch window is deliberately wider than the display cap and
