@@ -177,10 +177,43 @@ Never retry a create blind.
   Confirmed: the structure's fields appear as node properties as soon as
   `persistentStructureRef` is assigned, not only at activation — measured
   before and after activating a fresh BO with the ref set while still
-  inactive; the property list did not change. This preflight only stops a
-  request shaped like the known session-killing repro — a complete,
-  enum-valid spec that clears both checks has still short-dumped the ADT
-  session. `add_alternative_key` is not confirmed to succeed on any node.
+  inactive; the property list did not change.
+  **Pass exactly one check flag, chosen by `uniqueness`:**
+  ```text
+  { "uniqueness": "unique",            "noCheck": true }              // accepted, not live-tested
+  { "uniqueness": "unique",            "checkAfterModify": true }     // accepted, not live-tested
+  { "uniqueness": "uniqueIfNotInitial", "noCheck": true }             // live-confirmed to write
+  { "uniqueness": "uniqueIfNotInitial", "checkAfterModify": true }    // live-confirmed to write
+  { "uniqueness": "notUnique" }                                       // live-confirmed to write
+  { "uniqueness": "notUnique",         "noCheck": true }              // accepted, not live-tested
+  ```
+  `checkBeforeSave: true` is refused outright on any `uniqueness` — that arm
+  of BOPF's model mapper is `ASSERT 1 = 0. " currently not supported`. Two of
+  `checkAfterModify`/`checkBeforeSave`/`noCheck` set `true` together is
+  refused — they map onto one server-side field. On `unique`/
+  `uniqueIfNotInitial`, omitting the check flag entirely is refused, not
+  defaulted, because the mapper's arms for those two values have no case for
+  a blank one and fall into `WHEN OTHERS. ASSERT 1 = 0.` — that assert is the
+  short dump. On `notUnique`, `checkAfterModify: true` is refused (no case
+  for it there either); no flag at all is fine. All of this is refused
+  client-side before any request is sent, and `allow_dangling_ref` does not
+  bypass it — there is no override, because the only thing an override could
+  do is let a caller kill their own session.
+  **The write itself is confirmed live**: with a compatible check flag, the
+  key element lands on the node — on `$TMP` business objects, on both a DDIC
+  structure borrowed from an SAP demo object and a purpose-built one. What is
+  NOT confirmed is activation: no business object carrying a key added this
+  way has been observed to activate. A `TABL/DS` `dataTypeRef` draws a
+  severity-E `"Data Type of Alternative Key <NAME> is not of type 'Data
+  element'"` message on `bo:dataTypeRef` at activation time; a `DTEL/DE`
+  `dataTypeRef` draws no message, but the business object then activates
+  with `activated: false` and zero activation messages — removing the key
+  and activating again succeeds. `i_know_this_may_not_activate: true` is
+  required for exactly this reason: the element writes, the business object
+  then does not activate. `unique` + `noCheck: true` has not been exercised;
+  one line of the mapper's `CASE` for the `unique` branch, read during a live
+  investigation, suggests it is silently rewritten to internal number
+  allocation instead of taking the flag at face value.
 
 ## Changing elements in place
 
@@ -200,9 +233,18 @@ wins, and `implementationClassRef: null` clears it.
 applies there — and, like `bopf_add_alternative_key`, it requires
 `i_know_this_may_not_activate: true`, because a patch's attributes go
 through the same `/BOBF/CL_CONF_MODEL_API_MAP` model mapper that has
-short-dumped the ADT session on an invalid alternative-key payload, and the
-operation is not confirmed to succeed on any node. Each re-reads after the
-write and fails `CHECK_FAILED` if a named field didn't stick or a second
+short-dumped the ADT session on an invalid alternative-key payload. The same
+check-flag rule applies (`checkBeforeSave: true` refused; at most one of
+`checkAfterModify`/`checkBeforeSave`/`noCheck`; a required flag on `unique`/
+`uniqueIfNotInitial`; `checkAfterModify` refused on `notUnique`), but it is
+checked against the EFFECTIVE post-patch state — the element's attributes as
+read from the server, with this patch applied on top. Patching `uniqueness`
+to `"unique"` on a key that already carries `noCheck="true"` is fine;
+sending `noCheck: null` to clear the last check flag on that same key is
+refused, same as building that shape from scratch would be. The write is
+confirmed live once the effective state clears those rules; activation is
+not confirmed, same as `bopf_add_alternative_key` above. Each re-reads after
+the write and fails `CHECK_FAILED` if a named field didn't stick or a second
 element with that name turned up.
 
 Not patchable this way: `spec.triggers`/`spec.relations` on a determination
