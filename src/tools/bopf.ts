@@ -61,11 +61,14 @@ import { withJournalledMutation, journalRef, systemKey, type Journal } from "../
 import {
   scanModel,
   locate,
+  locateToken,
   listChildNames,
   splice,
   spliceOut,
   spliceInsertChild,
   spliceSetNodeRef,
+  spliceSetElementRef,
+  patchOpenTagAttrs,
   escapeAttrValue,
   NODE_REF_KINDS,
   type NodeRefKind,
@@ -93,8 +96,27 @@ import {
   type QueryFields,
   type AlternativeKeyFields,
 } from "../adt/bopf-xml.js";
-import type { BoModel, BoNode, AdtObjectRef, IntegrityFinding, BoAssociation } from "../adt/bopf-types.js";
-import { validateSpecKeys } from "./bopf-spec-keys.js";
+import type {
+  BoModel,
+  BoNode,
+  AdtObjectRef,
+  IntegrityFinding,
+  BoAssociation,
+  BoAction,
+  BoDetermination,
+  BoValidation,
+  BoQuery,
+  BoAlternativeKey,
+} from "../adt/bopf-types.js";
+import {
+  ASSOCIATION_CHILD_ORDER,
+  ACTION_CHILD_ORDER,
+  DETERMINATION_CHILD_ORDER,
+  VALIDATION_CHILD_ORDER,
+  QUERY_CHILD_ORDER,
+  ALTERNATIVE_KEY_CHILD_ORDER,
+} from "../adt/bopf-types.js";
+import { validateSpecKeys, SET_CHILD_FIELD_TABLES, type SpecFieldTable } from "./bopf-spec-keys.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -130,16 +152,22 @@ export const bopfEditInputSchema = {
       "remove_node",
       "add_association",
       "remove_association",
+      "set_association_fields",
       "add_action",
       "remove_action",
+      "set_action_fields",
       "add_determination",
       "remove_determination",
+      "set_determination_fields",
       "add_validation",
       "remove_validation",
+      "set_validation_fields",
       "add_query",
       "remove_query",
+      "set_query_fields",
       "add_alternative_key",
       "remove_alternative_key",
+      "set_alternative_key_fields",
       "set_node_flags",
       "activate",
     ])
@@ -159,7 +187,10 @@ export const bopfEditInputSchema = {
     .boolean()
     .optional()
     .describe("Accepts the dangling-ref risk that otherwise refuses the write."),
-  i_know_this_may_not_activate: z.boolean().optional().describe("Required true for add_alternative_key."),
+  i_know_this_may_not_activate: z
+    .boolean()
+    .optional()
+    .describe("Required true for add_alternative_key and set_alternative_key_fields."),
   package: z.string().optional().describe("create_bo: local ($TMP-style) package, required."),
   description: z.string().optional().describe("create_bo: optional description."),
   rootNodeName: z.string().optional().describe('create_bo only: root node name, default "ROOT".'),
@@ -456,14 +487,32 @@ export function registerBopfTools(mcp: McpServer, deps: BopfToolDeps): void {
 // abap_bopf_edit — write
 // ---------------------------------------------------------------------------
 
-const DANGLING_REF_OPS = new Set(["add_action", "add_determination", "add_validation", "add_query"]);
+const DANGLING_REF_OPS = new Set([
+  "add_action",
+  "add_determination",
+  "add_validation",
+  "add_query",
+  "set_action_fields",
+  "set_determination_fields",
+  "set_validation_fields",
+  "set_query_fields",
+]);
 
 const IMPL_INTERFACE_BY_OP: Readonly<Record<string, string>> = {
   add_action: "/BOBF/IF_FRW_ACTION",
   add_determination: "/BOBF/IF_FRW_DETERMINATION",
   add_validation: "/BOBF/IF_FRW_VALIDATION",
   add_query: "/BOBF/IF_FRW_QUERY",
+  set_action_fields: "/BOBF/IF_FRW_ACTION",
+  set_determination_fields: "/BOBF/IF_FRW_DETERMINATION",
+  set_validation_fields: "/BOBF/IF_FRW_VALIDATION",
+  set_query_fields: "/BOBF/IF_FRW_QUERY",
 };
+
+/** Element-kind word for a dangling-ref message — "action" for both add_action and set_action_fields. */
+function danglingRefElementLabel(operation: string): string {
+  return operation.replace(/^(add|set)_/, "").replace(/_fields$/, "");
+}
 
 interface DanglingVerdict {
   readonly className: string;
@@ -583,7 +632,7 @@ async function danglingRefPreflight(
       if (allowDangling) return { className, verdict: "allowed" };
       throw new AbapError(
         "BOPF_DANGLING_REF",
-        `Class ${className} does not exist as a source artifact — a ${operation.replace("add_", "")} bound to ` +
+        `Class ${className} does not exist as a source artifact — a ${danglingRefElementLabel(operation)} bound to ` +
           "it would activate cleanly and then silently never fire at runtime.",
         { class: className, operation },
         "Create the class first, or pass allow_dangling_ref: true to proceed anyway.",
@@ -768,32 +817,44 @@ function validateEditInputShape(input: BopfEditInput): void {
     "remove_node",
     "add_association",
     "remove_association",
+    "set_association_fields",
     "add_action",
     "remove_action",
+    "set_action_fields",
     "add_determination",
     "remove_determination",
+    "set_determination_fields",
     "add_validation",
     "remove_validation",
+    "set_validation_fields",
     "add_query",
     "remove_query",
+    "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
+    "set_alternative_key_fields",
     "set_node_flags",
   ]);
   const needsName = new Set([
     "add_node",
     "add_association",
     "remove_association",
+    "set_association_fields",
     "add_action",
     "remove_action",
+    "set_action_fields",
     "add_determination",
     "remove_determination",
+    "set_determination_fields",
     "add_validation",
     "remove_validation",
+    "set_validation_fields",
     "add_query",
     "remove_query",
+    "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
+    "set_alternative_key_fields",
   ]);
   if (needsNode.has(input.operation)) requireNode(input);
   if (needsName.has(input.operation)) requireName(input);
@@ -1447,6 +1508,171 @@ function removeChildElement(freshXml: string, tokens: readonly Token[], input: B
   return spliceOut(freshXml, range);
 }
 
+type SetChildFieldsOp =
+  | "set_association_fields"
+  | "set_action_fields"
+  | "set_determination_fields"
+  | "set_validation_fields"
+  | "set_query_fields"
+  | "set_alternative_key_fields";
+
+/** A `Record` keyed on the literal `SetChildFieldsOp` union (not `string`) so indexing isn't subject to `noUncheckedIndexedAccess` — see `REMOVE_CHILD_KIND`. */
+const SET_CHILD_KIND: Readonly<Record<SetChildFieldsOp, ChildElementKind>> = {
+  set_association_fields: "association",
+  set_action_fields: "action",
+  set_determination_fields: "determination",
+  set_validation_fields: "validation",
+  set_query_fields: "query",
+  set_alternative_key_fields: "alternativeKey",
+};
+
+/** Same rationale as `SET_CHILD_KIND` — keyed on `ChildElementKind` so `CHILD_ORDER_BY_KIND[kind]` needs no `noUncheckedIndexedAccess` guard. */
+const CHILD_ORDER_BY_KIND: Readonly<Record<ChildElementKind, readonly string[]>> = {
+  association: ASSOCIATION_CHILD_ORDER,
+  action: ACTION_CHILD_ORDER,
+  determination: DETERMINATION_CHILD_ORDER,
+  validation: VALIDATION_CHILD_ORDER,
+  query: QUERY_CHILD_ORDER,
+  alternativeKey: ALTERNATIVE_KEY_CHILD_ORDER,
+};
+
+/**
+ * Patches a subset of one existing child element's fields in place —
+ * distinct from remove_*+add_* because that pair mints a fresh nodeId and
+ * loses anything BOPF only assigns once, at creation. Attribute fields are
+ * batched through one `patchOpenTagAttrs` call; ref fields splice one at a
+ * time via `spliceSetElementRef`, re-scanning the document between each
+ * splice since every earlier splice shifts later byte offsets (same
+ * reasoning as `patchNodeFlags`).
+ *
+ * The enum checks below duplicate exactly what the matching `build*Fields`
+ * function applies via `strEnum` — this must not let a patch write a value
+ * `add_*` would have refused. `validateSpecKeys` has already confirmed
+ * every key present is recognised and its JS shape (string/boolean/ref, or
+ * null) is right; it does not check enum membership.
+ */
+function patchChildFields(freshXml: string, tokens: readonly Token[], input: BopfEditInput, op: SetChildFieldsOp): string {
+  const kind = SET_CHILD_KIND[op];
+  const sel = requireNode(input);
+  const name = requireName(input);
+  const spec = (input.spec ?? {}) as Record<string, unknown>;
+  const table: SpecFieldTable = SET_CHILD_FIELD_TABLES[op] ?? {};
+
+  const token = locateToken(tokens, { ...sel, child: kind, name });
+  if (!token) {
+    const existing = listChildNames(tokens, sel, kind);
+    throw new AbapError(
+      "NOT_FOUND",
+      `${op} "${name}" on ${input.bo} node "${sel.node}": no ${CHILD_KIND_LABEL[kind]} of that name exists ` +
+        `there. ${pluralChildKindLabel(kind)} present on that node: ${existing.length ? existing.join(", ") : "none"}.`,
+      { operation: op, bo: input.bo, node: sel.node, name, kind, existing },
+    );
+  }
+
+  if (
+    (op === "set_determination_fields" || op === "set_validation_fields" || op === "set_query_fields") &&
+    "category" in spec &&
+    spec.category !== null
+  ) {
+    const categories =
+      op === "set_determination_fields"
+        ? DETERMINATION_CATEGORIES
+        : op === "set_validation_fields"
+          ? VALIDATION_CATEGORIES
+          : QUERY_CATEGORIES;
+    strEnum(spec.category, categories, "category");
+  }
+  if (op === "set_alternative_key_fields" && "uniqueness" in spec && spec.uniqueness !== null) {
+    strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness");
+  }
+
+  const patchableFields = Object.keys(table).filter((k) => k !== "class" && k !== "implementationClass");
+  const implClassRefRequested = "implementationClassRef" in spec || "class" in spec || "implementationClass" in spec;
+  const anyFieldRequested = patchableFields.some((k) => (k === "implementationClassRef" ? implClassRefRequested : k in spec));
+  if (!anyFieldRequested) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${op} on ${input.bo} node "${sel.node}" ("${name}") names no field to change — spec is empty, or names ` +
+        `only fields this operation cannot change. Patchable field(s): ${patchableFields.join(", ")}.`,
+      { operation: op, bo: input.bo, node: sel.node, name, patchable: patchableFields },
+    );
+  }
+
+  const attrs = new Map<string, string | boolean | null>();
+  for (const [key, shape] of Object.entries(table)) {
+    if ((shape !== "stringOrNull" && shape !== "booleanOrNull") || !(key in spec)) continue;
+    attrs.set(key, spec[key] as string | boolean | null);
+  }
+  let result = attrs.size > 0 ? patchOpenTagAttrs(freshXml, token, attrs) : freshXml;
+
+  const childOrder = CHILD_ORDER_BY_KIND[kind];
+  for (const [key, shape] of Object.entries(table)) {
+    if (shape !== "refOrNull") continue;
+    const isImplClassRef = key === "implementationClassRef";
+    if (isImplClassRef ? !implClassRefRequested : !(key in spec)) continue;
+
+    let value: AdtObjectRef | null;
+    if (isImplClassRef) {
+      value = spec.implementationClassRef === null ? null : (classRefFromSpec(spec) ?? null);
+    } else {
+      const raw = spec[key];
+      if (raw === null) {
+        value = null;
+      } else {
+        const parsed = ref(raw);
+        // validateSpecKeys already guaranteed this shape — undefined here would mean this module's checks
+        // disagree with that one's; skip rather than clear on a mismatch neither should ever produce.
+        if (!parsed) continue;
+        value = parsed;
+      }
+    }
+
+    const freshTokens = scanModel(result);
+    const freshToken = locateToken(freshTokens, { ...sel, child: kind, name });
+    if (!freshToken) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${op}: lost track of "${name}" on node "${sel.node}" while splicing ref field "${key}" — internal error.`,
+        { operation: op, bo: input.bo, node: sel.node, name, key },
+      );
+    }
+    result = spliceSetElementRef(result, freshTokens, freshToken, `bo:${key}`, value, childOrder);
+  }
+
+  return result;
+}
+
+/** `add_*`/`remove_*`/`set_*_fields` op-name suffix for each `ChildElementKind` — `alternativeKey` is the one case where the wire's camelCase kind and the snake_case operation name diverge. */
+const CHILD_OP_SUFFIX: Readonly<Record<ChildElementKind, string>> = {
+  association: "association",
+  action: "action",
+  determination: "determination",
+  validation: "validation",
+  query: "query",
+  alternativeKey: "alternative_key",
+};
+
+/**
+ * `add_*`'s post-PUT re-read (`MEMBER_CHECK_BY_OP` in `runBopfEdit`) only
+ * checks that the member count went up — it can't tell a genuine add from a
+ * SECOND element landing next to a first one it already saw. `mutateModel`
+ * runs on freshly re-read bytes under the write lock, so this pre-splice
+ * check is the only place that can see ground truth before it's too late.
+ */
+function refuseDuplicateChild(tokens: readonly Token[], input: BopfEditInput, sel: NodeSelector, kind: ChildElementKind, name: string): void {
+  const existing = listChildNames(tokens, sel, kind);
+  if (!existing.some((n) => n.toLowerCase() === name.toLowerCase())) return;
+  const suffix = CHILD_OP_SUFFIX[kind];
+  throw new AbapError(
+    "BAD_INPUT",
+    `${input.operation} "${name}" on ${input.bo} node "${sel.node}": a ${CHILD_KIND_LABEL[kind]} of that name ` +
+      `already exists there. ${input.operation} is not an upsert — proceeding would create a second element ` +
+      `named "${name}". BOPF writes are journalled but irreversible, so the duplicate could not be undone ` +
+      `afterward. Use set_${suffix}_fields to change the existing one, or remove_${suffix} first.`,
+    { operation: input.operation, bo: input.bo, node: sel.node, name, kind, existing },
+  );
+}
+
 /** Applies one `abap_bopf_edit` operation (everything except `create_bo`/`activate`, which never reach here) to freshly-reread bytes. */
 function mutateModel(freshXml: string, input: BopfEditInput): string {
   const tokens = scanModel(freshXml);
@@ -1474,38 +1700,50 @@ function mutateModel(freshXml: string, input: BopfEditInput): string {
     }
     case "add_association": {
       const sel = requireNode(input);
-      const fields = buildAssociationFields(requireName(input), mintGuid("association"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "association", name);
+      const fields = buildAssociationFields(name, mintGuid("association"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "association", renderAssociationElement(fields), {
         nodeId: sel.nodeId,
       });
     }
     case "add_action": {
       const sel = requireNode(input);
-      const fields = buildActionFields(requireName(input), mintGuid("action"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "action", name);
+      const fields = buildActionFields(name, mintGuid("action"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "action", renderActionElement(fields), { nodeId: sel.nodeId });
     }
     case "add_determination": {
       const sel = requireNode(input);
-      const fields = buildDeterminationFields(input.bo, sel.node, requireName(input), mintGuid("determination"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "determination", name);
+      const fields = buildDeterminationFields(input.bo, sel.node, name, mintGuid("determination"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "determination", renderDeterminationElement(fields), {
         nodeId: sel.nodeId,
       });
     }
     case "add_validation": {
       const sel = requireNode(input);
-      const fields = buildValidationFields(input.bo, sel.node, requireName(input), mintGuid("validation"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "validation", name);
+      const fields = buildValidationFields(input.bo, sel.node, name, mintGuid("validation"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "validation", renderValidationElement(fields), {
         nodeId: sel.nodeId,
       });
     }
     case "add_query": {
       const sel = requireNode(input);
-      const fields = buildQueryFields(requireName(input), mintGuid("query"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "query", name);
+      const fields = buildQueryFields(name, mintGuid("query"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "query", renderQueryElement(fields), { nodeId: sel.nodeId });
     }
     case "add_alternative_key": {
       const sel = requireNode(input);
-      const fields = buildAlternativeKeyFields(requireName(input), mintGuid("alternativeKey"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "alternativeKey", name);
+      const fields = buildAlternativeKeyFields(name, mintGuid("alternativeKey"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "alternativeKey", renderAlternativeKeyElement(fields), {
         nodeId: sel.nodeId,
       });
@@ -1517,6 +1755,13 @@ function mutateModel(freshXml: string, input: BopfEditInput): string {
     case "remove_query":
     case "remove_alternative_key":
       return removeChildElement(freshXml, tokens, input, input.operation);
+    case "set_association_fields":
+    case "set_action_fields":
+    case "set_determination_fields":
+    case "set_validation_fields":
+    case "set_query_fields":
+    case "set_alternative_key_fields":
+      return patchChildFields(freshXml, tokens, input, input.operation);
     case "set_node_flags":
       return patchNodeFlags(freshXml, tokens, requireNode(input), spec);
     case "create_bo":
@@ -1776,7 +2021,9 @@ function buildEditResponse(
 
 type MemberKind = "association" | "action" | "determination" | "validation" | "query" | "alternativeKey";
 
-const MEMBERS_BY_KIND: Readonly<Record<MemberKind, (n: BoNode) => readonly { readonly name: string }[]>> = {
+type BoMember = BoAssociation | BoAction | BoDetermination | BoValidation | BoQuery | BoAlternativeKey;
+
+const MEMBERS_BY_KIND: Readonly<Record<MemberKind, (n: BoNode) => readonly BoMember[]>> = {
   association: (n) => n.associations,
   action: (n) => n.actions,
   determination: (n) => n.determinations,
@@ -1894,6 +2141,69 @@ function nodeFlagMismatches(node: BoNode, spec: Record<string, unknown>): FlagMi
 }
 
 /**
+ * `set_*_fields` verification counterpart to `nodeFlagMismatches`. Differs
+ * from it in one deliberate way: a cleared `booleanOrNull` field is compared
+ * with strict `===`, not "cleared reads back as `false`" — `parseNodeXml`
+ * defaults an absent node boolean to `false` via `?? false`, but none of the
+ * child-element parsers (`parseAssociationXml` etc.) apply that default, so
+ * an absent child boolean reads back as `undefined`, and a `false` sent
+ * would be indistinguishable from "discarded" if compared the node-flag way.
+ */
+function childFieldMismatches(
+  element: Record<string, unknown>,
+  spec: Record<string, unknown>,
+  table: SpecFieldTable,
+): FlagMismatch[] {
+  const out: FlagMismatch[] = [];
+  const implClassRefRequested = "implementationClassRef" in spec || "class" in spec || "implementationClass" in spec;
+  for (const [key, shape] of Object.entries(table)) {
+    if (key === "class" || key === "implementationClass") continue;
+    if (key === "implementationClassRef") {
+      if (!implClassRefRequested) continue;
+      const sent = spec.implementationClassRef === null ? null : (classRefFromSpec(spec) ?? null);
+      const readBack = element[key] as AdtObjectRef | undefined;
+      if (sent === null) {
+        if (readBack !== undefined) out.push({ field: key, sent: null, readBack });
+        continue;
+      }
+      if (!readBack || readBack.name.toLowerCase() !== sent.name.toLowerCase() || readBack.type.toLowerCase() !== sent.type.toLowerCase()) {
+        out.push({ field: key, sent, readBack: readBack ?? null });
+      }
+      continue;
+    }
+    if (!(key in spec)) continue;
+    const sent = spec[key];
+    if (shape === "refOrNull") {
+      const readBack = element[key] as AdtObjectRef | undefined;
+      if (sent === null) {
+        if (readBack !== undefined) out.push({ field: key, sent: null, readBack });
+        continue;
+      }
+      const wanted = ref(sent);
+      if (!wanted) continue;
+      if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
+        out.push({ field: key, sent: wanted, readBack: readBack ?? null });
+      }
+    } else if (shape === "stringOrNull") {
+      const readBack = element[key] as string | undefined;
+      // Case-insensitive: SAP's own casing convention on a string field isn't ground truth for
+      // whether the write stuck, and a case difference alone isn't evidence of a discarded value.
+      const expected = sent === null ? undefined : sent;
+      const same =
+        expected === undefined
+          ? readBack === undefined
+          : typeof readBack === "string" && typeof expected === "string" && readBack.toLowerCase() === expected.toLowerCase();
+      if (!same) out.push({ field: key, sent, readBack: readBack ?? null });
+    } else if (shape === "booleanOrNull") {
+      const readBack = element[key];
+      const expected = sent === null ? undefined : sent;
+      if (readBack !== expected) out.push({ field: key, sent, readBack: readBack ?? null });
+    }
+  }
+  return out;
+}
+
+/**
  * Attaches which `abap_bopf_edit` call killed the session to a `SESSION_DEAD`
  * error, so a caller running a sequence of edits can tell which one did it.
  * Leaves every other error untouched, and carries
@@ -1933,8 +2243,9 @@ function attributeSessionDeath(e: unknown, input: BopfEditInput): unknown {
 const BOPF_EDIT_TOOL_DESCRIPTION =
   "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics — " +
   "see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and " +
-  "dangling-ref handling. add_alternative_key needs i_know_this_may_not_activate: true plus " +
-  "spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four.";
+  "dangling-ref handling. add_alternative_key and set_alternative_key_fields both need " +
+  "i_know_this_may_not_activate: true — the same short-dump-prone mapper handles both; add_alternative_key " +
+  "additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four.";
 
 /**
  * Takes the whole `createRequest`, not a bare BO name, so a future field
@@ -1952,11 +2263,15 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
   const input = args as BopfEditInput;
   const bo = input.bo;
 
-  if (input.operation === "add_alternative_key" && input.i_know_this_may_not_activate !== true) {
+  if (
+    (input.operation === "add_alternative_key" || input.operation === "set_alternative_key_fields") &&
+    input.i_know_this_may_not_activate !== true
+  ) {
     throw new AbapError(
       "BAD_INPUT",
-      "add_alternative_key requires i_know_this_may_not_activate: true — the operation is not confirmed " +
-        "to succeed on any node.",
+      `${input.operation} requires i_know_this_may_not_activate: true — an alternative-key payload goes ` +
+        "through /BOBF/CL_CONF_MODEL_API_MAP, the same mapper an invalid one has short-dumped, and the " +
+        "operation is not confirmed to succeed on any node.",
       { operation: input.operation },
     );
   }
@@ -2389,6 +2704,55 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
               `BOPF's model mapper discards payload it cannot map without erroring — check that a ref names an ` +
                 `object that actually exists, then re-send only the fields that did not stick.`,
             );
+          }
+        }
+
+        if (
+          input.operation === "set_association_fields" ||
+          input.operation === "set_action_fields" ||
+          input.operation === "set_determination_fields" ||
+          input.operation === "set_validation_fields" ||
+          input.operation === "set_query_fields" ||
+          input.operation === "set_alternative_key_fields"
+        ) {
+          const op = input.operation;
+          const sel = requireNode(input);
+          const name = requireName(input);
+          const kind = SET_CHILD_KIND[op];
+          const sentSpec = (input.spec ?? {}) as Record<string, unknown>;
+          const countBefore = countMembers(initial.model, kind, sel.node, name);
+          const countAfter = countMembers(afterMutate.model, kind, sel.node, name);
+          if (countAfter === 0 || countAfter !== countBefore) {
+            throw new AbapError(
+              "CHECK_FAILED",
+              `abap_bopf_edit ${op} "${name}" on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ` +
+                `${entryId}) but a fresh re-read shows ${countAfter} ${kind}(s) named "${name}" on that node ` +
+                `after the write, versus ${countBefore} before — the element either vanished or was duplicated ` +
+                `instead of being patched in place. A BOPF PUT answers 200 whether or not the server kept what ` +
+                `was sent, and nothing was activated.`,
+              { bo, node: sel.node, name, kind, countBefore, countAfter, journalEntryId: entryId },
+            );
+          }
+          const node = afterMutate.model.nodes.find((n) => n.name.toLowerCase() === sel.node.toLowerCase());
+          const member = node && MEMBERS_BY_KIND[kind](node).find((m) => m.name.toLowerCase() === name.toLowerCase());
+          if (member) {
+            const table: SpecFieldTable = SET_CHILD_FIELD_TABLES[op] ?? {};
+            const mismatches = childFieldMismatches(member as unknown as Record<string, unknown>, sentSpec, table);
+            if (mismatches.length > 0) {
+              const detail = mismatches
+                .map((m) => `${m.field}: sent ${m.sent === null ? "cleared" : describeFlagValue(m.sent)}, read back ${describeFlagValue(m.readBack)}`)
+                .join("; ");
+              throw new AbapError(
+                "CHECK_FAILED",
+                `abap_bopf_edit ${op} "${name}" on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ` +
+                  `${entryId}) but a fresh re-read shows the server did not keep ${mismatches.length} of the ` +
+                  `field(s) sent — ${detail}. A BOPF PUT answers 200 whether or not the server kept what was ` +
+                  `sent, and nothing was activated.`,
+                { bo, node: sel.node, name, kind, mismatches, journalEntryId: entryId },
+                `BOPF's model mapper discards payload it cannot map without erroring — check that a ref names an ` +
+                  `object that actually exists, then re-send only the fields that did not stick.`,
+              );
+            }
           }
         }
       }

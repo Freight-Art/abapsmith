@@ -12982,7 +12982,7 @@ var require_AdtException = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isErrorMessageType = exports2.validateParseResult = exports2.fromError = exports2.fromResponse = exports2.isLoginError = exports2.AdtErrorException = exports2.SAPRC = void 0;
     exports2.isAdtError = isAdtError;
-    exports2.isCsrfError = isCsrfError3;
+    exports2.isCsrfError = isCsrfError4;
     exports2.isHttpError = isHttpError;
     exports2.isAdtException = isAdtException;
     exports2.fromException = fromException;
@@ -13072,16 +13072,16 @@ var require_AdtException = __commonJS({
     function isAdtError(e) {
       return (e === null || e === void 0 ? void 0 : e.typeID) === ADTEXTYPEID;
     }
-    function isCsrfError3(e) {
+    function isCsrfError4(e) {
       return (e === null || e === void 0 ? void 0 : e.typeID) === CSRFEXTYPEID;
     }
     function isHttpError(e) {
       return (e === null || e === void 0 ? void 0 : e.typeID) === HTTPEXTYPEID;
     }
     function isAdtException(e) {
-      return isAdtError(e) || isCsrfError3(e) || isHttpError(e);
+      return isAdtError(e) || isCsrfError4(e) || isHttpError(e);
     }
-    var isLoginError = (adtErr) => isHttpError(adtErr) && adtErr.status === 401 || isCsrfError3(adtErr);
+    var isLoginError = (adtErr) => isHttpError(adtErr) && adtErr.status === 401 || isCsrfError4(adtErr);
     exports2.isLoginError = isLoginError;
     var simpleError = (response) => adtException(`Error ${response.status}:${response.statusText}`, response.status);
     var fromResponse = (data, response) => {
@@ -65180,6 +65180,23 @@ async function probe(conn, trkorr) {
     return { error: e instanceof AbapError ? e : ctsError(e, "trShow", trkorr) };
   }
 }
+function deleteMayHaveLanded(err) {
+  return isAbapError(err) && (err.code === "SESSION_DEAD" || err.code === "TRANSPORT_ERROR" && err.details.status === void 0);
+}
+async function discloseDeleteFailure(err, conn, number4) {
+  if (!deleteMayHaveLanded(err)) return err;
+  const after = await probe(conn, number4);
+  const residueHint = after.error ? "The outcome could not be verified: a post-failure check of the request also failed. Do not retry blindly \u2014 list or show it first." : after.own ? "A post-failure check found the request still present \u2014 nothing was deleted." : "A post-failure check could not find the request anymore \u2014 the delete may have landed despite the failure. Do not retry blindly; list or show it first.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, postFailureProbe: after.error ? "failed" : after.own ? "present" : "gone" },
+    err.hint ? `${err.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
+  return disclosed;
+}
 async function trDelete(conn, trkorr, proof) {
   void proof;
   const number4 = assertTrkorr(trkorr, "trDelete");
@@ -65192,7 +65209,7 @@ async function trDelete(conn, trkorr, proof) {
     });
     httpStatus = resp.status;
   } catch (e) {
-    throw ctsError(e, "trDelete", number4);
+    throw await discloseDeleteFailure(ctsError(e, "trDelete", number4), conn, number4);
   }
   const after = await probe(conn, number4);
   const verified = !after.error;
@@ -66935,7 +66952,7 @@ var REGISTRY = {
   // to create Annotation Definitions", from an admin user that creates every
   // other type. Annotation definitions are SAP-only on this system. `delete`
   // stays "unverified": create never succeeded, so delete was never once
-  // reachable to test — same reasoning as ENQU/DL above.
+  // reachable to test.
   "DDLA/ADF": {
     label: "Annotation definition",
     write: { shape: "source" },
@@ -67215,30 +67232,24 @@ var REGISTRY = {
     delete: true,
     activate: false
   },
-  // Lock object. Odd one out, both server-enforced and live-verified: SAP
-  // refuses Z…/Y… names outright (hence namePrefixes), and create is
-  // rejected unless the body already carries a non-empty
-  // <enqu:content><enqu:primaryTable> — so create can't be a vendor skeleton
-  // POST followed by a PUT.
+  // Lock object. Server-enforced: SAP refuses Z…/Y… names outright (hence
+  // namePrefixes), and create is rejected unless the body already carries a
+  // non-empty <enqu:content><enqu:primaryTable> — so create can't be a
+  // vendor skeleton POST followed by a PUT.
   //
-  // `delete: "unverified"` — 2026-08-19: create itself is what
-  // blocked verification. Do not trust ENQU/DL's
-  // create claim, and do not re-attempt as a create-verification-sweep TODO, until that's
-  // resolved. Full incident record (three failed live attempts, two
-  // namespaces, XML_PATH diagnostics): the git history.
+  // create/delete verified 2026-09-05 on A4H (EZTMD_I30 in $TMP, table
+  // T000): the root must be lowercase <enqu:lockobject> in namespace
+  // http://www.sap.com/adt/ddic/enqu, not the camelCase <enqu:lockObject> /
+  // http://www.sap.com/dictionary/lockobject the earlier failed attempts
+  // sent. Content needs primaryTable/{tableName, lockMode} in that order;
+  // omitting lockMode 400s. POST 201'd as plain application/* — no
+  // mediaType override needed — and delete (LOCK/MODIFY handle, then
+  // DELETE?lockHandle=…) 200'd, confirmed absent on read-back.
   "ENQU/DL": {
     label: "Lock object",
     write: { shape: "properties" },
-    // verified: false — settled (not "unverified"): create is DISPROVEN by
-    // three independent live attempts (two namespace variants, both raw
-    // probe and abap_write), all failing identically with `400
-    // ExceptionInvalidData` rejecting the <enqu:lockObject> root element
-    // itself. `delete` above is correctly "unverified" for the opposite
-    // reason — create never succeeded, so delete was never once reachable
-    // to test. See the archive for the full run-by-run record and the
-    // lockobject/lockObject case-sensitivity lead.
-    create: { vendor: false, verified: false },
-    delete: "unverified",
+    create: { vendor: false, verified: true },
+    delete: true,
     activate: true,
     namePrefixes: ["EZ", "EY"]
   },
@@ -67340,12 +67351,12 @@ var REGISTRY = {
     bridgeCreate: {
       adtRest: "ADT exposes a transaction read-only through the generic VIT bridge and returns 405 ExceptionMethodNotSupported on every mutating verb; there is no writable ADT collection for TRAN/T. (The ADT type code is TRAN/T, not TSTC \u2014 TSTC is the underlying database table, not an ADT object type.)",
       via: "RPY_TRANSACTION_INSERT (function group SEUA) \u2014 SE93's own backend: it collision-checks TSTC, runs RS_ACCESS_PERMISSION, fires the SWBM_C_OP_CREATE BAdI check, calls RS_CORR_INSERT for transport/TADIR registration, then inserts TSTC/TSTCT/TSTCC. Called from a generated IF_OO_ADT_CLASSRUN bridge \u2014 see src/adt/tran-create.ts.",
-      limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Changing an existing transaction is still not supported: abapsmith implements no update route for TRAN/T \u2014 the bridge implements create and delete only. Whether function group SEUA offers any change FM at all \u2014 and whether SE93's own edit path uses one \u2014 is unknown; that has never been investigated here, so this is a statement about what abapsmith implements, not a claim that the backend itself would refuse a change: unverified. Deleting one is attempted through a bridge whose delete FM parameter set is inferred, not live-verified \u2014 see this type's bridgeDelete entry below."
+      limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Changing an existing transaction is still not supported: abapsmith implements no update route for TRAN/T \u2014 the bridge implements create and delete only. Whether function group SEUA offers any change FM at all \u2014 and whether SE93's own edit path uses one \u2014 is unknown; that has never been investigated here, so this is a statement about what abapsmith implements, not a claim that the backend itself would refuse a change: unverified. Deleting one is attempted through a bridge whose delete FM parameter set is inferred (live-verified once for a $ package) \u2014 see this type's bridgeDelete entry below. A transportable package requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the transport/TADIR registration always runs. No live create with a transport has been run yet."
     },
     bridgeDelete: {
       adtRest: "Read-only through the generic VIT bridge, same as bridgeCreate: 405 ExceptionMethodNotSupported on every mutating verb, no writable ADT collection.",
       via: "RPY_TRANSACTION_DELETE (function group SEUA \u2014 SE93's own backend), called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading TSTC, not by a clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
-      limits: "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, not transcribed from a capture of the delete FM itself \u2014 not live-verified. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
+      limits: "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, not transcribed from a capture of the delete FM itself. Live-verified once, 2026-09-05: a $ package transaction was created and then deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
     }
   },
   // Not in types.ts — see the module doc. Program subobjects (not standalone
@@ -89656,9 +89667,10 @@ function cleanUri(uri) {
 }
 
 // src/adt/write.ts
-var import_abap_adt_api7 = __toESM(require_build(), 1);
+var import_abap_adt_api8 = __toESM(require_build(), 1);
 
 // src/adt/run.ts
+var import_abap_adt_api7 = __toESM(require_build(), 1);
 import { createHash as createHash6 } from "node:crypto";
 
 // src/adt/dumps-query.ts
@@ -91020,18 +91032,21 @@ function translateRunFailure(conn, className, e) {
   }
   if (kind === "session-timeout") {
     invalidateSession(conn);
-    return new AbapError(
-      "SESSION_DEAD",
-      `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
-      { class: className, status: resp.status, kind },
-      "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
+    return discloseMutationRisk(
+      new AbapError(
+        "SESSION_DEAD",
+        `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
+        { class: className, status: resp.status, kind },
+        "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
+      )
     );
   }
-  return translateAdtError(e, {
+  const translated = translateAdtError(e, {
     operation: "run class",
     name: className,
     uri: `${CLASSRUN_PATH}${className}`
   });
+  return resp === void 0 && !(0, import_abap_adt_api7.isCsrfError)(e) ? discloseMutationRisk(translated) : translated;
 }
 var UNDEFINED_BODY_LITERAL = "undefined";
 var XML_OR_HTML_BODY_PREFIX = /^(<\?xml|<!DOCTYPE|<html)/i;
@@ -91169,6 +91184,18 @@ function discloseBridgeResidue(e, className, packageName, stage) {
   );
   disclosed.stack = e.stack;
   disclosed.cause = e.cause;
+  return disclosed;
+}
+function discloseMutationRisk(err) {
+  const disclosure = "The request may already have executed and committed on the server before this response was lost \u2014 do not blindly retry a mutating bridge. Re-read the object first to see whether it changed.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, mayHaveExecuted: true },
+    err.hint ? `${err.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
   return disclosed;
 }
 async function executeBridge(conn, gate, deployed) {
@@ -92279,7 +92306,7 @@ var NAME_LIMIT_OVERRIDES = {
   // TYPE-POOL naming rule (DD ABAP type-pool names are 5 characters)
 };
 function maxNameLength(type) {
-  return NAME_LIMIT_OVERRIDES[type] ?? import_abap_adt_api7.CreatableTypes.get(type)?.maxLen ?? 30;
+  return NAME_LIMIT_OVERRIDES[type] ?? import_abap_adt_api8.CreatableTypes.get(type)?.maxLen ?? 30;
 }
 function writeShapeOf(type) {
   return capabilitiesFor(type)?.write?.shape ?? "source";
@@ -92368,6 +92395,24 @@ function assertDomaMasterLanguage(t, xml3) {
     `The XML for ${t.spec.label} ${t.name} carries fixed-value <doma:text> content but its root element has no adtcore:masterLanguage attribute.`,
     { name: t.name, type: t.type, uri: t.uri },
     'Add adtcore:masterLanguage="EN" to the root element and re-send. Without it, ADT accepts the write and reports activated: true while silently discarding every <doma:fixedValue><doma:text> description \u2014 the fixed-value codes survive, only the text vanishes. Re-writing an already-damaged domain with the attribute present repairs it in place.'
+  );
+}
+var ROOT_TAG_NAME_RE = /^<(?:([A-Za-z_][\w.-]*):)?([A-Za-z_][\w.-]*)/;
+function assertLockObjectRoot(t, xml3) {
+  if (t.type !== "ENQU/DL") return;
+  const stripped = xml3.replace(XML_COMMENT_RE, "");
+  const root = XML_ROOT_ELEMENT_RE.exec(stripped)?.[0] ?? "";
+  const nameMatch = ROOT_TAG_NAME_RE.exec(root);
+  const prefix = nameMatch?.[1];
+  const localName2 = nameMatch?.[2] ?? "";
+  const nsAttrRe = prefix ? new RegExp(`(?:^|\\s)xmlns:${prefix}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`) : /(?:^|\s)xmlns\s*=\s*(?:"([^"]*)"|'([^']*)')/;
+  const ns = nsAttrRe.exec(root)?.slice(1).find((v) => v !== void 0);
+  if (localName2 === "lockobject" && ns === "http://www.sap.com/adt/ddic/enqu") return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `The XML for ${t.spec.label} ${t.name} has root element ${prefix ? `${prefix}:` : ""}${localName2 || "(none found)"}, not lockobject in namespace http://www.sap.com/adt/ddic/enqu.`,
+    { name: t.name, type: t.type, uri: t.uri, foundLocalName: localName2, foundPrefix: prefix },
+    'Object was NOT changed. The root element must be exactly lowercase enqu:lockobject in namespace "http://www.sap.com/adt/ddic/enqu" \u2014 the server rejects the root element itself before checking anything nested. Minimal working document: <enqu:lockobject xmlns:enqu="http://www.sap.com/adt/ddic/enqu" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="' + t.name + '" adtcore:type="ENQU/DL" adtcore:description="..."><adtcore:packageRef adtcore:name="$TMP"/><enqu:content><enqu:primaryTable><enqu:tableName>T000</enqu:tableName><enqu:lockMode>E</enqu:lockMode></enqu:primaryTable></enqu:content></enqu:lockobject>. Reading an existing lock object (e.g. E_TABLE) with format: "raw" shows the canonical shape.'
   );
 }
 var VALUE_INFORMATION_OPEN_RE = /<((?:[A-Za-z_][\w.-]*:)?)valueInformation\b([^>]*)>/gi;
@@ -93172,6 +93217,7 @@ async function writeObject(conn, target, opts) {
     opts = { ...opts, source: injectEmptyFixValues(t, opts.source) };
     assertPayloadMatchesTarget(t, opts.source);
     assertDomaMasterLanguage(t, opts.source);
+    assertLockObjectRoot(t, opts.source);
   }
   const current = await readCurrentSource(conn, t);
   const previousEtag = current === void 0 ? void 0 : canonicalEtag(current);
@@ -93475,6 +93521,7 @@ async function createByXml(conn, t, corr, payload) {
     }
     assertPayloadMatchesTarget(t, payload);
     assertDomaMasterLanguage(t, payload);
+    assertLockObjectRoot(t, payload);
     body = injectEmptyFixValues(t, payload);
     contentTypeHeader = contentType(t);
   }
@@ -93559,6 +93606,7 @@ async function putContent(conn, t, source, lockHandle, corr) {
   if (properties) {
     assertPayloadMatchesTarget(t, source);
     assertDomaMasterLanguage(t, source);
+    assertLockObjectRoot(t, source);
     source = injectEmptyFixValues(t, source);
   }
   let body;
@@ -93687,6 +93735,30 @@ async function tryCheckSource(conn, t, source) {
     return void 0;
   }
 }
+async function discloseDeleteUncertainty(conn, t, e) {
+  if (!isAbapError(e)) return e;
+  let verification;
+  try {
+    verification = await verifyObjectDeleted(conn, {
+      uri: contentUri(t),
+      accept: contentAccept(t),
+      objectName: t.name,
+      expectType: t.type
+    });
+  } catch {
+    return e;
+  }
+  const disclosure = verification.status === "confirmed-absent" ? `Despite this failure, ${t.spec.label} ${t.name} appears to have been deleted \u2014 it is no longer readable. Do not retry blindly; re-read first.` : verification.status === "confirmed" ? `${t.spec.label} ${t.name} is still there \u2014 nothing was deleted.` : `Whether ${t.spec.label} ${t.name} was deleted could not be settled. Re-read it before retrying.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, postFailureVerification: verification.status, postFailureVerificationUri: verification.uri },
+    e.hint ? `${e.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
 async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) {
   const t = target.target;
   const deleteInclude = t.include;
@@ -93785,6 +93857,8 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
       "A delete is only reversible through the before-image the journal records, and that image could not be captured. Nothing was locked and nothing was deleted \u2014 retry once the object reads cleanly."
     );
   }
+  let deleteIssued = false;
+  let deleteMayHaveLanded2 = false;
   await conn.withStatefulSession(async (session) => {
     const lock = await session.lock(t.uri);
     const fresh = await readCurrentSourceResult(conn, t);
@@ -93852,6 +93926,7 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
       throw transportRefusal(t, transport, "deleted", opts.transport !== void 0);
     }
     try {
+      deleteIssued = true;
       await conn.del(t.uri, {
         qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
       });
@@ -93862,10 +93937,13 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
         name: t.name,
         type: t.type
       });
+      deleteMayHaveLanded2 = err.code === "SESSION_DEAD" || !isAbapError(e) && adtExceptionInfo(e) === void 0;
       noteTransportDead(opts.transport, corr, err);
       throw err;
     }
     session.forgetLock(t.uri);
+  }).catch(async (e) => {
+    throw deleteIssued && deleteMayHaveLanded2 ? await discloseDeleteUncertainty(conn, t, e) : e;
   });
   let verification = await verifyObjectDeleted(conn, {
     uri: contentUri(t),
@@ -95362,36 +95440,28 @@ function clampMaxChars(maxChars) {
   return Math.min(maxChars, DEBUG_MAX_CHARS);
 }
 var breakpointConditionFields = {
-  condition: external_exports.string().trim().min(1).max(255).optional().describe(
-    'ABAP condition expression \u2014 breakpoint suspends only when true, e.g. "sy-tabix = 500".'
-  ),
-  skipCount: external_exports.number().int().nonnegative().max(1e6).optional().describe(
-    'Hits to ignore before suspending (0 = every hit). NOT ENFORCED by this backend \u2014 every hit still suspends; use step:"continue" instead.'
-  )
+  condition: external_exports.string().trim().min(1).max(255).optional(),
+  skipCount: external_exports.number().int().nonnegative().max(1e6).optional()
 };
 var lineBreakpointSchema = external_exports.object({
   ...breakpointConditionFields,
   kind: external_exports.literal("line"),
-  object: external_exports.string().describe(
-    'The class or report to break in (any form abap_read/abap_run accept: bare name, "class ZCL_FOO", a raw ADT URI, ...). Resolved server-side to a source URI.'
-  ),
+  object: external_exports.string().describe("Class or report to break in \u2014 any form abap_read/abap_run accept."),
   line: external_exports.number().int().min(1).max(999999).describe(
-    "1-based source line to break at. SAP may snap this to the nearest executable statement \u2014 if it does, the start response reports the corrected line."
+    "1-based; SAP may snap it to the nearest executable statement (the start response reports the correction)."
   )
 });
 var exceptionBreakpointSchema = external_exports.object({
   ...breakpointConditionFields,
   kind: external_exports.literal("exception"),
-  exceptionClass: external_exports.string().describe(
-    "ABAP exception class to break on when it is raised anywhere, e.g. CX_SY_ZERODIVIDE."
-  )
+  exceptionClass: external_exports.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE.")
 });
 var debugInputSchema = {
   action: external_exports.enum(["start", "step", "stack", "frame", "keepalive", "stop", "status"]).describe(
     "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. keepalive/stop/status need nothing."
   ),
   breakpoints: external_exports.array(external_exports.discriminatedUnion("kind", [lineBreakpointSchema, exceptionBreakpointSchema])).optional().describe(
-    '\u22651 entry, required only for action="start". Line/exception kinds may mix; validated against SAP before arming.'
+    '\u22651 entry, required for action="start"; kinds may mix and are validated against SAP before arming. Both kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
   ),
   run: external_exports.object({
     object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),
@@ -96757,7 +96827,11 @@ async function deleteClassicViewViaBridge(conn, gate, params) {
   assertServerPackage(params.packageName, `view ${params.viewName}`);
   const { viewName } = validate2(params);
   const packageName = params.packageName.name;
-  assertBridgeMutation(gate, { type: "VIEW/DV", name: viewName, packageName }, { activate: false, op: "delete" });
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.deleteView,
     VIEW_DELETE_DATA_LINES,
@@ -96803,15 +96877,48 @@ function assertTransactionCode(value, what = "tcode") {
 function quoted3(validatedIdentifier) {
   return `'${validatedIdentifier}'`;
 }
+function assertCorrNr(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value;
+}
+function assertTransactionCreateTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", {
+    maxLength: PACKAGE_MAX_LENGTH2,
+    allowLocal: true
+  });
+  const local = isLocalPackageName(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) transaction is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this transaction must be registered in CTS via RPY_TRANSACTION_INSERT's own RS_CORR_INSERT call, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr(corrNr);
+  return validated;
+}
 var TRAN_DATA_LINES = [];
 function transactionFragment(p) {
   const tcode = assertTransactionCode(p.tcode);
   const program = assertEnhIdentifier(p.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
   const description = assertAbapText(p.description, "description", TTEXT_MAX_LENGTH);
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH2,
-    allowLocal: true
-  });
+  const packageName = assertTransactionCreateTarget(p.packageName, p.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? void 0 : p.corrNr;
   return [
     "CALL FUNCTION 'RPY_TRANSACTION_INSERT'",
     `  EXPORTING transaction       = ${quoted3(tcode)}`,
@@ -96819,6 +96926,8 @@ function transactionFragment(p) {
     `            dynpro            = ${quoted3(REPORT_DYNPRO)}`,
     "            language          = sy-langu",
     `            development_class = ${quoted3(packageName)}`,
+    // A local ($-prefixed) package has no transport request to name; space is ABAP's SPACE constant, not a quoted literal.
+    local ? "            transport_number  = space" : `            transport_number  = ${quoted3(corrNr)}`,
     `            transaction_type  = ${quoted3(TRANSACTION_TYPE_REPORT)}`,
     `            shorttext         = ${abapLiteral(description)}`,
     "  EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3",
@@ -96837,15 +96946,19 @@ async function createTransaction(conn, gate, params) {
   const tcode = assertTransactionCode(params.tcode);
   const program = assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
   const description = assertAbapText(params.description, "description", TTEXT_MAX_LENGTH);
-  const packageName = assertEnhIdentifier(params.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH2,
-    allowLocal: true
-  });
-  assertBridgeMutation(gate, { type: "TRAN/T", name: tcode, packageName }, { activate: false });
+  const packageName = assertTransactionCreateTarget(params.packageName, params.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? void 0 : params.corrNr;
+  const corr = local ? void 0 : { kind: "transport", corrNr, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, ...corr !== void 0 ? { corr } : {} }
+  );
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.createTransaction,
     TRAN_DATA_LINES,
-    transactionFragment({ tcode, program, description, packageName })
+    transactionFragment({ tcode, program, description, packageName, corrNr })
   );
   return runDdicBridge(conn, gate, {
     className: DDIC_BRIDGE_CLASS.createTransaction,
@@ -96901,7 +97014,11 @@ async function deleteTransactionViaBridge(conn, gate, params) {
     maxLength: PACKAGE_MAX_LENGTH3,
     allowLocal: true
   });
-  assertBridgeMutation(gate, { type: "TRAN/T", name: tcode, packageName }, { activate: false, op: "delete" });
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.deleteTransaction,
     TRAN_DELETE_DATA_LINES,
@@ -97398,6 +97515,30 @@ async function performBridgeCreateUndo(conn, gate, plan, onBeforeImage) {
   if (outcome.status === "confirmed-absent") return { deleted: true, verification: outcome };
   return { deleted: "unverified", verification: outcome };
 }
+function discloseUndoActivationFailure(e, target, entry, undoEntryId) {
+  if (!isAbapError(e)) return e;
+  const residueHint = `The restore itself already landed: ${target.name}'s before-image is saved on the server as the INACTIVE version, but activation failed, so the ACTIVE version is still the newer one this undo was trying to replace. This undo's own journal entry` + (undoEntryId ? ` (${undoEntryId})` : "") + ` is left \`pending\` on purpose \u2014 the outcome is not proven either way \u2014 and the original entry (${entry.id}) was NOT marked undone. Do not undo again blindly: re-read the object and activate it deliberately instead.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    {
+      ...e.details,
+      name: target.name,
+      type: target.type,
+      uri: target.uri,
+      operation: "undo",
+      phase: "post-restore-activation",
+      written: true,
+      activated: false,
+      entry: entry.id,
+      ...undoEntryId !== void 0 ? { journal: undoEntryId } : {}
+    },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
 async function performUndo(conn, journal, entry, opts) {
   if (typeof opts?.assertAllowed !== "function") {
     throw new AbapError(
@@ -97586,7 +97727,11 @@ async function performUndo(conn, journal, entry, opts) {
           "Another writer changed this object between abapsmith's PUT and its activation \u2014 the object lock does NOT span activation, and activation cannot be pinned to a version on this protocol. DO NOT simply undo again: the before-image already landed and was then overwritten, so a blind retry re-runs the same race and silently discards the other writer's work. Read the object (abap_read) to see what is actually there now, merge the two changes deliberately, and write the merged source. The last ACTIVE version is untouched and still what callers run."
         );
       }
-      activation = await activateObject(conn, written.target);
+      try {
+        activation = await activateObject(conn, written.target);
+      } catch (e) {
+        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
+      }
     }
     await settle({
       outcome: "succeeded",
@@ -99786,7 +99931,7 @@ function isLocalPackage(packageName) {
 function quotedIdentifier(value, what, opts) {
   return abapLiteral(assertEnhIdentifier(value, what, opts));
 }
-function assertCorrNr(value) {
+function assertCorrNr2(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -99814,7 +99959,7 @@ function assertSecondaryIndexTarget(packageName, corrNr) {
       "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
     );
   }
-  return local ? "" : assertCorrNr(corrNr);
+  return local ? "" : assertCorrNr2(corrNr);
 }
 function indexGateName(baseTable, indexName) {
   return `${baseTable}-${indexName}`;
@@ -100140,7 +100285,7 @@ function assertSoftwareComponent(value, what = "softwareComponent") {
   }
   return value;
 }
-function assertCorrNr2(value) {
+function assertCorrNr3(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -100194,7 +100339,7 @@ function packageFragment(p) {
   const packageName = assertEnhIdentifier(p.packageName, "packageName", { maxLength: PACKAGE_MAX_LENGTH4 });
   const description = assertAbapText(p.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(p.softwareComponent);
-  const corrNr = assertCorrNr2(p.corrNr);
+  const corrNr = assertCorrNr3(p.corrNr);
   const packType = assertPackageType(p.packageType);
   const superPackage = p.superPackage === void 0 ? void 0 : assertEnhIdentifier(p.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const lines = [
@@ -100358,7 +100503,7 @@ async function createPackageViaBridge(conn, gate, params) {
   });
   const description = assertAbapText(params.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(params.softwareComponent);
-  const corrNr = assertCorrNr2(params.corrNr);
+  const corrNr = assertCorrNr3(params.corrNr);
   assertPackageType(params.packageType);
   const superPackage = params.superPackage === void 0 ? void 0 : assertEnhIdentifier(params.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const corr = { kind: "transport", corrNr, source: params.corrSource ?? "auto" };
@@ -100422,7 +100567,7 @@ function quotedIdentifier2(value, what, opts = {}) {
   return abapLiteral(assertEnhIdentifier(value, what, { maxLength: VIEW_NAME_MAX2, ...opts }));
 }
 var PACKAGE_RULES3 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
-function assertCorrNr3(value) {
+function assertCorrNr4(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -100450,7 +100595,7 @@ function assertClassicViewCreateTarget(packageName, corrNr) {
       "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
     );
   }
-  if (corrNr !== void 0) assertCorrNr3(corrNr);
+  if (corrNr !== void 0) assertCorrNr4(corrNr);
   return validated;
 }
 function validate4(p) {
@@ -100976,7 +101121,7 @@ var writeInputSchema = {
   // (src/tools/read.ts), turns a typo into a schema rejection.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe("CLAS/OC only; testclasses=ABAP Unit tests, default main."),
   package: external_exports.string().optional().describe(
-    "Package for a NEW object. Default $TMP. VIEW/DV: a transportable one needs corr_nr, a $-package refuses it. TABL/DI: ignored except to check agreement \u2014 an index's package is always the base table's, never caller-chosen."
+    "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs corr_nr, a $-package refuses it. TABL/DI: ignored except to check agreement \u2014 an index's package is always the base table's, never caller-chosen."
   ),
   description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
   // Structured create for the three XML-only DDIC types, so a
@@ -101008,7 +101153,7 @@ var writeInputSchema = {
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
   corr_nr: external_exports.string().optional().describe(
-    "Transport request. $TMP needs none. Required for a VIEW/DV or TABL/DI create into a transportable package. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived requirement as its create, not refused."
+    "Transport request. $TMP needs none. Required for a VIEW/DV, TRAN/T or TABL/DI create into a transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived requirement as its create, not refused."
   ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
@@ -101176,6 +101321,9 @@ function deleteNotConfirmedSentence(type, name, verification) {
 }
 function packageDeleteTransportNote(corrNr) {
   return `Transport ${corrNr} was gate-approved and passed to the delete bridge, but on a live system this was observed to NOT record the deletion into ${corrNr} (or into any other request) \u2014 package deletes run through CL_PACKAGE_FACTORY's own SAVE, not the ordinary ADT DELETE this field usually confirms. Do not infer the deletion is captured in this transport.`;
+}
+function bridgeDeleteTransportEntryNote(label, name, packageName) {
+  return `${label} ${name} was in transportable package ${packageName}, but this delete recorded nothing in CTS \u2014 the bridge passes no request and issues no RS_CORR_INSERT. Any entry it already had on a transport request survives it; remove it with \`abap_transport\` operation: "removeObject" (transport, object, confirm), which needs ABAP_MODE=admin.`;
 }
 function resolvedObjectAdapter(conn, t) {
   return {
@@ -102462,9 +102610,9 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
   if (verifyOutcome.status === "confirmed-absent") {
     throw new AbapError(
       "CHECK_FAILED",
-      `${DDIC_BRIDGE_CLASS.createPackage} reported success (the transcript carries ${bridgeRes.transcript.tags.join(", ")}) but ${target.name} does not exist on a follow-up repository search (${verifyOutcome.uri}, via ${verifyOutcome.via}). This is the same false-success shape VIEW/DV was once reproduced against live for (see abapCreateViaBridge above) \u2014 abapsmith will not report a package create as successful when it can prove the package is not there. This was already journalled as created above: if CL_PACKAGE_FACTORY did leave something behind despite this, confirm it and delete it (abap_write mode=delete, while empty) or clean up by hand in SE21.`,
+      `${DDIC_BRIDGE_CLASS.createPackage} reported success (the transcript carries ${bridgeRes.transcript.tags.join(", ")}) but a follow-up repository search returned no hit for ${target.name} (${verifyOutcome.uri}, via ${verifyOutcome.via}) \u2014 the same false-success shape VIEW/DV was once reproduced against live for (see abapCreateViaBridge above). The search is calibrated for packages: live, a package present in TDEVC was found by it both as a local and as a transportable package, so a miss is strong evidence the create did not land \u2014 evidence, not proof of absence. This was already journalled as created above: confirm which it is before acting, and if CL_PACKAGE_FACTORY did leave something behind, delete it (abap_write mode=delete, while empty) or clean up by hand in SE21.`,
       { object: target.name, type: "DEVC/K", markers: bridgeRes.transcript.tags.join(" ") },
-      'Confirm by hand with abap_search mode=objects type="DEVC/K", or in SE21.'
+      'Confirm before acting: abap_search mode=objects type="DEVC" for this name, or read TDEVC directly (abap_data_preview, devclass = the package name). SE21 also shows it.'
     );
   } else if (verifyOutcome.status === "confirmed") {
     verified = true;
@@ -102589,14 +102737,9 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
   if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
     bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
   }
-  if (type === "TRAN/T" && normalizeCorrNr(input.corr_nr) !== void 0) {
-    bad(
-      "`corr_nr` cannot be honoured for a TRAN/T create: RPY_TRANSACTION_INSERT runs its own RS_CORR_INSERT internally, and abapsmith's own call passes no transport parameter for it to act on, so a supplied corr_nr would be dropped silently (whether the FM itself accepts one is unverified).",
-      "Create into $TMP, or let RPY_TRANSACTION_INSERT's own RS_CORR_INSERT assign the request."
-    );
-  }
   const packageName = target.packageName?.trim() || "$TMP";
   if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
+  if (type === "TRAN/T") assertTransactionCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
   const description = input.description?.trim();
   if (!description) {
     bad(
@@ -102704,13 +102847,14 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
       );
     }
     bridgeClass = DDIC_BRIDGE_CLASS.createTransaction;
+    const corrNr = normalizeCorrNr(input.corr_nr);
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
       { name: target.name, type, uri: objectUri, packageName, description },
       beforeCapture,
-      void 0,
-      () => createTransaction(conn, gate, { ...common, tcode: target.name, program })
+      corrNr,
+      () => createTransaction(conn, gate, { ...common, tcode: target.name, program, corrNr })
     ));
     detail = `report transaction starting ${program} (dynpro 1000)`;
     const outcome = await verifyObjectCreated(conn, {
@@ -102786,7 +102930,8 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
   }
   if (normalizeCorrNr(input.corr_nr) !== void 0) {
     bad(
-      `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts), so abapsmith would be dropping the value silently.`
+      `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts). None is needed either \u2014 the delete registers nothing in CTS, so it is judged as a local mutation and no transport allowlist blocks it.`,
+      'Retry without `corr_nr`. Any entry the object already had on a transport request survives this delete; use `abap_transport` operation: "removeObject" (transport, object, confirm) for that, which needs ABAP_MODE=admin.'
     );
   }
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
@@ -102872,8 +103017,9 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
     notes: [
       `Deleted by running a generated ${bridgeClass} classrun bridge, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
       verifyNote,
-      "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this object. To bring it back, create it again with a fresh abap_write call."
-    ],
+      "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this object. To bring it back, create it again with a fresh abap_write call.",
+      isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName)
+    ].filter((n) => n !== ""),
     maxChars
   });
 }
@@ -103050,7 +103196,7 @@ function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -103856,12 +104002,45 @@ async function opCreate(conn, input, maxChars, gate, journal, ownership) {
     maxChars
   });
 }
+function mutationMayHaveLanded(e) {
+  return e instanceof AbapError && (e.code === "SESSION_DEAD" || e.code === "TRANSPORT_ERROR" && e.details.status === void 0);
+}
+function discloseUnprovenMutation(e, trkorr) {
+  const residueHint = `Whether this reached ${trkorr} is unknown \u2014 the response was lost, not refused. Its journal entry stays \`pending\`; re-check with abap_transport {"operation":"show"} before retrying.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, trkorr },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
 async function opAddUser(conn, input, maxChars, gate, journal) {
   const trkorr = normTrkorr(input.transport, "addUser");
   const user = required2(input.user, "user", "addUser").toUpperCase();
   assertCeiling(gate, "plain", "addUser");
   const proof = authorizeCeiling(gate, "transport");
-  const res = await trAddUser(conn, trkorr, user, proof);
+  let res;
+  try {
+    res = await trAddUser(conn, trkorr, user, proof);
+  } catch (e) {
+    if (!mutationMayHaveLanded(e)) throw e;
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-add-user",
+        trkorr,
+        description: `addUser ${user} \u2014 POST response lost, outcome unproven`,
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_transport addUser"
+      },
+      { kind: "unproven", reason: e.message }
+    );
+    throw discloseUnprovenMutation(e, trkorr);
+  }
   await recordMutation(
     journal,
     {
@@ -103895,7 +104074,25 @@ async function opSetOwner(conn, input, maxChars, gate, journal) {
   const user = required2(input.user, "user", "setOwner").toUpperCase();
   assertCeiling(gate, "plain", "setOwner");
   const proof = authorizeCeiling(gate, "transport");
-  const res = await trSetOwner(conn, trkorr, user, proof);
+  let res;
+  try {
+    res = await trSetOwner(conn, trkorr, user, proof);
+  } catch (e) {
+    if (!mutationMayHaveLanded(e)) throw e;
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-set-owner",
+        trkorr,
+        description: `setOwner ${user} \u2014 PUT response lost, outcome unproven`,
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_transport setOwner"
+      },
+      { kind: "unproven", reason: e.message }
+    );
+    throw discloseUnprovenMutation(e, trkorr);
+  }
   await recordMutation(
     journal,
     {
@@ -104770,6 +104967,12 @@ var NODE_CHILD_ORDER = [
   "determinations",
   "validations"
 ];
+var ASSOCIATION_CHILD_ORDER = ["targetNodeRef", "implementationClassRef", "parameterStructureRef"];
+var ACTION_CHILD_ORDER = ["implementationClassRef", "parameterStructureRef"];
+var DETERMINATION_CHILD_ORDER = ["implementationClassRef", "triggers", "relations"];
+var VALIDATION_CHILD_ORDER = ["implementationClassRef", "triggers"];
+var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef", "resultTableTypeRef"];
+var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
 
 // src/adt/bopf-xml.ts
 function fail2(message, details = {}) {
@@ -104953,14 +105156,17 @@ function childTokensOfKind(tokens, nodeTok, kind) {
     (t) => t.name === tag && t.depth === nodeTok.depth + 1 && t.openStart > nodeTok.openStart && t.openStart < nodeTok.closeEnd
   );
 }
-function locate(tokens, sel) {
+function locateToken(tokens, sel) {
   const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
   if (!nodeTok) return void 0;
-  if (!isChildSelector(sel)) return { start: nodeTok.openStart, end: nodeTok.closeEnd };
-  const hit = childTokensOfKind(tokens, nodeTok, sel.child).find(
+  if (!isChildSelector(sel)) return nodeTok;
+  return childTokensOfKind(tokens, nodeTok, sel.child).find(
     (t) => t.attrs.get("bo:name") === sel.name && (sel.memberId === void 0 || t.attrs.get("bo:nodeID") === sel.memberId)
   );
-  return hit ? { start: hit.openStart, end: hit.closeEnd } : void 0;
+}
+function locate(tokens, sel) {
+  const t = locateToken(tokens, sel);
+  return t ? { start: t.openStart, end: t.closeEnd } : void 0;
 }
 function listChildNames(tokens, sel, kind) {
   const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
@@ -105009,6 +105215,25 @@ function promoteToContainer(xml3, token) {
   const opened = tagText.slice(0, -2) + ">";
   return xml3.slice(0, token.openStart) + opened + `</${token.name}>` + xml3.slice(token.openEnd);
 }
+function patchOpenTagAttrs(xml3, token, attrs) {
+  let openTag = xml3.slice(token.openStart, token.openEnd);
+  for (const [name, value] of attrs) {
+    const attrRe = new RegExp(`\\s+bo:${name}="[^"]*"`);
+    if (value === null) {
+      openTag = openTag.replace(attrRe, "");
+      continue;
+    }
+    const rendered = ` bo:${name}="${typeof value === "boolean" ? String(value) : escapeAttrValue(value, `bo:${name}`)}"`;
+    if (attrRe.test(openTag)) {
+      openTag = openTag.replace(attrRe, rendered);
+    } else {
+      const closesSelf = openTag.endsWith("/>");
+      const insertAt = closesSelf ? openTag.length - 2 : openTag.length - 1;
+      openTag = openTag.slice(0, insertAt) + rendered + openTag.slice(insertAt);
+    }
+  }
+  return xml3.slice(0, token.openStart) + openTag + xml3.slice(token.openEnd);
+}
 function spliceInsertChild(xml3, tokens, nodeName, kind, fragment, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
   if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
@@ -105030,36 +105255,38 @@ var NODE_REF_KINDS = [
   "dataAccessClassRef",
   "authorizationClassRef"
 ];
-function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
-  const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
-  const tag = `bo:${refKind}`;
+function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder) {
   const existing = tokens.find(
-    (t) => t.name === tag && t.depth === nodeTok.depth + 1 && t.openStart > nodeTok.openStart && t.openStart < nodeTok.closeEnd
+    (t) => t.name === refTag && t.depth === ownerToken.depth + 1 && t.openStart > ownerToken.openStart && t.openStart < ownerToken.closeEnd
   );
   if (ref2 === null) {
     return existing ? xml3.slice(0, existing.openStart) + xml3.slice(existing.closeEnd) : xml3;
   }
-  const fragment = renderRef2(tag, ref2);
+  const fragment = renderRef2(refTag, ref2);
   if (existing) {
     return xml3.slice(0, existing.openStart) + fragment + xml3.slice(existing.closeEnd);
   }
-  if (nodeTok.kind === "empty") {
-    const opened = promoteToContainer(xml3, nodeTok);
-    const insertAt2 = nodeTok.openEnd - 1;
+  if (ownerToken.kind === "empty") {
+    const opened = promoteToContainer(xml3, ownerToken);
+    const insertAt2 = ownerToken.openEnd - 1;
     return splice(opened, insertAt2, fragment);
   }
-  const targetIdx = NODE_CHILD_ORDER.indexOf(refKind);
-  let insertAt = nodeTok.openEnd;
+  const targetIdx = childOrder.indexOf(bareName(refTag));
+  let insertAt = ownerToken.openEnd;
   for (const t of tokens) {
-    if (t.depth !== nodeTok.depth + 1) continue;
-    if (t.openStart <= nodeTok.openStart || t.openStart >= nodeTok.closeEnd) continue;
-    const idx = NODE_CHILD_ORDER.indexOf(bareName(t.name));
+    if (t.depth !== ownerToken.depth + 1) continue;
+    if (t.openStart <= ownerToken.openStart || t.openStart >= ownerToken.closeEnd) continue;
+    const idx = childOrder.indexOf(bareName(t.name));
     if (idx === -1) continue;
     if (idx <= targetIdx) insertAt = t.closeEnd;
     else break;
   }
   return splice(xml3, insertAt, fragment);
+}
+function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
+  const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
+  if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
+  return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
   if (v === "undefined" || v === "null") {
@@ -105597,6 +105824,25 @@ function buildCreateBody(input) {
   const nodeId = mintGuid("node");
   return `<?xml version="1.0" encoding="UTF-8"?><bo:businessObject xmlns:bo="http://www.sap.com/bopf/bo/BusinessObject" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${xmlEscape(input.name.toUpperCase(), "adtcore:name")}" adtcore:type="${BOPF_TYPE}"${desc}><adtcore:packageRef adtcore:name="${xmlEscape(input.packageName.toUpperCase(), "adtcore:packageRef/@adtcore:name")}"/><bo:nodes bo:name="${xmlEscape(rootName, "bo:nodes/@bo:name")}" bo:nodeID="${nodeId}" bo:xmlName="${xmlEscape(rootName, "bo:nodes/@bo:xmlName")}" bo:objectModelGenerated="false" bo:authorizationCheck="false" bo:isExtensible="false" bo:isDependentObjectNode="false" bo:textNode="false" bo:createEnabled="true" bo:updateEnabled="true" bo:deleteEnabled="true" bo:rootNode="true" bo:objectModelObsolete="false"/></bo:businessObject>`;
 }
+async function discloseFailedPut(conn, bo, base) {
+  let note;
+  try {
+    await readModel(conn, bo);
+    note = "a re-read after the failed PUT still succeeds \u2014 inspect the current model before assuming nothing changed.";
+  } catch (probeErr) {
+    note = `a re-read after the failed PUT also failed: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosure = `A failed PUT is not proof the model is unchanged \u2014 ${note}`;
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
 async function putModel(conn, session, bo, mutate, authorized) {
   assertAuthorizedMatches(authorized, { name: bo }, "putModel");
   const uri = bopfUri(bo);
@@ -105631,8 +105877,9 @@ async function putModel(conn, session, bo, mutate, authorized) {
           body: payload
         });
       } catch (e) {
-        if (isAbapError(e)) throw e;
-        throw translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+        const base = isAbapError(e) ? e : translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+        const mayHaveLanded = base.code === "SESSION_DEAD" || !isAbapError(e) && adtExceptionInfo(e) === void 0;
+        throw mayHaveLanded ? await discloseFailedPut(conn, bo, base) : base;
       }
       return payload;
     }
@@ -105685,6 +105932,24 @@ async function activateBusinessObject(conn, bo) {
 function ddicSparedReason(refSite) {
   return `referenced via ${refSite} \u2014 the model does not record whether this BO generated it, so it is not deleted`;
 }
+async function discloseDeleteFailureProbe(conn, bo, base) {
+  let note;
+  try {
+    await conn.get(bopfUri(bo), { headers: { Accept: BOPF_ACCEPT_V4 } });
+    note = "a re-read right after the failed DELETE still finds the object \u2014 the delete did not land.";
+  } catch (probeErr) {
+    note = isNotFoundLike(probeErr) ? "a re-read right after the failed DELETE no longer finds the object \u2014 the delete may have landed despite the failure; re-read before retrying." : `a re-read right after the failed DELETE could not be settled: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${note}` : note
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
 async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = {}) {
   assertAuthorizedMatches(authorized, { name: bo }, "deleteBusinessObject");
   if (opts.cascadeDdic && !gate.config.allowCascadeDelete) {
@@ -105735,8 +106000,8 @@ async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = 
       await session.unlock(uri);
     } catch {
     }
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
+    const base = isAbapError(e) ? e : translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
+    throw await discloseDeleteFailureProbe(conn, bo, base);
   }
   try {
     await session.unlock(uri);
@@ -105841,14 +106106,37 @@ async function deleteDdicCandidate(conn, session, cand, authorized) {
   try {
     await conn.del(cand.uri, { qs: { lockHandle: lock.handle } });
   } catch (e) {
-    return {
-      name: cand.name,
-      kind: cand.kind,
-      uri: cand.uri,
-      existed: true,
-      deleted: false,
-      reason: `delete failed: ${describeUnknownError(e)}`
-    };
+    const deleteFailure = `delete failed: ${describeUnknownError(e)}`;
+    try {
+      await conn.get(cand.uri, { headers: { Accept: "*/*" } });
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: false,
+        reason: `${deleteFailure}; a read-back of the same URI still finds the object`
+      };
+    } catch (probeErr) {
+      if (isNotFoundLike(probeErr)) {
+        return {
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          existed: true,
+          deleted: true,
+          reason: `${deleteFailure}, but a read-back of the same URI confirms the object is gone`
+        };
+      }
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: "unverified",
+        reason: `${deleteFailure}; the read-back to confirm it also failed: ${describeUnknownError(probeErr)}`
+      };
+    }
   } finally {
     try {
       await session.unlock(cand.uri);
@@ -106202,6 +106490,78 @@ var SET_NODE_FLAGS_FIELDS = {
   dataAccessClassRef: "refOrNull",
   authorizationClassRef: "refOrNull"
 };
+var SET_ASSOCIATION_FIELDS = {
+  xmlName: "stringOrNull",
+  multiplicity: "stringOrNull",
+  implementationType: "stringOrNull",
+  doEmbeddingName: "stringOrNull",
+  objectModelGenerated: "booleanOrNull",
+  targetNodeRef: "refOrNull",
+  parameterStructureRef: "refOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_ACTION_FIELDS = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  instanceMultiplicity: "stringOrNull",
+  exportingParameterCategoryType: "stringOrNull",
+  exportParameterLink: "booleanOrNull",
+  isExtensible: "booleanOrNull",
+  objectModelGenerated: "booleanOrNull",
+  parameterStructureRef: "refOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_DETERMINATION_FIELDS = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  objectModelGenerated: "booleanOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_VALIDATION_FIELDS = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  checkBeforeSave: "booleanOrNull",
+  createNode: "booleanOrNull",
+  updateNode: "booleanOrNull",
+  deleteNode: "booleanOrNull",
+  objectModelGenerated: "booleanOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_QUERY_FIELDS = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  objectModelGenerated: "booleanOrNull",
+  dataTypeRef: "refOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string"
+};
+var SET_ALTERNATIVE_KEY_FIELDS = {
+  xmlName: "stringOrNull",
+  uniqueness: "stringOrNull",
+  checkAfterModify: "booleanOrNull",
+  checkBeforeSave: "booleanOrNull",
+  noCheck: "booleanOrNull",
+  objectModelGenerated: "booleanOrNull",
+  dataTypeRef: "refOrNull",
+  dataTableTypeRef: "refOrNull"
+};
+var SET_CHILD_FIELD_TABLES = {
+  set_association_fields: SET_ASSOCIATION_FIELDS,
+  set_action_fields: SET_ACTION_FIELDS,
+  set_determination_fields: SET_DETERMINATION_FIELDS,
+  set_validation_fields: SET_VALIDATION_FIELDS,
+  set_query_fields: SET_QUERY_FIELDS,
+  set_alternative_key_fields: SET_ALTERNATIVE_KEY_FIELDS
+};
 var OPERATION_FIELDS = {
   create_bo: NO_SPEC_FIELDS,
   add_node: ADD_NODE_FIELDS,
@@ -106219,6 +106579,7 @@ var OPERATION_FIELDS = {
   add_alternative_key: ADD_ALTERNATIVE_KEY_FIELDS,
   remove_alternative_key: NO_SPEC_FIELDS,
   set_node_flags: SET_NODE_FLAGS_FIELDS,
+  ...SET_CHILD_FIELD_TABLES,
   activate: NO_SPEC_FIELDS
 };
 var DETERMINATION_TRIGGER_FIELDS = {
@@ -106246,6 +106607,45 @@ var RELATION_FIELDS = {
   node: "string",
   determination: "string",
   relationType: "string"
+};
+var REMOVE_ADD_FOR_SET_OP = {
+  set_association_fields: ["remove_association", "add_association"],
+  set_action_fields: ["remove_action", "add_action"],
+  set_determination_fields: ["remove_determination", "add_determination"],
+  set_validation_fields: ["remove_validation", "add_validation"],
+  set_query_fields: ["remove_query", "add_query"],
+  set_alternative_key_fields: ["remove_alternative_key", "add_alternative_key"]
+};
+function nameRenameRefusedMessage(operation) {
+  const pair = REMOVE_ADD_FOR_SET_OP[operation];
+  const removeOp = pair ? pair[0] : "remove_*";
+  const addOp = pair ? pair[1] : "add_*";
+  return `spec.name on ${operation} is not supported: renaming is refused because a determination/validation trigger and a relation reference the element by name as an embedded XPath fragment, and a rename would silently orphan them. To rename, call ${removeOp} then ${addOp} again under the new name.`;
+}
+var DETERMINATION_WRITE_ONCE_MESSAGES = {
+  triggers: `spec.triggers on set_determination_fields is write-once: BOPF reads a determination's triggers only inside the original add_determination call, never on a later set_determination_fields. To change a trigger, call remove_determination then add_determination again with the full definition, including the corrected triggers.`,
+  relations: `spec.relations on set_determination_fields is write-once: BOPF reads a determination's relations only inside the original add_determination call, never on a later set_determination_fields. To change a relation, call remove_determination then add_determination again with the full definition, including the corrected relations.`
+};
+var VALIDATION_WRITE_ONCE_MESSAGES = {
+  triggers: `spec.triggers on set_validation_fields is write-once: BOPF reads a validation's triggers only inside the original add_validation call, never on a later set_validation_fields. To change a trigger, call remove_validation then add_validation again with the full definition, including the corrected triggers.`
+};
+var KEY_ELEMENTS_REFUSED_MESSAGE = `spec.keyElements on set_alternative_key_fields cannot be changed in place: an alternative key's key elements are fixed when the key is created. To change them, call remove_alternative_key then add_alternative_key again with the full corrected key.`;
+var RECOGNISED_BUT_REFUSED_FIELDS = {
+  set_association_fields: { name: nameRenameRefusedMessage("set_association_fields") },
+  set_action_fields: { name: nameRenameRefusedMessage("set_action_fields") },
+  set_determination_fields: {
+    ...DETERMINATION_WRITE_ONCE_MESSAGES,
+    name: nameRenameRefusedMessage("set_determination_fields")
+  },
+  set_validation_fields: {
+    ...VALIDATION_WRITE_ONCE_MESSAGES,
+    name: nameRenameRefusedMessage("set_validation_fields")
+  },
+  set_query_fields: { name: nameRenameRefusedMessage("set_query_fields") },
+  set_alternative_key_fields: {
+    keyElements: KEY_ELEMENTS_REFUSED_MESSAGE,
+    name: nameRenameRefusedMessage("set_alternative_key_fields")
+  }
 };
 function describeType(v) {
   if (v === null) return "null";
@@ -106293,6 +106693,8 @@ function shapeIssue(path6, shape, value) {
       return typeof value === "boolean" ? void 0 : { message: `${path6} must be a boolean, got ${describeType(value)}.`, detail: { path: path6, value } };
     case "booleanOrNull":
       return value === null || typeof value === "boolean" ? void 0 : { message: `${path6} must be a boolean or null, got ${describeType(value)}.`, detail: { path: path6, value } };
+    case "stringOrNull":
+      return value === null || typeof value === "string" ? void 0 : { message: `${path6} must be a string or null, got ${describeType(value)}.`, detail: { path: path6, value } };
     case "ref":
       return refShapeIssue(path6, value);
     case "refOrNull":
@@ -106344,8 +106746,14 @@ function unknownTopLevelIssue(operation, key, accepted) {
 function validateTopLevelFields(operation, spec) {
   const table = OPERATION_FIELDS[operation] ?? NO_SPEC_FIELDS;
   const accepted = Object.keys(table);
+  const refused = RECOGNISED_BUT_REFUSED_FIELDS[operation];
   const issues = [];
   for (const key of Object.keys(spec)) {
+    const refusedMessage = refused?.[key];
+    if (refusedMessage !== void 0) {
+      issues.push({ message: refusedMessage, detail: { operation, key, refused: true } });
+      continue;
+    }
     const shape = table[key];
     if (shape === void 0) {
       issues.push(unknownTopLevelIssue(operation, key, accepted));
@@ -106414,16 +106822,22 @@ var bopfEditInputSchema = {
     "remove_node",
     "add_association",
     "remove_association",
+    "set_association_fields",
     "add_action",
     "remove_action",
+    "set_action_fields",
     "add_determination",
     "remove_determination",
+    "set_determination_fields",
     "add_validation",
     "remove_validation",
+    "set_validation_fields",
     "add_query",
     "remove_query",
+    "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
+    "set_alternative_key_fields",
     "set_node_flags",
     "activate"
   ]).describe("The single edit to make."),
@@ -106433,7 +106847,7 @@ var bopfEditInputSchema = {
   spec: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe("Per-operation fields \u2014 see the abapsmith-edit-a-bopf-object skill."),
   activate: external_exports.boolean().optional().describe("Activate after the edit succeeds."),
   allow_dangling_ref: external_exports.boolean().optional().describe("Accepts the dangling-ref risk that otherwise refuses the write."),
-  i_know_this_may_not_activate: external_exports.boolean().optional().describe("Required true for add_alternative_key."),
+  i_know_this_may_not_activate: external_exports.boolean().optional().describe("Required true for add_alternative_key and set_alternative_key_fields."),
   package: external_exports.string().optional().describe("create_bo: local ($TMP-style) package, required."),
   description: external_exports.string().optional().describe("create_bo: optional description."),
   rootNodeName: external_exports.string().optional().describe('create_bo only: root node name, default "ROOT".')
@@ -106595,13 +107009,29 @@ function registerBopfTools(mcp, deps) {
     registerBopfDeleteTool(mcp, deps);
   }
 }
-var DANGLING_REF_OPS = /* @__PURE__ */ new Set(["add_action", "add_determination", "add_validation", "add_query"]);
+var DANGLING_REF_OPS = /* @__PURE__ */ new Set([
+  "add_action",
+  "add_determination",
+  "add_validation",
+  "add_query",
+  "set_action_fields",
+  "set_determination_fields",
+  "set_validation_fields",
+  "set_query_fields"
+]);
 var IMPL_INTERFACE_BY_OP = {
   add_action: "/BOBF/IF_FRW_ACTION",
   add_determination: "/BOBF/IF_FRW_DETERMINATION",
   add_validation: "/BOBF/IF_FRW_VALIDATION",
-  add_query: "/BOBF/IF_FRW_QUERY"
+  add_query: "/BOBF/IF_FRW_QUERY",
+  set_action_fields: "/BOBF/IF_FRW_ACTION",
+  set_determination_fields: "/BOBF/IF_FRW_DETERMINATION",
+  set_validation_fields: "/BOBF/IF_FRW_VALIDATION",
+  set_query_fields: "/BOBF/IF_FRW_QUERY"
 };
+function danglingRefElementLabel(operation) {
+  return operation.replace(/^(add|set)_/, "").replace(/_fields$/, "");
+}
 function str2(v) {
   return typeof v === "string" && v.trim() ? v : void 0;
 }
@@ -106672,7 +107102,7 @@ async function danglingRefPreflight(conn, operation, spec, allowDangling) {
       if (allowDangling) return { className, verdict: "allowed" };
       throw new AbapError(
         "BOPF_DANGLING_REF",
-        `Class ${className} does not exist as a source artifact \u2014 a ${operation.replace("add_", "")} bound to it would activate cleanly and then silently never fire at runtime.`,
+        `Class ${className} does not exist as a source artifact \u2014 a ${danglingRefElementLabel(operation)} bound to it would activate cleanly and then silently never fire at runtime.`,
         { class: className, operation },
         "Create the class first, or pass allow_dangling_ref: true to proceed anyway."
       );
@@ -106771,32 +107201,44 @@ function validateEditInputShape(input) {
     "remove_node",
     "add_association",
     "remove_association",
+    "set_association_fields",
     "add_action",
     "remove_action",
+    "set_action_fields",
     "add_determination",
     "remove_determination",
+    "set_determination_fields",
     "add_validation",
     "remove_validation",
+    "set_validation_fields",
     "add_query",
     "remove_query",
+    "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
+    "set_alternative_key_fields",
     "set_node_flags"
   ]);
   const needsName = /* @__PURE__ */ new Set([
     "add_node",
     "add_association",
     "remove_association",
+    "set_association_fields",
     "add_action",
     "remove_action",
+    "set_action_fields",
     "add_determination",
     "remove_determination",
+    "set_determination_fields",
     "add_validation",
     "remove_validation",
+    "set_validation_fields",
     "add_query",
     "remove_query",
+    "set_query_fields",
     "add_alternative_key",
-    "remove_alternative_key"
+    "remove_alternative_key",
+    "set_alternative_key_fields"
   ]);
   if (needsNode.has(input.operation)) requireNode(input);
   if (needsName.has(input.operation)) requireName(input);
@@ -107239,6 +107681,109 @@ function removeChildElement(freshXml, tokens, input, op) {
   }
   return spliceOut(freshXml, range);
 }
+var SET_CHILD_KIND = {
+  set_association_fields: "association",
+  set_action_fields: "action",
+  set_determination_fields: "determination",
+  set_validation_fields: "validation",
+  set_query_fields: "query",
+  set_alternative_key_fields: "alternativeKey"
+};
+var CHILD_ORDER_BY_KIND = {
+  association: ASSOCIATION_CHILD_ORDER,
+  action: ACTION_CHILD_ORDER,
+  determination: DETERMINATION_CHILD_ORDER,
+  validation: VALIDATION_CHILD_ORDER,
+  query: QUERY_CHILD_ORDER,
+  alternativeKey: ALTERNATIVE_KEY_CHILD_ORDER
+};
+function patchChildFields(freshXml, tokens, input, op) {
+  const kind = SET_CHILD_KIND[op];
+  const sel = requireNode(input);
+  const name = requireName(input);
+  const spec = input.spec ?? {};
+  const table = SET_CHILD_FIELD_TABLES[op] ?? {};
+  const token = locateToken(tokens, { ...sel, child: kind, name });
+  if (!token) {
+    const existing = listChildNames(tokens, sel, kind);
+    throw new AbapError(
+      "NOT_FOUND",
+      `${op} "${name}" on ${input.bo} node "${sel.node}": no ${CHILD_KIND_LABEL[kind]} of that name exists there. ${pluralChildKindLabel(kind)} present on that node: ${existing.length ? existing.join(", ") : "none"}.`,
+      { operation: op, bo: input.bo, node: sel.node, name, kind, existing }
+    );
+  }
+  if ((op === "set_determination_fields" || op === "set_validation_fields" || op === "set_query_fields") && "category" in spec && spec.category !== null) {
+    const categories = op === "set_determination_fields" ? DETERMINATION_CATEGORIES : op === "set_validation_fields" ? VALIDATION_CATEGORIES : QUERY_CATEGORIES;
+    strEnum(spec.category, categories, "category");
+  }
+  if (op === "set_alternative_key_fields" && "uniqueness" in spec && spec.uniqueness !== null) {
+    strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness");
+  }
+  const patchableFields = Object.keys(table).filter((k) => k !== "class" && k !== "implementationClass");
+  const implClassRefRequested = "implementationClassRef" in spec || "class" in spec || "implementationClass" in spec;
+  const anyFieldRequested = patchableFields.some((k) => k === "implementationClassRef" ? implClassRefRequested : k in spec);
+  if (!anyFieldRequested) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${op} on ${input.bo} node "${sel.node}" ("${name}") names no field to change \u2014 spec is empty, or names only fields this operation cannot change. Patchable field(s): ${patchableFields.join(", ")}.`,
+      { operation: op, bo: input.bo, node: sel.node, name, patchable: patchableFields }
+    );
+  }
+  const attrs = /* @__PURE__ */ new Map();
+  for (const [key, shape] of Object.entries(table)) {
+    if (shape !== "stringOrNull" && shape !== "booleanOrNull" || !(key in spec)) continue;
+    attrs.set(key, spec[key]);
+  }
+  let result = attrs.size > 0 ? patchOpenTagAttrs(freshXml, token, attrs) : freshXml;
+  const childOrder = CHILD_ORDER_BY_KIND[kind];
+  for (const [key, shape] of Object.entries(table)) {
+    if (shape !== "refOrNull") continue;
+    const isImplClassRef = key === "implementationClassRef";
+    if (isImplClassRef ? !implClassRefRequested : !(key in spec)) continue;
+    let value;
+    if (isImplClassRef) {
+      value = spec.implementationClassRef === null ? null : classRefFromSpec(spec) ?? null;
+    } else {
+      const raw = spec[key];
+      if (raw === null) {
+        value = null;
+      } else {
+        const parsed = ref(raw);
+        if (!parsed) continue;
+        value = parsed;
+      }
+    }
+    const freshTokens = scanModel(result);
+    const freshToken = locateToken(freshTokens, { ...sel, child: kind, name });
+    if (!freshToken) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${op}: lost track of "${name}" on node "${sel.node}" while splicing ref field "${key}" \u2014 internal error.`,
+        { operation: op, bo: input.bo, node: sel.node, name, key }
+      );
+    }
+    result = spliceSetElementRef(result, freshTokens, freshToken, `bo:${key}`, value, childOrder);
+  }
+  return result;
+}
+var CHILD_OP_SUFFIX = {
+  association: "association",
+  action: "action",
+  determination: "determination",
+  validation: "validation",
+  query: "query",
+  alternativeKey: "alternative_key"
+};
+function refuseDuplicateChild(tokens, input, sel, kind, name) {
+  const existing = listChildNames(tokens, sel, kind);
+  if (!existing.some((n) => n.toLowerCase() === name.toLowerCase())) return;
+  const suffix = CHILD_OP_SUFFIX[kind];
+  throw new AbapError(
+    "BAD_INPUT",
+    `${input.operation} "${name}" on ${input.bo} node "${sel.node}": a ${CHILD_KIND_LABEL[kind]} of that name already exists there. ${input.operation} is not an upsert \u2014 proceeding would create a second element named "${name}". BOPF writes are journalled but irreversible, so the duplicate could not be undone afterward. Use set_${suffix}_fields to change the existing one, or remove_${suffix} first.`,
+    { operation: input.operation, bo: input.bo, node: sel.node, name, kind, existing }
+  );
+}
 function mutateModel(freshXml, input) {
   const tokens = scanModel(freshXml);
   const spec = input.spec ?? {};
@@ -107262,38 +107807,50 @@ function mutateModel(freshXml, input) {
     }
     case "add_association": {
       const sel = requireNode(input);
-      const fields = buildAssociationFields(requireName(input), mintGuid("association"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "association", name);
+      const fields = buildAssociationFields(name, mintGuid("association"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "association", renderAssociationElement(fields), {
         nodeId: sel.nodeId
       });
     }
     case "add_action": {
       const sel = requireNode(input);
-      const fields = buildActionFields(requireName(input), mintGuid("action"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "action", name);
+      const fields = buildActionFields(name, mintGuid("action"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "action", renderActionElement(fields), { nodeId: sel.nodeId });
     }
     case "add_determination": {
       const sel = requireNode(input);
-      const fields = buildDeterminationFields(input.bo, sel.node, requireName(input), mintGuid("determination"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "determination", name);
+      const fields = buildDeterminationFields(input.bo, sel.node, name, mintGuid("determination"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "determination", renderDeterminationElement(fields), {
         nodeId: sel.nodeId
       });
     }
     case "add_validation": {
       const sel = requireNode(input);
-      const fields = buildValidationFields(input.bo, sel.node, requireName(input), mintGuid("validation"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "validation", name);
+      const fields = buildValidationFields(input.bo, sel.node, name, mintGuid("validation"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "validation", renderValidationElement(fields), {
         nodeId: sel.nodeId
       });
     }
     case "add_query": {
       const sel = requireNode(input);
-      const fields = buildQueryFields(requireName(input), mintGuid("query"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "query", name);
+      const fields = buildQueryFields(name, mintGuid("query"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "query", renderQueryElement(fields), { nodeId: sel.nodeId });
     }
     case "add_alternative_key": {
       const sel = requireNode(input);
-      const fields = buildAlternativeKeyFields(requireName(input), mintGuid("alternativeKey"), spec);
+      const name = requireName(input);
+      refuseDuplicateChild(tokens, input, sel, "alternativeKey", name);
+      const fields = buildAlternativeKeyFields(name, mintGuid("alternativeKey"), spec);
       return spliceInsertChild(freshXml, tokens, sel.node, "alternativeKey", renderAlternativeKeyElement(fields), {
         nodeId: sel.nodeId
       });
@@ -107305,6 +107862,13 @@ function mutateModel(freshXml, input) {
     case "remove_query":
     case "remove_alternative_key":
       return removeChildElement(freshXml, tokens, input, input.operation);
+    case "set_association_fields":
+    case "set_action_fields":
+    case "set_determination_fields":
+    case "set_validation_fields":
+    case "set_query_fields":
+    case "set_alternative_key_fields":
+      return patchChildFields(freshXml, tokens, input, input.operation);
     case "set_node_flags":
       return patchNodeFlags(freshXml, tokens, requireNode(input), spec);
     case "create_bo":
@@ -107489,6 +108053,50 @@ function nodeFlagMismatches(node2, spec) {
   }
   return out;
 }
+function childFieldMismatches(element, spec, table) {
+  const out = [];
+  const implClassRefRequested = "implementationClassRef" in spec || "class" in spec || "implementationClass" in spec;
+  for (const [key, shape] of Object.entries(table)) {
+    if (key === "class" || key === "implementationClass") continue;
+    if (key === "implementationClassRef") {
+      if (!implClassRefRequested) continue;
+      const sent2 = spec.implementationClassRef === null ? null : classRefFromSpec(spec) ?? null;
+      const readBack = element[key];
+      if (sent2 === null) {
+        if (readBack !== void 0) out.push({ field: key, sent: null, readBack });
+        continue;
+      }
+      if (!readBack || readBack.name.toLowerCase() !== sent2.name.toLowerCase() || readBack.type.toLowerCase() !== sent2.type.toLowerCase()) {
+        out.push({ field: key, sent: sent2, readBack: readBack ?? null });
+      }
+      continue;
+    }
+    if (!(key in spec)) continue;
+    const sent = spec[key];
+    if (shape === "refOrNull") {
+      const readBack = element[key];
+      if (sent === null) {
+        if (readBack !== void 0) out.push({ field: key, sent: null, readBack });
+        continue;
+      }
+      const wanted = ref(sent);
+      if (!wanted) continue;
+      if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
+        out.push({ field: key, sent: wanted, readBack: readBack ?? null });
+      }
+    } else if (shape === "stringOrNull") {
+      const readBack = element[key];
+      const expected = sent === null ? void 0 : sent;
+      const same = expected === void 0 ? readBack === void 0 : typeof readBack === "string" && typeof expected === "string" && readBack.toLowerCase() === expected.toLowerCase();
+      if (!same) out.push({ field: key, sent, readBack: readBack ?? null });
+    } else if (shape === "booleanOrNull") {
+      const readBack = element[key];
+      const expected = sent === null ? void 0 : sent;
+      if (readBack !== expected) out.push({ field: key, sent, readBack: readBack ?? null });
+    }
+  }
+  return out;
+}
 function attributeSessionDeath(e, input) {
   if (!isAbapError(e) || e.code !== "SESSION_DEAD") return e;
   const node2 = input.node;
@@ -107505,17 +108113,17 @@ function attributeSessionDeath(e, input) {
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
   return new AbapError(e.code, message, details, hint);
 }
-var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key needs i_know_this_may_not_activate: true plus spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four.";
+var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 the same short-dump-prone mapper handles both; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four.";
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
 async function runBopfEdit(deps, args) {
   const input = args;
   const bo = input.bo;
-  if (input.operation === "add_alternative_key" && input.i_know_this_may_not_activate !== true) {
+  if ((input.operation === "add_alternative_key" || input.operation === "set_alternative_key_fields") && input.i_know_this_may_not_activate !== true) {
     throw new AbapError(
       "BAD_INPUT",
-      "add_alternative_key requires i_know_this_may_not_activate: true \u2014 the operation is not confirmed to succeed on any node.",
+      `${input.operation} requires i_know_this_may_not_activate: true \u2014 an alternative-key payload goes through /BOBF/CL_CONF_MODEL_API_MAP, the same mapper an invalid one has short-dumped, and the operation is not confirmed to succeed on any node.`,
       { operation: input.operation }
     );
   }
@@ -107828,6 +108436,37 @@ async function runBopfEdit(deps, args) {
               { bo, node: sel.node, mismatches, journalEntryId: entryId },
               `BOPF's model mapper discards payload it cannot map without erroring \u2014 check that a ref names an object that actually exists, then re-send only the fields that did not stick.`
             );
+          }
+        }
+        if (input.operation === "set_association_fields" || input.operation === "set_action_fields" || input.operation === "set_determination_fields" || input.operation === "set_validation_fields" || input.operation === "set_query_fields" || input.operation === "set_alternative_key_fields") {
+          const op = input.operation;
+          const sel = requireNode(input);
+          const name = requireName(input);
+          const kind = SET_CHILD_KIND[op];
+          const sentSpec = input.spec ?? {};
+          const countBefore = countMembers(initial.model, kind, sel.node, name);
+          const countAfter = countMembers(afterMutate.model, kind, sel.node, name);
+          if (countAfter === 0 || countAfter !== countBefore) {
+            throw new AbapError(
+              "CHECK_FAILED",
+              `abap_bopf_edit ${op} "${name}" on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${countAfter} ${kind}(s) named "${name}" on that node after the write, versus ${countBefore} before \u2014 the element either vanished or was duplicated instead of being patched in place. A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.`,
+              { bo, node: sel.node, name, kind, countBefore, countAfter, journalEntryId: entryId }
+            );
+          }
+          const node2 = afterMutate.model.nodes.find((n) => n.name.toLowerCase() === sel.node.toLowerCase());
+          const member = node2 && MEMBERS_BY_KIND[kind](node2).find((m) => m.name.toLowerCase() === name.toLowerCase());
+          if (member) {
+            const table = SET_CHILD_FIELD_TABLES[op] ?? {};
+            const mismatches = childFieldMismatches(member, sentSpec, table);
+            if (mismatches.length > 0) {
+              const detail = mismatches.map((m) => `${m.field}: sent ${m.sent === null ? "cleared" : describeFlagValue(m.sent)}, read back ${describeFlagValue(m.readBack)}`).join("; ");
+              throw new AbapError(
+                "CHECK_FAILED",
+                `abap_bopf_edit ${op} "${name}" on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows the server did not keep ${mismatches.length} of the field(s) sent \u2014 ${detail}. A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.`,
+                { bo, node: sel.node, name, kind, mismatches, journalEntryId: entryId },
+                `BOPF's model mapper discards payload it cannot map without erroring \u2014 check that a ref names an object that actually exists, then re-send only the fields that did not stick.`
+              );
+            }
           }
         }
       }
@@ -112468,12 +113107,19 @@ function parseEnhancementTranscript(raw) {
   }
   return { tags, errorLine, raw };
 }
+function epilogueFailureHint(tags) {
+  if (tags.length === 0) {
+    return "The bridge raised before writing any progress marker, so nothing here shows the object was created, saved, or locked. Do not assume either outcome \u2014 read the object before deciding whether to run the bridge again.";
+  }
+  return `Already landed per the transcript: ${tags.join(", ")}. The generated bridge's SAVE may have committed before ACTIVATE raised, and its UNLOCK never ran afterwards, so the object may still hold an enqueue lock. Do not blindly re-run the bridge \u2014 re-read the object first to see what actually landed. A stranded lock clears in SM12, or on its own once the owning session ends.`;
+}
 function assertEnhTranscript(result, expectTags, what) {
   if (result.errorLine) {
     throw new AbapError(
       "CHECK_FAILED",
       `${what} raised an ABAP exception: ${result.errorLine}`,
-      { raw: result.raw }
+      { raw: result.raw, ...result.tags.length ? { landedTags: result.tags } : {} },
+      epilogueFailureHint(result.tags)
     );
   }
   const missing = expectTags.filter((t) => !result.tags.includes(t));
@@ -117506,6 +118152,14 @@ var ABAP_DO_ACTIONS = [
     args: "node, name, activate"
   },
   {
+    action: "bopf_set_association_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_association_fields"})',
+    summary: "Patch an association's fields in place.",
+    args: "node, name, spec, activate"
+  },
+  {
     action: "bopf_add_action",
     group: "bopf",
     minMode: "edit",
@@ -117520,6 +118174,14 @@ var ABAP_DO_ACTIONS = [
     v1: 'abap_bopf_edit({operation:"remove_action"})',
     summary: "Remove an action.",
     args: "node, name, activate"
+  },
+  {
+    action: "bopf_set_action_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_action_fields"})',
+    summary: "Patch an action's fields in place.",
+    args: "node, name, spec, activate"
   },
   {
     action: "bopf_add_determination",
@@ -117538,6 +118200,14 @@ var ABAP_DO_ACTIONS = [
     args: "node, name, activate"
   },
   {
+    action: "bopf_set_determination_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_determination_fields"})',
+    summary: "Patch a determination's fields in place.",
+    args: "node, name, spec, activate"
+  },
+  {
     action: "bopf_add_validation",
     group: "bopf",
     minMode: "edit",
@@ -117552,6 +118222,14 @@ var ABAP_DO_ACTIONS = [
     v1: 'abap_bopf_edit({operation:"remove_validation"})',
     summary: "Remove a validation.",
     args: "node, name, activate"
+  },
+  {
+    action: "bopf_set_validation_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_validation_fields"})',
+    summary: "Patch a validation's fields in place.",
+    args: "node, name, spec, activate"
   },
   {
     action: "bopf_add_query",
@@ -117570,6 +118248,14 @@ var ABAP_DO_ACTIONS = [
     args: "node, name, activate"
   },
   {
+    action: "bopf_set_query_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_query_fields"})',
+    summary: "Patch a query's fields in place.",
+    args: "node, name, spec, activate"
+  },
+  {
     action: "bopf_add_alternative_key",
     group: "bopf",
     minMode: "edit",
@@ -117584,6 +118270,14 @@ var ABAP_DO_ACTIONS = [
     v1: 'abap_bopf_edit({operation:"remove_alternative_key"})',
     summary: "Remove an alternative key.",
     args: "node, name, activate"
+  },
+  {
+    action: "bopf_set_alternative_key_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_alternative_key_fields"})',
+    summary: "Patch an alternative key's fields in place.",
+    args: "node, name, spec, i_know_this_may_not_activate (required true), activate"
   },
   {
     action: "bopf_set_node_flags",
@@ -118034,16 +118728,22 @@ var BOPF_HANDLERS = /* @__PURE__ */ new Map([
   ["bopf_remove_node", editOp("remove_node")],
   ["bopf_add_association", editOp("add_association")],
   ["bopf_remove_association", editOp("remove_association")],
+  ["bopf_set_association_fields", editOp("set_association_fields")],
   ["bopf_add_action", editOp("add_action")],
   ["bopf_remove_action", editOp("remove_action")],
+  ["bopf_set_action_fields", editOp("set_action_fields")],
   ["bopf_add_determination", editOp("add_determination")],
   ["bopf_remove_determination", editOp("remove_determination")],
+  ["bopf_set_determination_fields", editOp("set_determination_fields")],
   ["bopf_add_validation", editOp("add_validation")],
   ["bopf_remove_validation", editOp("remove_validation")],
+  ["bopf_set_validation_fields", editOp("set_validation_fields")],
   ["bopf_add_query", editOp("add_query")],
   ["bopf_remove_query", editOp("remove_query")],
+  ["bopf_set_query_fields", editOp("set_query_fields")],
   ["bopf_add_alternative_key", editOp("add_alternative_key")],
   ["bopf_remove_alternative_key", editOp("remove_alternative_key")],
+  ["bopf_set_alternative_key_fields", editOp("set_alternative_key_fields")],
   ["bopf_set_node_flags", editOp("set_node_flags")],
   ["bopf_activate", editOp("activate")],
   ["bopf_test", test2],

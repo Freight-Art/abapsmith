@@ -168,8 +168,14 @@ export async function deleteTransactionViaBridge(
 
   // 2 — the second gate, on the domain object, zero-network, before any ABAP
   // is generated. `op: "delete"` matters: a delete must be gated and audited
-  // as a delete, not a write.
-  assertBridgeMutation(gate, { type: "TRAN/T", name: tcode, packageName }, { activate: false, op: "delete" });
+  // as a delete, not a write. `local`: the fragment passes no request and
+  // issues no RS_CORR_INSERT — nothing registers in CTS to judge, and this
+  // FM's CTS behaviour is inferred like the rest of the module, not measured.
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } },
+  );
 
   // 3
   const source = ddicBridgeSource(

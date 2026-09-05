@@ -309,7 +309,7 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     expect(String(e.message)).toMatch(/\$TMP/);
   });
 
-  it("TRAN/T still refuses corr_nr, but with a TRAN/T-specific message (RPY_TRANSACTION_INSERT runs its own RS_CORR_INSERT) — not the old blanket claim", async () => {
+  it("TRAN/T into a transportable package with NO corr_nr is refused TRANSPORT_ERROR before any network call", async () => {
     const offline = null as unknown as AbapConnection;
     const e = await catchErr(
       abapWrite(
@@ -320,6 +320,26 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
           package: "ZTM",
           description: "Carrier list",
           program: "ZMCP_CARRIER_LIST",
+        },
+        MAX,
+        gate(),
+      ),
+    );
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(String(e.message)).toMatch(/corr_nr/);
+  });
+
+  it("TRAN/T into $TMP WITH a corr_nr is refused BAD_INPUT before any network call", async () => {
+    const offline = null as unknown as AbapConnection;
+    const e = await catchErr(
+      abapWrite(
+        offline,
+        {
+          object: "ZMCPT01",
+          type: "TRAN/T",
+          package: "$TMP",
+          description: "Carrier list",
+          program: "ZMCP_CARRIER_LIST",
           corr_nr: "TR1K900123",
         },
         MAX,
@@ -327,11 +347,24 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
       ),
     );
     expect(e.code).toBe("BAD_INPUT");
-    expect(String(e.message)).toMatch(/RPY_TRANSACTION_INSERT/);
-    expect(String(e.message)).toMatch(/RS_CORR_INSERT/);
-    // The old message claimed corr_nr never works for EITHER bridge type —
-    // that claim is now false for VIEW/DV, so it must not survive verbatim.
-    expect(String(e.message)).not.toMatch(/VIEW\/DV/);
+    expect(String(e.message)).toMatch(/corr_nr/);
+    expect(String(e.message)).toMatch(/\$TMP/);
+  });
+
+  it("TRAN/T into a transportable package WITH a corr_nr reaches the bridge and the create succeeds", async () => {
+    const classrun = classrunRoute(["TRAN-CREATED"]);
+    const vit = vitRoute("confirmed", "trant", TCODE, "TRAN/T", "ZTM");
+    const { conn, adt } = await connected(
+      both(programRoute(PROGRAM), bridgeDeployRoute(TRAN_BRIDGE), classrun, vit),
+    );
+    const result = await abapWrite(
+      conn,
+      { ...TRAN_INPUT, package: "ZTM", corr_nr: "TR1K900123" },
+      MAX,
+      gate(),
+    );
+    expect(result.text).toMatch(/created: true/);
+    expect(adt.calls.length).toBeGreaterThan(0);
   });
 
   // `bridgeReversalNote` (src/tools/write.ts) is shared by both bridge-create

@@ -549,7 +549,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   // to create Annotation Definitions", from an admin user that creates every
   // other type. Annotation definitions are SAP-only on this system. `delete`
   // stays "unverified": create never succeeded, so delete was never once
-  // reachable to test — same reasoning as ENQU/DL above.
+  // reachable to test.
   "DDLA/ADF": {
     label: "Annotation definition",
     write: { shape: "source" },
@@ -829,30 +829,24 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     delete: true,
     activate: false,
   },
-  // Lock object. Odd one out, both server-enforced and live-verified: SAP
-  // refuses Z…/Y… names outright (hence namePrefixes), and create is
-  // rejected unless the body already carries a non-empty
-  // <enqu:content><enqu:primaryTable> — so create can't be a vendor skeleton
-  // POST followed by a PUT.
+  // Lock object. Server-enforced: SAP refuses Z…/Y… names outright (hence
+  // namePrefixes), and create is rejected unless the body already carries a
+  // non-empty <enqu:content><enqu:primaryTable> — so create can't be a
+  // vendor skeleton POST followed by a PUT.
   //
-  // `delete: "unverified"` — 2026-08-19: create itself is what
-  // blocked verification. Do not trust ENQU/DL's
-  // create claim, and do not re-attempt as a create-verification-sweep TODO, until that's
-  // resolved. Full incident record (three failed live attempts, two
-  // namespaces, XML_PATH diagnostics): the git history.
+  // create/delete verified 2026-09-05 on A4H (EZTMD_I30 in $TMP, table
+  // T000): the root must be lowercase <enqu:lockobject> in namespace
+  // http://www.sap.com/adt/ddic/enqu, not the camelCase <enqu:lockObject> /
+  // http://www.sap.com/dictionary/lockobject the earlier failed attempts
+  // sent. Content needs primaryTable/{tableName, lockMode} in that order;
+  // omitting lockMode 400s. POST 201'd as plain application/* — no
+  // mediaType override needed — and delete (LOCK/MODIFY handle, then
+  // DELETE?lockHandle=…) 200'd, confirmed absent on read-back.
   "ENQU/DL": {
     label: "Lock object",
     write: { shape: "properties" },
-    // verified: false — settled (not "unverified"): create is DISPROVEN by
-    // three independent live attempts (two namespace variants, both raw
-    // probe and abap_write), all failing identically with `400
-    // ExceptionInvalidData` rejecting the <enqu:lockObject> root element
-    // itself. `delete` above is correctly "unverified" for the opposite
-    // reason — create never succeeded, so delete was never once reachable
-    // to test. See the archive for the full run-by-run record and the
-    // lockobject/lockObject case-sensitivity lead.
-    create: { vendor: false, verified: false },
-    delete: "unverified",
+    create: { vendor: false, verified: true },
+    delete: true,
     activate: true,
     namePrefixes: ["EZ", "EY"],
   },
@@ -1064,8 +1058,14 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "path uses one — is unknown; that has never been investigated here, so this is a " +
         "statement about what abapsmith implements, not a claim that the backend itself would " +
         "refuse a change: unverified. Deleting one is " +
-        "attempted through a bridge whose delete FM parameter set is inferred, not " +
-        "live-verified — see this type's bridgeDelete entry below.",
+        "attempted through a bridge whose delete FM parameter set is inferred (live-verified " +
+        "once for a $ package) — see this type's bridgeDelete entry below. A transportable package " +
+        "requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) " +
+        "and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live " +
+        "on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to " +
+        "RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the " +
+        "transport/TADIR registration always runs. No live create with a transport has been " +
+        "run yet.",
     },
     bridgeDelete: {
       adtRest:
@@ -1077,8 +1077,10 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
       limits:
         "RPY_TRANSACTION_DELETE's parameter set is inferred from RPY_TRANSACTION_INSERT's " +
-        "`transaction` parameter name, not transcribed from a capture of the delete FM itself " +
-        "— not live-verified. This bridgeCreate entry's own `via` already records that " +
+        "`transaction` parameter name, not transcribed from a capture of the delete FM itself. " +
+        "Live-verified once, 2026-09-05: a $ package transaction was created and then deleted " +
+        "with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. " +
+        "This bridgeCreate entry's own `via` already records that " +
         "RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether " +
         "RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a " +
         "TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way " +
@@ -1352,7 +1354,7 @@ export function isBridgeOnlyCreateType(type: string | undefined): boolean {
   return cap?.bridgeCreate !== undefined && cap.create === undefined;
 }
 
-/** Types declaring `bridgeDelete` (today: `DEVC/K`) — the classrun-bridge delete route, disjoint from `DELETABLE_TYPES`. */
+/** Types declaring `bridgeDelete` (`DEVC/K`, `VIEW/DV`, `TRAN/T`) — the classrun-bridge delete route, disjoint from `DELETABLE_TYPES`. */
 export const BRIDGE_DELETABLE_TYPES: readonly string[] = codesWith((c) => c.bridgeDelete !== undefined);
 
 /** True for a type deleted via the classrun bridge rather than ADT REST. See {@link BRIDGE_DELETABLE_TYPES}. */

@@ -333,13 +333,13 @@ export async function resolveObject(
   input: string,
   opts: ResolveOptions = {},
 ): Promise<ResolvedObject> {
-  // Explicit-type refusal, before any parsing or network I/O: types the
-  // capabilities registry marks `unsupported`/`bridgeCreate` (SHLP/DH,
-  // VIEW/DV, TRAN/T, PROG/PS, PROG/PC, PROG/PT, SUSO/B) aren't in types.ts's
-  // TYPES array, so without this an explicit type hint would fall straight
-  // through to a live search and surface a generic NOT_FOUND/"not a readable
-  // source object" instead of naming the real, already-known reason.
-  // Mirrors resolveWriteTarget's identical check in write.ts.
+  // Explicit-type refusal, before any parsing or network I/O: NON_READABLE_TYPES
+  // (the registry's `unsupported` types, plus bridge-only-create types with
+  // no ADT collection) aren't in types.ts's TYPES array, so without this an
+  // explicit type hint would fall straight through to a live search and
+  // surface a generic NOT_FOUND/"not a readable source object" instead of
+  // naming the real, already-known reason. Mirrors resolveWriteTarget's
+  // identical check in write.ts.
   if (opts.type) {
     const cap = capabilitiesFor(opts.type);
     const code = opts.type.trim().toUpperCase();
