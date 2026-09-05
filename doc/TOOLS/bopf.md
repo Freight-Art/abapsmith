@@ -30,14 +30,14 @@ create the BO itself).
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
 | `bo` | string | yes | — | Business object name. |
-| `operation` | enum `create_bo` \| `add_node` \| `remove_node` \| `add_association` \| `remove_association` \| `add_action` \| `remove_action` \| `add_determination` \| `remove_determination` \| `add_validation` \| `remove_validation` \| `add_query` \| `remove_query` \| `add_alternative_key` \| `remove_alternative_key` \| `set_node_flags` \| `activate` | yes | — | The single edit to make. |
+| `operation` | enum `create_bo` \| `add_node` \| `remove_node` \| `add_association` \| `remove_association` \| `add_action` \| `remove_action` \| `add_determination` \| `remove_determination` \| `add_validation` \| `remove_validation` \| `add_query` \| `remove_query` \| `add_alternative_key` \| `remove_alternative_key` \| `set_node_flags` \| `set_association_fields` \| `set_action_fields` \| `set_determination_fields` \| `set_validation_fields` \| `set_query_fields` \| `set_alternative_key_fields` \| `activate` | yes | — | The single edit to make. |
 | `node` | string | no | — | Existing node the operation targets. |
 | `nodeId` | string | no | — | Disambiguator when node name alone is not unique. |
 | `name` | string | required except for `create_bo`/`remove_node`/`set_node_flags`/`activate` | — | Name of the new node/association/action/etc. being added, or removed. |
 | `spec` | object (free-form) | no | — | Operation-specific fields. `add_node` requires `spec.parent` or `spec.parentNodeId`. `add_alternative_key` requires `spec.uniqueness`, `spec.dataTypeRef`, `spec.dataTableTypeRef`, and `spec.keyElements`. |
 | `activate` | boolean | no | — | Also activate after the edit succeeds. |
 | `allow_dangling_ref` | boolean | no | — | Proceed even if `spec.class` or a trigger's action doesn't exist yet, or, for `add_alternative_key`, a `spec.keyElements` entry isn't a property of the target node or the node has no `persistentStructureRef`. |
-| `i_know_this_may_not_activate` | boolean | required (`true`) for `add_alternative_key` | — | Explicit acknowledgment — the operation is not confirmed to succeed on any node. |
+| `i_know_this_may_not_activate` | boolean | required (`true`) for `add_alternative_key`/`set_alternative_key_fields` | — | Explicit acknowledgment — the operation is not confirmed to succeed on any node. |
 | `package` | string | required for `create_bo` | — | Must be a local (`$TMP`-style) package. |
 | `description` | string | `create_bo` only | — | Description of the new BO. |
 | `rootNodeName` | string | `create_bo` only | `"ROOT"` | Name for the root node. |
@@ -130,12 +130,14 @@ Example (remove a determination):
 
 `remove_action`, `remove_determination`, `remove_validation`, `remove_query`
 and `remove_alternative_key` take `node` and `name` (both required) plus the
-usual optional `activate`. This is also the way out of the state a repeated
-`add_action`/`add_determination`/`add_validation`/`add_query`/
-`add_alternative_key` leaves a BO in — re-adding under a `name` that already
-exists does not replace the existing element, it creates a second one with
-the same name, and the BO then fails activation for good. If `name` matches
-more than one element on that node, a removal takes the **first one in
+usual optional `activate`. `add_action`/`add_determination`/`add_validation`/
+`add_query`/`add_alternative_key`/`add_association` now refuse up front,
+before sending anything, when an element of that kind and name
+already exists on the target node — `BAD_INPUT`, naming the existing
+element — so a fresh duplicate can no longer be created through the tool.
+`remove_*` is still the way to unwind a duplicate that already exists on the
+server-side model (from before this refusal, or from any other route). If
+`name` matches more than one element on that node, a removal takes the **first one in
 document order**; calling the same operation again removes the next, which
 is how a duplicate gets unwound one element at a time. Removal re-reads the
 model after the write and counts elements of that name on that node: if the
@@ -161,6 +163,52 @@ duplicate name) — and fails `CHECK_FAILED` if any flag, ref, or the rename
 did not stick, naming each mismatched field with the value sent and the
 value read back; refs are compared on name and type, case-insensitively. No
 activation request is sent on a `CHECK_FAILED`.
+
+`set_association_fields` / `set_action_fields` / `set_determination_fields` /
+`set_validation_fields` / `set_query_fields` / `set_alternative_key_fields`
+each take `node` and `name` (both required, to locate the existing element)
+plus a `spec` of the fields to change; every field left out of `spec`, and
+every child element the target already has, is preserved byte-for-byte —
+the element is patched in place, not re-rendered. `null` clears an
+attribute or a ref, as with `set_node_flags`. On the five kinds with an
+implementation class (association, action, determination, validation,
+query), `spec.class`/`spec.implementationClass` (a bare class name) is
+accepted as a shorthand for `implementationClassRef`, wrapped as a `CLAS/OC`
+ref exactly as the matching `add_*` does; an explicit
+`spec.implementationClassRef` wins over either, and
+`spec.implementationClassRef: null` clears it. `set_alternative_key_fields`
+has no implementation class, so neither shorthand applies there — and, like
+`add_alternative_key`, it requires `i_know_this_may_not_activate: true`: a
+patch's attributes go through the same BOPF model mapper
+(`/BOBF/CL_CONF_MODEL_API_MAP`) that has short-dumped the ADT session on an
+invalid alternative-key payload, and the operation is not confirmed to
+succeed on any node. Patchable per kind: association
+— `xmlName`, `multiplicity`, `implementationType`, `doEmbeddingName`,
+`objectModelGenerated`, `targetNodeRef`, `parameterStructureRef`,
+`implementationClassRef`; action — `xmlName`, `category`,
+`instanceMultiplicity`, `exportingParameterCategoryType`,
+`exportParameterLink`, `isExtensible`, `objectModelGenerated`,
+`parameterStructureRef`, `implementationClassRef`; determination —
+`xmlName`, `category`, `objectModelGenerated`, `implementationClassRef`;
+validation — `xmlName`, `category`, `checkBeforeSave`, `createNode`,
+`updateNode`, `deleteNode`, `objectModelGenerated`,
+`implementationClassRef`; query — `xmlName`, `category`,
+`objectModelGenerated`, `dataTypeRef`, `implementationClassRef`; alternative
+key — `xmlName`, `uniqueness`, `checkAfterModify`, `checkBeforeSave`,
+`noCheck`, `objectModelGenerated`, `dataTypeRef`, `dataTableTypeRef`. Each
+re-reads after the write and fails `CHECK_FAILED` if a named field did not
+stick or a second element of that name appeared. Refused with their own
+message, before anything is sent: a determination's `triggers`/`relations`
+and a validation's `triggers` (write-once — read only inside the original
+`add_determination`/`add_validation` call), an alternative key's
+`keyElements` (not changeable in place), and `name` on any of the six
+(renaming would orphan the XPath fragments that triggers and relations
+embed). A call whose `spec` names no field from that kind's patchable list
+is refused with `BAD_INPUT` before anything is sent, listing that
+operation's patchable fields. `set_action_fields`/`set_determination_fields`/
+`set_validation_fields`/`set_query_fields` run the same dangling-class-ref
+preflight as their `add_*` counterparts: a class name that has no source
+artifact refuses with `BOPF_DANGLING_REF` unless `allow_dangling_ref: true`.
 
 ## abap_bopf_delete
 
