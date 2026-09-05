@@ -15,29 +15,36 @@ Read a BOPF business object model, or search for one.
 | `max_results` | number (1–999999) | no | — | Cap on returned hits. |
 
 `mode: "show"`'s digest covers: nodes, refs, associations, actions,
-determinations, validations, queries, and alternative keys. `mode:
-"check_refs"` reports each reference site as one of: present, missing,
-declaration-only, wrong-interface, pending, or unchecked.
+determinations, validations, queries, and alternative keys. Every node is
+labeled with a kind — `root`, `standard`, `delegated`, or `representative`
+— and every association that is a do-composition or that targets another
+business object is flagged as such. `mode: "check_refs"` reports each
+reference site as one of: present, missing, declaration-only,
+wrong-interface, pending, or unchecked — a cross-BO `targetNodeRef` (e.g.
+`/BOBF/DEMO_CUSTOMER~ROOT`) reports `unchecked`, naming the other business
+object, rather than a false `missing`, because `check_refs` reads one
+business object and does not fetch another to verify it.
 
 ## abap_bopf_edit
 
 Apply one structural edit to a BOPF business object (add/remove a node,
-association, action, determination, validation, query, alternative key, or
-create the BO itself).
+association, action, determination, validation, query, alternative key,
+representative node, or embedded dependent object, or create the BO
+itself).
 
 **Availability**: case 1 — registered only when `canWrite`.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
 | `bo` | string | yes | — | Business object name. |
-| `operation` | enum `create_bo` \| `add_node` \| `remove_node` \| `add_association` \| `remove_association` \| `add_action` \| `remove_action` \| `add_determination` \| `remove_determination` \| `add_validation` \| `remove_validation` \| `add_query` \| `remove_query` \| `add_alternative_key` \| `remove_alternative_key` \| `set_node_flags` \| `activate` | yes | — | The single edit to make. |
+| `operation` | enum `create_bo` \| `add_node` \| `remove_node` \| `add_association` \| `remove_association` \| `add_action` \| `remove_action` \| `add_determination` \| `remove_determination` \| `add_validation` \| `remove_validation` \| `add_query` \| `remove_query` \| `add_alternative_key` \| `remove_alternative_key` \| `set_node_flags` \| `add_representative_node` \| `remove_representative_node` \| `embed_dependent_object` \| `remove_dependent_object` \| `activate` | yes | — | The single edit to make. |
 | `node` | string | no | — | Existing node the operation targets. |
 | `nodeId` | string | no | — | Disambiguator when node name alone is not unique. |
-| `name` | string | required except for `create_bo`/`remove_node`/`set_node_flags`/`activate` | — | Name of the new node/association/action/etc. being added, or removed. |
-| `spec` | object (free-form) | no | — | Operation-specific fields. `add_node` requires `spec.parent` or `spec.parentNodeId`. `add_alternative_key` requires `spec.uniqueness`, `spec.dataTypeRef`, `spec.dataTableTypeRef`, and `spec.keyElements`. |
+| `name` | string | required except for `create_bo`/`remove_node`/`set_node_flags`/`remove_representative_node`/`activate` | — | Name of the new node/association/action/etc. being added, or removed. |
+| `spec` | object (free-form) | no | — | Operation-specific fields. `add_node` requires `spec.parent` or `spec.parentNodeId`. `add_alternative_key` requires `spec.uniqueness`, `spec.dataTypeRef`, `spec.dataTableTypeRef`, and `spec.keyElements`. `add_representative_node` requires `spec.representedBo`. `embed_dependent_object` requires `spec.dependentObject`. |
 | `activate` | boolean | no | — | Also activate after the edit succeeds. |
 | `allow_dangling_ref` | boolean | no | — | Proceed even if `spec.class` or a trigger's action doesn't exist yet, or, for `add_alternative_key`, a `spec.keyElements` entry isn't a property of the target node or the node has no `persistentStructureRef`. |
-| `i_know_this_may_not_activate` | boolean | required (`true`) for `add_alternative_key` | — | Explicit acknowledgment — the operation is not confirmed to succeed on any node. |
+| `i_know_this_may_not_activate` | boolean | required (`true`) for `add_alternative_key` and `embed_dependent_object` | — | Explicit acknowledgment — the operation is not confirmed to succeed (`add_alternative_key`), or the wire never names what was embedded so a matching re-read cannot confirm it (`embed_dependent_object`). |
 | `package` | string | required for `create_bo` | — | Must be a local (`$TMP`-style) package. |
 | `description` | string | `create_bo` only | — | Description of the new BO. |
 | `rootNodeName` | string | `create_bo` only | `"ROOT"` | Name for the root node. |
@@ -86,7 +93,14 @@ Example (add an alternative key):
 `add_node` needs a parent — `spec.parent` (the parent node's name) or
 `spec.parentNodeId` — unless `spec.rootNode: true`. abapsmith writes
 `bo:parent` and `bo:parentNodeID` as a matched pair, because BOPF accepts a
-node carrying only one of them with a 200 and then discards it. It also
+node carrying only one of them with a 200 and then discards it. Neither
+given, and `spec.rootNode` not `true`, is refused before anything is
+sent — that shape (a deliberately parentless node) is `add_representative_node`,
+not `add_node`. `add_node` also refuses `spec.doEmbeddingName` or
+`spec.isDependentObjectNode: true` (that pair of fields is
+`embed_dependent_object`'s job), and `add_association` likewise refuses
+`spec.implementationType: "DoComposition"` or a `spec.doEmbeddingName`, in
+both cases naming the dedicated operation instead. `add_node` also
 re-reads after the write and fails with `CHECK_FAILED` if the node isn't in
 the model, rather than reporting success with an unchanged `nodeCount`.
 
@@ -161,6 +175,61 @@ duplicate name) — and fails `CHECK_FAILED` if any flag, ref, or the rename
 did not stick, naming each mismatched field with the value sent and the
 value read back; refs are compared on name and type, case-insensitively. No
 activation request is sent on a `CHECK_FAILED`.
+
+`add_representative_node` writes a deliberately parentless, non-root node —
+no structure refs, just the fixed `KEY`/`PARENT_KEY`/`ROOT_KEY` properties
+and all three CUD flags `true` — that stands in for another business
+object. It takes `name` (the new node's name), refuses `node` outright, and
+requires `spec.representedBo`, which is checked for existence over the
+network but **never written to the node**: the wire carries no link from a
+representative node to the BO it represents. The link is a separate step —
+add a cross-BO `add_association` afterward, with `spec.implementationType:
+"Association"` and `spec.targetNodeRef: { name: "<REPRESENTED_BO>~ROOT",
+type: "BOBF" }` (real captures also carry a `spec.implementationClassRef`
+naming a generated `*_XBO` class). `remove_representative_node` takes
+`node` only (no `name`) and refuses while any association still targets the
+node being removed.
+
+Example (add a representative node, then link it):
+
+```json
+{ "bo": "ZBOPF_DEMO", "operation": "add_representative_node", "name": "CUSTOMER_REF",
+  "spec": { "representedBo": "/BOBF/DEMO_CUSTOMER" } }
+```
+```json
+{ "bo": "ZBOPF_DEMO", "operation": "add_association", "node": "ROOT", "name": "TO_CUSTOMER",
+  "spec": { "implementationType": "Association",
+            "targetNodeRef": { "name": "/BOBF/DEMO_CUSTOMER~ROOT", "type": "BOBF" } } }
+```
+
+`embed_dependent_object` writes both halves of a delegated node in one PUT:
+a `"<name>.ROOT"` child node under the given `node` (all three CUD flags
+`false`, `rootNode: false`) and, on that same parent, a `DoComposition`
+association (`doEmbeddingName` and `name` both the embedding name,
+`spec.multiplicity` defaulting to `"0_1"`, `spec.implementationClassRef`
+defaulting to `/BOBF/CL_C_BOPF_2_BOPF_SIMPLE`) whose `targetNodeRef` points
+at that same new `"<name>.ROOT"` node on the host BO — not at the dependent
+object. `spec.dependentObject` is checked over the network (it must exist
+and have `objectCategory: "dependentObject"`) but, like
+`representedBo` above, is never written to the wire — the host BO's XML
+never names the dependent object anywhere. Because a 200 plus a matching
+re-read cannot confirm which object ended up embedded, or that it works at
+all, this operation requires `i_know_this_may_not_activate: true`.
+`remove_dependent_object` takes `node` and `name` and refuses while any
+other association still targets the node being removed.
+
+Example (embed a dependent object):
+
+```json
+{
+  "bo": "ZBOPF_DEMO",
+  "operation": "embed_dependent_object",
+  "node": "ROOT",
+  "name": "TEXT",
+  "spec": { "dependentObject": "/BOBF/DEMO_TEXT_COLLECTION" },
+  "i_know_this_may_not_activate": true
+}
+```
 
 ## abap_bopf_delete
 

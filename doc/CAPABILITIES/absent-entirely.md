@@ -2,8 +2,8 @@
 
 Things a reader might expect and will not find here:
 
-- BOPF representative nodes and BOPF configuration/customizing — no
-  modelling, no operation, no refusal message, just absence.
+- BOPF configuration/customizing — no read surface and no write surface of
+  any kind, no modelling, no operation, no refusal message, just absence.
 - RAP draft handling — not implemented at all.
 - Source-text search — `abap_search` covers object names and where-used
   only, never source content.

@@ -214,6 +214,14 @@ was last set to `0.3.0`.
   caller's own length instead of the fixed values the fixtures show —
   were found and corrected by review within the same change before it
   merged.
+- Four new `abap_bopf_edit` operations — `add_representative_node` /
+  `remove_representative_node` for cross-BO representative nodes, and
+  `embed_dependent_object` / `remove_dependent_object` for delegated
+  dependent-object nodes — bringing the operation total to 21, each with
+  the same post-write re-read verification as the rest. `abap_bopf`
+  `mode: "show"` now labels every node with a kind (`root` / `standard` /
+  `delegated` / `representative`) and flags associations that are
+  do-compositions or cross-BO.
 
 ### Changed
 
@@ -617,6 +625,12 @@ was last set to `0.3.0`.
   overwrite a result the server already committed. A death from a
   genuinely failed (non-2xx) response is unaffected and still applied
   immediately.
+- `abap_bopf` `mode: "check_refs"` used to report a cross-BO
+  `targetNodeRef` (e.g. `/BOBF/DEMO_CUSTOMER~ROOT`) as `missing`, because
+  it looked the target up in the host business object's own node list.
+  It now reports `unchecked`, with a detail naming the other business
+  object, instead of a false `missing` — `check_refs` reads one business
+  object and does not fetch another to verify it.
 
 ### Security
 
