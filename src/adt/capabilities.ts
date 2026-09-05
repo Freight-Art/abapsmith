@@ -1285,16 +1285,21 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of " +
         "ZCL_ZMCP_DDIC_DINDX) before DD_INDEX_INTERFACE was ever called — the bridge " +
         "class was never refreshed and stayed on its round-2 body. The " +
-        "ACTFAILED-tolerant read-back above has therefore never executed live, not " +
-        "once. Round 4 fixes the generator two ways: this fragment's two long messages " +
+        "ACTFAILED-tolerant read-back above had therefore never executed live before " +
+        "round 4. Round 4 fixes the generator two ways: this fragment's two long messages " +
         "are now built up in a string variable across several short source lines and " +
         "written once, so no generated line can exceed 255 for any legal name; and " +
         "ddicBridgeSource — the single point every bridge class body is assembled " +
         "through — now throws CHECK_FAILED before returning if any line exceeds 255, " +
         "naming the line and its length, so this defect class cannot reach the server " +
-        "again from any bridge. Both are correct by measurement and unit test, not by " +
-        "live evidence — round 4 has not yet re-run this delete path live. What " +
-        "ACTFAILED itself means is therefore still not established.",
+        "again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the " +
+        "non-unique Z01 and the unique-with-client-field Z02 were each deleted with " +
+        "INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 " +
+        "returned NOT_FOUND from the DD12V pre-check, and the deployed ZCL_ZMCP_DDIC_DINDX " +
+        "body read back with the new read-back variable and no line over 255. So the " +
+        "ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both " +
+        "deletes while all three read-backs came back empty, so what the flag itself " +
+        "means is still not established, only that it does not mean the rows survived.",
       limits:
         "The bridge deletes any index it finds in DD12V for the given table by name — it checks " +
         "only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge " +

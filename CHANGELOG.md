@@ -242,11 +242,13 @@ was last set to `0.3.0`.
   line exceeded ABAP's 255-character source-line limit, so every delete
   failed the class-source PUT before `DD_INDEX_INTERFACE` was ever called,
   leaving the deployed bridge class on its pre-fix body. The
-  `ACTFAILED`-tolerant read-back has therefore never executed live. Fixed
+  `ACTFAILED`-tolerant read-back had therefore never executed live. Fixed
   again — the long messages are now built up in a variable across short
   lines, and every generated bridge class body is now rejected before it
-  is written if any line exceeds 255 characters — but that fix is proven
-  by measurement and unit test, not yet by a live delete. A later cleanup
+  is written if any line exceeds 255 characters — and a fourth live round
+  then deleted a non-unique and a unique index through the redeployed
+  bridge, with `NOT_FOUND` on a re-delete: delete is live-proven in `$TMP`.
+  `ACTFAILED` is still set on a delete that took effect. A later cleanup
   deleted a base table whose indexes' catalog rows may still have existed;
   whether the delete cascaded them away or left them orphaned is
   unverified. The transportable-package path is unexercised.

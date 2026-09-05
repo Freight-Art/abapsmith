@@ -131,10 +131,12 @@
   the fix's own added message rendered as a source line over the
   255-character ABAP limit, so every delete failed the class-source PUT
   before `DD_INDEX_INTERFACE` was ever called and the deployed bridge
-  class stayed on its pre-fix body. The `ACTFAILED`-tolerant read-back has
-  therefore never executed live. It is fixed again, with a line-length
-  guard on every generated bridge class body, not just this one — correct
-  by measurement and unit test, not yet by a live delete. Deleting the
+  class stayed on its pre-fix body. That was fixed again, with a line-length
+  guard on every generated bridge class body, not just this one, and a
+  fourth live round the same day deleted both a non-unique and a unique
+  index through the redeployed bridge and got `NOT_FOUND` on a re-delete —
+  delete is live-proven in `$TMP`. `ACTFAILED` still comes back set on a
+  delete that took effect, so treat the flag as noise, not a result. Deleting the
   base table is not blocked by a surviving secondary index; a later
   cleanup deleted a base table whose indexes' catalog rows may still have
   existed, and whether they were cascaded away or orphaned is unverified —

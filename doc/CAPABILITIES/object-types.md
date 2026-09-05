@@ -193,12 +193,17 @@ The `Object` column values are the registry `label` fields, unreworded.
   255-character class-source limit, so every delete failed the class-source
   PUT (`ADT_ERROR` / `TooLongLine`) before `DD_INDEX_INTERFACE` was ever
   called, and the deployed bridge class silently stayed on its pre-fix body.
-  The `ACTFAILED`-tolerant re-read by `DD12V`/`DD17S` has therefore never run
-  live, not once. It is fixed again — the long messages are now built up in
+  The `ACTFAILED`-tolerant re-read by `DD12V`/`DD17S` therefore never ran
+  live until the fix was fixed: the long messages are now built up in
   a variable across short lines, and every generated bridge class body is
   checked for a line over 255 characters before it is written, so this
-  defect class cannot recur in any bridge — but that fix is proven by
-  measurement and unit test, not by a live delete. Deleting the base table
+  defect class cannot recur in any bridge. A fourth live round the same day
+  then deleted both a non-unique and a unique index through the redeployed
+  bridge (`INDEX-DELETED-ACTFAILED` / `INDEX-DELETED` / `INDEX-GONE`), a
+  re-delete returned `NOT_FOUND`, and the deployed class body read back with
+  no line over 255 — so delete is live-proven in `$TMP`. `ACTFAILED` was set
+  on both deletes while every read-back was empty; what the flag means is
+  still not established beyond "not that the rows survived". Deleting the base table
   was not blocked live by a surviving index (round 1); a later cleanup
   deleted a base table while its indexes' `DD12V` rows may still have
   existed, and whether the delete cascaded them away or left them orphaned
