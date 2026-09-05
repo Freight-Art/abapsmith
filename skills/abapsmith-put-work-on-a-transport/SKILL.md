@@ -112,6 +112,20 @@ object transported. An auto-created request is therefore
 mostly not disposable: don't spin one up as a scratch request, and don't
 reach for release just to clean one up (see Releasing, below).
 
+**Do not delete an object using the same request that created it, unless
+you're willing to strand that request.** CTS records a separate E071 row for
+the create and for the delete (its row key is TRKORR+AS4POS, not object
+identity, so both rows coexist legally), and once a request holds two rows
+for the same object, CTS refuses to remove either one — there is no retry
+that clears it. If you do this, expect `removeObject` to return
+`CTS_DUPLICATE_ENTRY` (naming the row count) instead of clearing the entry,
+and `delete` to keep returning `TRANSPORT_LOCKED` on the request. The only
+way out needs a human: editing the request's object list in SE09/SE10, or
+releasing the request outright — neither is something you can do yourself.
+Prefer deleting an object under a different request than the one that
+created it, or check back with the user before deleting it under its own
+creating request.
+
 ## Releasing
 
 `abap_transport_release` is a **separate, irreversible** tool, and it is gated off

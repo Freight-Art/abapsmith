@@ -1,6 +1,6 @@
 {
   "name": "abapsmith",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "MCP server for SAP ABAP development via ADT — read, write, activate, run, debug, and undo via a local write journal (writes opt-in, package allowlist)",
   "type": "module",
   "license": "MIT",

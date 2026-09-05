@@ -24,12 +24,45 @@ ceiling (`ABAP_MODE=admin` — no legacy flag grants it) plus `confirm`.
 Notes: ordinary object writes never need this tool — the server creates and
 reuses one transport request per session automatically. `delete` is
 irreversible once confirmed; the confirm value must match the transport
-number exactly, not partially. `removeObject` drops one object's entry (and
-its CTS lock) from a request or task — typically an object already deleted
-from the system, so the holding request can then itself be deleted; it
-accepts either a request or a task number and resolves the actual holder
-itself. It does not prove the request becomes deletable — follow up with
-`delete` to find out.
+number exactly, not partially. A `TRANSPORT_LOCKED` refusal can be
+permanent: see below.
+
+`removeObject` drops one object's entry (and its CTS lock) from a request or
+task — typically an object already deleted from the system, so the holding
+request can then itself be deleted; it accepts either a request or a task
+number and resolves the actual holder itself. It does not prove the request
+becomes deletable — follow up with `delete` to find out. The response's
+`objectOnSystem` (`present` | `absent` | `unknown`) says whether the named
+object still existed at the moment the entry was removed: removing the entry
+drops the CTS lock unconditionally, so a `present` result means a still-live
+object just lost the lock that recorded its change and protected it from
+being edited under a different request — the object itself is untouched, but
+notes on the response call this out.
+
+CTS refuses the underlying call outright when the request's object list
+holds two or more E071 rows for the object's PGMID+OBJECT+OBJ_NAME — legal
+because E071's key is TRKORR+AS4POS, not object identity, so creating an
+object and then deleting it under the same request records two rows for it.
+`TR_DELETE_COMM_OBJECT_KEYS` (by way of `TRINT_DELETE_COMM_OBJECT_KEYS`)
+counts those rows before touching anything and raises `w_duplicate_entry`
+(`MESSAGE e292(tr)`) at two or more; exactly one row is the only case that
+proceeds. The bridge counts the same rows itself before calling the
+function module, so it refuses up front rather than removing one row and
+leaving the operation to fail on the next — this surfaces as the terminal
+error code `CTS_DUPLICATE_ENTRY`, whose message names the object, the
+holder, the row count and the AS4POS values, and whose hint explains the
+guard and the manual remedy. A late `TR 292` from the function module itself
+maps to the same code. Any other refusal in this family still comes back as
+`CHECK_FAILED`, with a `msg=` fragment carrying the `sy-subrc` and, when CTS
+set one, the `sy-msg*` T100 message (it can legitimately be blank).
+
+SE03's "Unlock Objects (Expert Tool)" does **not** fix a duplicate-entry
+refusal: it clears CTS's TLOCK row and lockflag, not E071 rows, and the
+refusal is driven by the E071 row count, not the lock. The only route out is
+outside abapsmith: edit the request's object list in SE09/SE10 so at most
+one row remains for the object, then retry `removeObject`; or release the
+request (irreversible) — neither is something abapsmith can verify will
+succeed under a lock. See `doc/LIMITATIONS/not-implemented-and-unproven.md`.
 
 Example (dry-run delete):
 

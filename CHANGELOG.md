@@ -12,6 +12,31 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-05
+
+### Changed
+
+- `abap_transport operation=removeObject` now detects up front when the
+  request already holds two or more E071 rows for the object's
+  PGMID+OBJECT+OBJ_NAME — legal under E071's TRKORR+AS4POS key, and typically
+  the result of creating an object and then deleting it under the same
+  request — and refuses with a new terminal error code, `CTS_DUPLICATE_ENTRY`,
+  naming the object, the holder, the row count and the AS4POS values, instead
+  of letting a partial removal run into `TR_DELETE_COMM_OBJECT_KEYS`'s own
+  `w_duplicate_entry` refusal (`MESSAGE e292(tr)`) mid-batch; a late `TR 292`
+  from the function module itself maps to the same code. Any other refusal in
+  this family still surfaces the CTS `sy-subrc` and, when CTS set one, the
+  `sy-msg*` T100 message as a `msg=` fragment on the `CHECK_FAILED` error,
+  instead of swallowing them. The response also reports `objectOnSystem`
+  (`present`/`absent`/`unknown`) for the entry's object, since removing the
+  entry drops CTS's lock unconditionally and a `present` result means a
+  still-live object just lost the lock protecting it. Read live on A4H,
+  2026-09-05: both stuck fixture tasks held exactly two E071 rows apiece for
+  their object, and no supported function-module call removes just one of
+  them — the remedy is outside abapsmith (edit the request's object list in
+  SE09/SE10, or release the request) — see
+  `doc/LIMITATIONS/not-implemented-and-unproven.md`.
+
 ## [0.3.1] - 2026-09-05
 
 ### Added
