@@ -151,8 +151,8 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs " +
-        "corr_nr, a $-package refuses it.",
+      "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. " +
+        "VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr.",
     ),
   description: z
     .string()
@@ -194,8 +194,9 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a " +
-        "transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete.",
+      "Transport request. $TMP needs none. Required for a TRAN/T create into a transportable " +
+        "package; optional for a VIEW/DV create, which resolves one under ABAP_ALLOW_TRANSPORTS " +
+        "when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T delete.",
     ),
   software_component: z.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: z.string().optional().describe("DEVC/K only. Default development."),
@@ -3715,8 +3716,9 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
       description:
         "Create, change or delete an ABAP object: save/check/activate; locking handled. " +
         "TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. " +
-        "VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't " +
-        "be read back via abap_read. DEVC/K delete only if empty.",
+        "VIEW/DV create resolves its own corr_nr for a transportable package (supply one to pin it), " +
+        "none for a $ one; the view can't be read back via abap_read. " +
+        "DEVC/K delete only if empty.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
