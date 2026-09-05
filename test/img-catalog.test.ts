@@ -115,8 +115,8 @@ describe("IMG_CATALOG — pinned against live discovery", () => {
     expect(tables).not.toContain("CUS_IMGAC");
   });
 
-  it("lowConfidenceTables() names exactly the unresolved entries", () => {
-    expect(lowConfidenceTables()).toEqual(["TTREE", "UNRESOLVED"]);
+  it("lowConfidenceTables() is empty now that every entry is high confidence", () => {
+    expect(lowConfidenceTables()).toEqual([]);
   });
 
   it("TNODEIMG: ordered key TREE_ID+EXTENSION+NODE_ID+EXT_KEY, PARENT_ID+BROTHER_ID present, no CHILD_ID", () => {

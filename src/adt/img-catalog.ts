@@ -1,11 +1,10 @@
 /**
  * The single record of every IMG (SPRO customizing) catalog table and field
- * name `img-bridge.ts` uses. Most entries below were confirmed against a
- * live SAP system on 2026-09-05; `IMG_CATALOG_VERIFIED` is `false` because
- * two entries (imgNode's parent/child edge, imgStructure's activity-node
- * link) are still unresolved — see lowConfidenceTables(). This is the one
- * file that changes when discovery findings change.
- * `img-bridge.ts` is the only consumer.
+ * name the IMG read/write surface uses. Every entry below was confirmed
+ * against a live SAP system on 2026-09-05; `IMG_CATALOG_VERIFIED` is `true`
+ * because every entry is now `confidence: "high"` — see lowConfidenceTables().
+ * This is the one file that changes when discovery findings change.
+ * Consumers: `src/adt/img-read.ts` and `src/adt/img-query.ts`.
  */
 
 export type CatalogConfidence = "high" | "low";
@@ -224,18 +223,6 @@ export const IMG_CATALOG = Object.freeze({
     confidence: "high",
     note: MEASURED_NOTE + "; link: CUS_IMGACH.C_ACTIVITY -> CUS_ACTH.ACT_ID -> CUS_ACTOBJ.ACT_ID",
   }),
-  imgNode: Object.freeze({
-    table: "TTREE",
-    fields: Object.freeze({
-      node: "ID",
-      treeType: "TYPE",
-      parent: "PARENT",
-    }),
-    confidence: "low",
-    note:
-      MEASURED_NOTE +
-      ": TTREE exists and holds IMG nodes (TYPE='IMG'), but has no parent/child field — 'parent' is still an unresolved placeholder",
-  }),
   imgNodeText: Object.freeze({
     table: "TTREET",
     fields: Object.freeze({
@@ -255,20 +242,10 @@ export const IMG_CATALOG = Object.freeze({
       text: "DDTEXT",
     }),
     confidence: "high",
-    note: MEASURED_NOTE + "; not wired into img-bridge.ts yet",
+    note: MEASURED_NOTE + "; not wired into img-read.ts yet",
   }),
-  // SIMGH is a transaction (TRAN/T), not a table, and no activity-to-node
-  // link table was found. Kept empty (table "UNRESOLVED") because
-  // src/tools/img.ts still reads this key's .table for a status message.
-  imgStructure: Object.freeze({
-    table: "UNRESOLVED",
-    fields: Object.freeze({}),
-    confidence: "low",
-    note: MEASURED_NOTE + ": SIMGH is a transaction, not a table; no replacement found",
-  }),
-  // Second discovery pass, 2026-09-05: the real tree tables, found after
-  // imgNode/imgStructure above were already known wrong. Those two are left
-  // as-is here; removing them is a separate change.
+  // SIMGH is a transaction (TRAN/T), not a table; TNODEIMGR (below) is the
+  // real activity-to-node link, found on the second discovery pass.
   imgTreeNode: Object.freeze({
     table: "TNODEIMG",
     fields: Object.freeze({
@@ -338,8 +315,8 @@ export const IMG_CATALOG = Object.freeze({
     // join to this table cannot be scoped by tree, only by NODE_ID.
     note: MEASURED_NOTE + ": REF_TYPE COBJ joins CUS_IMGACH.ACTIVITY / CUS_ACTOBJ.ACT_ID",
   }),
-  // TTREE is a tree directory, not a node table — contrast imgNode above,
-  // which wrongly treats it as one.
+  // TTREE is a tree directory, not a node table (an earlier, wrong guess at
+  // a node table over the same name has since been removed).
   treeDirectory: Object.freeze({
     table: "TTREE",
     fields: Object.freeze({
@@ -363,11 +340,20 @@ export const IMG_CATALOG = Object.freeze({
 export type ImgCatalogKey = keyof typeof IMG_CATALOG;
 
 /** Set only when a live discovery run has confirmed every entry above. */
-export const IMG_CATALOG_VERIFIED = false;
+export const IMG_CATALOG_VERIFIED = true;
 
-/** DDIC names of every `confidence: "low"` entry, sorted. */
+/**
+ * DDIC names of every `confidence: "low"` entry, sorted. Empty today — every
+ * entry above is `confidence: "high"` — kept as a live check against
+ * regression rather than removed, so a future low-confidence entry is still
+ * caught here rather than only in prose.
+ */
 export function lowConfidenceTables(): readonly string[] {
-  return Object.values(IMG_CATALOG)
+  // Widen to CatalogTable explicitly: every entry today is inferred as the
+  // literal "high" (satisfies keeps the narrow per-entry type), which would
+  // make `=== "low"` a compile error even though a future entry may add one.
+  const tables: readonly CatalogTable[] = Object.values(IMG_CATALOG);
+  return tables
     .filter((t) => t.confidence === "low")
     .map((t) => t.table)
     .sort();
