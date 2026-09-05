@@ -317,10 +317,13 @@ function searchFragment(q: ImgSearchQuery): { data: string[]; body: string[] } {
   const fActivity = fld("imgActivityText", "activity");
   const fLang = fld("imgActivityText", "language");
   const fText = fld("imgActivityText", "text");
+
+  const actTable = tbl("imgActivity");
+  const fA_activity = fld("imgActivity", "activity");
+  const fA_cActivity = fld("imgActivity", "cActivity");
+
   const objTable = tbl("imgActivityObject");
-  const fObjActivity = fld("imgActivityObject", "activity");
-  const structTable = tbl("imgStructure");
-  const fStructActivity = fld("imgStructure", "activity");
+  const fO_actId = fld("imgActivityObject", "actId");
 
   const body: string[] = [
     `SELECT COUNT(*) FROM ${actTextTable}`,
@@ -342,8 +345,12 @@ function searchFragment(q: ImgSearchQuery): { data: string[]; body: string[] } {
     ...pagingCounters(offset, limit),
     `LOOP AT lt_rows INTO DATA(ls_row).`,
     ...pagingSkipAndStop(),
-    `  SELECT COUNT(*) FROM ${objTable} WHERE ${fObjActivity} = @ls_row-${fActivity} INTO @DATA(lv_objs).`,
-    `  SELECT COUNT(*) FROM ${structTable} WHERE ${fStructActivity} = @ls_row-${fActivity} INTO @DATA(lv_nodes).`,
+    `  SELECT SINGLE ${fA_cActivity} FROM ${actTable} WHERE ${fA_activity} = @ls_row-${fActivity}`,
+    `    INTO @DATA(lv_c_activity).`,
+    `  SELECT COUNT(*) FROM ${objTable} WHERE ${fO_actId} = @lv_c_activity INTO @DATA(lv_objs).`,
+    // no activity-to-tree-node link table was found; see imgStructure's catalog note.
+    `  DATA lv_nodes TYPE i.`,
+    `  lv_nodes = 0.`,
     `  out->write( |${IMG_LINE_PREFIX}ACT activity=[{ ls_row-${fActivity} }] objects=[{ lv_objs }] | &&`,
     `    |nodes=[{ lv_nodes }] title=[{ ls_row-${fText} }]| ).`,
     `ENDLOOP.`,
@@ -366,25 +373,16 @@ function showFragment(q: ImgShowQuery): { data: string[]; body: string[] } {
 
   const actTable = tbl("imgActivity");
   const fA_activity = fld("imgActivity", "activity");
-  const fA_docClass = fld("imgActivity", "docClass");
-  const fA_docName = fld("imgActivity", "docName");
+  const fA_cActivity = fld("imgActivity", "cActivity");
+  const fA_docId = fld("imgActivity", "docId");
+
+  const actHeaderTable = tbl("cusActivityHeader");
+  const fAH_actId = fld("cusActivityHeader", "actId");
 
   const objTable = tbl("imgActivityObject");
-  const fO_activity = fld("imgActivityObject", "activity");
+  const fO_actId = fld("imgActivityObject", "actId");
   const fO_object = fld("imgActivityObject", "object");
-
-  const structTable = tbl("imgStructure");
-  const fS_activity = fld("imgStructure", "activity");
-  const fS_node = fld("imgStructure", "node");
-
-  const nodeTable = tbl("imgNode");
-  const fN_node = fld("imgNode", "node");
-  const fN_parent = fld("imgNode", "parent");
-
-  const nodeTextTable = tbl("imgNodeText");
-  const fNT_node = fld("imgNodeText", "node");
-  const fNT_lang = fld("imgNodeText", "language");
-  const fNT_text = fld("imgNodeText", "text");
+  const fO_objectType = fld("imgActivityObject", "objectType");
 
   const objTblTable = tbl("cusObjectTable");
   const fOT_object = fld("cusObjectTable", "object");
@@ -401,59 +399,35 @@ function showFragment(q: ImgShowQuery): { data: string[]; body: string[] } {
     `  WHERE ${fAT_activity} = '${activityLit}' AND ${fAT_lang} = '${langLit}'`,
     `  INTO @DATA(lv_title).`,
     ...selectGuard("no title for this activity and language"),
-    `SELECT COUNT(*) FROM ${objTable} WHERE ${fO_activity} = '${activityLit}' INTO @DATA(lv_objs).`,
-    `SELECT COUNT(*) FROM ${structTable} WHERE ${fS_activity} = '${activityLit}' INTO @DATA(lv_nodes).`,
+    `SELECT SINGLE ${fA_cActivity}, ${fA_docId} FROM ${actTable}`,
+    `  WHERE ${fA_activity} = '${activityLit}'`,
+    `  INTO (@DATA(lv_c_activity), @DATA(lv_doc_id)).`,
+    `SELECT SINGLE ${fAH_actId} FROM ${actHeaderTable} WHERE ${fAH_actId} = @lv_c_activity`,
+    `  INTO @DATA(lv_act_id).`,
+    `SELECT COUNT(*) FROM ${objTable} WHERE ${fO_actId} = @lv_act_id INTO @DATA(lv_objs).`,
+    // no activity-to-tree-node link table was found; see imgStructure's catalog note.
+    `DATA lv_nodes TYPE i.`,
+    `lv_nodes = 0.`,
     `out->write( |${IMG_LINE_PREFIX}ACT activity=[${activity}] objects=[{ lv_objs }] | &&`,
     `  |nodes=[{ lv_nodes }] title=[{ lv_title }]| ).`,
     ``,
-    `SELECT SINGLE ${fA_docClass}, ${fA_docName} FROM ${actTable}`,
-    `  WHERE ${fA_activity} = '${activityLit}'`,
-    `  INTO (@DATA(lv_doc_class), @DATA(lv_doc_name)).`,
-    `IF sy-subrc = 0.`,
-    `  out->write( |${IMG_LINE_PREFIX}DOC activity=[${activity}] class=[{ lv_doc_class }] name=[{ lv_doc_name }]| ).`,
+    `IF lv_doc_id IS NOT INITIAL.`,
+    `  out->write( |${IMG_LINE_PREFIX}DOC activity=[${activity}] class=[] name=[{ lv_doc_id }]| ).`,
     `ELSE.`,
     `  out->write( |${IMG_LINE_PREFIX}NOTE text=[no documentation entry for this activity]| ).`,
     `ENDIF.`,
     ``,
-    `SELECT SINGLE ${fS_node} FROM ${structTable} WHERE ${fS_activity} = '${activityLit}' INTO @DATA(lv_node).`,
-    `IF sy-subrc <> 0.`,
-    `  out->write( |${IMG_LINE_PREFIX}NOTE text=[no img-structure entry for this activity]| ).`,
-    `ELSE.`,
-    `  DATA lt_path TYPE TABLE OF string.`,
-    `  DATA(lv_walk) = lv_node.`,
-    `  DATA lv_hops TYPE i.`,
-    `  lv_hops = 0.`,
-    `  WHILE lv_walk IS NOT INITIAL AND lv_hops < 50.`,
-    `    APPEND lv_walk TO lt_path.`,
-    `    SELECT SINGLE ${fN_parent} FROM ${nodeTable} WHERE ${fN_node} = @lv_walk INTO @DATA(lv_parent).`,
-    `    IF sy-subrc <> 0.`,
-    `      EXIT.`,
-    `    ENDIF.`,
-    `    lv_walk = lv_parent.`,
-    `    lv_hops = lv_hops + 1.`,
-    `  ENDWHILE.`,
-    `  DATA lv_pos TYPE i.`,
-    `  lv_pos = 0.`,
-    `  LOOP AT lt_path INTO DATA(lv_seg).`,
-    `    lv_pos = lv_pos + 1.`,
-    `    SELECT SINGLE ${fNT_text} FROM ${nodeTextTable}`,
-    `      WHERE ${fNT_node} = @lv_seg AND ${fNT_lang} = '${langLit}'`,
-    `      INTO @DATA(lv_seg_title).`,
-    `    IF sy-subrc <> 0.`,
-    `      CLEAR lv_seg_title.`,
-    `    ENDIF.`,
-    `    out->write( |${IMG_LINE_PREFIX}APATH activity=[${activity}] pos=[{ lv_pos }] | &&`,
-    `      |node=[{ lv_seg }] title=[{ lv_seg_title }]| ).`,
-    `  ENDLOOP.`,
-    `ENDIF.`,
+    // activity-to-tree-node path is not available: TTREE has no confirmed parent/child field.
+    `out->write( |${IMG_LINE_PREFIX}NOTE text=[activity-to-tree-node path not available]| ).`,
     ``,
-    `SELECT ${fO_object} FROM ${objTable} WHERE ${fO_activity} = '${activityLit}'`,
+    `SELECT ${fO_object}, ${fO_objectType} FROM ${objTable} WHERE ${fO_actId} = @lv_act_id`,
     `  INTO TABLE @DATA(lt_objs)`,
     `  UP TO 200 ROWS.`,
     ...selectGuard("no customizing objects linked to this activity"),
     `LOOP AT lt_objs INTO DATA(ls_obj).`,
-    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[${activity}] kind=[unknown] objtype=[] | &&`,
-    `    |name=[{ ls_obj-${fO_object} }] title=[]| ).`,
+    `  out->write( |${IMG_LINE_PREFIX}OBJ activity=[${activity}] kind=[unknown] | &&`,
+    `    |objtype=[{ ls_obj-${fO_objectType} }] name=[{ ls_obj-${fO_object} }] title=[]| ).`,
+    // ls_obj-objectType is CUS_ACTOBJ's D/S vocabulary, not OBJS's C/S/V one — object name only below.
     `  SELECT ${fOT_table} FROM ${objTblTable} WHERE ${fOT_object} = @ls_obj-${fO_object}`,
     `    INTO TABLE @DATA(lt_obj_tabs)`,
     `    UP TO 20 ROWS.`,
@@ -467,7 +441,7 @@ function showFragment(q: ImgShowQuery): { data: string[]; body: string[] } {
     `    ENDIF.`,
     `    out->write( |${IMG_LINE_PREFIX}TAB object=[{ ls_obj-${fO_object} }] | &&`,
     `      |table=[{ ls_obj_tab-${fOT_table} }] clidep=[{ lv_clidep }] | &&`,
-    `      |delclass=[{ lv_delclass }] via=[OBJSL] title=[]| ).`,
+    `      |delclass=[{ lv_delclass }] via=[OBJS] title=[]| ).`,
     `  ENDLOOP.`,
     `ENDLOOP.`,
   ];
@@ -492,10 +466,6 @@ function treeFragment(q: ImgTreeQuery): { data: string[]; body: string[] } {
   const fNT_lang = fld("imgNodeText", "language");
   const fNT_text = fld("imgNodeText", "text");
 
-  const structTable = tbl("imgStructure");
-  const fS_node = fld("imgStructure", "node");
-  const fS_activity = fld("imgStructure", "activity");
-
   const body: string[] = [
     // Assumption pending live discovery: the reference-IMG root's children are the TTREE rows
     // whose PARENT is initial — an empty `node` maps straight to that, needing no separate branch.
@@ -517,16 +487,11 @@ function treeFragment(q: ImgTreeQuery): { data: string[]; body: string[] } {
     `  IF sy-subrc <> 0.`,
     `    CLEAR lv_child_title.`,
     `  ENDIF.`,
-    `  SELECT SINGLE ${fS_activity} FROM ${structTable}`,
-    `    WHERE ${fS_node} = @ls_row-${fN_node}`,
-    `    INTO @DATA(lv_child_activity).`,
+    // no activity-to-tree-node link table was found; every node reports as a folder.
     `  DATA lv_kind TYPE string.`,
-    `  IF sy-subrc = 0.`,
-    `    lv_kind = 'activity'.`,
-    `  ELSE.`,
-    `    lv_kind = 'folder'.`,
-    `    CLEAR lv_child_activity.`,
-    `  ENDIF.`,
+    `  lv_kind = 'folder'.`,
+    `  DATA lv_child_activity TYPE string.`,
+    `  CLEAR lv_child_activity.`,
     `  SELECT COUNT(*) FROM ${nodeTable} WHERE ${fN_parent} = @ls_row-${fN_node} INTO @DATA(lv_children).`,
     `  out->write( |${IMG_LINE_PREFIX}NODE node=[{ ls_row-${fN_node} }] parent=[${node}] | &&`,
     `    |kind=[{ lv_kind }] activity=[{ lv_child_activity }] children=[{ lv_children }] | &&`,
@@ -738,6 +703,7 @@ function objectsCustomizingFragment(object: string, objectLit: string): { data: 
 
   const objTable = tbl("cusObjectTable");
   const fOT_object = fld("cusObjectTable", "object");
+  const fOT_objectType = fld("cusObjectTable", "objectType");
   const fOT_table = fld("cusObjectTable", "table");
 
   const ddicTable = tbl("ddicTable");
@@ -753,7 +719,9 @@ function objectsCustomizingFragment(object: string, objectLit: string): { data: 
     ...selectGuard("no OBJH row for this customizing object"),
     `out->write( |${IMG_LINE_PREFIX}OBJ activity=[] kind=[customizing_object] | &&`,
     `  |objtype=[{ lv_objtype }] name=[${object}] title=[]| ).`,
-    `SELECT ${fOT_table} FROM ${objTable} WHERE ${fOT_object} = '${objectLit}'`,
+    // OBJH and OBJS share the same OBJECTTYPE vocabulary (C/S/V), so the type carries over here.
+    `SELECT ${fOT_table} FROM ${objTable}`,
+    `  WHERE ${fOT_object} = '${objectLit}' AND ${fOT_objectType} = @lv_objtype`,
     `  INTO TABLE @DATA(lt_tabs)`,
     `  UP TO 50 ROWS.`,
     ...selectGuard("no tables linked to this customizing object"),
@@ -766,7 +734,7 @@ function objectsCustomizingFragment(object: string, objectLit: string): { data: 
     `    CLEAR lv_tab_delclass.`,
     `  ENDIF.`,
     `  out->write( |${IMG_LINE_PREFIX}TAB object=[${object}] table=[{ ls_tab-${fOT_table} }] | &&`,
-    `    |clidep=[{ lv_tab_clidep }] delclass=[{ lv_tab_delclass }] via=[OBJSL] title=[]| ).`,
+    `    |clidep=[{ lv_tab_clidep }] delclass=[{ lv_tab_delclass }] via=[OBJS] title=[]| ).`,
     `ENDLOOP.`,
   ];
 
@@ -882,6 +850,8 @@ export function imgBridgeSource(q: ImgQuery): string {
   return ddicBridgeSource(imgBridgeClassName(q.mode), frag.data, frag.body);
 }
 
+// abapsmith's own kind taxonomy — unrelated to SAP's OBJECTTYPE codes, which come in two
+// incompatible vocabularies (CUS_ACTOBJ's D/S vs OBJH/OBJS's C/S/V) passed through as objtype.
 const KNOWN_OBJECT_KINDS: readonly ImgObjectKind[] = [
   "view",
   "cluster",
