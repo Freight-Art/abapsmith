@@ -3258,8 +3258,8 @@ function escapeXmlAttr(value: string): string {
  * `BDEF/BDO`'s way of getting a create body when neither the vendor library
  * nor the caller's payload (ABAP source, not XML) can supply one. See
  * `SkeletonCreate` in capabilities.ts: the shape below is a raw-wire capture
- * of what the orchestrator hand-POSTed and A4H accepted (201), not something
- * this function itself has been run against a live system through.
+ * of a hand-made POST that A4H accepted (201), not something this function
+ * itself has been run against a live system through.
  *
  * Attribute order/defaults mirror `abap-adt-api`'s own `createBodySimple`.
  * `$TMP`-only in practice today, but `<adtcore:packageRef>` still names
