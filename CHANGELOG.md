@@ -323,6 +323,12 @@ was last set to `0.3.0`.
   unpageable raw XML; `abap_debug`/`abap_enh` tool-schema descriptions
   were trimmed to reduce `tools/list` token cost, with the displaced
   reference material moved into `doc/TOOLS/`.
+- The live suites `integration-undo` and `integration-fpm-lock` now pair
+  their whole-file `describe.skip` with a `liveSuiteSkipReason` case stating
+  why, under the greppable `APPLIANCE STATE:` prefix, instead of just
+  reporting "skipped" with no reason; the documented live-suite surface in
+  `CONTRIBUTING.md` and `doc/TESTING/README.md` was also corrected against
+  `LIVE_INTEGRATION_TESTS` in `vitest.config.ts`.
 
 ### Fixed
 
