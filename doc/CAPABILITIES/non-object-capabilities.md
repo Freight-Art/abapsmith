@@ -16,6 +16,7 @@
 | Object search | n/a | yes | n/a | n/a | n/a | live | Name-pattern and where-used only. There is no source-text search. |
 | Where-used | n/a | yes | n/a | n/a | n/a | live | Static only; dynamic calls do not appear. The server ignores every limit parameter, so the whole result set is always fetched and `max` bounds only the display. |
 | Data preview | n/a | partial | no | n/a | n/a | mixed | One DDIC table or view per call, off by default, denylisted for sensitive tables, refused on any system that reports itself productive. No free-form SQL surface exists. |
+| IMG (customizing) navigation | no | partial | no | no | n/a | tests | Navigates the IMG structure only — activities, nodes, and the views/tables behind them — through a generated `$TMP` bridge over catalog tables named in `src/adt/img-catalog.ts`; those names are not yet confirmed against a live system. Reading the customizing entries themselves is `abap_data_preview`'s job, not this tool's. |
 | Running code | n/a | n/a | n/a | n/a | yes | live | Classes implementing the classrun interface, and classic reports through a generated bridge class. No interactive output. |
 | UI automation | n/a | yes | n/a | n/a | yes | mixed | Classic dynpro only, driven by generated batch input. Pressing commits immediately with no dry run and no rollback. |
 | Service and OData exposure | no | yes | no | no | n/a | tests | Metadata introspection only. Publication and business data are structurally refused. |
@@ -103,6 +104,17 @@
   the extra-row signal used to say "more rows exist," are backed by real
   captures; the name validation, gating, and refusal policy are code and
   test coverage only.
+- **IMG navigation.** ADT has no IMG REST route, so `abap_img` runs fixed,
+  parameterised SELECTs through a generated `IF_OO_ADT_CLASSRUN` bridge
+  class in `$TMP` — the same mechanism `abap_fpm_read` uses. Deploying that
+  bridge is a write on a `CLAS/OC` object, so the tool registers only when
+  the server can write, even though every call after the first deploy is a
+  pure read. The catalog table and field names it queries have not been
+  confirmed against a live system — `IMG_CATALOG_VERIFIED` stays `false`
+  until a live discovery run settles them, and every response says so while
+  it does. An empty result from a low-confidence table is therefore not
+  evidence the underlying customizing structure is empty; it could just as
+  easily mean the tool queried the wrong table or field.
 - **Search.** Every request goes out untyped and is filtered client side,
   because the server's own type filter drops fields and half-ignores the
   subtype; the fetch window is deliberately wider than the display cap and

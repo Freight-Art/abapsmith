@@ -23,3 +23,7 @@ Things a reader might expect and will not find here:
   at `uc_object_type_group/{samc|sapc}`; vendor Accept header, `/source/main` is
   asXML not ABAP text; fits neither `abap_read` nor `format: "raw"` (unverified
   write shape). Probed A4H 2026-09-04, omitted.
+- Reading or writing IMG customizing entries themselves, creating custom
+  IMG nodes or activities, and generating a maintenance dialog (SE54) —
+  `abap_img` navigates the structure only; the entries themselves are read
+  through `abap_data_preview`, not written anywhere.

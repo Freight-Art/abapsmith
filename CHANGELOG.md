@@ -272,6 +272,13 @@ was last set to `0.3.0`.
   write pipeline as `abap_write` and undoable. `mode: "list"` is itself
   gated as a write because it posts the whole object source; v1 accepts
   deterministic proposals only, refusing a parameterized one `BAD_INPUT`.
+- `abap_img` — read-only navigation of the IMG (SPRO) customizing structure,
+  in four modes (`search`, `show`, `tree`, `objects`). ADT has no IMG REST
+  route, so it runs fixed, parameterised SELECTs through a generated
+  `$TMP` bridge class, the same mechanism `abap_fpm_read` uses; that makes
+  it register only when the server can write, though every call after the
+  first deploy is a pure read. The catalog table and field names it queries
+  (`src/adt/img-catalog.ts`) are not yet confirmed against a live system.
 
 ### Changed
 

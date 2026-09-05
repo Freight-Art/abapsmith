@@ -95,6 +95,9 @@ delete it. Never send a partial descriptor.
 
 `read` < `edit` < `admin`. Write tools are absent from `tools/list` in `read`
 mode — a missing `abap_write` means the mode is wrong, not the tool.
+`abap_fpm_read` and `abap_img` are read-only in effect but are absent under
+`read` too, because their first call deploys a `$TMP` bridge class, which is
+itself a write.
 
 `ABAP_MODE` is the current way to set this. A legacy `ABAP_ALLOW_WRITE=true`
 flag grants ordinary write access too, but only when `ABAP_MODE` itself is
@@ -153,6 +156,7 @@ Two surfaces ship. **`v1` is the default** — one tool per job:
 | Enhancements | `abap_enh` |
 | OData service contract | `abap_service` |
 | FPM / Web Dynpro (read-only) | `abap_fpm_read` |
+| Browse IMG (SPRO) customizing structure | `abap_img` |
 | Table rows | `abap_data_preview` |
 | Open in GUI / browser | `abap_ui`, `abap_open_url` |
 
@@ -184,6 +188,7 @@ Default to `$TMP` unless the task says otherwise.
 | Class, interface, program, function group | `abapsmith-write-abap-source` |
 | BAdI, enhancement spot, source plug-in | `abapsmith-enhance-standard-code` |
 | BOPF business object | `abapsmith-edit-a-bopf-object` |
+| Browse IMG (SPRO) customizing structure | `abapsmith-browse-img-customizing` |
 | Get a transport request, or release one | `abapsmith-put-work-on-a-transport` |
 | Undo a wrong write, or read undo's refusals | `abapsmith-recover-a-bad-write` |
 
