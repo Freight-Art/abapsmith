@@ -113,6 +113,36 @@ describe("capability table: unreachable bucket census", () => {
   });
 });
 
+describe("capability table: non-readable set matches NON_READABLE_TYPES", () => {
+  // Locks buckets.nonReadable to the registry's own predicate, not a
+  // hand-copied list — the defect this fix closes was exactly that gap.
+  it("buckets.nonReadable equals NON_READABLE_TYPES, in the same order, and the rendered line names them all", async () => {
+    expect(NON_READABLE_TYPES.length).toBeGreaterThan(0);
+    const { table, buckets } = await buildCapabilityTable(REGISTRY);
+    expect(buckets.nonReadable.map((r) => r.type)).toEqual([...NON_READABLE_TYPES]);
+
+    const line = table.split("\n").find((l) => l.startsWith("- Not readable either"));
+    expect(line, "no 'Not readable either' line in the generated table").toBeDefined();
+    expect(line).toContain(`(${NON_READABLE_TYPES.length})`);
+    for (const code of NON_READABLE_TYPES) {
+      expect(line, `${code} missing from the "Not readable either" line`).toContain(`\`${code}\``);
+    }
+  });
+
+  // The bridge dimension specifically: a bridge-only create (no plain
+  // `create`) is non-readable even though it lands in the `bridged` bucket;
+  // the DEVC/K shape (bridgeCreate alongside a real `create`) is not.
+  it("a bridge-only create type is non-readable; a bridgeCreate type with its own create is not", async () => {
+    const registry = {
+      "ZZZ/QT": { label: "synthetic bridge-only", bridgeCreate: {} },
+      "ZZZ/QU": { label: "synthetic bridge-and-create (DEVC/K shape)", bridgeCreate: {}, create: { verified: true } },
+    };
+    const { buckets } = await buildCapabilityTable(registry);
+    expect(buckets.bridged.map((r) => r.type)).toEqual(["ZZZ/QT", "ZZZ/QU"]);
+    expect(buckets.nonReadable.map((r) => r.type)).toEqual(["ZZZ/QT"]);
+  });
+});
+
 describe("capability table: bridgeDelete requires an explicit note", () => {
   // A `bridgeDelete` type with no BRIDGE_DELETE_NOTE entry
   // used to silently inherit "via the bridge — create is reversible.", an
@@ -169,10 +199,11 @@ describe("capability table: skill is current without a build", () => {
     expect(current.trim()).toBe(table.trim());
   });
 
-  // The generated block above states the write side of NON_READABLE_TYPES
-  // (the "not readable either" bullet) but says nothing about VIEW/DV and
-  // TRAN/T being unreadable too — that's hand-written territory. Derived
-  // from NON_READABLE_TYPES itself, not a copied list, so it can't drift.
+  // The generated block above already names VIEW/DV and TRAN/T in its
+  // "not readable either" bullet (it's registry-wide, not bucket-scoped), and
+  // the hand-written region repeats them in its own "What abap_read refuses
+  // outright" list. Derived from NON_READABLE_TYPES itself, not a copied
+  // list, so it can't drift.
   it("the hand-written region names every NON_READABLE_TYPES code, including VIEW/DV and TRAN/T", () => {
     expect(NON_READABLE_TYPES).toEqual(expect.arrayContaining(["VIEW/DV", "TRAN/T"]));
 

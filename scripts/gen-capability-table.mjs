@@ -118,7 +118,8 @@ export async function buildCapabilityTable(registry) {
       bridgeRefused: Boolean(cap.bridgeCreate?.createRefused),
       bridgeDel: Boolean(cap.bridgeDelete),
       outOfRegistry: type in OUT_OF_REGISTRY_CREATE,
-      unsupported: Boolean(cap.unsupported),
+      // Mirrors NON_READABLE_TYPES's predicate in src/adt/capabilities.ts.
+      nonReadable: Boolean(cap.unsupported) || (cap.bridgeCreate !== undefined && cap.create === undefined),
     };
   });
 
@@ -134,6 +135,7 @@ export async function buildCapabilityTable(registry) {
   const creatable = rest.filter((r) => r.create === "yes");
   const writableOnly = rest.filter((r) => r.create !== "yes" && r.write !== "—");
   const unreachable = rest.filter((r) => r.create !== "yes" && r.write === "—");
+  const nonReadable = rows.filter((r) => r.nonReadable);
 
   const fmt = (list) => list.map((r) => `\`${r.type}\``).join(" ");
 
@@ -147,9 +149,12 @@ export async function buildCapabilityTable(registry) {
     `**Bridge-only create types (${bridged.length}).** ADT REST has no usable create for these, so ` +
       "abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The " +
       "bridge never updates an existing object. Whether it can delete one — and so whether the " +
-      "create is reversible — differs per type; see each bullet. A bullet marked **create " +
-      "REFUSED** creates nothing at all: the bridge is described but abapsmith will not run it, " +
-      `in any package (${bridged.filter((r) => r.bridgeRefused).length} of ${bridged.length} today).`,
+      "create is reversible — differs per type; see each bullet." +
+      (bridged.some((r) => r.bridgeRefused)
+        ? " A bullet marked **create REFUSED** creates nothing at all: the bridge is described but " +
+          "abapsmith will not run it, in any package " +
+          `(${bridged.filter((r) => r.bridgeRefused).length} of ${bridged.length} today).`
+        : ""),
     "",
     ...bridged.map((r) => {
       if (r.bridgeDel && !(r.type in BRIDGE_DELETE_NOTE)) {
@@ -176,19 +181,26 @@ export async function buildCapabilityTable(registry) {
     `**Not reachable by any write (${unreachable.length}).** Do not probe for a write route.`,
     "",
     ...(() => {
-      const readable = unreachable.filter((r) => !r.unsupported);
-      const unreadable = unreachable.filter((r) => r.unsupported);
+      const readable = unreachable.filter((r) => !r.nonReadable);
+      // Registry-wide, not bucket-scoped: catches non-readable types (e.g. VIEW/DV, TRAN/T)
+      // that are bridge-creatable and so never land in `unreachable` at all.
+      const bridgeCreatableNonReadable = nonReadable.filter((r) => r.bridge && !unreachable.includes(r));
       return [
         `- Readable, not writable (${readable.length}): ${readable.length ? fmt(readable) : "_(none)_"}`,
-        `- Not readable either (${unreadable.length}) — \`abap_read\` refuses these with UNSUPPORTED, ` +
-          `from the same \`unsupported\` entry in src/adt/capabilities.ts: ${unreadable.length ? fmt(unreadable) : "_(none)_"}`,
+        `- Not readable either (${nonReadable.length}) — \`abap_read\` refuses these before any ` +
+          "network call, from an `unsupported` entry or a bridge-only create with no ADT-readable " +
+          `collection (NON_READABLE_TYPES, src/adt/capabilities.ts): ${nonReadable.length ? fmt(nonReadable) : "_(none)_"}.` +
+          (bridgeCreatableNonReadable.length
+            ? " Registry-wide, not just this bucket: " +
+              `${fmt(bridgeCreatableNonReadable)} — creatable through the bridge above, still unreadable.`
+            : ""),
       ];
     })(),
     "",
     END,
   ].join("\n");
 
-  return { table, buckets: { creatable, bridged, outOfRegistry, writableOnly, unreachable } };
+  return { table, buckets: { creatable, bridged, outOfRegistry, writableOnly, unreachable, nonReadable } };
 }
 
 /** CLI-only: loads REGISTRY from the compiled tree, since this script is plain Node and can't import the TypeScript source directly. */
