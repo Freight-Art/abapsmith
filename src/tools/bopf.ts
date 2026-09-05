@@ -122,7 +122,6 @@ import {
   isDelegationOperation,
   validateDelegationShape,
   refuseHandAssembledDelegation,
-  delegationNetworkPreflight,
   delegationModelPreflight,
   mutateDelegation,
   verifyDelegation,
@@ -181,9 +180,6 @@ export const bopfEditInputSchema = {
       "remove_alternative_key",
       "set_alternative_key_fields",
       "set_node_flags",
-      "add_representative_node",
-      "remove_representative_node",
-      "embed_dependent_object",
       "remove_dependent_object",
       "activate",
     ])
@@ -194,7 +190,7 @@ export const bopfEditInputSchema = {
     .string()
     .optional()
     .describe(
-      "Element name. Required except for create_bo/remove_node/set_node_flags/activate/remove_representative_node.",
+      "Element name. Required except for create_bo/remove_node/set_node_flags/activate.",
     ),
   spec: z
     .record(z.string(), z.unknown())
@@ -208,7 +204,7 @@ export const bopfEditInputSchema = {
   i_know_this_may_not_activate: z
     .boolean()
     .optional()
-    .describe("Required true for add_alternative_key, set_alternative_key_fields and embed_dependent_object."),
+    .describe("Required true for add_alternative_key and set_alternative_key_fields."),
   package: z.string().optional().describe("create_bo: local ($TMP-style) package, required."),
   description: z.string().optional().describe("create_bo: optional description."),
   rootNodeName: z.string().optional().describe('create_bo only: root node name, default "ROOT".'),
@@ -336,9 +332,10 @@ const SHOW_NOTES = [
   "This digest covers the business object's structural definition only (nodes, associations, actions, " +
     "determinations, validations, queries, alternative keys). It does not include BOPF configuration/" +
     "customizing — abapsmith has no read surface and no write surface of any kind for it.",
-  '"(representative)" marks a parentless node standing in for another BO (the link itself is a separate ' +
-    'cross-BO association, never on the node); "(delegated via PARENT.ASSOC)" marks an embedded dependent ' +
-    "object's node; a cross-BO association is suffixed \"(-> OTHER_BO~NODE)\".",
+  '"(representative)" marks a parentless node the server minted itself (named REP_<random>) in response to a ' +
+    "cross-BO association — the link is the association, never the node, and abapsmith cannot create one of these " +
+    'nodes directly; "(delegated via PARENT.ASSOC)" marks an embedded dependent object\'s node; a cross-BO ' +
+    'association is suffixed "(-> OTHER_BO~NODE)".',
 ];
 
 function buildShowResponse(model: BoModel, maxChars: number): string {
@@ -865,8 +862,6 @@ function validateEditInputShape(input: BopfEditInput): void {
     "remove_alternative_key",
     "set_alternative_key_fields",
     "set_node_flags",
-    "remove_representative_node",
-    "embed_dependent_object",
     "remove_dependent_object",
   ]);
   const needsName = new Set([
@@ -888,8 +883,6 @@ function validateEditInputShape(input: BopfEditInput): void {
     "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
-    "add_representative_node",
-    "embed_dependent_object",
     "remove_dependent_object",
     "set_alternative_key_fields",
   ]);
@@ -1806,11 +1799,8 @@ function mutateModel(freshXml: string, input: BopfEditInput): string {
       return patchChildFields(freshXml, tokens, input, input.operation);
     case "set_node_flags":
       return patchNodeFlags(freshXml, tokens, requireNode(input), spec);
-    case "add_representative_node":
-    case "remove_representative_node":
-    case "embed_dependent_object":
     case "remove_dependent_object":
-      return mutateDelegation(freshXml, input as DelegationInput, { insertNodeAtRoot });
+      return mutateDelegation(freshXml, input as DelegationInput);
     case "create_bo":
     case "activate":
       throw new AbapError(
@@ -2292,10 +2282,9 @@ const BOPF_EDIT_TOOL_DESCRIPTION =
   "see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and " +
   "dangling-ref handling. add_alternative_key and set_alternative_key_fields both need " +
   "i_know_this_may_not_activate: true — the same short-dump-prone mapper handles both; add_alternative_key " +
-  "additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four. add_representative_node adds a " +
-  "parentless node standing in for another BO (spec.representedBo required); embed_dependent_object embeds " +
-  "a dependent object under a node (spec.dependentObject required, plus i_know_this_may_not_activate: true — " +
-  "neither the represented BO nor the dependent object is ever written to the wire).";
+  "additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four. remove_dependent_object " +
+  "removes an existing dependent-object embedding (its DoComposition association plus the matching " +
+  '"<name>.ROOT" node); abapsmith cannot create one — see doc/CAPABILITIES/bopf.md.';
 
 /**
  * Takes the whole `createRequest`, not a bare BO name, so a future field
@@ -2541,7 +2530,6 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
       }
 
       if (isDelegationOperation(input.operation)) {
-        await delegationNetworkPreflight(input as DelegationInput, async (other) => (await readModel(conn, other)).model);
         delegationModelPreflight(initial.model, input as DelegationInput);
       }
 

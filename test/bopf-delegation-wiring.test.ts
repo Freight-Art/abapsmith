@@ -1,15 +1,22 @@
 /**
  * Wiring tests for BOPF delegation: `src/tools/bopf-delegation.ts` (the
- * `add_representative_node` / `remove_representative_node` /
- * `embed_dependent_object` / `remove_dependent_object` engine, already unit
- * tested in isolation in `test/bopf-delegation.test.ts`) is exercised here
- * end to end through `abap_bopf_edit`/`abap_bopf`, the same way
+ * surviving `remove_dependent_object` engine, plus the
+ * `refuseHandAssembledDelegation` refusals, already unit tested in
+ * isolation in `test/bopf-delegation.test.ts`) is exercised here end to end
+ * through `abap_bopf_edit`/`abap_bopf`, the same way
  * `test/bopf-add-node-verify.test.ts` exercises `add_node`. Nothing here
  * re-tests the engine's own logic; every test would fail with an
  * "unsupported operation"/schema-rejection/unchanged-digest shape if the
  * wiring in `src/tools/bopf.ts` (schema enum, `validateEditInputShape`,
  * `mutateModel`, `runBopfEdit`'s preflight/verify/notes, `buildShowResponse`)
  * were reverted.
+ *
+ * `add_representative_node`, `remove_representative_node` and
+ * `embed_dependent_object` were removed from the product: a live discovery
+ * run against a real SAP system found the BOPF ADT endpoint cannot perform
+ * those writes (see `src/tools/bopf-delegation.ts`'s doc comment and
+ * `doc/CAPABILITIES/bopf.md`). This file pins that they are genuinely gone
+ * from the tool surface.
  *
  * Harness: identical to `test/bopf-add-node-verify.test.ts` — a real
  * `AbapConnection` against a `FakeAdtServer`, a real `SafetyGate`, real
@@ -32,7 +39,7 @@ import { SessionTransport } from "../src/adt/session-transport.js";
 import type { TrRequirement } from "../src/adt/transports.js";
 import type { SessionPool } from "../src/adt/pool.js";
 import { errorResult } from "../src/server.js";
-import { registerBopfTools, type BopfToolDeps } from "../src/tools/bopf.js";
+import { registerBopfTools, bopfEditInputSchema, type BopfToolDeps } from "../src/tools/bopf.js";
 import { BOPF_HANDLERS } from "../src/tools/v2/handlers/do/bopf.js";
 import { ABAP_DO_ACTIONS } from "../src/tools/v2/catalogue.js";
 
@@ -43,19 +50,6 @@ const fixture = (f: string): string => readFileSync(join(FIXTURES, f), "utf8");
 
 /** ZBOPF_PRB1, inactive, root-node-only. ROOT's bo:nodeID is GiJj4KTjH+GkgJER+Cx2UA==. */
 const FX_JUST_CREATED = fixture("02-created-zbopf_prb1-root-only.v4.xml");
-const ROOT_NODE_ID = "GiJj4KTjH+GkgJER+Cx2UA==";
-
-/** Same bytes, renamed — a plausible represented BO. objectCategory stays "businessProcessObject" (irrelevant to add_representative_node, which imposes no category requirement). */
-const FX_REPRESENTED_BO = FX_JUST_CREATED.replace('adtcore:name="ZBOPF_PRB1"', 'adtcore:name="ZBOPF_CUST"');
-
-/** Same bytes, renamed, with objectCategory swapped to "dependentObject" — the one category embed_dependent_object accepts. */
-const FX_DEPENDENT_OK = FX_JUST_CREATED.replace('adtcore:name="ZBOPF_PRB1"', 'adtcore:name="ZBOPF_DEPO"').replace(
-  'bo:objectCategory="businessProcessObject"',
-  'bo:objectCategory="dependentObject"',
-);
-
-/** Same bytes, renamed, category left as the default "businessProcessObject" — must be refused by embed_dependent_object. */
-const FX_WRONG_CATEGORY = FX_JUST_CREATED.replace('adtcore:name="ZBOPF_PRB1"', 'adtcore:name="ZBOPF_WRONGCAT"');
 
 /**
  * Hand-built (not a captured fixture — no captured model exercises delegation
@@ -65,7 +59,10 @@ const FX_WRONG_CATEGORY = FX_JUST_CREATED.replace('adtcore:name="ZBOPF_PRB1"', '
  * `bo:parent`, only KEY/PARENT_KEY/ROOT_KEY properties), a cross-BO
  * association to "OTHERBO~ROOT", and a same-BO DoComposition pair
  * (ROOT's "ITEMS_EMB" association + the "ITEMS_EMB.ROOT" child it embeds) —
- * the exact wire shape `mutateEmbedDependentObject` writes. Feeds the one
+ * the wire shape a real dependent-object embedding takes.
+ * abapsmith cannot create one — `embed_dependent_object` was removed as
+ * unimplementable (see `doc/CAPABILITIES/bopf.md`); this fixture exists only
+ * so the read side can be shown to classify such a model. Feeds the one
  * `mode:"show"` digest test below.
  */
 const FX_SHOW_DIGEST =
@@ -253,130 +250,54 @@ async function registered(
 }
 
 // ===========================================================================
-
-describe("embed_dependent_object: schema/shape refusals happen before any network call", () => {
-  it("refuses BAD_INPUT without i_know_this_may_not_activate: true, and issues no PUT", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_depo: FX_DEPENDENT_OK });
+describe("remove_dependent_object: happy path against a genuine embedding", () => {
+  it("removes both the ITEMS_EMB association and the ITEMS_EMB.ROOT node, and a re-read follows the PUT", async () => {
+    const store = bopfStore({ zbopf_deleg: FX_SHOW_DIGEST });
     const { conn, server } = await wired({ routes: [store.route] });
     const { tools } = await registered(conn);
-    const before = callsAfterConnect(server);
 
     const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "embed_dependent_object",
+      bo: "ZBOPF_DELEG",
+      operation: "remove_dependent_object",
       node: "ROOT",
       name: "ITEMS_EMB",
-      spec: { dependentObject: "ZBOPF_DEPO" },
-    });
-
-    const payload = errorPayload(result);
-    expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("i_know_this_may_not_activate");
-
-    const calls = server.calls.slice(before);
-    expect(calls.some((r) => r.method === "PUT")).toBe(false);
-    // Zero-network shape check runs before ensureConnected's own preflight reads too.
-    expect(calls.some((r) => r.method === "GET" && r.path.includes("zbopf_depo"))).toBe(false);
-    expect(store.get("zbopf_prb1")).toBe(FX_JUST_CREATED);
-  });
-
-  it("refuses BAD_INPUT when the dependent object's objectCategory is not \"dependentObject\", before any PUT to the host", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_wrongcat: FX_WRONG_CATEGORY });
-    const { conn, server } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
-    const before = callsAfterConnect(server);
-
-    const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "embed_dependent_object",
-      node: "ROOT",
-      name: "ITEMS_EMB",
-      spec: { dependentObject: "ZBOPF_WRONGCAT" },
-      i_know_this_may_not_activate: true,
-    });
-
-    const payload = errorPayload(result);
-    expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("ZBOPF_WRONGCAT");
-    expect(String(payload.message)).toContain("objectCategory");
-
-    const calls = server.calls.slice(before);
-    expect(calls.some((r) => r.method === "PUT")).toBe(false);
-    expect(store.get("zbopf_prb1")).toBe(FX_JUST_CREATED);
-  });
-});
-
-describe("embed_dependent_object: a genuine write puts the real association+node pair on the wire", () => {
-  it("writes the DoComposition association (with the default implementationClassRef) plus the \"<name>.ROOT\" node carrying the parent's real bo:nodeID, and discloses the wire-fact note", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_depo: FX_DEPENDENT_OK });
-    const { conn } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
-
-    const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "embed_dependent_object",
-      node: "ROOT",
-      name: "ITEMS_EMB",
-      spec: { dependentObject: "ZBOPF_DEPO" },
-      i_know_this_may_not_activate: true,
-    });
-
-    const text = okText(result);
-    const putBody = store.get("zbopf_prb1")!;
-    expect(putBody).toContain('bo:name="ITEMS_EMB.ROOT"');
-    expect(putBody).toContain(`bo:parentNodeID="${ROOT_NODE_ID}"`);
-    expect(putBody).toContain(`bo:parent="#//bo:businessObject/bo:nodes[@bo:name='ROOT']"`);
-    expect(putBody).toContain('bo:implementationType="DoComposition"');
-    expect(putBody).toContain('bo:doEmbeddingName="ITEMS_EMB"');
-    // Default implementationClassRef (spec.implementationClassRef not given).
-    expect(putBody).toContain('adtcore:uri="/sap/bc/adt/oo/classes/%2fbobf%2fcl_c_bopf_2_bopf_simple"');
-    expect(putBody).toContain('adtcore:name="/BOBF/CL_C_BOPF_2_BOPF_SIMPLE"');
-    // Neither the dependent object's name nor a link to it appears anywhere on the wire.
-    expect(putBody).not.toContain("ZBOPF_DEPO");
-
-    // delegationNotes' disclosure is surfaced in the response text.
-    expect(text).toContain("ZBOPF_DEPO");
-    expect(text).toContain("never names the dependent object");
-  });
-
-  it("writes a caller-supplied implementationClassRef instead of the default", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_depo: FX_DEPENDENT_OK });
-    const { conn } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
-
-    const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "embed_dependent_object",
-      node: "ROOT",
-      name: "ITEMS_EMB",
-      spec: {
-        dependentObject: "ZBOPF_DEPO",
-        implementationClassRef: { uri: "/sap/bc/adt/oo/classes/zcl_custom_embed", type: "CLAS/OC", name: "ZCL_CUSTOM_EMBED" },
-      },
-      i_know_this_may_not_activate: true,
     });
 
     expect(result.isError).toBeFalsy();
-    const putBody = store.get("zbopf_prb1")!;
-    expect(putBody).toContain('adtcore:name="ZCL_CUSTOM_EMBED"');
-    expect(putBody).not.toContain("/BOBF/CL_C_BOPF_2_BOPF_SIMPLE");
+    const finalBody = store.get("zbopf_deleg")!;
+    expect(finalBody).not.toContain('bo:name="ITEMS_EMB.ROOT"');
+    expect(finalBody).not.toContain('bo:name="ITEMS_EMB"');
+    // The other two associations and the CUSTREF node are untouched.
+    expect(finalBody).toContain('bo:name="TO_CUSTREF"');
+    expect(finalBody).toContain('bo:name="TO_OTHER"');
+    expect(finalBody).toContain('bo:name="CUSTREF"');
+
+    // putModel's own re-read: a GET on the entry path after the PUT, not just the PUT's 200.
+    const putIdx = server.calls.findIndex(
+      (r) => r.method === "PUT" && r.path === `${BOPF_COLLECTION_PATH}/zbopf_deleg`,
+    );
+    expect(putIdx).toBeGreaterThanOrEqual(0);
+    const rereadAfterPut = server.calls
+      .slice(putIdx + 1)
+      .some((r) => r.method === "GET" && r.path === `${BOPF_COLLECTION_PATH}/zbopf_deleg`);
+    expect(rereadAfterPut).toBe(true);
   });
+});
 
-  it("reports CHECK_FAILED with the HOUSE_SENTENCE when the PUT is accepted (200) but a re-read shows the pair absent, and sends no activation request", async () => {
+describe("remove_dependent_object: CHECK_FAILED when the server discards the PUT", () => {
+  it("reports CHECK_FAILED with the house sentence when the PUT answers 200 but a re-read shows the pair unchanged, and sends no activation request", async () => {
     const discardPutRoute: FakeRoute = (r) =>
-      r.method === "PUT" && r.path === `${BOPF_COLLECTION_PATH}/zbopf_prb1` ? EMPTY_200() : undefined;
+      r.method === "PUT" && r.path === `${BOPF_COLLECTION_PATH}/zbopf_deleg` ? EMPTY_200() : undefined;
 
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_depo: FX_DEPENDENT_OK });
+    const store = bopfStore({ zbopf_deleg: FX_SHOW_DIGEST });
     const { conn, server } = await wired({ routes: [discardPutRoute, store.route] });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "embed_dependent_object",
+      bo: "ZBOPF_DELEG",
+      operation: "remove_dependent_object",
       node: "ROOT",
       name: "ITEMS_EMB",
-      spec: { dependentObject: "ZBOPF_DEPO" },
-      i_know_this_may_not_activate: true,
       activate: true,
     });
 
@@ -385,177 +306,37 @@ describe("embed_dependent_object: a genuine write puts the real association+node
     expect(String(payload.message)).toContain(
       "A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.",
     );
-    expect(store.get("zbopf_prb1")).toBe(FX_JUST_CREATED); // discarded, as BOPF actually did
+    expect(String(payload.message)).toContain("ITEMS_EMB");
+    expect(store.get("zbopf_deleg")).toBe(FX_SHOW_DIGEST); // discarded, as BOPF actually did
 
     const activationCalls = server.calls.filter((r) => r.method === "POST" && r.path.includes("/sap/bc/adt/activation"));
     expect(activationCalls).toHaveLength(0);
   });
 });
 
-describe("remove_dependent_object: round trip against a genuinely embedded pair", () => {
-  it("removes both the association and the \"<name>.ROOT\" node written by a prior embed_dependent_object", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_depo: FX_DEPENDENT_OK });
-    const { conn } = await wired({ routes: [store.route] });
+describe("remove_dependent_object: refuses a non-embedding", () => {
+  it("refuses BAD_INPUT naming remove_association when the target association is a plain Association, not DoComposition, and sends no PUT", async () => {
+    const store = bopfStore({ zbopf_deleg: FX_SHOW_DIGEST });
+    const { conn, server } = await wired({ routes: [store.route] });
     const { tools } = await registered(conn);
+    const before = callsAfterConnect(server);
 
-    const embedResult = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "embed_dependent_object",
-      node: "ROOT",
-      name: "ITEMS_EMB",
-      spec: { dependentObject: "ZBOPF_DEPO" },
-      i_know_this_may_not_activate: true,
-    });
-    expect(embedResult.isError).toBeFalsy();
-    expect(store.get("zbopf_prb1")).toContain('bo:name="ITEMS_EMB.ROOT"');
-
-    const removeResult = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_DELEG",
       operation: "remove_dependent_object",
       node: "ROOT",
-      name: "ITEMS_EMB",
-    });
-
-    expect(removeResult.isError).toBeFalsy();
-    const finalBody = store.get("zbopf_prb1")!;
-    expect(finalBody).not.toContain("ITEMS_EMB.ROOT");
-    expect(finalBody).not.toContain('bo:name="ITEMS_EMB"');
-  });
-});
-
-describe("add_representative_node: shape refusals and a genuine write", () => {
-  it("refuses BAD_INPUT when node is given — a representative node has no parent", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_cust: FX_REPRESENTED_BO });
-    const { conn, server } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
-    const before = callsAfterConnect(server);
-
-    const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "add_representative_node",
-      node: "ROOT",
-      name: "CUST_REF",
-      spec: { representedBo: "ZBOPF_CUST" },
+      name: "TO_CUSTREF",
     });
 
     const payload = errorPayload(result);
     expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("does not take node");
+    expect(String(payload.message)).toContain("remove_association");
     expect(server.calls.slice(before).some((r) => r.method === "PUT")).toBe(false);
-  });
-
-  it("refuses BAD_INPUT when spec.representedBo cannot be read, before any PUT to the host", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
-    const { conn, server } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
-    const before = callsAfterConnect(server);
-
-    const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "add_representative_node",
-      name: "CUST_REF",
-      spec: { representedBo: "ZBOPF_NOPE" },
-    });
-
-    const payload = errorPayload(result);
-    expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("ZBOPF_NOPE");
-    expect(server.calls.slice(before).some((r) => r.method === "PUT")).toBe(false);
-    expect(store.get("zbopf_prb1")).toBe(FX_JUST_CREATED);
-  });
-
-  it("writes a parentless node with exactly the KEY/PARENT_KEY/ROOT_KEY properties, no bo:parent/bo:parentNodeID, and discloses the cross-BO-association wire fact", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_cust: FX_REPRESENTED_BO });
-    const { conn } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
-
-    const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "add_representative_node",
-      name: "CUST_REF",
-      spec: { representedBo: "ZBOPF_CUST" },
-    });
-
-    const text = okText(result);
-    const putBody = store.get("zbopf_prb1")!;
-    expect(putBody).toContain('bo:name="CUST_REF"');
-    expect(putBody).not.toContain('bo:parentNodeID');
-    // Isolate the CUST_REF node element and check its own bo:parent attribute is absent
-    // (bo:parent appears on OTHER elements as an XPath-target keyword too, but not literally
-    // as an attribute of this node — a plain substring check on the node's own open tag).
-    const openTag = putBody.slice(putBody.indexOf('<bo:nodes bo:name="CUST_REF"'), putBody.indexOf(">", putBody.indexOf('<bo:nodes bo:name="CUST_REF"')) + 1);
-    expect(openTag).not.toContain("bo:parent=");
-    expect(putBody.match(/bo:name="KEY"/g)?.length).toBeGreaterThanOrEqual(1);
-    expect(putBody).toContain('bo:name="PARENT_KEY"');
-    expect(putBody).toContain('bo:name="ROOT_KEY"');
-
-    expect(text).toContain("ZBOPF_CUST");
-    expect(text).toContain("deliberately NOT written to the node");
-  });
-
-  it("refuses BAD_INPUT on a duplicate name via the model preflight, before any PUT", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_cust: FX_REPRESENTED_BO });
-    const { conn, server } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
-    const before = callsAfterConnect(server);
-
-    const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "add_representative_node",
-      name: "ROOT", // already exists
-      spec: { representedBo: "ZBOPF_CUST" },
-    });
-
-    const payload = errorPayload(result);
-    expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("already exists");
-    expect(server.calls.slice(before).some((r) => r.method === "PUT")).toBe(false);
-  });
-});
-
-describe("remove_representative_node: refuses a non-representative node and round-trips a real one", () => {
-  it("refuses BAD_INPUT naming remove_node when the target is classified \"root\", not representative", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_cust: FX_REPRESENTED_BO });
-    const { conn } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
-
-    const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "remove_representative_node",
-      node: "ROOT",
-    });
-
-    const payload = errorPayload(result);
-    expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("remove_node");
-  });
-
-  it("removes a representative node it just added", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_cust: FX_REPRESENTED_BO });
-    const { conn } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
-
-    const addResult = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "add_representative_node",
-      name: "CUST_REF",
-      spec: { representedBo: "ZBOPF_CUST" },
-    });
-    expect(addResult.isError).toBeFalsy();
-    expect(store.get("zbopf_prb1")).toContain('bo:name="CUST_REF"');
-
-    const removeResult = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "remove_representative_node",
-      node: "CUST_REF",
-    });
-    expect(removeResult.isError).toBeFalsy();
-    expect(store.get("zbopf_prb1")).not.toContain('bo:name="CUST_REF"');
   });
 });
 
 describe("add_node/add_association refuse a hand-assembled delegation, naming the proper operation", () => {
-  it("add_node with doEmbeddingName set is refused, naming embed_dependent_object", async () => {
+  it("add_node with doEmbeddingName set is refused, before any network call", async () => {
     const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
     const { conn, server } = await wired({ routes: [store.route] });
     const { tools } = await registered(conn);
@@ -570,11 +351,11 @@ describe("add_node/add_association refuse a hand-assembled delegation, naming th
 
     const payload = errorPayload(result);
     expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("embed_dependent_object");
-    expect(server.calls.slice(before).some((r) => r.method === "PUT")).toBe(false);
+    expect(String(payload.message)).toContain("dependent-object");
+    expect(server.calls.length).toBe(before);
   });
 
-  it("add_association with implementationType DoComposition is refused, naming embed_dependent_object", async () => {
+  it("add_association with implementationType DoComposition is refused, before any network call", async () => {
     const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
     const { conn, server } = await wired({ routes: [store.route] });
     const { tools } = await registered(conn);
@@ -590,11 +371,11 @@ describe("add_node/add_association refuse a hand-assembled delegation, naming th
 
     const payload = errorPayload(result);
     expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("embed_dependent_object");
-    expect(server.calls.slice(before).some((r) => r.method === "PUT")).toBe(false);
+    expect(String(payload.message)).toContain("remove_dependent_object still removes an embedding");
+    expect(server.calls.length).toBe(before);
   });
 
-  it("add_node with neither spec.parent/spec.parentNodeId nor rootNode: true is refused, naming add_representative_node", async () => {
+  it("add_node with neither spec.parent/spec.parentNodeId nor rootNode: true is refused, naming add_association and REP_, before any network call", async () => {
     const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
     const { conn, server } = await wired({ routes: [store.route] });
     const { tools } = await registered(conn);
@@ -609,51 +390,79 @@ describe("add_node/add_association refuse a hand-assembled delegation, naming th
 
     const payload = errorPayload(result);
     expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("add_representative_node");
-    expect(server.calls.slice(before).some((r) => r.method === "PUT")).toBe(false);
+    expect(String(payload.message)).toContain("add_association");
+    expect(String(payload.message)).toContain("REP_");
+    expect(server.calls.length).toBe(before);
   });
 });
 
-describe("unknown spec keys are rejected per delegation operation (pins OPERATION_FIELDS)", () => {
-  it("add_representative_node rejects an unknown spec key", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_cust: FX_REPRESENTED_BO });
-    const { conn } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
+describe("the three removed operations are gone from the tool surface", () => {
+  // The fake MCP harness (`fakeMcp()` above) stores the raw handler and calls it directly —
+  // unlike the real McpServer.registerTool, it does not itself validate `args` against
+  // `inputSchema` before invoking the handler. So the thing that actually protects a live
+  // server (rejection before the handler runs, hence before any network call) is the zod
+  // enum on the exported schema itself; that is what these assertions pin, read off the
+  // schema rather than hardcoded, per the request driving this test.
+  const removedOperations = ["add_representative_node", "remove_representative_node", "embed_dependent_object"];
 
-    const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "add_representative_node",
-      name: "CUST_REF",
-      spec: { representedBo: "ZBOPF_CUST", bogusKey: "x" },
-    });
-
-    const payload = errorPayload(result);
-    expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("bogusKey");
-    // representedBo must be ACCEPTED (only bogusKey is unrecognised) — otherwise this test
-    // would pass merely because the operation itself is unrecognised pre-wiring, flagging
-    // every spec key as unknown, representedBo included.
-    expect(String(payload.message)).not.toContain("spec.representedBo is not a recognised field");
+  it("none of the three removed operation names are options on bopfEditInputSchema.operation", () => {
+    const options: readonly string[] = bopfEditInputSchema.operation.options;
+    for (const op of removedOperations) {
+      expect(options).not.toContain(op);
+    }
+    expect(options).toContain("remove_dependent_object");
   });
 
-  it("embed_dependent_object rejects an unknown spec key", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED, zbopf_depo: FX_DEPENDENT_OK });
-    const { conn } = await wired({ routes: [store.route] });
+  it("bopfEditInputSchema.operation.safeParse rejects each removed operation name", () => {
+    for (const op of removedOperations) {
+      expect(bopfEditInputSchema.operation.safeParse(op).success).toBe(false);
+    }
+    expect(bopfEditInputSchema.operation.safeParse("remove_dependent_object").success).toBe(true);
+  });
+});
+
+describe("unknown spec keys are rejected for remove_dependent_object (pins OPERATION_FIELDS = NO_SPEC_FIELDS)", () => {
+  it("any spec key at all is rejected, before any network call", async () => {
+    const store = bopfStore({ zbopf_deleg: FX_SHOW_DIGEST });
+    const { conn, server } = await wired({ routes: [store.route] });
     const { tools } = await registered(conn);
+    const before = callsAfterConnect(server);
 
     const result = await invoke(tools, "abap_bopf_edit", {
-      bo: "ZBOPF_PRB1",
-      operation: "embed_dependent_object",
+      bo: "ZBOPF_DELEG",
+      operation: "remove_dependent_object",
       node: "ROOT",
       name: "ITEMS_EMB",
-      spec: { dependentObject: "ZBOPF_DEPO", bogusKey: "x" },
-      i_know_this_may_not_activate: true,
+      spec: { bogusKey: "x" },
     });
 
     const payload = errorPayload(result);
     expect(payload.error).toBe("BAD_INPUT");
     expect(String(payload.message)).toContain("bogusKey");
-    expect(String(payload.message)).not.toContain("spec.dependentObject is not a recognised field");
+    expect(server.calls.length).toBe(before);
+  });
+});
+
+describe("the two cross-BO add_association notes reach the caller", () => {
+  it("a genuine cross-BO add_association succeeds and the response carries both the REP_ note and the ASSERTION_FAILED observation", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const { conn } = await wired({ routes: [store.route] });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_association",
+      node: "ROOT",
+      name: "TO_OTHER",
+      spec: { targetNodeRef: { name: "OTHERBO~ROOT", type: "BOBF" } },
+    });
+
+    const text = okText(result);
+    expect(store.get("zbopf_prb1")).toContain('bo:name="TO_OTHER"');
+    expect(text).toContain("REP_<random>");
+    expect(text).toContain("server-assigned and cannot be chosen");
+    expect(text).toContain("ASSERTION_FAILED");
+    expect(text).toContain("/BOBF/CL_CONF_MODEL_API_MAP");
   });
 });
 
@@ -674,23 +483,31 @@ describe("abap_bopf show: node/association digests carry the delegation-kind ann
     expect(text).toContain("ITEMS_EMB (do-composition)");
     // TO_CUSTREF is a plain same-BO association — no parenthetical marker at all.
     expect(text).toMatch(/associations:.*\bTO_CUSTREF\b(?!\s*\()/);
+
+    // SHOW_NOTES' updated wording: the server mints REP_<random> nodes itself; abapsmith
+    // cannot create one directly (the old wording named add_representative_node instead).
+    expect(text).toContain("REP_<random>");
+    expect(text).toContain("abapsmith cannot create one of these");
   });
 });
 
-describe("v2 catalogue/handler wiring: the 4 new bopf_* actions are present with one handler each", () => {
-  it("BOPF_HANDLERS has all 4 new actions, and ABAP_DO_ACTIONS' bopf group lists them too", () => {
-    const newActions = [
-      "bopf_add_representative_node",
-      "bopf_remove_representative_node",
-      "bopf_embed_dependent_object",
-      "bopf_remove_dependent_object",
-    ];
-    for (const action of newActions) {
-      expect(BOPF_HANDLERS.has(action)).toBe(true);
+describe("v2 catalogue/handler wiring: bopf_remove_dependent_object is present, the three removed actions are not", () => {
+  it("BOPF_HANDLERS and the ABAP_DO_ACTIONS bopf group both list bopf_remove_dependent_object and neither lists a removed action", () => {
+    const removedActions = ["bopf_add_representative_node", "bopf_remove_representative_node", "bopf_embed_dependent_object"];
+
+    expect(BOPF_HANDLERS.has("bopf_remove_dependent_object")).toBe(true);
+    for (const action of removedActions) {
+      expect(BOPF_HANDLERS.has(action)).toBe(false);
     }
-    const catalogueActionNames = new Set(ABAP_DO_ACTIONS.map((a) => a.action));
-    for (const action of newActions) {
-      expect(catalogueActionNames.has(action)).toBe(true);
+
+    const bopfGroupActions = ABAP_DO_ACTIONS.filter((a) => a.group === "bopf");
+    const bopfGroupActionNames = new Set(bopfGroupActions.map((a) => a.action));
+    expect(bopfGroupActionNames.has("bopf_remove_dependent_object")).toBe(true);
+    for (const action of removedActions) {
+      expect(bopfGroupActionNames.has(action)).toBe(false);
     }
+
+    // Verified by direct count (background claimed 27; confirmed independently here).
+    expect(bopfGroupActions.length).toBe(27);
   });
 });

@@ -1,39 +1,23 @@
 /**
- * BOPF "delegation" operations: nodes that stand in for another BO
- * (`representative`) and dependent objects embedded via a DoComposition
- * association pair (`delegated`). Split out of `bopf.ts` to avoid a cycle —
- * `bopf.ts` will import from here, so this file imports nothing from it and
- * re-declares the handful of local helpers it needs.
- *
- * Wire fact this whole module exists to respect: the host BO's XML never
- * names the BO a representative node stands in for, nor the dependent
- * object a delegated node embeds. Both operations therefore validate a BO
- * name over the network but deliberately do not write it — see
- * `delegationNotes`.
+ * BOPF "delegation" operations. Originally this module held four operations
+ * (`add_representative_node`, `remove_representative_node`,
+ * `embed_dependent_object`, `remove_dependent_object`); a live discovery run
+ * against a real SAP system proved three of them describe writes the BOPF
+ * ADT endpoint cannot perform — a client-written parentless node is
+ * hard-rejected by the /BOBF/ST_CONF_ADT deserializer, representative nodes
+ * are minted by the server itself (named REP_<random>) in response to a
+ * cross-BO association, and the embedding wire shape is silently rewritten
+ * server-side with no known working request. See
+ * `doc/CAPABILITIES/bopf.md` for the evidence. Only `remove_dependent_object`
+ * survives, plus the refusals in `refuseHandAssembledDelegation` that stop a
+ * caller hand-assembling a delegation the endpoint cannot accept.
  */
 import { AbapError } from "../adt/errors.js";
 import type { BoModel, BoNode, AdtObjectRef } from "../adt/bopf-types.js";
-import {
-  scanModel,
-  locate,
-  spliceOut,
-  spliceInsertChild,
-  renderNodeElement,
-  renderAssociationElement,
-  renderProperty,
-  mintGuid,
-  type Token,
-  type NodeFields,
-  type AssociationFields,
-} from "../adt/bopf-xml.js";
+import { scanModel, locate, spliceOut, type Token } from "../adt/bopf-xml.js";
 import { classifyNode } from "../adt/bopf-node-kinds.js";
 
-export const DELEGATION_OPERATIONS = [
-  "add_representative_node",
-  "remove_representative_node",
-  "embed_dependent_object",
-  "remove_dependent_object",
-] as const;
+export const DELEGATION_OPERATIONS = ["remove_dependent_object"] as const;
 export type DelegationOperation = (typeof DELEGATION_OPERATIONS)[number];
 
 export function isDelegationOperation(op: string): op is DelegationOperation {
@@ -51,28 +35,8 @@ export interface DelegationInput {
   readonly i_know_this_may_not_activate?: boolean;
 }
 
-const DEFAULT_EMBED_IMPL_CLASS_REF: AdtObjectRef = {
-  uri: "/sap/bc/adt/oo/classes/%2fbobf%2fcl_c_bopf_2_bopf_simple",
-  type: "CLAS/OC",
-  name: "/BOBF/CL_C_BOPF_2_BOPF_SIMPLE",
-};
-
 function str(v: unknown): string | undefined {
   return typeof v === "string" && v.trim() ? v : undefined;
-}
-
-function ref(v: unknown): AdtObjectRef | undefined {
-  if (!v || typeof v !== "object") return undefined;
-  const o = v as Record<string, unknown>;
-  const name = str(o.name);
-  const type = str(o.type);
-  if (!name || !type) return undefined;
-  const uri = str(o.uri);
-  return uri ? { uri, type, name } : { type, name };
-}
-
-function describeError(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }
 
 /** Same resolution order as `resolveTargetNodeName` in src/tools/bopf.ts, duplicated to avoid an import cycle. */
@@ -109,54 +73,9 @@ function requireInputName(input: DelegationInput): string {
   return input.name;
 }
 
-/** Zero-network shape check for the four operations. Throws AbapError BAD_INPUT. */
+/** Zero-network shape check for the one surviving operation. Throws AbapError BAD_INPUT. */
 export function validateDelegationShape(input: DelegationInput): void {
-  const spec = input.spec ?? {};
   switch (input.operation) {
-    case "add_representative_node": {
-      requireInputName(input);
-      if (input.node !== undefined) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `add_representative_node does not take node — a representative node has no parent (it stands in for ` +
-            `another BO, not a child of one). Name the new node with "name".`,
-          { operation: input.operation, node: input.node },
-        );
-      }
-      if (!str(spec.representedBo)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `add_representative_node requires spec.representedBo (the BO this node will stand in for).`,
-          { operation: input.operation },
-        );
-      }
-      return;
-    }
-    case "remove_representative_node":
-      requireInputNode(input);
-      return;
-    case "embed_dependent_object": {
-      requireInputNode(input);
-      requireInputName(input);
-      if (!str(spec.dependentObject)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `embed_dependent_object requires spec.dependentObject (the dependent object BO being embedded).`,
-          { operation: input.operation },
-        );
-      }
-      if (input.i_know_this_may_not_activate !== true) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `embed_dependent_object requires i_know_this_may_not_activate: true — this writes the exact wire shape ` +
-            `observed for an embedding (an association plus a "<name>.ROOT" node), but the host BO's XML never names ` +
-            `the dependent object anywhere, so a 200 plus a matching read-back is not confirmed to create a working ` +
-            `embedding server-side.`,
-          { operation: input.operation },
-        );
-      }
-      return;
-    }
     case "remove_dependent_object":
       requireInputNode(input);
       requireInputName(input);
@@ -179,9 +98,12 @@ export function refuseHandAssembledDelegation(operation: string, spec: Record<st
     if ((implementationType && implementationType.toLowerCase() === "docomposition") || doEmbeddingName !== undefined) {
       throw new AbapError(
         "BAD_INPUT",
-        `add_association${named} with implementationType "DoComposition" (or a doEmbeddingName) builds half of an embedding ` +
-          `— the pair is the association plus a matching "<name>.ROOT" node, and BOPF silently discards a bare ` +
-          `association written alone. Use embed_dependent_object instead.`,
+        `add_association${named} with implementationType "DoComposition" (or a doEmbeddingName) tries to build a ` +
+          `dependent-object embedding, and abapsmith cannot create one on this release. That shape was sent to a ` +
+          `real system: the PUT answered 200, but the read-back had implementationType rewritten to "Composition" ` +
+          `with bo:doEmbeddingName dropped, and activation rejected the "<name>.ROOT" node the pair needs ("Node ` +
+          `name contains characters that are not allowed"). No working request shape is known — see ` +
+          `doc/CAPABILITIES/bopf.md. remove_dependent_object still removes an embedding that already exists.`,
         { operation, name, implementationType, doEmbeddingName },
       );
     }
@@ -193,8 +115,9 @@ export function refuseHandAssembledDelegation(operation: string, spec: Record<st
     if (doEmbeddingName !== undefined || isDependentObjectNode) {
       throw new AbapError(
         "BAD_INPUT",
-        `add_node${named} with doEmbeddingName set (or isDependentObjectNode: true) builds half of an embedding by hand — ` +
-          `use embed_dependent_object instead, which writes both the association and the node together.`,
+        `add_node${named} with doEmbeddingName set (or isDependentObjectNode: true) builds half of a dependent-object ` +
+          `embedding by hand. abapsmith cannot create an embedding on this release, and the other half cannot be ` +
+          `written either — see doc/CAPABILITIES/bopf.md.`,
         { operation, name, doEmbeddingName, isDependentObjectNode },
       );
     }
@@ -202,9 +125,12 @@ export function refuseHandAssembledDelegation(operation: string, spec: Record<st
     if (!hasParent && spec.rootNode !== true) {
       throw new AbapError(
         "BAD_INPUT",
-        `add_node${named} with no spec.parent/spec.parentNodeId and rootNode not true is a deliberately parentless node ` +
-          `— that is add_representative_node, not add_node. BOPF answers 200 and silently discards a node it cannot ` +
-          `place, rather than rejecting it.`,
+        `add_node${named} with no spec.parent/spec.parentNodeId and rootNode not true is a deliberately parentless ` +
+          `node, and BOPF will not accept one: the server rejects a client-written parentless node outright in the ` +
+          `/BOBF/ST_CONF_ADT deserializer. Parentless "representative" nodes do exist, but the server mints them ` +
+          `itself — add a cross-BO association instead (add_association with spec.targetNodeRef naming ` +
+          `OTHER_BO~ROOT and a spec.implementationClassRef), and the server creates a node named REP_<random> ` +
+          `alongside it.`,
         { operation, name },
       );
     }
@@ -212,129 +138,9 @@ export function refuseHandAssembledDelegation(operation: string, spec: Record<st
   }
 }
 
-/** Reads the represented BO / dependent object through the injected callback and checks it. No-op for the operations that need no other BO. */
-export async function delegationNetworkPreflight(
-  input: DelegationInput,
-  readOtherModel: (bo: string) => Promise<BoModel>,
-): Promise<void> {
-  const spec = input.spec ?? {};
-  if (input.operation === "add_representative_node") {
-    const representedBo = str(spec.representedBo) ?? "";
-    try {
-      await readOtherModel(representedBo);
-    } catch (e) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `add_representative_node: represented BO "${representedBo}" could not be read (${describeError(e)}) — the ` +
-          `cross-BO association you add next would dangle against a BO that isn't there.`,
-        { operation: input.operation, representedBo },
-      );
-    }
-    return; // no category requirement — a representative node can stand in for any BO
-  }
-  if (input.operation === "embed_dependent_object") {
-    const dependentObject = str(spec.dependentObject) ?? "";
-    let model: BoModel;
-    try {
-      model = await readOtherModel(dependentObject);
-    } catch (e) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `embed_dependent_object: dependent object "${dependentObject}" could not be read (${describeError(e)}).`,
-        { operation: input.operation, dependentObject },
-      );
-    }
-    if (model.objectCategory !== "dependentObject") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `embed_dependent_object: "${dependentObject}" has objectCategory "${model.objectCategory ?? "(none)"}", not ` +
-          `"dependentObject" — only a BO created as a dependent object can be embedded this way.`,
-        { operation: input.operation, dependentObject, objectCategory: model.objectCategory },
-      );
-    }
-    return;
-  }
-  // remove_representative_node / remove_dependent_object need no other BO.
-}
-
 /** Zero-network checks against this BO's freshly re-read model. Throws BAD_INPUT / NOT_FOUND. */
 export function delegationModelPreflight(model: BoModel, input: DelegationInput): void {
   switch (input.operation) {
-    case "add_representative_node": {
-      const name = requireInputName(input);
-      if (findModelNode(model, name)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `node "${name}" already exists on ${model.name} — BOPF answers 200 and silently discards a duplicate.`,
-          { bo: model.name, node: name },
-        );
-      }
-      return;
-    }
-    case "remove_representative_node": {
-      const nodeName = requireInputNode(input);
-      const node = findModelNode(model, nodeName);
-      if (!node) {
-        throw new AbapError(
-          "NOT_FOUND",
-          `node "${nodeName}" not found on ${model.name}. Nodes present: ${nodeNameList(model)}.`,
-          { bo: model.name, node: nodeName },
-        );
-      }
-      const kind = classifyNode(model, node);
-      if (kind.kind !== "representative") {
-        const pointer = kind.kind === "delegated" ? "remove_dependent_object" : "remove_node";
-        throw new AbapError(
-          "BAD_INPUT",
-          `node "${node.name}" is classified as "${kind.kind}", not a representative node — use ${pointer} instead.`,
-          { bo: model.name, node: node.name, kind: kind.kind },
-        );
-      }
-      const offenders: string[] = [];
-      for (const n of model.nodes) {
-        for (const a of n.associations) {
-          if ((resolveTargetNodeName(a.targetNodeRef) ?? "").toLowerCase() === node.name.toLowerCase()) {
-            offenders.push(`${n.name}.${a.name}`);
-          }
-        }
-      }
-      if (offenders.length) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `association(s) still target node "${node.name}": ${offenders.join(", ")} — remove those first.`,
-          { bo: model.name, node: node.name, offenders },
-        );
-      }
-      return;
-    }
-    case "embed_dependent_object": {
-      const nodeName = requireInputNode(input);
-      const emb = requireInputName(input);
-      const parent = findModelNode(model, nodeName);
-      if (!parent) {
-        throw new AbapError(
-          "NOT_FOUND",
-          `node "${nodeName}" not found on ${model.name}. Nodes present: ${nodeNameList(model)}.`,
-          { bo: model.name, node: nodeName },
-        );
-      }
-      if (parent.associations.some((a) => a.name.toLowerCase() === emb.toLowerCase())) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `association "${emb}" already exists on node "${parent.name}" — BOPF answers 200 and silently discards a duplicate.`,
-          { bo: model.name, node: parent.name, name: emb },
-        );
-      }
-      const embNodeName = `${emb}.ROOT`;
-      if (findModelNode(model, embNodeName)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `node "${embNodeName}" already exists on ${model.name} — BOPF answers 200 and silently discards a duplicate.`,
-          { bo: model.name, node: embNodeName },
-        );
-      }
-      return;
-    }
     case "remove_dependent_object": {
       const nodeName = requireInputNode(input);
       const emb = requireInputName(input);
@@ -409,134 +215,6 @@ export function delegationModelPreflight(model: BoModel, input: DelegationInput)
   }
 }
 
-export interface DelegationSpliceDeps {
-  /** `insertNodeAtRoot` from src/tools/bopf.ts — appends a new top-level `<bo:nodes>` after the last depth-1 element. */
-  readonly insertNodeAtRoot: (xml: string, tokens: readonly Token[], fragment: string) => string;
-}
-
-function findDepth1Node(tokens: readonly Token[], name: string, nodeId: string | undefined): Token | undefined {
-  return tokens.find(
-    (t) =>
-      t.name === "bo:nodes" &&
-      t.depth === 1 &&
-      t.attrs.get("bo:name") === name &&
-      (nodeId === undefined || t.attrs.get("bo:nodeID") === nodeId),
-  );
-}
-
-function mutateAddRepresentativeNode(freshXml: string, tokens: readonly Token[], input: DelegationInput, deps: DelegationSpliceDeps): string {
-  const name = requireInputName(input);
-  const spec = input.spec ?? {};
-  const properties = ["KEY", "PARENT_KEY", "ROOT_KEY"].map((propName) =>
-    renderProperty({
-      name: propName,
-      enabled: true,
-      readonly: false,
-      mandatory: false,
-      enabledFinal: false,
-      readonlyFinal: false,
-      mandatoryFinal: false,
-      transientAttribute: false,
-    }),
-  );
-  const fields: NodeFields = {
-    name,
-    nodeId: mintGuid("node"),
-    xmlName: str(spec.xmlName),
-    objectModelGenerated: false,
-    authorizationCheck: false,
-    isExtensible: false,
-    isDependentObjectNode: false,
-    textNode: false,
-    createEnabled: true,
-    updateEnabled: true,
-    deleteEnabled: true,
-    rootNode: false,
-    objectModelObsolete: false,
-    properties,
-  };
-  return deps.insertNodeAtRoot(freshXml, tokens, renderNodeElement(fields));
-}
-
-function mutateRemoveRepresentativeNode(freshXml: string, tokens: readonly Token[], input: DelegationInput): string {
-  const nodeName = requireInputNode(input);
-  const range = locate(tokens, { node: nodeName, nodeId: input.nodeId });
-  if (!range) {
-    throw new AbapError("NOT_FOUND", `node "${nodeName}" not found while removing it.`, { node: nodeName });
-  }
-  return spliceOut(freshXml, range);
-}
-
-function mutateEmbedDependentObject(
-  freshXml: string,
-  tokens: readonly Token[],
-  input: DelegationInput,
-  deps: DelegationSpliceDeps,
-): string {
-  const parentName = requireInputNode(input);
-  const emb = requireInputName(input);
-  const spec = input.spec ?? {};
-
-  const parentTok = findDepth1Node(tokens, parentName, input.nodeId);
-  if (!parentTok) {
-    throw new AbapError("NOT_FOUND", `parent node "${parentName}" not found while embedding "${emb}".`, {
-      node: parentName,
-    });
-  }
-  const parentNodeId = parentTok.attrs.get("bo:nodeID");
-  if (!parentNodeId) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `parent node "${parentName}" has no bo:nodeID on the wire — the embedded node's bo:parentNodeID must be ` +
-        `written together with it, and there is nothing to copy.`,
-      { node: parentName },
-    );
-  }
-
-  const xmlName = str(spec.xmlName);
-  const embNodeName = `${emb}.ROOT`;
-  const nodeFields: NodeFields = {
-    name: embNodeName,
-    nodeId: mintGuid("node"),
-    parent: `#//bo:businessObject/bo:nodes[@bo:name='${parentName}']`,
-    parentNodeId,
-    xmlName,
-    objectModelGenerated: false,
-    authorizationCheck: false,
-    isExtensible: false,
-    isDependentObjectNode: false,
-    textNode: false,
-    createEnabled: false,
-    updateEnabled: false,
-    deleteEnabled: false,
-    rootNode: false,
-    objectModelObsolete: false,
-  };
-  let xml = deps.insertNodeAtRoot(freshXml, tokens, renderNodeElement(nodeFields));
-
-  const tokens2 = scanModel(xml);
-  const multiplicity = str(spec.multiplicity) ?? "0_1";
-  const implementationClassRef = ref(spec.implementationClassRef) ?? DEFAULT_EMBED_IMPL_CLASS_REF;
-  const targetUri =
-    `/sap/bc/adt/bopf/businessobjects/${encodeURIComponent(input.bo.toLowerCase()).toLowerCase()}` +
-    `#//bo:businessObject/bo:nodes[@bo:name='${embNodeName}']`;
-  const assocFields: AssociationFields = {
-    name: emb,
-    nodeId: mintGuid("association"),
-    implementationType: "DoComposition",
-    objectModelGenerated: false,
-    xmlName,
-    doEmbeddingName: emb,
-    multiplicity,
-    targetNodeRef: { uri: targetUri, type: "BOBF", name: `${input.bo.toUpperCase()}~${embNodeName}` },
-    implementationClassRef,
-  };
-  xml = spliceInsertChild(xml, tokens2, parentName, "association", renderAssociationElement(assocFields), {
-    nodeId: input.nodeId,
-  });
-  return xml;
-}
-
 function mutateRemoveDependentObject(freshXml: string, tokens: readonly Token[], input: DelegationInput): string {
   const parentName = requireInputNode(input);
   const emb = requireInputName(input);
@@ -580,15 +258,9 @@ function mutateRemoveDependentObject(freshXml: string, tokens: readonly Token[],
 }
 
 /** Applies one delegation operation to freshly re-read bytes. Pure. */
-export function mutateDelegation(freshXml: string, input: DelegationInput, deps: DelegationSpliceDeps): string {
+export function mutateDelegation(freshXml: string, input: DelegationInput): string {
   const tokens = scanModel(freshXml);
   switch (input.operation) {
-    case "add_representative_node":
-      return mutateAddRepresentativeNode(freshXml, tokens, input, deps);
-    case "remove_representative_node":
-      return mutateRemoveRepresentativeNode(freshXml, tokens, input);
-    case "embed_dependent_object":
-      return mutateEmbedDependentObject(freshXml, tokens, input, deps);
     case "remove_dependent_object":
       return mutateRemoveDependentObject(freshXml, tokens, input);
     default:
@@ -623,63 +295,6 @@ export function verifyDelegation(
 ): void {
   const entryId = journalEntryId ?? "(none)";
   switch (input.operation) {
-    case "add_representative_node": {
-      const name = input.name ?? "";
-      const countBefore = countNodesNamed(before, name);
-      const countAfter = countNodesNamed(after, name);
-      if (countAfter <= countBefore) {
-        throw new AbapError(
-          "CHECK_FAILED",
-          `add_representative_node "${name}" on ${before.name}: the PUT was accepted (journalEntryId ${entryId}) ` +
-            `but a fresh re-read shows ${countAfter} node(s) named "${name}" after the write, versus ${countBefore} ` +
-            `before — the node was not actually added. ${HOUSE_SENTENCE}`,
-          { bo: before.name, node: name, countBefore, countAfter, journalEntryId },
-        );
-      }
-      return;
-    }
-    case "remove_representative_node": {
-      const name = input.node ?? "";
-      const countBefore = countNodesNamed(before, name);
-      const countAfter = countNodesNamed(after, name);
-      if (countAfter >= countBefore) {
-        throw new AbapError(
-          "CHECK_FAILED",
-          `remove_representative_node "${name}" on ${before.name}: the PUT was accepted (journalEntryId ${entryId}) ` +
-            `but a fresh re-read shows ${countAfter} node(s) named "${name}" after the write, versus ${countBefore} ` +
-            `before — the node was not actually removed. ${HOUSE_SENTENCE}`,
-          { bo: before.name, node: name, countBefore, countAfter, journalEntryId },
-        );
-      }
-      return;
-    }
-    case "embed_dependent_object": {
-      const parent = input.node ?? "";
-      const emb = input.name ?? "";
-      const embNodeName = `${emb}.ROOT`;
-      const nodeCountBefore = countNodesNamed(before, embNodeName);
-      const nodeCountAfter = countNodesNamed(after, embNodeName);
-      const assocCountBefore = countAssociationsNamed(before, parent, emb);
-      const assocCountAfter = countAssociationsNamed(after, parent, emb);
-      const nodeMissing = nodeCountAfter <= nodeCountBefore;
-      const assocMissing = assocCountAfter <= assocCountBefore;
-      if (nodeMissing || assocMissing) {
-        const missing = [
-          nodeMissing ? `the "${embNodeName}" node` : undefined,
-          assocMissing ? `the "${emb}" association on "${parent}"` : undefined,
-        ]
-          .filter((x): x is string => x !== undefined)
-          .join(" and ");
-        throw new AbapError(
-          "CHECK_FAILED",
-          `embed_dependent_object "${emb}" on ${before.name} node "${parent}": the PUT was accepted ` +
-            `(journalEntryId ${entryId}) but a fresh re-read shows ${missing} did not land — node count ` +
-            `${nodeCountBefore} -> ${nodeCountAfter}, association count ${assocCountBefore} -> ${assocCountAfter}. ${HOUSE_SENTENCE}`,
-          { bo: before.name, node: parent, name: emb, nodeCountBefore, nodeCountAfter, assocCountBefore, assocCountAfter, journalEntryId },
-        );
-      }
-      return;
-    }
     case "remove_dependent_object": {
       const parent = input.node ?? "";
       const emb = input.name ?? "";
@@ -712,32 +327,46 @@ export function verifyDelegation(
   }
 }
 
-/** Response notes for the operation. Never empty for embed_dependent_object / add_representative_node. */
+/** Response notes for the operation: [] for remove_dependent_object, two notes for a cross-BO add_association. */
 export function delegationNotes(input: DelegationInput): readonly string[] {
   const spec = input.spec ?? {};
-  switch (input.operation) {
-    case "add_representative_node": {
-      const representedBo = str(spec.representedBo) ?? "<REPRESENTED_BO>";
+  if (input.operation === "add_association") {
+    const targetRef = spec.targetNodeRef;
+    let targetName: string | undefined;
+    let targetBo: string | undefined;
+    if (targetRef && typeof targetRef === "object") {
+      const o = targetRef as Record<string, unknown>;
+      const name = str(o.name);
+      if (name && name.includes("~")) {
+        targetName = name;
+        targetBo = name.slice(0, name.indexOf("~"));
+      } else {
+        const uri = str(o.uri);
+        if (uri) {
+          const hashIdx = uri.indexOf("#");
+          const beforeHash = hashIdx >= 0 ? uri.slice(0, hashIdx) : uri;
+          const segments = beforeHash.split("/").filter(Boolean);
+          targetBo = segments[segments.length - 1];
+          targetName = name ?? targetBo;
+        }
+      }
+    }
+    if (targetBo && targetBo.toLowerCase() !== input.bo.toLowerCase()) {
       return [
-        `The wire carries no link from a representative node to the BO it represents — "${representedBo}" was ` +
-          `checked for existence and deliberately NOT written to the node. Add the cross-BO association yourself: ` +
-          `abap_bopf_edit add_association on the node that should carry the link, with spec.implementationType: ` +
-          `"Association" and spec.targetNodeRef: { name: "${representedBo}~ROOT", type: "BOBF" }. Observed captures ` +
-          `of real cross-BO associations also carry a spec.implementationClassRef (e.g. ` +
-          `/BOBF/CL_C_DEMO_CUSTOMER_XBO for /BOBF/DEMO_CUSTOMER~ROOT) — BOPF may require one too.`,
+        `Cross-BO association: targetNodeRef names "${targetName}", a node on another business object. Observed on ` +
+          `this release: the server answers such a write by minting a representative node of its own, named ` +
+          `REP_<random> — the name is server-assigned and cannot be chosen, and a client-written parentless node is ` +
+          `rejected outright by the /BOBF/ST_CONF_ADT deserializer. Observed live only as the node's absence once ` +
+          `the association was gone, so remove_association should remove the minted node too — the operation ` +
+          `itself was not exercised against one.`,
+        `Cross-BO associations captured from SAP's own business objects also carry an implementationClassRef (an ` +
+          `XBO class such as /BOBF/CL_C_DEMO_CUSTOMER_XBO); without one, activation reported "Association has to ` +
+          `have exactly one Attribute Binding". Observed once on this release: activating a business object with a ` +
+          `cross-BO association present destroyed the ABAP session with an ASSERTION_FAILED short dump in ` +
+          `/BOBF/CL_CONF_MODEL_API_MAP. Neither behaviour is established as a rule.`,
       ];
     }
-    case "embed_dependent_object": {
-      const dependentObject = str(spec.dependentObject) ?? "<DEPENDENT_OBJECT>";
-      return [
-        `The host BO's XML never names the dependent object anywhere, so a 200 plus a read-back showing the ` +
-          `association/node pair does NOT prove the dependent object is really embedded. spec.dependentObject ` +
-          `("${dependentObject}") was checked to exist and to have objectCategory "dependentObject" but is ` +
-          `deliberately not written to the wire — activation and a runtime check are the only way to confirm the ` +
-          `embedding actually works.`,
-      ];
-    }
-    default:
-      return [];
+    return [];
   }
+  return [];
 }

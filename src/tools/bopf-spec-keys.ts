@@ -174,20 +174,6 @@ const SET_NODE_FLAGS_FIELDS: FieldTable = {
   authorizationClassRef: "refOrNull",
 };
 
-/** `mutateAddRepresentativeNode` + `validateDelegationShape`/`delegationNetworkPreflight` (bopf-delegation.ts). */
-const ADD_REPRESENTATIVE_NODE_FIELDS: FieldTable = {
-  representedBo: "string",
-  xmlName: "string",
-};
-
-/** `mutateEmbedDependentObject` + `validateDelegationShape`/`delegationNetworkPreflight` (bopf-delegation.ts). */
-const EMBED_DEPENDENT_OBJECT_FIELDS: FieldTable = {
-  dependentObject: "string",
-  xmlName: "string",
-  multiplicity: "string",
-  implementationClassRef: "ref",
-};
-
 /** bopf.ts's set_association_fields patch path: attribute fields via `patchOpenTagAttrs`, ref fields via `spliceSetElementRef` — every one `unsettable`, so `null` clears it. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
 const SET_ASSOCIATION_FIELDS: FieldTable = {
   xmlName: "stringOrNull",
@@ -291,9 +277,6 @@ const OPERATION_FIELDS: Readonly<Record<string, FieldTable>> = {
   add_alternative_key: ADD_ALTERNATIVE_KEY_FIELDS,
   remove_alternative_key: NO_SPEC_FIELDS,
   set_node_flags: SET_NODE_FLAGS_FIELDS,
-  add_representative_node: ADD_REPRESENTATIVE_NODE_FIELDS,
-  remove_representative_node: NO_SPEC_FIELDS,
-  embed_dependent_object: EMBED_DEPENDENT_OBJECT_FIELDS,
   remove_dependent_object: NO_SPEC_FIELDS,
   ...SET_CHILD_FIELD_TABLES,
   activate: NO_SPEC_FIELDS,

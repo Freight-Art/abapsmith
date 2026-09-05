@@ -1,5 +1,5 @@
 /**
- * `abap_do`'s bopf group: 30 `bopf_*` actions delegating to v1's
+ * `abap_do`'s bopf group: 27 `bopf_*` actions delegating to v1's
  * `runBopfRead`/`runBopfEdit`/`runBopfDelete` (src/tools/bopf.ts) and
  * `runBopfTest` (src/tools/bopf-test.ts). Those v1 functions are self-contained
  * (own preflight/connect/pool slot/write-gating) and throw `AbapError` directly,
@@ -114,9 +114,6 @@ export const BOPF_HANDLERS: ReadonlyMap<string, DoHandler> = new Map<string, DoH
   ["bopf_remove_alternative_key", editOp("remove_alternative_key")],
   ["bopf_set_alternative_key_fields", editOp("set_alternative_key_fields")],
   ["bopf_set_node_flags", editOp("set_node_flags")],
-  ["bopf_add_representative_node", editOp("add_representative_node")],
-  ["bopf_remove_representative_node", editOp("remove_representative_node")],
-  ["bopf_embed_dependent_object", editOp("embed_dependent_object")],
   ["bopf_remove_dependent_object", editOp("remove_dependent_object")],
   ["bopf_activate", editOp("activate")],
   ["bopf_test", test],

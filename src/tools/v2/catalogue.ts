@@ -348,37 +348,11 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     args: "node, nodeId, spec, activate",
   },
   {
-    action: "bopf_add_representative_node",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"add_representative_node"})',
-    summary: "Add a parentless representative node standing in for another BO.",
-    args: "name (new node name), spec.representedBo (required), spec.xmlName, activate",
-  },
-  {
-    action: "bopf_remove_representative_node",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"remove_representative_node"})',
-    summary: "Remove a representative node.",
-    args: "node, nodeId, activate",
-  },
-  {
-    action: "bopf_embed_dependent_object",
-    group: "bopf",
-    minMode: "edit",
-    v1: 'abap_bopf_edit({operation:"embed_dependent_object"})',
-    summary: "Embed a dependent object under a node (a DoComposition association plus a \"<name>.ROOT\" node).",
-    args:
-      "node (parent), name (new embedding/association name), spec.dependentObject (required), spec.xmlName, " +
-      "spec.multiplicity, spec.implementationClassRef, i_know_this_may_not_activate (required true), activate",
-  },
-  {
     action: "bopf_remove_dependent_object",
     group: "bopf",
     minMode: "edit",
     v1: 'abap_bopf_edit({operation:"remove_dependent_object"})',
-    summary: "Remove an embedded dependent object (its association and \"<name>.ROOT\" node).",
+    summary: 'Remove an existing dependent-object embedding (its association and "<name>.ROOT" node).',
     args: "node (parent), name, activate",
   },
   {
