@@ -10,7 +10,7 @@
  *
  * Evaluated in strict order — the first failing rule wins, and its message
  * is the reason quoted back to the caller. `preview` runs every rule but
- * turns 10-12 (corr_nr and confirm — nothing to require or confirm when
+ * turns 12-14 (corr_nr and confirm — nothing to require or confirm when
  * nothing is being written) into advisory notes instead of a refusal, so a
  * consultant previewing a change sees in advance what `upsert`/`delete` will
  * demand.
@@ -74,7 +74,7 @@ const DELIVERY_CLASS_DENIALS: Readonly<Record<string, string>> = {
   W: "system table for repository and CTS objects — part of the transport/repository infrastructure itself",
 };
 
-/** Key-field data types `ASSIGN ... CASTING TYPE c` can safely address — see the comment on the rule-8 check below. */
+/** Key-field data types `ASSIGN ... CASTING TYPE c` can safely address — see the comment on the rule-10 check below. */
 const CHAR_LIKE_KEY_TYPES: ReadonlySet<string> = new Set([
   "CLNT",
   "CHAR",
@@ -163,9 +163,30 @@ export function evaluateImgWrite(
     );
   }
 
+  // ---- Rule 4: ambiguity. Runs before any rule below that treats probe.table as a settled fact —
+  // an ambiguous activity has no single table to judge, so a delivery-class/key-field/etc verdict
+  // on one candidate would misdiagnose the actual problem. ----
+  if (probe.ambiguity !== undefined) {
+    return refuse(
+      "ambiguous-target",
+      `This IMG activity resolved to more than one candidate: ${probe.ambiguity} Pass the view or ` +
+        "table name explicitly instead of the activity, so there is exactly one target to judge.",
+    );
+  }
+
+  // ---- Rule 5: target kind. Also ahead of the table-dependent rules below, for the same reason —
+  // a target this tool cannot maintain at all makes a delivery-class complaint about its table noise. ----
+  if (probe.targetKind === "other") {
+    return refuse(
+      "target-kind",
+      "This IMG activity resolves to a target this tool does not recognise as writable. Only a " +
+        "maintenance view, a view cluster or a transparent table can be written here.",
+    );
+  }
+
   const table = probe.table;
 
-  // ---- Rule 4: delivery class ----
+  // ---- Rule 6: delivery class ----
   const deliveryClass = table.deliveryClass.trim().toUpperCase();
   if (!WRITABLE_DELIVERY_CLASSES.has(deliveryClass)) {
     const reason =
@@ -179,7 +200,7 @@ export function evaluateImgWrite(
     return refuse("delivery-class", reason);
   }
 
-  // ---- Rule 5: cross-client ----
+  // ---- Rule 7: cross-client ----
   if (table.clientDependent === false && req.allowCrossClient !== true) {
     return refuse(
       "cross-client",
@@ -189,7 +210,7 @@ export function evaluateImgWrite(
     );
   }
 
-  // ---- Rule 6: data-preview deny-list — a table this server refuses to read must not be written either. ----
+  // ---- Rule 8: data-preview deny-list — a table this server refuses to read must not be written either. ----
   const denied = isPreviewTableDenied(table.table, opts?.previewDenyExtra);
   if (denied.denied) {
     const rule = denied.rule;
@@ -201,7 +222,7 @@ export function evaluateImgWrite(
     );
   }
 
-  // ---- Rule 7: row count ----
+  // ---- Rule 9: row count ----
   if (req.rows.length === 0) {
     return refuse("row-count", "No rows were supplied, so there is nothing to write.");
   }
@@ -213,7 +234,7 @@ export function evaluateImgWrite(
     );
   }
 
-  // ---- Rule 8: non-character key fields. The transport key (E071K-TABKEY) is built in ABAP with
+  // ---- Rule 10: non-character key fields. The transport key (E071K-TABKEY) is built in ABAP with
   // `ASSIGN ls_key TO <lv_key> CASTING TYPE c` over a key structure typed off the table — sound only
   // when every key component is character-like, which is what this checks. ----
   for (const field of table.fields) {
@@ -229,7 +250,7 @@ export function evaluateImgWrite(
     }
   }
 
-  // ---- Rule 9: CCCORACTIV outright block — see classifyCccoractiv's own comment on staleness. ----
+  // ---- Rule 11: CCCORACTIV outright block — see classifyCccoractiv's own comment on staleness. ----
   const cccoractiv = classifyCccoractiv(probe.cccoractiv);
   if (cccoractiv === "blocked") {
     return refuse(
@@ -240,7 +261,7 @@ export function evaluateImgWrite(
     );
   }
 
-  // ---- Rules 10-12: corr_nr and confirm. Enforced for upsert/delete; for preview, turned into
+  // ---- Rules 12-14: corr_nr and confirm. Enforced for upsert/delete; for preview, turned into
   // advisory notes since nothing is actually being written yet. ----
   const notes: string[] = [
     "This write does not run the target view's own table-maintenance event modules (PBO/PAI, F4 " +
@@ -303,24 +324,6 @@ export function evaluateImgWrite(
   } else {
     notes.push(
       `Applying this change would require confirm: "${baseTable}" (the base table's own name, not the activity or view).`,
-    );
-  }
-
-  // ---- Rule 13: target kind ----
-  if (probe.targetKind === "other") {
-    return refuse(
-      "target-kind",
-      "This IMG activity resolves to a target this tool does not recognise as writable. Only a " +
-        "maintenance view, a view cluster or a transparent table can be written here.",
-    );
-  }
-
-  // ---- Rule 14: ambiguity ----
-  if (probe.ambiguity !== undefined) {
-    return refuse(
-      "ambiguous-target",
-      `This IMG activity resolved to more than one candidate: ${probe.ambiguity} Pass the view or ` +
-        "table name explicitly instead of the activity, so there is exactly one target to judge.",
     );
   }
 

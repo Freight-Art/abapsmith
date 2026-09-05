@@ -111,7 +111,54 @@ describe("evaluateImgWrite: rule 3 — read-only", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 4 — delivery class", () => {
+describe("evaluateImgWrite: rule 4 — ambiguity", () => {
+  it("refuses when the activity resolved to more than one candidate", () => {
+    const v = evaluateImgWrite(probe({ ambiguity: "ZVIEW_A, ZVIEW_B" }), req(), cfg());
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) {
+      expect(v.rule).toBe("ambiguous-target");
+      expect(v.reason).toContain("ZVIEW_A, ZVIEW_B");
+    }
+  });
+
+  it("wins over a delivery-class problem an ambiguous table would independently hit — the real defect this fix targets", () => {
+    const v = evaluateImgWrite(
+      probe({ ambiguity: "ZVIEW_A, ZVIEW_B", table: table({ deliveryClass: "A" }) }),
+      req(),
+      cfg(),
+    );
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) {
+      expect(v.rule).toBe("ambiguous-target");
+      expect(v.reason).toContain("ZVIEW_A, ZVIEW_B");
+    }
+  });
+});
+
+describe("evaluateImgWrite: rule 5 — target kind", () => {
+  it("refuses an unrecognised target kind", () => {
+    const v = evaluateImgWrite(probe({ targetKind: "other" }), req(), cfg());
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) expect(v.rule).toBe("target-kind");
+  });
+
+  it.each(["view", "cluster", "table"] as const)("passes this rule for targetKind %s", (targetKind) => {
+    const v = evaluateImgWrite(probe({ targetKind }), req(), cfg());
+    if (!v.allowed) expect(v.rule).not.toBe("target-kind");
+  });
+
+  it("wins over a delivery-class problem the unmaintainable target's table would independently hit", () => {
+    const v = evaluateImgWrite(
+      probe({ targetKind: "other", table: table({ deliveryClass: "A" }) }),
+      req(),
+      cfg(),
+    );
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) expect(v.rule).toBe("target-kind");
+  });
+});
+
+describe("evaluateImgWrite: rule 6 — delivery class", () => {
   it.each(["A", "L", "S", "W", ""])("refuses delivery class %s", (deliveryClass) => {
     const v = evaluateImgWrite(probe({ table: table({ deliveryClass }) }), req(), cfg());
     expect(v.allowed).toBe(false);
@@ -128,7 +175,7 @@ describe("evaluateImgWrite: rule 4 — delivery class", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 5 — cross-client", () => {
+describe("evaluateImgWrite: rule 7 — cross-client", () => {
   it("refuses a client-independent table without allowCrossClient", () => {
     const v = evaluateImgWrite(probe({ table: table({ clientDependent: false }) }), req(), cfg());
     expect(v.allowed).toBe(false);
@@ -148,7 +195,7 @@ describe("evaluateImgWrite: rule 5 — cross-client", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 6 — data-preview deny-list", () => {
+describe("evaluateImgWrite: rule 8 — data-preview deny-list", () => {
   it("refuses a table on the default preview deny-list", () => {
     const v = evaluateImgWrite(probe({ table: table({ table: "USR02" }) }), req(), cfg());
     expect(v.allowed).toBe(false);
@@ -167,7 +214,7 @@ describe("evaluateImgWrite: rule 6 — data-preview deny-list", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 7 — row count", () => {
+describe("evaluateImgWrite: rule 9 — row count", () => {
   it("refuses zero rows", () => {
     const v = evaluateImgWrite(probe(), req({ rows: [] }), cfg());
     expect(v.allowed).toBe(false);
@@ -194,7 +241,7 @@ describe("evaluateImgWrite: rule 7 — row count", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 8 — non-character key field", () => {
+describe("evaluateImgWrite: rule 10 — non-character key field", () => {
   it("refuses a key field whose data type is not character-like", () => {
     const badFields: readonly PolicyField[] = [
       { field: "MANDT", dataType: "CLNT", key: true },
@@ -220,7 +267,7 @@ describe("evaluateImgWrite: rule 8 — non-character key field", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 9 — T000-CCCORACTIV outright block", () => {
+describe("evaluateImgWrite: rule 11 — T000-CCCORACTIV outright block", () => {
   it('refuses outright when CCCORACTIV is "2"', () => {
     const v = evaluateImgWrite(probe({ cccoractiv: "2" }), req(), cfg());
     expect(v.allowed).toBe(false);
@@ -231,7 +278,7 @@ describe("evaluateImgWrite: rule 9 — T000-CCCORACTIV outright block", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 10 — corr_nr required", () => {
+describe("evaluateImgWrite: rule 12 — corr_nr required", () => {
   it("refuses a missing corr_nr when recording is required (CCCORACTIV = '1')", () => {
     const v = evaluateImgWrite(probe({ cccoractiv: "1" }), req({ corrNr: undefined }), cfg());
     expect(v.allowed).toBe(false);
@@ -264,7 +311,7 @@ describe("evaluateImgWrite: rule 10 — corr_nr required", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 11 — corr_nr not allowed", () => {
+describe("evaluateImgWrite: rule 13 — corr_nr not allowed", () => {
   it("refuses a corr_nr not named by a pinned allowlist", () => {
     const v = evaluateImgWrite(
       probe(),
@@ -309,7 +356,7 @@ describe("evaluateImgWrite: rule 11 — corr_nr not allowed", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 12 — confirm", () => {
+describe("evaluateImgWrite: rule 14 — confirm", () => {
   it("refuses upsert with no confirm", () => {
     const v = evaluateImgWrite(probe(), req({ confirm: undefined }), cfg());
     expect(v.allowed).toBe(false);
@@ -328,34 +375,20 @@ describe("evaluateImgWrite: rule 12 — confirm", () => {
   });
 });
 
-describe("evaluateImgWrite: rule 13 — target kind", () => {
-  it("refuses an unrecognised target kind", () => {
-    const v = evaluateImgWrite(probe({ targetKind: "other" }), req(), cfg());
-    expect(v.allowed).toBe(false);
-    if (!v.allowed) expect(v.rule).toBe("target-kind");
-  });
-
-  it.each(["view", "cluster", "table"] as const)("passes this rule for targetKind %s", (targetKind) => {
-    const v = evaluateImgWrite(probe({ targetKind }), req(), cfg());
-    if (!v.allowed) expect(v.rule).not.toBe("target-kind");
-  });
-});
-
-describe("evaluateImgWrite: rule 14 — ambiguity", () => {
-  it("refuses when the activity resolved to more than one candidate", () => {
-    const v = evaluateImgWrite(probe({ ambiguity: "ZVIEW_A, ZVIEW_B" }), req(), cfg());
-    expect(v.allowed).toBe(false);
-    if (!v.allowed) {
-      expect(v.rule).toBe("ambiguous-target");
-      expect(v.reason).toContain("ZVIEW_A, ZVIEW_B");
-    }
-  });
-});
-
 describe("evaluateImgWrite: ordering", () => {
   it("refuses a productive system before a delivery-class problem is even reached", () => {
     const v = evaluateImgWrite(
       probe({ table: table({ deliveryClass: "S" }) }),
+      req(),
+      cfg({ productive: true }),
+    );
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) expect(v.rule).toBe("productive-system");
+  });
+
+  it("refuses a productive system before an ambiguous target is even reached — system rules always win", () => {
+    const v = evaluateImgWrite(
+      probe({ ambiguity: "ZVIEW_A, ZVIEW_B" }),
       req(),
       cfg({ productive: true }),
     );
