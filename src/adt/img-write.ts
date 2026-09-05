@@ -1,9 +1,10 @@
 /**
  * IMG customizing write orchestration: the deploy-then-execute choreography
  * for the probe/apply generated bridges (`img-write-bridge.ts`) and for the
- * customizing-request-creation bridge (`customizing-request.ts`) — the same
- * shape `img-bridge.ts`'s `runImgRead` uses on the read side (validate plan
- * → generate source → deploy → execute → parse transcript → typed result).
+ * customizing-request-creation bridge (`customizing-request.ts`). Writing
+ * still needs a generated ABAP bridge (ADT has no IMG REST route); reading
+ * does not — `src/adt/img-read.ts` reads catalog tables straight through the
+ * freestyle data-preview endpoint and deploys nothing.
  *
  * This module contributes ONLY that choreography. Every plan-validation
  * rule, ABAP fragment and transcript-parsing rule already lives in
@@ -11,9 +12,8 @@
  * nothing here duplicates any of them — each function below calls straight
  * through to the one place that logic is allowed to exist.
  *
- * All three bridges land in `HELPER_PACKAGE` (`$ZMCP_HELPERS`), not the
- * legacy `BRIDGE_PACKAGE` (`$TMP`) the read-side bridges still use — see
- * `helper-package.ts`.
+ * All three bridges land in `HELPER_PACKAGE` (`$ZMCP_HELPERS`), never `$TMP`
+ * — see `helper-package.ts`.
  */
 import type { AbapConnection } from "./connection.js";
 import type { SafetyGate } from "../safety.js";

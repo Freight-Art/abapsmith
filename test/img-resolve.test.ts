@@ -1,16 +1,33 @@
 /**
  * Tests for `src/adt/img-resolve.ts` — the pure activity/object/table join
- * over a parsed `ImgTranscript`. No connection, no bridge, no tool layer:
- * transcripts here are built directly from `IMG_LINE_PREFIX` lines and fed
- * through `parseImgTranscript`, exactly like `img-bridge.test.ts` does.
+ * over an `ImgTranscript`. No connection, no bridge, no tool layer: fixtures
+ * here are `ImgTranscript` object literals built directly, since `img-read.ts`
+ * (unlike the withdrawn `img-bridge.ts`) has no line-based transcript format
+ * to parse — a transcript is just the typed rows a read call assembled.
  */
 import { describe, expect, it } from "vitest";
 
-import { IMG_LINE_PREFIX, parseImgTranscript } from "../src/adt/img-bridge.js";
+import type { ImgTranscript } from "../src/adt/img-read.js";
 import { parseDeliveryClass, resolveActivity, resolveObject } from "../src/adt/img-resolve.js";
 
-function lines(...rows: string[]): string {
-  return rows.map((r) => `${IMG_LINE_PREFIX}${r}`).join("\n");
+/** Every field defaulted to "nothing found"; each test overrides only the rows it needs. */
+function blankTranscript(overrides: Partial<ImgTranscript> = {}): ImgTranscript {
+  return {
+    totalRows: null,
+    page: null,
+    treeId: null,
+    activities: [],
+    path: [],
+    nodes: [],
+    objects: [],
+    tables: [],
+    fields: [],
+    docs: [],
+    notes: [],
+    errors: [],
+    raw: "",
+    ...overrides,
+  };
 }
 
 describe("parseDeliveryClass", () => {
@@ -35,7 +52,7 @@ describe("parseDeliveryClass", () => {
 
 describe("resolveActivity", () => {
   it("returns an empty-but-valid value for an empty transcript, never throwing", () => {
-    const t = parseImgTranscript("");
+    const t = blankTranscript();
     const r = resolveActivity(t);
     expect(r.activity).toBe("");
     expect(r.title).toBe("");
@@ -47,33 +64,51 @@ describe("resolveActivity", () => {
     expect(r.ambiguity).toBeUndefined();
   });
 
-  it("sorts path steps by APATH position regardless of line order", () => {
-    const t = parseImgTranscript(
-      lines(
-        "ACT activity=[SIMG_ACT] objects=[1] nodes=[1] title=[Activity]",
-        "APATH activity=[SIMG_ACT] pos=[2] node=[N2] title=[Second]",
-        "APATH activity=[SIMG_ACT] pos=[1] node=[N1] title=[First]",
-        "APATH activity=[SIMG_ACT] pos=[3] node=[N3] title=[Third]",
-        "OBJ activity=[SIMG_ACT] kind=[table] objtype=[] name=[T001] title=[Company Codes]",
-        "TAB object=[T001] table=[T001] clidep=[X] delclass=[A] via=[OBJSL] title=[Company Codes]",
-      ),
-    );
+  it("sorts path steps by position regardless of row order", () => {
+    const t = blankTranscript({
+      activities: [{ activity: "SIMG_ACT", title: "Activity", objects: 1, nodes: 1 }],
+      path: [
+        { activity: "SIMG_ACT", position: 2, node: "N2", title: "Second" },
+        { activity: "SIMG_ACT", position: 1, node: "N1", title: "First" },
+        { activity: "SIMG_ACT", position: 3, node: "N3", title: "Third" },
+      ],
+      objects: [{ kind: "table", objectType: "", name: "T001", title: "Company Codes" }],
+      tables: [
+        {
+          object: "T001",
+          table: "T001",
+          clientDependent: true,
+          deliveryClass: "A",
+          via: "OBJSL",
+          title: "Company Codes",
+        },
+      ],
+    });
     const r = resolveActivity(t);
     expect(r.path.map((p) => p.node)).toEqual(["N1", "N2", "N3"]);
     expect(r.path.map((p) => p.title)).toEqual(["First", "Second", "Third"]);
   });
 
-  it("joins fields onto their table, ordered by position, with keyFields as the KEYFLAG=X subset", () => {
-    const t = parseImgTranscript(
-      lines(
-        "ACT activity=[SIMG_ACT] objects=[1] nodes=[0] title=[Activity]",
-        "OBJ activity=[SIMG_ACT] kind=[table] objtype=[] name=[T001] title=[Company Codes]",
-        "TAB object=[T001] table=[T001] clidep=[X] delclass=[A] via=[OBJSL] title=[Company Codes]",
-        "FLD table=[T001] field=[BUKRS] pos=[1] key=[X] type=[CHAR] len=[4] rollname=[BUKRS]",
-        "FLD table=[T001] field=[MANDT] pos=[0] key=[X] type=[CLNT] len=[3] rollname=[MANDT]",
-        "FLD table=[T001] field=[BUTXT] pos=[2] key=[] type=[CHAR] len=[25] rollname=[BUTXT]",
-      ),
-    );
+  it("joins fields onto their table, ordered by position, with keyFields as the key=true subset", () => {
+    const t = blankTranscript({
+      activities: [{ activity: "SIMG_ACT", title: "Activity", objects: 1, nodes: 0 }],
+      objects: [{ kind: "table", objectType: "", name: "T001", title: "Company Codes" }],
+      tables: [
+        {
+          object: "T001",
+          table: "T001",
+          clientDependent: true,
+          deliveryClass: "A",
+          via: "OBJSL",
+          title: "Company Codes",
+        },
+      ],
+      fields: [
+        { table: "T001", field: "BUKRS", key: true, position: 1, dataType: "CHAR", length: "4", dataElement: "BUKRS" },
+        { table: "T001", field: "MANDT", key: true, position: 0, dataType: "CLNT", length: "3", dataElement: "MANDT" },
+        { table: "T001", field: "BUTXT", key: false, position: 2, dataType: "CHAR", length: "25", dataElement: "BUTXT" },
+      ],
+    });
     const r = resolveActivity(t);
     const table = r.primaryTable;
     expect(table).toBeDefined();
@@ -84,13 +119,20 @@ describe("resolveActivity", () => {
   });
 
   it("sets primary when exactly one object resolves, and primaryTable when that object has exactly one table", () => {
-    const t = parseImgTranscript(
-      lines(
-        "ACT activity=[SIMG_ACT] objects=[1] nodes=[0] title=[Activity]",
-        "OBJ activity=[SIMG_ACT] kind=[table] objtype=[] name=[T001] title=[Company Codes]",
-        "TAB object=[T001] table=[T001] clidep=[X] delclass=[A] via=[OBJSL] title=[Company Codes]",
-      ),
-    );
+    const t = blankTranscript({
+      activities: [{ activity: "SIMG_ACT", title: "Activity", objects: 1, nodes: 0 }],
+      objects: [{ kind: "table", objectType: "", name: "T001", title: "Company Codes" }],
+      tables: [
+        {
+          object: "T001",
+          table: "T001",
+          clientDependent: true,
+          deliveryClass: "A",
+          via: "OBJSL",
+          title: "Company Codes",
+        },
+      ],
+    });
     const r = resolveActivity(t);
     expect(r.primary?.name).toBe("T001");
     expect(r.primaryTable?.table).toBe("T001");
@@ -98,13 +140,13 @@ describe("resolveActivity", () => {
   });
 
   it("leaves primary unset and names the candidates in ambiguity when an activity has several objects", () => {
-    const t = parseImgTranscript(
-      lines(
-        "ACT activity=[SIMG_ACT] objects=[2] nodes=[0] title=[Activity]",
-        "OBJ activity=[SIMG_ACT] kind=[view] objtype=[] name=[V_T001] title=[Company Codes View]",
-        "OBJ activity=[SIMG_ACT] kind=[table] objtype=[] name=[T001] title=[Company Codes]",
-      ),
-    );
+    const t = blankTranscript({
+      activities: [{ activity: "SIMG_ACT", title: "Activity", objects: 2, nodes: 0 }],
+      objects: [
+        { kind: "view", objectType: "", name: "V_T001", title: "Company Codes View" },
+        { kind: "table", objectType: "", name: "T001", title: "Company Codes" },
+      ],
+    });
     const r = resolveActivity(t);
     expect(r.primary).toBeUndefined();
     expect(r.primaryTable).toBeUndefined();
@@ -115,14 +157,14 @@ describe("resolveActivity", () => {
   });
 
   it("leaves primaryTable unset and names the candidates in ambiguity when the one object spans several tables", () => {
-    const t = parseImgTranscript(
-      lines(
-        "ACT activity=[SIMG_ACT] objects=[1] nodes=[0] title=[Activity]",
-        "OBJ activity=[SIMG_ACT] kind=[view] objtype=[] name=[V_FOO] title=[Foo View]",
-        "TAB object=[V_FOO] table=[T001] clidep=[X] delclass=[A] via=[DD26S] title=[]",
-        "TAB object=[V_FOO] table=[T002] clidep=[] delclass=[C] via=[DD26S] title=[]",
-      ),
-    );
+    const t = blankTranscript({
+      activities: [{ activity: "SIMG_ACT", title: "Activity", objects: 1, nodes: 0 }],
+      objects: [{ kind: "view", objectType: "", name: "V_FOO", title: "Foo View" }],
+      tables: [
+        { object: "V_FOO", table: "T001", clientDependent: true, deliveryClass: "A", via: "DD26S", title: "" },
+        { object: "V_FOO", table: "T002", clientDependent: false, deliveryClass: "C", via: "DD26S", title: "" },
+      ],
+    });
     const r = resolveActivity(t);
     expect(r.primary?.name).toBe("V_FOO");
     expect(r.primaryTable).toBeUndefined();
@@ -131,33 +173,33 @@ describe("resolveActivity", () => {
     expect(r.ambiguity).toContain("T002");
   });
 
-  it("attaches the activity's documentation reference when a DOC line is present", () => {
-    const t = parseImgTranscript(
-      lines(
-        "ACT activity=[SIMG_ACT] objects=[0] nodes=[0] title=[Activity]",
-        "DOC activity=[SIMG_ACT] class=[TX] name=[SIMG_ACT_DOC]",
-      ),
-    );
+  it("attaches the activity's documentation reference when a doc row is present", () => {
+    const t = blankTranscript({
+      activities: [{ activity: "SIMG_ACT", title: "Activity", objects: 0, nodes: 0 }],
+      docs: [{ activity: "SIMG_ACT", docId: "SIMG_ACT_DOC" }],
+    });
     const r = resolveActivity(t);
-    expect(r.doc).toEqual({ docClass: "TX", docName: "SIMG_ACT_DOC" });
+    expect(r.doc).toEqual({ docId: "SIMG_ACT_DOC" });
   });
 });
 
 describe("resolveObject", () => {
   it("returns undefined for an empty transcript rather than throwing", () => {
-    const t = parseImgTranscript("");
+    const t = blankTranscript();
     expect(resolveObject(t)).toBeUndefined();
   });
 
   it("joins the one object's tables and fields", () => {
-    const t = parseImgTranscript(
-      lines(
-        "OBJ activity=[SIMG_ACT] kind=[customizing_object] objtype=[V] name=[ZFOO] title=[Foo]",
-        "TAB object=[ZFOO] table=[ZFOO_T] clidep=[X] delclass=[C] via=[OBJSL] title=[Foo Table]",
-        "FLD table=[ZFOO_T] field=[MANDT] pos=[0] key=[X] type=[CLNT] len=[3] rollname=[MANDT]",
-        "FLD table=[ZFOO_T] field=[ID] pos=[1] key=[X] type=[CHAR] len=[10] rollname=[ZFOO_ID]",
-      ),
-    );
+    const t = blankTranscript({
+      objects: [{ kind: "customizing_object", objectType: "V", name: "ZFOO", title: "Foo" }],
+      tables: [
+        { object: "ZFOO", table: "ZFOO_T", clientDependent: true, deliveryClass: "C", via: "OBJSL", title: "Foo Table" },
+      ],
+      fields: [
+        { table: "ZFOO_T", field: "MANDT", key: true, position: 0, dataType: "CLNT", length: "3", dataElement: "MANDT" },
+        { table: "ZFOO_T", field: "ID", key: true, position: 1, dataType: "CHAR", length: "10", dataElement: "ZFOO_ID" },
+      ],
+    });
     const o = resolveObject(t);
     expect(o?.name).toBe("ZFOO");
     expect(o?.objectType).toBe("V");

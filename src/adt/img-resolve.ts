@@ -1,7 +1,7 @@
 /**
  * Pure joins over a parsed `ImgTranscript` — no connection, no gate, no I/O.
  *
- * `img-bridge.ts` emits flat, denormalised rows (`ImgObjectRow`, `ImgTableRow`,
+ * `img-read.ts` emits flat, denormalised rows (`ImgObjectRow`, `ImgTableRow`,
  * `ImgFieldRow`, ...); both the read renderer (`src/tools/img.ts`) and the
  * write surface being built on top of `abap_img` need the same joined shape —
  * activity -> maintenance object -> base table(s) -> key fields, with
@@ -15,10 +15,10 @@
  * when it is not, in words a consultant reading the tool output can use.
  */
 
-import type { ImgFieldRow, ImgObjectKind, ImgObjectRow, ImgTableRow, ImgTranscript } from "./img-bridge.js";
+import type { ImgFieldRow, ImgObjectKind, ImgObjectRow, ImgTableRow, ImgTranscript } from "./img-read.js";
 
 /**
- * Same member set as `ImgObjectKind` (`img-bridge.ts`) — aliased rather than
+ * Same member set as `ImgObjectKind` (`img-read.ts`) — aliased rather than
  * redeclared so the two can never drift apart on which kinds exist.
  */
 export type ImgTargetKind = ImgObjectKind;
@@ -73,7 +73,7 @@ export interface ResolvedActivity {
   /** Sorted by APATH position. */
   readonly path: readonly ImgPathStep[];
   readonly objects: readonly ResolvedObject[];
-  readonly doc?: { readonly docClass: string; readonly docName: string };
+  readonly doc?: { readonly docId: string };
   /** Set only when exactly one object resolves. */
   readonly primary?: ResolvedObject;
   /** Set only when `primary` has exactly one table. */
@@ -140,7 +140,9 @@ function tablesAmbiguity(obj: ResolvedObject): string {
 
 /** Pure function over a "show" transcript: never throws, empty transcript in gives empty-but-valid value out. */
 export function resolveActivity(t: ImgTranscript): ResolvedActivity {
-  const activity = t.activities[0]?.activity ?? t.path[0]?.activity ?? t.objects[0]?.activity ?? t.docs[0]?.activity ?? "";
+  // `ImgObjectRow` no longer carries an `activity` field, so it drops out of
+  // this fallback chain along with the filter below.
+  const activity = t.activities[0]?.activity ?? t.path[0]?.activity ?? t.docs[0]?.activity ?? "";
   const matches = (a: string): boolean => activity === "" || a === activity;
 
   const title = t.activities.find((a) => matches(a.activity))?.title ?? "";
@@ -151,10 +153,13 @@ export function resolveActivity(t: ImgTranscript): ResolvedActivity {
     .sort((a, b) => a.position - b.position)
     .map((p) => ({ node: p.node, title: p.title }));
 
-  const objects = t.objects.filter((o) => matches(o.activity)).map((o) => buildResolvedObject(o, t));
+  // No `matches(o.activity)` filter here: `readImgShow` (`img-read.ts`) always
+  // describes exactly one activity, so every row in `t.objects` already
+  // belongs to it — `ImgObjectRow` was shrunk to drop the now-redundant field.
+  const objects = t.objects.map((o) => buildResolvedObject(o, t));
 
   const docRow = t.docs.find((d) => matches(d.activity));
-  const doc = docRow ? { docClass: docRow.docClass, docName: docRow.docName } : undefined;
+  const doc = docRow ? { docId: docRow.docId } : undefined;
 
   let primary: ResolvedObject | undefined;
   let primaryTable: ResolvedTable | undefined;

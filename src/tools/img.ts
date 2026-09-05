@@ -1,13 +1,14 @@
 /**
  * `abap_img` — reads SAP IMG (SPRO customizing) catalog tables: activities,
  * their reference-IMG tree position, and the maintenance objects/tables they
- * point at. Like `abap_fpm_read`/`abap_bopf_test`, it works by
- * generating/activating a throwaway `IF_OO_ADT_CLASSRUN` bridge class in
- * $TMP, so despite being read-only in effect it goes through `pool.withWrite`
- * and is gated as a write on the bridge class name.
+ * point at. Every mode sends a fixed, catalog-driven `SELECT` straight to
+ * the ADT freestyle data-preview endpoint (`src/adt/img-read.ts`,
+ * `src/adt/img-query.ts`) — no ABAP is generated, nothing is deployed, and
+ * no object is created. That makes it a pure read: it needs no write
+ * capability at all and registers under `ABAP_MODE=read`.
  *
- * No catalog table or field name used here has been confirmed against a live
- * SAP system — see `src/adt/img-catalog.ts`.
+ * Every catalog table/field name this build actually queries is
+ * `confidence: "high"` in `src/adt/img-catalog.ts` (`IMG_CATALOG_VERIFIED`).
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -15,12 +16,9 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import { AbapError } from "../adt/errors.js";
 import {
-  IMG_BRIDGE_PACKAGE,
-  IMG_BRIDGE_CLASS,
   IMG_PAGE_DEFAULT,
   IMG_PAGE_MAX,
-  runImgRead,
-  validateImgQuery,
+  readImg,
   type ImgMode,
   type ImgObjectKind,
   type ImgQuery,
@@ -29,10 +27,11 @@ import {
   type ImgTreeQuery,
   type ImgObjectsQuery,
   type ImgReadResult,
+  type ImgTranscript,
   type ImgFieldRow,
   type ImgPageState,
-} from "../adt/img-bridge.js";
-import { IMG_CATALOG, IMG_CATALOG_VERIFIED, lowConfidenceTables } from "../adt/img-catalog.js";
+} from "../adt/img-read.js";
+import { IMG_CATALOG_VERIFIED, lowConfidenceTables } from "../adt/img-catalog.js";
 import { resolveActivity, resolveObject } from "../adt/img-resolve.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
@@ -68,7 +67,14 @@ export const imgReadInputSchema = {
   node: z
     .string()
     .optional()
-    .describe("tree only: the reference-IMG node to list children of. Omit for the reference-IMG root."),
+    .describe("tree only: the node to list children of. Omit for that tree's own root."),
+  treeId: z
+    .string()
+    .optional()
+    .describe(
+      "tree only: the tree a node id belongs to (echoed back as treeId on a previous tree response, " +
+        "e.g. after following a REF node into a different tree). Omit to use the reference-IMG tree.",
+    ),
   object: z
     .string()
     .optional()
@@ -82,12 +88,12 @@ export const imgReadInputSchema = {
     .regex(/^[A-Za-z]{1,2}$/, "1-2 letters")
     .optional()
     .describe("1-2 letter language code. Defaults to the server's configured language, else \"E\"."),
-  offset: z
-    .number()
-    .int()
-    .min(0)
+  after: z
+    .string()
     .optional()
-    .describe("search/tree only: 0-based row offset for paging. Default 0."),
+    .describe(
+      "search/tree only: opaque keyset cursor copied from a previous response's paging note. Omit for the first page.",
+    ),
   limit: z
     .number()
     .int()
@@ -108,19 +114,6 @@ export interface ImgToolDeps {
 }
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
-
-/** DDIC table names an empty result was read against, per mode — for the empty-result note only. Not asserted by the bridge; see the report for why. */
-const MODE_CATALOG_TABLES: Record<ImgMode, readonly string[]> = {
-  search: [IMG_CATALOG.imgActivity.table, IMG_CATALOG.imgActivityText.table],
-  show: [
-    IMG_CATALOG.imgActivity.table,
-    IMG_CATALOG.imgStructure.table,
-    IMG_CATALOG.cusObjectHeader.table,
-    IMG_CATALOG.cusObjectTable.table,
-  ],
-  tree: [IMG_CATALOG.imgNode.table, IMG_CATALOG.imgStructure.table],
-  objects: [IMG_CATALOG.cusObjectHeader.table, IMG_CATALOG.cusObjectTable.table, IMG_CATALOG.ddicTable.table],
-};
 
 /** Reject a field this mode has nowhere to use, naming the field and the mode rather than ignoring it. */
 function rejectForMode(mode: ImgMode, field: string, value: unknown): void {
@@ -143,20 +136,21 @@ function buildQuery(input: ImgReadInput, cfg: Pick<Config, "language">): ImgQuer
   if (input.mode === "search") {
     rejectForMode("search", "activity", input.activity);
     rejectForMode("search", "node", input.node);
+    rejectForMode("search", "treeId", input.treeId);
     rejectForMode("search", "object", input.object);
     rejectForMode("search", "kind", input.kind);
     const text = requireField("search", "query", input.query);
-    const offset = input.offset ?? 0;
     const limit = Math.min(input.limit ?? IMG_PAGE_DEFAULT, IMG_PAGE_MAX);
-    const q: ImgSearchQuery = { mode: "search", text, language, offset, limit };
+    const q: ImgSearchQuery = { mode: "search", text, language, after: input.after, limit };
     return q;
   }
   if (input.mode === "show") {
     rejectForMode("show", "query", input.query);
     rejectForMode("show", "node", input.node);
+    rejectForMode("show", "treeId", input.treeId);
     rejectForMode("show", "object", input.object);
     rejectForMode("show", "kind", input.kind);
-    rejectForMode("show", "offset", input.offset);
+    rejectForMode("show", "after", input.after);
     rejectForMode("show", "limit", input.limit);
     const activity = requireField("show", "activity", input.activity);
     const q: ImgShowQuery = { mode: "show", activity, language };
@@ -167,17 +161,23 @@ function buildQuery(input: ImgReadInput, cfg: Pick<Config, "language">): ImgQuer
     rejectForMode("tree", "activity", input.activity);
     rejectForMode("tree", "object", input.object);
     rejectForMode("tree", "kind", input.kind);
-    const node = input.node ?? "";
-    const offset = input.offset ?? 0;
     const limit = Math.min(input.limit ?? IMG_PAGE_DEFAULT, IMG_PAGE_MAX);
-    const q: ImgTreeQuery = { mode: "tree", node, language, offset, limit };
+    const q: ImgTreeQuery = {
+      mode: "tree",
+      treeId: input.treeId,
+      node: input.node,
+      language,
+      after: input.after,
+      limit,
+    };
     return q;
   }
   // mode "objects"
   rejectForMode("objects", "query", input.query);
   rejectForMode("objects", "activity", input.activity);
   rejectForMode("objects", "node", input.node);
-  rejectForMode("objects", "offset", input.offset);
+  rejectForMode("objects", "treeId", input.treeId);
+  rejectForMode("objects", "after", input.after);
   rejectForMode("objects", "limit", input.limit);
   const object = requireField("objects", "object", input.object);
   const q: ImgObjectsQuery = { mode: "objects", object, language, kind: input.kind };
@@ -201,31 +201,64 @@ function standingNotes(): string[] {
   return notes;
 }
 
-function emptyNote(mode: ImgMode, noun: string): string {
-  return (
-    `Nothing matched: no ${noun} was found. Catalog table(s) queried for mode "${mode}" (unconfirmed ` +
-    `— see src/adt/img-catalog.ts): ${MODE_CATALOG_TABLES[mode].join(", ")}.`
-  );
+/** `tablesQueried` is a fact reported by this call, not a static per-mode guess — see ImgReadResult. */
+function emptyNote(mode: ImgMode, noun: string, tablesQueried: readonly string[]): string {
+  const tables = tablesQueried.length ? tablesQueried.join(", ") : "(none — the request never reached the server)";
+  return `Nothing matched: no ${noun} was found. Catalog table(s) actually queried for mode "${mode}": ${tables}.`;
 }
 
-function pagingLine(page: ImgPageState | null, total: number | null, shown: number): string | undefined {
+/** `page.next`, when present, is a real cursor the server handed back — this never invents a row number. */
+function pagingLine(page: ImgPageState | null, totalRows: number | null, shown: number): string | undefined {
   if (!page) return undefined;
-  const from = page.offset + 1;
-  const to = page.offset + shown;
-  const totalText = total === null ? "an unknown total" : String(total);
-  if (!page.more) return `showing ${from}-${to} of ${totalText} (last page).`;
-  return `showing ${from}-${to} of ${totalText} — next page: pass {"offset": ${page.offset + page.limit}}.`;
+  const totalText = totalRows === null ? "an unknown total" : String(totalRows);
+  if (!page.more) return `showing ${shown} of ${totalText} (last page).`;
+  if (page.next !== undefined) {
+    return `showing ${shown} of ${totalText} — more remain: pass {"after": "${page.next}"} for the next page.`;
+  }
+  // more === true but no cursor came back — say so rather than guessing one.
+  return `showing ${shown} of ${totalText} — more rows remain, but no next cursor was returned.`;
 }
 
 /** True today against src/tools/data-preview.ts + src/adt/datapreview.ts; correct the sentence, not this code, if it drifts. */
 function nextHint(table: string | undefined): string {
-  const t = table ?? "<table>";
+  if (table === undefined) {
+    return "next: no single table resolved, so there is nothing to hand abap_data_preview.";
+  }
   return (
-    `next: read the entries with abap_data_preview {"table":"${t}"}. That tool is registered only ` +
+    `next: read the entries with abap_data_preview {"table":"${table}"}. That tool is registered only ` +
     "when ABAP_ALLOW_DATA_PREVIEW=true, refuses on a system that is not proven non-productive, has " +
     "no WHERE filter (it returns the first N rows of the whole table), and denies a built-in list of " +
     "tables (src/safety.ts)."
   );
+}
+
+/** `null` means "not counted this call" (see ImgActivityRow) — render it blank, never the string "null" or a false 0. */
+function nullableCount(n: number | null): string {
+  return n === null ? "" : String(n);
+}
+
+/**
+ * `t.notes` is where every domain-specific diagnostic actually lands — server-side `[server]`
+ * relays (via `serverNotes`), the DD02L-miss note, multi-mount/not-mounted/cycle/cut-off notes on
+ * `show`'s path walk, and the unrecognised-NODE_TYPE note on `tree`. Unlike the old bridge, this is
+ * not a near-empty field: dropping it silently degrades a partial or already-explained result into
+ * one that looks unremarkable. `serverNotes` can push the same `[server]` line once per statement
+ * (up to ~25 statements/call), so this dedupes on exact text, first-seen order, before appending —
+ * one real warning, not a dozen near-identical copies burying it. `t.errors` is documented as
+ * always empty today (see ImgTranscript) but is rendered too, for the same reason it is kept on
+ * the shape at all: so an in-band failure a future build introduces cannot be swallowed here
+ * without a code change silencing it back out.
+ */
+function appendTranscriptNotes(notes: string[], t: ImgTranscript): void {
+  const seen = new Set<string>();
+  for (const n of t.notes) {
+    if (seen.has(n)) continue;
+    seen.add(n);
+    notes.push(n);
+  }
+  if (t.errors.length > 0) {
+    notes.push(`${t.errors.length} error(s) reported: ${t.errors.join(" | ")}`);
+  }
 }
 
 function fieldRows(fields: readonly ImgFieldRow[]): Array<Record<string, string>> {
@@ -248,27 +281,14 @@ function renderSearch(query: ImgSearchQuery, result: ImgReadResult, maxChars: nu
   const rows = t.activities.map((a) => ({
     activity: a.activity,
     title: a.title,
-    objects: String(a.objects),
-    nodes: String(a.nodes),
+    objects: nullableCount(a.objects),
+    nodes: nullableCount(a.nodes),
   }));
 
-  const pathByActivity = new Map<string, string[]>();
-  for (const p of t.path) {
-    const list = pathByActivity.get(p.activity) ?? [];
-    list.push(p.title || p.node);
-    pathByActivity.set(p.activity, list);
-  }
-  const pathLines = t.activities
-    .filter((a) => pathByActivity.has(a.activity))
-    .map((a) => `${a.activity}: ${(pathByActivity.get(a.activity) ?? []).join(" > ")}`);
-
-  const page = pagingLine(t.page, t.total, t.activities.length);
+  const page = pagingLine(t.page, t.totalRows, t.activities.length);
   if (page) notes.push(page);
-  if (t.errors.length) notes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
-  if (t.droppedLines) {
-    notes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
-  }
-  if (t.activities.length === 0) notes.unshift(emptyNote("search", "activity"));
+  appendTranscriptNotes(notes, t);
+  if (t.activities.length === 0) notes.unshift(emptyNote("search", "activity", result.tablesQueried));
 
   return buildResponse({
     header: {
@@ -276,11 +296,9 @@ function renderSearch(query: ImgSearchQuery, result: ImgReadResult, maxChars: nu
       query: query.text,
       language: query.language,
       matches: t.activities.length,
-      total: t.total ?? undefined,
-      bridgeClass: result.bridgeClass,
-      bridgeRefreshed: result.bridgeRefreshed,
+      total: t.totalRows ?? undefined,
+      statementsIssued: result.statementsIssued,
     },
-    sections: pathLines.length ? [{ title: "PATH", content: pathLines.join("\n") }] : undefined,
     body: rows.length ? textTable(rows, ["activity", "title", "objects", "nodes"]) : "(no activities matched)",
     bodyLabel: "ACTIVITIES",
     notes,
@@ -309,20 +327,16 @@ function renderShow(query: ImgShowQuery, result: ImgReadResult, maxChars: number
     })),
   );
   const docSection = t.docs.length
-    ? { title: "DOCUMENTATION", content: t.docs.map((d) => `${d.activity}: ${d.docClass}/${d.docName}`).join("\n") }
+    ? { title: "DOCUMENTATION", content: t.docs.map((d) => `${d.activity}: ${d.docId}`).join("\n") }
     : undefined;
-
-  if (t.errors.length) notes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
-  if (t.droppedLines) {
-    notes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
-  }
 
   // An ambiguous activity (several objects, or one object spanning several tables) states why
   // instead of pointing abap_data_preview at a guessed or placeholder table name.
   notes.push(r.ambiguity ?? nextHint(r.primaryTable?.table));
+  appendTranscriptNotes(notes, t);
 
   const empty = t.objects.length === 0 && t.tables.length === 0 && t.path.length === 0;
-  if (empty) notes.unshift(emptyNote("show", "activity"));
+  if (empty) notes.unshift(emptyNote("show", "activity", result.tablesQueried));
 
   return buildResponse({
     header: {
@@ -331,8 +345,7 @@ function renderShow(query: ImgShowQuery, result: ImgReadResult, maxChars: number
       language: query.language,
       title,
       path: pathLine,
-      bridgeClass: result.bridgeClass,
-      bridgeRefreshed: result.bridgeRefreshed,
+      statementsIssued: result.statementsIssued,
     },
     sections: [
       ...(tableRows.length
@@ -363,23 +376,22 @@ function renderTree(query: ImgTreeQuery, result: ImgReadResult, maxChars: number
     title: n.title,
   }));
 
-  const page = pagingLine(t.page, t.total, t.nodes.length);
+  const page = pagingLine(t.page, t.totalRows, t.nodes.length);
   if (page) notes.push(page);
-  if (t.errors.length) notes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
-  if (t.droppedLines) {
-    notes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
-  }
-  if (t.nodes.length === 0) notes.unshift(emptyNote("tree", "node"));
+  appendTranscriptNotes(notes, t);
+  if (t.nodes.length === 0) notes.unshift(emptyNote("tree", "node", result.tablesQueried));
 
   return buildResponse({
     header: {
       mode: "tree",
-      node: query.node || "(reference-IMG root)",
+      // The tree the returned nodes actually belong to — may differ from the caller's
+      // treeId/root-probe input after a REF redirect; null when the root probe found nothing.
+      treeId: t.treeId ?? undefined,
+      node: query.node || "(tree root)",
       language: query.language,
       count: t.nodes.length,
-      total: t.total ?? undefined,
-      bridgeClass: result.bridgeClass,
-      bridgeRefreshed: result.bridgeRefreshed,
+      total: t.totalRows ?? undefined,
+      statementsIssued: result.statementsIssued,
     },
     body: rows.length ? textTable(rows, ["node", "kind", "children", "title"]) : "(no nodes matched)",
     bodyLabel: "NODES",
@@ -405,16 +417,12 @@ function renderObjects(query: ImgObjectsQuery, result: ImgReadResult, maxChars: 
     content: rt.fields.length ? textTable(fieldRows(rt.fields), ["field", "key", "type", "length", "data_element"]) : "(no fields)",
   }));
 
-  if (t.errors.length) notes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
-  if (t.droppedLines) {
-    notes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
-  }
-
   const resolvedTable = tables.length === 1 ? tables[0]!.table : undefined;
   notes.push(nextHint(resolvedTable));
+  appendTranscriptNotes(notes, t);
 
   const empty = t.objects.length === 0 && t.tables.length === 0;
-  if (empty) notes.unshift(emptyNote("objects", "object"));
+  if (empty) notes.unshift(emptyNote("objects", "object", result.tablesQueried));
 
   return buildResponse({
     header: {
@@ -422,8 +430,7 @@ function renderObjects(query: ImgObjectsQuery, result: ImgReadResult, maxChars: 
       object: query.object,
       kind: o?.kind ?? query.kind,
       language: query.language,
-      bridgeClass: result.bridgeClass,
-      bridgeRefreshed: result.bridgeRefreshed,
+      statementsIssued: result.statementsIssued,
     },
     sections: fieldSections,
     body: tableRows.length ? textTable(tableRows, ["table", "client_dependent", "delivery_class"]) : "(no tables found)",
@@ -448,24 +455,22 @@ function renderResult(query: ImgQuery, result: ImgReadResult, maxChars: number):
 
 const IMG_TOOL_DESCRIPTION =
   "search (query) finds activities. show (activity) returns its path, objects and tables. " +
-  "tree (node, optional) lists reference-IMG node children, root if omitted. objects (object) " +
-  "returns a view/cluster/table/customizing object's DDIC tables and fields. search/tree page " +
-  `via offset/limit (default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}). First call per mode ` +
-  "deploys and activates a $TMP bridge class, so this tool is absent under ABAP_MODE=read.";
+  "tree (node optional, treeId optional) lists a tree node's children, that tree's own root if node " +
+  "is omitted. objects (object, kind optional) returns a view/cluster/table/customizing object's DDIC " +
+  `tables and fields. search/tree page via after/limit (default ${IMG_PAGE_DEFAULT}, ceiling ` +
+  `${IMG_PAGE_MAX}): omit "after" for the first page, then pass back the exact {"after": "<cursor>"} ` +
+  "value a response's paging note gives you — there is no numeric offset to jump to. Every field not " +
+  "valid for the given mode is rejected outright.";
 
 export async function runImgReadTool(deps: ImgToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as ImgReadInput;
   const query = buildQuery(input, deps.cfg);
-  validateImgQuery(query);
 
-  // Bridge class name is a pure function of the mode, so a refused/malformed request costs no network round trip.
-  const bridgeClass = IMG_BRIDGE_CLASS[query.mode];
   deps.safety.assert("read");
-  deps.safety.assert("write", { name: bridgeClass, packageName: IMG_BRIDGE_PACKAGE, type: "CLAS/OC" }, { phase: "preflight" });
 
   await deps.ensureConnected();
 
-  const result = await deps.pool.withWrite("abap_img", bridgeClass, (conn) => runImgRead(conn, query, deps.safety));
+  const result = await deps.pool.withRead("abap_img", (conn) => readImg(conn, query));
 
   return ok(renderResult(query, result, deps.cfg.maxResponseChars));
 }
@@ -477,7 +482,7 @@ export function registerImgTools(mcp: McpServer, deps: ImgToolDeps): void {
       title: "Read IMG customizing catalog",
       description: IMG_TOOL_DESCRIPTION,
       inputSchema: imgReadInputSchema,
-      annotations: { readOnlyHint: false, openWorldHint: true },
+      annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async (args) => {
       try {

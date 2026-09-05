@@ -174,10 +174,11 @@ function assertTreeKeyValue(value: string, what: string): string {
  * otherwise a raw '#' in the query would be read as the start of an escape
  * sequence by the database.
  *
- * Deliberately reimplemented, not imported, from `img-bridge.ts`'s function
- * of the same name: importing it would pull in `run.ts` (deploy/execute over
- * `AbapConnection`), which is exactly the I/O this module must stay free of.
- * Keep this in lockstep if that one changes; semantics must not diverge.
+ * This used to be duplicated, on purpose, with a same-named function in the
+ * now-deleted `img-bridge.ts` (importing it would have pulled `run.ts`'s
+ * deploy/execute machinery into this module, which must stay free of I/O).
+ * This is now the sole implementation; nothing else needs to stay in
+ * lockstep with it any more.
  */
 export function imgLikePattern(raw: string): { literal: string; escapeChar: string } {
   const trimmed = raw.trim();
