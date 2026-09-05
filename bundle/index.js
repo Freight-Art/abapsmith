@@ -104687,13 +104687,14 @@ async function createBusinessObject(conn, transport, input, authorized) {
   } catch (e) {
     try {
       const recovered = await readModel(conn, input.name);
-      return { ...recovered, recovered: true, corr };
+      return { ...recovered, recovered: true, rootNodeCheck: checkRootNodeName(input, recovered.model), corr };
     } catch {
       if (isAbapError(e)) throw e;
       throw translateAdtError(e, { operation: "write", uri, name: input.name, type: BOPF_TYPE });
     }
   }
-  return { ...await readModel(conn, input.name), corr };
+  const read = await readModel(conn, input.name);
+  return { ...read, rootNodeCheck: checkRootNodeName(input, read.model), corr };
 }
 function xmlEscape(s, context) {
   if (s === "undefined" || s === "null") {
@@ -104708,6 +104709,15 @@ function xmlEscape(s, context) {
 }
 function effectiveRootNodeName(input) {
   return input.rootNodeName?.trim() || "ROOT";
+}
+function checkRootNodeName(input, model) {
+  const requested = effectiveRootNodeName(input);
+  const actual = model.nodes.find((n) => n.rootNode)?.name.trim();
+  return {
+    requested,
+    actual,
+    matches: actual !== void 0 && actual !== "" && actual.toUpperCase() === requested.toUpperCase()
+  };
 }
 function buildCreateBody(input) {
   const desc = input.description ? ` adtcore:description="${xmlEscape(input.description, "adtcore:description")}"` : "";
@@ -106460,23 +106470,20 @@ function createBoActivatabilityNotes(model) {
   }
   return notes;
 }
-function createBoRootNodeNotes(request, model) {
-  const requested = effectiveRootNodeName(request);
-  const root = model.nodes.find((n) => n.rootNode);
-  if (!root) {
+function createBoRootNodeNotes(boName, check4) {
+  if (check4.actual === void 0) {
     return [
-      `create_bo for "${request.name}" requested root node "${requested}", but the model read back after create carries no root node at all \u2014 the requested name could not be confirmed.`
+      `create_bo for "${boName}" requested root node "${check4.requested}", but the model read back after create carries no root node at all \u2014 the requested name could not be confirmed.`
     ];
   }
-  const actual = root.name.trim();
-  if (actual === "") {
+  if (check4.actual === "") {
     return [
-      `create_bo for "${request.name}" requested root node "${requested}", but the root node BOPF actually created came back UNNAMED (bo:name="") instead. BOPF bakes that empty name into the generated constants interface AT CREATE TIME (an invalid "BEGIN OF ," ABAP structure) and never regenerates that interface, so this business object can never be activated. Renaming the root node afterward does NOT repair the interface \u2014 live-observed in this repo (two activation retries, source etag unchanged; see doc/analysis/irreversible-operations.md). The only remedy: abap_bopf_delete "${request.name}", then create it again. This BO already exists on the system right now and is residue that must be cleaned up.`
+      `create_bo for "${boName}" requested root node "${check4.requested}", but the root node BOPF actually created came back UNNAMED (bo:name="") instead. BOPF bakes that empty name into the generated constants interface AT CREATE TIME (an invalid "BEGIN OF ," ABAP structure) and never regenerates that interface, so this business object can never be activated. Renaming the root node afterward does NOT repair the interface \u2014 live-observed in this repo (two activation retries, source etag unchanged; see doc/analysis/irreversible-operations.md). The only remedy: abap_bopf_delete "${boName}", then create it again. This BO already exists on the system right now and is residue that must be cleaned up.`
     ];
   }
-  if (actual.toUpperCase() !== requested.toUpperCase()) {
+  if (!check4.matches) {
     return [
-      `create_bo for "${request.name}" requested root node "${requested}", but the root node actually created is named "${actual}" instead.`
+      `create_bo for "${boName}" requested root node "${check4.requested}", but the root node actually created is named "${check4.actual}" instead.`
     ];
   }
   return [];
@@ -106494,11 +106501,11 @@ function addNodeAutoAssignedRefsNote(input, model) {
   if (autoAssigned.length === 0) return void 0;
   return `spec didn't set ${autoAssigned.join(", ")} on node "${node2.name}", so ${autoAssigned.length === 1 ? "it" : "they"} came from BOPF's own defaulting, not from this call \u2014 same naming family as create_bo's auto-assigned refs. abap_bopf_delete cascade_ddic never deletes a persistentTableRef or persistentStructureRef, so this is left on the system when the BO is deleted and has to be removed deliberately.`;
 }
-function buildEditResponse(bo, model, danglingVerdict, activation, recovered, journalEntryId, maxChars, extraNotes = []) {
+function buildEditResponse(bo, model, danglingVerdict, activation, recovered, journalEntryId, maxChars, extraNotes = [], rootNodeCheck) {
   const notes = [...extraNotes];
   if (recovered) {
     notes.push(
-      "The create POST itself failed/threw, but a re-GET afterwards confirmed the object was created anyway (non-atomic create). Treated as a successful create."
+      rootNodeCheck !== void 0 && !rootNodeCheck.matches ? "The create POST itself failed/threw, but a re-GET afterwards confirmed the object was created anyway (non-atomic create). NOT a clean create: the root node did not come back as requested \u2014 see the root node note above." : "The create POST itself failed/threw, but a re-GET afterwards confirmed the object was created anyway (non-atomic create). Treated as a successful create."
     );
   }
   if (danglingVerdict && danglingVerdict.verdict !== "present") {
@@ -106519,6 +106526,8 @@ function buildEditResponse(bo, model, danglingVerdict, activation, recovered, jo
       package: model.packageRef?.name,
       constantsInterface: model.constantsInterfaceRef?.name,
       nodeCount: model.nodes.length,
+      // Makes a clean live create's root node name observable at a glance.
+      ...rootNodeCheck ? { rootNode: rootNodeCheck.actual === void 0 ? "(none)" : rootNodeCheck.actual === "" ? "(unnamed)" : rootNodeCheck.actual } : {},
       activated: activation?.activated,
       activationMessages: activation && activation.messages.length ? JSON.stringify(activation.messages) : void 0,
       journalEntryId
@@ -106669,7 +106678,13 @@ async function runBopfEdit(deps, args) {
               );
               activation = await activateBusinessObject(conn, bo);
             }
-            return { model: created.model, xml: created.xml, recovered: created.recovered === true, activation };
+            return {
+              model: created.model,
+              xml: created.xml,
+              recovered: created.recovered === true,
+              activation,
+              rootNodeCheck: created.rootNodeCheck
+            };
           });
         } catch (e) {
           if (!(isAbapError(e) && e.code === "SESSION_DEAD")) throw e;
@@ -106680,7 +106695,13 @@ async function runBopfEdit(deps, args) {
             throw e;
           }
           sessionDiedMidCreate = true;
-          return { model: reread.model, xml: reread.xml, recovered: true, activation: void 0 };
+          return {
+            model: reread.model,
+            xml: reread.xml,
+            recovered: true,
+            activation: void 0,
+            rootNodeCheck: checkRootNodeName(createRequest, reread.model)
+          };
         }
       }
     );
@@ -106698,9 +106719,10 @@ async function runBopfEdit(deps, args) {
           ...sessionDiedMidCreate ? [
             "The write session died (SESSION_DEAD) after the create request was sent; a fresh session re-read confirms the object exists and is usable. No activation was attempted on this call \u2014 the session that died cannot be trusted to have sent one, even if activate was requested."
           ] : [],
-          ...createBoRootNodeNotes(createRequest, result2.model),
+          ...createBoRootNodeNotes(bo, result2.rootNodeCheck),
           ...createBoActivatabilityNotes(result2.model)
-        ]
+        ],
+        result2.rootNodeCheck
       ),
       entryId
     );

@@ -46,7 +46,7 @@ import {
   collectRefSites,
   collectDdicCascadeCandidates,
   ddicSparedReason,
-  effectiveRootNodeName,
+  checkRootNodeName,
   DEFAULT_CHECK_REFS_MAX_SITES,
   BOPF_TYPE,
   bopfUri,
@@ -55,6 +55,7 @@ import {
   type DeleteBusinessObjectResult,
   type DdicCandidate,
   type CreateBusinessObjectInput,
+  type RootNodeNameCheck,
 } from "../adt/bopf.js";
 import { withJournalledMutation, journalRef, systemKey, type Journal } from "../journal.js";
 import {
@@ -1620,51 +1621,46 @@ function createBoActivatabilityNotes(model: BoModel): string[] {
 }
 
 /**
- * Compares the root node BOPF actually created against the one `create_bo`
- * asked for. `buildCreateBody` (`src/adt/bopf.ts`)
- * always sends an explicitly named `bo:nodes` element — but the create POST
- * is non-atomic (see that module's header), and a `SESSION_DEAD` on it can
- * still let the object land server-side with a root node the server itself
- * auto-generated, unnamed. BOPF bakes that empty name into the generated
- * `Z*_C` constants interface AT CREATE TIME (`BEGIN OF ,` — invalid ABAP)
- * and never regenerates that interface on any later PUT, rename, or
- * activation attempt — live-proven in this repo (renaming the empty-name
- * root post-create and retrying activation twice left the interface's
- * source etag unchanged both times; see
- * `doc/analysis/irreversible-operations.md`). Renaming is therefore not a
+ * Renders the root-node-name discrepancy on a `create_bo`, if any, from a
+ * precomputed `RootNodeNameCheck` (`checkRootNodeName`, `src/adt/bopf.ts`) —
+ * shared by both the normal and `SESSION_DEAD`-recovery return paths in
+ * `runBopfEdit` below, so the wording lives in exactly one place.
+ * `buildCreateBody` (`src/adt/bopf.ts`) always sends an explicitly named
+ * `bo:nodes` element — but the create POST is non-atomic (see that module's
+ * header), and a `SESSION_DEAD` on it can still let the object land
+ * server-side with a root node the server itself auto-generated, unnamed.
+ * BOPF bakes that empty name into the generated `Z*_C` constants interface AT
+ * CREATE TIME (`BEGIN OF ,` — invalid ABAP) and never regenerates that
+ * interface on any later PUT, rename, or activation attempt — live-proven in
+ * this repo (renaming the empty-name root post-create and retrying
+ * activation twice left the interface's source etag unchanged both times;
+ * see `doc/analysis/irreversible-operations.md`). Renaming is therefore not a
  * repair, and this function never suggests it — the only remedy is
  * `abap_bopf_delete` followed by creating the BO again.
- *
- * `effectiveRootNodeName` is the same function `buildCreateBody` used to
- * decide what to ask for, so "what was requested" here can never drift from
- * what actually went on the wire.
  */
-function createBoRootNodeNotes(request: CreateBusinessObjectInput, model: BoModel): string[] {
-  const requested = effectiveRootNodeName(request);
-  const root = model.nodes.find((n) => n.rootNode);
-  if (!root) {
+function createBoRootNodeNotes(boName: string, check: RootNodeNameCheck): string[] {
+  if (check.actual === undefined) {
     return [
-      `create_bo for "${request.name}" requested root node "${requested}", but the model read back after ` +
+      `create_bo for "${boName}" requested root node "${check.requested}", but the model read back after ` +
         "create carries no root node at all — the requested name could not be confirmed.",
     ];
   }
-  const actual = root.name.trim();
-  if (actual === "") {
+  if (check.actual === "") {
     return [
-      `create_bo for "${request.name}" requested root node "${requested}", but the root node BOPF actually ` +
+      `create_bo for "${boName}" requested root node "${check.requested}", but the root node BOPF actually ` +
         'created came back UNNAMED (bo:name="") instead. BOPF bakes that empty name into the generated ' +
         'constants interface AT CREATE TIME (an invalid "BEGIN OF ," ABAP structure) and never regenerates ' +
         "that interface, so this business object can never be activated. Renaming the root node afterward " +
         "does NOT repair the interface — live-observed in this repo (two activation retries, source etag " +
         "unchanged; see doc/analysis/irreversible-operations.md). The only remedy: abap_bopf_delete " +
-        `"${request.name}", then create it again. This BO already exists on the system right now and is ` +
+        `"${boName}", then create it again. This BO already exists on the system right now and is ` +
         "residue that must be cleaned up.",
     ];
   }
-  if (actual.toUpperCase() !== requested.toUpperCase()) {
+  if (!check.matches) {
     return [
-      `create_bo for "${request.name}" requested root node "${requested}", but the root node actually created ` +
-        `is named "${actual}" instead.`,
+      `create_bo for "${boName}" requested root node "${check.requested}", but the root node actually created ` +
+        `is named "${check.actual}" instead.`,
     ];
   }
   return [];
@@ -1712,12 +1708,17 @@ function buildEditResponse(
   journalEntryId: string | undefined,
   maxChars: number,
   extraNotes: readonly string[] = [],
+  rootNodeCheck?: RootNodeNameCheck,
 ): string {
   const notes: string[] = [...extraNotes];
   if (recovered) {
     notes.push(
-      "The create POST itself failed/threw, but a re-GET afterwards confirmed the object was created anyway " +
-        "(non-atomic create). Treated as a successful create.",
+      rootNodeCheck !== undefined && !rootNodeCheck.matches
+        ? "The create POST itself failed/threw, but a re-GET afterwards confirmed the object was created anyway " +
+            "(non-atomic create). NOT a clean create: the root node did not come back as requested — see the " +
+            "root node note above."
+        : "The create POST itself failed/threw, but a re-GET afterwards confirmed the object was created anyway " +
+            "(non-atomic create). Treated as a successful create.",
     );
   }
   if (danglingVerdict && danglingVerdict.verdict !== "present") {
@@ -1752,6 +1753,10 @@ function buildEditResponse(
       package: model.packageRef?.name,
       constantsInterface: model.constantsInterfaceRef?.name,
       nodeCount: model.nodes.length,
+      // Makes a clean live create's root node name observable at a glance.
+      ...(rootNodeCheck
+        ? { rootNode: rootNodeCheck.actual === undefined ? "(none)" : rootNodeCheck.actual === "" ? "(unnamed)" : rootNodeCheck.actual }
+        : {}),
       activated: activation?.activated,
       activationMessages: activation && activation.messages.length ? JSON.stringify(activation.messages) : undefined,
       journalEntryId,
@@ -2002,7 +2007,13 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
               );
               activation = await activateBusinessObject(conn, bo);
             }
-            return { model: created.model, xml: created.xml, recovered: created.recovered === true, activation };
+            return {
+              model: created.model,
+              xml: created.xml,
+              recovered: created.recovered === true,
+              activation,
+              rootNodeCheck: created.rootNodeCheck,
+            };
           });
         } catch (e) {
           if (!(isAbapError(e) && e.code === "SESSION_DEAD")) throw e;
@@ -2019,7 +2030,13 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
             throw e;
           }
           sessionDiedMidCreate = true;
-          return { model: reread.model, xml: reread.xml, recovered: true, activation: undefined };
+          return {
+            model: reread.model,
+            xml: reread.xml,
+            recovered: true,
+            activation: undefined,
+            rootNodeCheck: checkRootNodeName(createRequest, reread.model),
+          };
         }
       },
     );
@@ -2041,9 +2058,10 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
                   "that died cannot be trusted to have sent one, even if activate was requested.",
               ]
             : []),
-          ...createBoRootNodeNotes(createRequest, result.model),
+          ...createBoRootNodeNotes(bo, result.rootNodeCheck),
           ...createBoActivatabilityNotes(result.model),
         ],
+        result.rootNodeCheck,
       ),
       entryId,
     );

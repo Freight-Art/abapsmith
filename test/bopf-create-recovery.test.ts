@@ -514,4 +514,80 @@ describe("abap_bopf_edit create_bo — root node verification against what was a
       expect(text).not.toContain("UNNAMED");
     });
   });
+
+  it("SESSION_DEAD recovery, no false positive: the landed root node IS named as requested — still reads as a clean success", async () => {
+    await withJournal(async (journal) => {
+      const store = bopfStore();
+      const { pool } = poolHarness([
+        dyingCreateRouteWithBody(store, (name) => bodyWithRootNode(name, "ROOT")),
+        store.route,
+      ]);
+      const { tools } = await registered(pool, { journal });
+
+      const result = await invoke(tools, "abap_bopf_edit", {
+        bo: "ZQ424REC",
+        operation: "create_bo",
+        package: "$TMP",
+      });
+
+      const text = okText(result);
+      expect(text).toContain("Treated as a successful create.");
+      expect(text).not.toContain("NOT a clean create");
+      expect(text).not.toContain("UNNAMED");
+      expect(text).not.toContain("actually created is named");
+    });
+  }, 15_000);
+
+  it("SESSION_DEAD recovery, no silent success over a lost name: the landed root node came back unnamed", async () => {
+    await withJournal(async (journal) => {
+      const store = bopfStore();
+      const { pool } = poolHarness([
+        dyingCreateRouteWithBody(store, (name) => bodyWithRootNode(name, "")),
+        store.route,
+      ]);
+      const { tools } = await registered(pool, { journal });
+
+      const result = await invoke(tools, "abap_bopf_edit", {
+        bo: "ZQ424LOST",
+        operation: "create_bo",
+        package: "$TMP",
+      });
+
+      const text = okText(result);
+      expect(text).not.toContain("Treated as a successful create.");
+      expect(text).toContain("NOT a clean create: the root node did not come back as requested");
+    });
+  }, 15_000);
+
+  it("a clean live create's actual root node name is observable directly via the rootNode: header; the unnamed case renders rootNode: (unnamed)", async () => {
+    await withJournal(async (journal) => {
+      const store = bopfStore({ zq424hdr: bodyWithRootNode("ZQ424HDR", "HEADER") });
+      const { pool } = poolHarness([store.route]);
+      const { tools } = await registered(pool, { journal });
+
+      const result = await invoke(tools, "abap_bopf_edit", {
+        bo: "ZQ424HDR",
+        operation: "create_bo",
+        package: "$TMP",
+        rootNodeName: "ITEM",
+      });
+
+      const text = okText(result);
+      expect(text).toContain("rootNode: HEADER");
+      expect(text).toContain('actually created is named "HEADER"');
+
+      const unnamedStore = bopfStore({ zq424unn: bodyWithRootNode("ZQ424UNN", "") });
+      const { pool: unnamedPool } = poolHarness([unnamedStore.route]);
+      const { tools: unnamedTools } = await registered(unnamedPool, { journal });
+
+      const unnamedResult = await invoke(unnamedTools, "abap_bopf_edit", {
+        bo: "ZQ424UNN",
+        operation: "create_bo",
+        package: "$TMP",
+        rootNodeName: "ITEM",
+      });
+
+      expect(okText(unnamedResult)).toContain("rootNode: (unnamed)");
+    });
+  });
 });

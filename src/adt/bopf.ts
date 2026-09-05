@@ -225,7 +225,9 @@ export interface CreateBusinessObjectInput {
  * that actually landed). On any throw, before rethrowing, this re-GETs the
  * model; if that succeeds the object DOES exist and this returns it with
  * `recovered: true` instead of propagating the error. If the re-GET also
- * fails, the ORIGINAL create error is rethrown, not the GET's.
+ * fails, the ORIGINAL create error is rethrown, not the GET's. Every return
+ * path carries `rootNodeCheck`, so `recovered: true` can never read as a
+ * silent success over a lost root node name.
  *
  * Returns the `corr` this call resolved so the caller's later `activate` gate
  * check judges the same transport question, instead of asking again blind
@@ -236,7 +238,7 @@ export async function createBusinessObject(
   transport: SessionTransport | undefined,
   input: CreateBusinessObjectInput,
   authorized: AuthorizedTarget<"write">,
-): Promise<BopfModelRead & { recovered?: boolean; corr: SafetyCorr }> {
+): Promise<BopfModelRead & { recovered?: boolean; rootNodeCheck: RootNodeNameCheck; corr: SafetyCorr }> {
   assertAuthorizedMatches(authorized, { name: input.name, packageName: input.packageName }, "createBusinessObject");
 
   const uri = bopfUri(input.name);
@@ -290,7 +292,7 @@ export async function createBusinessObject(
     // Non-atomic create: re-GET before trusting the error (see doc comment above).
     try {
       const recovered = await readModel(conn, input.name);
-      return { ...recovered, recovered: true, corr };
+      return { ...recovered, recovered: true, rootNodeCheck: checkRootNodeName(input, recovered.model), corr };
     } catch {
       if (isAbapError(e)) throw e;
       throw translateAdtError(e, { operation: "write", uri, name: input.name, type: BOPF_TYPE });
@@ -299,7 +301,8 @@ export async function createBusinessObject(
 
   // Fetched fresh, not assumed — the server may fill in fields (generated
   // constants interface ref, defaults) this function can't predict.
-  return { ...(await readModel(conn, input.name)), corr };
+  const read = await readModel(conn, input.name);
+  return { ...read, rootNodeCheck: checkRootNodeName(input, read.model), corr };
 }
 
 /**
@@ -332,6 +335,26 @@ function xmlEscape(s: string, context?: string): string {
  */
 export function effectiveRootNodeName(input: CreateBusinessObjectInput): string {
   return input.rootNodeName?.trim() || "ROOT";
+}
+
+/** Requested vs. actual root node name on a create. `actual: undefined` means the model carries no root node at all. */
+export interface RootNodeNameCheck {
+  readonly requested: string;
+  readonly actual: string | undefined;
+  readonly matches: boolean;
+}
+
+// A create that died mid-flight has been observed live to land with an
+// auto-generated root node named "" instead of the requested one. Computed on
+// every create return path so a clean create's name is confirmed, not assumed.
+export function checkRootNodeName(input: CreateBusinessObjectInput, model: BoModel): RootNodeNameCheck {
+  const requested = effectiveRootNodeName(input);
+  const actual = model.nodes.find((n) => n.rootNode)?.name.trim();
+  return {
+    requested,
+    actual,
+    matches: actual !== undefined && actual !== "" && actual.toUpperCase() === requested.toUpperCase(),
+  };
 }
 
 /**
