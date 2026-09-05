@@ -201,7 +201,14 @@ export async function deleteClassicViewViaBridge(
 
   // Gate on the domain object itself, zero-network — deployBridge's own gate
   // only judges the bridge class in $TMP, never this view.
-  assertBridgeMutation(gate, { type: "VIEW/DV", name: viewName, packageName }, { activate: false, op: "delete" });
+  // `local`: the fragment calls DD_OBJ_DEL and TR_TADIR_INTERFACE, neither
+  // given a request, and issues no RS_CORR_INSERT — so this delete
+  // registers nothing in CTS for the allowlist to judge.
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } },
+  );
 
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.deleteView,

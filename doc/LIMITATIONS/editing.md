@@ -42,7 +42,14 @@
   `transaction` parameter rather than transcribed from a capture of the
   delete FM itself, so it is not live-verified. Neither type can be
   updated at all: the bridge implements create and delete only, with no
-  update route for either.
+  update route for either. Neither delete bridge issues an `RS_CORR_INSERT`
+  or passes a transport request, so a delete of either type registers
+  nothing in CTS: whatever entry the object already had on a request
+  (typically from its create) survives the delete and must be removed
+  separately with `abap_transport` operation `"removeObject"`, which needs
+  ABAP_MODE=admin. That is also why the safety gate judges these two
+  deletes as local mutations rather than against `ABAP_ALLOW_TRANSPORTS` —
+  see `doc/SAFETY/safety-gate.md`.
   `DEVC/K` (package) is different:
   `abap_write mode=delete` (or `abap_journal mode=undo` on the create entry)
   loads the package via `CL_PACKAGE_FACTORY=>LOAD_PACKAGE` and calls
