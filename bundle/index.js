@@ -66952,7 +66952,7 @@ var REGISTRY = {
   // to create Annotation Definitions", from an admin user that creates every
   // other type. Annotation definitions are SAP-only on this system. `delete`
   // stays "unverified": create never succeeded, so delete was never once
-  // reachable to test — same reasoning as ENQU/DL above.
+  // reachable to test.
   "DDLA/ADF": {
     label: "Annotation definition",
     write: { shape: "source" },
@@ -67232,30 +67232,24 @@ var REGISTRY = {
     delete: true,
     activate: false
   },
-  // Lock object. Odd one out, both server-enforced and live-verified: SAP
-  // refuses Z…/Y… names outright (hence namePrefixes), and create is
-  // rejected unless the body already carries a non-empty
-  // <enqu:content><enqu:primaryTable> — so create can't be a vendor skeleton
-  // POST followed by a PUT.
+  // Lock object. Server-enforced: SAP refuses Z…/Y… names outright (hence
+  // namePrefixes), and create is rejected unless the body already carries a
+  // non-empty <enqu:content><enqu:primaryTable> — so create can't be a
+  // vendor skeleton POST followed by a PUT.
   //
-  // `delete: "unverified"` — 2026-08-19: create itself is what
-  // blocked verification. Do not trust ENQU/DL's
-  // create claim, and do not re-attempt as a create-verification-sweep TODO, until that's
-  // resolved. Full incident record (three failed live attempts, two
-  // namespaces, XML_PATH diagnostics): the git history.
+  // create/delete verified 2026-09-05 on A4H (EZTMD_I30 in $TMP, table
+  // T000): the root must be lowercase <enqu:lockobject> in namespace
+  // http://www.sap.com/adt/ddic/enqu, not the camelCase <enqu:lockObject> /
+  // http://www.sap.com/dictionary/lockobject the earlier failed attempts
+  // sent. Content needs primaryTable/{tableName, lockMode} in that order;
+  // omitting lockMode 400s. POST 201'd as plain application/* — no
+  // mediaType override needed — and delete (LOCK/MODIFY handle, then
+  // DELETE?lockHandle=…) 200'd, confirmed absent on read-back.
   "ENQU/DL": {
     label: "Lock object",
     write: { shape: "properties" },
-    // verified: false — settled (not "unverified"): create is DISPROVEN by
-    // three independent live attempts (two namespace variants, both raw
-    // probe and abap_write), all failing identically with `400
-    // ExceptionInvalidData` rejecting the <enqu:lockObject> root element
-    // itself. `delete` above is correctly "unverified" for the opposite
-    // reason — create never succeeded, so delete was never once reachable
-    // to test. See the archive for the full run-by-run record and the
-    // lockobject/lockObject case-sensitivity lead.
-    create: { vendor: false, verified: false },
-    delete: "unverified",
+    create: { vendor: false, verified: true },
+    delete: true,
     activate: true,
     namePrefixes: ["EZ", "EY"]
   },
@@ -92395,6 +92389,24 @@ function assertDomaMasterLanguage(t, xml3) {
     'Add adtcore:masterLanguage="EN" to the root element and re-send. Without it, ADT accepts the write and reports activated: true while silently discarding every <doma:fixedValue><doma:text> description \u2014 the fixed-value codes survive, only the text vanishes. Re-writing an already-damaged domain with the attribute present repairs it in place.'
   );
 }
+var ROOT_TAG_NAME_RE = /^<(?:([A-Za-z_][\w.-]*):)?([A-Za-z_][\w.-]*)/;
+function assertLockObjectRoot(t, xml3) {
+  if (t.type !== "ENQU/DL") return;
+  const stripped = xml3.replace(XML_COMMENT_RE, "");
+  const root = XML_ROOT_ELEMENT_RE.exec(stripped)?.[0] ?? "";
+  const nameMatch = ROOT_TAG_NAME_RE.exec(root);
+  const prefix = nameMatch?.[1];
+  const localName2 = nameMatch?.[2] ?? "";
+  const nsAttrRe = prefix ? new RegExp(`(?:^|\\s)xmlns:${prefix}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`) : /(?:^|\s)xmlns\s*=\s*(?:"([^"]*)"|'([^']*)')/;
+  const ns = nsAttrRe.exec(root)?.slice(1).find((v) => v !== void 0);
+  if (localName2 === "lockobject" && ns === "http://www.sap.com/adt/ddic/enqu") return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `The XML for ${t.spec.label} ${t.name} has root element ${prefix ? `${prefix}:` : ""}${localName2 || "(none found)"}, not lockobject in namespace http://www.sap.com/adt/ddic/enqu.`,
+    { name: t.name, type: t.type, uri: t.uri, foundLocalName: localName2, foundPrefix: prefix },
+    'Object was NOT changed. The root element must be exactly lowercase enqu:lockobject in namespace "http://www.sap.com/adt/ddic/enqu" \u2014 the server rejects the root element itself before checking anything nested. Minimal working document: <enqu:lockobject xmlns:enqu="http://www.sap.com/adt/ddic/enqu" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="' + t.name + '" adtcore:type="ENQU/DL" adtcore:description="..."><adtcore:packageRef adtcore:name="$TMP"/><enqu:content><enqu:primaryTable><enqu:tableName>T000</enqu:tableName><enqu:lockMode>E</enqu:lockMode></enqu:primaryTable></enqu:content></enqu:lockobject>. Reading an existing lock object (e.g. E_TABLE) with format: "raw" shows the canonical shape.'
+  );
+}
 var VALUE_INFORMATION_OPEN_RE = /<((?:[A-Za-z_][\w.-]*:)?)valueInformation\b([^>]*)>/gi;
 var VALUE_INFORMATION_CLOSE_RE = /<\/(?:[A-Za-z_][\w.-]*:)?valueInformation\s*>/gi;
 var FIX_VALUES_OPEN_RE = /<(?:[A-Za-z_][\w.-]*:)?fixValues\b/gi;
@@ -93197,6 +93209,7 @@ async function writeObject(conn, target, opts) {
     opts = { ...opts, source: injectEmptyFixValues(t, opts.source) };
     assertPayloadMatchesTarget(t, opts.source);
     assertDomaMasterLanguage(t, opts.source);
+    assertLockObjectRoot(t, opts.source);
   }
   const current = await readCurrentSource(conn, t);
   const previousEtag = current === void 0 ? void 0 : canonicalEtag(current);
@@ -93500,6 +93513,7 @@ async function createByXml(conn, t, corr, payload) {
     }
     assertPayloadMatchesTarget(t, payload);
     assertDomaMasterLanguage(t, payload);
+    assertLockObjectRoot(t, payload);
     body = injectEmptyFixValues(t, payload);
     contentTypeHeader = contentType(t);
   }
@@ -93584,6 +93598,7 @@ async function putContent(conn, t, source, lockHandle, corr) {
   if (properties) {
     assertPayloadMatchesTarget(t, source);
     assertDomaMasterLanguage(t, source);
+    assertLockObjectRoot(t, source);
     source = injectEmptyFixValues(t, source);
   }
   let body;
@@ -95417,36 +95432,28 @@ function clampMaxChars(maxChars) {
   return Math.min(maxChars, DEBUG_MAX_CHARS);
 }
 var breakpointConditionFields = {
-  condition: external_exports.string().trim().min(1).max(255).optional().describe(
-    'ABAP condition expression \u2014 breakpoint suspends only when true, e.g. "sy-tabix = 500".'
-  ),
-  skipCount: external_exports.number().int().nonnegative().max(1e6).optional().describe(
-    'Hits to ignore before suspending (0 = every hit). NOT ENFORCED by this backend \u2014 every hit still suspends; use step:"continue" instead.'
-  )
+  condition: external_exports.string().trim().min(1).max(255).optional(),
+  skipCount: external_exports.number().int().nonnegative().max(1e6).optional()
 };
 var lineBreakpointSchema = external_exports.object({
   ...breakpointConditionFields,
   kind: external_exports.literal("line"),
-  object: external_exports.string().describe(
-    'The class or report to break in (any form abap_read/abap_run accept: bare name, "class ZCL_FOO", a raw ADT URI, ...). Resolved server-side to a source URI.'
-  ),
+  object: external_exports.string().describe("Class or report to break in \u2014 any form abap_read/abap_run accept."),
   line: external_exports.number().int().min(1).max(999999).describe(
-    "1-based source line to break at. SAP may snap this to the nearest executable statement \u2014 if it does, the start response reports the corrected line."
+    "1-based; SAP may snap it to the nearest executable statement (the start response reports the correction)."
   )
 });
 var exceptionBreakpointSchema = external_exports.object({
   ...breakpointConditionFields,
   kind: external_exports.literal("exception"),
-  exceptionClass: external_exports.string().describe(
-    "ABAP exception class to break on when it is raised anywhere, e.g. CX_SY_ZERODIVIDE."
-  )
+  exceptionClass: external_exports.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE.")
 });
 var debugInputSchema = {
   action: external_exports.enum(["start", "step", "stack", "frame", "keepalive", "stop", "status"]).describe(
     "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. keepalive/stop/status need nothing."
   ),
   breakpoints: external_exports.array(external_exports.discriminatedUnion("kind", [lineBreakpointSchema, exceptionBreakpointSchema])).optional().describe(
-    '\u22651 entry, required only for action="start". Line/exception kinds may mix; validated against SAP before arming.'
+    '\u22651 entry, required for action="start"; kinds may mix and are validated against SAP before arming. Both kinds take optional condition (ABAP expression, suspend only when true) and skipCount (sent to SAP, NOT enforced \u2014 use step:"continue").'
   ),
   run: external_exports.object({
     object: external_exports.string().describe("Class or report to execute \u2014 same resolution rules as abap_run."),

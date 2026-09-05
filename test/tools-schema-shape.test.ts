@@ -112,3 +112,67 @@ describe("tool schema — array parameters declare item types", () => {
     expect(schema.properties.breakpoints.items.type, "abap_debug (v2) breakpoints items").toBe("string");
   });
 });
+
+/**
+ * `z.discriminatedUnion` lowers to a two-branch `oneOf` with no `$ref` dedup,
+ * so every shared field between the branches is serialized twice per session
+ * of every client. This guards the wire size of `abap_debug`'s `breakpoints`
+ * property against that regressing, and separately guards that trimming
+ * descriptions to fix it never trims an enforced validator.
+ */
+describe("tool schema — abap_debug breakpoints stays small without losing validators", () => {
+  it("v1 abap_debug: breakpoints property serializes under the byte ceiling", async () => {
+    const h = await harness(fullyOpenV1Config());
+    const schema = await schemaOf(h, "abap_debug");
+    const bytes = Buffer.byteLength(JSON.stringify(schema.properties.breakpoints), "utf8");
+    expect(
+      bytes,
+      `abap_debug breakpoints serialized to ${bytes} bytes, over the 1250 ceiling. ` +
+        "z.discriminatedUnion inlines both the line and exception branches with no $ref " +
+        "dedup, so anything written into condition/skipCount is paid TWICE per session by " +
+        "every client — shared-field guidance belongs in the array-level description, not " +
+        "on condition/skipCount themselves.",
+    ).toBeLessThanOrEqual(1250);
+  });
+
+  it("v1 abap_debug: breakpoints branches keep every validator after the description trim", async () => {
+    const h = await harness(fullyOpenV1Config());
+    const schema = await schemaOf(h, "abap_debug");
+    const oneOf = schema.properties.breakpoints.items.oneOf as JsonSchema[];
+    expect(oneOf, "abap_debug breakpoints items should be a 2-branch oneOf").toHaveLength(2);
+
+    const lineBranch = oneOf.find((b) => b.properties?.kind?.const === "line");
+    const exceptionBranch = oneOf.find((b) => b.properties?.kind?.const === "exception");
+    expect(lineBranch, "no breakpoints branch with kind.const === \"line\"").toBeDefined();
+    expect(exceptionBranch, "no breakpoints branch with kind.const === \"exception\"").toBeDefined();
+
+    expect(lineBranch!.required, "line branch required fields").toEqual(
+      expect.arrayContaining(["kind", "object", "line"]),
+    );
+    expect(exceptionBranch!.required, "exception branch required fields").toEqual(
+      expect.arrayContaining(["kind", "exceptionClass"]),
+    );
+
+    for (const [name, branch] of [
+      ["line", lineBranch!],
+      ["exception", exceptionBranch!],
+    ] as const) {
+      expect(branch.properties.condition, `${name} branch condition schema`).toMatchObject({
+        type: "string",
+        minLength: 1,
+        maxLength: 255,
+      });
+      expect(branch.properties.skipCount, `${name} branch skipCount schema`).toMatchObject({
+        type: "integer",
+        minimum: 0,
+        maximum: 1_000_000,
+      });
+    }
+
+    expect(lineBranch!.properties.line, "line branch line schema").toMatchObject({
+      type: "integer",
+      minimum: 1,
+      maximum: 999_999,
+    });
+  });
+});

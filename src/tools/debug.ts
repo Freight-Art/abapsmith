@@ -567,7 +567,11 @@ function clampMaxChars(maxChars: number): number {
  * unconditionally, worse than an error. Shared so both kinds can't drift
  * apart. `z.discriminatedUnion` inlines both members separately in
  * JSON-Schema with no `$ref` dedup, so every word of these descriptions is
- * serialized TWICE — which is why the descriptions below are kept terse.
+ * serialized TWICE — which is why `condition`/`skipCount` carry no
+ * `.describe()` at all below: their guidance is stated once, in the
+ * `breakpoints` array description, and a caller who actually sets
+ * `skipCount` gets the not-enforced warning back in the response
+ * (`skipCountWarnings` in `startSession`).
  *
  * A `.meta({id})`-based `$ref` dedup for this pair was measured and
  * deliberately rejected: it saved only 247 bytes on the wire payload, no
@@ -577,25 +581,8 @@ function clampMaxChars(maxChars: number): number {
  * degrade gracefully.
  */
 const breakpointConditionFields = {
-  condition: z
-    .string()
-    .trim()
-    .min(1)
-    .max(255)
-    .optional()
-    .describe(
-      'ABAP condition expression — breakpoint suspends only when true, e.g. "sy-tabix = 500".',
-    ),
-  skipCount: z
-    .number()
-    .int()
-    .nonnegative()
-    .max(1_000_000)
-    .optional()
-    .describe(
-      "Hits to ignore before suspending (0 = every hit). NOT ENFORCED by this backend — every " +
-        'hit still suspends; use step:"continue" instead.',
-    ),
+  condition: z.string().trim().min(1).max(255).optional(),
+  skipCount: z.number().int().nonnegative().max(1_000_000).optional(),
 };
 
 const lineBreakpointSchema = z.object({
@@ -603,29 +590,22 @@ const lineBreakpointSchema = z.object({
   kind: z.literal("line"),
   object: z
     .string()
-    .describe(
-      "The class or report to break in (any form abap_read/abap_run accept: bare name, " +
-        '"class ZCL_FOO", a raw ADT URI, ...). Resolved server-side to a source URI.',
-    ),
+    .describe("Class or report to break in — any form abap_read/abap_run accept."),
   line: z
     .number()
     .int()
     .min(1)
     .max(999_999)
     .describe(
-      "1-based source line to break at. SAP may snap this to the nearest executable " +
-        "statement — if it does, the start response reports the corrected line.",
+      "1-based; SAP may snap it to the nearest executable statement (the start response " +
+        "reports the correction).",
     ),
 });
 
 const exceptionBreakpointSchema = z.object({
   ...breakpointConditionFields,
   kind: z.literal("exception"),
-  exceptionClass: z
-    .string()
-    .describe(
-      "ABAP exception class to break on when it is raised anywhere, e.g. CX_SY_ZERODIVIDE.",
-    ),
+  exceptionClass: z.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE."),
 });
 
 export const debugInputSchema = {
@@ -639,8 +619,9 @@ export const debugInputSchema = {
     .array(z.discriminatedUnion("kind", [lineBreakpointSchema, exceptionBreakpointSchema]))
     .optional()
     .describe(
-      "≥1 entry, required only for action=\"start\". Line/exception kinds may mix; " +
-        "validated against SAP before arming.",
+      "≥1 entry, required for action=\"start\"; kinds may mix and are validated against SAP " +
+        "before arming. Both kinds take optional condition (ABAP expression, suspend only " +
+        'when true) and skipCount (sent to SAP, NOT enforced — use step:"continue").',
     ),
   run: z
     .object({

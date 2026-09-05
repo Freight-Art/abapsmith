@@ -83,7 +83,7 @@ inputs to this derivation rather than registry fields:
 | `DOMA/DD` | Domain | yes | yes | yes | yes | yes | live |
 | `TTYP/DA` | Table type | yes | yes | yes | yes | yes | live |
 | `MSAG/N` | Message class | yes | partial | yes | yes | n/a | live |
-| `ENQU/DL` | Lock object | no | partial | yes | no | yes | live |
+| `ENQU/DL` | Lock object | yes | partial | yes | yes | yes | live |
 | `DEVC/K` | Package | yes | yes | no | partial | no | live |
 | `SRVB/SVB` | Service binding | yes | partial | yes | yes | yes | live |
 | `SHLP/DH` | Search help | no | no | no | no | no | tests |
@@ -104,12 +104,15 @@ The `Object` column values are the registry `label` fields, unreworded.
   delete calls reported success on a live system and the object was still
   there afterwards. The create verification rests on a raw-wire probe made
   outside abapsmith, not on a tool call.
-- `ENQU/DL` — the registry records `create.verified: false`: creation was
-  attempted against a live system and does not reliably work, so the create
-  gate is shut. Update works. Delete is `"unverified"` in the registry, which
-  is why the cell is `no` rather than `partial` — nothing has established it
-  either way, and the gate stays shut until something does. Names are
-  restricted to the `EZ` and `EY` prefixes.
+- `ENQU/DL` — create and delete are both live-verified, 2026-09-05, on A4H
+  (`EZTMD_I30` in `$TMP` over table `T000`): create returned 201 (object
+  `inactive`), and delete (LOCK with accessMode=MODIFY, then DELETE with the
+  lock handle) returned 200, confirmed by a read-back showing the object
+  gone. The earlier create failures were the XML root element, not the
+  content: it must be lowercase `<enqu:lockobject>` in namespace
+  `http://www.sap.com/adt/ddic/enqu`, not the camelCase `<enqu:lockObject>`
+  in `http://www.sap.com/dictionary/lockobject` older callers sent. Names
+  are restricted to the `EZ` and `EY` prefixes.
 - `DCLS/DL` — reads, create, update, activate and delete are all
   live-verified, 2026-09-04, on A4H in `$TMP` (`ZTMD_DCL_01`): create via
   abap-adt-api's vendor `CreatableTypes` entry (creationPath
@@ -129,8 +132,8 @@ The `Object` column values are the registry `label` fields, unreworded.
   create Annotation Definitions" — from an admin user that creates every
   other type, so annotation definitions are a SAP-only object type on this
   system. Delete stays `"unverified"`: create never succeeded, so delete was
-  never once reachable to test, same reasoning as `ENQU/DL` above. The entry
-  carries a `mediaType` because the object URI 406s without it.
+  never once reachable to test. The entry carries a `mediaType` because the
+  object URI 406s without it.
 - `MSAG/N` — activation is `n/a` because a message class is born active.
   Reading needs `format: "raw"`; a single raw document has been observed in
   the hundreds of thousands of characters, so the read is windowed by

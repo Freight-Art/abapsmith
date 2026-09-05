@@ -1,36 +1,63 @@
 /**
  * Shared helpers for the live suite's "appliance state" outcomes.
  *
- * "Not exercised" and "misbehaved" are different outcomes: a test that cannot
- * run because the appliance is in an unexpected state — a fixture that was
- * never deployed, a stranded debug session left by an earlier run — must
- * SKIP with a stated reason, not fail like a real regression. A test that DID
- * run but hit a failure shape that is itself appliance state (system down,
- * breaker tripped, a request timing out under work-process contention) still
- * FAILS — see `underApplianceStateWatch` — just with the same greppable
- * prefix, so a sweep log can tell both apart from a real regression.
+ * "Not exercised" and "misbehaved" are different outcomes: a test that
+ * cannot run — because the appliance is in an unexpected state (a fixture
+ * never deployed, a stranded debug session left by an earlier run) or
+ * because this process isn't configured to run it (`ABAP_URL` unset, no
+ * write access) — must SKIP with a stated reason, not fail like a real
+ * regression. A test that DID run but hit a failure shape that is itself
+ * appliance state (system down, breaker tripped, a request timing out under
+ * work-process contention) still FAILS — see `underApplianceStateWatch` —
+ * just with the same greppable prefix, so a sweep log can tell both apart
+ * from a real regression.
  *
- * ENTIRELY inert offline: nothing here opens a connection on import, and the
- * only two files that import it (`integration.test.ts`,
- * `integration-debug.test.ts`) are themselves excluded from `npm test` by
- * `vitest.config.ts` unless `ABAP_URL` is set. Modelled on `pool-doubles.ts`:
- * a plain non-test helper module, not collected by vitest itself.
+ * ENTIRELY inert offline: nothing here opens a connection or reads the
+ * environment on import. `integration.test.ts`, `integration-debug.test.ts`,
+ * `integration-undo.test.ts` and `integration-fpm-lock.test.ts` import it and
+ * are themselves excluded from `npm test` by `vitest.config.ts` unless
+ * `ABAP_URL` is set; this module's own unit test also imports it and always
+ * runs. Modelled on `pool-doubles.ts`: a plain non-test helper module, not
+ * collected by vitest itself.
  */
 import type { TestContext } from "vitest";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
 import type { AbapConnection } from "../src/adt/connection.js";
 import { abapRead } from "../src/tools/read.js";
+import { liveWriteConfigured } from "./helpers/live-write-gate.js";
 
 /**
- * Every skip minted for an environmental reason carries this prefix, so a
- * reader — or a grep over a sweep log — can separate "we could not run this"
- * from "this failed".
+ * Every skip or appliance-state failure carries this prefix, so a reader —
+ * or a grep over a sweep log — can separate "this did not run" from "this
+ * failed". A skip's reason may be an appliance condition or simply how this
+ * process is configured (`ABAP_URL`, write access); a failure under this
+ * prefix is always appliance state — see `underApplianceStateWatch`.
  */
 export const APPLIANCE_STATE_PREFIX = "APPLIANCE STATE:";
 
 /** Skip the current test with a stated, greppable reason. `ctx.skip` throws, so this never returns. */
 export function skipForApplianceState(ctx: TestContext, reason: string): never {
   ctx.skip(`${APPLIANCE_STATE_PREFIX} ${reason}`);
+}
+
+/** What a live suite needs beyond `ABAP_URL` before it can run. */
+export type LiveSuiteNeeds = { readonly write?: boolean };
+
+/**
+ * Why this process cannot run a live suite, or `undefined` when it can. A
+ * bare `describe.skip` shows up as a skip count but never says why, so a
+ * caller pairs this with one `skipForApplianceState` case that states the
+ * reason under the greppable prefix.
+ */
+export function liveSuiteSkipReason(
+  needs: LiveSuiteNeeds = {},
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (!env.ABAP_URL) return "ABAP_URL is not set — no live system configured for this run";
+  if (needs.write === true && !liveWriteConfigured(env)) {
+    return "write access is not configured — set ABAP_MODE=edit|admin (or ABAP_ALLOW_WRITE=true when ABAP_MODE is unset)";
+  }
+  return undefined;
 }
 
 export type ExistenceResult = { present: true } | { present: false; reason: string };
