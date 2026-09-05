@@ -59,6 +59,8 @@ export interface PresenceProbe {
   readonly error?: unknown;
   /** True when the first attempt died with a dead session and a fresh one was established. */
   readonly revived: boolean;
+  /** The response body, set only on `presence === "present"`. */
+  readonly body?: string;
 }
 
 /**
@@ -85,8 +87,8 @@ export async function probeObjectPresence(
 ): Promise<PresenceProbe> {
   const get = () => conn.get(uri, { headers: { Accept: accept } });
   try {
-    await get();
-    return { presence: "present", revived: false };
+    const resp = await get();
+    return { presence: "present", revived: false, body: resp.body };
   } catch (e) {
     if (isNotFoundError(e)) return { presence: "absent", error: e, revived: false };
     if (!isSessionDeadFailure(e)) return { presence: "no-answer", error: e, revived: false };
@@ -99,8 +101,8 @@ export async function probeObjectPresence(
   }
 
   try {
-    await get();
-    return { presence: "present", revived: true };
+    const resp = await get();
+    return { presence: "present", revived: true, body: resp.body };
   } catch (e) {
     return { presence: isNotFoundError(e) ? "absent" : "no-answer", error: e, revived: true };
   }
@@ -399,8 +401,17 @@ export async function verifyObjectPresent(
   const { uri, accept, objectName, expectType } = opts;
   let readBackReason: string | undefined;
   try {
-    await conn.get(uri, { headers: { Accept: accept } });
-    return { status: "confirmed", uri, via: "read-back" };
+    const resp = await conn.get(uri, { headers: { Accept: accept } });
+    if (isBlankBody(resp.body) && blankSourceIsAmbiguous(expectType)) {
+      // For this type a 200/empty body does not distinguish an absent object
+      // from an empty one — fall through to the search instead of reporting
+      // a possibly-absent object as confirmed.
+      readBackReason =
+        "the source endpoint answered 200 with an empty body, which does not distinguish " +
+        "an absent object from an empty one for this type";
+    } else {
+      return { status: "confirmed", uri, via: "read-back" };
+    }
   } catch (e) {
     if (isNotFoundError(e)) {
       readBackReason = "the read-back answered 404";
@@ -433,22 +444,37 @@ function answeredFiveHundredWithType(e: unknown): boolean {
   return info?.status === 500 && typeof info.type === "string" && info.type.length > 0;
 }
 
+/** True when a blank `/source/main` body settles nothing for this type — see capabilities.ts's `blankSourceOnAbsence` doc. */
+export function blankSourceIsAmbiguous(type: string): boolean {
+  return capabilitiesFor(type)?.blankSourceOnAbsence === true;
+}
+
+/** This type's root-object Accept, or the generic default — see capabilities.ts's `mediaType` doc. */
+export function objectAcceptFor(type: string): string {
+  return capabilitiesFor(type)?.mediaType ?? "application/*";
+}
+
+/** A non-string body is never blank — only an actual empty-after-trim string counts. */
+function isBlankBody(body: unknown): boolean {
+  return typeof body === "string" && body.trim() === "";
+}
+
 /**
  * Post-DELETE verification. The inversion from every other probe in
  * this module: a `404` read-back is the SUCCESS signal (the object is
  * genuinely gone), and a `200` is NOT proof the delete failed.
  *
- * Live testing recorded why the `200` case can't be trusted alone: a `DELETE` on
- * `BDEF/BDO` answered `200`, the read-back still returned the object, and
- * a SECOND `DELETE` then answered `NOT_FOUND` while a THIRD read still
- * returned the object — the server had already treated the object as gone
- * while the read path kept handing back a stale copy. So a `200` here only
- * means "unproven", never "still there"; it falls through to
- * {@link verifyViaRepositorySearch}, whose `confirmed` settles the question
- * on its own — the read-back does not additionally have to agree. If the
- * read-back saw the object (`200`) and the search instead says
- * `confirmed-absent`, that contradiction is itself the stale-read shape described above
- * and is reported as `indeterminate` rather than resolved either way.
+ * A `200` read-back is asymmetrically trusted for a general reason, not a
+ * specific incident: a read path can answer `200` for reasons the delete
+ * does not control (see `capabilities.ts`'s `blankSourceOnAbsence` for one
+ * concrete case — `BDEF/BDO`'s source endpoint answers 200/empty only for
+ * an ABSENT object, handled below by the confirming-GET branch keyed on a
+ * blank body). So a bare `200` here only means "unproven", never "still
+ * there"; it falls through to {@link verifyViaRepositorySearch}, whose
+ * `confirmed` settles the question on its own — the read-back does not
+ * additionally have to agree. If the read-back saw the object (`200`) and
+ * the search instead says `confirmed-absent`, that contradiction is
+ * reported as `indeterminate` rather than resolved either way.
  *
  * Two fixes were considered: require two-probe agreement for absence, or (taken
  * here, the narrower option) refuse to accept a repository-search verdict as
@@ -464,7 +490,8 @@ function answeredFiveHundredWithType(e: unknown): boolean {
  * reconnect-and-retry on a dead session, never a loop). FUGR/FF's
  * content endpoint 500s instead of 404ing for an absent module, so an
  * inconclusive 500 there gets one confirming GET at the bare object URI
- * before falling through to the search.
+ * before falling through to the search; a `blankSourceOnAbsence` type gets
+ * the same treatment for a 200/empty body instead of a 500.
  */
 export async function verifyObjectDeleted(
   conn: AbapConnection,
@@ -487,7 +514,7 @@ export async function verifyObjectDeleted(
   if (!sawObject && objUri !== uri && answeredFiveHundredWithType(readBack.error)) {
     // The object URI serves metadata XML, not the content endpoint's media
     // type — reusing `accept` here risks a 406 that masks a real 404.
-    const objAccept = capabilitiesFor(expectType)?.mediaType ?? "application/*";
+    const objAccept = objectAcceptFor(expectType);
     const direct = await probeObjectPresence(conn, objUri, objAccept);
     if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
     if (direct.presence === "present") {
@@ -498,6 +525,21 @@ export async function verifyObjectDeleted(
       readBackUri = objUri;
       readBackReason = `the read-back answered HTTP 500 with an ADT exception type, and a confirming GET of ${objUri} did not answer at all, so it established nothing either way`;
     }
+  } else if (sawObject && objUri !== uri && isBlankBody(readBack.body) && blankSourceIsAmbiguous(expectType)) {
+    // BDEF/BDO's source endpoint answers 200/empty for an absent object —
+    // capabilities.ts's blankSourceOnAbsence. Same confirming-GET treatment
+    // as the FUGR/FF 500 branch above, keyed on a blank body instead of a 500.
+    const objAccept = objectAcceptFor(expectType);
+    const direct = await probeObjectPresence(conn, objUri, objAccept);
+    if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
+    if (direct.presence === "present") {
+      readBackUri = objUri;
+      readBackReason = `the source endpoint answered 200 with an empty body, and a confirming GET of ${objUri} answered 200 — the object is still there`;
+    } else {
+      sawObject = false;
+      readBackUri = objUri;
+      readBackReason = `the source endpoint answered 200 with an empty body, which proves nothing on its own, and a confirming GET of ${objUri} did not answer at all`;
+    }
   }
 
   // A 200 or any other read-back failure is equally inconclusive (see the
@@ -506,17 +548,14 @@ export async function verifyObjectDeleted(
   if (search.status === "confirmed") return search;
   if (search.status === "confirmed-absent") {
     if (sawObject) {
-      // The two probes contradict each other — exactly the stale-read
-      // shape (a second DELETE answered NOT_FOUND while a read still
-      // returned the object for BDEF/BDO). Report the contradiction rather
-      // than resolving it either way.
+      // The two probes contradict each other. Report the contradiction
+      // rather than resolving it either way.
       return {
         status: "indeterminate",
         uri,
         reason:
           `The post-delete read-back of ${expectType} ${objectName} answered 200 at ${readBackUri}, but the ` +
-          "repository search found no trace of it — the same contradiction recorded live " +
-          "for BDEF/BDO. A stale 200 read-back is not proof the delete failed; treated as unproven.",
+          "repository search found no trace of it — a stale 200 read-back is not proof the delete failed; treated as unproven.",
       };
     }
     // The read-back never settled it, so a lone search miss cannot

@@ -3,13 +3,17 @@
  * ("read(CLAS ZCL_FOO, method=CALCULATE) → 30 lines, not 1,200").
  */
 import type { ClassComponent } from "abap-adt-api";
-import { capabilitiesFor } from "./capabilities.js";
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
 import type { ResolvedObject } from "./resolve.js";
 import { type ErrorContext, translateAdtError } from "./session.js";
 import { CLASS_INCLUDES, type ClassInclude, classIncludeUri } from "./types.js";
-import { probeObjectPresence, type ObjectPresence } from "./write-verify.js";
+import {
+  blankSourceIsAmbiguous,
+  objectAcceptFor,
+  probeObjectPresence,
+  type ObjectPresence,
+} from "./write-verify.js";
 
 export interface SourceResult {
   source: string;
@@ -87,11 +91,14 @@ function isTimeoutError(e: unknown): boolean {
 }
 
 /**
- * A source-endpoint 500 with a genuine ADT exception type is FUGR/FF's known
- * answer for an absent function module (see capabilities.ts's FUGR/FF entry:
- * "/source/main of an already-deleted FM 500s instead of 404ing") — but the
- * identical envelope is also what a genuinely broken server sends for an
- * object that DOES exist (`test/fixtures/live-captured/040-terminate-debuggee.xml`
+ * Confirms an object's existence at its own URI when the source endpoint's
+ * response can't be trusted on its own — either a 500 with a genuine ADT
+ * exception type, or (for a `blankSourceOnAbsence` type) a 200 with an empty
+ * body. A source-endpoint 500 with a genuine ADT exception type is FUGR/FF's
+ * known answer for an absent function module (see capabilities.ts's FUGR/FF
+ * entry: "/source/main of an already-deleted FM 500s instead of 404ing") —
+ * but the identical envelope is also what a genuinely broken server sends for
+ * an object that DOES exist (`test/fixtures/live-captured/040-terminate-debuggee.xml`
  * is a captured 500 from an unrelated debugger failure whose message is also
  * exactly "An exception was raised"). The envelope alone can't tell those
  * apart, so absence is confirmed the same way `resolveWriteTarget`
@@ -99,12 +106,17 @@ function isTimeoutError(e: unknown): boolean {
  * `probeObjectPresence` (write-verify.ts) so a dead session there gets the
  * same one-reconnect-and-retry as every other read-back, and so the
  * caller sees `no-answer` as distinct from a confirmed presence rather than
- * both collapsing to "not absent". One extra GET, fired only on a 500 — the
- * appliance's dialog work processes are finite.
+ * both collapsing to "not absent". One extra GET, fired only on a 500 (or a
+ * blank body for a `blankSourceOnAbsence` type) — the appliance's dialog
+ * work processes are finite.
  */
-async function objectUriPresenceAt500(conn: AbapConnection, obj: SourceTarget): Promise<ObjectPresence> {
-  const accept = capabilitiesFor(obj.type)?.mediaType ?? "application/*";
-  return (await probeObjectPresence(conn, obj.uri, accept)).presence;
+async function objectUriPresence(conn: AbapConnection, obj: SourceTarget): Promise<ObjectPresence> {
+  return (await probeObjectPresence(conn, obj.uri, objectAcceptFor(obj.type))).presence;
+}
+
+/** A string that is empty after trimming; a non-string body is never blank. */
+function isBlankBody(body: unknown): boolean {
+  return typeof body === "string" && body.trim() === "";
 }
 
 /**
@@ -153,6 +165,23 @@ export async function readSource(
       headers: { Accept: "text/plain" },
       ...(version ? { qs: { version } } : {}),
     });
+    if (isBlankBody(resp.body) && blankSourceIsAmbiguous(obj.type)) {
+      const presence = await objectUriPresence(conn, obj);
+      if (presence === "absent") {
+        throw new AbapError(
+          "NOT_FOUND",
+          `${obj.type} ${obj.name} does not exist: its source endpoint answered HTTP 200 with ` +
+            `an empty body (this type's known response for an absent object there), and a ` +
+            `direct GET of ${obj.uri} confirmed the absence with a not-found response.`,
+          { type: obj.type, name: obj.name, uri: sourceUri, absenceConfirmedVia: obj.uri },
+          "Check the name with abap_search, or create it first with abap_write. This was " +
+            "established by a second, independent request against the object URI, not " +
+            "inferred from the empty body.",
+        );
+      }
+      // "present" or "no-answer": a created-but-not-yet-filled skeleton is
+      // not missing — return the empty source unchanged.
+    }
     return {
       source: resp.body,
       serverEtag: typeof resp.headers.etag === "string" ? resp.headers.etag : undefined,
@@ -171,7 +200,7 @@ export async function readSource(
       typeof err.details.adtExceptionType === "string" &&
       Boolean(err.details.adtExceptionType);
     if (answered500WithType) {
-      const presence = await objectUriPresenceAt500(conn, obj);
+      const presence = await objectUriPresence(conn, obj);
       if (presence === "absent") {
         throw new AbapError(
           "NOT_FOUND",

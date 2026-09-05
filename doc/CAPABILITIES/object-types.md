@@ -70,7 +70,7 @@ inputs to this derivation rather than registry fields:
 | `DCLS/DL` | CDS access control | yes | yes | yes | yes | yes | live |
 | `DDLA/ADF` | Annotation definition | no | yes | yes | no | yes | live |
 | `SRVD/SRV` | Service definition | yes | yes | yes | yes | yes | live |
-| `BDEF/BDO` | Behavior definition | yes | yes | yes | no | yes | live |
+| `BDEF/BDO` | Behavior definition | yes | yes | yes | yes | yes | live |
 | `XSLT/VT` | Transformation | yes | yes | yes | yes | yes | live |
 | `TYPE/DG` | Type group | yes | yes | yes | yes | yes | live |
 | `DRUL/DRL` | Dependency rule | yes | yes | yes | yes | yes | live |
@@ -99,11 +99,14 @@ The `Object` column values are the registry `label` fields, unreworded.
 
 ### Object row notes
 
-- `BDEF/BDO` — create is `yes`, delete is `no`, and the `no` is live-disproven
-  rather than unimplemented: the registry records `delete: false` after two
-  delete calls reported success on a live system and the object was still
-  there afterwards. The create verification rests on a raw-wire probe made
-  outside abapsmith, not on a tool call.
+- `BDEF/BDO` — create and delete are both `yes`. A raw lock-plus-DELETE left a
+  live-created behavior definition absent from repository search and from
+  the object URI itself, though `.../source/main` still answered 200 with an
+  empty body. The registry marks the type `blankSourceOnAbsence`, so the
+  read path checks the object URI itself before reporting present or
+  absent whenever the source body comes back blank. Create was exercised
+  end to end through `abap_write` (table → CDS root
+  view → `managed;` BDEF), coming back `created: true, activated: true`.
 - `ENQU/DL` — create and delete are both live-verified, 2026-09-05, on A4H
   (`EZTMD_I30` in `$TMP` over table `T000`): create returned 201 (object
   `inactive`), and delete (LOCK with accessMode=MODIFY, then DELETE with the

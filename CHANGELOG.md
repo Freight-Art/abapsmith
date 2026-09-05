@@ -660,6 +660,15 @@ was last set to `0.3.0`.
   overwrite a result the server already committed. A death from a
   genuinely failed (non-2xx) response is unaffected and still applied
   immediately.
+- `abap_read` reported an absent `BDEF/BDO` as an empty success: this
+  type's `/source/main` answers 200 with an empty body once the object is
+  gone, indistinguishable from a genuinely (if oddly) empty source. A
+  blank `BDEF/BDO` source read is now confirmed against the object's own
+  URI before being reported absent in the post-delete read-back; the
+  post-create read-back instead falls through to the repository search
+  on a blank body rather than trusting it alone. The registry's
+  `delete: false` for this type, which rested on the earlier misread, is
+  corrected to `true`.
 - A pinned `ABAP_ALLOW_TRANSPORTS` previously refused every `VIEW/DV`/
   `TRAN/T` bridge delete outright, because the gate synthesized an `auto`
   transport request for a call that passes none; both delete bridges now
