@@ -3675,7 +3675,7 @@ var require_lib = __commonJS({
           var changed = false;
           for (var i = 0; i < len; i++) {
             var k = keys[i];
-            var ok19 = u[k];
+            var ok20 = u[k];
             var domainResult = domain2.validate(k, appendContext(c, k, domain2, k));
             if ((0, Either_1.isLeft)(domainResult)) {
               changed = true;
@@ -3683,12 +3683,12 @@ var require_lib = __commonJS({
               var vk = domainResult.right;
               changed = changed || vk !== k;
               k = vk;
-              var codomainResult = codomain.validate(ok19, appendContext(c, k, codomain, ok19));
+              var codomainResult = codomain.validate(ok20, appendContext(c, k, codomain, ok20));
               if ((0, Either_1.isLeft)(codomainResult)) {
                 pushAll(errors, codomainResult.left);
               } else {
                 var vok = codomainResult.right;
-                changed = changed || vok !== ok19;
+                changed = changed || vok !== ok20;
                 a[k] = vok;
               }
             }
@@ -5270,10 +5270,10 @@ var require_utilities = __commonJS({
       }
       return [];
     }
-    var ok19 = Object.keys;
-    var xmlRoot = (o) => o[ok19(o).filter((k) => k !== "?xml")[0]];
+    var ok20 = Object.keys;
+    var xmlRoot = (o) => o[ok20(o).filter((k) => k !== "?xml")[0]];
     exports2.xmlRoot = xmlRoot;
-    var stripNs = (x) => x && ok19(x).reduce((obj, key) => {
+    var stripNs = (x) => x && ok20(x).reduce((obj, key) => {
       const nk = key.split(":").slice(1).join(":") || key;
       if (nk in obj)
         obj[key] = key;
@@ -5283,12 +5283,12 @@ var require_utilities = __commonJS({
     }, {});
     exports2.stripNs = stripNs;
     var stripAttrPrefix = (x) => x.replace(/^@_/, "");
-    var xmlNodeAttr2 = (n) => n && ok19(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var xmlNodeAttr2 = (n) => n && ok20(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
     exports2.xmlNodeAttr = xmlNodeAttr2;
-    var typedNodeAttr = (n) => n && ok19(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var typedNodeAttr = (n) => n && ok20(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
@@ -31294,12 +31294,12 @@ var require_cds = __commonJS({
       const raw = (0, utilities_1.fullParse)(response.body);
       const records = raw["adtcore:objectReferences"] ? (0, utilities_1.xmlArray)(raw, "adtcore:objectReferences", "adtcore:objectReference") : (0, utilities_1.xmlArray)(raw, "ddl:ddlObjectReferences", "ddl:ddlObjectReference");
       return records.map((r) => {
-        const attr8 = (0, utilities_1.xmlNodeAttr)(r);
+        const attr9 = (0, utilities_1.xmlNodeAttr)(r);
         return {
-          uri: attr8["adtcore:uri"] || "",
-          type: attr8["adtcore:type"] || "",
-          name: attr8["adtcore:name"] || "",
-          path: attr8["ddl:path"] || ""
+          uri: attr9["adtcore:uri"] || "",
+          type: attr9["adtcore:type"] || "",
+          name: attr9["adtcore:name"] || "",
+          path: attr9["ddl:path"] || ""
         };
       });
     }
@@ -32435,20 +32435,20 @@ var require_objectstructure = __commonJS({
       return void 0;
     }
     function parseStructureElement(el) {
-      const attr8 = (0, utilities_1.xmlNodeAttr)(el);
+      const attr9 = (0, utilities_1.xmlNodeAttr)(el);
       const links = (0, utilities_1.xmlArray)(el, "atom:link").map(utilities_1.xmlNodeAttr);
       const children = (0, utilities_1.xmlArray)(el, "abapsource:objectStructureElement").map(parseStructureElement);
       return {
-        name: attr8["adtcore:name"] || "",
-        type: attr8["adtcore:type"] || "",
-        description: attr8["adtcore:description"],
-        visibility: attr8.visibility,
-        level: attr8.level,
-        constant: parseBool(attr8.constant),
-        constructor: parseBool(attr8.constructor),
-        testmethod: parseBool(attr8.testmethod),
-        redefinition: parseBool(attr8.redefinition),
-        final: parseBool(attr8.final),
+        name: attr9["adtcore:name"] || "",
+        type: attr9["adtcore:type"] || "",
+        description: attr9["adtcore:description"],
+        visibility: attr9.visibility,
+        level: attr9.level,
+        constant: parseBool(attr9.constant),
+        constructor: parseBool(attr9.constructor),
+        testmethod: parseBool(attr9.testmethod),
+        redefinition: parseBool(attr9.redefinition),
+        final: parseBool(attr9.final),
         links,
         children
       };
@@ -32480,11 +32480,11 @@ var require_objectstructure = __commonJS({
       const response = await h.request(objectUrl, { qs });
       const res = (0, utilities_1.fullParse)(response.body);
       const root = (0, utilities_1.xmlRoot)(res);
-      const attr8 = (0, utilities_1.xmlNodeAttr)(root);
-      attr8["adtcore:changedAt"] = Date.parse(attr8["adtcore:changedAt"]) || 0;
-      attr8["adtcore:createdAt"] = Date.parse(attr8["adtcore:createdAt"]) || 0;
+      const attr9 = (0, utilities_1.xmlNodeAttr)(root);
+      attr9["adtcore:changedAt"] = Date.parse(attr9["adtcore:changedAt"]) || 0;
+      attr9["adtcore:createdAt"] = Date.parse(attr9["adtcore:createdAt"]) || 0;
       const links = (0, utilities_1.xmlArray)(root, "atom:link").map(utilities_1.xmlNodeAttr);
-      const metaData = attr8;
+      const metaData = attr9;
       let result;
       if (isClassMetaData(metaData)) {
         const includes = (0, utilities_1.xmlArray)(root, "class:include").map(convertIncludes);
@@ -32753,15 +32753,15 @@ var require_objectcontents = __commonJS({
       const response = await h.request(domainUrl, { qs });
       const res = (0, utilities_1.fullParse)(response.body);
       const root = (0, utilities_1.xmlRoot)(res);
-      const attr8 = (0, utilities_1.xmlNodeAttr)(root) || {};
+      const attr9 = (0, utilities_1.xmlNodeAttr)(root) || {};
       const packageAttr = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(root, "adtcore:packageRef")) || {};
       const metaData = {
-        name: attr8["adtcore:name"],
-        description: attr8["adtcore:description"] || "",
-        language: attr8["adtcore:language"],
-        masterLanguage: attr8["adtcore:masterLanguage"] || "",
-        masterSystem: attr8["adtcore:masterSystem"] || "",
-        responsible: attr8["adtcore:responsible"],
+        name: attr9["adtcore:name"],
+        description: attr9["adtcore:description"] || "",
+        language: attr9["adtcore:language"],
+        masterLanguage: attr9["adtcore:masterLanguage"] || "",
+        masterSystem: attr9["adtcore:masterSystem"] || "",
+        responsible: attr9["adtcore:responsible"],
         packageName: packageAttr["adtcore:name"] || "",
         packageDescription: packageAttr["adtcore:description"],
         packageUri: packageAttr["adtcore:uri"]
@@ -32883,15 +32883,15 @@ var require_objectcontents = __commonJS({
       const response = await h.request(dataElementUrl, { qs });
       const res = (0, utilities_1.fullParse)(response.body);
       const root = (0, utilities_1.xmlRoot)(res);
-      const attr8 = (0, utilities_1.xmlNodeAttr)(root);
+      const attr9 = (0, utilities_1.xmlNodeAttr)(root);
       const packageAttr = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(root, "adtcore:packageRef")) || {};
       const metaData = {
-        name: attr8["adtcore:name"],
-        description: attr8["adtcore:description"] || "",
-        language: attr8["adtcore:language"],
-        masterLanguage: attr8["adtcore:masterLanguage"] || "",
-        masterSystem: attr8["adtcore:masterSystem"] || "",
-        responsible: attr8["adtcore:responsible"],
+        name: attr9["adtcore:name"],
+        description: attr9["adtcore:description"] || "",
+        language: attr9["adtcore:language"],
+        masterLanguage: attr9["adtcore:masterLanguage"] || "",
+        masterSystem: attr9["adtcore:masterSystem"] || "",
+        responsible: attr9["adtcore:responsible"],
         packageName: packageAttr["adtcore:name"] || "",
         packageDescription: packageAttr["adtcore:description"],
         packageUri: packageAttr["adtcore:uri"]
@@ -33053,14 +33053,14 @@ var require_refactor = __commonJS({
       });
       const raw = (0, utilities_1.fullParse)(response.body);
       const parseDelta = (d) => {
-        const attr8 = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(d, "adtcore:objectReference"));
+        const attr9 = (0, utilities_1.xmlNodeAttr)((0, utilities_1.xmlNode)(d, "adtcore:objectReference"));
         const content = d.content;
-        const { uri, range } = (0, urlparser_1.parseUri)(attr8["adtcore:uri"]);
+        const { uri, range } = (0, urlparser_1.parseUri)(attr9["adtcore:uri"]);
         return {
           uri,
           range,
-          name: attr8["adtcore:name"],
-          type: attr8["adtcore:type"],
+          name: attr9["adtcore:name"],
+          type: attr9["adtcore:type"],
           content
         };
       };
@@ -35469,15 +35469,15 @@ var require_rapgenerator = __commonJS({
       let m;
       while ((m = re.exec(body)) !== null) {
         const attrs = m[1];
-        const attr8 = (n) => {
+        const attr9 = (n) => {
           const match = attrs.match(new RegExp(`(?:\\w+:)?${n}\\s*=\\s*"([^"]*)"`));
           return (match === null || match === void 0 ? void 0 : match[1]) || "";
         };
         out.push({
-          uri: attr8("uri"),
-          type: attr8("type"),
-          name: attr8("name"),
-          description: attr8("description")
+          uri: attr9("uri"),
+          type: attr9("type"),
+          name: attr9("name"),
+          description: attr9("description")
         });
       }
       return out;
@@ -66072,9 +66072,9 @@ async function fetchDdicXml(conn, target, operation, accept = "application/*") {
     throw classifyDdicFailure(e, { operation, uri: target.uri, name: target.name, type: target.type });
   }
 }
-function xmlAttr(node2, attr8) {
+function xmlAttr(node2, attr9) {
   if (node2 && typeof node2 === "object" && !Array.isArray(node2)) {
-    const v = node2[`@_${attr8}`];
+    const v = node2[`@_${attr9}`];
     return typeof v === "string" && v !== "" ? v : void 0;
   }
   return void 0;
@@ -68337,8 +68337,8 @@ var SafetyGate = class {
       const normalized = allowTransports.map((t) => t.trim().toUpperCase());
       if (!normalized.includes("*") && corr.kind === "transport") {
         const requested = corr.corrNr.trim().toUpperCase();
-        const ok19 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
-        if (!ok19) {
+        const ok20 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
+        if (!ok20) {
           return {
             allowed: false,
             reason: `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}].`,
@@ -84078,8 +84078,8 @@ async function escalateIfAtoSaysProductive(probes, detection) {
   if (detection.role === "productive") return detection;
   try {
     const { body } = await probes.getAtoSettings(ATO_SETTINGS, { headers: { Accept: "application/*" } });
-    const attr8 = (name) => new RegExp(`${name}="([^"]*)"`, "i").exec(body)?.[1];
-    const isProduction = attr8("isProductionSystem") ?? attr8("productionSystem");
+    const attr9 = (name) => new RegExp(`${name}="([^"]*)"`, "i").exec(body)?.[1];
+    const isProduction = attr9("isProductionSystem") ?? attr9("productionSystem");
     if (isAbapTrue(isProduction)) {
       return {
         role: "productive",
@@ -91434,8 +91434,8 @@ function parsePackageRef(xml3) {
   const seen = /* @__PURE__ */ new Set();
   PACKAGE_REF_TAG_RE.lastIndex = 0;
   for (let tag = PACKAGE_REF_TAG_RE.exec(doc); tag; tag = PACKAGE_REF_TAG_RE.exec(doc)) {
-    const attr8 = PACKAGE_REF_NAME_RE.exec(tag[1] ?? "");
-    const value = (attr8?.[1] ?? attr8?.[2] ?? "").trim();
+    const attr9 = PACKAGE_REF_NAME_RE.exec(tag[1] ?? "");
+    const value = (attr9?.[1] ?? attr9?.[2] ?? "").trim();
     if (!value) continue;
     seen.add(value.toUpperCase());
     first ??= value;
@@ -91480,7 +91480,7 @@ function vitStubShowsRegistration(body) {
 }
 function vitStubShowsExistence(body) {
   if (vitStubShowsRegistration(body)) return true;
-  return VIT_EXISTENCE_ATTRS.some((attr8) => new RegExp(`adtcore:${attr8}\\s*=`, "i").test(body));
+  return VIT_EXISTENCE_ATTRS.some((attr9) => new RegExp(`adtcore:${attr9}\\s*=`, "i").test(body));
 }
 function echoesTarget(body, expectType, expectName) {
   const typeRe = new RegExp(`adtcore:type\\s*=\\s*"${escapeForRegex(expectType)}"`, "i");
@@ -101435,7 +101435,7 @@ async function resolveWriteSource(conn, authorized, input) {
     "Pass the complete new source, {edit:{old_string,new_string}} to splice a unique match, or {method,source} to replace one method's implementation. Use mode=delete to remove the object."
   );
 }
-async function abapWrite(conn, input, maxChars, gate, journal, transport, verifyWrites = "speculative") {
+async function abapWrite(conn, input, maxChars, gate, journal, transport, verifyWrites = "speculative", toolLabel = "abap_write") {
   if (input.objects !== void 0) {
     if (input.dry_run) throw dryRunNotSupported("objects");
     const stray = [
@@ -101698,7 +101698,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
           ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
           afterSource: source,
           systemKey: systemKey(conn.cfg),
-          tool: "abap_write"
+          tool: toolLabel
         })
       },
       (onBeforeImage) => writeObject(conn, authorized, {
@@ -116595,6 +116595,568 @@ function registerAtcTools(mcp, deps) {
   );
 }
 
+// src/adt/range-edit.ts
+function splitLines(source) {
+  const lines = [];
+  const terminator = /\r\n|\n/g;
+  let cursor = 0;
+  let m;
+  while ((m = terminator.exec(source)) !== null) {
+    lines.push({ start: cursor, length: m.index - cursor });
+    cursor = m.index + m[0].length;
+  }
+  lines.push({ start: cursor, length: source.length - cursor });
+  return lines;
+}
+function comparePositions(a, b) {
+  return a.line - b.line || a.column - b.column;
+}
+function resolvePosition(lines, pos, endpoint, editIndex) {
+  if (!Number.isInteger(pos.line) || pos.line < 1 || pos.line > lines.length) {
+    return {
+      ok: false,
+      kind: "out-of-bounds-line",
+      endpoint,
+      line: pos.line,
+      lineCount: lines.length,
+      ...editIndex !== void 0 ? { editIndex } : {}
+    };
+  }
+  const line = lines[pos.line - 1];
+  if (!Number.isInteger(pos.column) || pos.column < 0 || pos.column > line.length) {
+    return {
+      ok: false,
+      kind: "out-of-bounds-column",
+      endpoint,
+      line: pos.line,
+      column: pos.column,
+      lineLength: line.length,
+      ...editIndex !== void 0 ? { editIndex } : {}
+    };
+  }
+  return { ok: true, offset: line.start + pos.column };
+}
+function resolveEdit(lines, edit, editIndex) {
+  const start = resolvePosition(lines, edit.range.start, "start", editIndex);
+  if (!start.ok) return start;
+  const end = resolvePosition(lines, edit.range.end, "end", editIndex);
+  if (!end.ok) return end;
+  if (comparePositions(edit.range.start, edit.range.end) > 0) {
+    return {
+      ok: false,
+      kind: "inverted-range",
+      range: edit.range,
+      ...editIndex !== void 0 ? { editIndex } : {}
+    };
+  }
+  return { ok: true, startOffset: start.offset, endOffset: end.offset };
+}
+function applyRangeEdits(source, edits) {
+  if (edits.length === 0) return { ok: true, result: source };
+  const lines = splitLines(source);
+  const resolved = [];
+  for (let i = 0; i < edits.length; i++) {
+    const edit = edits[i];
+    const r = resolveEdit(lines, edit, i);
+    if (!r.ok) return r;
+    resolved.push({
+      index: i,
+      startOffset: r.startOffset,
+      endOffset: r.endOffset,
+      start: edit.range.start,
+      end: edit.range.end,
+      content: edit.content
+    });
+  }
+  const sorted = [...resolved].sort((a, b) => comparePositions(a.start, b.start) || a.index - b.index);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const cur = sorted[i];
+    const next = sorted[i + 1];
+    const gap = comparePositions(cur.end, next.start);
+    const curZeroWidth = comparePositions(cur.start, cur.end) === 0;
+    const nextZeroWidth = comparePositions(next.start, next.end) === 0;
+    const sameZeroWidthPoint = gap === 0 && curZeroWidth && nextZeroWidth && comparePositions(cur.start, next.start) === 0;
+    if (gap > 0 || sameZeroWidthPoint) {
+      return { ok: false, kind: "overlapping-edits", firstIndex: cur.index, secondIndex: next.index };
+    }
+  }
+  let result = "";
+  let cursor = 0;
+  for (const r of sorted) {
+    result += source.slice(cursor, r.startOffset) + r.content;
+    cursor = r.endOffset;
+  }
+  result += source.slice(cursor);
+  return { ok: true, result };
+}
+
+// src/adt/quickfix.ts
+var QUICKFIX_EVALUATION_URL = "/sap/bc/adt/quickfixes/evaluation";
+var QUICKFIX_MEDIA_TYPE = "application/*";
+var INTERACTIVE_QUICKFIX_PARAMETER_LABELS = {
+  rename_quickfix: "new name"
+};
+var INTERACTIVE_QUICKFIX_TYPES = new Set(
+  Object.keys(INTERACTIVE_QUICKFIX_PARAMETER_LABELS)
+);
+function quickFixFragmentUri(sourceUri, pos) {
+  return `${sourceUri}#start=${pos.line},${pos.column}`;
+}
+function escapeXmlText2(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+}
+function buildProposalRequest(source, sourceUri, pos, userContent) {
+  const ref2 = `${sourceUri}#start=${pos.line},${pos.column}`;
+  const uc = userContent ? escapeXmlText2(userContent) : "";
+  return `<?xml version="1.0" encoding="UTF-8"?>
+  <quickfixes:proposalRequest xmlns:quickfixes="http://www.sap.com/adt/quickfixes"
+     xmlns:adtcore="http://www.sap.com/adt/core">
+    <input>
+      <content>${escapeXmlText2(source)}</content>
+      <adtcore:objectReference adtcore:uri="${escapeXmlText2(ref2)}"/>
+    </input>
+    <userContent>${uc}</userContent>
+  </quickfixes:proposalRequest>`;
+}
+var quickfixXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: false,
+  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && (jpath === "evaluationResults.evaluationResult" || jpath === "proposalResult.deltas.unit")
+});
+function asRecord3(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function asArray4(value) {
+  if (Array.isArray(value)) return value;
+  return value === void 0 || value === null ? [] : [value];
+}
+function attr6(node2, name) {
+  const value = node2?.[`@_${name}`];
+  return typeof value === "string" ? value : void 0;
+}
+function attrOrEmpty3(node2, name) {
+  return attr6(node2, name) ?? "";
+}
+function elementText3(value) {
+  if (typeof value === "string") return value;
+  if (value === void 0 || value === null) return void 0;
+  const rec = asRecord3(value);
+  if (rec === void 0) return void 0;
+  const text3 = rec["#text"];
+  return typeof text3 === "string" ? text3 : "";
+}
+function parseXmlDocument(body, what) {
+  let parsed;
+  try {
+    parsed = quickfixXml.parse(body);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The ${what} response could not be parsed as XML.`,
+      { what, detail: e instanceof Error ? e.message : String(e) },
+      "The server answered with something other than the expected quick-fix document."
+    );
+  }
+  const rec = asRecord3(parsed);
+  if (rec === void 0) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The ${what} response was empty or not a document.`,
+      { what, length: body.length },
+      "The server answered with something other than the expected quick-fix document."
+    );
+  }
+  return rec;
+}
+function missingRoot2(what, root, body) {
+  return new AbapError(
+    "ADT_ERROR",
+    `The ${what} response has no <${root}> element.`,
+    { what, root, preview: truncateText(body, PARSE_EXCERPT_MAX) },
+    "This ADT release may answer quick fixes differently from what this client expects."
+  );
+}
+function stripHtml(s) {
+  return s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").replace(/\s+([.,;:!?])/g, "$1").trim();
+}
+function lastPathSegment(uri) {
+  const segments = uri.split("/").filter((s) => s.length > 0);
+  return segments[segments.length - 1] ?? uri;
+}
+var ROOT_ELEMENT_RE = /^\s*(?:<\?[^>]*\?>\s*)?<(?:[\w.-]+:)?([\w.-]+)/;
+function deriveParameter(type, userContent) {
+  if (userContent) {
+    const m = ROOT_ELEMENT_RE.exec(userContent);
+    if (m) return m[1];
+  }
+  return INTERACTIVE_QUICKFIX_PARAMETER_LABELS[type];
+}
+function parseEvaluationResults(xml3) {
+  const doc = parseXmlDocument(xml3, "quick-fix evaluation");
+  const rootValue = doc["evaluationResults"];
+  if (rootValue === void 0) throw missingRoot2("quick-fix evaluation", "qf:evaluationResults", xml3);
+  const root = asRecord3(rootValue) ?? {};
+  const results = [];
+  for (const raw of asArray4(root["evaluationResult"])) {
+    const node2 = asRecord3(raw);
+    if (node2 === void 0) continue;
+    const ref2 = asRecord3(node2["objectReference"]);
+    const uri = attrOrEmpty3(ref2, "uri");
+    if (uri === "") continue;
+    const type = attrOrEmpty3(ref2, "type");
+    const title = attrOrEmpty3(ref2, "name");
+    const description = stripHtml(attrOrEmpty3(ref2, "description"));
+    const rawUserContent = elementText3(node2["userContent"]);
+    const userContent = rawUserContent !== void 0 && rawUserContent.trim() !== "" ? rawUserContent : void 0;
+    const parameterized = userContent !== void 0 || INTERACTIVE_QUICKFIX_TYPES.has(type);
+    const parameter = deriveParameter(type, userContent);
+    results.push({
+      id: lastPathSegment(uri),
+      uri,
+      type,
+      title,
+      description,
+      parameterized,
+      ...parameter !== void 0 ? { parameter } : {},
+      ...userContent !== void 0 ? { userContent } : {}
+    });
+  }
+  return results;
+}
+var DELTA_FRAGMENT_RE = /#start=(\d+),(\d+)(?:;end=(\d+),(\d+))?$/;
+function parseDeltaFragment(uri) {
+  const m = DELTA_FRAGMENT_RE.exec(uri);
+  if (!m) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `Quick-fix delta URI carries no usable "#start=line,column" fragment.`,
+      { uri },
+      "This client only applies quick-fix deltas that carry a column-precise start (and optional end) fragment."
+    );
+  }
+  const start = { line: Number(m[1]), column: Number(m[2]) };
+  const end = m[3] !== void 0 && m[4] !== void 0 ? { line: Number(m[3]), column: Number(m[4]) } : { line: start.line, column: start.column };
+  return { start, end };
+}
+function uriPath(uri) {
+  const i = uri.indexOf("#");
+  return i === -1 ? uri : uri.slice(0, i);
+}
+function parseProposalDeltas(xml3, expectedSourceUri) {
+  const doc = parseXmlDocument(xml3, "quick-fix proposal");
+  const root = asRecord3(doc["proposalResult"]);
+  if (root === void 0) throw missingRoot2("quick-fix proposal", "qf:proposalResult", xml3);
+  const edits = [];
+  for (const raw of asArray4(asRecord3(root["deltas"])?.["unit"])) {
+    const node2 = asRecord3(raw);
+    if (node2 === void 0) continue;
+    const ref2 = asRecord3(node2["objectReference"]);
+    const uri = attrOrEmpty3(ref2, "uri");
+    const path6 = uriPath(uri);
+    if (path6 !== expectedSourceUri) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `A quick-fix delta unit targets a different object than the one being fixed.`,
+        { expectedSourceUri, unitUri: uri },
+        "This fix edits more than one document. Applying it as a single-object write would silently drop the edit to the other document, so the whole fix was refused instead."
+      );
+    }
+    const content = elementText3(node2["content"]) ?? "";
+    edits.push({ range: parseDeltaFragment(uri), content });
+  }
+  return edits;
+}
+async function evaluateQuickFixes(conn, sourceUri, source, pos) {
+  const ctx = { operation: "quickfix evaluation", uri: sourceUri };
+  let body;
+  try {
+    ({ body } = await conn.post(QUICKFIX_EVALUATION_URL, {
+      headers: { "Content-Type": QUICKFIX_MEDIA_TYPE, Accept: QUICKFIX_MEDIA_TYPE },
+      qs: { uri: quickFixFragmentUri(sourceUri, pos) },
+      body: source
+    }));
+  } catch (e) {
+    throw translateAdtError(e, ctx);
+  }
+  return parseEvaluationResults(body);
+}
+async function fetchQuickFixDelta(conn, proposal, req) {
+  const ctx = { operation: "quickfix proposal", uri: proposal.uri, name: proposal.title };
+  const requestBody = buildProposalRequest(req.source, req.sourceUri, req.position);
+  let body;
+  try {
+    ({ body } = await conn.post(proposal.uri, {
+      headers: { "Content-Type": QUICKFIX_MEDIA_TYPE, Accept: QUICKFIX_MEDIA_TYPE },
+      body: requestBody
+    }));
+  } catch (e) {
+    throw translateAdtError(e, ctx);
+  }
+  return parseProposalDeltas(body, req.sourceUri);
+}
+
+// src/tools/quickfix.ts
+var quickFixInputSchema = {
+  mode: external_exports.enum(["list", "apply"]).describe('"list": proposals at a position. "apply": apply one by id.'),
+  object: external_exports.string().describe("Class/program/function group/interface."),
+  type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC, when ambiguous."),
+  include: external_exports.enum(CLASS_INCLUDES).optional().describe('CLAS/OC only; only "main" is accepted \u2014 quick fixes never target a sub-include.'),
+  line: external_exports.number().int().min(1).describe("1-based source line."),
+  column: external_exports.number().int().min(0).default(0).describe("0-based column. Default 0."),
+  proposal: external_exports.string().optional().describe('Proposal id from mode="list". Required for mode="apply".'),
+  expect_etag: external_exports.string().optional().describe("Etag from abap_read; fails if source changed since."),
+  dry_run: external_exports.boolean().optional().describe('mode="apply" only: preview the write, no PUT/lock/activation/journal entry.'),
+  activate: external_exports.boolean().optional().describe('mode="apply" only: activate after applying. Default true.')
+};
+var QuickFixInput = external_exports.object(quickFixInputSchema);
+var KNOWN_KEYS3 = new Set(Object.keys(QuickFixInput.shape));
+function rejectUnknownArgs3(args) {
+  const unknown2 = Object.keys(args).filter((k) => !KNOWN_KEYS3.has(k));
+  if (unknown2.length === 0) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `abap_quick_fix does not take ${unknown2.map((k) => `\`${k}\``).join(", ")}.`,
+    { unknown: unknown2, known: [...KNOWN_KEYS3] },
+    `Parameters are: ${[...KNOWN_KEYS3].join(", ")}.`
+  );
+}
+function refuseNonMainInclude(objectLabel, include) {
+  return new AbapError(
+    "BAD_INPUT",
+    `abap_quick_fix only targets a class's main include; ${objectLabel} named include "${include}".`,
+    { include },
+    'Only `include: "main"` (or omitting `include`) is accepted. To edit another include directly, use abap_write.'
+  );
+}
+function renderProposals(proposals) {
+  if (proposals.length === 0) return "";
+  const rows = proposals.map((p) => ({
+    ID: p.id,
+    TITLE: p.title,
+    KIND: p.parameterized ? `parameterized${p.parameter ? ` (${p.parameter})` : ""}` : "deterministic",
+    DESCRIPTION: p.description
+  }));
+  return textTable(rows, ["ID", "TITLE", "KIND", "DESCRIPTION"]);
+}
+function renderQuickFixList(obj, pos, proposals, maxChars) {
+  const notes = [];
+  if (proposals.length === 0) {
+    notes.push(
+      `ADT offers no quick fix for ${obj.type} ${obj.name} at line ${pos.line}, column ${pos.column} (1-based line, 0-based column). This is a successful empty result, not an error.`
+    );
+  }
+  return buildResponse({
+    header: { object: `${obj.type} ${obj.name}`, line: pos.line, column: pos.column, proposals: proposals.length },
+    body: renderProposals(proposals),
+    bodyLabel: "PROPOSALS",
+    notes,
+    hints: [
+      'Apply one with mode="apply", proposal:"<id>". v1 applies deterministic proposals only \u2014 a parameterized one needs interactive input this tool does not collect.'
+    ],
+    maxChars
+  });
+}
+function describeApplyFailure(f) {
+  switch (f.kind) {
+    case "out-of-bounds-line":
+      return `${f.endpoint} line ${f.line} (document has ${f.lineCount} lines)`;
+    case "out-of-bounds-column":
+      return `${f.endpoint} line ${f.line}, column ${f.column} (line is ${f.lineLength} chars long)`;
+    case "inverted-range":
+      return `range ${JSON.stringify(f.range.start)}..${JSON.stringify(f.range.end)} ends before it starts`;
+    case "overlapping-edits":
+      return `edits ${f.firstIndex} and ${f.secondIndex} overlap`;
+  }
+}
+async function abapQuickFix(conn, input, maxChars, gate, journal, transport, verifyWrites = "speculative") {
+  if (input.include !== void 0 && input.include !== "main") {
+    throw refuseNonMainInclude(input.object, input.include);
+  }
+  if (input.mode === "apply" && input.proposal === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'mode="apply" requires `proposal` \u2014 the id of one fix returned by mode="list".',
+      {},
+      'Run mode="list" at the same line/column first to see the available proposal ids.'
+    );
+  }
+  if (input.mode === "list" && input.proposal !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      '`proposal` is ignored for mode="list" \u2014 it would be silently dropped, since list always returns every proposal at the position.',
+      { proposal: input.proposal },
+      'Drop `proposal`, or switch to mode="apply" to apply it.'
+    );
+  }
+  const obj = await resolveObject(conn, input.object, { type: input.type });
+  if (obj.include !== void 0 && obj.include !== "main") {
+    throw refuseNonMainInclude(`${obj.type} ${obj.name}`, obj.include);
+  }
+  if (obj.mode !== "source") {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${obj.type} ${obj.name} is a dictionary object with no editable source \u2014 quick fixes only apply to source-based objects (classes, programs, includes).`,
+      { type: obj.type, name: obj.name },
+      "Nothing was read or evaluated."
+    );
+  }
+  gate.authorize(
+    "write",
+    {
+      name: obj.name,
+      ...obj.packageName === void 0 ? {} : { packageName: obj.packageName },
+      type: obj.type
+    },
+    { corr: { kind: "unresolved" } }
+  );
+  const sourceUri = sourceUriFor(obj);
+  const { source } = await readSource(conn, obj);
+  const pos = { line: input.line, column: input.column };
+  const proposals = await evaluateQuickFixes(conn, sourceUri, source, pos);
+  if (input.mode === "list") {
+    return renderQuickFixList(obj, pos, proposals, maxChars);
+  }
+  const chosen = proposals.find((p) => p.id === input.proposal);
+  if (!chosen) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `No proposal with id "${input.proposal}" was offered for ${obj.type} ${obj.name} at line ${pos.line}, column ${pos.column}.`,
+      { proposal: input.proposal, offered: proposals.map((p) => p.id) },
+      proposals.length ? `Available ids at this position: ${proposals.map((p) => p.id).join(", ")}.` : 'No proposals at all were offered at this position \u2014 run mode="list" to confirm.'
+    );
+  }
+  if (chosen.parameterized) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Proposal "${chosen.id}" (${chosen.title}) is parameterized` + (chosen.parameter ? ` \u2014 it needs a value for "${chosen.parameter}"` : " and needs interactive input") + ". This version applies deterministic proposals only. No network write has happened.",
+      { proposal: chosen.id, ...chosen.parameter !== void 0 ? { parameter: chosen.parameter } : {} },
+      'Choose a non-parameterized proposal from mode="list", or apply this fix interactively in ADT.'
+    );
+  }
+  const edits = await fetchQuickFixDelta(conn, chosen, { sourceUri, source, position: pos });
+  if (edits.length === 0) {
+    return buildResponse({
+      header: { object: `${obj.type} ${obj.name}`, proposal: chosen.id },
+      notes: [
+        `Proposal "${chosen.id}" (${chosen.title}) produced no edits. Nothing was written, locked, or journalled.`
+      ],
+      maxChars
+    });
+  }
+  const applied = applyRangeEdits(source, edits);
+  if (!applied.ok) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `Proposal "${chosen.id}" (${chosen.title}) returned an edit abapsmith cannot apply (${applied.kind}): ${describeApplyFailure(applied)}. Nothing was written.`,
+      { proposal: chosen.id, failure: applied },
+      "Apply this fix interactively in ADT instead."
+    );
+  }
+  const OUTER_HEADER_RESERVE = 300;
+  const written = await abapWrite(
+    conn,
+    {
+      object: input.object,
+      type: input.type,
+      source: applied.result,
+      // Lost-update guard: hash the source AS READ for evaluation, so the
+      // write refuses if the object changed between that read and this PUT
+      // — same reasoning as `resolveWriteSource`'s `edit` branch (write.ts).
+      expect_etag: input.expect_etag ?? canonicalEtag(source),
+      activate: input.activate,
+      dry_run: input.dry_run
+    },
+    Math.max(1e3, maxChars - OUTER_HEADER_RESERVE),
+    gate,
+    journal,
+    transport,
+    verifyWrites,
+    "abap_quick_fix"
+  );
+  return buildResponse({
+    header: {
+      object: `${obj.type} ${obj.name}`,
+      proposal: chosen.id,
+      title: chosen.title,
+      edits: edits.length
+    },
+    body: written.text,
+    bodyLabel: "WRITE",
+    maxChars
+  });
+}
+var ok18 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+async function explainReadOnlyRefusal(fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    if (isAbapError(e) && e.code === "READ_ONLY") {
+      throw new AbapError(
+        e.code,
+        `${e.message} Quick fixes are unavailable in read-only mode: even mode="list" POSTs the whole object source to ADT for evaluation, so both modes are gated as a write.`,
+        e.details,
+        e.hint
+      );
+    }
+    throw e;
+  }
+}
+function registerQuickFixTools(mcp, deps) {
+  mcp.registerTool(
+    "abap_quick_fix",
+    {
+      description: 'ADT quick fixes at one source position. mode="list" enumerates proposals; mode="apply" applies one by id through the journalled abap_write pipeline (undoable via abap_journal mode=undo). v1 applies deterministic proposals only \u2014 a parameterized one is refused, not guessed at. Gated as a write in BOTH modes: list POSTs the whole object source for evaluation, so it is unavailable on a read-only server.',
+      inputSchema: quickFixInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        // Not read-only: apply overwrites source.
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (args) => {
+      try {
+        const a = args ?? {};
+        rejectUnknownArgs3(a);
+        await explainReadOnlyRefusal(
+          () => deps.safety.assert("write", preflight(a), {
+            phase: "preflight",
+            corr: { kind: "unresolved" }
+          })
+        );
+        await deps.ensureConnected();
+        const object3 = a.object;
+        const type = a.type;
+        const run2 = (conn) => abapQuickFix(
+          conn,
+          a,
+          deps.cfg.maxResponseChars,
+          deps.safety,
+          deps.journal,
+          deps.transport,
+          deps.cfg.verifyWrites
+        );
+        const res = await explainReadOnlyRefusal(
+          () => a.mode === "apply" ? deps.pool.withWrite("abap_quick_fix", writeGateKey(object3, type), run2) : (
+            // A READ slot: evaluation is a POST but takes no ABAP enqueue (pool.ts,
+            // ROLE SEMANTICS) — holding the single write slot for an enumeration
+            // would be wrong. It is still gated as `write` above and again inside.
+            deps.pool.withRead("abap_quick_fix", run2)
+          )
+        );
+        return ok18(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
 // src/adt/edmx.ts
 var REPEATABLE_NAMES = /* @__PURE__ */ new Set([
   "Schema",
@@ -116648,7 +117210,7 @@ function child2(node2, name) {
   const v = isRec(node2) ? node2[name] : void 0;
   return isRec(v) ? v : void 0;
 }
-function attr6(node2, name) {
+function attr7(node2, name) {
   if (!isRec(node2)) return void 0;
   const v = node2[`@_${name}`];
   if (v === void 0 || v === null) return void 0;
@@ -116656,7 +117218,7 @@ function attr6(node2, name) {
   return s === "" ? void 0 : s;
 }
 function boolAttr(node2, name) {
-  const raw = attr6(node2, name);
+  const raw = attr7(node2, name);
   if (raw === void 0) return void 0;
   const v = raw.toLowerCase();
   if (v === "true") return true;
@@ -116672,11 +117234,11 @@ function localName(qualified) {
   return cut === -1 ? qualified : qualified.slice(cut + 1);
 }
 function detectVersion2(edmx, schemas) {
-  const v = attr6(edmx, "Version");
+  const v = attr7(edmx, "Version");
   if (v === "4.0") return { version: "V4", evidence: "edmx-version-attribute" };
   if (v === "1.0") return { version: "V2", evidence: "edmx-version-attribute" };
   const ds = child2(edmx, "DataServices");
-  const dsv = attr6(ds, "DataServiceVersion");
+  const dsv = attr7(ds, "DataServiceVersion");
   if (dsv?.startsWith("2")) return { version: "V2", evidence: "dataservice-version-attribute" };
   if (dsv?.startsWith("4")) return { version: "V4", evidence: "dataservice-version-attribute" };
   for (const s of schemas) {
@@ -116687,7 +117249,7 @@ function detectVersion2(edmx, schemas) {
   for (const s of schemas) {
     for (const t of list(s, "EntityType")) {
       for (const n of list(t, "NavigationProperty")) {
-        if (attr6(n, "Type") !== void 0) {
+        if (attr7(n, "Type") !== void 0) {
           return { version: "V4", evidence: "structural-navigation-type" };
         }
       }
@@ -116703,16 +117265,16 @@ function detectVersion2(edmx, schemas) {
 function indexAssociations(schemas) {
   const idx = /* @__PURE__ */ new Map();
   for (const s of schemas) {
-    const ns = attr6(s, "Namespace");
+    const ns = attr7(s, "Namespace");
     for (const a of list(s, "Association")) {
-      const name = attr6(a, "Name");
+      const name = attr7(a, "Name");
       if (!name) continue;
       const ends = /* @__PURE__ */ new Map();
       for (const e of list(a, "End")) {
-        const role = attr6(e, "Role");
-        const type = attr6(e, "Type");
+        const role = attr7(e, "Role");
+        const type = attr7(e, "Type");
         if (!role || !type) continue;
-        const mult = attr6(e, "Multiplicity");
+        const mult = attr7(e, "Multiplicity");
         ends.set(role, { type, ...mult === void 0 ? {} : { multiplicity: mult } });
       }
       idx.set(name, ends);
@@ -116724,10 +117286,10 @@ function indexAssociations(schemas) {
 function v2Navigation(typeNode, assoc) {
   const out = [];
   for (const n of list(typeNode, "NavigationProperty")) {
-    const name = attr6(n, "Name");
+    const name = attr7(n, "Name");
     if (!name) continue;
-    const rel = attr6(n, "Relationship");
-    const toRole = attr6(n, "ToRole");
+    const rel = attr7(n, "Relationship");
+    const toRole = attr7(n, "ToRole");
     const end = rel !== void 0 && toRole !== void 0 ? assoc.get(rel)?.get(toRole) : void 0;
     if (!end) {
       out.push({
@@ -116746,23 +117308,23 @@ function v2Navigation(typeNode, assoc) {
   return out;
 }
 function v2Property(p) {
-  const name = attr6(p, "Name");
+  const name = attr7(p, "Name");
   if (!name) return void 0;
   return {
     name,
-    type: attr6(p, "Type") ?? "(untyped)",
+    type: attr7(p, "Type") ?? "(untyped)",
     ...opt("nullable", boolAttr(p, "Nullable")),
-    ...opt("maxLength", attr6(p, "MaxLength")),
-    ...opt("precision", attr6(p, "Precision")),
-    ...opt("scale", attr6(p, "Scale")),
-    ...opt("label", attr6(p, "label")),
+    ...opt("maxLength", attr7(p, "MaxLength")),
+    ...opt("precision", attr7(p, "Precision")),
+    ...opt("scale", attr7(p, "Scale")),
+    ...opt("label", attr7(p, "label")),
     ...opt("creatable", boolAttr(p, "creatable")),
     ...opt("updatable", boolAttr(p, "updatable")),
     ...opt("sortable", boolAttr(p, "sortable")),
     ...opt("filterable", boolAttr(p, "filterable")),
     ...opt("requiredInFilter", boolAttr(p, "required-in-filter")),
-    ...opt("unit", attr6(p, "unit")),
-    ...opt("text", attr6(p, "text"))
+    ...opt("unit", attr7(p, "unit")),
+    ...opt("text", attr7(p, "text"))
   };
 }
 function opt(key, value) {
@@ -116783,7 +117345,7 @@ function v2Capabilities(set2) {
 function v4RecordFlag(ann, property) {
   for (const rec of list(ann, "Record")) {
     for (const pv of list(rec, "PropertyValue")) {
-      if (attr6(pv, "Property") === property) return boolAttr(pv, "Bool");
+      if (attr7(pv, "Property") === property) return boolAttr(pv, "Bool");
     }
   }
   return void 0;
@@ -116796,7 +117358,7 @@ function v4Label(node2) {
 }
 function v4LabelOf(annotations) {
   for (const a of annotations) {
-    if (localName(attr6(a, "Term") ?? "") === "Label") return attr6(a, "String");
+    if (localName(attr7(a, "Term") ?? "") === "Label") return attr7(a, "String");
   }
   return void 0;
 }
@@ -116809,7 +117371,7 @@ function v4Capabilities(annotations) {
   let pageable;
   let requiresFilter;
   for (const a of annotations) {
-    const term = localName(attr6(a, "Term") ?? "");
+    const term = localName(attr7(a, "Term") ?? "");
     switch (term) {
       case "InsertRestrictions":
         creatable = v4RecordFlag(a, "Insertable") ?? creatable;
@@ -116855,7 +117417,7 @@ function indexV4ExternalAnnotations(schemas) {
   const idx = /* @__PURE__ */ new Map();
   for (const s of schemas) {
     for (const block of list(s, "Annotations")) {
-      const target = attr6(block, "Target");
+      const target = attr7(block, "Target");
       if (!target) continue;
       const anns = v4AnnotationsOf(block);
       if (anns.length === 0) continue;
@@ -116871,9 +117433,9 @@ function indexV4ExternalAnnotations(schemas) {
 function v4Navigation(typeNode) {
   const out = [];
   for (const n of list(typeNode, "NavigationProperty")) {
-    const name = attr6(n, "Name");
+    const name = attr7(n, "Name");
     if (!name) continue;
-    const raw = attr6(n, "Type");
+    const raw = attr7(n, "Type");
     if (raw === void 0) {
       out.push({ name, target: "(unresolved)", unresolved: true });
       continue;
@@ -116885,27 +117447,27 @@ function v4Navigation(typeNode) {
   return out;
 }
 function v4Property(p) {
-  const name = attr6(p, "Name");
+  const name = attr7(p, "Name");
   if (!name) return void 0;
   return {
     name,
-    type: attr6(p, "Type") ?? "(untyped)",
+    type: attr7(p, "Type") ?? "(untyped)",
     ...opt("nullable", boolAttr(p, "Nullable")),
-    ...opt("maxLength", attr6(p, "MaxLength")),
-    ...opt("precision", attr6(p, "Precision")),
-    ...opt("scale", attr6(p, "Scale")),
+    ...opt("maxLength", attr7(p, "MaxLength")),
+    ...opt("precision", attr7(p, "Precision")),
+    ...opt("scale", attr7(p, "Scale")),
     ...opt("label", v4Label(p))
   };
 }
 function paramsOf(node2) {
   const out = [];
   for (const p of list(node2, "Parameter")) {
-    const name = attr6(p, "Name");
+    const name = attr7(p, "Name");
     if (!name) continue;
     out.push({
       name,
-      type: attr6(p, "Type") ?? "(untyped)",
-      ...opt("mode", attr6(p, "Mode"))
+      type: attr7(p, "Type") ?? "(untyped)",
+      ...opt("mode", attr7(p, "Mode"))
     });
   }
   return out;
@@ -116913,14 +117475,14 @@ function paramsOf(node2) {
 function v2Operations(container) {
   const out = [];
   for (const f of list(container, "FunctionImport")) {
-    const name = attr6(f, "Name");
+    const name = attr7(f, "Name");
     if (!name) continue;
-    const method = attr6(f, "HttpMethod");
+    const method = attr7(f, "HttpMethod");
     out.push({
       name,
       kind: method !== void 0 && method.toUpperCase() !== "GET" ? "action" : "function",
       ...opt("httpMethod", method),
-      ...opt("returnType", attr6(f, "ReturnType")),
+      ...opt("returnType", attr7(f, "ReturnType")),
       parameters: paramsOf(f)
     });
   }
@@ -116929,13 +117491,13 @@ function v2Operations(container) {
 function v4Operations(schemas, container) {
   const defs = /* @__PURE__ */ new Map();
   for (const s of schemas) {
-    const ns = attr6(s, "Namespace");
+    const ns = attr7(s, "Namespace");
     for (const [tag, kind] of [
       ["Action", "action"],
       ["Function", "function"]
     ]) {
       for (const node2 of list(s, tag)) {
-        const name = attr6(node2, "Name");
+        const name = attr7(node2, "Name");
         if (!name) continue;
         defs.set(name, { kind, node: node2 });
         if (ns) defs.set(`${ns}.${name}`, { kind, node: node2 });
@@ -116949,15 +117511,15 @@ function v4Operations(schemas, container) {
     ["FunctionImport", "Function"]
   ]) {
     for (const imp of list(container, tag)) {
-      const name = attr6(imp, "Name");
+      const name = attr7(imp, "Name");
       if (!name) continue;
-      const targetRef = attr6(imp, attrName);
+      const targetRef = attr7(imp, attrName);
       const def = targetRef === void 0 ? void 0 : defs.get(targetRef);
       seen.add(targetRef ?? name);
       out.push({
         name,
         kind: tag === "ActionImport" ? "action" : "function",
-        ...opt("returnType", attr6(child2(def?.node, "ReturnType"), "Type")),
+        ...opt("returnType", attr7(child2(def?.node, "ReturnType"), "Type")),
         parameters: def ? paramsOf(def.node) : []
       });
     }
@@ -116968,13 +117530,13 @@ function v4Operations(schemas, container) {
       ["Function", "function"]
     ]) {
       for (const node2 of list(s, tag)) {
-        const name = attr6(node2, "Name");
+        const name = attr7(node2, "Name");
         if (!name || seen.has(name)) continue;
         if (boolAttr(node2, "IsBound") !== true) continue;
         out.push({
           name,
           kind,
-          ...opt("returnType", attr6(child2(node2, "ReturnType"), "Type")),
+          ...opt("returnType", attr7(child2(node2, "ReturnType"), "Type")),
           parameters: paramsOf(node2)
         });
       }
@@ -117014,11 +117576,11 @@ function parseEdmx(body) {
   const entityTypes = [];
   for (const s of schemas) {
     for (const t of list(s, "EntityType")) {
-      const name = attr6(t, "Name");
+      const name = attr7(t, "Name");
       if (!name) continue;
       const keys = [];
       for (const ref2 of list(child2(t, "Key"), "PropertyRef")) {
-        const k = attr6(ref2, "Name");
+        const k = attr7(ref2, "Name");
         if (k) keys.push(k);
       }
       const properties = [];
@@ -117028,24 +117590,24 @@ function parseEdmx(body) {
       }
       entityTypes.push({
         name,
-        ...opt("label", version2 === "V2" ? attr6(t, "label") : v4Label(t)),
+        ...opt("label", version2 === "V2" ? attr7(t, "label") : v4Label(t)),
         keys,
         properties,
         navigation: version2 === "V2" ? v2Navigation(t, assoc ?? /* @__PURE__ */ new Map()) : v4Navigation(t)
       });
     }
   }
-  const containerName = attr6(container, "Name");
+  const containerName = attr7(container, "Name");
   const entitySets = [];
   for (const set2 of list(container, "EntitySet")) {
-    const name = attr6(set2, "Name");
+    const name = attr7(set2, "Name");
     if (!name) continue;
-    const entityType = attr6(set2, "EntityType") ?? "(untyped)";
+    const entityType = attr7(set2, "EntityType") ?? "(untyped)";
     if (version2 === "V2") {
       entitySets.push({
         name,
         entityType,
-        ...opt("label", attr6(set2, "label")),
+        ...opt("label", attr7(set2, "label")),
         capabilities: v2Capabilities(set2)
       });
     } else {
@@ -117053,7 +117615,7 @@ function parseEdmx(body) {
       const external = [
         ...externalAnnotations?.get(`${containerName ?? ""}/${name}`) ?? [],
         ...containerSchema ? externalAnnotations?.get(
-          `${attr6(containerSchema, "Namespace") ?? ""}.${containerName ?? ""}/${name}`
+          `${attr7(containerSchema, "Namespace") ?? ""}.${containerName ?? ""}/${name}`
         ) ?? [] : []
       ];
       const all = [...inline, ...external];
@@ -117068,7 +117630,7 @@ function parseEdmx(body) {
   return {
     version: version2,
     versionEvidence: evidence,
-    ...opt("namespace", attr6(schemas[0], "Namespace")),
+    ...opt("namespace", attr7(schemas[0], "Namespace")),
     ...opt("entityContainer", containerName),
     entitySets,
     entityTypes,
@@ -117117,7 +117679,7 @@ function list2(node2, name) {
 function child3(node2, name) {
   return list2(node2, name)[0];
 }
-function attr7(node2, name) {
+function attr8(node2, name) {
   if (!isRec2(node2)) return void 0;
   const v = node2[`@_${name}`];
   if (v === void 0 || v === null) return void 0;
@@ -117125,7 +117687,7 @@ function attr7(node2, name) {
   return s === "" ? void 0 : s;
 }
 function boolAttr2(node2, name) {
-  const raw = attr7(node2, name)?.toLowerCase();
+  const raw = attr8(node2, name)?.toLowerCase();
   if (raw === "true" || raw === "x") return true;
   if (raw === "false" || raw === "") return false;
   return void 0;
@@ -117196,22 +117758,22 @@ async function readServiceBinding(conn, bindingName) {
   let catalogueUrl;
   let catalogueRel;
   for (const l of list2(sb, "link")) {
-    const rel = attr7(l, "rel");
+    const rel = attr8(l, "rel");
     if (rel !== LINK_REL_V2 && rel !== LINK_REL_V4) continue;
-    catalogueUrl = attr7(l, "href");
+    catalogueUrl = attr8(l, "href");
     catalogueRel = rel;
     break;
   }
   return {
     name,
-    ...opt2("bindingType", attr7(binding, "type")),
-    ...opt2("bindingVersion", attr7(binding, "version")),
-    ...opt2("category", attr7(binding, "category")),
+    ...opt2("bindingType", attr8(binding, "type")),
+    ...opt2("bindingVersion", attr8(binding, "version")),
+    ...opt2("category", attr8(binding, "category")),
     ...opt2("published", boolAttr2(sb, "published")),
-    ...opt2("serviceName", attr7(services, "name")),
-    ...opt2("serviceVersion", attr7(content, "version")),
-    ...opt2("srvdName", attr7(child3(content, "serviceDefinition"), "name")),
-    ...opt2("packageName", attr7(child3(sb, "packageRef"), "name")),
+    ...opt2("serviceName", attr8(services, "name")),
+    ...opt2("serviceVersion", attr8(content, "version")),
+    ...opt2("srvdName", attr8(child3(content, "serviceDefinition"), "name")),
+    ...opt2("packageName", attr8(child3(sb, "packageRef"), "name")),
     ...opt2("catalogueUrl", catalogueUrl),
     ...opt2("catalogueRel", catalogueRel)
   };
@@ -117260,15 +117822,15 @@ async function readServiceRuntimeInfo(conn, binding) {
     );
   }
   const information = child3(service, "serviceInformation");
-  const rawUrl = attr7(service, "serviceUrl") ?? attr7(information, "url");
+  const rawUrl = attr8(service, "serviceUrl") ?? attr8(information, "url");
   const collections = [];
   for (const c of list2(information, "collection")) {
-    const n = attr7(c, "name");
+    const n = attr8(c, "name");
     if (n) collections.push(n);
   }
   return {
-    ...opt2("serviceId", attr7(service, "serviceId")),
-    ...opt2("serviceVersion", attr7(service, "serviceVersion") ?? attr7(information, "version")),
+    ...opt2("serviceId", attr8(service, "serviceId")),
+    ...opt2("serviceVersion", attr8(service, "serviceVersion") ?? attr8(information, "version")),
     ...opt2("servicePath", rawUrl === void 0 ? void 0 : pathOfServiceUrl(rawUrl)),
     ...opt2("published", boolAttr2(service, "published")),
     collections
@@ -117396,15 +117958,15 @@ var serviceInputSchema = {
   entity: external_exports.string().optional().describe("Set/type to expand. Required for mode=entity.")
 };
 var ServiceInput = external_exports.object(serviceInputSchema);
-var KNOWN_KEYS3 = new Set(Object.keys(ServiceInput.shape));
-function rejectUnknownArgs3(args) {
-  const unknown2 = Object.keys(args).filter((k) => !KNOWN_KEYS3.has(k));
+var KNOWN_KEYS4 = new Set(Object.keys(ServiceInput.shape));
+function rejectUnknownArgs4(args) {
+  const unknown2 = Object.keys(args).filter((k) => !KNOWN_KEYS4.has(k));
   if (unknown2.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
     `abap_service does not take ${unknown2.map((k) => `\`${k}\``).join(", ")}.`,
-    { unknown: unknown2, known: [...KNOWN_KEYS3] },
-    `Parameters are: ${[...KNOWN_KEYS3].join(", ")}. There is deliberately no parameter that returns entity data \u2014 abapsmith reads OData contracts, never rows.`
+    { unknown: unknown2, known: [...KNOWN_KEYS4] },
+    `Parameters are: ${[...KNOWN_KEYS4].join(", ")}. There is deliberately no parameter that returns entity data \u2014 abapsmith reads OData contracts, never rows.`
   );
 }
 function capsOf(c) {
@@ -117618,7 +118180,7 @@ async function abapService(conn, input, maxChars) {
     maxChars
   );
 }
-var ok18 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+var ok19 = (text3) => ({ content: [{ type: "text", text: text3 }] });
 function registerServiceTools(mcp, deps) {
   mcp.registerTool(
     "abap_service",
@@ -117635,13 +118197,13 @@ function registerServiceTools(mcp, deps) {
     async (args) => {
       try {
         const a = args ?? {};
-        rejectUnknownArgs3(a);
+        rejectUnknownArgs4(a);
         await deps.ensureConnected();
         const res = await deps.pool.withRead(
           "abap_service",
           (conn) => abapService(conn, a, deps.cfg.maxResponseChars)
         );
-        return ok18(res.text);
+        return ok19(res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
@@ -118032,14 +118594,14 @@ async function handleAbapDebug(args, deps) {
     }
     const runner = runnerFor(deps);
     const result = await runner.run(args);
-    const ok19 = {
+    const ok20 = {
       ok: true,
       tool: "abap_debug",
       data: result.text,
       ...result.notes.length > 0 ? { notes: result.notes } : {},
       next: buildNextCalls(result)
     };
-    return v2Result(ok19);
+    return v2Result(ok20);
   } catch (e) {
     return v2Result(
       v2Error("abap_debug", e, [{ tool: "abap_debug", args: {}, why: "Retry with the bare call for guidance." }])
@@ -119695,8 +120257,8 @@ async function handleAbapWrite(args, deps) {
         }
       ] : []
     );
-    const ok19 = { ok: true, tool: "abap_write", data: result.text, next };
-    return v2Result(ok19);
+    const ok20 = { ok: true, tool: "abap_write", data: result.text, next };
+    return v2Result(ok20);
   } catch (e) {
     const failedObject = objectNameFromArgs(args);
     return v2Result(
@@ -120409,6 +120971,7 @@ function createServer(cfg, opts) {
       registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+      registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
     }
     registerActivateTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, transport, journal });
     registerJournalTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
