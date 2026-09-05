@@ -7,8 +7,10 @@
  * reaches CTS's own backend the way `./tran-delete.ts` / `./view-delete.ts`
  * reach theirs: a generated `IF_OO_ADT_CLASSRUN` class deployed to `$TMP`,
  * calling `TRINT_READ_REQUEST` to find the row and `TR_DELETE_COMM_OBJECT_KEYS`
- * to remove it. This exact route was run live on A4H on 2026-09-04, returned
- * `sy-subrc = 0`, cleared the lock, and a subsequent request delete succeeded.
+ * to remove it. This route clears a `R3TR CLAS` deletion entry. A live run on
+ * a live A4H appliance on 2026-09-05 found that for a `R3TR TABL` deletion
+ * entry, `TR_DELETE_COMM_OBJECT_KEYS` returns a non-zero `sy-subrc`, leaving
+ * the entry and its lock in place.
  */
 
 import type { AbapConnection } from "./connection.js";
@@ -38,6 +40,10 @@ export const TRANSPORT_ENTRY_REMOVE_DATA_LINES: readonly string[] = [
   "lv_trkorr TYPE trkorr.",
   "lv_holder TYPE trkorr.",
   "lv_check TYPE trkorr.",
+  "lv_subrc TYPE sy-subrc.",
+  "ls_msg TYPE symsg.",
+  "lv_msgtext TYPE string.",
+  "lv_readerr TYPE string.",
 ];
 
 /**
@@ -76,7 +82,11 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
     "              iv_read_objs_keys = 'X' iv_read_attributes = 'X'",
     "    CHANGING  cs_request = ls_req",
     "    EXCEPTIONS OTHERS = 1.",
-    "  IF sy-subrc <> 0.",
+    "  lv_subrc = sy-subrc.",
+    "  MOVE-CORRESPONDING sy TO ls_msg.",
+    "  IF lv_subrc <> 0.",
+    "    lv_readerr = |{ lv_trkorr } sy-subrc={ lv_subrc } msg={ ls_msg-msgty }{ ls_msg-msgid }{ ls_msg-msgno } " +
+      "v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
     "    CONTINUE.",
     "  ENDIF.",
     "  CLEAR lt_rows.",
@@ -94,7 +104,12 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
   const step2 = [
     '" Step 2: refuse if no candidate carried the entry.',
     "IF lv_holder IS INITIAL.",
-    `  out->write( |ZMCP-DDIC-ERR> no entry for ${objectName} on ${trkorr} or its tasks| ).`,
+    "  IF lv_readerr IS INITIAL.",
+    `    out->write( |ZMCP-DDIC-ERR> no entry for ${objectName} on ${trkorr} or its tasks| ).`,
+    "  ELSE.",
+    `    out->write( |ZMCP-DDIC-ERR> no entry for ${objectName} on ${trkorr} or its tasks; ` +
+      "last TRINT_READ_REQUEST failure: { lv_readerr }| ).",
+    "  ENDIF.",
     "  RETURN.",
     "ENDIF.",
   ];
@@ -112,9 +127,16 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
     "    EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071",
     "    CHANGING cs_request = ls_req",
     "    EXCEPTIONS OTHERS = 1.",
-    "  IF sy-subrc <> 0.",
+    "  lv_subrc = sy-subrc.",
+    "  MOVE-CORRESPONDING sy TO ls_msg.",
+    "  IF lv_subrc <> 0.",
+    // Classic EXCEPTIONS, not cx_root: OTHERS is used because the real signature can't be
+    // verified offline. sy-msg* is best-effort — a bare RAISE leaves it blank, so a blank
+    // msg= here proves nothing either way.
+    "    lv_msgtext = |{ ls_msg-msgty }{ ls_msg-msgid }{ ls_msg-msgno } v1={ ls_msg-msgv1 } " +
+      "v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
     "    out->write( |ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } " +
-      "{ ls_e071-object } { ls_e071-obj_name }, sy-subrc={ sy-subrc }| ).",
+      "{ ls_e071-object } { ls_e071-obj_name }, sy-subrc={ lv_subrc }, msg={ lv_msgtext }| ).",
     "    RETURN.",
     "  ENDIF.",
     "  out->write( |ZMCP-TREN-ROW { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }| ).",
@@ -126,8 +148,7 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
   // Step 6: a classrun return does not commit, and step 7 must read committed state.
   const step6 = ['" Step 6: commit.', "COMMIT WORK AND WAIT."];
 
-  // Step 7: E071 absence is what is proven here; TLOCK is what TR_DELETE_COMM_OBJECT_KEYS
-  // also clears, but this fragment does not separately verify it.
+  // Step 7: proves only that the E071 row is gone.
   const step7 = [
     '" Step 7: prove absence.',
     `SELECT SINGLE trkorr FROM e071 INTO @lv_check WHERE trkorr = @lv_holder AND obj_name = ${nameLit}.`,

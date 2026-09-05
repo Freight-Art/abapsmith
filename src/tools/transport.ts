@@ -82,8 +82,11 @@ export const transportInputSchema = {
       "What to do. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or " +
         "legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); delete additionally needs the " +
         "admin-only transport-delete ceiling (ABAP_MODE=admin — no legacy flag grants it) and " +
-        "confirm; removeObject (drop one object entry, e.g. one already deleted from the " +
-        "system, so its request can then be deleted) needs that same admin-only " +
+        "confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object " +
+        "already deleted from the system, so its request can then be deleted — if the object " +
+        "still exists, its lock goes too; CTS has refused this for some entries, e.g. a " +
+        "deletion entry for an already-deleted DDIC object on a live A4H appliance, leaving " +
+        "the request undeletable through abapsmith) needs that same admin-only " +
         "transport-delete ceiling and confirm." +
         " Required args: list/users none; show transport; check object; create " +
         "package+description; addUser/setOwner transport+user; delete transport+confirm; " +
@@ -145,8 +148,10 @@ export type TransportReleaseInput = z.infer<typeof TransportReleaseInput>;
 export const TRANSPORT_TOOL_DESCRIPTION =
   "Inspect and manage CTS transport requests: list, show, check (does an object need a " +
   "transport?), users, create, addUser, setOwner, delete, removeObject (drop one E071 entry " +
-  "so its request can then be deleted). Reads are always allowed; mutating operations obey " +
-  "the write allowlists. Release is a separate tool, abap_transport_release.";
+  "and its CTS lock so its request can then be deleted — if the object still exists, its " +
+  "lock goes too, and CTS refuses this for some entries, leaving the request undeletable). " +
+  "Reads are always allowed; mutating operations obey the write allowlists. Release is a " +
+  "separate tool, abap_transport_release.";
 
 export const TRANSPORT_RELEASE_TOOL_DESCRIPTION =
   "Release one CTS transport request — irreversible. Gated by a release ceiling separate " +
@@ -1380,6 +1385,9 @@ async function opRemoveObject(
   const proof = authorizeCeiling(gate, "transport");
   // First network call, a read: NOT_FOUND propagates unchanged, before any mutation.
   const holder: TrEntryHolder = await trFindEntryHolder(conn, trkorr, objectName);
+  // Removing the entry drops CTS's lock unconditionally — this settles what that lock is
+  // actually protecting before it's gone. Never blocks the removal on the answer.
+  const objectOnSystem = await probeObjectOnSystem(conn, holder.rows);
   let res: TransportEntryRemoveResult;
   try {
     res = await removeTransportEntryViaBridge(conn, gate, { trkorr: holder.trkorr, objectName }, proof);
@@ -1399,7 +1407,7 @@ async function opRemoveObject(
       },
       { kind: "unproven", reason: (e as Error).message },
     );
-    throw e;
+    throw enrichCommObjectKeysRefusal(e, objectOnSystem);
   }
   await recordMutation(
     journal,
@@ -1427,18 +1435,91 @@ async function opRemoveObject(
     `This only removes the entry — it does not say ${res.holder} is now deletable. ` +
       'Follow up with operation "delete" to find out.',
   );
+  if (objectOnSystem === "present") {
+    notes.push(
+      `${objectName} still exists on the system — removing this entry stripped CTS's lock ` +
+        "from a live object. The object itself is untouched, but the request no longer " +
+        "records the change, and the object is no longer protected against being edited " +
+        "under a different request.",
+    );
+  } else if (objectOnSystem === "unknown") {
+    notes.push(
+      `Could not settle whether ${objectName} still exists on the system — do not read this as "gone".`,
+    );
+  }
   return buildResponse({
     header: {
       operation: "removeObject",
       transport: trkorr,
       holder: res.holder,
       object: objectName,
+      objectOnSystem,
       removedCount: res.removed.length,
       gone: res.transcript.tags.includes("TREN-GONE"),
     },
     notes,
     maxChars,
   });
+}
+
+/** Rows past this cap are reported "unknown", not guessed at — removeObject usually sees one. */
+const OBJECT_ON_SYSTEM_PROBE_CAP = 5;
+
+/**
+ * Does the object an E071 entry names still exist? `removeObject` drops CTS's lock
+ * unconditionally, so this is what tells the caller whether that lock was still guarding a
+ * live object. Same probe, same fail-closed contract as `diagnoseLockedDelete`'s: a throw
+ * is "unknown", never a guessed yes/no.
+ */
+async function probeObjectOnSystem(
+  conn: AbapConnection,
+  rows: readonly TrObject[],
+): Promise<"present" | "absent" | "unknown"> {
+  let present = 0;
+  let absent = 0;
+  let unknown = 0;
+  for (const [i, row] of rows.entries()) {
+    if (i >= OBJECT_ON_SYSTEM_PROBE_CAP) {
+      unknown++;
+      continue;
+    }
+    try {
+      const hits = await searchExact(conn, row.name, row.wbType);
+      if (hits.length > 0) present++;
+      else absent++;
+    } catch {
+      unknown++;
+    }
+  }
+  if (present > 0) return "present";
+  if (unknown > 0) return "unknown";
+  return absent > 0 ? "absent" : "unknown";
+}
+
+const COMM_OBJECT_KEYS_HINT =
+  "The entry and its CTS lock are still on the request — it cannot be deleted while they are. " +
+  'Every remaining route is outside abapsmith: in SE03 run "Unlock Objects (Expert Tool)" for ' +
+  "this request, then delete the entry in SE09/SE10; or release the request (irreversible). " +
+  "The msg= fragment in the message above is the T100 message CTS itself raised — it may be " +
+  "blank (a function module that raises with a bare RAISE sets no message) — but quote it " +
+  "when reporting this failure.";
+
+/**
+ * CTS's TR_DELETE_COMM_OBJECT_KEYS refusal (observed live for a TABL deletion entry — see
+ * src/adt/transport-entry-remove.ts's header comment) leaves the entry and its lock in place,
+ * so the caller needs to know what remains possible, not just that this call failed. Appends
+ * to, never discards, any hint the original error already carried. Any other error is
+ * returned unchanged.
+ */
+function enrichCommObjectKeysRefusal(e: unknown, objectOnSystem: "present" | "absent" | "unknown"): unknown {
+  if (!(e instanceof AbapError) || e.code !== "CHECK_FAILED") return e;
+  if (!e.message.includes("TR_DELETE_COMM_OBJECT_KEYS")) return e;
+  return new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, objectOnSystem },
+    [e.hint, COMM_OBJECT_KEYS_HINT].filter((h): h is string => h !== undefined).join(" "),
+  );
 }
 
 /**

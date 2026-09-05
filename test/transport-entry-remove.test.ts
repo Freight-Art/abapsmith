@@ -24,7 +24,14 @@ import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { SafetyGate } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
-import { DDIC_BRIDGE_CLASS, DDIC_TAGS } from "../src/adt/ddic-bridge.js";
+import {
+  ABAP_SOURCE_LINE_MAX,
+  DDIC_BRIDGE_CLASS,
+  DDIC_ERR_PREFIX,
+  DDIC_TAGS,
+  ddicBridgeSource,
+  parseDdicTranscript,
+} from "../src/adt/ddic-bridge.js";
 import {
   TRANSPORT_ENTRY_REMOVE_DATA_LINES,
   removeTransportEntryViaBridge,
@@ -132,6 +139,33 @@ function trShowRoute(trkorr: string, fixtureName: string): (o: HttpClientOptions
     const method = (o.method ?? "GET").toUpperCase();
     if (o.url === url && method === "GET") return resp(fixture.meta.status, fixture.body, fixture.meta.responseHeaders);
     return undefined;
+  };
+}
+
+const INFO_SEARCH_URL = "/sap/bc/adt/repository/informationsystem/search";
+
+/**
+ * Fakes `searchExact`'s `informationsystem/search` quickSearch, for
+ * `probeObjectOnSystem`. "hit" answers with one exact-name match, "empty"
+ * with none, and "fail" throws (a network error), same shape as
+ * objectHappyPath's 404 above.
+ */
+function quickSearchRoute(mode: "hit" | "empty" | "fail"): (o: HttpClientOptions) => HttpClientResponse | undefined {
+  return (o: HttpClientOptions) => {
+    if (o.url !== INFO_SEARCH_URL) return undefined;
+    if (mode === "fail") {
+      const r = resp(500, "<exc:exception/>", { "content-type": "application/xml" });
+      throw new HttpClientException("Request failed with status code 500", "500", 500, undefined, o, r);
+    }
+    const ref =
+      mode === "hit"
+        ? `<adtcore:objectReference adtcore:uri="/sap/bc/adt/programs/programs/zmcp_cts_probe" ` +
+          `adtcore:type="PROG/P" adtcore:name="ZMCP_CTS_PROBE" adtcore:packageName="$TMP"/>`
+        : "";
+    const body =
+      `<?xml version="1.0" encoding="utf-8"?>` +
+      `<adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">${ref}</adtcore:objectReferences>`;
+    return resp(200, body, { "content-type": "application/xml" });
   };
 }
 
@@ -248,6 +282,55 @@ describe("transportEntryRemoveFragment ABAP shape", () => {
   it("TRANSPORT_ENTRY_REMOVE_DATA_LINES declares the locals the fragment relies on", () => {
     expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("ls_e071 TYPE e071.");
     expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("lv_holder TYPE trkorr.");
+  });
+
+  it("TRANSPORT_ENTRY_REMOVE_DATA_LINES also declares lv_subrc/ls_msg/lv_msgtext/lv_readerr", () => {
+    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("lv_subrc TYPE sy-subrc.");
+    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("ls_msg TYPE symsg.");
+    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("lv_msgtext TYPE string.");
+    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("lv_readerr TYPE string.");
+  });
+
+  it("lv_subrc = sy-subrc. and MOVE-CORRESPONDING sy TO ls_msg. are the two lines immediately after BOTH 'EXCEPTIONS OTHERS = 1.' lines — out->write or anything else in between would clobber sy-* first", () => {
+    const lines = transportEntryRemoveFragment(PARAMS);
+    const exceptionsIdx = lines
+      .map((l, i) => (l === "    EXCEPTIONS OTHERS = 1." ? i : -1))
+      .filter((i) => i >= 0);
+    // One per CALL FUNCTION site: TRINT_READ_REQUEST and TR_DELETE_COMM_OBJECT_KEYS.
+    expect(exceptionsIdx).toHaveLength(2);
+    for (const idx of exceptionsIdx) {
+      expect(lines[idx + 1]).toBe("  lv_subrc = sy-subrc.");
+      expect(lines[idx + 2]).toBe("  MOVE-CORRESPONDING sy TO ls_msg.");
+    }
+  });
+
+  it("no 'IF sy-subrc <> 0.' guard remains on either CALL FUNCTION — both guards read lv_subrc instead", () => {
+    const joined = transportEntryRemoveFragment(PARAMS).join("\n");
+    expect(joined).not.toContain("IF sy-subrc <> 0.");
+    expect(joined).toContain("IF lv_subrc <> 0.");
+  });
+
+  it("step 4's failure write reads lv_subrc and lv_msgtext, never the (by-then-clobbered) sy-subrc", () => {
+    const lines = transportEntryRemoveFragment(PARAMS);
+    const line = lines.find((l) => l.includes("TR_DELETE_COMM_OBJECT_KEYS failed for"));
+    expect(line).toBeDefined();
+    expect(line).toContain("sy-subrc={ lv_subrc }");
+    expect(line).toContain("msg={ lv_msgtext }");
+    expect(line).not.toContain("sy-subrc={ sy-subrc }");
+  });
+
+  it("both step 2 refusal branches produce an errorLine that satisfies beforeAssert's own startsWith(\"no entry for\") predicate", () => {
+    const lines = transportEntryRemoveFragment(PARAMS);
+    const writeLines = lines.filter((l) => l.includes("out->write( |ZMCP-DDIC-ERR> no entry for"));
+    expect(writeLines).toHaveLength(2); // the IF branch and the ELSE branch
+    for (const line of writeLines) {
+      const literal = /\|(.*)\|/.exec(line)?.[1];
+      if (literal === undefined) throw new Error(`no |...| string literal found in: ${line}`);
+      expect(literal.startsWith(DDIC_ERR_PREFIX)).toBe(true);
+      // Run the exact same parser removeTransportEntryViaBridge's beforeAssert reads errorLine from.
+      const { errorLine } = parseDdicTranscript(literal);
+      expect(errorLine?.startsWith("no entry for")).toBe(true);
+    }
   });
 });
 
@@ -586,7 +669,7 @@ describe("abap_transport removeObject journalling", () => {
     );
     const { conn } = await connected(route);
 
-    await abapTransport(
+    const res = await abapTransport(
       conn,
       transportInput({
         operation: "removeObject",
@@ -598,6 +681,9 @@ describe("abap_transport removeObject journalling", () => {
       bridgeAdminGate(),
       deps(),
     );
+    // No informationsystem/search route is scripted here, so the existence probe fails
+    // closed to "unknown" — journalling must still complete normally either way.
+    expect(res.text).toContain("objectOnSystem: unknown");
 
     const entries = await written();
     expect(entries).toHaveLength(1);
@@ -641,6 +727,9 @@ describe("abap_transport removeObject journalling", () => {
       ),
     );
     expect(err.code).toBe("NOT_FOUND");
+    // NOT_FOUND is not the TR_DELETE_COMM_OBJECT_KEYS refusal enrichCommObjectKeysRefusal
+    // targets — it must reach the caller with no objectOnSystem grafted onto it.
+    expect(err.details.objectOnSystem).toBeUndefined();
 
     const entries = await written();
     expect(entries).toHaveLength(1);
@@ -654,5 +743,176 @@ describe("abap_transport removeObject journalling", () => {
     const before = await new Journal(jcfg(), "A4H").beforeImage(e);
     expect(before).toBeTruthy();
     expect(before).toContain("ZMCP_CTS_PROBE");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10 - worst-case assembled-source line length, through ddicBridgeSource (it
+//      prepends 4 spaces on top of the fragment's own indentation).
+// ---------------------------------------------------------------------------
+
+describe("worst-case assembled-source line length stays within ABAP_SOURCE_LINE_MAX", () => {
+  function offendingLines(source: string): Array<{ line: number; length: number }> {
+    return source
+      .split("\n")
+      .map((text, i) => ({ line: i + 1, length: text.length }))
+      .filter((l) => l.length > ABAP_SOURCE_LINE_MAX);
+  }
+
+  it("transportEntryRemoveFragment, through ddicBridgeSource, at the longest legal object name (40 chars) and trkorr (fixed at 10 chars)", () => {
+    const worstCase: TransportEntryRemoveParams = {
+      trkorr: PARAMS.trkorr, // TRKORR_RE fixes the shape at 10 chars — there is no "longer" one
+      objectName: "Z" + "A".repeat(39), // assertEnhIdentifier's cap for this call is maxLength: 40
+    };
+    const source = ddicBridgeSource(
+      DDIC_BRIDGE_CLASS.removeTransportEntry,
+      TRANSPORT_ENTRY_REMOVE_DATA_LINES,
+      transportEntryRemoveFragment(worstCase),
+    );
+    expect(offendingLines(source)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11 - the removeObject tool layer's objectOnSystem probe: does the object
+//      an E071 entry names still exist, settled BEFORE the bridge runs, and
+//      never allowed to block the removal itself.
+// ---------------------------------------------------------------------------
+
+describe("abap_transport removeObject — objectOnSystem probe", () => {
+  const removeInput = transportInput({
+    operation: "removeObject",
+    transport: "A4HK900117",
+    object: "ZMCP_CTS_PROBE",
+    confirm: "A4HK900117",
+  });
+
+  const bridgeSuccess = () =>
+    classrunOutput([
+      "ZMCP-TREN-HOLDER A4HK900118",
+      "ZMCP-TREN-ROW R3TR PROG ZMCP_CTS_PROBE",
+      "TREN-REMOVED",
+      "TREN-GONE",
+    ]);
+
+  it('the search fake reports a hit -> objectOnSystem: "present", plus the live-object note', async () => {
+    const route = combine(
+      trShowRoute("A4HK900117", "transport-details-with-objects"),
+      quickSearchRoute("hit"),
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(bridgeSuccess()),
+    );
+    const { conn } = await connected(route);
+
+    const res = await abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate());
+
+    expect(res.text).toContain("objectOnSystem: present");
+    expect(res.text).toContain("still exists on the system — removing this entry stripped CTS's lock");
+  });
+
+  it('the search fake reports no hit -> objectOnSystem: "absent", and no extra note', async () => {
+    const route = combine(
+      trShowRoute("A4HK900117", "transport-details-with-objects"),
+      quickSearchRoute("empty"),
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(bridgeSuccess()),
+    );
+    const { conn } = await connected(route);
+
+    const res = await abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate());
+
+    expect(res.text).toContain("objectOnSystem: absent");
+    expect(res.text).not.toMatch(/still exists on the system/);
+    expect(res.text).not.toMatch(/Could not settle whether/);
+  });
+
+  it('the search fake throws -> the removal still succeeds (the probe never blocks it), and objectOnSystem: "unknown" carries the caution note', async () => {
+    const route = combine(
+      trShowRoute("A4HK900117", "transport-details-with-objects"),
+      quickSearchRoute("fail"),
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(bridgeSuccess()),
+    );
+    const { conn } = await connected(route);
+
+    const res = await abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate());
+
+    expect(res.text).toContain("removedCount: 1"); // the removal itself is unaffected by the probe failing
+    expect(res.text).toContain("objectOnSystem: unknown");
+    expect(res.text).toContain(
+      'Could not settle whether ZMCP_CTS_PROBE still exists on the system — do not read this as "gone".',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12 - TR_DELETE_COMM_OBJECT_KEYS refusal enrichment: the tool layer names
+//      SE03/SE09/SE10 and threads objectOnSystem onto that ONE specific
+//      CHECK_FAILED shape, and leaves every other error byte for byte.
+// ---------------------------------------------------------------------------
+
+describe("abap_transport removeObject — TR_DELETE_COMM_OBJECT_KEYS refusal enrichment", () => {
+  const REFUSAL_LINE =
+    "ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for R3TR TABL ZMCP_CTS_PROBE, sy-subrc=1, msg=E1CTS042 v1=A4HK900118 v2= v3= v4=";
+
+  const removeInput = transportInput({
+    operation: "removeObject",
+    transport: "A4HK900117",
+    object: "ZMCP_CTS_PROBE",
+    confirm: "A4HK900117",
+  });
+
+  it("is enriched with details.objectOnSystem and a hint naming SE03 Unlock Objects (Expert Tool) and SE09/SE10 — the message stays byte for byte", async () => {
+    const route = combine(
+      trShowRoute("A4HK900117", "transport-details-with-objects"),
+      quickSearchRoute("hit"),
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(classrunOutput(["ZMCP-TREN-HOLDER A4HK900118", REFUSAL_LINE])),
+    );
+    const { conn } = await connected(route);
+
+    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
+
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("msg=E1CTS042");
+    expect(err.details.objectOnSystem).toBe("present");
+    expect(err.hint).toContain("SE03");
+    expect(err.hint).toContain("Unlock Objects (Expert Tool)");
+    expect(err.hint).toMatch(/SE09\/SE10/);
+  });
+
+  it("a NOT_FOUND refusal (the pre-existing 'no entry for' path) is rethrown byte for byte — no SE03 text, no objectOnSystem grafted on", async () => {
+    const route = combine(
+      trShowRoute("A4HK900117", "transport-details-with-objects"),
+      quickSearchRoute("hit"),
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(
+        classrunOutput(["ZMCP-DDIC-ERR> no entry for ZMCP_CTS_PROBE on A4HK900118 or its tasks"]),
+      ),
+    );
+    const { conn } = await connected(route);
+
+    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
+
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.hint).toBeUndefined();
+    expect(err.details.objectOnSystem).toBeUndefined();
+  });
+
+  it("a CHECK_FAILED that does not name TR_DELETE_COMM_OBJECT_KEYS is also rethrown untouched — pins the enrichment's narrowness on the message check, not just the code", async () => {
+    const route = combine(
+      trShowRoute("A4HK900117", "transport-details-with-objects"),
+      quickSearchRoute("hit"),
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(classrunOutput(["ZMCP-TREN-HOLDER A4HK900118"])), // no success tags, no error line
+    );
+    const { conn } = await connected(route);
+
+    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
+
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).not.toContain("TR_DELETE_COMM_OBJECT_KEYS");
+    expect(err.hint).toBeUndefined();
+    expect(err.details.objectOnSystem).toBeUndefined();
   });
 });
