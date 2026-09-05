@@ -146,6 +146,22 @@ guard against, running in the opposite direction. If no element of that name
 exists on the node at all, it fails `NOT_FOUND` and the message lists the
 names that DO exist there.
 
+`set_node_flags` takes `node` (no `name`) and a `spec` of fields for that
+node: boolean flags (`rootNode`, `textNode`, `isDependentObjectNode`,
+`createEnabled`, `updateEnabled`, `deleteEnabled`, `authorizationCheck`,
+`isExtensible`, `objectModelGenerated`, `objectModelObsolete`) where `null`
+clears the attribute rather than writing `false`, the eight singular object
+refs (`persistentStructureRef`, `transientStructureRef`,
+`combinedStructureRef`, `combinedTableRef`, `persistentTableRef`,
+`defaultingClassRef`, `dataAccessClassRef`, `authorizationClassRef`) where
+`null` means the ref must be gone, and an optional `spec.name` that renames
+the node. It re-reads after the write — locating the node by the new name
+when `spec.name` was sent, otherwise by `node` (`nodeId` disambiguates a
+duplicate name) — and fails `CHECK_FAILED` if any flag, ref, or the rename
+did not stick, naming each mismatched field with the value sent and the
+value read back; refs are compared on name and type, case-insensitively. No
+activation request is sent on a `CHECK_FAILED`.
+
 ## abap_bopf_delete
 
 Delete a BOPF business object, optionally cascading into its DDIC objects.

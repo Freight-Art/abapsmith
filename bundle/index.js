@@ -106622,6 +106622,40 @@ var MEMBER_CHECK_BY_OP = {
   remove_query: { kind: "query", direction: "removed" },
   remove_alternative_key: { kind: "alternativeKey", direction: "removed" }
 };
+function describeFlagValue(v) {
+  if (v === null || v === void 0) return "absent";
+  if (typeof v === "object") {
+    const r = v;
+    return `${r.name} (${r.type})`;
+  }
+  return String(v);
+}
+function nodeFlagMismatches(node2, spec) {
+  const out = [];
+  for (const flag2 of NODE_FLAG_NAMES) {
+    if (!(flag2 in spec)) continue;
+    const sent = spec[flag2];
+    if (sent !== null && typeof sent !== "boolean") continue;
+    const expected = sent === null ? false : sent;
+    const readBack = node2[flag2];
+    if (readBack !== expected) out.push({ field: flag2, sent, readBack });
+  }
+  for (const kind of NODE_REF_KINDS) {
+    if (!(kind in spec)) continue;
+    const sent = spec[kind];
+    const readBack = node2[kind];
+    if (sent === null) {
+      if (readBack !== void 0) out.push({ field: kind, sent: null, readBack });
+      continue;
+    }
+    const wanted = ref(sent);
+    if (!wanted) continue;
+    if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
+      out.push({ field: kind, sent: wanted, readBack: readBack ?? null });
+    }
+  }
+  return out;
+}
 function attributeSessionDeath(e, input) {
   if (!isAbapError(e) || e.code !== "SESSION_DEAD") return e;
   const node2 = input.node;
@@ -106928,6 +106962,38 @@ async function runBopfEdit(deps, args) {
               "CHECK_FAILED",
               `abap_bopf_edit ${input.operation} "${member}" on ${bo} node "${nodeName}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${countAfter} ${memberCheck.kind}(s) named "${member}" on that node after the write, versus ${countBefore} before \u2014 nothing was ${memberCheck.direction}. A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.`,
               { bo, node: nodeName, name: member, kind: memberCheck.kind, countBefore, countAfter, journalEntryId: entryId }
+            );
+          }
+        }
+        if (input.operation === "set_node_flags") {
+          const sel = requireNode(input);
+          const sentSpec = input.spec ?? {};
+          const renamedTo = typeof sentSpec.name === "string" ? sentSpec.name : void 0;
+          const locate2 = (wanted) => {
+            const named = afterMutate.model.nodes.filter((n) => n.name.toLowerCase() === wanted.toLowerCase());
+            return (sel.nodeId !== void 0 ? named.find((n) => n.nodeId === sel.nodeId) : void 0) ?? named[0];
+          };
+          const expectedName = renamedTo ?? sel.node;
+          const renamed = locate2(expectedName);
+          const node2 = renamed ?? (renamedTo !== void 0 ? locate2(sel.node) : void 0);
+          if (!node2) {
+            throw new AbapError(
+              "CHECK_FAILED",
+              `abap_bopf_edit set_node_flags on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read finds no node named "${expectedName}" on the model at all. Nodes present after the write: ${afterMutate.model.nodes.map((n) => n.name || "(unnamed)").join(", ") || "none"}. A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.`,
+              { bo, node: sel.node, expectedName, journalEntryId: entryId }
+            );
+          }
+          const mismatches = [
+            ...renamed ? [] : [{ field: "name", sent: renamedTo, readBack: node2.name }],
+            ...nodeFlagMismatches(node2, sentSpec)
+          ];
+          if (mismatches.length > 0) {
+            const detail = mismatches.map((m) => `${m.field}: sent ${m.sent === null ? "cleared" : describeFlagValue(m.sent)}, read back ${describeFlagValue(m.readBack)}`).join("; ");
+            throw new AbapError(
+              "CHECK_FAILED",
+              `abap_bopf_edit set_node_flags on ${bo} node "${sel.node}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows the server did not keep ${mismatches.length} of the field(s) sent \u2014 ${detail}. A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.`,
+              { bo, node: sel.node, mismatches, journalEntryId: entryId },
+              `BOPF's model mapper discards payload it cannot map without erroring \u2014 check that a ref names an object that actually exists, then re-send only the fields that did not stick.`
             );
           }
         }
