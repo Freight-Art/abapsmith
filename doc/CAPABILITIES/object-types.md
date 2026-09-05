@@ -83,7 +83,7 @@ inputs to this derivation rather than registry fields:
 | `DOMA/DD` | Domain | yes | yes | yes | yes | yes | live |
 | `TTYP/DA` | Table type | yes | yes | yes | yes | yes | live |
 | `MSAG/N` | Message class | yes | partial | yes | yes | n/a | live |
-| `ENQU/DL` | Lock object | no | partial | yes | no | yes | live |
+| `ENQU/DL` | Lock object | yes | partial | yes | yes | yes | live |
 | `DEVC/K` | Package | yes | yes | no | partial | no | live |
 | `SRVB/SVB` | Service binding | yes | partial | yes | yes | yes | live |
 | `SHLP/DH` | Search help | no | no | no | no | no | tests |
@@ -104,12 +104,15 @@ The `Object` column values are the registry `label` fields, unreworded.
   delete calls reported success on a live system and the object was still
   there afterwards. The create verification rests on a raw-wire probe made
   outside abapsmith, not on a tool call.
-- `ENQU/DL` — the registry records `create.verified: false`: creation was
-  attempted against a live system and does not reliably work, so the create
-  gate is shut. Update works. Delete is `"unverified"` in the registry, which
-  is why the cell is `no` rather than `partial` — nothing has established it
-  either way, and the gate stays shut until something does. Names are
-  restricted to the `EZ` and `EY` prefixes.
+- `ENQU/DL` — create and delete are both live-verified, 2026-09-05, on A4H
+  (`EZTMD_I30` in `$TMP` over table `T000`): create returned 201 (object
+  `inactive`), and delete (LOCK with accessMode=MODIFY, then DELETE with the
+  lock handle) returned 200, confirmed by a read-back showing the object
+  gone. The earlier create failures were the XML root element, not the
+  content: it must be lowercase `<enqu:lockobject>` in namespace
+  `http://www.sap.com/adt/ddic/enqu`, not the camelCase `<enqu:lockObject>`
+  in `http://www.sap.com/dictionary/lockobject` older callers sent. Names
+  are restricted to the `EZ` and `EY` prefixes.
 - `DCLS/DL` — reads, create, update, activate and delete are all
   live-verified, 2026-09-04, on A4H in `$TMP` (`ZTMD_DCL_01`): create via
   abap-adt-api's vendor `CreatableTypes` entry (creationPath
@@ -129,8 +132,8 @@ The `Object` column values are the registry `label` fields, unreworded.
   create Annotation Definitions" — from an admin user that creates every
   other type, so annotation definitions are a SAP-only object type on this
   system. Delete stays `"unverified"`: create never succeeded, so delete was
-  never once reachable to test, same reasoning as `ENQU/DL` above. The entry
-  carries a `mediaType` because the object URI 406s without it.
+  never once reachable to test. The entry carries a `mediaType` because the
+  object URI 406s without it.
 - `MSAG/N` — activation is `n/a` because a message class is born active.
   Reading needs `format: "raw"`; a single raw document has been observed in
   the hundreds of thousands of characters, so the read is windowed by
@@ -147,14 +150,24 @@ The `Object` column values are the registry `label` fields, unreworded.
   creating one you cannot ask abapsmith what it looks like. There is no
   source write either, so an existing one cannot be changed — only deleted
   and recreated. Their `bridgeCreate.limits` text states this, and a test
-  requires it to. `VIEW/DV` has its own package rule: a transportable
-  package requires `corr_nr` for the create, and a `$` package (`$TMP`
-  included) refuses one and registers with `korrnum = space` instead.
-  Either way the created view lands in TADIR, so the delete bridge can
-  remove it afterwards — proven live on A4H, 2026-09-04 (transportable
-  package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a `$`-prefixed
-  package: view registered with `korrnum = space`, then deleted,
-  VIEW-DELETED / VIEW-GONE).
+  requires it to. `VIEW/DV` and `TRAN/T` share the same package rule: a
+  transportable package requires `corr_nr` for the create, and a `$` package
+  (`$TMP` included) refuses one and registers with `korrnum = space` instead.
+  For `VIEW/DV`, the created view lands in TADIR either way, so the delete
+  bridge can remove it afterwards — proven live on A4H, 2026-09-04
+  (transportable package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a
+  `$`-prefixed package: view registered with `korrnum = space`, then deleted,
+  VIEW-DELETED / VIEW-GONE). For `TRAN/T`, only `RPY_TRANSACTION_INSERT`'s
+  signature was read live on A4H 2026-09-05 — `transport_number` is optional
+  and forwarded verbatim to `RS_CORR_INSERT` as `korrnum`, and
+  `suppress_corr_insert` defaults to space so registration always runs. No
+  create into a transportable package has been run; a `$`-package transaction
+  was created and deleted live on 2026-09-05 (TRAN-DELETED / TRAN-GONE).
+  Because neither delete bridge issues an `RS_CORR_INSERT`, the delete records
+  nothing in CTS: any entry the object already had on a transport request
+  (typically from its create) survives the delete, and the safety gate judges
+  the delete itself as a local mutation rather than against
+  `ABAP_ALLOW_TRANSPORTS`.
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and

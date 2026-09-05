@@ -38,7 +38,8 @@ import { discardedDescriptorValues, type DiscardedValue } from "../adt/descripto
 import { createPackageViaBridge, tdevcDiscrepancies } from "../adt/package-create.js";
 import type { RunResult } from "../adt/run.js";
 import { serverPackage } from "../adt/resolved-package.js";
-import { createTransaction } from "../adt/tran-create.js";
+import { isLocalPackageName } from "../adt/transports.js";
+import { assertTransactionCreateTarget, createTransaction } from "../adt/tran-create.js";
 import { deleteTransactionViaBridge } from "../adt/tran-delete.js";
 import { assertClassicViewCreateTarget, createClassicView } from "../adt/view-create.js";
 import { deleteClassicViewViaBridge } from "../adt/view-delete.js";
@@ -151,8 +152,8 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Package for a NEW object. Default $TMP. VIEW/DV: a transportable one needs corr_nr, " +
-        "a $-package refuses it.",
+      "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs " +
+        "corr_nr, a $-package refuses it.",
     ),
   description: z
     .string()
@@ -202,8 +203,8 @@ export const writeInputSchema = {
     .string()
     .optional()
     .describe(
-      "Transport request. $TMP needs none. Required for a VIEW/DV create into a " +
-        "transportable package. Refused on TRAN/T create and on VIEW/DV or TRAN/T delete.",
+      "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a " +
+        "transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete.",
     ),
   software_component: z.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: z.string().optional().describe("DEVC/K only. Default development."),
@@ -530,6 +531,21 @@ function packageDeleteTransportNote(corrNr: string): string {
     `this was observed to NOT record the deletion into ${corrNr} (or into any other request) — ` +
     "package deletes run through CL_PACKAGE_FACTORY's own SAVE, not the ordinary ADT DELETE this " +
     "field usually confirms. Do not infer the deletion is captured in this transport."
+  );
+}
+
+/**
+ * VIEW/DV and TRAN/T bridge delete only, non-$ package: the bridge passes no
+ * request and issues no RS_CORR_INSERT, so this delete registers nothing in
+ * CTS — any entry the object already had on a transport request (typically
+ * its create) survives it.
+ */
+function bridgeDeleteTransportEntryNote(label: string, name: string, packageName: string): string {
+  return (
+    `${label} ${name} was in transportable package ${packageName}, but this delete recorded nothing ` +
+    "in CTS — the bridge passes no request and issues no RS_CORR_INSERT. Any entry it already had " +
+    'on a transport request survives it; remove it with `abap_transport` operation: "removeObject" ' +
+    "(transport, object, confirm), which needs ABAP_MODE=admin."
   );
 }
 
@@ -3210,29 +3226,14 @@ async function abapCreateViaBridge(
   if (input.software_component !== undefined || input.package_type !== undefined || input.transport_layer !== undefined) {
     bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
   }
-  // TRAN/T only: `src/adt/tran-create.ts`'s own RPY_TRANSACTION_INSERT call passes no
-  // transport parameter — a named corr_nr would be dropped silently. That is all this refuses
-  // on: whether the FM itself would accept one is UNVERIFIED (tran-create.ts's header).
-  // VIEW/DV has no corr_nr-drop hazard here — it validates package/corr_nr instead, below.
-  // Blank-normalised: a caller who templated the field to `""` named no request, so there
-  // is nothing to refuse — refusing would contradict every other tool, which now reads `""` as
-  // "auto".
-  if (type === "TRAN/T" && normalizeCorrNr(input.corr_nr) !== undefined) {
-    bad(
-      "`corr_nr` cannot be honoured for a TRAN/T create: RPY_TRANSACTION_INSERT runs its own " +
-        "RS_CORR_INSERT internally, and abapsmith's own call passes no transport parameter for " +
-        "it to act on, so a supplied corr_nr would be dropped silently (whether the FM itself " +
-        "accepts one is unverified).",
-      "Create into $TMP, or let RPY_TRANSACTION_INSERT's own RS_CORR_INSERT assign the request.",
-    );
-  }
-
   const packageName = target.packageName?.trim() || "$TMP";
   // Zero-network package/corr_nr check for a VIEW/DV create, done here so a bad
   // combination costs no request: a transportable package needs corr_nr, a $-package
   // (including this $TMP default) must not have one. view-create.ts's own `validate`
   // repeats this as defence in depth, not the only enforcement point.
   if (type === "VIEW/DV") assertClassicViewCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
+  // Same pairing for TRAN/T: RPY_TRANSACTION_INSERT's own RS_CORR_INSERT needs the request.
+  if (type === "TRAN/T") assertTransactionCreateTarget(packageName, normalizeCorrNr(input.corr_nr));
   const description = input.description?.trim();
   if (!description) {
     bad(
@@ -3400,13 +3401,14 @@ async function abapCreateViaBridge(
     }
 
     bridgeClass = DDIC_BRIDGE_CLASS.createTransaction;
+    const corrNr = normalizeCorrNr(input.corr_nr);
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
       { name: target.name, type, uri: objectUri, packageName, description: description as string },
       beforeCapture,
-      undefined,
-      () => createTransaction(conn, gate, { ...common, tcode: target.name, program }),
+      corrNr,
+      () => createTransaction(conn, gate, { ...common, tcode: target.name, program, corrNr }),
     ));
     detail = `report transaction starting ${program} (dynpro 1000)`;
 
@@ -3544,8 +3546,12 @@ async function abapDeleteViaBridge(
   if (normalizeCorrNr(input.corr_nr) !== undefined) {
     bad(
       `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport ` +
-        "parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts), so abapsmith would be dropping " +
-        "the value silently.",
+        "parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts). None is needed either — the " +
+        "delete registers nothing in CTS, so it is judged as a local mutation and no transport " +
+        "allowlist blocks it.",
+      "Retry without `corr_nr`. Any entry the object already had on a transport request survives " +
+        'this delete; use `abap_transport` operation: "removeObject" (transport, object, confirm) ' +
+        "for that, which needs ABAP_MODE=admin.",
     );
   }
 
@@ -3678,7 +3684,8 @@ async function abapDeleteViaBridge(
       verifyNote,
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot " +
         "restore this object. To bring it back, create it again with a fresh abap_write call.",
-    ],
+      isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName),
+    ].filter((n) => n !== ""),
     maxChars,
   });
 }
@@ -3705,8 +3712,9 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
     {
       description:
         "Create, change or delete an ABAP object: save/check/activate; locking handled. " +
-        "TRAN/T deletable+undoable. VIEW/DV create needs corr_nr for a transportable package, " +
-        "none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty. " +
+        "TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. " +
+        "VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't " +
+        "be read back via abap_read. DEVC/K delete only if empty. " +
         "dry_run previews the diff and expect_etag without writing anything.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true },

@@ -1,5 +1,5 @@
 /**
- * Merged dispatch table for `abap_do`: all 45 actions from the six group
+ * Merged dispatch table for `abap_do`: all 51 actions from the six group
  * modules, keyed by `action`. `handlers/do.ts` just looks up the action here.
  *
  * Keyset MUST equal `ABAP_DO_ACTIONS.map(e => e.action)` from

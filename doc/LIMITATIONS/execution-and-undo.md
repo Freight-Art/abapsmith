@@ -33,6 +33,10 @@
   `src/adt/undo.ts:297`), as it does for activation entries. So BOPF changes are **recorded for history, and still not
   undoable** — the record exists to tell you what happened, not to reverse it.
   See `doc/JOURNAL/undo-and-recovery.md`'s table for the authoritative per-tool breakdown.
+  Changing a child element in place, with a `set_*_fields` operation, no
+  longer requires the remove-then-re-add dance to get there — which matters
+  precisely because a failed re-add of the removed element could not have
+  been undone either.
 - **No server-side version integration.** The journal is not connected to the
   ABAP version database, and undo does not create a version.
 - **Not an audit log.** It records what this server did, for undo. It is not

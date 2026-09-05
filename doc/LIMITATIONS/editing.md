@@ -28,7 +28,11 @@
   `korrnum = space` instead — proven live on A4H, 2026-09-04 (transportable
   package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a `$`-prefixed
   package: `RS_CORR_INSERT` registered the view with `korrnum = space`,
-  then the delete bridge removed it). What does not change: there is no
+  then the delete bridge removed it). The same rule now applies to a
+  `TRAN/T` create: `RPY_TRANSACTION_INSERT`'s signature was read live on
+  A4H 2026-09-05 and forwards `transport_number` verbatim to
+  `RS_CORR_INSERT` as `korrnum`, but no create into a transportable
+  package has been run. What does not change: there is no
   ADT-readable collection for a classic view, so a view just created cannot
   be read back by abapsmith, ever — SE11/SE14 is the only way to inspect
   one. There is no update route either: only delete and recreate.
@@ -42,7 +46,14 @@
   `transaction` parameter rather than transcribed from a capture of the
   delete FM itself, so it is not live-verified. Neither type can be
   updated at all: the bridge implements create and delete only, with no
-  update route for either.
+  update route for either. Neither delete bridge issues an `RS_CORR_INSERT`
+  or passes a transport request, so a delete of either type registers
+  nothing in CTS: whatever entry the object already had on a request
+  (typically from its create) survives the delete and must be removed
+  separately with `abap_transport` operation `"removeObject"`, which needs
+  ABAP_MODE=admin. That is also why the safety gate judges these two
+  deletes as local mutations rather than against `ABAP_ALLOW_TRANSPORTS` —
+  see `doc/SAFETY/safety-gate.md`.
   `DEVC/K` (package) is different:
   `abap_write mode=delete` (or `abap_journal mode=undo` on the create entry)
   loads the package via `CL_PACKAGE_FACTORY=>LOAD_PACKAGE` and calls

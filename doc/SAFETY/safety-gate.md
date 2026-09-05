@@ -37,6 +37,20 @@ transport restriction — e.g. `ABAP_ALLOW_TRANSPORTS=auto` to permit only the
 server's own auto-select/auto-create, or a specific TRKORR to pin every
 transportable write to that one request.
 
+Check 7 only engages when a mutation actually names or auto-selects a
+transport request. A call site that provably issues no CTS call presents
+`{kind:"local"}` instead, and check 7 does not apply to it — the `VIEW/DV`
+and `TRAN/T` bridge deletes (`src/adt/view-delete.ts`,
+`src/adt/tran-delete.ts`) are the current case: the delete bridges pass no
+transport request and issue no `RS_CORR_INSERT` of their own, so abapsmith
+names no request for check 7 to judge. Whether `RPY_TRANSACTION_DELETE`
+itself registers anything in CTS has never been verified
+(`src/adt/capabilities.ts`, the `TRAN/T` `bridgeDelete` entry), so the
+`TRAN/T` case rests on abapsmith attempting no transport handling rather
+than on a measurement of the function module. An explicit deny-all
+(`ABAP_ALLOW_TRANSPORTS=`) still refuses both deletes outright — that check
+runs before the local branch, so fail-closed stays fail-closed.
+
 ### The ladder governs what this server does, not ABAP it executes
 
 Checks 4–7 constrain the arguments this server itself passes on a write —

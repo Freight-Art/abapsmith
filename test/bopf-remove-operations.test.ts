@@ -2,10 +2,13 @@
  * Regression tests: `abap_bopf_edit` had `remove_node` and
  * `remove_association` and no removal for anything else. Re-calling
  * `add_determination` (or add_action/add_validation/add_query/
- * add_alternative_key) with an existing name does not replace the element —
- * it adds a SECOND one with the same name, the BO then fails activation
- * permanently, and nothing could undo it short of deleting and rebuilding
- * the whole business object.
+ * add_alternative_key) with an existing name used to not replace the
+ * element — it added a SECOND one with the same name, the BO then failed
+ * activation permanently, and nothing could undo it short of deleting and
+ * rebuilding the whole business object. `add_*` now refuses that re-add
+ * outright (`refuseDuplicateChild`, src/tools/bopf.ts) before it ever
+ * reaches the wire, but a duplicate can still land on the model some other
+ * way, and once it has, `remove_*` is what gets it back out.
  *
  * `remove_action`/`remove_determination`/`remove_validation`/`remove_query`/
  * `remove_alternative_key` close that gap: each takes node + name, removes
@@ -254,10 +257,37 @@ function countChildren(xml: string, node: string, kind: RemovableKind, name: str
   return (body.match(childRe) ?? []).length;
 }
 
+/**
+ * Duplicates the first `kind` child named `name` on `node`, inserting a
+ * byte-identical copy immediately after it. `add_*` now refuses to create a
+ * duplicate itself (`refuseDuplicateChild`, src/tools/bopf.ts), so this is
+ * how the tests below still get one onto the model — standing in for
+ * whatever real-world route (a migrated BO, a race) puts one there. Matches
+ * `countChildren`'s two wire forms. Gives the copy a distinct `bo:nodeID`
+ * (suffixed `_DUP`) when the original has one, so the seed looks like two
+ * elements the server actually holds rather than one pasted twice.
+ */
+function duplicateChild(xml: string, node: string, kind: RemovableKind, name: string): string {
+  const openMatch = new RegExp(`<bo:nodes\\b[^>]*\\bbo:name="${node}"[^>]*>`).exec(xml);
+  if (!openMatch) throw new Error(`duplicateChild: node "${node}" not found`);
+  const bodyStart = openMatch.index + openMatch[0].length;
+  const closeAt = xml.indexOf("</bo:nodes>", bodyStart);
+  const bodyEnd = closeAt === -1 ? xml.length : closeAt;
+  const tag = CHILD_TAG[kind];
+  const childRe = new RegExp(`<${tag}\\b[^>]*\\bbo:name="${name}"[^>]*(?:/>|>[\\s\\S]*?</${tag}>)`);
+  const match = childRe.exec(xml.slice(bodyStart, bodyEnd));
+  if (!match) throw new Error(`duplicateChild: no ${kind} named "${name}" on node "${node}"`);
+  const original = match[0];
+  const insertAt = bodyStart + match.index + original.length;
+  const idMatch = /bo:nodeID="([^"]*)"/.exec(original);
+  const copy = idMatch ? original.replace(idMatch[0], `bo:nodeID="${idMatch[1]}_DUP"`) : original;
+  return xml.slice(0, insertAt) + copy + xml.slice(insertAt);
+}
+
 // ===========================================================================
 
-describe("remove_determination: the exact re-add-under-an-existing-name repro, end to end", () => {
-  it("re-adding a determination under an existing name creates a duplicate, and remove_determination unwinds it one call at a time", async () => {
+describe("remove_determination: add_* refuses a re-add under an existing name; a duplicate reaching the model some other way still unwinds one call at a time", () => {
+  it("add_determination refuses a second call under an existing name (BAD_INPUT, model untouched); remove_determination still unwinds a duplicate seeded directly on the model", async () => {
     const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
     const { conn } = await wired({ routes: [store.route] });
     const { tools } = await registered(conn);
@@ -270,29 +300,40 @@ describe("remove_determination: the exact re-add-under-an-existing-name repro, e
         name: "DET_DUP",
         spec: { category: "reactDuringSave" },
       });
-    const count = () => countChildren(store.get("zbopf_prb1")!, "ROOT", "determination", "DET_DUP");
+    const count = (xml: string) => countChildren(xml, "ROOT", "determination", "DET_DUP");
 
     expect((await addDetermination()).isError).toBeFalsy();
-    expect((await addDetermination()).isError).toBeFalsy();
-    expect(count()).toBe(2); // the bug: a second add_determination with the same name adds a second element
+    const afterFirstAdd = store.get("zbopf_prb1")!;
+    expect(count(afterFirstAdd)).toBe(1);
 
-    const remove1 = await invoke(tools, "abap_bopf_edit", {
+    const refused = await addDetermination();
+    expect(errorPayload(refused).error).toBe("BAD_INPUT");
+    expect(store.get("zbopf_prb1")).toBe(afterFirstAdd); // refused before the splice — no PUT, model untouched
+
+    const duplicated = duplicateChild(afterFirstAdd, "ROOT", "determination", "DET_DUP");
+    expect(count(duplicated)).toBe(2);
+
+    const removeStore = bopfStore({ zbopf_prb1: duplicated });
+    const { conn: removeConn } = await wired({ routes: [removeStore.route] });
+    const { tools: removeTools } = await registered(removeConn);
+
+    const remove1 = await invoke(removeTools, "abap_bopf_edit", {
       bo: "ZBOPF_PRB1",
       operation: "remove_determination",
       node: "ROOT",
       name: "DET_DUP",
     });
     expect(remove1.isError).toBeFalsy();
-    expect(count()).toBe(1);
+    expect(count(removeStore.get("zbopf_prb1")!)).toBe(1);
 
-    const remove2 = await invoke(tools, "abap_bopf_edit", {
+    const remove2 = await invoke(removeTools, "abap_bopf_edit", {
       bo: "ZBOPF_PRB1",
       operation: "remove_determination",
       node: "ROOT",
       name: "DET_DUP",
     });
     expect(remove2.isError).toBeFalsy();
-    expect(count()).toBe(0);
+    expect(count(removeStore.get("zbopf_prb1")!)).toBe(0);
   });
 });
 
@@ -444,12 +485,12 @@ describe("remove_determination: a discarded removal is CHECK_FAILED, not success
 
 describe("remove_*: NOT_FOUND names what is actually present on the node", () => {
   it("lists existing validations, including a duplicated name TWICE (not deduplicated), when the requested name is not among them", async () => {
-    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
-    const { conn } = await wired({ routes: [store.route] });
-    const { tools } = await registered(conn);
+    const seedStore = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const { conn: seedConn } = await wired({ routes: [seedStore.route] });
+    const { tools: seedTools } = await registered(seedConn);
 
-    for (const name of ["DUP", "DUP", "OTHER"]) {
-      const r = await invoke(tools, "abap_bopf_edit", {
+    for (const name of ["DUP", "OTHER"]) {
+      const r = await invoke(seedTools, "abap_bopf_edit", {
         bo: "ZBOPF_PRB1",
         operation: "add_validation",
         node: "ROOT",
@@ -458,6 +499,15 @@ describe("remove_*: NOT_FOUND names what is actually present on the node", () =>
       });
       expect(r.isError).toBeFalsy();
     }
+
+    // add_validation refuses a same-name repeat now, so DUP's second copy is seeded by string
+    // surgery on the stored model rather than a second add_validation call — see duplicateChild.
+    const duplicated = duplicateChild(seedStore.get("zbopf_prb1")!, "ROOT", "validation", "DUP");
+    expect(countChildren(duplicated, "ROOT", "validation", "DUP")).toBe(2);
+
+    const store = bopfStore({ zbopf_prb1: duplicated });
+    const { conn } = await wired({ routes: [store.route] });
+    const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_bopf_edit", {
       bo: "ZBOPF_PRB1",

@@ -196,7 +196,7 @@ describe("§9.1-v2 tool surface", () => {
     // unresolved raw ADT path and `JournalOperation` has no raw-call variant
     // (a known, currently open gap). `abap_do`'s description text is
     // also byte-identical between edit and admin (same 6 groups both modes;
-    // 42 vs 45 actions are both 2-digit numbers). With no other per-mode text
+    // 48 vs 51 actions are both 2-digit numbers). With no other per-mode text
     // in the v2 surface, edit and admin are honestly TIED in tools/list bytes
     // today — forcing a strict step here would mean padding prose just to
     // manufacture a size difference admin doesn't actually have.
