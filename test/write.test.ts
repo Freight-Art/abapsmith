@@ -1030,13 +1030,14 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
  * worked for it. These tests pin `DELETABLE_TYPES` (the `c.delete === true`
  * projection) and confirm the new `op === "delete"` check in
  * `resolveWriteTarget` refuses UNSUPPORTED — with zero requests on the wire —
- * for a type whose registry entry is `false` (BDEF/BDO, disproven live: the
- * DELETE call reports success but the object remains readable afterwards)
- * and for one that is `"unverified"` (DDLA/ADF, whose CREATE is DISPROVEN —
- * not merely untried — live 403 `ExceptionNoAnnotationDefinitionAuthorization`,
- * so delete was never reachable to test either). A type verified live
- * (CLAS/OC) is checked as a same-shape control so this isn't accidentally
- * refusing everything.
+ * for a type whose registry entry is `"unverified"` (DDLA/ADF, whose CREATE
+ * is DISPROVEN — not merely untried — live 403
+ * `ExceptionNoAnnotationDefinitionAuthorization`, so delete was never
+ * reachable to test either). The gate also refuses a registry entry of
+ * `false`, but none exists today — after the BDEF/BDO delete flip, no type
+ * in the registry is `delete: false`. A type verified live (CLAS/OC) is
+ * checked as a same-shape control so this isn't accidentally refusing
+ * everything.
  */
 describe("resolveWriteTarget: op:'delete' gate", () => {
   const offline = null as unknown as AbapConnection;
@@ -1049,32 +1050,32 @@ describe("resolveWriteTarget: op:'delete' gate", () => {
     expect(DELETABLE_TYPES).toContain("FUGR/FF");
     expect(DELETABLE_TYPES).toContain("DDLS/DF");
     expect(DELETABLE_TYPES).toContain("MSAG/N");
-    // ENQU/DL: create AND delete both live-verified true on A4H 2026-09-05
+    // BDEF/BDO: the earlier "survived a successful DELETE" reading was a
+    // misread of the source endpoint's 200/empty response for an absent
+    // object, not a failed delete — the object was actually gone.
+    expect(DELETABLE_TYPES).toContain("BDEF/BDO");
+    // ENQU/DL: create AND delete both live-verified true on 2026-09-05
     // (EZTMD_I30 in $TMP over table T000 — 201 create, 200 delete, confirmed
-    // absent on read-back). Must appear here now; it does not sit alongside
-    // the disproven/unverified exemplars below any more.
+    // absent on read-back).
     expect(DELETABLE_TYPES).toContain("ENQU/DL");
-    // BDEF/BDO: live delete "succeeds" but the object remains readable
-    // afterwards — disproven, not merely untried. Must never appear here.
-    expect(DELETABLE_TYPES).not.toContain("BDEF/BDO");
     // DDLA/ADF: CREATE is DISPROVEN live (403, SAP-only object type on this
     // system), so delete was never actually exercised. "unverified", not
-    // `true` — the replacement exemplar for the group this test protects.
+    // `true` — the exemplar for the group this test protects.
     expect(DELETABLE_TYPES).not.toContain("DDLA/ADF");
   });
 
-  it("a BDEF/BDO delete is refused UNSUPPORTED with ZERO requests on the wire (disproven live)", async () => {
+  it("a DDLA/ADF delete is refused UNSUPPORTED with ZERO requests on the wire (unverified)", async () => {
     const { conn, adt } = await connected(ABSENT_ROUTE);
     const e = await catchErr(
-      resolveWriteTarget(conn, { type: "BDEF/BDO", name: "ZBD_X" }, "delete"),
+      resolveWriteTarget(conn, { type: "DDLA/ADF", name: "ZTMD_DDLA" }, "delete"),
     );
     expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/BDEF\/BDO/);
+    expect(String(e.message)).toMatch(/DDLA\/ADF/);
     expect(String(e.message)).toMatch(/delete/i);
     expect(adt.calls).toEqual([]);
 
     const offlineErr = await catchErr(
-      resolveWriteTarget(offline, { type: "BDEF/BDO", name: "ZBD_X" }, "delete"),
+      resolveWriteTarget(offline, { type: "DDLA/ADF", name: "ZTMD_DDLA" }, "delete"),
     );
     expect(offlineErr.code).toBe("UNSUPPORTED");
   });
@@ -1095,13 +1096,13 @@ describe("resolveWriteTarget: op:'delete' gate", () => {
     expect(offlineErr.code).toBe("UNSUPPORTED");
   });
 
-  it("the batch-delete tool refuses BDEF/BDO through the same gate, via abapWriteBatchDelete", async () => {
+  it("the batch-delete tool refuses DDLA/ADF through the same gate, via abapWriteBatchDelete", async () => {
     const { conn, adt } = await connected(ABSENT_ROUTE);
     const e = await catchErr(
-      abapWriteBatchDelete(conn, [{ object: "ZBD_X", type: "BDEF/BDO" }], MAX, gate, undefined),
+      abapWriteBatchDelete(conn, [{ object: "ZTMD_DDLA", type: "DDLA/ADF" }], MAX, gate, undefined),
     );
     expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/BDEF\/BDO/);
+    expect(String(e.message)).toMatch(/DDLA\/ADF/);
     expect(adt.calls).toEqual([]);
   });
 
@@ -1116,6 +1117,16 @@ describe("resolveWriteTarget: op:'delete' gate", () => {
     const resolved = await resolveWriteTarget(conn, { type: "CLAS/OC", name: "ZCL_X" }, "delete");
     expect(resolved.type).toBe("CLAS/OC");
     expect(resolved.exists).toBe(false);
+  });
+
+  // `rollbackCreate`'s `delete !== true` guard is kept as a safety net for a
+  // future type that can create but not (yet verified to) delete. This test
+  // is what will tell us when the guard becomes reachable again.
+  it("every type that can reach writeObject's create-and-rollback path is deletable — rollbackCreate's guard has no reachable subject today", () => {
+    const canRollback = WRITABLE_TYPES.filter((t) => VERIFIED_CREATABLE_TYPES.includes(t));
+    expect(canRollback.length).toBeGreaterThan(0);
+    const notDeletable = canRollback.filter((t) => capabilitiesFor(t)?.delete !== true);
+    expect(notDeletable).toEqual([]);
   });
 });
 
@@ -3083,21 +3094,11 @@ describe("abap_write: rolling back an orphaned CREATE when the fill-in PUT is re
     expect(adt.verbs).not.toContain("DELETE");
   });
 
-  // This is a DIFFERENT exclusion mechanism from the TTYP/DA
-  // test above, exercised on purpose. TTYP/DA is skipped by
-  // `putRejectionRollbackSkipReason` (shape "properties" + `create.vendor ===
-  // false`). BDEF/BDO is shape "source" — that function's own doc comment
-  // says plainly it is NOT excluded there. Before this fix `rollbackCreate`
-  // had no check of its own and called `conn.del` unconditionally, so a
-  // BDEF/BDO create whose fill-in PUT was rejected would have gone on to
-  // DELETE it — and live evidence from the delete-capability audit is that this DELETE reports
-  // success while the object survives (see BDEF/BDO's REGISTRY entry in
-  // capabilities.ts, `delete: false`, corrected down from `true`). This test
-  // pins the guard now inside `rollbackCreate` itself: it must fire with
-  // ZERO DELETE requests on the wire, not merely a caveated message — a
-  // message-only assertion would still pass a build that quietly issued the
-  // DELETE and only softened the wording around it.
-  it("does NOT delete a rejected BDEF/BDO create — rollbackCreate's own guard, not putRejectionRollbackSkipReason", async () => {
+  // BDEF/BDO is shape "source", so `putRejectionRollbackSkipReason` does not
+  // exclude it, and now that its registry `delete` is `true` the
+  // `rollbackCreate` guard does not either — so a created-then-rejected
+  // BDEF/BDO is cleaned up like any other source-shape type.
+  it("deletes a rejected BDEF/BDO create — rollbackCreate's guard no longer excludes it", async () => {
     const BDEF_URI = "/sap/bc/adt/bo/behaviordefinitions/zpropw_orph_bdef";
     const BDEF_SRC = `${BDEF_URI}/source/main`;
     const BDEF_COLLECTION = "/sap/bc/adt/bo/behaviordefinitions";
@@ -3108,10 +3109,7 @@ describe("abap_write: rolling back an orphaned CREATE when the fill-in PUT is re
       if (r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
       if (r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
       if (r.url === BDEF_SRC && r.method === "PUT") return resp(400, DDIC_REJECT_XML, OK_XML);
-      // Deliberately unrouted: a DELETE here would mean the guard this test
-      // exists to pin — `rollbackCreate` refusing BDEF/BDO on its own,
-      // independently of `putRejectionRollbackSkipReason` — silently
-      // regressed.
+      if (r.url === BDEF_URI && r.method === "DELETE") return resp(200, "", {});
       return undefined;
     });
     const e = await catchErr(
@@ -3121,18 +3119,15 @@ describe("abap_write: rolling back an orphaned CREATE when the fill-in PUT is re
     );
     expect(e.code).toBe("CHECK_FAILED");
     expect(e.details.created).toBe(true);
-    expect(e.details.rolledBack).toBe(false);
-    expect(e.details.rollbackAttempted).toBe(false);
-    expect(typeof e.details.rollbackSkipReason).toBe("string");
-    expect(e.message).toMatch(/did NOT attempt/);
-    // Not "full submitted content" (TTYP/DA's reason, from the OTHER guard) —
-    // this message names the real reason: delete is not verified to work.
-    expect(e.message).toMatch(/not verified/i);
-    // The POST between PUT and UNLOCK is `tryCheckSource`'s own unrouted,
-    // swallowed `/checkruns` attempt — same shape as the PROG/P CHECK_FAILED
-    // test above. What matters here: no re-LOCK, no DELETE, ever.
-    expect(adt.verbs).toEqual(["GET", "POST", "LOCK", "PUT", "POST", "UNLOCK"]);
-    expect(adt.verbs).not.toContain("DELETE");
+    expect(e.details.rolledBack).toBe(true);
+    expect(e.message).toMatch(/was deleted again, so nothing was left behind/);
+    // Same shape as the PROG/P CHECK_FAILED rollback test above (POST is
+    // tryCheckSource's swallowed unrouted /checkruns attempt), except no
+    // trailing UNLOCK: the DELETE here succeeds, so rollbackCreate's
+    // session.forgetLock drops the fresh lock from the ledger before
+    // withStatefulSession's finally runs, unlike the DOMA/DD FAILED-rollback
+    // case just below where the failed DELETE leaves it there to be unlocked.
+    expect(adt.verbs).toEqual(["GET", "POST", "LOCK", "PUT", "POST", "UNLOCK", "LOCK", "DELETE"]);
   });
 
   it("attempts and reports a FAILED rollback, without losing the original rejection", async () => {
@@ -4652,12 +4647,12 @@ describe("BDEF/BDO — skeleton create (source shape, create.vendor = false)", (
       namespace: 'xmlns:blue="http://www.sap.com/wbobj/blue"',
       contentType: "application/vnd.sap.adt.blues.v1+xml",
     });
-    // Disproven live 2026-08-19 — the DELETE call itself reports
-    // success but the object remains readable afterwards (reproduced 3x:
-    // read=present, re-delete=NOT_FOUND, read=present again). See BDEF/BDO's
-    // REGISTRY comment in capabilities.ts. `delete` was `true` here before
-    // that finding; it is corrected to `false`, not merely re-asserted.
-    expect(cap?.delete).toBe(false);
+    // The source endpoint answers 200/empty for an absent object, which is
+    // what the earlier audit misread as "still there". `blankSourceOnAbsence`
+    // is what makes the read and the post-delete read-back confirm at the
+    // object URI instead of trusting that blank body.
+    expect(cap?.delete).toBe(true);
+    expect(cap?.blankSourceOnAbsence).toBe(true);
     expect(cap?.activate).toBe(true);
     // The narrowed invariant accepts this combination; a bare re-run of the
     // module's own coherence checks is the cheapest proof that narrowing it
@@ -4730,23 +4725,47 @@ describe("BDEF/BDO — skeleton create (source shape, create.vendor = false)", (
     expect(put.headers?.["Content-Type"]).toBe("text/plain; charset=utf-8");
   });
 
-  // This used to be "deletes and activates through the same
-  // unspecialised code every other writable type uses" and asserted a full
-  // GET → LOCK → DELETE → UNLOCK choreography succeeded. Live verification
-  // disproved that the DELETE call actually removes the object — it reports
-  // success, but the object remains readable afterwards, reproduced three
-  // times (read=present, re-delete=NOT_FOUND, read=present again; see
-  // BDEF/BDO's REGISTRY comment in capabilities.ts). `delete` is now `false`
-  // in the registry, so abapsmith refuses to even attempt it — the mechanical
-  // choreography the old test pinned is no longer reachable, and pinning it
-  // would just be re-asserting the same optimistic, unverified claim this
-  // registry correction exists to catch.
-  it("delete is refused UNSUPPORTED — live evidence showed the object survives a 'successful' DELETE", async () => {
-    const { conn, adt } = await connected(ABSENT_ROUTE);
-    const e = await catchErr(authDelete(conn, { type: "BDEF/BDO", name: "ZPROPW_BDEF" }));
-    expect(e.code).toBe("UNSUPPORTED");
-    expect(String(e.message)).toMatch(/BDEF\/BDO/);
-    expect(adt.calls).toEqual([]);
+  // A 200/empty read-back is BDEF/BDO's real absent-object response, not
+  // proof the object survived — the confirming GET at the object URI is
+  // what earns `deleted: true`, per `blankSourceOnAbsence`.
+  it("reads a before-image, locks, DELETEs with the handle, and confirms absence at the object URI when the source read-back is blank", async () => {
+    let deleted = false;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === BDEF_SRC && r.method === "GET") {
+        return deleted ? resp(200, "", OK_TEXT) : resp(200, BDEF_SOURCE, OK_TEXT);
+      }
+      if (r.url === BDEF_URI && r.method === "GET") {
+        return deleted
+          ? resp(404, NOT_FOUND_XML, OK_XML)
+          : resp(200, OBJECT_XML("ZPROPW_BDEF", "BDEF/BDO"), OK_XML);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_XML("HDEL"), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
+      if (r.method === "DELETE") {
+        deleted = true;
+        return resp(200, "", {});
+      }
+      return undefined;
+    });
+    const res = await deleteObject(
+      conn,
+      await authDelete(conn, { type: "BDEF/BDO", name: "ZPROPW_BDEF" }),
+    );
+    expect(res.deleted).toBe(true);
+    expect(adt.labels).toEqual([
+      `GET ${BDEF_URI}`,
+      `GET ${BDEF_SRC}`,
+      `LOCK ${BDEF_URI}`,
+      `GET ${BDEF_SRC}`,
+      `DELETE ${BDEF_URI}`,
+      // The blank 200 read-back settles nothing on its own; the confirming
+      // GET at the object URI is what earns `deleted: true`.
+      `GET ${BDEF_SRC}`,
+      `GET ${BDEF_URI}`,
+    ]);
+    expect(adt.calls.some((c) => c.url.includes("/repository/informationsystem/search"))).toBe(
+      false,
+    );
   });
 });
 

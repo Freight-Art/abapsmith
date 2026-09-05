@@ -10,7 +10,7 @@ All five artifacts are creatable here. The chain is order-locked.
 ```
 DDLS/DF   CDS view              source
   ↓
-BDEF/BDO  behavior definition   source   ← cannot be deleted
+BDEF/BDO  behavior definition   source
   ↓
 CLAS/OC   behavior pool         source
   ↓
@@ -29,9 +29,10 @@ inactive earlier one passes PUT and fails activation.
 
 ## Before you create a BDEF
 
-**`BDEF/BDO` delete is disproven.** A created behavior definition could not be
-removed through abapsmith — DELETE reported success twice and the object was still
-there. Say so before creating one in a real package. There is no cleanup path.
+**`BDEF/BDO` delete works.** A raw lock plus DELETE against a live-created
+behavior definition is confirmed: the object was left absent from repository
+search and from the object URI itself. Clean up with `abap_write mode=delete`;
+that tool-surface path has not yet been exercised end to end.
 
 ## Per-artifact constraints
 
@@ -44,10 +45,12 @@ For a `DDLX/EX` extension to activate, the view text must carry
 `@Metadata.allowExtensions: true`. Otherwise: *"Annotation 'Metadata.allowExtensions'
 missing"*.
 
-**`BDEF/BDO`** — On-prem supports `implementation unmanaged` only; `managed` is not
-possible on premises. On 7.56+ BDEF strict mode the bare
-`implementation {managed|unmanaged};` header is obsolete and is a syntax error —
-a known limitation, not worked around here.
+**`BDEF/BDO`** — A `managed;` behavior definition over a classic CDS root view
+backed by a persistent table was created and activated live on this release, so
+`managed` is not off-limits on premises; do not assume `unmanaged` is the only
+option. On 7.56+ BDEF strict mode the bare `implementation {managed|unmanaged};`
+header is obsolete and is a syntax error — a known limitation, not worked around
+here.
 
 **`SRVD/SRV`** — May expose only DDIC-based CDS views, CDS projection views, or
 custom entities. An **abstract** CDS entity activates cleanly and then short-dumps
@@ -88,10 +91,10 @@ Deleting a `SRVD/SRV` fails with `SDDIC_ADT_SRVD207` (*"Service Definition &1 is
 still used"*) while any binding references it. Correct order:
 
 ```
-unpublish binding (human) → delete SRVB → delete SRVD → delete DDLS
+unpublish binding (human) → delete SRVB → delete SRVD → delete BDEF → delete DDLS
 ```
 
-The `BDEF/BDO` in the middle cannot be deleted at all.
+Every artifact in the chain is deletable.
 
 ## Verify
 
