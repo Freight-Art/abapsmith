@@ -61,13 +61,20 @@
   / `program` field descriptions say so up front (`src/tools/write.ts`); the
   registry documents it structurally too (`BRIDGE_DELETABLE_TYPES`,
   `src/adt/capabilities.ts`).
-- **A failed create can leave an empty object behind.** `writeObject` creates
-  the object shell, then PUTs its content in a separate round trip
-  (`src/adt/write.ts`). If that PUT is rejected — a syntax error, a 4xx, a
-  dropped connection — the shell is not rolled back and no message says one is
-  needed; a later create attempt under the same name then reports
-  `created: false`, as if it were an ordinary edit of something the caller
-  already owned. This remains unresolved.
+- **A failed create can still leave an empty object behind, but not silently.**
+  `writeObject` creates the object shell, then PUTs its content in a separate
+  round trip (`src/adt/write.ts`). A rejected PUT goes through
+  `reportCreatePutRejection`, which releases the lock, attempts a rollback
+  DELETE of the shell, and says in the refusal whether the shell was removed or
+  was left in place and why. Rollback is deliberately skipped when the
+  rejection is not a confirmed content rejection (only `BAD_INPUT` and
+  `CHECK_FAILED` are — a transport-level failure could have landed after the
+  server already committed), when the session that held the lock is dead, and
+  for the properties-shape types whose create POST already carried the full
+  payload (`TTYP/DA`, `ENQU/DL`); it can also fail on its own. In those cases
+  the object does survive, and a later create attempt under the same name
+  reports `created: false`, as if it were an ordinary edit of something the
+  caller already owned.
 - **CDS view syntax depends on the target release, and this server does not
   check it.** DDLS source is opaque text handed to ADT verbatim (see the
   `DDLS/DF` entry in `src/adt/types.ts`), so a syntax mismatch is caught by

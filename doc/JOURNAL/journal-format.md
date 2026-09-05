@@ -71,6 +71,11 @@ subset named above.
 | `abap_activate` and `abap_do action=activate` — single and batch | — |
 | BOPF writes (`abap_bopf_edit` create/update, `abap_bopf_delete`) | — |
 
+The accidental gaps are not listed here: `KNOWN_GAPS` in
+`test/journal-contract.test.ts` is the shrink-only, machine-checked list of
+mutation sites that journal nothing and should, and it is the authority when
+this prose and that list disagree.
+
 `abap_write`'s inline activation (the default, unless called with
 `activate:false`) is folded into that same create/update entry — it is not a
 separate `operation: "activate"` record. Standalone activation, via
