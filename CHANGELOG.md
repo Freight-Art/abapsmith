@@ -453,6 +453,7 @@ was last set to `0.3.0`.
   remedy: `abap_bopf_delete` then recreate), and no activation request is
   sent even with `activate: true`. A differently-named, non-empty root is
   still only a discrepancy note. See `test/bopf-create-recovery.test.ts`.
+- Documentation, code comments and registry notes no longer name the appliance's transportable test package; they say "a transportable package" instead.
 
 ### Fixed
 
