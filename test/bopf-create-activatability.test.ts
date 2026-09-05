@@ -202,7 +202,7 @@ describe("abap_bopf_edit create_bo — missing persistentStructureRef note", () 
     });
   });
 
-  it("names the auto-assigned persistentTableRef and warns cascade_ddic will not remove it", async () => {
+  it("names the auto-assigned persistentTableRef and points at the cascade_persistent opt-in to remove it", async () => {
     await withJournal(async (journal) => {
       const store = bopfStore({ zbopf_prb1: FX_ROOT_ONLY });
       const { conn } = await wired({ routes: [store.route] });
@@ -217,12 +217,12 @@ describe("abap_bopf_edit create_bo — missing persistentStructureRef note", () 
       const text = okText(result);
       expect(text).toContain("create_bo sends no DDIC refs");
       expect(text).toContain("persistentTableRef ZBOPF_D_ROOT");
-      expect(text).toContain("cascade_ddic never deletes");
+      expect(text).toContain('cascade_persistent: ["ZBOPF_D_ROOT"]');
 
       // The cascade DOES delete combinedTableRef/combinedStructureRef/the
       // constants interface — those must not show up in this note.
       const autoNoteStart = text.indexOf("create_bo sends no DDIC refs");
-      const autoNoteEnd = text.indexOf("\n", text.indexOf("removed deliberately", autoNoteStart));
+      const autoNoteEnd = text.indexOf("\n", text.indexOf('cascade_persistent: ["ZBOPF_D_ROOT"]', autoNoteStart));
       const autoNote = text.slice(autoNoteStart, autoNoteEnd === -1 ? undefined : autoNoteEnd);
       expect(autoNote).not.toContain("combinedTableRef");
       expect(autoNote).not.toContain("combinedStructureRef");
