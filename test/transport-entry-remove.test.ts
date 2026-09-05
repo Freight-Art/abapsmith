@@ -115,6 +115,23 @@ function objectHappyPath(collectionUrl: string, name: string): (o: HttpClientOpt
   };
 }
 
+/**
+ * Same happy path as {@link objectHappyPath}, except the source PUT is left unrouted — so
+ * `combine`'s fallback throws a plain `Error` there instead of an `AbapError`. Used to prove
+ * `enrichRemovalRefusal` passes a non-`AbapError` straight through untouched.
+ */
+function brokenPutRoute(
+  collectionUrl: string,
+  name: string,
+): (o: HttpClientOptions) => HttpClientResponse | undefined {
+  const base = objectHappyPath(collectionUrl, name);
+  const sourceUri = `${collectionUrl}/${name.toLowerCase()}/source/main`;
+  return (o: HttpClientOptions) => {
+    if (o.url === sourceUri && (o.method ?? "GET").toUpperCase() === "PUT") return undefined;
+    return base(o);
+  };
+}
+
 /** Session/discovery/activation/classrun plumbing shared by every bridge test below. */
 function sharedRoute(
   classrun: (o: HttpClientOptions) => HttpClientResponse | undefined,
@@ -770,6 +787,14 @@ describe("worst-case assembled-source line length stays within ABAP_SOURCE_LINE_
       transportEntryRemoveFragment(worstCase),
     );
     expect(offendingLines(source)).toEqual([]);
+    // Step 4's duplicate-row check is only worth stress-testing for line length if it actually
+    // made it into the assembled source — ddicBridgeSource prepends 4 spaces on top of the
+    // fragment's own indentation, so this also pins the indent budget the check above relies on.
+    expect(source).toContain("Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name.");
+    expect(source).toContain(
+      "duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } " +
+        "on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }",
+    );
   });
 });
 
@@ -879,6 +904,10 @@ describe("abap_transport removeObject — TR_DELETE_COMM_OBJECT_KEYS refusal enr
     expect(err.hint).toContain("SE03");
     expect(err.hint).toContain("Unlock Objects (Expert Tool)");
     expect(err.hint).toMatch(/SE09\/SE10/);
+    // CHECK_FAILED's own retryability is "conditional" (no claim either way), and this generic
+    // branch passes the original (undefined) through rather than forcing terminal — contrast
+    // the TR 292 reclassification below, which deliberately DOES force terminal.
+    expect(err.retryable).toBeUndefined();
   });
 
   it("a NOT_FOUND refusal (the pre-existing 'no entry for' path) is rethrown byte for byte — no SE03 text, no objectOnSystem grafted on", async () => {
@@ -913,6 +942,285 @@ describe("abap_transport removeObject — TR_DELETE_COMM_OBJECT_KEYS refusal enr
     expect(err.code).toBe("CHECK_FAILED");
     expect(err.message).not.toContain("TR_DELETE_COMM_OBJECT_KEYS");
     expect(err.hint).toBeUndefined();
+    expect(err.details.objectOnSystem).toBeUndefined();
+  });
+});
+
+describe("transportEntryRemoveFragment step 4 (duplicate E071 row guard)", () => {
+  const fragment = transportEntryRemoveFragment(PARAMS);
+
+  it("the eight step comments are numbered 1-8, in order, with no gap or repeat", () => {
+    const steps = fragment
+      .map((line) => /^" Step (\d+):/.exec(line.trim()))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => Number(m[1]));
+
+    expect(steps).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("step 4's header names the guard generically (pgmid+object+obj_name) — not a DDIC/TABL/CLAS-specific claim", () => {
+    const header = fragment.find((line) => line.trim().startsWith('" Step 4:'));
+
+    expect(header).toBeDefined();
+    expect(header).toContain("2+ E071 rows share pgmid+object+obj_name");
+  });
+
+  it("step 4 (the duplicate check) sits entirely before step 5's TR_DELETE_COMM_OBJECT_KEYS loop", () => {
+    const step4Idx = fragment.findIndex((line) => line.trim().startsWith('" Step 4:'));
+    const step5Idx = fragment.findIndex((line) => line.trim().startsWith('" Step 5:'));
+    const callIdx = fragment.findIndex((line) =>
+      line.includes("CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'"),
+    );
+
+    expect(step4Idx).toBeGreaterThanOrEqual(0);
+    expect(step5Idx).toBeGreaterThan(step4Idx);
+    expect(callIdx).toBeGreaterThan(step5Idx);
+  });
+
+  it("emits the ZMCP-DDIC-ERR> duplicate E071 entries template with all six runtime fields, then RETURNs, guarded by lv_n >= 2", () => {
+    const guardIdx = fragment.findIndex((line) => line.trim() === "IF lv_n >= 2.");
+
+    expect(guardIdx).toBeGreaterThanOrEqual(0);
+    expect(fragment[guardIdx + 1]).toContain(
+      "duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } " +
+        "on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }",
+    );
+    expect(fragment[guardIdx + 2]!.trim()).toBe("RETURN.");
+  });
+
+  it("the inner duplicate-count LOOP filters on pgmid+object+obj_name together, not obj_name alone", () => {
+    const source = fragment.join("\n");
+
+    expect(source).toContain("WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object");
+    expect(source).toContain("AND obj_name = ls_e071-obj_name.");
+  });
+});
+
+describe("both msg= sites render msgty/msgid/msgno with spaces between them", () => {
+  const fragment = transportEntryRemoveFragment(PARAMS);
+
+  it("TRINT_READ_REQUEST's lv_readerr assignment (step 1)", () => {
+    const line = fragment.find((l) => l.includes("lv_readerr ="));
+
+    expect(line).toBeDefined();
+    expect(line).toContain("msg={ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno }");
+    expect(line).not.toContain("msg={ls_msg-msgty}{ls_msg-msgid}{ls_msg-msgno}");
+  });
+
+  it("TR_DELETE_COMM_OBJECT_KEYS's lv_msgtext assignment (step 5) — this local holds the bare fields; the 'msg=' label is added later, where it's interpolated into the failure write", () => {
+    const line = fragment.find((l) => l.trim().startsWith("lv_msgtext ="));
+
+    expect(line).toBeDefined();
+    expect(line).toContain("{ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno }");
+    expect(line).not.toContain("{ls_msg-msgty}{ls_msg-msgid}{ls_msg-msgno}");
+
+    const useLine = fragment.find((l) => l.includes("msg={ lv_msgtext }"));
+    expect(useLine).toBeDefined();
+  });
+});
+
+describe("removeTransportEntryViaBridge beforeAssert — well-formed duplicate E071 line", () => {
+  const DUP_LINE =
+    "ZMCP-DDIC-ERR> duplicate E071 entries for R3TR PROG ZTMD_I26_P1 on A4HK900546: " +
+    "2 rows at AS4POS 0001,0002";
+
+  it("throws CTS_DUPLICATE_ENTRY with every field extracted independently and a hint pointing away from SE03 Unlock Objects", async () => {
+    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput([DUP_LINE])));
+    const { conn } = await connected(route);
+
+    const err = await catchErr(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof));
+
+    expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
+    expect(err.message).toContain("2 E071 rows share R3TR PROG ZTMD_I26_P1");
+    expect(err.message).toContain("AS4POS 0001, 0002");
+    expect(err.message).toContain("nothing was removed");
+
+    expect(err.details.trkorr).toBe(PARAMS.trkorr);
+    expect(err.details.objectName).toBe(PARAMS.objectName);
+    expect(err.details.holder).toBe("A4HK900546");
+    expect(err.details.pgmid).toBe("R3TR");
+    expect(err.details.object).toBe("PROG");
+    expect(typeof err.details.count).toBe("number");
+    expect(err.details.count).toBe(2);
+    expect(err.details.positions).toEqual(["0001", "0002"]);
+
+    expect(err.hint).toMatch(/Unlock Objects \(Expert Tool\)" does NOT fix this on its own/);
+    expect(err.hint).toMatch(/SE09\/SE10/);
+    expect(err.hint).toContain("release the request, which is irreversible");
+
+    expect(err.retryable).toBe(false);
+  });
+});
+
+describe("removeTransportEntryViaBridge beforeAssert — malformed duplicate E071 line", () => {
+  const MALFORMED = "ZMCP-DDIC-ERR> duplicate E071 entries for something the regex was never written to parse";
+
+  it("still throws CTS_DUPLICATE_ENTRY, quoting the raw line rather than inventing fields", async () => {
+    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput([MALFORMED])));
+    const { conn } = await connected(route);
+
+    const err = await catchErr(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof));
+
+    expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
+    expect(err.message).toContain("nothing was removed");
+    // parseDdicTranscript strips the ZMCP-DDIC-ERR> prefix before it ever reaches errorLine.
+    expect(err.message).toContain(
+      `Raw ABAP-side detail: ${MALFORMED.slice(DDIC_ERR_PREFIX.length).trim()}`,
+    );
+
+    expect(err.details.trkorr).toBe(PARAMS.trkorr);
+    expect(err.details.objectName).toBe(PARAMS.objectName);
+    expect(err.details.holder).toBeUndefined();
+    expect(err.details.pgmid).toBeUndefined();
+    expect(err.details.count).toBeUndefined();
+    expect(err.details.positions).toBeUndefined();
+
+    expect(err.retryable).toBe(false);
+  });
+});
+
+describe("beforeAssert's duplicate-E071 branch is narrow: other transcripts are unaffected", () => {
+  it("an unrelated ZMCP-DDIC-ERR> line still falls through to the generic CHECK_FAILED, not CTS_DUPLICATE_ENTRY", async () => {
+    const route = combine(
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(classrunOutput(["ZMCP-DDIC-ERR> some unrelated bridge fluke, sy-subrc=1"])),
+    );
+    const { conn } = await connected(route);
+
+    const err = await catchErr(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof));
+
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("some unrelated bridge fluke, sy-subrc=1");
+    expect(err.details.pgmid).toBeUndefined();
+    expect(err.details.positions).toBeUndefined();
+  });
+
+  it("the pre-existing 'no entry for' line is still NOT_FOUND, unaffected by the new duplicate-E071 regex", async () => {
+    const route = combine(
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(
+        classrunOutput([`ZMCP-DDIC-ERR> no entry for ${PARAMS.objectName} on ${PARAMS.trkorr} or its tasks`]),
+      ),
+    );
+    const { conn } = await connected(route);
+
+    const err = await catchErr(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof));
+
+    expect(err.code).toBe("NOT_FOUND");
+  });
+
+  it("a success transcript (TREN-REMOVED, TREN-GONE, no error line) resolves normally — beforeAssert never throws on undefined errorLine", async () => {
+    const route = combine(
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(
+        classrunOutput([
+          "ZMCP-TREN-HOLDER A4HK900545",
+          "ZMCP-TREN-ROW R3TR PROG ZTMD_I26_P1",
+          "TREN-REMOVED",
+          "TREN-GONE",
+        ]),
+      ),
+    );
+    const { conn } = await connected(route);
+
+    await expect(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof)).resolves.toMatchObject({
+      transcript: { errorLine: undefined },
+    });
+  });
+});
+
+describe("abap_transport removeObject — CTS_DUPLICATE_ENTRY refusal enrichment", () => {
+  const removeInput = transportInput({
+    operation: "removeObject",
+    transport: "A4HK900117",
+    object: "ZMCP_CTS_PROBE",
+    confirm: "A4HK900117",
+  });
+
+  it("the bridge's own pre-check refusal passes through CTS_DUPLICATE_ENTRY with objectOnSystem attached; message and hint stay byte for byte", async () => {
+    const route = combine(
+      trShowRoute("A4HK900117", "transport-details-with-objects"),
+      quickSearchRoute("hit"),
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(
+        classrunOutput([
+          "ZMCP-TREN-HOLDER A4HK900118",
+          "ZMCP-DDIC-ERR> duplicate E071 entries for R3TR PROG ZMCP_CTS_PROBE on A4HK900118: 2 rows at AS4POS 0001,0002",
+        ]),
+      ),
+    );
+    const { conn } = await connected(route);
+
+    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
+
+    expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
+    expect(err.message).toContain("2 E071 rows share R3TR PROG ZMCP_CTS_PROBE (AS4POS 0001, 0002)");
+    expect(err.details.objectOnSystem).toBe("present");
+    expect(err.details.trkorr).toBe("A4HK900118");
+    expect(err.details.objectName).toBe("ZMCP_CTS_PROBE");
+    expect(err.details.holder).toBe("A4HK900118");
+    expect(err.details.pgmid).toBe("R3TR");
+    expect(err.details.object).toBe("PROG");
+    expect(err.details.count).toBe(2);
+    expect(err.details.positions).toEqual(["0001", "0002"]);
+    expect(err.hint).toMatch(/Unlock Objects \(Expert Tool\)" does NOT fix this on its own/);
+    expect(err.retryable).toBe(false);
+  });
+
+  it("a late msg=E TR 292 CHECK_FAILED (TR_DELETE_COMM_OBJECT_KEYS itself refusing) is reclassified to CTS_DUPLICATE_ENTRY with the late hint appended, inventing no AS4POS values", async () => {
+    const failLine =
+      "ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for R3TR PROG ZMCP_CTS_PROBE, sy-subrc=1, " +
+      "msg=E TR 292 v1= v2= v3= v4=";
+    const route = combine(
+      trShowRoute("A4HK900117", "transport-details-with-objects"),
+      quickSearchRoute("hit"),
+      objectHappyPath(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(classrunOutput(["ZMCP-TREN-HOLDER A4HK900118", failLine])),
+    );
+    const { conn } = await connected(route);
+
+    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
+
+    expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
+    // assertDdicTranscript's message is built from errorLine, which already has the
+    // ZMCP-DDIC-ERR> prefix stripped off by parseDdicTranscript.
+    expect(err.message).toBe(
+      `Removing ZMCP_CTS_PROBE from A4HK900118 failed on the server: ${failLine.slice(DDIC_ERR_PREFIX.length).trim()}`,
+    );
+    expect(err.details.objectOnSystem).toBe("present");
+    expect(err.details.positions).toBeUndefined();
+    expect(err.details.pgmid).toBeUndefined();
+
+    // This reclassification path does NOT carry the SE03/"Unlock Objects" wording — that phrase
+    // only appears in the bridge's own pre-check hint and in COMM_OBJECT_KEYS_HINT. Deliberately
+    // not asserted here: LATE_DUPLICATE_ENTRY_HINT never mentions SE03 or "Unlock Objects".
+    expect(err.hint).not.toMatch(/AS4POS \d/);
+    expect(err.hint).toContain("two or more E071 rows for this object");
+    expect(err.hint).toMatch(/SE09\/SE10/);
+
+    expect(err.retryable).toBe(false);
+  });
+
+  it("a deploy-time failure with an unrelated AbapError code (the bridge PUT itself failing, not a classrun refusal) is returned completely unchanged — no objectOnSystem, no hint grafted on", async () => {
+    // The PUT is deliberately left unrouted, so translateWriteFailure's generic fallback
+    // (session.ts) turns the harness's raw "unrouted request" throw into an ADT_ERROR-coded
+    // AbapError before it ever reaches enrichRemovalRefusal — every error-producing layer
+    // between here and there (putContent/translateWriteFailure/translateAdtError) normalises
+    // to AbapError, so a genuinely non-AbapError value never actually reaches that function
+    // through this public surface. What DOES exercise the "unrelated code" passthrough branch
+    // is this: a code that is neither CTS_DUPLICATE_ENTRY nor CHECK_FAILED at all.
+    const route = combine(
+      trShowRoute("A4HK900117", "transport-details-with-objects"),
+      quickSearchRoute("hit"),
+      brokenPutRoute(CLASS_COLLECTION, BRIDGE),
+      sharedRoute(classrunOutput(["TREN-REMOVED", "TREN-GONE"])),
+    );
+    const { conn } = await connected(route);
+
+    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
+
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.message).toMatch(/unrouted request/);
     expect(err.details.objectOnSystem).toBeUndefined();
   });
 });
