@@ -97862,6 +97862,16 @@ function row(e) {
 }
 var LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
 var LIST_COLUMNS_WITH_ACTOR = LIST_COLUMNS.flatMap((c) => c === "flags" ? ["actor", "flags"] : c);
+function partRow(p) {
+  return {
+    object: `${p.object.type} ${p.object.name}`,
+    package: p.object.package,
+    existed: p.existedBefore ? "yes" : "no",
+    capture: p.beforeCapture
+  };
+}
+var PART_COLUMNS = ["object", "existed", "capture"];
+var PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => c === "object" ? ["object", "package"] : c);
 function undoHint(e) {
   if (e.operation === "transport-release") {
     return "RELEASED TRANSPORT \u2014 refused: a released transport cannot be recalled; create a corrective transport instead";
@@ -98006,6 +98016,10 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
         title: "BEFORE-IMAGE",
         content: entry.existedBefore ? entry.beforeCapture === "failed" ? "(none was ever captured \u2014 the entry says the object existed but its source read never resolved, whether it didn't complete or came back inconclusive. Not a retention problem; there is nothing to restore.)" : "(recorded, but the blob is gone \u2014 pruned or the journal dir was cleaned)" : `(none \u2014 the entry records that the object did not exist before this operation, so undo would mean DELETE; provenance: beforeCapture="${entry.beforeCapture}")`
       });
+    }
+    if (entry.parts?.length) {
+      const columns = entry.parts.some((p) => p.object.package) ? PART_COLUMNS_WITH_PACKAGE : PART_COLUMNS;
+      sections.push({ title: `ALSO TOUCHED (${entry.parts.length})`, content: textTable(entry.parts.map(partRow), columns) });
     }
     const notes2 = [];
     if (entry.outcome === "pending") {
@@ -106354,7 +106368,8 @@ async function discloseDeleteFailureProbe(conn, bo, base) {
 }
 async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = {}) {
   assertAuthorizedMatches(authorized, { name: bo }, "deleteBusinessObject");
-  if (opts.cascadeDdic && !gate.config.allowCascadeDelete) {
+  const cascadePersistentRequested = (opts.cascadePersistent?.length ?? 0) > 0;
+  if ((opts.cascadeDdic || cascadePersistentRequested) && !gate.config.allowCascadeDelete) {
     throw new AbapError(
       "SAFETY_DENIED",
       `Cannot delete BOPF business object ${bo} with cascade_ddic: cascading DDIC deletes require the admin-mode cascade-delete ceiling (ABAP_MODE=admin), which this server does not currently grant. The business object itself was NOT deleted either \u2014 a caller who asked for a cascading delete and silently got a non-cascading one instead would be misled about what actually happened.`,
@@ -106445,7 +106460,50 @@ async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = 
     uri: cand.uri,
     reason: ddicSparedReason(cand.refSite)
   }));
-  return { boDeleted, ddic, ddicSpared, ddicEnumerated };
+  const ddicRequested = [];
+  const requested = opts.cascadePersistent ?? [];
+  const orderedRequested = [
+    ...requested.filter((t) => t.candidate.kind === "table"),
+    ...requested.filter((t) => t.candidate.kind === "structure")
+  ];
+  for (let i = 0; i < orderedRequested.length; i += 5) {
+    const batch = orderedRequested.slice(i, i + 5);
+    for (const target of batch) {
+      const cand = target.candidate;
+      if (!target.present) {
+        ddicRequested.push({
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          existed: false,
+          deleted: false,
+          reason: "the object was already absent when its package was probed just before this delete"
+        });
+        continue;
+      }
+      let candAuthorized;
+      try {
+        candAuthorized = gate.authorize(
+          "delete",
+          { name: cand.name, packageName: target.packageName, type: cand.type },
+          { phase: "final" }
+        );
+      } catch (e) {
+        ddicRequested.push({
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          // target.present is already true here — the probe above proved it.
+          existed: true,
+          deleted: false,
+          reason: `safety gate denied: ${describeUnknownError(e)}`
+        });
+        continue;
+      }
+      ddicRequested.push(await deleteDdicCandidate(conn, session, cand, candAuthorized));
+    }
+  }
+  return { boDeleted, ddic, ddicRequested, ddicSpared, ddicEnumerated };
 }
 function collectDdicCascadeCandidates(model) {
   const generated = [];
@@ -106469,6 +106527,59 @@ function pushCandidate(out, ref2, kind, guessKind, refSite) {
 function ddicGuessUri(ref2, guessKind) {
   if (!ref2.name || !guessKind) return void 0;
   return `/sap/bc/adt/ddic/${guessKind}/${ref2.name.toLowerCase()}`;
+}
+function ddicRefOccurrencesForName(model, upperName) {
+  const seen = /* @__PURE__ */ new Set();
+  const occurrences = [];
+  const mark = (ref2, slot, node2) => {
+    if (!ref2?.name || ref2.name.trim().toUpperCase() !== upperName) return;
+    const key = `${node2 ?? ""}\0${slot}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    occurrences.push(node2 !== void 0 ? { slot, node: node2 } : { slot });
+  };
+  for (const node2 of model.nodes) {
+    mark(node2.persistentTableRef, "persistentTableRef", node2.name);
+    mark(node2.combinedTableRef, "combinedTableRef", node2.name);
+    mark(node2.persistentStructureRef, "persistentStructureRef", node2.name);
+    mark(node2.combinedStructureRef, "combinedStructureRef", node2.name);
+  }
+  mark(model.constantsInterfaceRef, "constantsInterfaceRef");
+  return occurrences;
+}
+function describeDdicRefOccurrence(o) {
+  return o.node !== void 0 ? `${o.slot} on node ${o.node}` : o.slot;
+}
+function resolvePersistentCascadeRequest(bo, model, names) {
+  const wanted = /* @__PURE__ */ new Set();
+  for (const n of names) {
+    const norm3 = n.trim().toUpperCase();
+    if (norm3) wanted.add(norm3);
+  }
+  const { referenced } = collectDdicCascadeCandidates(model);
+  const byName = new Map(referenced.map((c) => [c.name.toUpperCase(), c]));
+  const resolved = [];
+  for (const norm3 of wanted) {
+    const cand = byName.get(norm3);
+    if (!cand) {
+      const available = referenced.length ? `objects currently referenced: ${referenced.map((c) => c.name).join(", ")}` : "this business object's model carries no persistentTableRef/persistentStructureRef at all";
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${norm3}" on BOPF business object ${bo}: it is not one of the persistentTableRef/persistentStructureRef objects this BO's model references \u2014 ${available}.`,
+        { bo, name: norm3 }
+      );
+    }
+    const sites = ddicRefOccurrencesForName(model, norm3);
+    if (sites.length > 1) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${norm3}" on BOPF business object ${bo}: it is referenced from more than one site in this BO's model (${sites.map(describeDdicRefOccurrence).join(", ")}) \u2014 deleting it would break the other reference.`,
+        { bo, name: norm3, sites }
+      );
+    }
+    resolved.push(cand);
+  }
+  return [...resolved.filter((c) => c.kind === "table"), ...resolved.filter((c) => c.kind === "structure")];
 }
 async function deleteDdicCandidate(conn, session, cand, authorized) {
   assertAuthorizedMatches(authorized, { name: cand.name }, "deleteDdicCandidate");
@@ -106568,6 +106679,50 @@ async function deleteDdicCandidate(conn, session, cand, authorized) {
       reason: `DELETE returned success but the read-back to confirm it failed: ${describeUnknownError(e)}`
     };
   }
+}
+async function probeRequestedPersistentTargets(conn, bo, boPackage, candidates) {
+  const out = [];
+  for (const cand of candidates) {
+    let body;
+    try {
+      const resp = await conn.get(cand.uri, { headers: { Accept: "application/*" } });
+      body = resp.body ?? "";
+    } catch (e) {
+      if (isNotFoundLike(e)) {
+        out.push({ candidate: cand, present: false });
+        continue;
+      }
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: probing it before the delete failed: ${describeUnknownError(e)}. Nothing was deleted.`,
+        { bo, name: cand.name, uri: cand.uri }
+      );
+    }
+    const packageName = parsePackageRef(body);
+    if (!packageName) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: abapsmith could not confirm which package "${cand.name}" belongs to \u2014 its ADT document carried no single, unambiguous <adtcore:packageRef>. Nothing was deleted.`,
+        { bo, name: cand.name, uri: cand.uri }
+      );
+    }
+    if (!boPackage || !boPackage.trim()) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: this BO's own package could not be determined, so it cannot be compared against the package of the object being deleted. Nothing was deleted.`,
+        { bo, name: cand.name }
+      );
+    }
+    if (packageName.trim().toUpperCase() !== boPackage.trim().toUpperCase()) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: it lives in package ${packageName}, not ${boPackage} \u2014 a DDIC object living in another package is never deleted this way. Nothing was deleted.`,
+        { bo, name: cand.name, objectPackage: packageName, boPackage }
+      );
+    }
+    out.push({ candidate: cand, present: true, packageName, beforeSource: body });
+  }
+  return out;
 }
 function isNotFoundLike(e) {
   const err = e;
@@ -107547,8 +107702,13 @@ var BopfEditInput = external_exports.object(bopfEditInputSchema);
 var bopfDeleteInputSchema = {
   bo: external_exports.string().describe("BOPF business object name to delete."),
   confirm: external_exports.string().optional().describe("Echo bo (case-insensitive) to arm the delete; required when dry_run: false."),
-  cascade_ddic: external_exports.boolean().optional().describe("Also sweep generated DDIC objects. Spares persistentTableRef/persistentStructureRef."),
+  cascade_ddic: external_exports.boolean().optional().describe(
+    "Also sweep generated DDIC objects. Spares persistentTableRef/persistentStructureRef unless cascade_persistent names them."
+  ),
   confirm_cascade: external_exports.string().optional().describe("Echo bo again; required with confirm when cascade_ddic: true."),
+  cascade_persistent: external_exports.array(external_exports.string()).optional().describe(
+    "Exact DDIC names to also delete from persistentTableRef/persistentStructureRef \u2014 each must be referenced by this BO and live in its package. Requires cascade_ddic: true."
+  ),
   dry_run: external_exports.boolean().optional().describe("Default true: report only, delete nothing.")
 };
 var BopfDeleteInput = external_exports.object(bopfDeleteInputSchema);
@@ -108606,11 +108766,12 @@ function createBoActivatabilityNotes(model) {
   }
   const autoAssigned = ["persistentTableRef", "persistentStructureRef"].flatMap((kind) => {
     const ref2 = root[kind];
-    return ref2 ? [`${kind} ${ref2.name}`] : [];
+    return ref2 ? [{ kind, name: ref2.name }] : [];
   });
   if (autoAssigned.length > 0) {
+    const autoAssignedNames = Array.from(new Set(autoAssigned.map((a) => a.name)));
     notes.push(
-      `create_bo sends no DDIC refs, so ${autoAssigned.join(", ")} on root node "${root.name}" came from BOPF's own defaulting, not from this call. abap_bopf_delete cascade_ddic never deletes a persistentTableRef or persistentStructureRef, so this is left on the system when the BO is deleted and has to be removed deliberately.`
+      `create_bo sends no DDIC refs, so ${autoAssigned.map((a) => `${a.kind} ${a.name}`).join(", ")} on root node "${root.name}" came from BOPF's own defaulting, not from this call. abap_bopf_delete's default cascade_ddic sweep spares ${autoAssigned.length === 1 ? "it" : "them"}; deleting ${autoAssigned.length === 1 ? "it" : "them"} too takes an explicit opt-in by name on that call: cascade_persistent: [${autoAssignedNames.map((n) => `"${n}"`).join(", ")}].`
     );
   }
   return notes;
@@ -108641,10 +108802,11 @@ function addNodeAutoAssignedRefsNote(input, model) {
   const autoAssigned = ["persistentTableRef", "persistentStructureRef"].flatMap((kind) => {
     if (ref(spec[kind])) return [];
     const r = node2[kind];
-    return r ? [`${kind} ${r.name}`] : [];
+    return r ? [{ kind, name: r.name }] : [];
   });
   if (autoAssigned.length === 0) return void 0;
-  return `spec didn't set ${autoAssigned.join(", ")} on node "${node2.name}", so ${autoAssigned.length === 1 ? "it" : "they"} came from BOPF's own defaulting, not from this call \u2014 same naming family as create_bo's auto-assigned refs. abap_bopf_delete cascade_ddic never deletes a persistentTableRef or persistentStructureRef, so this is left on the system when the BO is deleted and has to be removed deliberately.`;
+  const autoAssignedNames = Array.from(new Set(autoAssigned.map((a) => a.name)));
+  return `spec didn't set ${autoAssigned.map((a) => `${a.kind} ${a.name}`).join(", ")} on node "${node2.name}", so ${autoAssigned.length === 1 ? "it" : "they"} came from BOPF's own defaulting, not from this call \u2014 same naming family as create_bo's auto-assigned refs. abap_bopf_delete's default cascade_ddic sweep spares ${autoAssigned.length === 1 ? "it" : "them"}; deleting ${autoAssigned.length === 1 ? "it" : "them"} too takes an explicit opt-in by name on that call: cascade_persistent: [${autoAssignedNames.map((n) => `"${n}"`).join(", ")}].`;
 }
 function buildEditResponse(bo, model, danglingVerdict, activation, recovered, journalEntryId, maxChars, extraNotes = [], rootNodeCheck) {
   const notes = [...extraNotes];
@@ -109237,7 +109399,9 @@ function registerBopfEditTool(mcp, deps) {
     }
   );
 }
-function buildDryRunDeleteResponse(bo, candidates, spared, cascadeDdic, maxChars) {
+function buildDryRunDeleteResponse(bo, candidates, spared, cascadeDdic, maxChars, requested = []) {
+  const requestedNames = new Set(requested.map((t) => t.candidate.name.trim().toUpperCase()));
+  const unrequestedSpared = spared.filter((c) => !requestedNames.has(c.name.trim().toUpperCase()));
   const notes = [
     "dry_run: true (default) \u2014 NOTHING was deleted. Pass dry_run: false and confirm (echoing the BO name exactly) to actually delete."
   ];
@@ -109245,19 +109409,31 @@ function buildDryRunDeleteResponse(bo, candidates, spared, cascadeDdic, maxChars
     notes.push(
       "cascade_ddic: true \u2014 the DDIC candidates below were found referenced in the model; their existence on the server was NOT probed here (that costs a network round trip per candidate in a real delete). The armed delete may find fewer, or report some as already absent."
     );
-  } else if (candidates.length) {
+  }
+  if (cascadeDdic && unrequestedSpared.length) {
+    notes.push(
+      "The objects spared below can be deleted too: name them in cascade_persistent on the armed delete. Each name must be one this BO actually references (i.e. a name spared below), and must live in this BO's own package \u2014 e.g. a /BOBF/* demo structure referenced by the BO is refused, not deleted."
+    );
+  }
+  if (!cascadeDdic && candidates.length) {
     notes.push(
       "cascade_ddic was not requested \u2014 the generated DDIC objects listed under DDIC NOT SWEPT are names read from the model; their existence on the server was NOT probed here (same as the cascade_ddic: true case above). This delete will not touch them. Pass cascade_ddic: true (and confirm_cascade) on the armed delete to remove whichever of them actually exist."
     );
   }
   const body = candidates.map((c) => `${c.kind}  ${c.name}  ${c.uri}`).join("\n");
-  const sparedContent = spared.map((c) => `${c.kind}  ${c.name}  ${c.uri}  (${ddicSparedReason(c.refSite)})`).join("\n");
+  const sparedContent = unrequestedSpared.map((c) => `${c.kind}  ${c.name}  ${c.uri}  (${ddicSparedReason(c.refSite)})`).join("\n");
+  const requestedContent = requested.map(
+    (t) => `${t.candidate.kind}  ${t.candidate.name}  ${t.candidate.uri}  existed=${t.present}  ` + (t.present ? "would delete" : "already absent \u2014 nothing to delete")
+  ).join("\n");
   const sections = [];
-  if (cascadeDdic && spared.length) {
+  if (cascadeDdic && unrequestedSpared.length) {
     sections.push({ title: "DDIC SPARED (provenance unknown \u2014 never deleted)", content: sparedContent });
   }
   if (!cascadeDdic && candidates.length) {
     sections.push({ title: "DDIC NOT SWEPT (cascade_ddic not requested \u2014 would not be deleted)", content: body });
+  }
+  if (requested.length) {
+    sections.push({ title: "DDIC DELETED ON REQUEST", content: requestedContent });
   }
   return buildResponse({
     header: {
@@ -109266,8 +109442,9 @@ function buildDryRunDeleteResponse(bo, candidates, spared, cascadeDdic, maxChars
       wouldDeleteBo: true,
       cascadeDdic,
       ddicCandidateCount: cascadeDdic ? candidates.length : void 0,
-      ddicSparedCount: cascadeDdic ? spared.length : void 0,
-      ddicWouldRemainCount: cascadeDdic ? void 0 : candidates.length
+      ddicSparedCount: cascadeDdic ? unrequestedSpared.length : void 0,
+      ddicWouldRemainCount: cascadeDdic ? void 0 : candidates.length,
+      ddicRequestedCount: requested.length || void 0
     },
     body: cascadeDdic && candidates.length ? body : void 0,
     bodyLabel: cascadeDdic && candidates.length ? "DDIC CANDIDATES (not existence-checked)" : void 0,
@@ -109280,13 +109457,19 @@ function buildDeleteResultResponse(bo, result, cascadeDdic, leftBehind, spared, 
   const deletedCount = result.ddic.filter((d) => d.deleted === true).length;
   const unverifiedCount = result.ddic.filter((d) => d.deleted === "unverified").length;
   const body = result.ddic.map((d) => `${d.kind}  ${d.name}  existed=${d.existed}  deleted=${d.deleted}${d.reason ? `  reason=${d.reason}` : ""}`).join("\n");
-  const sparedContent = result.ddicSpared.map((d) => `${d.kind}  ${d.name}  ${d.reason}`).join("\n");
+  const requestedNames = new Set(result.ddicRequested.map((d) => d.name.trim().toUpperCase()));
+  const unrequestedDdicSpared = result.ddicSpared.filter((d) => !requestedNames.has(d.name.trim().toUpperCase()));
+  const unrequestedSpared = spared.filter((c) => !requestedNames.has(c.name.trim().toUpperCase()));
+  const sparedContent = unrequestedDdicSpared.map((d) => `${d.kind}  ${d.name}  ${d.reason}`).join("\n");
   const leftBehindContent = leftBehind.map((c) => `${c.kind}  ${c.name}  ${c.uri}`).join("\n");
-  const notCascadedSparedContent = spared.map((c) => `${c.kind}  ${c.name}  ${c.uri}  (${ddicSparedReason(c.refSite)})`).join("\n");
+  const notCascadedSparedContent = unrequestedSpared.map((c) => `${c.kind}  ${c.name}  ${c.uri}  (${ddicSparedReason(c.refSite)})`).join("\n");
+  const requestedDeletedCount = result.ddicRequested.filter((d) => d.deleted === true).length;
+  const requestedUnverifiedCount = result.ddicRequested.filter((d) => d.deleted === "unverified").length;
+  const requestedContent = result.ddicRequested.map((d) => `${d.kind}  ${d.name}  existed=${d.existed}  deleted=${d.deleted}${d.reason ? `  reason=${d.reason}` : ""}`).join("\n");
   const sections = [];
-  if (result.ddicSpared.length) {
+  if (unrequestedDdicSpared.length) {
     sections.push({ title: "DDIC SPARED (provenance unknown \u2014 never deleted)", content: sparedContent });
-  } else if (!cascadeDdic && spared.length) {
+  } else if (!cascadeDdic && unrequestedSpared.length) {
     sections.push({ title: "DDIC SPARED (provenance unknown \u2014 never deleted)", content: notCascadedSparedContent });
   }
   if (!cascadeDdic && leftBehind.length) {
@@ -109295,10 +109478,18 @@ function buildDeleteResultResponse(bo, result, cascadeDdic, leftBehind, spared, 
       content: leftBehindContent
     });
   }
+  if (result.ddicRequested.length) {
+    sections.push({ title: "DDIC DELETED ON REQUEST", content: requestedContent });
+  }
   const notes = [];
-  if (!cascadeDdic && spared.length) {
+  if (unrequestedDdicSpared.length) {
     notes.push(
-      "persistentTableRef/persistentStructureRef objects (DDIC SPARED) are never touched by cascade_ddic either \u2014 the model does not record whether this BO generated them, so they stay untouched whether or not cascade_ddic was requested. Remove them yourself with abap_write if that's actually wanted."
+      "The objects spared below went untouched because cascade_persistent did not name them on this delete \u2014 naming them there would have deleted them as part of this same cascade. The BO is gone now; remove them yourself with abap_write if that's actually wanted."
+    );
+  }
+  if (!cascadeDdic && unrequestedSpared.length) {
+    notes.push(
+      "persistentTableRef/persistentStructureRef objects (DDIC SPARED) are never touched by cascade_ddic either \u2014 the model does not record whether this BO generated them, so they stay untouched whether or not cascade_ddic was requested. Passing cascade_ddic: true, confirm_cascade, and cascade_persistent naming them on this delete would have deleted them instead; the BO is gone now, so remove them yourself with abap_write if that's actually wanted."
     );
   }
   if (!cascadeDdic && leftBehind.length) {
@@ -109309,6 +109500,16 @@ function buildDeleteResultResponse(bo, result, cascadeDdic, leftBehind, spared, 
   if (unverifiedCount > 0) {
     notes.push(
       `${unverifiedCount} DDIC delete${unverifiedCount === 1 ? "" : "s"} could not be verified by a read-back (see reason= in DDIC CASCADE RESULTS). This is not proof the delete failed \u2014 a stale read is possible \u2014 it means the tool could not confirm the object is actually gone.`
+    );
+  }
+  if (requestedUnverifiedCount > 0) {
+    notes.push(
+      `${requestedUnverifiedCount} DDIC delete${requestedUnverifiedCount === 1 ? "" : "s"} named by cascade_persistent could not be verified by a read-back (see reason= in DDIC DELETED ON REQUEST). This is not proof the delete failed \u2014 a stale read is possible \u2014 it means the tool could not confirm the object is actually gone.`
+    );
+  }
+  if (result.ddicRequested.length) {
+    notes.push(
+      "DDIC DELETED ON REQUEST objects were deleted because cascade_persistent named them by name \u2014 the provenance-unknown default (persistentTableRef/persistentStructureRef otherwise spared) is unchanged for every object not named there."
     );
   }
   if (cascadeDdic && !result.ddicEnumerated) {
@@ -109325,8 +109526,10 @@ function buildDeleteResultResponse(bo, result, cascadeDdic, leftBehind, spared, 
       ddicCount: cascadeDdic && result.ddicEnumerated ? result.ddic.length : void 0,
       ddicDeletedCount: cascadeDdic && result.ddicEnumerated ? deletedCount : void 0,
       ddicUnverifiedCount: cascadeDdic && result.ddicEnumerated ? unverifiedCount : void 0,
-      ddicSparedCount: cascadeDdic && result.ddicEnumerated ? result.ddicSpared.length : void 0,
+      ddicSparedCount: cascadeDdic && result.ddicEnumerated ? unrequestedDdicSpared.length : void 0,
       ddicLeftBehindCount: cascadeDdic ? void 0 : leftBehind.length,
+      ddicRequestedCount: result.ddicRequested.length || void 0,
+      ddicRequestedDeletedCount: result.ddicRequested.length ? requestedDeletedCount : void 0,
       journalEntryId
     },
     body: result.ddic.length ? body : void 0,
@@ -109336,12 +109539,30 @@ function buildDeleteResultResponse(bo, result, cascadeDdic, leftBehind, spared, 
     maxChars
   }).text;
 }
-var BOPF_DELETE_TOOL_DESCRIPTION = "Delete a BOPF business object. dry_run defaults to true. dry_run: false plus confirm (echo bo) deletes. cascade_ddic: true also sweeps generated DDIC objects (needs confirm_cascade too). Refuses on a transportable package.";
+function assertRequestedTargetsGate(safety, targets) {
+  for (const t of targets) {
+    if (!t.present) continue;
+    safety.assert(
+      "delete",
+      { name: t.candidate.name, packageName: t.packageName, type: t.candidate.type },
+      { phase: "preflight" }
+    );
+  }
+}
+var BOPF_DELETE_TOOL_DESCRIPTION = "Delete a BOPF business object. dry_run defaults to true. dry_run: false plus confirm (echo bo) deletes. cascade_ddic: true also sweeps generated DDIC objects (needs confirm_cascade too). cascade_persistent names specific persistentTableRef/persistentStructureRef objects to delete too (requires cascade_ddic). Refuses on a transportable package.";
 async function runBopfDelete(deps, args) {
   const input = args;
   const bo = input.bo;
   const dryRun = input.dry_run !== false;
   const gateKey = bopfGateKey(bo);
+  const requestedPersistent = (input.cascade_persistent ?? []).map((n) => n.trim()).filter((n) => n !== "");
+  if (requestedPersistent.length && !input.cascade_ddic) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "abap_bopf_delete: cascade_persistent requires cascade_ddic: true \u2014 it extends the DDIC cascade rather than replacing it.",
+      { bo }
+    );
+  }
   deps.safety.assert("delete", { name: bo, type: BOPF_TYPE }, { phase: "preflight" });
   if (!dryRun) {
     const target = bo.trim().toUpperCase();
@@ -109364,14 +109585,42 @@ async function runBopfDelete(deps, args) {
   }
   await deps.ensureConnected();
   if (dryRun) {
-    const model = await deps.pool.withRead("abap_bopf_delete", (conn) => readModel(conn, bo).then((r) => r.model));
+    const { model, requestedTargets: requestedTargets2 } = await deps.pool.withRead("abap_bopf_delete", async (conn) => {
+      const model2 = (await readModel(conn, bo)).model;
+      const requestedTargets3 = requestedPersistent.length ? await probeRequestedPersistentTargets(
+        conn,
+        bo,
+        model2.packageRef?.name,
+        resolvePersistentCascadeRequest(bo, model2, requestedPersistent)
+      ) : [];
+      assertRequestedTargetsGate(deps.safety, requestedTargets3);
+      return { model: model2, requestedTargets: requestedTargets3 };
+    });
     const { generated, referenced } = collectDdicCascadeCandidates(model);
     return ok10(
-      buildDryRunDeleteResponse(bo, generated, referenced, input.cascade_ddic === true, deps.cfg.maxResponseChars)
+      buildDryRunDeleteResponse(
+        bo,
+        generated,
+        referenced,
+        input.cascade_ddic === true,
+        deps.cfg.maxResponseChars,
+        requestedTargets2
+      )
     );
   }
-  const currentModelRead = await deps.pool.withRead("abap_bopf_delete", (conn) => readModel(conn, bo));
+  const currentModelRead = await deps.pool.withRead("abap_bopf_delete", async (conn) => {
+    const read = await readModel(conn, bo);
+    const requestedTargets2 = requestedPersistent.length ? await probeRequestedPersistentTargets(
+      conn,
+      bo,
+      read.model.packageRef?.name,
+      resolvePersistentCascadeRequest(bo, read.model, requestedPersistent)
+    ) : [];
+    assertRequestedTargetsGate(deps.safety, requestedTargets2);
+    return { ...read, requestedTargets: requestedTargets2 };
+  });
   const currentModel = currentModelRead.model;
+  const requestedTargets = currentModelRead.requestedTargets;
   const authorized = deps.safety.authorize(
     "delete",
     {
@@ -109401,12 +109650,34 @@ async function runBopfDelete(deps, args) {
             beforeSource: currentModelRead.xml,
             irreversible: true,
             systemKey: systemKey(conn.cfg),
-            tool: "abap_bopf_delete"
+            tool: "abap_bopf_delete",
+            // Only present when at least one target was requested —
+            // `JournalEntry.parts` must be absent, not `[]`, on an
+            // entry that only ever touched one object. The before-image
+            // here is the package probe's own response, captured before
+            // the delete; `confirmed-absent` is honest because a 404 on
+            // that probe is a positive absence answer, not a guess.
+            ...requestedTargets.length ? {
+              parts: requestedTargets.map((t) => ({
+                object: journalRef({
+                  name: t.candidate.name,
+                  type: t.candidate.type,
+                  uri: t.candidate.uri,
+                  packageName: t.packageName ?? ""
+                }),
+                existedBefore: t.present,
+                beforeCapture: t.present ? "captured" : "confirmed-absent",
+                ...t.beforeSource !== void 0 ? { beforeSource: t.beforeSource } : {}
+              }))
+            } : {}
           })
         },
         async (onBeforeImage) => {
           await onBeforeImage(void 0);
-          return deleteBusinessObject(conn, session, bo, authorized, deps.safety, { cascadeDdic: input.cascade_ddic });
+          return deleteBusinessObject(conn, session, bo, authorized, deps.safety, {
+            cascadeDdic: input.cascade_ddic,
+            cascadePersistent: requestedTargets
+          });
         }
       );
       await settle({ outcome: "succeeded" });
@@ -119037,7 +119308,7 @@ var ABAP_DO_ACTIONS = [
     minMode: "admin",
     v1: "abap_bopf_delete()",
     summary: "Delete a BO; cascade DDIC is admin-only.",
-    args: "cascade_ddic, confirm_cascade (top-level confirm/dry_run also apply; dry_run defaults true)"
+    args: "cascade_ddic, cascade_persistent, confirm_cascade (top-level confirm/dry_run also apply; dry_run defaults true)"
   },
   // enhancements
   {
