@@ -275,6 +275,7 @@ was last set to `0.3.0`.
 
 ### Changed
 
+- Two source comments caught up with the code: `abap_ui`'s deps type now takes `allowUiPress` straight from `Config` instead of describing the `ABAP_ALLOW_UI_PRESS` flag as not yet implemented, and the `BDEF/BDO` skeleton-create note no longer refers to the development process that captured it.
 - `VIEW/DV` create into a transportable package resolves a transport
   request the same way a `DEVC/K` create does — `preflightPackageCorr`
   honours the caller's `corr_nr` when given, or else picks or creates one
