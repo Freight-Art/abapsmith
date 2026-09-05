@@ -12,7 +12,7 @@ Check here before planning any create.
 
 <!-- BEGIN generated: scripts/gen-capability-table.mjs -->
 
-**Creatable and writable (22).** Everything else is not.
+**Creatable and writable (23).** Everything else is not.
 
 - `CLAS/OC` — write shape `source`, delete: yes
 - `INTF/OI` — write shape `source`, delete: yes
@@ -35,6 +35,7 @@ Check here before planning any create.
 - `DOMA/DD` — write shape `properties`, delete: yes
 - `TTYP/DA` — write shape `properties`, delete: yes
 - `MSAG/N` — write shape `properties`, delete: yes
+- `ENQU/DL` — write shape `properties`, delete: yes
 - `SRVB/SVB` — write shape `properties`, delete: yes
 
 **Bridge-only create types (3).** ADT REST has no usable create for these, so abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The bridge never updates an existing object. Whether it can delete one — and so whether the create is reversible — differs per type; see each bullet.
@@ -49,9 +50,9 @@ Check here before planning any create.
 - `ENHO/XHH` — src/adt/enhancement-hook.ts — createHookImplementation (PROG/P host only).
 - `ENHS/XS` — src/adt/enhancement-bridge.ts — createEnhancementSpot.
 
-**Writable but NOT creatable (2).** Change an existing one; creating fails.
+**Writable but NOT creatable (1).** Change an existing one; creating fails.
 
-`DDLA/ADF` `ENQU/DL`
+`DDLA/ADF`
 
 **Not reachable by any write (6).** Do not probe for a write route.
 

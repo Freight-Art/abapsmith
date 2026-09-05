@@ -12,7 +12,10 @@ Two payload shapes, and DDIC is where they diverge hardest.
 | `source` | `TABL/DT` `TABL/DS` | DDL text |
 | `properties` | `DOMA/DD` `DTEL/DE` `TTYP/DA` `MSAG/N` `ENQU/DL` | complete XML descriptor |
 
-`ENQU/DL` **cannot be created** here — create is disproven. Change an existing one only.
+`ENQU/DL` create: name must start with `EZ`/`EY`; the XML root is the
+lowercase `<enqu:lockobject>` element in namespace
+`http://www.sap.com/adt/ddic/enqu`, with minimal content
+`primaryTable/{tableName, lockMode}`.
 
 ## Order matters
 
@@ -160,14 +163,21 @@ plural even for one message. Do not send `mc:documented` — server-computed.
 **Long text lives at a separate sub-resource** and is not written by the
 class-level PUT — the PUT will not warn you. Do not promise it round-trips.
 
-**`ENQU/DL`** — Names must start with `EZ`/`EY`, not `Z`/`Y`. Lock parameters must
-be key fields of the primary/secondary table — a non-key field passes PUT and
-fails activation. Lock mode `O` is illegal on this system; `X` is verified. The
+**`ENQU/DL`** — Names must start with `EZ`/`EY`, not `Z`/`Y`. The XML root must be
+the lowercase `<enqu:lockobject>` element in namespace
+`http://www.sap.com/adt/ddic/enqu` — the camelCase `<enqu:lockObject>` in
+`http://www.sap.com/dictionary/lockobject` some older callers send is refused.
+`enqu:content` children are order-sensitive (`allowRFC?`, `primaryTable`
+(`tableName`, `lockMode`), `secondaryTables?`, `lockParameters?`,
+`lockModules?`); omitting `lockMode` 400s. Lock parameters must be key fields
+of the primary/secondary table — a non-key field passes PUT and fails
+activation. Lock mode `O` is illegal on this system; `X` is verified. The
 server auto-injects an implied key-field lock parameter on read-back — that extra
 parameter is normal, not corruption.
 
 **`MSAG/N` and `ENQU/DL` cannot be read in default mode** — `abap_read` throws
-`UNSUPPORTED`. Use `format: "raw"`.
+`UNSUPPORTED`. Use `format: "raw"`; a raw read of an existing lock object such
+as `E_TABLE` shows the canonical shape.
 
 ## Skeletons
 
@@ -191,6 +201,12 @@ reformat or pretty-print.
 
 ```
 <?xml version="1.0" encoding="utf-8"?><ttyp:tableType xmlns:ttyp="http://www.sap.com/dictionary/tabletype" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="ZTT_EXAMPLE" adtcore:type="TTYP/DA" adtcore:description="TODO one-line description" adtcore:masterLanguage="EN" adtcore:language="EN"><adtcore:packageRef adtcore:name="$TMP"/><ttyp:rowType><ttyp:typeKind>dictionaryType</ttyp:typeKind><ttyp:typeName>ZS_EXAMPLE</ttyp:typeName><ttyp:builtInType><ttyp:dataType>STRU</ttyp:dataType><ttyp:length>000000</ttyp:length><ttyp:decimals>000000</ttyp:decimals></ttyp:builtInType><ttyp:rangeType/></ttyp:rowType><ttyp:initialRowCount>00000</ttyp:initialRowCount><ttyp:accessType>standard</ttyp:accessType><ttyp:primaryKey ttyp:isVisible="true" ttyp:isEditable="true"><ttyp:definition>standard</ttyp:definition><ttyp:kind>nonUnique</ttyp:kind><ttyp:components ttyp:isVisible="false"/><ttyp:alias/></ttyp:primaryKey></ttyp:tableType>
+```
+
+**`ENQU/DL`**
+
+```
+<?xml version="1.0" encoding="UTF-8"?><enqu:lockobject xmlns:enqu="http://www.sap.com/adt/ddic/enqu" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="EZLOCK_EXAMPLE" adtcore:type="ENQU/DL" adtcore:description="TODO one-line description"><adtcore:packageRef adtcore:name="$TMP"/><enqu:content><enqu:primaryTable><enqu:tableName>ZTABLE_EXAMPLE</enqu:tableName><enqu:lockMode>E</enqu:lockMode></enqu:primaryTable></enqu:content></enqu:lockobject>
 ```
 
 ## Verify

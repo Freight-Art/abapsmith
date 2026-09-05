@@ -35,8 +35,10 @@ const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
  * route (`DELETABLE_TYPES`) and no bridge delete route
  * (`BRIDGE_DELETABLE_TYPES`) either — the group that reaches the dedicated
  * delete gate in `resolveWriteTarget`. Derived, not hardcoded, so a future
- * type lands in this test automatically. Today: DDLA/ADF, BDEF/BDO,
- * ENHO/XHH, ENQU/DL.
+ * type lands in this test automatically. Today: DDLA/ADF, BDEF/BDO, ENHO/XHH.
+ * (ENQU/DL used to sit in this group too, until a live A4H run on
+ * 2026-09-05 settled both its create AND delete to verified `true` —
+ * it is `DELETABLE_TYPES` now, not a coverage gap.)
  */
 const candidateTypes = Array.from(new Set([...CREATABLE_TYPES, ...ENHANCEABLE_TYPES]));
 const deleteGateGroup = candidateTypes.filter(

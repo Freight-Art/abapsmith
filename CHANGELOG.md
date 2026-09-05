@@ -411,10 +411,17 @@ was last set to `0.3.0`.
   downgraded to unverified after the one genuine live create failure
   found in the sweep; the three types originally suspected broken
   (`DTEL/DE`, `MSAG/N`, `TABL/DT`) all created cleanly and were not
-  downgraded. `BDEF/BDO` delete was downgraded from verified-deletable to
-  false after delete was found to report success while leaving the
-  object readable, reproduced 3 times; the automatic rollback-on-failed-
-  create path now respects this same gate.
+  downgraded. `ENQU/DL` create and delete were re-verified live on
+  2026-09-05 once the real cause of those failures was found: the
+  descriptor's root element must be the lowercase `enqu:lockobject` in
+  namespace `http://www.sap.com/adt/ddic/enqu`, not the camelCase
+  `enqu:lockObject` in `http://www.sap.com/dictionary/lockobject` the
+  earlier attempts sent, so both flags are `true` again and `abap_write`
+  now refuses a wrong root element up front. `BDEF/BDO` delete was
+  downgraded from verified-deletable to false after delete was found to
+  report success while leaving the object readable, reproduced 3 times;
+  the automatic rollback-on-failed-create path now respects this same
+  gate.
 - Fixed a pooled connection that could leak an ABAP enqueue lock and
   never get swept — the leak-detection hook is now actually wired at
   session construction, and any detected leak now drops the whole
