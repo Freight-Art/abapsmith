@@ -6745,7 +6745,8 @@ describe("abapWriteBatchDelete — ordering: caller order, never reordered", () 
     expect(res.text).toContain("failed: 0");
     // Pass 1 (all three resolves), THEN pass 2 one object fully at a time —
     // never interleaved, never reordered. Each DELETE is followed by the
-    // post-delete read-back (a 404, so no repository-search fallback call).
+    // post-delete read-back (a 404, so no repository-search fallback call),
+    // then a session renewal before the next entry's LOCK (not before the first).
     expect(adt.labels).toEqual([
       `GET ${BDEL_A.uri}`,
       `GET ${BDEL_B.uri}`,
@@ -6755,11 +6756,13 @@ describe("abapWriteBatchDelete — ordering: caller order, never reordered", () 
       `GET ${BDEL_A.uri}/source/main`,
       `DELETE ${BDEL_A.uri}`,
       `GET ${BDEL_A.uri}/source/main`,
+      `GET /sap/bc/adt/compatibility/graph`,
       `GET ${BDEL_B.uri}/source/main`,
       `LOCK ${BDEL_B.uri}`,
       `GET ${BDEL_B.uri}/source/main`,
       `DELETE ${BDEL_B.uri}`,
       `GET ${BDEL_B.uri}/source/main`,
+      `GET /sap/bc/adt/compatibility/graph`,
       `GET ${BDEL_C.uri}/source/main`,
       `LOCK ${BDEL_C.uri}`,
       `GET ${BDEL_C.uri}/source/main`,

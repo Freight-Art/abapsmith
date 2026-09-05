@@ -183,6 +183,9 @@ const LOGON_ENDPOINT = "/sap/bc/adt/compatibility/graph";
  * were previously unbounded here. A local pre-wire refusal, mirroring
  * `RequestBudget.exceeded()`. 5 is generous headroom for legitimate
  * dropSession()/keepalive calls over one connection's life, not a trap.
+ *
+ * Counts logons only: `dropSession()` presents no credential (`_request()`,
+ * not `login()`) and is not charged against this ceiling.
  */
 const LOGON_ENDPOINT_LIFETIME_CEILING = 5;
 
@@ -415,6 +418,8 @@ export class AbapConnection {
    * refused locally" (D5c); `connectUnderLock()`'s catch reads this flag instead.
    */
   private logonCeilingRefused = false;
+  /** True only for the duration of `dropSession()`'s wire call — tells `noteWireRequest()` this logon-endpoint hit is a drop, not a logon. */
+  private droppingSession = false;
 
   /** The clock. Injected only by tests; `Date.now` everywhere else. */
   private readonly now: () => number;
@@ -691,7 +696,7 @@ export class AbapConnection {
     return this.guard.requestCount;
   }
 
-  /** Requests to the logon endpoint that reached the transport, lifetime of this connection. The measurement behind every "how many logons?" claim in this file — see {@link LOGON_ENDPOINT}. Refused attempts are not counted. */
+  /** Requests to the logon endpoint that reached the transport, lifetime of this connection. The measurement behind every "how many logons?" claim in this file — see {@link LOGON_ENDPOINT}. Refused attempts are not counted, nor are `dropSession()` calls. */
   get logonEndpointRequests(): number {
     return this.logonEndpointRequestCount;
   }
@@ -729,6 +734,8 @@ export class AbapConnection {
       }
     }
     if (!url.includes(LOGON_ENDPOINT)) return;
+    // A drop presents no credential (`_request()`, not `login()`) — neither counted nor refused.
+    if (this.droppingSession) return;
     const budget = this.requestContext.getStore()?.budget;
     if (budget) {
       budget.spendLogon();
@@ -1976,6 +1983,9 @@ export class AbapConnection {
     // same lock), a real hold when called standalone.
     await this.lock.runExclusive("dropSession", async () => {
       this.client.stateful = session_types.stateless;
+      // Scoped to this call only — the surrounding lock hold means no concurrent
+      // request can be misattributed as a drop while the flag is up.
+      this.droppingSession = true;
       try {
         await this.client.dropSession();
       } catch (e) {
@@ -1984,6 +1994,8 @@ export class AbapConnection {
           `[abapsmith] dropSession failed (ignored — the ABAP session is gone either way): ` +
             describeUnknownError(e),
         );
+      } finally {
+        this.droppingSession = false;
       }
     });
   }
