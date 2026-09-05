@@ -60,6 +60,8 @@ export const DDIC_BRIDGE_CLASS = {
   deleteView: "ZCL_ZMCP_DDIC_DVIEW",
   deleteTransaction: "ZCL_ZMCP_DDIC_DTRAN",
   removeTransportEntry: "ZCL_ZMCP_DDIC_TREN",
+  createIndex: "ZCL_ZMCP_DDIC_CINDX",
+  deleteIndex: "ZCL_ZMCP_DDIC_DINDX",
 } as const;
 
 /** Prefix of the line the generated `CATCH cx_root` handler — and every explicit `sy-subrc` check — writes. */
@@ -86,6 +88,12 @@ export const DDIC_TAGS = [
   // transport-entry-remove bridge:
   "TREN-REMOVED",
   "TREN-GONE",
+  // index-create / index-delete bridges (TABL/DI, DD_INDEX_INTERFACE):
+  "INDEX-CREATED",
+  "INDEX-ACTIVE",
+  "INDEX-FIELDS",
+  "INDEX-DELETED",
+  "INDEX-GONE",
 ] as const;
 export type DdicTag = (typeof DDIC_TAGS)[number];
 
