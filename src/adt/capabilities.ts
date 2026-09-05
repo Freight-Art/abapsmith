@@ -549,7 +549,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   // to create Annotation Definitions", from an admin user that creates every
   // other type. Annotation definitions are SAP-only on this system. `delete`
   // stays "unverified": create never succeeded, so delete was never once
-  // reachable to test — same reasoning as ENQU/DL above.
+  // reachable to test.
   "DDLA/ADF": {
     label: "Annotation definition",
     write: { shape: "source" },
@@ -829,30 +829,24 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     delete: true,
     activate: false,
   },
-  // Lock object. Odd one out, both server-enforced and live-verified: SAP
-  // refuses Z…/Y… names outright (hence namePrefixes), and create is
-  // rejected unless the body already carries a non-empty
-  // <enqu:content><enqu:primaryTable> — so create can't be a vendor skeleton
-  // POST followed by a PUT.
+  // Lock object. Server-enforced: SAP refuses Z…/Y… names outright (hence
+  // namePrefixes), and create is rejected unless the body already carries a
+  // non-empty <enqu:content><enqu:primaryTable> — so create can't be a
+  // vendor skeleton POST followed by a PUT.
   //
-  // `delete: "unverified"` — 2026-08-19: create itself is what
-  // blocked verification. Do not trust ENQU/DL's
-  // create claim, and do not re-attempt as a create-verification-sweep TODO, until that's
-  // resolved. Full incident record (three failed live attempts, two
-  // namespaces, XML_PATH diagnostics): the git history.
+  // create/delete verified 2026-09-05 on A4H (EZTMD_I30 in $TMP, table
+  // T000): the root must be lowercase <enqu:lockobject> in namespace
+  // http://www.sap.com/adt/ddic/enqu, not the camelCase <enqu:lockObject> /
+  // http://www.sap.com/dictionary/lockobject the earlier failed attempts
+  // sent. Content needs primaryTable/{tableName, lockMode} in that order;
+  // omitting lockMode 400s. POST 201'd as plain application/* — no
+  // mediaType override needed — and delete (LOCK/MODIFY handle, then
+  // DELETE?lockHandle=…) 200'd, confirmed absent on read-back.
   "ENQU/DL": {
     label: "Lock object",
     write: { shape: "properties" },
-    // verified: false — settled (not "unverified"): create is DISPROVEN by
-    // three independent live attempts (two namespace variants, both raw
-    // probe and abap_write), all failing identically with `400
-    // ExceptionInvalidData` rejecting the <enqu:lockObject> root element
-    // itself. `delete` above is correctly "unverified" for the opposite
-    // reason — create never succeeded, so delete was never once reachable
-    // to test. See the archive for the full run-by-run record and the
-    // lockobject/lockObject case-sensitivity lead.
-    create: { vendor: false, verified: false },
-    delete: "unverified",
+    create: { vendor: false, verified: true },
+    delete: true,
     activate: true,
     namePrefixes: ["EZ", "EY"],
   },
