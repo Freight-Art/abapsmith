@@ -800,6 +800,48 @@ export function assertDomaMasterLanguage(t: ResolvedTarget, xml: string): void {
   );
 }
 
+const ROOT_TAG_NAME_RE = /^<(?:([A-Za-z_][\w.-]*):)?([A-Za-z_][\w.-]*)/;
+
+/**
+ * An `ENQU/DL` payload's root element must be lowercase `enqu:lockobject` in
+ * namespace `http://www.sap.com/adt/ddic/enqu` — the server rejects the ROOT
+ * element itself (`ExceptionInvalidData`, `XML_PATH: enqu:lockObject(1)`)
+ * before looking at anything nested. Live-confirmed on A4H 2026-09-05: the
+ * historical camelCase `enqu:lockObject` in `http://www.sap.com/dictionary/lockobject`
+ * gets a 400 every time; lowercase `lockobject` in the `ddic/enqu` namespace
+ * got 201 Created.
+ */
+export function assertLockObjectRoot(t: ResolvedTarget, xml: string): void {
+  if (t.type !== "ENQU/DL") return;
+  const stripped = xml.replace(XML_COMMENT_RE, "");
+  const root = XML_ROOT_ELEMENT_RE.exec(stripped)?.[0] ?? "";
+  const nameMatch = ROOT_TAG_NAME_RE.exec(root);
+  const prefix = nameMatch?.[1];
+  const localName = nameMatch?.[2] ?? "";
+  const nsAttrRe = prefix
+    ? new RegExp(`(?:^|\\s)xmlns:${prefix}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`)
+    : /(?:^|\s)xmlns\s*=\s*(?:"([^"]*)"|'([^']*)')/;
+  const ns = nsAttrRe.exec(root)?.slice(1).find((v) => v !== undefined);
+  if (localName === "lockobject" && ns === "http://www.sap.com/adt/ddic/enqu") return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `The XML for ${t.spec.label} ${t.name} has root element ` +
+      `${prefix ? `${prefix}:` : ""}${localName || "(none found)"}, not lockobject in ` +
+      "namespace http://www.sap.com/adt/ddic/enqu.",
+    { name: t.name, type: t.type, uri: t.uri, foundLocalName: localName, foundPrefix: prefix },
+    "Object was NOT changed. The root element must be exactly lowercase enqu:lockobject in " +
+      'namespace "http://www.sap.com/adt/ddic/enqu" — the server rejects the root element ' +
+      "itself before checking anything nested. Minimal working document: " +
+      '<enqu:lockobject xmlns:enqu="http://www.sap.com/adt/ddic/enqu" ' +
+      'xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="' +
+      t.name +
+      '" adtcore:type="ENQU/DL" adtcore:description="..."><adtcore:packageRef ' +
+      'adtcore:name="$TMP"/><enqu:content><enqu:primaryTable><enqu:tableName>T000</enqu:tableName>' +
+      "<enqu:lockMode>E</enqu:lockMode></enqu:primaryTable></enqu:content></enqu:lockobject>. " +
+      'Reading an existing lock object (e.g. E_TABLE) with format: "raw" shows the canonical shape.',
+  );
+}
+
 const VALUE_INFORMATION_OPEN_RE = /<((?:[A-Za-z_][\w.-]*:)?)valueInformation\b([^>]*)>/gi;
 const VALUE_INFORMATION_CLOSE_RE = /<\/(?:[A-Za-z_][\w.-]*:)?valueInformation\s*>/gi;
 const FIX_VALUES_OPEN_RE = /<(?:[A-Za-z_][\w.-]*:)?fixValues\b/gi;
@@ -2545,6 +2587,7 @@ export async function writeObject(
     opts = { ...opts, source: injectEmptyFixValues(t, opts.source) };
     assertPayloadMatchesTarget(t, opts.source);
     assertDomaMasterLanguage(t, opts.source);
+    assertLockObjectRoot(t, opts.source);
   }
 
   // ---- 1. What is there now? (No lock yet.) ----------------------
@@ -3294,8 +3337,9 @@ async function createByXml(
     // only thing deciding which object comes into existence.
     assertPayloadMatchesTarget(t, payload);
     assertDomaMasterLanguage(t, payload);
+    assertLockObjectRoot(t, payload);
     // Last step before this becomes the POST body, so the bytes sent
-    // are the bytes both asserts above just checked plus the mandatory empty
+    // are the bytes the asserts above just checked plus the mandatory empty
     // `<doma:fixValues/>` — see `injectEmptyFixValues`.
     body = injectEmptyFixValues(t, payload);
     // `contentType(t)`, not a bare literal: gives SRVB/SVB its
@@ -3475,6 +3519,7 @@ async function putContent(
   if (properties) {
     assertPayloadMatchesTarget(t, source);
     assertDomaMasterLanguage(t, source);
+    assertLockObjectRoot(t, source);
     // Reassign `source` itself so both the PUT body below and
     // `translateWriteFailure` on a rejection see what was actually sent, not
     // what the caller passed in — see `injectEmptyFixValues`.
@@ -3530,9 +3575,9 @@ async function translateWriteFailure(
   if (corrProblem) return corrProblem;
   const info = adtExceptionInfo(e);
   // ---- Properties shape: the server validates the DOCUMENT, eagerly --------
-  // All five properties-shape types PUT their complete XML descriptor and the
+  // All six properties-shape types PUT their complete XML descriptor and the
   // server validates that document, not ABAP source — no /checkruns fallback
-  // (all five 404 there), so the syntax-check enrichment below never applies.
+  // (all six 404 there), so the syntax-check enrichment below never applies.
   //
   // `ExceptionInvalidData` is the confirmed common case and comes with
   // XML_PATH/XML_OFFSET naming the offending element. The SAME mistake class

@@ -23,9 +23,13 @@
  */
 import { AbapError } from "../adt/errors.js";
 
-type Shape = "string" | "boolean" | "booleanOrNull" | "ref" | "refOrNull" | "stringArray" | "objectArray";
+type Shape = "string" | "stringOrNull" | "boolean" | "booleanOrNull" | "ref" | "refOrNull" | "stringArray" | "objectArray";
 
 type FieldTable = Readonly<Record<string, Shape>>;
+
+/** For `src/tools/bopf.ts` to drive its own attribute-vs-ref-child dispatch off this module's whitelist instead of duplicating it. */
+export type SpecShape = Shape;
+export type SpecFieldTable = FieldTable;
 
 interface Issue {
   readonly message: string;
@@ -182,6 +186,90 @@ const EMBED_DEPENDENT_OBJECT_FIELDS: FieldTable = {
   xmlName: "string",
   multiplicity: "string",
   implementationClassRef: "ref",
+/** bopf.ts's set_association_fields patch path: attribute fields via `patchOpenTagAttrs`, ref fields via `spliceSetElementRef` — every one `unsettable`, so `null` clears it. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
+const SET_ASSOCIATION_FIELDS: FieldTable = {
+  xmlName: "stringOrNull",
+  multiplicity: "stringOrNull",
+  implementationType: "stringOrNull",
+  doEmbeddingName: "stringOrNull",
+  objectModelGenerated: "booleanOrNull",
+  targetNodeRef: "refOrNull",
+  parameterStructureRef: "refOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string",
+};
+
+/** bopf.ts's set_action_fields patch path. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
+const SET_ACTION_FIELDS: FieldTable = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  instanceMultiplicity: "stringOrNull",
+  exportingParameterCategoryType: "stringOrNull",
+  exportParameterLink: "booleanOrNull",
+  isExtensible: "booleanOrNull",
+  objectModelGenerated: "booleanOrNull",
+  parameterStructureRef: "refOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string",
+};
+
+/** bopf.ts's set_determination_fields patch path. `triggers`/`relations` are write-once (see `DETERMINATION_WRITE_ONCE_MESSAGES`); no `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
+const SET_DETERMINATION_FIELDS: FieldTable = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  objectModelGenerated: "booleanOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string",
+};
+
+/** bopf.ts's set_validation_fields patch path. `triggers` is write-once (see `VALIDATION_WRITE_ONCE_MESSAGES`); no `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
+const SET_VALIDATION_FIELDS: FieldTable = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  checkBeforeSave: "booleanOrNull",
+  createNode: "booleanOrNull",
+  updateNode: "booleanOrNull",
+  deleteNode: "booleanOrNull",
+  objectModelGenerated: "booleanOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string",
+};
+
+/** bopf.ts's set_query_fields patch path. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
+const SET_QUERY_FIELDS: FieldTable = {
+  xmlName: "stringOrNull",
+  category: "stringOrNull",
+  objectModelGenerated: "booleanOrNull",
+  dataTypeRef: "refOrNull",
+  implementationClassRef: "refOrNull",
+  class: "string",
+  implementationClass: "string",
+};
+
+/** bopf.ts's set_alternative_key_fields patch path. `keyElements` is refused, not write-once-worded (see `KEY_ELEMENTS_REFUSED_MESSAGE`); no `class`/`implementationClass` — an alternative key has no implementation class. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
+const SET_ALTERNATIVE_KEY_FIELDS: FieldTable = {
+  xmlName: "stringOrNull",
+  uniqueness: "stringOrNull",
+  checkAfterModify: "booleanOrNull",
+  checkBeforeSave: "booleanOrNull",
+  noCheck: "booleanOrNull",
+  objectModelGenerated: "booleanOrNull",
+  dataTypeRef: "refOrNull",
+  dataTableTypeRef: "refOrNull",
+};
+
+/** The six `set_*_fields` operations' whitelists, keyed by operation name — exported so `bopf.ts` can drive attribute-vs-ref-child dispatch off this single source of truth instead of a second, independently-maintained list. */
+export const SET_CHILD_FIELD_TABLES: Readonly<Record<string, SpecFieldTable>> = {
+  set_association_fields: SET_ASSOCIATION_FIELDS,
+  set_action_fields: SET_ACTION_FIELDS,
+  set_determination_fields: SET_DETERMINATION_FIELDS,
+  set_validation_fields: SET_VALIDATION_FIELDS,
+  set_query_fields: SET_QUERY_FIELDS,
+  set_alternative_key_fields: SET_ALTERNATIVE_KEY_FIELDS,
 };
 
 const OPERATION_FIELDS: Readonly<Record<string, FieldTable>> = {
@@ -205,6 +293,7 @@ const OPERATION_FIELDS: Readonly<Record<string, FieldTable>> = {
   remove_representative_node: NO_SPEC_FIELDS,
   embed_dependent_object: EMBED_DEPENDENT_OBJECT_FIELDS,
   remove_dependent_object: NO_SPEC_FIELDS,
+  ...SET_CHILD_FIELD_TABLES,
   activate: NO_SPEC_FIELDS,
 };
 
@@ -244,6 +333,75 @@ const RELATION_FIELDS: FieldTable = {
   node: "string",
   determination: "string",
   relationType: "string",
+};
+
+/** remove_* / add_* pair for each `set_*_fields` operation's rename-refusal message below. */
+const REMOVE_ADD_FOR_SET_OP: Readonly<Record<string, readonly [remove: string, add: string]>> = {
+  set_association_fields: ["remove_association", "add_association"],
+  set_action_fields: ["remove_action", "add_action"],
+  set_determination_fields: ["remove_determination", "add_determination"],
+  set_validation_fields: ["remove_validation", "add_validation"],
+  set_query_fields: ["remove_query", "add_query"],
+  set_alternative_key_fields: ["remove_alternative_key", "add_alternative_key"],
+};
+
+/** A determination/validation trigger and a relation reference their target by name as an embedded XPath fragment, so an in-place rename would silently orphan them. */
+function nameRenameRefusedMessage(operation: string): string {
+  const pair = REMOVE_ADD_FOR_SET_OP[operation];
+  const removeOp = pair ? pair[0] : "remove_*";
+  const addOp = pair ? pair[1] : "add_*";
+  return (
+    `spec.name on ${operation} is not supported: renaming is refused because a determination/validation ` +
+    `trigger and a relation reference the element by name as an embedded XPath fragment, and a rename would ` +
+    `silently orphan them. To rename, call ${removeOp} then ${addOp} again under the new name.`
+  );
+}
+
+/** `triggers`/`relations` are write-once: BOPF reads a determination's triggers/relations only inside the original add_determination call. */
+const DETERMINATION_WRITE_ONCE_MESSAGES: Readonly<Record<string, string>> = {
+  triggers:
+    `spec.triggers on set_determination_fields is write-once: BOPF reads a determination's triggers only ` +
+    `inside the original add_determination call, never on a later set_determination_fields. To change a ` +
+    `trigger, call remove_determination then add_determination again with the full definition, including ` +
+    `the corrected triggers.`,
+  relations:
+    `spec.relations on set_determination_fields is write-once: BOPF reads a determination's relations only ` +
+    `inside the original add_determination call, never on a later set_determination_fields. To change a ` +
+    `relation, call remove_determination then add_determination again with the full definition, including ` +
+    `the corrected relations.`,
+};
+
+/** `triggers` is write-once: BOPF reads a validation's triggers only inside the original add_validation call. */
+const VALIDATION_WRITE_ONCE_MESSAGES: Readonly<Record<string, string>> = {
+  triggers:
+    `spec.triggers on set_validation_fields is write-once: BOPF reads a validation's triggers only inside ` +
+    `the original add_validation call, never on a later set_validation_fields. To change a trigger, call ` +
+    `remove_validation then add_validation again with the full definition, including the corrected triggers.`,
+};
+
+/** `keyElements` can't be patched in place — an alternative key's elements are fixed at creation. */
+const KEY_ELEMENTS_REFUSED_MESSAGE =
+  `spec.keyElements on set_alternative_key_fields cannot be changed in place: an alternative key's key ` +
+  `elements are fixed when the key is created. To change them, call remove_alternative_key then ` +
+  `add_alternative_key again with the full corrected key.`;
+
+/** Per-operation keys recognised but always refused, with a message explaining why and how to do it instead — checked in `validateTopLevelFields` before the unknown-key branch. */
+const RECOGNISED_BUT_REFUSED_FIELDS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  set_association_fields: { name: nameRenameRefusedMessage("set_association_fields") },
+  set_action_fields: { name: nameRenameRefusedMessage("set_action_fields") },
+  set_determination_fields: {
+    ...DETERMINATION_WRITE_ONCE_MESSAGES,
+    name: nameRenameRefusedMessage("set_determination_fields"),
+  },
+  set_validation_fields: {
+    ...VALIDATION_WRITE_ONCE_MESSAGES,
+    name: nameRenameRefusedMessage("set_validation_fields"),
+  },
+  set_query_fields: { name: nameRenameRefusedMessage("set_query_fields") },
+  set_alternative_key_fields: {
+    keyElements: KEY_ELEMENTS_REFUSED_MESSAGE,
+    name: nameRenameRefusedMessage("set_alternative_key_fields"),
+  },
 };
 
 function describeType(v: unknown): string {
@@ -311,6 +469,10 @@ function shapeIssue(path: string, shape: Shape, value: unknown): Issue | undefin
       return value === null || typeof value === "boolean"
         ? undefined
         : { message: `${path} must be a boolean or null, got ${describeType(value)}.`, detail: { path, value } };
+    case "stringOrNull":
+      return value === null || typeof value === "string"
+        ? undefined
+        : { message: `${path} must be a string or null, got ${describeType(value)}.`, detail: { path, value } };
     case "ref":
       return refShapeIssue(path, value);
     case "refOrNull":
@@ -379,8 +541,14 @@ function unknownTopLevelIssue(operation: string, key: string, accepted: readonly
 function validateTopLevelFields(operation: string, spec: Record<string, unknown>): Issue[] {
   const table = OPERATION_FIELDS[operation] ?? NO_SPEC_FIELDS;
   const accepted = Object.keys(table);
+  const refused = RECOGNISED_BUT_REFUSED_FIELDS[operation];
   const issues: Issue[] = [];
   for (const key of Object.keys(spec)) {
+    const refusedMessage = refused?.[key];
+    if (refusedMessage !== undefined) {
+      issues.push({ message: refusedMessage, detail: { operation, key, refused: true } });
+      continue;
+    }
     const shape = table[key];
     if (shape === undefined) {
       issues.push(unknownTopLevelIssue(operation, key, accepted));

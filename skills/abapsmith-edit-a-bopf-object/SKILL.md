@@ -127,7 +127,10 @@ Never retry a create blind.
   exists, nothing more.
 - `bopf_add_determination`/`bopf_add_validation` cannot attach a trigger later.
   `spec.triggers` is read only inside the original `add_determination`/
-  `add_validation` call — get it right or delete and recreate. Each entry is
+  `add_validation` call — get it right or delete and recreate. Every other
+  field on a determination/validation no longer needs that dance:
+  `bopf_set_determination_fields`/`bopf_set_validation_fields` can repair
+  `category`, `xmlName`, and the rest afterward. Each entry is
   `{ node?, association?, actionNode?, action?, create?, update?, delete?,
   load?/determine?, check? }`: `node` is the WATCHED node (may differ from this
   rule's own node), `association` lives on that watched node and points back
@@ -177,6 +180,39 @@ Never retry a create blind.
   enum-valid spec that clears both checks has still short-dumped the ADT
   session. `add_alternative_key` is not confirmed to succeed on any node.
 
+## Changing elements in place
+
+`bopf_set_association_fields` / `bopf_set_action_fields` /
+`bopf_set_determination_fields` / `bopf_set_validation_fields` /
+`bopf_set_query_fields` / `bopf_set_alternative_key_fields` mirror
+`bopf_set_node_flags`: address by `node` + `name`, pass only the fields that
+need to change in `spec`, and everything else on that element — attributes,
+refs, and every child element — is left byte-for-byte alone. `null` clears an
+attribute or a ref, same as `bopf_set_node_flags`. On the five kinds with an
+implementation class (association, action, determination, validation,
+query), `spec.class`/`spec.implementationClass` (a bare class name) works as
+a shorthand for `implementationClassRef`, wrapped as `CLAS/OC` exactly as
+the matching `bopf_add_*` accepts it; an explicit `implementationClassRef`
+wins, and `implementationClassRef: null` clears it.
+`bopf_set_alternative_key_fields` has no implementation class, so neither
+applies there — and, like `bopf_add_alternative_key`, it requires
+`i_know_this_may_not_activate: true`, because a patch's attributes go
+through the same `/BOBF/CL_CONF_MODEL_API_MAP` model mapper that has
+short-dumped the ADT session on an invalid alternative-key payload, and the
+operation is not confirmed to succeed on any node. Each re-reads after the
+write and fails `CHECK_FAILED` if a named field didn't stick or a second
+element with that name turned up.
+
+Not patchable this way: `spec.triggers`/`spec.relations` on a determination
+and `spec.triggers` on a validation (still write-once, see above), an
+alternative key's `spec.keyElements`, and `name` on any of the six —
+renaming would orphan the XPath fragments that triggers and relations embed.
+
+`bopf_add_association`/`add_action`/`add_determination`/`add_validation`/
+`add_query`/`add_alternative_key` now refuse up front, before
+sending anything, when an element of that kind and name already exists on
+the target node — naming the existing one instead of creating a duplicate.
+
 ## Never author a payload
 
 There is no per-node or per-element endpoint — a PUT replaces the **entire** model.
@@ -223,9 +259,12 @@ embedding name) remove the pairs `add_representative_node` and
 targets the node being removed — remove that association first. Both run
 the same post-write re-read as every other `remove_*` operation.
 
-**Duplicate-name symptom**: a BO that stops activating right after you issued
-`add_action`/`add_determination`/`add_validation`/`add_query`/
-`add_alternative_key` twice with the same `name` — re-adding never replaces,
-it always creates a second element with that name. Fix: call the matching
-`remove_*` once per duplicate. Each call only takes the first match in
-document order, so it takes two calls to clear one duplicate pair.
+**Duplicate-name symptom**: a BO that stops activating because it carries two
+elements of the same kind and name. Re-adding under an existing `name`
+through `add_action`/`add_determination`/`add_validation`/`add_query`/
+`add_alternative_key` is now refused up front, naming the existing element,
+so this can no longer be created through the tool — but a duplicate that
+already exists on the server-side model (created before this refusal, or by
+some other route) still needs clearing. Fix: call the matching `remove_*`
+once per duplicate. Each call only takes the first match in document order,
+so it takes two calls to clear one duplicate pair.

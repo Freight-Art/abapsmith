@@ -23,15 +23,19 @@
  * ## Evidence status
  *
  * The capture proves `RPY_TRANSACTION_INSERT` exists and quotes its `tstc`/
- * `tstct`/`tstcc` insert block verbatim, but the FM's **signature is only a
- * paraphrase**, not a pasted `FUNCTION` block. Every parameter and exception
- * name below is therefore an ASSUMPTION flagged at its use site; nothing here
- * has run against a live system. Full detail: the git history.
+ * `tstct`/`tstcc` insert block verbatim. On 2026-09-05 four signature lines —
+ * `development_class`, `transport_number`, `genflag`, `suppress_corr_insert`
+ * — and the `RS_CORR_INSERT` block that forwards `transport_number` as
+ * `korrnum` were read from the live source on A4H. Every other parameter
+ * name, and the EXCEPTIONS list AND ITS ORDER, is still only a prose
+ * paraphrase and remains an ASSUMPTION flagged at its use site. No create
+ * has yet been run live with `transport_number` passed. Full detail: the
+ * git history.
  */
 
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
-import type { SafetyGate } from "../safety.js";
+import type { SafetyCorr, SafetyGate } from "../safety.js";
 import type { RunResult } from "./run.js";
 import {
   assertBridgeMutation,
@@ -42,6 +46,7 @@ import {
   type DdicTranscript,
 } from "./ddic-bridge.js";
 import { abapLiteral, assertAbapText, assertEnhIdentifier } from "./enhancement-templates.js";
+import { isLocalPackageName, isTrkorr } from "./transports.js";
 
 // ---------------------------------------------------------------------------
 // Limits
@@ -130,6 +135,73 @@ export interface TransactionParams {
   description: string;
   /** DEVCLASS. */
   packageName: string;
+  /**
+   * An ALREADY gate-judged TRKORR. Required for a transportable
+   * (non-`$`-prefixed) package — `RPY_TRANSACTION_INSERT`'s own
+   * `RS_CORR_INSERT` call needs one to register the transaction in CTS — and
+   * refused for a local, `$`-prefixed package, which registers with
+   * `korrnum = space` instead (see {@link assertTransactionCreateTarget}).
+   */
+  corrNr?: string;
+}
+
+/**
+ * `corrNr`, validated as an ALREADY gate-judged TRKORR — same grammar as
+ * `view-create.ts`'s and `package-create.ts`'s own copies of this check;
+ * each module keeps its own rather than sharing one across files.
+ */
+function assertCorrNr(value: string): string {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would ` +
+        "issue (e.g. A4HK900121). This module never acquires a request on its own — the caller " +
+        "must hand it one that has already been judged by the safety gate.",
+      { what: "corrNr", value },
+    );
+  }
+  return value;
+}
+
+/**
+ * No-network check: does this package/corr_nr pair make sense for a
+ * transaction create? A local (`$`-prefixed) package refuses a `corrNr` — it
+ * registers with `korrnum = space`, not a transport request, so there is
+ * nothing for one to attach to. A transportable package requires a `corrNr`
+ * in TRKORR format ({@link isTrkorr}), because `RPY_TRANSACTION_INSERT`'s own
+ * `RS_CORR_INSERT` call needs one to register the transaction in CTS.
+ */
+export function assertTransactionCreateTarget(
+  packageName: string,
+  corrNr: string | undefined,
+): string {
+  const validated = assertEnhIdentifier(packageName, "packageName", {
+    maxLength: PACKAGE_MAX_LENGTH,
+    allowLocal: true,
+  });
+  const local = isLocalPackageName(validated);
+  if (local && corrNr !== undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, ` +
+        "but a local ($-prefixed) transaction is registered with korrnum = space rather than on a " +
+        "transport request, so there is nothing here for one to attach to.",
+      { packageName: validated, corrNr },
+    );
+  }
+  if (!local && corrNr === undefined) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this transaction must ` +
+        "be registered in CTS via RPY_TRANSACTION_INSERT's own RS_CORR_INSERT call, which requires a " +
+        "transport request — pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).",
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write " +
+        "(see the abapsmith-put-work-on-a-transport skill).",
+    );
+  }
+  if (corrNr !== undefined) assertCorrNr(corrNr);
+  return validated;
 }
 
 /**
@@ -153,9 +225,16 @@ export const TRAN_DATA_LINES: readonly string[] = [];
  * live run must confirm it: a deliberate collision with an existing
  * transaction should report `sy-subrc = 2`.
  *
- * `suppress_corr_insert` is deliberately NOT passed — leaving it at its
- * default is what makes the FM call `RS_CORR_INSERT` itself and register the
- * new transaction in TADIR / a transport. Passing it would skip that.
+ * `suppress_corr_insert` stays UNPASSED, for both a transportable and a local
+ * package — verbatim-read live on A4H 2026-09-05: it `default`s to `space`,
+ * and only when it is initial does the FM run `RS_CORR_INSERT` itself,
+ * forwarding this call's `transport_number` straight through as `korrnum`.
+ * Passing it would skip that registration.
+ *
+ * `transport_number` (also read verbatim 2026-09-05) is what carries
+ * {@link TransactionParams.corrNr} through to `korrnum` — a quoted TRKORR for
+ * a transportable package, `space` (ABAP's SPACE constant, not a quoted
+ * literal) for a local one; see {@link assertTransactionCreateTarget}.
  *
  * `language = sy-langu`: the short text is written in the bridge session's
  * logon language; there is no parameter for choosing another one.
@@ -171,10 +250,9 @@ export function transactionFragment(p: TransactionParams): string[] {
   const tcode = assertTransactionCode(p.tcode);
   const program = assertEnhIdentifier(p.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
   const description = assertAbapText(p.description, "description", TTEXT_MAX_LENGTH);
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH,
-    allowLocal: true,
-  });
+  const packageName = assertTransactionCreateTarget(p.packageName, p.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? undefined : p.corrNr;
 
   return [
     "CALL FUNCTION 'RPY_TRANSACTION_INSERT'",
@@ -183,6 +261,8 @@ export function transactionFragment(p: TransactionParams): string[] {
     `            dynpro            = ${quoted(REPORT_DYNPRO)}`,
     "            language          = sy-langu",
     `            development_class = ${quoted(packageName)}`,
+    // A local ($-prefixed) package has no transport request to name; space is ABAP's SPACE constant, not a quoted literal.
+    local ? "            transport_number  = space" : `            transport_number  = ${quoted(corrNr as string)}`,
     `            transaction_type  = ${quoted(TRANSACTION_TYPE_REPORT)}`,
     `            shorttext         = ${abapLiteral(description)}`,
     "  EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3",
@@ -205,20 +285,24 @@ export function transactionFragment(p: TransactionParams): string[] {
 /**
  * Create a transaction code bound to an existing report program.
  *
- * Order matters: (1) validate every caller string first — each is substituted
- * verbatim into ABAP that gets activated and executed; (2)
- * {@link assertBridgeMutation} on the DOMAIN object (`TRAN/T` `tcode` in
- * `packageName`), zero-network, before any ABAP is generated —
- * `deployBridge`'s own gate checks `ZCL_ZMCP_DDIC_CTRAN` in `$TMP`, a
- * different object entirely, so skipping this step would let a scratch-class
- * gate silently approve a transaction in a customer package (`activate:
- * false` because a transaction has no activation step); (3) build the closed
- * source; (4) deploy + execute + assert the transcript.
+ * Order matters: (1) validate every caller string first, including the
+ * package/corr_nr pairing via {@link assertTransactionCreateTarget} — each
+ * string is substituted verbatim into ABAP that gets activated and executed;
+ * (2) {@link assertBridgeMutation} on the DOMAIN object (`TRAN/T` `tcode` in
+ * `packageName`, with `corr` set for a transportable package), zero-network,
+ * before any ABAP is generated — `deployBridge`'s own gate checks
+ * `ZCL_ZMCP_DDIC_CTRAN` in `$TMP`, a different object entirely, so skipping
+ * this step would let a scratch-class gate silently approve a transaction in
+ * a customer package (`activate: false` because a transaction has no
+ * activation step); (3) build the closed source; (4) deploy + execute +
+ * assert the transcript.
  *
- * Throws `BAD_INPUT` for any refused string, whatever the gate throws for a
- * refused mutation (both before any network call), and `CHECK_FAILED` when
- * the classrun comes back without the `TRAN-CREATED` tag — including empty
- * output, which is a failure, not a success with nothing to say.
+ * Throws `BAD_INPUT` for any refused string (including a bad corr_nr, or one
+ * supplied for a local package), `TRANSPORT_ERROR` for a transportable
+ * package given no corr_nr, whatever the gate throws for a refused mutation
+ * (all before any network call), and `CHECK_FAILED` when the classrun comes
+ * back without the `TRAN-CREATED` tag — including empty output, which is a
+ * failure, not a success with nothing to say.
  */
 export async function createTransaction(
   conn: AbapConnection,
@@ -229,19 +313,25 @@ export async function createTransaction(
   const tcode = assertTransactionCode(params.tcode);
   const program = assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
   const description = assertAbapText(params.description, "description", TTEXT_MAX_LENGTH);
-  const packageName = assertEnhIdentifier(params.packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH,
-    allowLocal: true,
-  });
+  const packageName = assertTransactionCreateTarget(params.packageName, params.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? undefined : params.corrNr;
 
   // 2 — the second gate, on the domain object, zero-network.
-  assertBridgeMutation(gate, { type: "TRAN/T", name: tcode, packageName }, { activate: false });
+  const corr: SafetyCorr | undefined = local
+    ? undefined
+    : { kind: "transport", corrNr: corrNr as string, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, ...(corr !== undefined ? { corr } : {}) },
+  );
 
   // 3
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.createTransaction,
     TRAN_DATA_LINES,
-    transactionFragment({ tcode, program, description, packageName }),
+    transactionFragment({ tcode, program, description, packageName, corrNr }),
   );
 
   // 4

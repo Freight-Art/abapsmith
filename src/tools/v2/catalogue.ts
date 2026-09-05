@@ -212,6 +212,14 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     args: "node, name, activate",
   },
   {
+    action: "bopf_set_association_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_association_fields"})',
+    summary: "Patch an association's fields in place.",
+    args: "node, name, spec, activate",
+  },
+  {
     action: "bopf_add_action",
     group: "bopf",
     minMode: "edit",
@@ -226,6 +234,14 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     v1: 'abap_bopf_edit({operation:"remove_action"})',
     summary: "Remove an action.",
     args: "node, name, activate",
+  },
+  {
+    action: "bopf_set_action_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_action_fields"})',
+    summary: "Patch an action's fields in place.",
+    args: "node, name, spec, activate",
   },
   {
     action: "bopf_add_determination",
@@ -244,6 +260,14 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     args: "node, name, activate",
   },
   {
+    action: "bopf_set_determination_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_determination_fields"})',
+    summary: "Patch a determination's fields in place.",
+    args: "node, name, spec, activate",
+  },
+  {
     action: "bopf_add_validation",
     group: "bopf",
     minMode: "edit",
@@ -258,6 +282,14 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     v1: 'abap_bopf_edit({operation:"remove_validation"})',
     summary: "Remove a validation.",
     args: "node, name, activate",
+  },
+  {
+    action: "bopf_set_validation_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_validation_fields"})',
+    summary: "Patch a validation's fields in place.",
+    args: "node, name, spec, activate",
   },
   {
     action: "bopf_add_query",
@@ -276,6 +308,14 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     args: "node, name, activate",
   },
   {
+    action: "bopf_set_query_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_query_fields"})',
+    summary: "Patch a query's fields in place.",
+    args: "node, name, spec, activate",
+  },
+  {
     action: "bopf_add_alternative_key",
     group: "bopf",
     minMode: "edit",
@@ -290,6 +330,14 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     v1: 'abap_bopf_edit({operation:"remove_alternative_key"})',
     summary: "Remove an alternative key.",
     args: "node, name, activate",
+  },
+  {
+    action: "bopf_set_alternative_key_fields",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"set_alternative_key_fields"})',
+    summary: "Patch an alternative key's fields in place.",
+    args: "node, name, spec, i_know_this_may_not_activate (required true), activate",
   },
   {
     action: "bopf_set_node_flags",
