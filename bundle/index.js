@@ -96812,7 +96812,11 @@ async function deleteClassicViewViaBridge(conn, gate, params) {
   assertServerPackage(params.packageName, `view ${params.viewName}`);
   const { viewName } = validate2(params);
   const packageName = params.packageName.name;
-  assertBridgeMutation(gate, { type: "VIEW/DV", name: viewName, packageName }, { activate: false, op: "delete" });
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.deleteView,
     VIEW_DELETE_DATA_LINES,
@@ -96956,7 +96960,11 @@ async function deleteTransactionViaBridge(conn, gate, params) {
     maxLength: PACKAGE_MAX_LENGTH3,
     allowLocal: true
   });
-  assertBridgeMutation(gate, { type: "TRAN/T", name: tcode, packageName }, { activate: false, op: "delete" });
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
   const source = ddicBridgeSource(
     DDIC_BRIDGE_CLASS.deleteTransaction,
     TRAN_DELETE_DATA_LINES,
@@ -100874,6 +100882,9 @@ function deleteNotConfirmedSentence(type, name, verification) {
 function packageDeleteTransportNote(corrNr) {
   return `Transport ${corrNr} was gate-approved and passed to the delete bridge, but on a live system this was observed to NOT record the deletion into ${corrNr} (or into any other request) \u2014 package deletes run through CL_PACKAGE_FACTORY's own SAVE, not the ordinary ADT DELETE this field usually confirms. Do not infer the deletion is captured in this transport.`;
 }
+function bridgeDeleteTransportEntryNote(label, name, packageName) {
+  return `${label} ${name} was in transportable package ${packageName}, but this delete recorded nothing in CTS \u2014 the bridge passes no request and issues no RS_CORR_INSERT. Any entry it already had on a transport request survives it; remove it with \`abap_transport\` operation: "removeObject" (transport, object, confirm), which needs ABAP_MODE=admin.`;
+}
 function resolvedObjectAdapter(conn, t) {
   return {
     system: conn.cfg.sid,
@@ -102477,7 +102488,8 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
   }
   if (normalizeCorrNr(input.corr_nr) !== void 0) {
     bad(
-      `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts), so abapsmith would be dropping the value silently.`
+      `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts). None is needed either \u2014 the delete registers nothing in CTS, so it is judged as a local mutation and no transport allowlist blocks it.`,
+      'Retry without `corr_nr`. Any entry the object already had on a transport request survives this delete; use `abap_transport` operation: "removeObject" (transport, object, confirm) for that, which needs ABAP_MODE=admin.'
     );
   }
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
@@ -102563,8 +102575,9 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
     notes: [
       `Deleted by running a generated ${bridgeClass} classrun bridge, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
       verifyNote,
-      "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this object. To bring it back, create it again with a fresh abap_write call."
-    ],
+      "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this object. To bring it back, create it again with a fresh abap_write call.",
+      isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName)
+    ].filter((n) => n !== ""),
     maxChars
   });
 }
