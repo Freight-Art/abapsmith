@@ -1002,7 +1002,7 @@ describe("disabled journal", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Transport entries — corrNr, irreversible, and the five new
+// Transport entries — corrNr, irreversible, and the six new
 // operation kinds.
 // ---------------------------------------------------------------------------
 
@@ -1012,6 +1012,7 @@ describe("transport journal entries", () => {
     "transport-add-user",
     "transport-set-owner",
     "transport-delete",
+    "transport-remove-object",
     "transport-release",
   ];
 

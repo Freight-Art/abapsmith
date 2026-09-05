@@ -41,6 +41,7 @@ export type JournalOperation =
   | "transport-add-user"
   | "transport-set-owner"
   | "transport-delete"
+  | "transport-remove-object"
   | "transport-release";
 export type JournalOutcome = "pending" | "succeeded" | "failed";
 

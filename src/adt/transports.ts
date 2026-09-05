@@ -583,19 +583,20 @@ function ctsError(e: unknown, operation: string, trkorr?: string): AbapError {
     );
   }
   if (/contains locked objects/i.test(message)) {
-    // The old hint ("release or remove the locked objects, or delete the
-    // owning task first") was false — abapsmith has no entry-removal/unlock call, and
-    // deleting the object does not clear its CTS lock entry. The number SAP names here
-    // may be a child task, not the trkorr this call was given.
+    // The prior hint ("abapsmith has no call to remove or unlock a locked entry") named a
+    // call that did not exist; operation "removeObject" now does, so it leads the exits.
     return new AbapError(
       "TRANSPORT_LOCKED",
       message,
       details,
       "CTS holds this entry's lock until the request is released; deleting the object does " +
-        "not clear it, and abapsmith has no call to remove or unlock a locked entry. The " +
-        "number above may be a child task, not the one you passed. Real exits: release the " +
-        "request (irreversible), or in SE03 run \"Unlock Objects (Expert Tool)\" and then " +
-        "handle it by hand in SE09/SE10.",
+        "not clear it. The number above may be a child task, not the one you passed. Real " +
+        "exits: abap_transport operation \"removeObject\" with object = the entry's name and " +
+        "confirm = the request number (admin mode only) — drops that one entry and its lock " +
+        "from an unreleased request/task; release the request (irreversible); or in SE03 run " +
+        "\"Unlock Objects (Expert Tool)\" and then handle it by hand in SE09/SE10. abapsmith " +
+        "cannot unlock an entry while leaving it on the request — removeObject removes it " +
+        "outright.",
     );
   }
   return new AbapError(
@@ -625,7 +626,7 @@ function ctsError(e: unknown, operation: string, trkorr?: string): AbapError {
   );
 }
 
-function assertTrkorr(value: string, operation: string): string {
+export function assertTrkorr(value: string, operation: string): string {
   const trkorr = (value ?? "").trim().toUpperCase();
   if (!isTrkorr(trkorr)) {
     throw new AbapError("BAD_INPUT", `Not a transport request/task number: ${value}`, {
@@ -1112,6 +1113,50 @@ export async function trShow(conn: AbapConnection, trkorr: string): Promise<TrRe
     }
   }
   return result;
+}
+
+/** Which of a request or its tasks actually carries a named entry — see {@link trFindEntryHolder}. */
+export interface TrEntryHolder {
+  /** The request or task whose own object list carries the entry. */
+  trkorr: string;
+  /** True when {@link trkorr} is a task of the request `trShow` returned. */
+  onTask: boolean;
+  /** The number the caller passed, normalised. */
+  requested: string;
+  /** Every row on {@link trkorr} whose object name matches exactly. */
+  rows: TrObject[];
+}
+
+/**
+ * Find which of a request's own object list, or one of its tasks', actually carries a named
+ * entry. `trShow`'s `objects` is the UNION of the request's and all its tasks' rows (its own
+ * doc comment above), so an entry that in fact lives on a task would be misreported as living
+ * on the request if `req.objects` were consulted first — tasks are checked before the request
+ * for exactly this reason. Read-only, one network call.
+ */
+export async function trFindEntryHolder(
+  conn: AbapConnection,
+  trkorr: string,
+  objectName: string,
+): Promise<TrEntryHolder> {
+  const number = assertTrkorr(trkorr, "trFindEntryHolder");
+  const name = (objectName ?? "").trim().toUpperCase();
+  const matches = (objs: TrObject[]): TrObject[] => objs.filter((o) => o.name.toUpperCase() === name);
+
+  const req = await trShow(conn, number);
+  for (const task of req.tasks) {
+    const rows = matches(task.objects);
+    if (rows.length > 0) return { trkorr: task.trkorr, onTask: true, requested: number, rows };
+  }
+  const rows = matches(req.objects);
+  if (rows.length > 0) return { trkorr: req.trkorr, onTask: false, requested: number, rows };
+
+  throw new AbapError(
+    "NOT_FOUND",
+    `No entry for ${name} on ${number} or its tasks.`,
+    { operation: "trFindEntryHolder", trkorr: number, object: name, tasks: req.tasks.map((t) => t.trkorr) },
+    `Run abap_transport with operation "show" and transport "${number}" to see what this request actually holds.`,
+  );
 }
 
 /** Requests directly under a category node and under any of its status groups. */

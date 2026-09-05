@@ -102,10 +102,15 @@ number; this one is retryable.
 
 `TRANSPORT_LOCKED` — an object entry stays locked to its request until the
 request is released; deleting the object does not clear it, and the task
-refuses the same delete. abapsmith has no operation to remove or unlock an
-entry. An auto-created request is therefore not disposable: don't spin one up
-as a scratch request, and don't reach for release just to clean one up (see
-Releasing, below).
+refuses the same delete. Reach for `abap_transport operation="removeObject"`
+(object = the entry's name, confirm = the request/task number) only when
+that entry is for an object that no longer exists and you need the request
+to become deletable — it needs admin mode and removes the entry outright
+rather than unlocking it. There's no way to keep the object on the request
+while clearing its lock, so this is the wrong move when you still want the
+object transported. An auto-created request is therefore
+mostly not disposable: don't spin one up as a scratch request, and don't
+reach for release just to clean one up (see Releasing, below).
 
 ## Releasing
 

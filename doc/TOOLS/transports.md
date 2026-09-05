@@ -5,24 +5,31 @@
 Inspect and manage CTS transport requests.
 
 **Availability**: case 2 — always registered. `list`/`show`/`check`/`users`
-are unconditional; `create`/`addUser`/`setOwner`/`delete` need `canWrite`
-and are refused at call time otherwise. `create` additionally checks
-`package` against the same allowlist ordinary object writes use.
+are unconditional; `create`/`addUser`/`setOwner`/`delete`/`removeObject` need
+`canWrite` and are refused at call time otherwise. `create` additionally
+checks `package` against the same allowlist ordinary object writes use;
+`delete` and `removeObject` additionally need the admin-only transport-delete
+ceiling (`ABAP_MODE=admin` — no legacy flag grants it) plus `confirm`.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `operation` | enum `list` \| `show` \| `check` \| `users` \| `create` \| `addUser` \| `setOwner` \| `delete` | yes | — | Operation to perform. |
-| `transport` | string | required for `show`/`addUser`/`setOwner`/`delete` | — | Transport request number. |
+| `operation` | enum `list` \| `show` \| `check` \| `users` \| `create` \| `addUser` \| `setOwner` \| `delete` \| `removeObject` | yes | — | Operation to perform. |
+| `transport` | string | required for `show`/`addUser`/`setOwner`/`delete`/`removeObject` | — | Transport request number. |
 | `user` | string | no (required for `addUser`/`setOwner`) | — | SAP user name; for `list`, whose requests to show. |
-| `object` | string | required for `check` | — | Object to check. |
+| `object` | string | required for `check`/`removeObject` | — | Object to check (`check`) or remove the entry for (`removeObject`). |
 | `package` | string | required for `create` | — | Package (development class) for the new request. |
 | `description` | string (max 60 chars) | required for `create` | — | Short text for the new request. |
-| `confirm` | string | no (required to actually delete) | — | Echo `transport` exactly (case-insensitive, trimmed) to arm `delete`. Without it, `delete` is a dry run that shows the request's contents. |
+| `confirm` | string | no (required to actually delete or removeObject) | — | Echo `transport` exactly (case-insensitive, trimmed) to arm `delete`/`removeObject`. Without it, `delete` is a dry run that shows the request's contents; `removeObject` refuses outright (BAD_INPUT). |
 
 Notes: ordinary object writes never need this tool — the server creates and
 reuses one transport request per session automatically. `delete` is
 irreversible once confirmed; the confirm value must match the transport
-number exactly, not partially.
+number exactly, not partially. `removeObject` drops one object's entry (and
+its CTS lock) from a request or task — typically an object already deleted
+from the system, so the holding request can then itself be deleted; it
+accepts either a request or a task number and resolves the actual holder
+itself. It does not prove the request becomes deletable — follow up with
+`delete` to find out.
 
 Example (dry-run delete):
 

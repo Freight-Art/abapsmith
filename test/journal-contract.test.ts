@@ -814,7 +814,7 @@ describe("journal contract (heuristic, see file header)", () => {
  * src/adt/undo.ts (which only READS operations back). That is not proof — the
  * same key appears on ADT error contexts and on `SafetyGate` calls — but the
  * exclusion to journal-writing files makes a coincidence unlikely, and for the
- * six values that matter most (`activate` and the five `transport-*`) the literal
+ * seven values that matter most (`activate` and the six `transport-*`) the literal
  * is unambiguous in this codebase. It is also one-directional: it cannot see a
  * value built by a ternary, which `src/tools/write.ts` does
  * (`operation: img.existed ? "update" : "create"`), so a value it reports as
@@ -829,6 +829,7 @@ const JOURNAL_OPERATIONS = [
   "transport-add-user",
   "transport-set-owner",
   "transport-delete",
+  "transport-remove-object",
   "transport-release",
 ] as const;
 
