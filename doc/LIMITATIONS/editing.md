@@ -28,7 +28,7 @@
   given, or else one picked or created under `ABAP_ALLOW_TRANSPORTS`; a
   `$` package (`$TMP` included) still refuses a `corr_nr` and registers
   with `korrnum = space` instead — proven live on A4H, 2026-09-04
-  (transportable package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a
+  (a transportable package, with `corr_nr`) and 2026-09-05 (a
   `$`-prefixed package: `RS_CORR_INSERT` registered the view with
   `korrnum = space`, then the delete bridge removed it). `TRAN/T`'s create
   still requires an explicit `corr_nr` for a transportable package:

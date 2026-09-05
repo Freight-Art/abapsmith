@@ -13,6 +13,7 @@ was last set to `0.3.0`.
 
 ### Added
 
+- Release procedure in CONTRIBUTING.md (version bump in both manifests, CHANGELOG section, bundle rebuild, `vX.Y.Z` tag, GitHub release) and a README note on pinning the marketplace to a release tag for rollbacks.
 - Core MCP server over ADT (`/sap/bc/adt/*`): connect, read source and DDIC
   (rendered as pseudo-DDL), fuzzy object resolution, and repository search.
 - Write path: create, change, delete, activate, and run ABAP objects and
@@ -275,6 +276,8 @@ was last set to `0.3.0`.
 
 ### Changed
 
+- The committed plugin bundle labels its modules with paths inside the repository (`node_modules/...`) instead of the build machine's real dependency directory; a test now fails if a label escapes the repository again. The ignore list no longer carries the project's former working-directory name.
+- Two source comments caught up with the code: `abap_ui`'s deps type now takes `allowUiPress` straight from `Config` instead of describing the `ABAP_ALLOW_UI_PRESS` flag as not yet implemented, and the `BDEF/BDO` skeleton-create note no longer refers to the development process that captured it.
 - `VIEW/DV` create into a transportable package resolves a transport
   request the same way a `DEVC/K` create does — `preflightPackageCorr`
   honours the caller's `corr_nr` when given, or else picks or creates one
@@ -453,6 +456,7 @@ was last set to `0.3.0`.
   remedy: `abap_bopf_delete` then recreate), and no activation request is
   sent even with `activate: true`. A differently-named, non-empty root is
   still only a discrepancy note. See `test/bopf-create-recovery.test.ts`.
+- Documentation, code comments and registry notes no longer name the appliance's transportable test package; they say "a transportable package" instead.
 - `abap_transport operation=removeObject`'s underlying `TR_DELETE_COMM_OBJECT_KEYS`
   failure now surfaces the CTS `sy-subrc` and, when CTS set one, the `sy-msg*`
   T100 message as a `msg=` fragment on the `CHECK_FAILED` error, instead of
@@ -803,6 +807,10 @@ was last set to `0.3.0`.
   blocks them (an explicit deny-all still does), and the delete response
   now flags any transport-request entry the object's create left behind
   for `abap_transport removeObject` to clean up.
+- `abap_bopf_edit operation:"add_alternative_key"`/`"set_alternative_key_fields"`
+  now refuse the `checkAfterModify`/`checkBeforeSave`/`noCheck` combinations
+  that made BOPF's model mapper assert and take down the ADT session; `unique`/
+  `uniqueIfNotInitial` now require exactly one of `noCheck`/`checkAfterModify`.
 
 ### Security
 

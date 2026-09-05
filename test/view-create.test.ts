@@ -549,7 +549,7 @@ describe("a failing transcript is a failure, not a silent success", () => {
  * Round 5 (2026-08-14) skipped RS_CORR_INSERT for $TMP after a live run of an
  * unconditional call reproduced a headless-dialog CHECK_FAILED. Two further
  * live runs prove that reasoning wrong, not right: 2026-09-04 (transportable,
- * ZBOPF_Q1PKG, a real corr_nr) and 2026-09-05 (local, `$ZTMD_I09`, `korrnum =
+ * a transportable package, a real corr_nr) and 2026-09-05 (local, `$ZTMD_I09`, `korrnum =
  * space`) both registered cleanly, and the local registration is what let the
  * delete bridge remove the view afterwards. See `src/adt/view-create.ts`'s
  * `isLocalPackage` doc comment for the full account.

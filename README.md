@@ -54,6 +54,18 @@ That installs the MCP server together with the task-shaped skills in `skills/`, 
 wire lore an agent needs before it calls a tool. The server runs from `bundle/` — a committed,
 dependency-free build, because plugin installation performs no build step.
 
+To stay on a particular release, or to step back to one after an update, add the marketplace at
+its tag instead of at `main`; every release is a `vX.Y.Z` tag with a CHANGELOG section of the same
+name:
+
+```
+/plugin marketplace add Freight-Art/abapsmith#v0.3.0
+/plugin install abapsmith@abapsmith
+```
+
+`/plugin update` follows whatever the marketplace points at, so a marketplace added at a tag stays
+on that tag until you add it again at another one.
+
 The plugin deliberately declares no `env` block, so configure the connection the way the next
 section describes: a `.env` in the directory you start Claude Code from, or exported shell
 variables. Both reach the server. [Wire it into an MCP

@@ -153,3 +153,23 @@ There's no linter config, so match what's already there:
   that changes what reaches the wire — that's the part of this project
   that has to stay correct even when a caller (human or model) gets it
   wrong.
+
+## Releases
+
+A release is a git tag that users can pin to (see "Install" in the README), so it is cut only
+from `main` after the live-tested PRs it contains are merged.
+
+1. Pick the version. The version is what `/plugin update` compares, so a release without a bump
+   is invisible to installed plugins.
+2. Set it in both `package.json` and `.claude-plugin/plugin.json`; `test/plugin-manifest.test.ts`
+   fails when the two disagree.
+3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and open a fresh,
+   empty `## [Unreleased]` above it.
+4. Rebuild the committed bundle (`npm run bundle`): `BUILD-MANIFEST.json` digests the package
+   version, so the bundle test fails until it is regenerated.
+5. Open the release PR, run the full gate, merge it.
+6. Tag the merge commit `vX.Y.Z` on `main` and push the tag. Create a GitHub release from the tag
+   whose body is the CHANGELOG section, so the notes exist outside git history as well.
+
+Tags are never moved or deleted: a user who pinned one must keep getting the bytes it named. A bad
+release gets a new version, not a re-tag.

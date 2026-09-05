@@ -275,7 +275,7 @@ export const VIEW_DATA_LINES: readonly string[] = [
  *  - `RS_CORR_INSERT` runs for every package, transportable or local (see
  *    {@link isLocalPackage}) — only the `korrnum` line differs: a
  *    transportable create passes its TRKORR, a local one passes `space`.
- *    Proven live on A4H: a transportable create into ZBOPF_Q1PKG with a
+ *    Proven live on A4H: a transportable create into a transportable package with a
  *    modifiable task succeeded 2026-09-04 (VIEW-REGISTERED/VIEW-PUT/
  *    VIEW-ACTIVATED, the view read back with its fields, a TADIR row
  *    present); a local create into `$ZTMD_I09` with `korrnum = space`
@@ -443,7 +443,7 @@ export function viewCreatePartialSuccess(viewName: string): {
  * package: `RS_CORR_INSERT` registers a local package too (with
  * `korrnum = space`), so registration is expected regardless of
  * {@link isLocalPackage}. Proven live on A4H: a transportable create into
- * ZBOPF_Q1PKG with a task succeeded 2026-09-04; a local create into
+ * a transportable package with a task succeeded 2026-09-04; a local create into
  * `$ZTMD_I09` with `korrnum = space` succeeded 2026-09-05 (sy-subrc 0, a
  * TADIR row written, the view then removed cleanly by the delete bridge).
  *
