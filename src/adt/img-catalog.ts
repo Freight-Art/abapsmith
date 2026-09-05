@@ -266,6 +266,73 @@ export const IMG_CATALOG = Object.freeze({
     confidence: "low",
     note: MEASURED_NOTE + ": SIMGH is a transaction, not a table; no replacement found",
   }),
+  // Second discovery pass, 2026-09-05: the real tree tables, found after
+  // imgNode/imgStructure above were already known wrong. Those two are left
+  // as-is here; removing them is a separate change.
+  imgTreeNode: Object.freeze({
+    table: "TNODEIMG",
+    fields: Object.freeze({
+      treeId: "TREE_ID",
+      extension: "EXTENSION",
+      nodeId: "NODE_ID",
+      extKey: "EXT_KEY",
+      parentId: "PARENT_ID",
+      brotherId: "BROTHER_ID",
+      refNodeId: "REFNODE_ID",
+      refTreeId: "REFTREE_ID",
+      nodeType: "NODE_TYPE",
+      subNodeCount: "W_SUBNODES",
+    }),
+    confidence: "high",
+    note:
+      MEASURED_NOTE +
+      ": key is TREE_ID+EXTENSION+NODE_ID+EXT_KEY (include HIER_NODEK); no CHILD_ID — " +
+      "children are found by selecting on PARENT_ID; BROTHER_ID (next sibling) gives display order",
+  }),
+  imgTreeNodeText: Object.freeze({
+    table: "TNODEIMGT",
+    fields: Object.freeze({
+      language: "SPRAS",
+      treeId: "TREE_ID",
+      extension: "EXTENSION",
+      branch: "BRANCH",
+      nodeId: "NODE_ID",
+      extKey: "EXT_KEY",
+      text: "TEXT",
+    }),
+    confidence: "high",
+    note:
+      MEASURED_NOTE +
+      ": an activity leaf (NODE_TYPE IMG) often has no row here — its title comes from " +
+      "CUS_IMGACT.TEXT via the node's COBJ reference in TNODEIMGR",
+  }),
+  imgTreeNodeRef: Object.freeze({
+    table: "TNODEIMGR",
+    fields: Object.freeze({
+      nodeId: "NODE_ID",
+      extKey: "EXT_KEY",
+      refType: "REF_TYPE",
+      refObject: "REF_OBJECT",
+    }),
+    confidence: "high",
+    // no TREE_ID column (include HIER_REFK) — unlike TNODEIMG/TNODEIMGT, a
+    // join to this table cannot be scoped by tree, only by NODE_ID.
+    note: MEASURED_NOTE + ": REF_TYPE COBJ joins CUS_IMGACH.ACTIVITY / CUS_ACTOBJ.ACT_ID",
+  }),
+  // TTREE is a tree directory, not a node table — contrast imgNode above,
+  // which wrongly treats it as one.
+  treeDirectory: Object.freeze({
+    table: "TTREE",
+    fields: Object.freeze({
+      id: "ID",
+      treeType: "TYPE",
+      rootNodeId: "NODE_ID",
+    }),
+    confidence: "high",
+    note:
+      MEASURED_NOTE +
+      ": ID is the tree's GUID, not a mnemonic — WHERE id IN ('SIMG','SIMG_ALL','IMG','CUST') returned 0 rows; TTREE's own TREE_ID column is empty",
+  }),
 } satisfies Record<string, CatalogTable>);
 
 export type ImgCatalogKey = keyof typeof IMG_CATALOG;
@@ -280,3 +347,17 @@ export function lowConfidenceTables(): readonly string[] {
     .map((t) => t.table)
     .sort();
 }
+
+/** TNODEIMGR.REF_TYPE value that links a node to a customizing activity (joins CUS_IMGACH.ACTIVITY / CUS_ACTOBJ.ACT_ID). */
+export const IMG_ACTIVITY_REF_TYPE = "COBJ";
+
+/**
+ * LIKE prefix for finding the reference IMG tree by TNODEIMGT.TEXT (language "E").
+ * A text match, not an id lookup, because TTREE.ID has no mnemonic (a WHERE id IN
+ * (...) probe for common candidates returned 0 rows) and the GUID differs per
+ * system, so one can never be hard-coded here.
+ */
+export const IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
+
+/** TNODEIMG.NODE_TYPE values seen: IMG0 chapter, IMG activity leaf, REF mount of another tree. */
+export const IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"] as const);
