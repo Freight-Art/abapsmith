@@ -50,6 +50,7 @@ import type { ActivationTarget, InactiveObjectRef } from "./activate.js";
 import { AbapError, isAbapError, describeUnknownError } from "./errors.js";
 import type { AuthorizedTarget, MutatingOperation, SafetyCorr, SafetyGate } from "../safety.js";
 import { parseModel, mintGuid } from "./bopf-xml.js";
+import { isCrossBoTarget, splitTargetNodeRef } from "./bopf-node-kinds.js";
 import type {
   BoModel,
   BoNode,
@@ -1379,6 +1380,17 @@ async function evaluateSite(conn: AbapConnection, model: BoModel, site: ClassRef
 function evaluateTargetNodeRef(model: BoModel, site: ClassRefSite): IntegrityFinding {
   const name = site.ref.name;
   if (!name) return { site, verdict: "unchecked", detail: "targetNodeRef has no name" };
+  if (isCrossBoTarget(model, name)) {
+    // A cross-BO association's target lives in another business object entirely.
+    // This function reads one business object and does not fetch another to
+    // verify it — not dangling, just outside what a single-BO read can confirm.
+    const { bo, node } = splitTargetNodeRef(name);
+    return {
+      site,
+      verdict: "unchecked",
+      detail: `targetNodeRef points at ${node ?? "?"} on ${bo ?? "another business object"}, which this read does not fetch`,
+    };
+  }
   // Wire's targetNodeRef carries composite "<BO-NAME>~<NODE-NAME>" (confirmed
   // live, e.g. "ZBOPF_MC5~ITEM"), not the bare name model.nodes uses — strip
   // the prefix before comparing; also fall back to a bare-name match.

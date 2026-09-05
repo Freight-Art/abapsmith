@@ -117,6 +117,17 @@ import {
   ALTERNATIVE_KEY_CHILD_ORDER,
 } from "../adt/bopf-types.js";
 import { validateSpecKeys, SET_CHILD_FIELD_TABLES, type SpecFieldTable } from "./bopf-spec-keys.js";
+import { classifyNodes, classifyAssociation, describeNodeKind, describeAssociationKind } from "../adt/bopf-node-kinds.js";
+import {
+  isDelegationOperation,
+  validateDelegationShape,
+  refuseHandAssembledDelegation,
+  delegationModelPreflight,
+  mutateDelegation,
+  verifyDelegation,
+  delegationNotes,
+  type DelegationInput,
+} from "./bopf-delegation.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -169,6 +180,7 @@ export const bopfEditInputSchema = {
       "remove_alternative_key",
       "set_alternative_key_fields",
       "set_node_flags",
+      "remove_dependent_object",
       "activate",
     ])
     .describe("The single edit to make."),
@@ -177,7 +189,9 @@ export const bopfEditInputSchema = {
   name: z
     .string()
     .optional()
-    .describe("Element name. Required except for create_bo/remove_node/set_node_flags/activate."),
+    .describe(
+      "Element name. Required except for create_bo/remove_node/set_node_flags/activate.",
+    ),
   spec: z
     .record(z.string(), z.unknown())
     .optional()
@@ -318,6 +332,10 @@ const SHOW_NOTES = [
   "This digest covers the business object's structural definition only (nodes, associations, actions, " +
     "determinations, validations, queries, alternative keys). It does not include BOPF configuration/" +
     "customizing — abapsmith has no read surface and no write surface of any kind for it.",
+  '"(representative)" marks a parentless node the server minted itself (named REP_<random>) in response to a ' +
+    "cross-BO association — the link is the association, never the node, and abapsmith cannot create one of these " +
+    'nodes directly; "(delegated via PARENT.ASSOC)" marks an embedded dependent object\'s node; a cross-BO ' +
+    'association is suffixed "(-> OTHER_BO~NODE)".',
 ];
 
 function buildShowResponse(model: BoModel, maxChars: number): string {
@@ -330,6 +348,7 @@ function buildShowResponse(model: BoModel, maxChars: number): string {
     constantsInterface: model.constantsInterfaceRef?.name,
     nodeCount: model.nodes.length,
   };
+  const kinds = classifyNodes(model);
   const sections = model.nodes.map((n) => {
     const lines = [
       `nodeId: ${n.nodeId ?? "(unknown)"}${n.parent ? `  parent: ${n.parent}` : ""}`,
@@ -338,14 +357,23 @@ function buildShowResponse(model: BoModel, maxChars: number): string {
       n.persistentStructureRef ? `persistentStructureRef: ${n.persistentStructureRef.name}` : undefined,
       n.combinedStructureRef ? `combinedStructureRef: ${n.combinedStructureRef.name}` : undefined,
       n.combinedTableRef ? `combinedTableRef: ${n.combinedTableRef.name}` : undefined,
-      n.associations.length ? `associations: ${n.associations.map((a) => a.name || "(unnamed)").join(", ")}` : undefined,
+      n.associations.length
+        ? `associations: ${n.associations
+            .map((a) => {
+              const label = a.name || "(unnamed)";
+              const kindText = describeAssociationKind(classifyAssociation(model, a));
+              return kindText ? `${label} (${kindText})` : label;
+            })
+            .join(", ")}`
+        : undefined,
       n.actions.length ? `actions: ${n.actions.map((a) => a.name).join(", ")}` : undefined,
       n.determinations.length ? `determinations: ${n.determinations.map((d) => d.name).join(", ")}` : undefined,
       n.validations.length ? `validations: ${n.validations.map((v) => v.name).join(", ")}` : undefined,
       n.queries.length ? `queries: ${n.queries.map((q) => q.name).join(", ")}` : undefined,
       n.alternativeKeys.length ? `alternativeKeys: ${n.alternativeKeys.map((k) => k.name).join(", ")}` : undefined,
     ].filter((l): l is string => l !== undefined);
-    return { title: `NODE ${n.name}${n.rootNode ? " (root)" : ""}`, content: lines.join("\n") };
+    const kindText = describeNodeKind(kinds.get(n.name.toLowerCase()) ?? { kind: "standard" });
+    return { title: `NODE ${n.name}${kindText ? ` (${kindText})` : ""}`, content: lines.join("\n") };
   });
   return buildResponse({ header, sections, notes: SHOW_NOTES, maxChars }).text;
 }
@@ -834,6 +862,7 @@ function validateEditInputShape(input: BopfEditInput): void {
     "remove_alternative_key",
     "set_alternative_key_fields",
     "set_node_flags",
+    "remove_dependent_object",
   ]);
   const needsName = new Set([
     "add_node",
@@ -854,6 +883,7 @@ function validateEditInputShape(input: BopfEditInput): void {
     "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
+    "remove_dependent_object",
     "set_alternative_key_fields",
   ]);
   if (needsNode.has(input.operation)) requireNode(input);
@@ -863,6 +893,11 @@ function validateEditInputShape(input: BopfEditInput): void {
 
   if (input.operation === "add_alternative_key") {
     validateAlternativeKeySpec(requireName(input), (input.spec ?? {}) as Record<string, unknown>);
+  }
+
+  if (isDelegationOperation(input.operation)) validateDelegationShape(input as DelegationInput);
+  if (input.operation === "add_node" || input.operation === "add_association") {
+    refuseHandAssembledDelegation(input.operation, (input.spec ?? {}) as Record<string, unknown>, input.name);
   }
 }
 
@@ -1685,9 +1720,9 @@ function mutateModel(freshXml: string, input: BopfEditInput): string {
       if (!link && spec.rootNode !== true) {
         throw new AbapError(
           "BAD_INPUT",
-          `add_node "${name}" needs a parent — spec.parent (the parent node's name) or spec.parentNodeId is ` +
-            `required unless spec.rootNode: true (a BO has exactly one root). BOPF answers 200 and silently ` +
-            `discards a node it can't place, rather than rejecting it.`,
+          `add_node "${name}" needs a parent — neither spec.parent nor spec.parentNodeId names one, and ` +
+            `spec.rootNode is not true. BOPF answers 200 and silently discards a node it can't place, rather ` +
+            `than rejecting it.`,
           { name },
         );
       }
@@ -1764,6 +1799,8 @@ function mutateModel(freshXml: string, input: BopfEditInput): string {
       return patchChildFields(freshXml, tokens, input, input.operation);
     case "set_node_flags":
       return patchNodeFlags(freshXml, tokens, requireNode(input), spec);
+    case "remove_dependent_object":
+      return mutateDelegation(freshXml, input as DelegationInput);
     case "create_bo":
     case "activate":
       throw new AbapError(
@@ -2245,7 +2282,9 @@ const BOPF_EDIT_TOOL_DESCRIPTION =
   "see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and " +
   "dangling-ref handling. add_alternative_key and set_alternative_key_fields both need " +
   "i_know_this_may_not_activate: true — the same short-dump-prone mapper handles both; add_alternative_key " +
-  "additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four.";
+  "additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four. remove_dependent_object " +
+  "removes an existing dependent-object embedding (its DoComposition association plus the matching " +
+  '"<name>.ROOT" node); abapsmith cannot create one — see doc/CAPABILITIES/bopf.md.';
 
 /**
  * Takes the whole `createRequest`, not a bare BO name, so a future field
@@ -2490,6 +2529,10 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
         );
       }
 
+      if (isDelegationOperation(input.operation)) {
+        delegationModelPreflight(initial.model, input as DelegationInput);
+      }
+
       let afterMutate: BopfModelRead;
       let entryId: string | undefined;
       // For a mutation, putModel resolves this under its own lock. For
@@ -2707,6 +2750,9 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
           }
         }
 
+        if (isDelegationOperation(input.operation)) {
+          verifyDelegation(input as DelegationInput, initial.model, afterMutate.model, entryId);
+        }
         if (
           input.operation === "set_association_fields" ||
           input.operation === "set_action_fields" ||
@@ -2784,7 +2830,9 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
       false,
       result.entryId,
       deps.cfg.maxResponseChars,
-      [categoryNote, addNodeNote].filter((n): n is string => n !== undefined),
+      [categoryNote, addNodeNote, ...delegationNotes(input as DelegationInput)].filter(
+        (n): n is string => n !== undefined,
+      ),
     ),
     result.entryId,
   );

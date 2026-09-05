@@ -15,22 +15,30 @@ Read a BOPF business object model, or search for one.
 | `max_results` | number (1–999999) | no | — | Cap on returned hits. |
 
 `mode: "show"`'s digest covers: nodes, refs, associations, actions,
-determinations, validations, queries, and alternative keys. `mode:
-"check_refs"` reports each reference site as one of: present, missing,
-declaration-only, wrong-interface, pending, or unchecked.
+determinations, validations, queries, and alternative keys. Every node is
+labeled with a kind — `root`, `standard`, `delegated`, or `representative`
+— and every association that is a do-composition or that targets another
+business object is flagged as such. `mode: "check_refs"` reports each
+reference site as one of: present, missing, declaration-only,
+wrong-interface, pending, or unchecked — a cross-BO `targetNodeRef` (e.g.
+`/BOBF/DEMO_CUSTOMER~ROOT`) reports `unchecked`, naming the other business
+object, rather than a false `missing`, because `check_refs` reads one
+business object and does not fetch another to verify it.
 
 ## abap_bopf_edit
 
 Apply one structural edit to a BOPF business object (add/remove a node,
-association, action, determination, validation, query, alternative key, or
-create the BO itself).
+association, action, determination, validation, query, or alternative
+key; remove an embedded dependent object; or create the BO itself). A
+representative node is not created directly — see the `add_association`
+recipe below.
 
 **Availability**: case 1 — registered only when `canWrite`.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
 | `bo` | string | yes | — | Business object name. |
-| `operation` | enum `create_bo` \| `add_node` \| `remove_node` \| `add_association` \| `remove_association` \| `add_action` \| `remove_action` \| `add_determination` \| `remove_determination` \| `add_validation` \| `remove_validation` \| `add_query` \| `remove_query` \| `add_alternative_key` \| `remove_alternative_key` \| `set_node_flags` \| `set_association_fields` \| `set_action_fields` \| `set_determination_fields` \| `set_validation_fields` \| `set_query_fields` \| `set_alternative_key_fields` \| `activate` | yes | — | The single edit to make. |
+| `operation` | enum `create_bo` \| `add_node` \| `remove_node` \| `add_association` \| `remove_association` \| `add_action` \| `remove_action` \| `add_determination` \| `remove_determination` \| `add_validation` \| `remove_validation` \| `add_query` \| `remove_query` \| `add_alternative_key` \| `remove_alternative_key` \| `set_node_flags` \| `set_association_fields` \| `set_action_fields` \| `set_determination_fields` \| `set_validation_fields` \| `set_query_fields` \| `set_alternative_key_fields` \| `remove_dependent_object` \| `activate` | yes | — | The single edit to make. |
 | `node` | string | no | — | Existing node the operation targets. |
 | `nodeId` | string | no | — | Disambiguator when node name alone is not unique. |
 | `name` | string | required except for `create_bo`/`remove_node`/`set_node_flags`/`activate` | — | Name of the new node/association/action/etc. being added, or removed. |
@@ -86,9 +94,21 @@ Example (add an alternative key):
 `add_node` needs a parent — `spec.parent` (the parent node's name) or
 `spec.parentNodeId` — unless `spec.rootNode: true`. abapsmith writes
 `bo:parent` and `bo:parentNodeID` as a matched pair, because BOPF accepts a
-node carrying only one of them with a 200 and then discards it. It also
-re-reads after the write and fails with `CHECK_FAILED` if the node isn't in
-the model, rather than reporting success with an unchanged `nodeCount`.
+node carrying only one of them with a 200 and then discards it. Neither
+given, and `spec.rootNode` not `true`, is refused before anything is
+sent — a live discovery run found a client-written parentless node is
+hard-rejected by the server (`An error occurred when deserializing in the
+simple transformation program /BOBF/ST_CONF_ADT`), so `add_node` cannot
+build that shape at all; the refusal instead names the `add_association`
+cross-BO recipe below, which gets a representative node minted by the
+server. `add_node` also refuses `spec.doEmbeddingName` or
+`spec.isDependentObjectNode: true` (there is no operation left that
+creates a delegated embedding — see `remove_dependent_object` below for
+the removal side), and `add_association` likewise refuses
+`spec.implementationType: "DoComposition"` or a `spec.doEmbeddingName`.
+`add_node` also re-reads after the write and fails with `CHECK_FAILED` if
+the node isn't in the model, rather than reporting success with an
+unchanged `nodeCount`.
 
 `add_alternative_key` requires `spec.uniqueness`, `spec.dataTypeRef`,
 `spec.dataTableTypeRef` and `spec.keyElements` — all four, no defaults. Every
@@ -209,6 +229,57 @@ operation's patchable fields. `set_action_fields`/`set_determination_fields`/
 `set_validation_fields`/`set_query_fields` run the same dangling-class-ref
 preflight as their `add_*` counterparts: a class name that has no source
 artifact refuses with `BOPF_DANGLING_REF` unless `allow_dangling_ref: true`.
+
+There is no operation that writes a representative node or an embedded
+dependent object directly. A live discovery run against a real SAP system
+found that the write shapes the former `add_representative_node` and
+`embed_dependent_object` operations sent do not survive the server, so
+both were removed (along with `remove_representative_node`, which had
+nothing left to remove). What still works for each:
+
+**Representative node — get one via a cross-BO `add_association`.** A
+plain `Association` on the node that should carry the link —
+`spec.implementationType: "Association"`, `spec.targetNodeRef` naming
+another BO's node, and `spec.implementationClassRef` naming an XBO class
+— answers 200, and the server mints a parentless, non-root node alongside
+it, named `REP_<random>` (observed `REP_TYVJRJ3REEP6DKVELQE77P7WKA`),
+carrying only the fixed `KEY`/`PARENT_KEY`/`ROOT_KEY` properties — the
+same shape `abap_bopf show` labels `representative`. The node name is
+server-assigned and cannot be chosen. Confirmed live: issuing
+`remove_association` against the cross-BO association removes the
+minted node too — `nodeCount` fell from 2 to 1 and the node was gone
+from the read-back. There is no dedicated create or remove for it.
+`abap_bopf_edit` emits two notes on such a write recording this
+recipe, including the observation (once, not confirmed as a rule) that
+activating a BO with a cross-BO association present destroyed the ABAP
+session with a short dump.
+
+```json
+{ "bo": "ZBOPF_DEMO", "operation": "add_association", "node": "ROOT", "name": "TO_CUSTOMER",
+  "spec": { "implementationType": "Association",
+            "targetNodeRef": { "name": "/BOBF/DEMO_CUSTOMER~ROOT", "type": "BOBF" },
+            "implementationClassRef": { "name": "/BOBF/CL_C_DEMO_CUSTOMER_XBO", "type": "CLAS/OC" } } }
+```
+
+**Embedded dependent object — removal only.** `remove_dependent_object`
+deletes the parent-node association and the embedded node in one PUT, and
+refuses while any other association still targets the node being removed.
+There is no operation to create an embedding on this release. Three
+request shapes were tried live and all three failed — the server rewrote
+the first, threw at the `/BOBF/ST_CONF_ADT` deserializer on the second,
+and answered 200 while silently discarding the third — see
+`doc/CAPABILITIES/bopf.md` for the bytes and the read-backs.
+
+Example (remove a dependent-object embedding):
+
+```json
+{
+  "bo": "ZBOPF_DEMO",
+  "operation": "remove_dependent_object",
+  "node": "ROOT",
+  "name": "TEXT"
+}
+```
 
 ## abap_bopf_delete
 
