@@ -2,8 +2,10 @@
  * IMG (SPRO customizing) row write, the counterpart to the read-only
  * `img-bridge.ts`. Same reason for existing (ADT has no IMG REST route,
  * only classic function-module plumbing) and the same delivery mechanism —
- * a generated `IF_OO_ADT_CLASSRUN` class deployed to `$TMP` — but this side
- * touches a base customizing table's own data, not a catalog table.
+ * a generated `IF_OO_ADT_CLASSRUN` class — but this side touches a base
+ * customizing table's own data, not a catalog table. Deployed into
+ * `HELPER_PACKAGE` (`src/adt/helper-package.ts`), not `$TMP` — the owner
+ * rule for bridge/helper classes going forward.
  *
  * Two fixed classes: `ZCL_ZMCP_IMG_WPROBE` (read-only: T000 flags, the base
  * table's DD02L/DD03L shape, before-image rows for caller-supplied keys) and
