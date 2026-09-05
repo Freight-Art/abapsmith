@@ -47,6 +47,10 @@ was last set to `0.3.0`.
   `abap_bopf_test`): business objects, nodes, associations, and
   determinations, including dangling-reference checks and cascading DDIC
   delete.
+- `abap_bopf_delete`'s `cascade_persistent` — an explicit, validated,
+  name-by-name opt-out from sparing a BO's `persistentTableRef`/
+  `persistentStructureRef` objects, deleted last and reported under their
+  own `DDIC DELETED ON REQUEST` section.
 - Enhancement framework support (`abap_enh`): BAdI definitions and
   implementations, enhancement spots, filter values, and ENHO/XHH
   source-code plug-ins, gated by customer- vs. SAP-owned target rules.

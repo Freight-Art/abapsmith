@@ -306,8 +306,9 @@ Delete a BOPF business object, optionally cascading into its DDIC objects.
 |---|---|---|---|---|
 | `bo` | string | yes | — | Business object to delete. |
 | `confirm` | string | required when `dry_run:false` | — | Echo `bo` exactly (case-insensitive) to arm the delete. |
-| `cascade_ddic` | boolean | no | — | Also delete the DDIC objects this BO generated (its combined table type, combined structure, constants interface). Never deletes `persistentTableRef`/`persistentStructureRef` tables/structures — those are always spared and reported separately. |
+| `cascade_ddic` | boolean | no | — | Also delete the DDIC objects this BO generated (its combined table type, combined structure, constants interface). By default never deletes `persistentTableRef`/`persistentStructureRef` tables/structures — those are spared and reported separately unless named in `cascade_persistent`. |
 | `confirm_cascade` | string | required in addition to `confirm` when `cascade_ddic:true` | — | Echo `bo` exactly again. |
+| `cascade_persistent` | array of string | no | — | Exact DDIC names (case-insensitive) to delete despite being `persistentTableRef`/`persistentStructureRef`. Requires `cascade_ddic:true` (extends the cascade, doesn't replace it) and, on an armed delete, `confirm_cascade`. |
 | `dry_run` | boolean | no | `true` | Report what would be deleted without deleting anything. |
 
 Dry run (the default) lists DDIC candidates found in the model without
@@ -317,6 +318,62 @@ does the same on its DDIC LEFT BEHIND list: it names the generated objects
 from the model, not from a read-back, so a listed name (e.g. a BO's
 combined table/structure before the BO was ever activated) is not
 necessarily an object that exists.
+
+`cascade_persistent` is the explicit, name-by-name opt-out from sparing
+`persistentTableRef`/`persistentStructureRef` — it extends `cascade_ddic`,
+it does not replace it. Every name is validated before anything is deleted;
+any single failure refuses the whole call, having deleted nothing: the name
+must be a `persistentTableRef` or `persistentStructureRef` this BO's model
+actually references (an unreferenced name is refused, and the refusal lists
+the names that are referenced); a name referenced from more than one site is
+refused, counting each node separately so the same name on two different
+nodes is refused even under the same ref slot, since deleting it would
+break the other reference; the
+object's package is read from its own ADT document and must equal the
+business object's package, so a `/BOBF/*` demo structure shared by other
+BOs, or anything else living elsewhere, is refused; a document with no
+`<adtcore:packageRef adtcore:name>` is refused rather than guessed at.
+Each resolved name is then asserted against the safety gate at `phase:
+"preflight"`, before the business object's own authorization, the write
+session, and the journal entry; a name in a reserved SAP namespace
+(anything starting with `/`) is refused there regardless of the package
+allowlist, and identically on a dry run, so a preview can never promise a
+delete the armed call could not perform. Most of these refusals throw
+`BAD_INPUT`; the safety-gate refusal throws its own code instead
+(`SAFETY_DENIED`). Names are compared upper-cased.
+
+Requested objects are deleted last — after the business object itself and
+after the generated cascade candidates, tables before structures — and
+reported under their own `DDIC DELETED ON REQUEST` section, using the same
+per-object `existed=`/`deleted=`/`reason=` shape as `DDIC CASCADE RESULTS`
+(`deleted` is `true` only once a read-back confirms the object is gone,
+`unverified` when the read-back couldn't confirm it). Every name in
+`cascade_persistent` is also filtered out of the `DDIC SPARED (provenance
+unknown — never deleted)` section and out of the `ddicSparedCount` header
+key, on both the dry run and the armed response, so an object never appears
+simultaneously as spared and as deleted on request. A `dry_run` previews
+the same section with `would delete`. Unlike the auto-enumerated
+candidates, which a dry run deliberately does not existence-probe (a round
+trip per candidate is not worth paying on a preview), the names in
+`cascade_persistent` ARE probed on a dry run — the same probe is what
+establishes the package, and a preview that hides a refusal the armed call
+would hit is worse than the round trip. The write-journal entry for the
+delete records each requested object as an entry `part`, with a
+before-image captured from that probe, so `abap_journal show` lists them
+under `ALSO TOUCHED` (the entry is still `irreversible: true` — a BOPF
+delete can never be undone).
+
+This is the fix for the throwaway-BO case: `abap_bopf_edit create_bo`
+assigns a root node's `persistentTableRef` by defaulting (e.g.
+`ZTMD_D_ROOT` for a root node named `ROOT`), and before `cascade_persistent`
+that table needed a second, manual `abap_write mode: delete` once the BO
+itself was gone.
+
+```json
+{ "bo": "ZTMD_DEMO", "confirm": "ZTMD_DEMO", "cascade_ddic": true,
+  "confirm_cascade": "ZTMD_DEMO", "cascade_persistent": ["ZTMD_D_ROOT"],
+  "dry_run": false }
+```
 
 ## abap_bopf_test
 
