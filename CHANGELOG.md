@@ -138,6 +138,12 @@ was last set to `0.3.0`.
 - `abap_write` now refuses a full-source rewrite when the caller's most
   recent read of that object was truncated, preventing a silent deletion
   of the unread tail.
+- `abap_write` gained `dry_run` — resolves, reads, and applies the edit
+  locally, runs the safety gate, and returns a diff and the `expect_etag` a
+  real write would assert. Its gate check matches a real write, but the
+  post-CTS transport-allowlist check can't run on a preview, so a clean
+  transportable dry run can still be refused. Refused with `BAD_INPUT` for
+  the `objects` batch-delete form, bridge-only creates, and `DEVC/K`.
 - `SRVB`/`SVB` (RAP service binding) authoring support.
 - The cross-process advisory object lock now also covers the debugger's
   breakpoint-arming path, closing a race where two processes could collide

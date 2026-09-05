@@ -25,6 +25,28 @@ ADT exposes exactly five: `main`, `definitions`, `implementations`, `macros`,
 Prefer `method` (replace one `METHOD…ENDMETHOD`) over resending the class. It
 re-reads and supplies the etag for you.
 
+## Preview an edit before writing
+
+Dry-run first when you want to see the diff before it lands: `abap_write`
+resolves the target, reads the current source, applies `edit`/`method`/`source`
+locally, and runs the safety gate — then returns a diff instead of writing.
+
+```
+abap_write { object, method, source, dry_run: true }
+```
+
+Read the diff. `edit` and `method` already supply the write's etag
+automatically, so dropping `dry_run` and repeating the same call is enough
+for those two forms. A plain `{object, source}` rewrite does not — pass the
+preview's `current_etag` back explicitly as `expect_etag`:
+
+```
+abap_write { object, source, expect_etag }
+```
+
+That makes the applied write compare-before-write against exactly the bytes
+previewed, not whatever the object holds by the time the call lands.
+
 ## Function groups and modules
 
 A function module is a child of its **group**, not of a package. It has no
