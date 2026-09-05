@@ -120,8 +120,11 @@
   existing index — drop and recreate instead — and there is no read-back
   for `TABL/DI` through abapsmith either way. A unique index on a
   client-dependent table must include that table's client field or
-  `DD_INDEX_INTERFACE` fails activation, so the bridge checks for it and
-  refuses the create instead. Deleting the base table is not blocked by a
+  `DD_INDEX_INTERFACE` fails activation — confirmed live, A4H 2026-09-05 —
+  so the bridge checks for it and refuses the create instead. A delete can
+  report `ACTFAILED` even after it already took effect; the bridge now
+  re-checks `DD12V`/`DD17S` post-commit rather than trust that flag alone —
+  fixed, not yet re-run live. Deleting the base table is not blocked by a
   surviving secondary index, and abapsmith cannot confirm the index went
   with it, since there is nothing to read back either way. SE11 (the
   table's "Indexes" button) is the only way to inspect one directly; the

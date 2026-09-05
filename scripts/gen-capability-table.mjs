@@ -78,9 +78,10 @@ const BRIDGE_NOTE = {
     "package requires corr_nr, a `$` package sets NO_TRANSP_REQUEST='X' and refuses one, the " +
     "same rule VIEW/DV uses. Change is not supported either. Proven live on A4H 2026-09-05: a " +
     "non-unique single-field index created in `$TMP`, confirmed by a post-commit DD12V/DD17S " +
-    "re-read. A unique create omitting a client-dependent table's client field failed live " +
-    "with ACTFAILED — the missing field is the suspected, unconfirmed cause; the generated " +
-    "create now checks DD03L and refuses that case, unverified live.",
+    "re-read. The client-field requirement for a unique index on a client-dependent table, " +
+    "once suspected, is now CONFIRMED live (A4H, 2026-09-05): the generated DD03L guard " +
+    "refuses an omitting create with BAD_INPUT before the FM runs, and an including create " +
+    "succeeds with all three markers.",
   "DEVC/K":
     "`software_component: \"LOCAL\"` goes over ADT REST; anything else needs the bridge and a " +
     "transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects.",
@@ -108,10 +109,14 @@ const BRIDGE_DELETE_NOTE = {
     "deletes any index it finds in DD12V for the given table by name, not only ones the bridge " +
     "itself created — no provenance check exists. Unlike the VIEW/DV/TRAN/T deletes, this " +
     "DELETE takes the same transport pair as create — DD_INDEX_INTERFACE ACTION='D' needs it " +
-    "too. The DD12V pre-check is proven live (2026-09-05: NOT_FOUND for a nonexistent index), " +
-    "but every delete of a real index was rejected live — the mandatory INDEX_FIELDS table was " +
-    "omitted; now passed empty, not re-run live. A base-table delete is not blocked by an " +
-    "index still on it, but abapsmith cannot confirm the index went with it.",
+    "too. The DD12V pre-check is proven live (2026-09-05: NOT_FOUND for a nonexistent index). " +
+    "The missing mandatory INDEX_FIELDS table parameter is fixed and confirmed deployed live " +
+    "(2026-09-05). A second defect then surfaced live: ACTION='D' reports ACTFAILED='X' even " +
+    "when the delete already took effect (DD12V/DD17S come back empty for the pair). The " +
+    "fragment now commits regardless and reports success (tag INDEX-DELETED-ACTFAILED) only " +
+    "when a post-commit DD12V/DD17S re-read is empty — fixed, not yet re-run live. A " +
+    "base-table delete is not blocked by an index still on it, but abapsmith cannot confirm " +
+    "the index went with it.",
 };
 
 /** Buckets every type in the given REGISTRY and renders the generated block. Exported so tests can inspect the bucketing directly instead of re-deriving it from REGISTRY by hand. */

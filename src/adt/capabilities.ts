@@ -1216,19 +1216,21 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "deletes only, the same as VIEW/DV and TRAN/T — drop the index (bridgeDelete) and " +
         "recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A " +
         "unique create over two non-client fields of a client-dependent table returned " +
-        "ACTFAILED='X' live on A4H 2026-09-05; DD_INDEX_INTERFACE exports no activation log, " +
-        "so no server-side reason was captured. The suspected cause, unconfirmed, is that a " +
-        "UNIQUE index on a client-dependent table must include that table's client field. The " +
-        "generated create now looks up the client field in DD03L (DATATYPE='CLNT') and " +
-        "refuses a client-field-omitting unique index with BAD_INPUT before calling the FM; " +
-        "neither that refusal nor a well-formed unique create has been run live since. The " +
-        "package is not the caller's to choose: an index is DDIC content of its base table " +
-        "and belongs to the base table's package, so abap_write reads the base table's own " +
-        "ADT resource and gates on THAT package — a caller-supplied `package` is only ever " +
-        "checked for agreement, never trusted. The transport pairing itself mirrors " +
-        "VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied " +
-        "corr_nr, a transportable package REQUIRES corr_nr, passed through as " +
-        "TRANSPORT_NUMBER. The create is not journalled — there is no ADT resource to capture " +
+        "ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, " +
+        "is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that " +
+        "included the base table's client field (MANDT) returned INDEX-CREATED / " +
+        "INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused " +
+        "BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever " +
+        "called — raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", " +
+        "hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without " +
+        "index_unique.\" The package is not the caller's to choose: an index is DDIC " +
+        "content of its base table and belongs to the base table's package, so abap_write " +
+        "reads the base table's own ADT resource and gates on THAT package — a " +
+        "caller-supplied `package` is only ever checked for agreement, never trusted. The " +
+        "transport pairing itself mirrors VIEW/DV's: a `$` package sets " +
+        "NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable " +
+        "package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER — unexercised live " +
+        "in either direction. The create is not journalled — there is no ADT resource to capture " +
         "a before-image from, and none existed before this create by definition — so reversal " +
         "is `mode: \"delete\"`, not undo.",
     },
@@ -1240,10 +1242,21 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See " +
         "src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check " +
         "is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned " +
-        "NOT_FOUND correctly, before ever calling the FM. Every delete of a real index was " +
-        "then rejected by the server: the generated ABAP omitted DD_INDEX_INTERFACE's " +
-        "mandatory TABLES parameter INDEX_FIELDS. The generated delete now passes an empty " +
-        "INDEX_FIELDS table — fixed, not re-run live.",
+        "NOT_FOUND correctly, before ever calling the FM. Round 1's defect — the generated " +
+        "ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS — is " +
+        "fixed and deployed: confirmed live, A4H 2026-09-05, the class body of " +
+        "ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a " +
+        "second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took " +
+        "effect — the failure message's own DD12V read showed zero rows for the pair, and " +
+        "an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal " +
+        "and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and " +
+        "never recorded. It now commits regardless, re-reads DD12V (unfiltered and " +
+        "AS4LOCAL='A') and DD17S, and reports success — tagging the transcript " +
+        "INDEX-DELETED-ACTFAILED with a caller-facing note — only when all three come back " +
+        "empty; a surviving row still fails CHECK_FAILED. What ACTFAILED means on this path " +
+        "is not established — it may reflect the index's database-level drop or the " +
+        "table's re-activation rather than the dictionary removal itself. Fixed but " +
+        "UNVERIFIED live: round 3 will test it.",
       limits:
         "The bridge deletes any index it finds in DD12V for the given table by name — it checks " +
         "only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge " +

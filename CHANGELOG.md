@@ -225,10 +225,16 @@ was last set to `0.3.0`.
   `DD_INDEX_INTERFACE`'s delete takes a transport parameter too. The
   create is never `verified` and never journalled: there is no resource
   to read an index back from and so no undo path, only an explicit
-  delete. A non-unique create was proven live on A4H in a `$TMP` package;
-  a unique index on a client-dependent table must include that table's
-  client field, which the bridge now refuses to violate rather than let
-  activation fail; the transportable-package path is unexercised.
+  delete. A non-unique create was proven live on A4H in a `$TMP` package.
+  A unique index on a client-dependent table must include that table's
+  client field — confirmed live, A4H 2026-09-05: omitting it is refused
+  `BAD_INPUT` before the FM runs, including it succeeds. The delete
+  originally omitted `DD_INDEX_INTERFACE`'s mandatory `INDEX_FIELDS`
+  parameter; fixed and confirmed deployed. A delete can still report
+  `ACTFAILED` even after it already took effect; the bridge now
+  re-verifies via a post-commit `DD12V`/`DD17S` re-read instead of
+  trusting that flag — fixed, not yet re-run live. The
+  transportable-package path is unexercised.
 - Six new `set_*_fields` BOPF operations (`set_association_fields`,
   `set_action_fields`, `set_determination_fields`, `set_validation_fields`,
   `set_query_fields`, `set_alternative_key_fields`), patching an existing
