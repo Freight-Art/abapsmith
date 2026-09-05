@@ -282,6 +282,13 @@ const ok = (text: string, journalEntryId?: string): BopfCallResult => ({
 // abap_bopf — read
 // ---------------------------------------------------------------------------
 
+/** Structural digest only — no read/write surface exists for BOPF config/customizing. */
+const SHOW_NOTES = [
+  "This digest covers the business object's structural definition only (nodes, associations, actions, " +
+    "determinations, validations, queries, alternative keys). It does not include BOPF configuration/" +
+    "customizing — abapsmith has no read surface and no write surface of any kind for it.",
+];
+
 function buildShowResponse(model: BoModel, maxChars: number): string {
   const header = {
     bo: model.name,
@@ -309,7 +316,7 @@ function buildShowResponse(model: BoModel, maxChars: number): string {
     ].filter((l): l is string => l !== undefined);
     return { title: `NODE ${n.name}${n.rootNode ? " (root)" : ""}`, content: lines.join("\n") };
   });
-  return buildResponse({ header, sections, maxChars }).text;
+  return buildResponse({ header, sections, notes: SHOW_NOTES, maxChars }).text;
 }
 
 function buildRawResponse(bo: string, xml: string, maxChars: number): string {
