@@ -2239,6 +2239,28 @@ export interface ObjectDeleteOutcome {
 }
 
 /**
+ * A DELETE ends the ABAP session, so the next entry's LOCK must not ride the
+ * dropped context. `dropSession()` re-establishes it; `connect()` revives an
+ * already-dead connection.
+ */
+async function renewSessionBetweenDeletes(conn: AbapConnection): Promise<void> {
+  if (!conn.isDead) {
+    try {
+      await conn.dropSession();
+    } catch {
+      // Swallowed — next entry issues its own request.
+    }
+  }
+  if (conn.isDead) {
+    try {
+      await conn.connect();
+    } catch {
+      // Swallowed — ditto.
+    }
+  }
+}
+
+/**
  * Batch path for `abap_write`'s `objects` field (mode=delete only). See that schema
  * field's doc comment for the caller contract, and `MAX_DELETE_BATCH` (src/adt/write.ts)
  * for the cap's derivation.
@@ -2262,6 +2284,10 @@ export interface ObjectDeleteOutcome {
  * Every entry runs its own `withJournalledMutation` call, so a batch of N produces up to N
  * independent journal entries — never one aggregate entry — since `abap_journal mode=undo`
  * operates on one entry at a time and a partially-failed batch must stay undoable per-object.
+ *
+ * Pass 2 also renews the ABAP session between entries: `deleteObject`'s own
+ * `withStatefulSession` tears the session down after a DELETE, so the next entry's LOCK
+ * would ride a context the server already dropped — see `renewSessionBetweenDeletes`.
  *
  * That per-object continuation is execution only: the value this function returns/throws
  * does NOT stay `ok` for a partial failure — any object left undeleted throws `CHECK_FAILED`,
@@ -2368,6 +2394,7 @@ export async function abapWriteBatchDelete(
   // ---- pass 2: delete one at a time, in caller order, continue past a
   // per-object failure -------------------------------------------------------
   const outcomes: ObjectDeleteOutcome[] = [];
+  let sessionSpent = false;
   for (const p of pass1) {
     if (p.kind === "absent") {
       outcomes.push({
@@ -2379,6 +2406,8 @@ export async function abapWriteBatchDelete(
       });
       continue;
     }
+    if (sessionSpent) await renewSessionBetweenDeletes(conn);
+    sessionSpent = true;
     const { authorized: a, affects } = p;
     const t = a.target;
     const trOpts = transport

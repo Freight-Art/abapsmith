@@ -84223,6 +84223,8 @@ var AbapConnection = class {
    * refused locally" (D5c); `connectUnderLock()`'s catch reads this flag instead.
    */
   logonCeilingRefused = false;
+  /** True only for the duration of `dropSession()`'s wire call — tells `noteWireRequest()` this logon-endpoint hit is a drop, not a logon. */
+  droppingSession = false;
   /** The clock. Injected only by tests; `Date.now` everywhere else. */
   now;
   /**
@@ -84460,7 +84462,7 @@ var AbapConnection = class {
   get requestCount() {
     return this.guard.requestCount;
   }
-  /** Requests to the logon endpoint that reached the transport, lifetime of this connection. The measurement behind every "how many logons?" claim in this file — see {@link LOGON_ENDPOINT}. Refused attempts are not counted. */
+  /** Requests to the logon endpoint that reached the transport, lifetime of this connection. The measurement behind every "how many logons?" claim in this file — see {@link LOGON_ENDPOINT}. Refused attempts are not counted, nor are `dropSession()` calls. */
   get logonEndpointRequests() {
     return this.logonEndpointRequestCount;
   }
@@ -84483,6 +84485,7 @@ var AbapConnection = class {
       }
     }
     if (!url2.includes(LOGON_ENDPOINT)) return;
+    if (this.droppingSession) return;
     const budget = this.requestContext.getStore()?.budget;
     if (budget) {
       budget.spendLogon();
@@ -85262,6 +85265,7 @@ var AbapConnection = class {
     this.assertUsable();
     await this.lock.runExclusive("dropSession", async () => {
       this.client.stateful = import_abap_adt_api4.session_types.stateless;
+      this.droppingSession = true;
       try {
         await this.client.dropSession();
       } catch (e) {
@@ -85269,6 +85273,8 @@ var AbapConnection = class {
         this.log(
           `[abapsmith] dropSession failed (ignored \u2014 the ABAP session is gone either way): ` + describeUnknownError(e)
         );
+      } finally {
+        this.droppingSession = false;
       }
     });
   }
@@ -101660,6 +101666,20 @@ ${renderInactive(activation.inactive)}`);
     maxChars
   });
 }
+async function renewSessionBetweenDeletes(conn) {
+  if (!conn.isDead) {
+    try {
+      await conn.dropSession();
+    } catch {
+    }
+  }
+  if (conn.isDead) {
+    try {
+      await conn.connect();
+    } catch {
+    }
+  }
+}
 async function abapWriteBatchDelete(conn, entries, maxChars, gate, journal, transport) {
   if (entries.length === 0) {
     throw new AbapError("BAD_INPUT", "`objects` must name at least one object.", {});
@@ -101715,6 +101735,7 @@ async function abapWriteBatchDelete(conn, entries, maxChars, gate, journal, tran
     pass1.map((p) => p.kind === "authorized" ? p.authorized.target : p)
   );
   const outcomes = [];
+  let sessionSpent = false;
   for (const p of pass1) {
     if (p.kind === "absent") {
       outcomes.push({
@@ -101726,6 +101747,8 @@ async function abapWriteBatchDelete(conn, entries, maxChars, gate, journal, tran
       });
       continue;
     }
+    if (sessionSpent) await renewSessionBetweenDeletes(conn);
+    sessionSpent = true;
     const { authorized: a, affects } = p;
     const t = a.target;
     const trOpts = transport ? { transport, gate, ...affects ? { affects } : {} } : { ...affects ? { affects } : {} };
