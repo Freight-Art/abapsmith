@@ -280,11 +280,8 @@ was last set to `0.3.0`.
 
 ### Changed
 
-<<<<<<< HEAD
 - Two source comments caught up with the code: `abap_ui`'s deps type now takes `allowUiPress` straight from `Config` instead of describing the `ABAP_ALLOW_UI_PRESS` flag as not yet implemented, and the `BDEF/BDO` skeleton-create note no longer refers to the development process that captured it.
-=======
 - The committed plugin bundle labels its modules with paths inside the repository (`node_modules/...`) instead of the build machine's real dependency directory; a test now fails if a label escapes the repository again. The ignore list no longer carries the project's former working-directory name.
->>>>>>> main
 - `VIEW/DV` create into a transportable package resolves a transport
   request the same way a `DEVC/K` create does — `preflightPackageCorr`
   honours the caller's `corr_nr` when given, or else picks or creates one
