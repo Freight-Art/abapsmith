@@ -22,10 +22,14 @@ bopf_create
   → bopf_activate
 ```
 
-`bopf_check_refs` and `bopf_test` run any time. So do the seven `bopf_remove_*`
-operations — `remove_node` (`node` only) and `remove_association` /
-`remove_action` / `remove_determination` / `remove_validation` / `remove_query`
-/ `remove_alternative_key` (`node` + `name`), see Deleting below. `bopf_delete`
+A representative node is not on this list — it is minted by the server as
+a side effect of `bopf_add_association`, see below.
+
+`bopf_check_refs` and `bopf_test` run any time. So do the eight
+`bopf_remove_*` operations — `remove_node` (`node` only) and
+`remove_association` / `remove_action` / `remove_determination` /
+`remove_validation` / `remove_query` / `remove_alternative_key` /
+`remove_dependent_object` (`node` + `name`), see Deleting below. `bopf_delete`
 is terminal and admin-only.
 
 ## A fresh BO cannot activate until you set node flags
@@ -70,8 +74,59 @@ Never retry a create blind.
   name) or **`spec.parentNodeId`**, either one — abapsmith resolves the other
   half from the model and writes both `bo:parent`/`bo:parentNodeID`, since BOPF
   200s and drops a node carrying only one of them. Neither given, without
-  `spec.rootNode: true`, is refused before anything is sent. `add_node` re-reads
-  after the write and fails if the node isn't there, so success means it exists.
+  `spec.rootNode: true`, is refused before anything is sent — a
+  client-written parentless node is hard-rejected by the server
+  (`An error occurred when deserializing in the simple transformation
+  program /BOBF/ST_CONF_ADT`), confirmed live three separate ways, so
+  `add_node` cannot build that shape at all. The refusal names the
+  `add_association` cross-BO recipe below instead. Two more hand-assembly
+  guardrails stay: `add_association` refuses `implementationType:
+  "DoComposition"` or any `doEmbeddingName`, and `add_node` refuses
+  `doEmbeddingName` or `isDependentObjectNode: true` anywhere in the
+  spec — there is no operation left that creates a delegated node; use
+  `bopf_remove_dependent_object` only to remove one that already exists.
+  `add_node` re-reads after the write and fails if the node isn't there, so
+  success means it exists.
+- **Representative node — no create operation, get one from
+  `bopf_add_association`.** Add a plain cross-BO association on the node
+  that should carry the link: `spec.implementationType: "Association"`,
+  `spec.targetNodeRef: { name: "/BOBF/DEMO_CUSTOMER~ROOT", type: "BOBF" }`
+  naming the other BO's root node, and `spec.implementationClassRef`
+  naming an XBO class (e.g. `/BOBF/CL_C_DEMO_CUSTOMER_XBO`). The server
+  mints a parentless, non-root node alongside it, named `REP_<random>`
+  (observed `REP_TYVJRJ3REEP6DKVELQE77P7WKA`) — no structure refs, just
+  the fixed `KEY`/`PARENT_KEY`/`ROOT_KEY` properties, the same shape
+  `abap_bopf show` labels `representative`. The name is server-assigned
+  and cannot be chosen or predicted. Confirmed live:
+  `bopf_remove_association` removes it too — the node count fell from
+  2 to 1 once the association was gone. No dedicated create or remove
+  exists for it.
+  ```
+  add_association(node: "ROOT", name: "TO_CUSTOMER",
+    spec: { implementationType: "Association",
+            targetNodeRef: { name: "/BOBF/DEMO_CUSTOMER~ROOT", type: "BOBF" },
+            implementationClassRef: { name: "/BOBF/CL_C_DEMO_CUSTOMER_XBO", type: "CLAS/OC" } })
+  ```
+  Observed once, not a confirmed rule: activating a BO with such a
+  cross-BO association present destroyed the ABAP session with an
+  `ASSERTION_FAILED` short dump in `/BOBF/CL_CONF_MODEL_API_MAP`. Treat it
+  as a hazard, not something proven deterministic — it was not retried.
+- **Embedded dependent object — removal only, no create operation.**
+  `bopf_remove_dependent_object` (`node` + `name`) deletes an existing
+  embedding's parent-node association and node in one PUT, and refuses
+  while any other association still targets the node being removed. There
+  is no way to create an embedding through abapsmith on this release: a
+  live discovery run found the write shape the removed
+  `embed_dependent_object` operation sent gets rewritten by the server
+  (`bo:implementationType` came back `Composition` with
+  `bo:doEmbeddingName` dropped) and the resulting node name is rejected at
+  activation. A second run tried the two remaining candidate shapes — a
+  byte-verbatim transplant of SAP's own `ROOT_LONG_TEXT` embedding, and a
+  `DoComposition` association naming the dependent object's own root — and
+  both failed too: the first threw at the `/BOBF/ST_CONF_ADT` deserializer,
+  the second answered 200 and silently discarded the association. Do not
+  attempt to hand-assemble one with `add_node` / `add_association` — both
+  refuse the shape outright, see above.
 - `bopf_add_determination`/`bopf_add_validation` cannot attach a trigger later.
   `spec.triggers` is read only inside the original `add_determination`/
   `add_validation` call — get it right or delete and recreate. Every other
@@ -198,6 +253,16 @@ the **first one in document order** — call the same operation again for the
 next. They re-read after the write and fail `CHECK_FAILED`, naming both
 counts, if the count on that node didn't go down, and fail `NOT_FOUND`,
 listing what IS there, if nothing by that name exists.
+
+`bopf_remove_dependent_object` (`node` + `name` — the parent node and the
+embedding name) removes an existing dependent-object embedding — the
+parent-node association and its node, in one call. It refuses while any
+other association still targets the node being removed — remove that
+association first. It runs the same post-write re-read as every other
+`remove_*` operation. A representative node has no dedicated remove:
+removing the link with `bopf_remove_association` takes the server-minted
+node with it — confirmed live, the node count fell from 2 to 1 once the
+association was gone. See Adding elements above.
 
 **Duplicate-name symptom**: a BO that stops activating because it carries two
 elements of the same kind and name. Re-adding under an existing `name`
