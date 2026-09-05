@@ -23,16 +23,20 @@ connection, step, inspect the stack, and stop.
 | `confirm` | string | no (required for `step=jumpToLine`) | — | Must literally be `"jumpToLine"`. Also needs `ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true`. |
 | `force` | boolean | no | — | `action=stop` only — also force-terminate a debuggee this server's own identity left attached after an unclean exit. |
 
-A line breakpoint (`kind: "line"`): `object` (string, required), `line`
-(number, int, 1–999999, required), plus shared `condition` (string, ≤255
-chars, optional — an ABAP boolean expression, e.g. `sy-tabix = 500` or
-`lv_name = 'FOO'`; validated server-side when armed, refused if SAP cannot
-parse it) and `skipCount` (int, ≥0, ≤1000000, optional — e.g. `skipCount: 9`
-breaks on the 10th hit, `0` (default) breaks on every hit; accepted but not
-enforced server-side, every hit still suspends).
+A line breakpoint (`kind: "line"`): `object` (string, required — any form
+`abap_read`/`abap_run` accept: a bare name, `class ZCL_FOO`, a raw ADT URI;
+resolved server-side to a source URI), `line` (number, int, 1–999999,
+required — 1-based; SAP may snap it to the nearest executable statement, in
+which case the `start` response reports the corrected line), plus shared
+`condition` (string, ≤255 chars, optional — an ABAP boolean expression, e.g.
+`sy-tabix = 500` or `lv_name = 'FOO'`; validated server-side when armed,
+refused if SAP cannot parse it) and `skipCount` (int, ≥0, ≤1000000, optional
+— e.g. `skipCount: 9` breaks on the 10th hit, `0` (default) breaks on every
+hit; accepted but not enforced server-side, every hit still suspends).
 
 An exception breakpoint (`kind: "exception"`): `exceptionClass` (string,
-required), plus the same `condition`/`skipCount`.
+required — fires wherever that exception is raised, not only inside the
+object named in `run`), plus the same `condition`/`skipCount`.
 
 What each action does: `start` arms the breakpoints, triggers the run on a
 separate connection, and waits for it to hit one — returning the stack and a
