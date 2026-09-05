@@ -102066,9 +102066,9 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
   if (verifyOutcome.status === "confirmed-absent") {
     throw new AbapError(
       "CHECK_FAILED",
-      `${DDIC_BRIDGE_CLASS.createPackage} reported success (the transcript carries ${bridgeRes.transcript.tags.join(", ")}) but ${target.name} does not exist on a follow-up repository search (${verifyOutcome.uri}, via ${verifyOutcome.via}). This is the same false-success shape VIEW/DV was once reproduced against live for (see abapCreateViaBridge above) \u2014 abapsmith will not report a package create as successful when it can prove the package is not there. This was already journalled as created above: if CL_PACKAGE_FACTORY did leave something behind despite this, confirm it and delete it (abap_write mode=delete, while empty) or clean up by hand in SE21.`,
+      `${DDIC_BRIDGE_CLASS.createPackage} reported success (the transcript carries ${bridgeRes.transcript.tags.join(", ")}) but a follow-up repository search returned no hit for ${target.name} (${verifyOutcome.uri}, via ${verifyOutcome.via}) \u2014 the same false-success shape VIEW/DV was once reproduced against live for (see abapCreateViaBridge above). The search is calibrated for packages: live, a package present in TDEVC was found by it both as a local and as a transportable package, so a miss is strong evidence the create did not land \u2014 evidence, not proof of absence. This was already journalled as created above: confirm which it is before acting, and if CL_PACKAGE_FACTORY did leave something behind, delete it (abap_write mode=delete, while empty) or clean up by hand in SE21.`,
       { object: target.name, type: "DEVC/K", markers: bridgeRes.transcript.tags.join(" ") },
-      'Confirm by hand with abap_search mode=objects type="DEVC/K", or in SE21.'
+      'Confirm before acting: abap_search mode=objects type="DEVC" for this name, or read TDEVC directly (abap_data_preview, devclass = the package name). SE21 also shows it.'
     );
   } else if (verifyOutcome.status === "confirmed") {
     verified = true;
