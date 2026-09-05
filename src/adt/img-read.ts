@@ -1061,7 +1061,13 @@ async function fillTable(conn: ImgReadConnection, ctx: ReadCtx, notes: string[],
 
   return {
     objects: [{ kind: "table", objectType: "", name: object, title }],
-    tables: [{ object: "", table: object, clientDependent, deliveryClass, via: tbl("ddicTable"), title }],
+    // `object` doubles as the table name here: for a plain-table object, the
+    // object IS the table. `fillView`/`fillCustomizingObject` use the same
+    // `object` variable for this field — this row previously hardcoded "",
+    // which silently broke the object->table join in img-resolve.ts for
+    // every `kind: "table"` lookup (resolveObject's `r.object === obj.name`
+    // filter could never match an empty string against a real table name).
+    tables: [{ object, table: object, clientDependent, deliveryClass, via: tbl("ddicTable"), title }],
     fields,
   };
 }
