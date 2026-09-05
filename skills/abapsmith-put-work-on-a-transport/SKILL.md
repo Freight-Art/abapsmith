@@ -112,6 +112,17 @@ object transported. An auto-created request is therefore
 mostly not disposable: don't spin one up as a scratch request, and don't
 reach for release just to clean one up (see Releasing, below).
 
+**Do not delete a DDIC object using the same request as `corr_nr` unless
+you're willing to strand that request.** CTS has been observed refusing to
+clear the deletion entry this leaves behind, on two independent requests
+(observed for a table), with no retry succeeding — treat it as unrecoverable
+rather than something to retry through. When that happens, `delete` keeps
+returning `TRANSPORT_LOCKED`, and the only way out is a human in SE03
+("Unlock Objects (Expert Tool)") followed by SE09/SE10, or releasing the
+request outright. If you need to delete a DDIC object, prefer deleting it
+under a different request than the one that created it, or check back with
+the user before deleting it under its own creating request.
+
 ## Releasing
 
 `abap_transport_release` is a **separate, irreversible** tool, and it is gated off

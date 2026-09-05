@@ -24,12 +24,30 @@ ceiling (`ABAP_MODE=admin` — no legacy flag grants it) plus `confirm`.
 Notes: ordinary object writes never need this tool — the server creates and
 reuses one transport request per session automatically. `delete` is
 irreversible once confirmed; the confirm value must match the transport
-number exactly, not partially. `removeObject` drops one object's entry (and
-its CTS lock) from a request or task — typically an object already deleted
-from the system, so the holding request can then itself be deleted; it
-accepts either a request or a task number and resolves the actual holder
-itself. It does not prove the request becomes deletable — follow up with
-`delete` to find out.
+number exactly, not partially. A `TRANSPORT_LOCKED` refusal can be
+permanent: see below.
+
+`removeObject` drops one object's entry (and its CTS lock) from a request or
+task — typically an object already deleted from the system, so the holding
+request can then itself be deleted; it accepts either a request or a task
+number and resolves the actual holder itself. It does not prove the request
+becomes deletable — follow up with `delete` to find out. The response's
+`objectOnSystem` (`present` | `absent` | `unknown`) says whether the named
+object still existed at the moment the entry was removed: removing the entry
+drops the CTS lock unconditionally, so a `present` result means a still-live
+object just lost the lock that recorded its change and protected it from
+being edited under a different request — the object itself is untouched, but
+notes on the response call this out. CTS can refuse the underlying call
+outright: observed live for a `R3TR TABL` deletion entry (a DDIC table
+created and then deleted under the same request), where
+`TR_DELETE_COMM_OBJECT_KEYS` returns a non-zero `sy-subrc` and the entry and
+its lock stay. The resulting `CHECK_FAILED` error carries a `msg=` fragment
+with that `sy-subrc` and, when CTS set one, the `sy-msg*` T100 message (it
+can legitimately be blank), plus a hint naming the remaining manual route:
+SE03 "Unlock Objects (Expert Tool)" for the request, then delete the entry in
+SE09/SE10; or release the request (irreversible). There is no route through
+abapsmith that clears this kind of entry — see
+`doc/LIMITATIONS/not-implemented-and-unproven.md`.
 
 Example (dry-run delete):
 

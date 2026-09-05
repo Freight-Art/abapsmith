@@ -54,7 +54,11 @@
   nothing in CTS: whatever entry the object already had on a request
   (typically from its create) survives the delete and must be removed
   separately with `abap_transport` operation `"removeObject"`, which needs
-  ABAP_MODE=admin. That is also why the safety gate judges these two
+  ABAP_MODE=admin — and which CTS is not guaranteed to accept for a DDIC
+  entry: observed live refusing one for a `R3TR TABL` deletion entry (see
+  `doc/LIMITATIONS/not-implemented-and-unproven.md`), leaving the entry, its
+  lock, and (for `VIEW/DV`) its TADIR row in place. That is also why the
+  safety gate judges these two
   deletes as local mutations rather than against `ABAP_ALLOW_TRANSPORTS` —
   see `doc/SAFETY/safety-gate.md`.
   `DEVC/K` (package) is different:

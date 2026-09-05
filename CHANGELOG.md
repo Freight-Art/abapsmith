@@ -453,6 +453,19 @@ was last set to `0.3.0`.
   remedy: `abap_bopf_delete` then recreate), and no activation request is
   sent even with `activate: true`. A differently-named, non-empty root is
   still only a discrepancy note. See `test/bopf-create-recovery.test.ts`.
+- `abap_transport operation=removeObject`'s underlying `TR_DELETE_COMM_OBJECT_KEYS`
+  failure now surfaces the CTS `sy-subrc` and, when CTS set one, the `sy-msg*`
+  T100 message as a `msg=` fragment on the `CHECK_FAILED` error, instead of
+  swallowing them; the response also reports `objectOnSystem`
+  (`present`/`absent`/`unknown`) for the entry's object, since removing the
+  entry drops CTS's lock unconditionally and a `present` result means a
+  still-live object just lost the lock protecting it. A refusal now carries a
+  hint naming the remaining manual route (SE03 "Unlock Objects (Expert Tool)",
+  then SE09/SE10; or release the request). Reproduced live on A4H,
+  2026-09-05: a `R3TR CLAS` deletion entry's removal succeeds, a `R3TR TABL`
+  deletion entry's does not, and CTS's refusal for the latter has no known
+  working route through abapsmith — see
+  `doc/LIMITATIONS/not-implemented-and-unproven.md`.
 
 ### Fixed
 

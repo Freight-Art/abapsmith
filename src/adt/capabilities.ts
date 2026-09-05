@@ -1049,9 +1049,13 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not " +
         "used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an " +
         "open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails " +
-        "sy-subrc=1 / TR022, and abapsmith does NOT clear that lock (TRINT_READ_REQUEST / " +
-        "TR_DELETE_COMM_OBJECT_KEYS is out of scope, deliberately unimplemented) — so a locked " +
-        "view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted " +
+        "sy-subrc=1 / TR022, and this delete path itself does not attempt to clear that lock. " +
+        "The separate route, abap_transport operation=removeObject, does call " +
+        "TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS to clear it, but CTS refuses that " +
+        "call for a DDIC deletion entry (observed live for a R3TR TABL entry), leaving the " +
+        "entry, its lock, and this view's TADIR row in place, and the holding request " +
+        "undeletable through abapsmith — so a locked view loses its DD25L rows but keeps its " +
+        "TADIR row. No corrNr is accepted " +
         "(src/tools/write.ts refuses one outright), so this path cannot fully remove a view " +
         "sitting on an open transport request. abapsmith's own create now registers every view " +
         "in TADIR, including one in a `$` package, so the delete path acts on views abapsmith " +
