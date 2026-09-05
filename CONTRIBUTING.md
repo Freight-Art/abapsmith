@@ -156,20 +156,31 @@ There's no linter config, so match what's already there:
 
 ## Releases
 
-A release is a git tag that users can pin to (see "Install" in the README), so it is cut only
-from `main` after the live-tested PRs it contains are merged.
+Every merged PR is a release: the Claude Code plugin marketplace only picks up an update when
+the manifest version changes, so a PR that lands without a bump is invisible to `/plugin update`.
+The bump happens as the last commit on the PR branch, done by whoever merges it (not the PR's
+author), so it lands against what is actually about to hit `main`:
 
-1. Pick the version. The version is what `/plugin update` compares, so a release without a bump
-   is invisible to installed plugins.
-2. Set it in both `package.json` and `.claude-plugin/plugin.json`; `test/plugin-manifest.test.ts`
-   fails when the two disagree.
+1. Merge `main` into the branch first, so the version bump is computed against what is actually
+   about to land and two PRs in flight can't collide on `package.json`,
+   `.claude-plugin/plugin.json`, `CHANGELOG.md`, and the bundle manifest.
+2. Set the new version in both `package.json` and `.claude-plugin/plugin.json`;
+   `test/plugin-manifest.test.ts` fails when the two disagree. Pre-1.0, so no major bumps: a fix,
+   docs change, or housekeeping bumps the patch, and a new tool, tool mode, or capability bumps
+   the minor.
 3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and open a fresh,
    empty `## [Unreleased]` above it.
-4. Rebuild the committed bundle (`npm run bundle`): `BUILD-MANIFEST.json` digests the package
-   version, so the bundle test fails until it is regenerated.
-5. Open the release PR, run the full gate, merge it.
-6. Tag the merge commit `vX.Y.Z` on `main` and push the tag. Create a GitHub release from the tag
-   whose body is the CHANGELOG section, so the notes exist outside git history as well.
+4. Run `npm run bundle`: `bundle/BUILD-MANIFEST.json` digests the package version, so
+   `test/plugin-bundle.test.ts` fails until the bundle is regenerated.
+5. Commit as `Release X.Y.Z`, run the full gate, and merge to `main`.
+
+From there, `.github/workflows/release.yml` does the rest: on every push to `main` it checks that
+`package.json` and `.claude-plugin/plugin.json` agree, fails if `vX.Y.Z` already exists,
+extracts that version's section from `CHANGELOG.md` with `scripts/changelog-section.mjs`, and
+runs `gh release create`, which cuts the `vX.Y.Z` tag and the GitHub release together. Nobody
+tags by hand.
 
 Tags are never moved or deleted: a user who pinned one must keep getting the bytes it named. A bad
-release gets a new version, not a re-tag.
+release gets a new version, not a re-tag. A red **Release tag** run on `main` means a PR merged
+without a version bump and the tag already exists — fix it with a follow-up bump PR, not a re-tag
+or a deleted tag.

@@ -283,7 +283,14 @@ error. `generate_only: true` builds the bridge without running it.
 table types and structures plus a constants interface for a 2-node BO. Orphans
 collide with a later create using the same naming pattern. Use `cascade_ddic` +
 `confirm_cascade` to remove them. `dry_run` defaults to `true`, so a bare call
-only reports.
+only reports. `cascade_ddic` still spares a node's auto-defaulted
+`persistentTableRef`/`persistentStructureRef` — e.g. the `ZTMD_D_ROOT` table
+`create_bo` defaults onto a root node named `ROOT` — since abapsmith has no
+provenance to tell a defaulted table from a foreign structure the BO merely
+points at. Pass `cascade_persistent: ["ZTMD_D_ROOT"]` on the same call to
+remove those too; the `create_bo`/`add_node` response already names the exact
+one to pass. See `abap_bopf_delete` in `doc/TOOLS/bopf.md` for the validation
+rules.
 
 To remove one element instead of the whole BO: `bopf_remove_node` (`node`
 only) and `bopf_remove_association` (`node` + `name`) remove those two

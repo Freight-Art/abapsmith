@@ -5,15 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/). It is
 pre-1.0, so the usual semver caveat applies: minor versions may still contain
-breaking changes to configuration or tool schemas. No version has been
-tagged or published yet; everything below has landed since `package.json`
-was last set to `0.3.0`.
+breaking changes to configuration or tool schemas. `0.3.0` was set in both
+manifests but never tagged, so `v0.3.1` is the first tagged release. The
+`0.3.1` section below therefore carries everything that landed since the
+version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-05
+
+### Changed
+
+- `abap_transport operation=removeObject` now detects up front when the
+  request already holds two or more E071 rows for the object's
+  PGMID+OBJECT+OBJ_NAME — legal under E071's TRKORR+AS4POS key, and typically
+  the result of creating an object and then deleting it under the same
+  request — and refuses with a new terminal error code, `CTS_DUPLICATE_ENTRY`,
+  naming the object, the holder, the row count and the AS4POS values, instead
+  of letting a partial removal run into `TR_DELETE_COMM_OBJECT_KEYS`'s own
+  `w_duplicate_entry` refusal (`MESSAGE e292(tr)`) mid-batch; a late `TR 292`
+  from the function module itself maps to the same code. Any other refusal in
+  this family still surfaces the CTS `sy-subrc` and, when CTS set one, the
+  `sy-msg*` T100 message as a `msg=` fragment on the `CHECK_FAILED` error,
+  instead of swallowing them. The response also reports `objectOnSystem`
+  (`present`/`absent`/`unknown`) for the entry's object, since removing the
+  entry drops CTS's lock unconditionally and a `present` result means a
+  still-live object just lost the lock protecting it. Read live on A4H,
+  2026-09-05: both stuck fixture tasks held exactly two E071 rows apiece for
+  their object, and no supported function-module call removes just one of
+  them — the remedy is outside abapsmith (edit the request's object list in
+  SE09/SE10, or release the request) — see
+  `doc/LIMITATIONS/not-implemented-and-unproven.md`.
+
+## [0.3.1] - 2026-09-05
+
 ### Added
 
-- Release procedure in CONTRIBUTING.md (version bump in both manifests, CHANGELOG section, bundle rebuild, `vX.Y.Z` tag, GitHub release) and a README note on pinning the marketplace to a release tag for rollbacks.
+- A GitHub Actions workflow (`.github/workflows/release.yml`) that tags every push to `main` as `vX.Y.Z` and publishes a GitHub release whose notes are that version's CHANGELOG section, extracted by `scripts/changelog-section.mjs`; every merged PR now carries a version bump, since the plugin marketplace only detects an update when the manifest version changes.
+- Release procedure in CONTRIBUTING.md (version bump in both manifests, CHANGELOG section, bundle rebuild) and a README note on pinning the marketplace to a release tag for rollbacks.
 - Core MCP server over ADT (`/sap/bc/adt/*`): connect, read source and DDIC
   (rendered as pseudo-DDL), fuzzy object resolution, and repository search.
 - Write path: create, change, delete, activate, and run ABAP objects and
@@ -48,6 +77,10 @@ was last set to `0.3.0`.
   `abap_bopf_test`): business objects, nodes, associations, and
   determinations, including dangling-reference checks and cascading DDIC
   delete.
+- `abap_bopf_delete`'s `cascade_persistent` — an explicit, validated,
+  name-by-name opt-out from sparing a BO's `persistentTableRef`/
+  `persistentStructureRef` objects, deleted last and reported under their
+  own `DDIC DELETED ON REQUEST` section.
 - Enhancement framework support (`abap_enh`): BAdI definitions and
   implementations, enhancement spots, filter values, and ENHO/XHH
   source-code plug-ins, gated by customer- vs. SAP-owned target rules.
@@ -276,8 +309,8 @@ was last set to `0.3.0`.
 
 ### Changed
 
-- The committed plugin bundle labels its modules with paths inside the repository (`node_modules/...`) instead of the build machine's real dependency directory; a test now fails if a label escapes the repository again. The ignore list no longer carries the project's former working-directory name.
 - Two source comments caught up with the code: `abap_ui`'s deps type now takes `allowUiPress` straight from `Config` instead of describing the `ABAP_ALLOW_UI_PRESS` flag as not yet implemented, and the `BDEF/BDO` skeleton-create note no longer refers to the development process that captured it.
+- The committed plugin bundle labels its modules with paths inside the repository (`node_modules/...`) instead of the build machine's real dependency directory; a test now fails if a label escapes the repository again. The ignore list no longer carries the project's former working-directory name.
 - `VIEW/DV` create into a transportable package resolves a transport
   request the same way a `DEVC/K` create does — `preflightPackageCorr`
   honours the caller's `corr_nr` when given, or else picks or creates one
@@ -457,26 +490,6 @@ was last set to `0.3.0`.
   sent even with `activate: true`. A differently-named, non-empty root is
   still only a discrepancy note. See `test/bopf-create-recovery.test.ts`.
 - Documentation, code comments and registry notes no longer name the appliance's transportable test package; they say "a transportable package" instead.
-- `abap_transport operation=removeObject` now detects up front when the
-  request already holds two or more E071 rows for the object's
-  PGMID+OBJECT+OBJ_NAME — legal under E071's TRKORR+AS4POS key, and typically
-  the result of creating an object and then deleting it under the same
-  request — and refuses with a new terminal error code, `CTS_DUPLICATE_ENTRY`,
-  naming the object, the holder, the row count and the AS4POS values, instead
-  of letting a partial removal run into `TR_DELETE_COMM_OBJECT_KEYS`'s own
-  `w_duplicate_entry` refusal (`MESSAGE e292(tr)`) mid-batch; a late `TR 292`
-  from the function module itself maps to the same code. Any other refusal in
-  this family still surfaces the CTS `sy-subrc` and, when CTS set one, the
-  `sy-msg*` T100 message as a `msg=` fragment on the `CHECK_FAILED` error,
-  instead of swallowing them. The response also reports `objectOnSystem`
-  (`present`/`absent`/`unknown`) for the entry's object, since removing the
-  entry drops CTS's lock unconditionally and a `present` result means a
-  still-live object just lost the lock protecting it. Read live on A4H,
-  2026-09-05: both stuck fixture tasks held exactly two E071 rows apiece for
-  their object, and no supported function-module call removes just one of
-  them — the remedy is outside abapsmith (edit the request's object list in
-  SE09/SE10, or release the request) — see
-  `doc/LIMITATIONS/not-implemented-and-unproven.md`.
 
 ### Fixed
 
