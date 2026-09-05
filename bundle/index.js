@@ -64652,7 +64652,7 @@ function ctsError(e, operation, trkorr) {
       "TRANSPORT_LOCKED",
       message,
       details,
-      `CTS holds this entry's lock until the request is released; deleting the object does not clear it, and abapsmith has no call to remove or unlock a locked entry. The number above may be a child task, not the one you passed. Real exits: release the request (irreversible), or in SE03 run "Unlock Objects (Expert Tool)" and then handle it by hand in SE09/SE10.`
+      `CTS holds this entry's lock until the request is released; deleting the object does not clear it. The number above may be a child task, not the one you passed. Real exits: abap_transport operation "removeObject" with object = the entry's name and confirm = the request number (admin mode only) \u2014 drops that one entry and its lock from an unreleased request/task; release the request (irreversible); or in SE03 run "Unlock Objects (Expert Tool)" and then handle it by hand in SE09/SE10. abapsmith cannot unlock an entry while leaving it on the request \u2014 removeObject removes it outright.`
     );
   }
   return new AbapError(
@@ -64985,6 +64985,24 @@ async function trShow(conn, trkorr) {
     }
   }
   return result;
+}
+async function trFindEntryHolder(conn, trkorr, objectName) {
+  const number4 = assertTrkorr(trkorr, "trFindEntryHolder");
+  const name = (objectName ?? "").trim().toUpperCase();
+  const matches = (objs) => objs.filter((o) => o.name.toUpperCase() === name);
+  const req = await trShow(conn, number4);
+  for (const task of req.tasks) {
+    const rows2 = matches(task.objects);
+    if (rows2.length > 0) return { trkorr: task.trkorr, onTask: true, requested: number4, rows: rows2 };
+  }
+  const rows = matches(req.objects);
+  if (rows.length > 0) return { trkorr: req.trkorr, onTask: false, requested: number4, rows };
+  throw new AbapError(
+    "NOT_FOUND",
+    `No entry for ${name} on ${number4} or its tasks.`,
+    { operation: "trFindEntryHolder", trkorr: number4, object: name, tasks: req.tasks.map((t) => t.trkorr) },
+    `Run abap_transport with operation "show" and transport "${number4}" to see what this request actually holds.`
+  );
 }
 function collectRequests(category) {
   if (!category) return [];
@@ -91206,7 +91224,8 @@ var DDIC_BRIDGE_CLASS = {
   createPackage: "ZCL_ZMCP_DDIC_CPKG",
   deletePackage: "ZCL_ZMCP_DDIC_DPKG",
   deleteView: "ZCL_ZMCP_DDIC_DVIEW",
-  deleteTransaction: "ZCL_ZMCP_DDIC_DTRAN"
+  deleteTransaction: "ZCL_ZMCP_DDIC_DTRAN",
+  removeTransportEntry: "ZCL_ZMCP_DDIC_TREN"
 };
 var DDIC_ERR_PREFIX = "ZMCP-DDIC-ERR>";
 var DDIC_TAGS = [
@@ -91225,7 +91244,10 @@ var DDIC_TAGS = [
   "VIEW-DELETED",
   "VIEW-GONE",
   "TRAN-DELETED",
-  "TRAN-GONE"
+  "TRAN-GONE",
+  // transport-entry-remove bridge:
+  "TREN-REMOVED",
+  "TREN-GONE"
 ];
 function ddicBridgeSource(className, dataLines, bodyLines) {
   const cls = assertPlainName(className, "Class name").toLowerCase();
@@ -102563,21 +102585,149 @@ function registerWriteTools(mcp, deps) {
   );
 }
 
+// src/adt/transport-entry-remove.ts
+var TRANSPORT_ENTRY_REMOVE_DATA_LINES = [
+  "ls_req TYPE trwbo_request.",
+  "ls_e071 TYPE e071.",
+  "lt_rows TYPE STANDARD TABLE OF e071 WITH EMPTY KEY.",
+  "lt_candidates TYPE STANDARD TABLE OF trkorr WITH EMPTY KEY.",
+  "lt_tasks TYPE STANDARD TABLE OF trkorr WITH EMPTY KEY.",
+  "lv_trkorr TYPE trkorr.",
+  "lv_holder TYPE trkorr.",
+  "lv_check TYPE trkorr."
+];
+function transportEntryRemoveFragment(p) {
+  const trkorr = assertTrkorr(p.trkorr, "transportEntryRemove");
+  const objectName = assertEnhIdentifier(p.objectName, "object", {
+    maxLength: 40,
+    allowNamespace: true
+  }).toUpperCase();
+  const trkorrLit = abapLiteral(trkorr);
+  const nameLit = abapLiteral(objectName);
+  const step1 = [
+    '" Step 1: resolve which of trkorr or its tasks holds the entry.',
+    `lv_trkorr = ${trkorrLit}.`,
+    "APPEND lv_trkorr TO lt_candidates.",
+    `SELECT trkorr FROM e070 INTO TABLE lt_tasks WHERE strkorr = ${trkorrLit}.`,
+    "APPEND LINES OF lt_tasks TO lt_candidates.",
+    "CLEAR lv_holder.",
+    "LOOP AT lt_candidates INTO lv_trkorr.",
+    "  CLEAR ls_req.",
+    "  ls_req-h-trkorr = lv_trkorr.",
+    "  CALL FUNCTION 'TRINT_READ_REQUEST'",
+    "    EXPORTING iv_read_e070 = 'X' iv_read_e07t = 'X' iv_read_e070c = 'X' iv_read_e070m = 'X'",
+    "              iv_read_objs_keys = 'X' iv_read_attributes = 'X'",
+    "    CHANGING  cs_request = ls_req",
+    "    EXCEPTIONS OTHERS = 1.",
+    "  IF sy-subrc <> 0.",
+    "    CONTINUE.",
+    "  ENDIF.",
+    "  CLEAR lt_rows.",
+    `  LOOP AT ls_req-objects INTO ls_e071 WHERE obj_name = ${nameLit}.`,
+    "    APPEND ls_e071 TO lt_rows.",
+    "  ENDLOOP.",
+    "  IF lines( lt_rows ) > 0.",
+    "    lv_holder = lv_trkorr.",
+    "    EXIT.",
+    "  ENDIF.",
+    "ENDLOOP."
+  ];
+  const step2 = [
+    '" Step 2: refuse if no candidate carried the entry.',
+    "IF lv_holder IS INITIAL.",
+    `  out->write( |ZMCP-DDIC-ERR> no entry for ${objectName} on ${trkorr} or its tasks| ).`,
+    "  RETURN.",
+    "ENDIF."
+  ];
+  const step3 = ['" Step 3: name the resolved holder.', "out->write( |ZMCP-TREN-HOLDER { lv_holder }| )."];
+  const step4 = [
+    '" Step 4: remove every collected row.',
+    "LOOP AT lt_rows INTO ls_e071.",
+    "  CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'",
+    "    EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071",
+    "    CHANGING cs_request = ls_req",
+    "    EXCEPTIONS OTHERS = 1.",
+    "  IF sy-subrc <> 0.",
+    "    out->write( |ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }, sy-subrc={ sy-subrc }| ).",
+    "    RETURN.",
+    "  ENDIF.",
+    "  out->write( |ZMCP-TREN-ROW { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }| ).",
+    "ENDLOOP."
+  ];
+  const step5 = ['" Step 5: one success tag for the whole batch.', "out->write( 'TREN-REMOVED' )."];
+  const step6 = ['" Step 6: commit.', "COMMIT WORK AND WAIT."];
+  const step7 = [
+    '" Step 7: prove absence.',
+    `SELECT SINGLE trkorr FROM e071 INTO @lv_check WHERE trkorr = @lv_holder AND obj_name = ${nameLit}.`,
+    "IF sy-subrc = 0.",
+    `  out->write( |ZMCP-DDIC-ERR> removal of ${objectName} reported no error but a row is still there| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    "out->write( 'TREN-GONE' )."
+  ];
+  return [...step1, "", ...step2, "", ...step3, "", ...step4, "", ...step5, "", ...step6, "", ...step7];
+}
+async function removeTransportEntryViaBridge(conn, gate, params, proof) {
+  void proof;
+  const trkorr = assertTrkorr(params.trkorr, "removeTransportEntry");
+  const objectName = assertEnhIdentifier(params.objectName, "object", {
+    maxLength: 40,
+    allowNamespace: true
+  }).toUpperCase();
+  const source = ddicBridgeSource(
+    DDIC_BRIDGE_CLASS.removeTransportEntry,
+    TRANSPORT_ENTRY_REMOVE_DATA_LINES,
+    transportEntryRemoveFragment({ trkorr, objectName })
+  );
+  const beforeAssert = (transcript2) => {
+    if (transcript2.errorLine?.startsWith("no entry for")) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `No entry for ${objectName} on ${trkorr} or its tasks \u2014 nothing was removed. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { trkorr, objectName, raw: transcript2.raw }
+      );
+    }
+  };
+  const { run: run2, transcript } = await runDdicBridge(conn, gate, {
+    className: DDIC_BRIDGE_CLASS.removeTransportEntry,
+    source,
+    description: `abapsmith remove-transport-entry bridge (${objectName})`,
+    what: `Removing ${objectName} from ${trkorr}`,
+    expectTags: ["TREN-REMOVED", "TREN-GONE"],
+    beforeAssert
+  });
+  let holder = trkorr;
+  const removed = [];
+  for (const line of transcript.raw.split("\n")) {
+    const trimmed = line.trim();
+    const holderMatch = trimmed.match(/^ZMCP-TREN-HOLDER (\S+)/);
+    if (holderMatch) {
+      holder = holderMatch[1];
+      continue;
+    }
+    const rowMatch = trimmed.match(/^ZMCP-TREN-ROW (\S+) (\S+) (\S+)/);
+    if (rowMatch) removed.push({ pgmid: rowMatch[1], object: rowMatch[2], name: rowMatch[3] });
+  }
+  return { run: run2, transcript, holder, removed };
+}
+
 // src/tools/transport.ts
 var transportInputSchema = {
-  operation: external_exports.enum(["list", "show", "check", "users", "create", "addUser", "setOwner", "delete"]).describe(
-    "What to do. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm. Required args: list/users none; show transport; check object; create package+description; addUser/setOwner transport+user; delete transport+confirm."
+  operation: external_exports.enum(["list", "show", "check", "users", "create", "addUser", "setOwner", "delete", "removeObject"]).describe(
+    "What to do. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one object entry, e.g. one already deleted from the system, so its request can then be deleted) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; create package+description; addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm."
   ),
   transport: external_exports.string().optional().describe(
-    "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete."
+    "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject."
   ),
   user: external_exports.string().optional().describe(
     "User: filter for list, new member/owner otherwise. Required for operation=addUser/setOwner."
   ),
-  object: external_exports.string().optional().describe("Object name to check. Required for operation=check; optional anchor for create."),
+  object: external_exports.string().optional().describe(
+    "Object name. Required for operation=check, and for operation=removeObject (the entry to remove). Optional anchor for create."
+  ),
   package: external_exports.string().optional().describe("Development package (devclass). Required for operation=create."),
   description: external_exports.string().optional().describe("Short text for the new request, max 60 chars. Required for operation=create."),
-  confirm: external_exports.string().optional().describe("Echo the request number to arm delete.")
+  confirm: external_exports.string().optional().describe("Echo the request number to arm delete or removeObject.")
 };
 var TransportInput = external_exports.object(transportInputSchema);
 var transportReleaseInputSchema = {
@@ -102588,7 +102738,7 @@ var transportReleaseInputSchema = {
   )
 };
 var TransportReleaseInput = external_exports.object(transportReleaseInputSchema);
-var TRANSPORT_TOOL_DESCRIPTION = "Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, create, addUser, setOwner, delete. Reads are always allowed; mutating operations obey the write allowlists. Release is a separate tool, abap_transport_release.";
+var TRANSPORT_TOOL_DESCRIPTION = "Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, create, addUser, setOwner, delete, removeObject (drop one E071 entry so its request can then be deleted). Reads are always allowed; mutating operations obey the write allowlists. Release is a separate tool, abap_transport_release.";
 var TRANSPORT_RELEASE_TOOL_DESCRIPTION = "Release one CTS transport request \u2014 irreversible. Gated by a release ceiling separate from ordinary write access; see abapsmith-orient. A request this session did not create is refused unless confirm_unowned is also passed.";
 function fmtTarget(h) {
   const t = (h.target ?? "").trim();
@@ -102815,6 +102965,8 @@ async function abapTransport(conn, input, maxChars, gate, journal, ownership) {
       return await opSetOwner(conn, input, maxChars, gate, journal);
     case "delete":
       return await opDelete(conn, input, maxChars, gate, journal);
+    case "removeObject":
+      return await opRemoveObject(conn, input, maxChars, gate, journal);
   }
 }
 function categoryTitle(key) {
@@ -103271,6 +103423,90 @@ async function opDelete(conn, input, maxChars, gate, journal) {
     maxChars
   });
 }
+async function opRemoveObject(conn, input, maxChars, gate, journal) {
+  const trkorr = normTrkorr(input.transport, "removeObject");
+  const objectName = required2(input.object, "object", "removeObject").trim().toUpperCase();
+  const confirm = input.confirm;
+  if (confirm === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Removing ${objectName} from ${trkorr} is destructive. To remove, call again with confirm: "${trkorr}"`,
+      { transport: trkorr, object: objectName }
+    );
+  }
+  if (confirm.trim().toUpperCase() !== trkorr) {
+    throw new AbapError("BAD_INPUT", "confirm must echo the transport number exactly", {
+      transport: trkorr,
+      confirm
+    });
+  }
+  assertCeiling(gate, "delete", "removeObject");
+  const proof = authorizeCeiling(gate, "transport");
+  const holder = await trFindEntryHolder(conn, trkorr, objectName);
+  let res;
+  try {
+    res = await removeTransportEntryViaBridge(conn, gate, { trkorr: holder.trkorr, objectName }, proof);
+  } catch (e) {
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-remove-object",
+        trkorr: holder.trkorr,
+        description: `removeObject ${objectName} from ${holder.trkorr}`,
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: removeObjectBeforeImage(holder),
+        tool: "abap_transport removeObject"
+      },
+      { kind: "unproven", reason: e.message }
+    );
+    throw e;
+  }
+  await recordMutation(
+    journal,
+    {
+      operation: "transport-remove-object",
+      trkorr: res.holder,
+      description: `removeObject ${objectName} from ${res.holder}`,
+      existedBefore: true,
+      beforeCapture: "captured",
+      beforeSource: removeObjectBeforeImage(holder),
+      tool: "abap_transport removeObject"
+    },
+    { kind: "succeeded" }
+  );
+  const notes = [];
+  if (res.holder !== trkorr) {
+    notes.push(`${objectName} lived on ${res.holder}, a task of the request you passed (${trkorr}).`);
+  }
+  if (res.removed.length > 0) {
+    notes.push(
+      "Removed: " + res.removed.map((r) => `${r.pgmid} ${r.object} ${r.name}`).join(", ") + "."
+    );
+  }
+  notes.push(
+    `This only removes the entry \u2014 it does not say ${res.holder} is now deletable. Follow up with operation "delete" to find out.`
+  );
+  return buildResponse({
+    header: {
+      operation: "removeObject",
+      transport: trkorr,
+      holder: res.holder,
+      object: objectName,
+      removedCount: res.removed.length,
+      gone: res.transcript.tags.includes("TREN-GONE")
+    },
+    notes,
+    maxChars
+  });
+}
+function removeObjectBeforeImage(holder) {
+  return JSON.stringify({
+    trkorr: holder.trkorr,
+    requested: holder.requested,
+    rows: holder.rows.map((r) => ({ pgmid: r.pgmid, type: r.type, name: r.name, locked: r.locked }))
+  });
+}
 var LOCKED_PROBE_CAP = 10;
 async function diagnoseLockedDelete(conn, trkorr, e) {
   if (!(e instanceof AbapError) || e.code !== "TRANSPORT_LOCKED") return e;
@@ -103319,7 +103555,7 @@ function lockedDeleteHint(entries, discrepancy) {
   return prefix + lockedDeleteBaseHint(entries);
 }
 function lockedDeleteBaseHint(entries) {
-  const exits = 'The only real exits: release the request (irreversible), or in SE03 run "Unlock Objects (Expert Tool)" and then handle it by hand in SE09/SE10. abapsmith cannot remove or unlock an entry.';
+  const exits = `The only real exits: abap_transport operation "removeObject" with object = the entry's name and confirm = the request number (admin mode only); release the request (irreversible); or in SE03 run "Unlock Objects (Expert Tool)" and then handle it by hand in SE09/SE10.`;
   if (entries.length === 0) {
     return `A re-read found no locked entries, yet the server still refused the delete. ${exits} Check SE09/SE10 for this request's actual state.`;
   }
