@@ -1038,21 +1038,28 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 " +
         "ExceptionMethodNotSupported on every mutating verb — there is no REST delete route either.",
       via:
-        "DDIF_VIEW_DELETE (function group SDIC), called from a generated IF_OO_ADT_CLASSRUN " +
-        "bridge. Success is proven by re-reading DD25L after COMMIT WORK, not by a clean FM " +
-        "return alone. See src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
+        "DD_OBJ_DEL (object_type='VIEW', del_state='A' then 'N') clears DD25L, then " +
+        "TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR " +
+        "row — both called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by " +
+        "re-reading DD25L and TADIR after COMMIT WORK, not by a clean FM return alone. See " +
+        "src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
       limits:
-        "DDIF_VIEW_DELETE's parameter set is transcribed from its signature, not live-verified " +
-        "— same discipline as bridgeCreate's DDIF_VIEW_PUT recon. TADIR/transport bookkeeping " +
-        "for deleting a TRANSPORTABLE view is not attempted by abapsmith: no corrNr is accepted " +
-        "and no RS_CORR_INSERT call is generated (src/adt/view-delete.ts). Whether the FM " +
-        "performs its own CTS registration internally is unknown; the transportable delete " +
-        "path is unexercised. $TMP is no better: per bridgeCreate's own finding above, a $TMP " +
-        "create leaves the view active but unregistered in TADIR, so it carries no packageRef " +
-        "for the delete gate to accept (PACKAGE_UNKNOWN) — no live run has ever " +
-        "produced a view this delete path could act on, in any package, and abapsmith no longer " +
-        "creates one anywhere. This delete can still act on a view SOMETHING ELSE registered " +
-        "properly; it cannot clear the orphans an earlier $TMP create left behind.",
+        "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H " +
+        "2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL " +
+        "route is measured, not exhaustively verified — RS_DD_DELETE_OBJ, the obvious " +
+        "alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not " +
+        "used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an " +
+        "open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails " +
+        "sy-subrc=1 / TR022, and abapsmith does NOT clear that lock (TRINT_READ_REQUEST / " +
+        "TR_DELETE_COMM_OBJECT_KEYS is out of scope, deliberately unimplemented) — so a locked " +
+        "view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted " +
+        "(src/tools/write.ts refuses one outright), so this path cannot fully remove a view " +
+        "sitting on an open transport request. $TMP is no better: per bridgeCreate's own " +
+        "finding above, a $TMP create leaves the view active but unregistered in TADIR, so it " +
+        "carries no packageRef for the delete gate to accept (PACKAGE_UNKNOWN) — no live run " +
+        "has ever produced a view this delete path could act on, in any package, and abapsmith " +
+        "no longer creates one anywhere. This delete can still act on a view SOMETHING ELSE " +
+        "registered properly; it cannot clear the orphans an earlier $TMP create left behind.",
     },
   },
   "TRAN/T": {
@@ -1444,6 +1451,21 @@ export function writableTypesHint(): string {
  */
 export const TERMINAL_REFUSAL_NOTE =
   "Terminal for this object type — an identical retry cannot succeed.";
+
+/**
+ * A delete refusal that names `abap_write` itself as the limited party, not
+ * the object. At least three types reaching this today (ENHO/XH, ENHO/XHH,
+ * ENHS/XS) are in fact deleted live, by `abap_enh` — see
+ * `doc/CAPABILITIES/object-types.md`. "cannot be deleted" would be false for
+ * those three, so the refusal states a tool gap, never an object property.
+ */
+export function deleteUnsupportedMessage(label: string, code: string): string {
+  return (
+    `abap_write does not implement delete for ${label} (${code}). That is a gap in this tool's ` +
+    `coverage, not a property of the object — it may still be removable by other means. ` +
+    TERMINAL_REFUSAL_NOTE
+  );
+}
 
 /**
  * Walk the REAL `types.ts` `TYPES` array and throw if any `.type` code has no

@@ -458,6 +458,7 @@ import {
   isBridgeOnlyCreateType,
   isBridgeDeletableType,
   TERMINAL_REFUSAL_NOTE,
+  deleteUnsupportedMessage,
   type WriteShape,
   type CreateCapability,
 } from "./capabilities.js";
@@ -1049,6 +1050,30 @@ async function containerPackage(
 }
 
 /**
+ * The one throw site for "abap_write has no delete route for this type" —
+ * shared by the delete gate below and the writability gate, which also asks
+ * about delete when `op === "delete"` (ENHO/XH, ENHS/XS: `activate`-only,
+ * never reach the delete gate at all).
+ */
+function refuseDelete(spec: TypeSpec): never {
+  const enhancementRoute = isEnhancementType(spec.type)
+    ? ` \`abap_enh operation=delete\` removes ENHO/XH, ENHO/XHH and ENHS/XS today ` +
+      `(needs \`ABAP_ALLOW_ENHANCEMENT_DELETE=true\`).`
+    : "";
+  throw new AbapError(
+    "UNSUPPORTED",
+    deleteUnsupportedMessage(spec.label, spec.type),
+    { type: spec.type, deletable: [...DELETABLE_TYPES] },
+    `Deletable types are ${DELETABLE_TYPES.join(", ")}. See that type's REGISTRY entry in ` +
+      `src/adt/capabilities.ts for why abap_write has no delete route here — either it has never ` +
+      `been tried live, or it was tried and did not reliably work. Neither finding means the ` +
+      `object is stuck: SE80, SE11, and the type's own maintenance transaction are unaffected by ` +
+      `this refusal.${enhancementRoute}`,
+    { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+  );
+}
+
+/**
  * Resolve a write target without requiring the object to exist.
  *
  * Two phases, in this order and for a reason:
@@ -1165,6 +1190,12 @@ export async function resolveWriteTarget(
 
   const activatable = op === "activate" && ACTIVATE_ONLY.has(spec.type);
   if (!CREATABLE.has(spec.type) && !ENHANCEABLE.has(spec.type) && !activatable) {
+    // ACTIVATE_ONLY types (ENHO/XH, ENHS/XS) land here on op:"delete" too —
+    // they never reach the DELETABLE gate below, since they have no
+    // write/create at all. A delete asked about delete, and abap_enh
+    // actually deletes both, so route through the delete refusal instead
+    // of the write one.
+    if (op === "delete") refuseDelete(spec);
     throw new AbapError(
       "UNSUPPORTED",
       `${spec.label} (${spec.type}) cannot be written by abapsmith. ${TERMINAL_REFUSAL_NOTE}`,
@@ -1181,15 +1212,7 @@ export async function resolveWriteTarget(
   // `DELETABLE_TYPES` answers "REST DELETE exists"; a `bridgeDelete` type has
   // no REST route but is still deletable, via the classrun bridge.
   if (op === "delete" && !DELETABLE.has(spec.type) && !isBridgeDeletableType(spec.type)) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${spec.label} (${spec.type}) cannot be deleted by abapsmith. ${TERMINAL_REFUSAL_NOTE}`,
-      { type: spec.type, deletable: [...DELETABLE_TYPES] },
-      `Deletable types are ${DELETABLE_TYPES.join(", ")}. See that type's REGISTRY entry in ` +
-        `src/adt/capabilities.ts for why delete is refused here — either it has never been tried ` +
-        `live, or it was tried and did not reliably work.`,
-      { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-    );
+    refuseDelete(spec);
   }
 
   const name = parsed.name.toUpperCase();

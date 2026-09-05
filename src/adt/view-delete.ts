@@ -1,28 +1,28 @@
 /**
- * `VIEW/DV` (classic DDIC view) delete — `DDIF_VIEW_DELETE`, over the DDIC
- * classrun bridge.
+ * `VIEW/DV` (classic DDIC view) delete — over the DDIC classrun bridge
+ * (`IF_OO_ADT_CLASSRUN` in `$TMP`; ADT REST is GET-only for `VIEW/DV`), the
+ * route `./package-delete.ts` uses for `CL_PACKAGE_FACTORY`.
  *
- * ADT REST is GET-only for `VIEW/DV` (`./view-create.ts`'s header), so this
- * reaches the delete FM the same way `./package-delete.ts` reaches
- * `CL_PACKAGE_FACTORY`: a generated `IF_OO_ADT_CLASSRUN` class deployed to
- * `$TMP`.
+ * Live-measured on A4H, 2026-09-04, superseding an unverified route:
+ * `DDIF_VIEW_DELETE` does NOT exist here (CHECK_FAILED, function not
+ * found). What works: `DD_OBJ_DEL(object_type='VIEW', del_state='A')`
+ * clears the active version (sy-subrc=0, MC691 residue); a second call
+ * with `del_state='N'` clears any inactive one — `'L'`, matching the
+ * table's own state column, fails where `'N'` succeeds, and no inactive
+ * version is normal, so that call is deliberately NOT subrc-checked.
+ * `RS_DD_DELETE_OBJ`, the obvious alternative, MUST NOT be used: it opens
+ * a CTS dialog and short-dumps headless.
  *
- * `DDIF_VIEW_DELETE`'s parameter set and failure behaviour have not been
- * verified against a live system — both are marked `ASSUMPTION:` at their
- * point of use in {@link viewDeleteFragment}, mirroring `./view-create.ts`'s
- * own unverified-signature discipline for `DDIF_VIEW_PUT`/`DDIF_VIEW_ACTIVATE`.
- *
- * NO TRANSPORT HANDLING: no `corrNr` is accepted and no `RS_CORR_INSERT` is
- * generated. Whether deleting a transportable view needs its own CTS
- * registration, and whether `DDIF_VIEW_DELETE` performs one internally and so
- * risks the same headless-dynpro failure `./view-create.ts`'s `RS_CORR_INSERT`
- * hit live (see `./ddic-bridge.ts`'s `isHeadlessDynproFailure`),
- * is UNKNOWN and NOT modelled here. This code has not been exercised live at
- * all, for any package: `./view-create.ts`'s create never produces a
- * `packageRef`'d view — a `$TMP` create is orphaned, a
- * non-`$TMP` create is refused outright — and the safety gate
- * refuses a delete on a `packageRef`-less object before it ever reaches this
- * bridge.
+ * `DD_OBJ_DEL` never touches TADIR; `TR_TADIR_INTERFACE` does, but only
+ * with `wi_test_modus = space` — it defaults to `'X'` and silently no-ops
+ * if omitted. Under an open transport-request lock, that TADIR delete
+ * fails `sy-subrc=1` / `TR022`; clearing the lock
+ * (`TRINT_READ_REQUEST`/`TR_DELETE_COMM_OBJECT_KEYS`/`COMMIT WORK`) is a
+ * transport mechanism, deliberately NOT implemented here. NO TRANSPORT
+ * HANDLING either way: `abapDeleteViaBridge` (`src/tools/write.ts`)
+ * refuses any `corr_nr` outright, so a locked view can't be fully removed
+ * by this path. {@link viewDeleteFragment}'s last step names the TR022
+ * case instead of claiming nothing happened.
  */
 
 import type { AbapConnection } from "./connection.js";
@@ -71,6 +71,7 @@ function validate(p: ViewDeleteParams): { viewName: string } {
 export const VIEW_DELETE_DATA_LINES: readonly string[] = [
   "ls_dd25l TYPE dd25l.",
   "lv_dd25l_count TYPE i.",
+  "lv_tadir_count TYPE i.",
 ];
 
 /**
@@ -78,10 +79,10 @@ export const VIEW_DELETE_DATA_LINES: readonly string[] = [
  * for the generator/parser drift test — every `out->write( 'TAG' )` it emits
  * must be a tag `parseDdicTranscript` recognises.
  *
- * Four steps, labelled inline below, mirroring `./package-delete.ts`'s
- * discipline of never trusting a clean `sy-subrc` as proof of the mutation —
- * step 4 re-reads `DD25L` rather than returning on `DDIF_VIEW_DELETE`'s own
- * report alone.
+ * Six steps, labelled inline below: exists check, active-version delete
+ * (subrc-guarded), inactive-version delete (deliberately not guarded — see
+ * module header), TADIR removal, commit, then re-read BOTH DD25L and TADIR
+ * before the `VIEW-GONE` tag — a clean FM return is never trusted alone.
  */
 export function viewDeleteFragment(p: ViewDeleteParams): string[] {
   const { viewName } = validate(p);
@@ -97,40 +98,82 @@ export function viewDeleteFragment(p: ViewDeleteParams): string[] {
     "ENDIF.",
   ];
 
-  // ASSUMPTION: only NAME is passed — DDIF_VIEW_DELETE's full parameter set
-  // is transcribed from the FM family, not live-verified, and an unverified
-  // extra parameter risks a syntax error at bridge activation. In particular
-  // no STATE is passed — its default is exactly what step 4 needs to observe.
-  // ASSUMPTION: EXCEPTIONS OTHERS only, same discipline as
-  // ./package-delete.ts / ./ddic-bridge.ts's subrcGuardFragment doc comment —
-  // naming an exception not in the FM's real signature is a hard syntax
-  // error caught at bridge activation; OTHERS always exists.
+  // Step 2: delete the active version. DD_OBJ_DEL, not DDIF_VIEW_DELETE —
+  // the latter does not exist on A4H (measured). RS_DD_DELETE_OBJ, the
+  // obvious alternative, must NOT be used: it pops a CTS dialog and
+  // short-dumps headless.
   const step2 = [
-    '" Step 2: delete the view.',
-    "CALL FUNCTION 'DDIF_VIEW_DELETE'",
-    `  EXPORTING name = ${view}`,
-    "  EXCEPTIONS OTHERS = 1.",
-    ...subrcCheckFragment("DDIF_VIEW_DELETE", "VIEW-DELETED"),
+    '" Step 2: delete the active version.',
+    "CALL FUNCTION 'DD_OBJ_DEL'",
+    "  EXPORTING",
+    `    object_name = ${view}`,
+    "    object_type = 'VIEW'",
+    "    del_state   = 'A'",
+    "    prid        = -1",
+    "  EXCEPTIONS",
+    "    OTHERS      = 1.",
+    ...subrcCheckFragment("DD_OBJ_DEL", "VIEW-DELETED"),
+  ];
+
+  // Step 3: delete any inactive version. Deliberately NOT subrc-checked —
+  // no inactive version is the normal case, and (measured) 'L' fails here
+  // where 'N' succeeds on the same rows.
+  const step3 = [
+    '" Step 3: delete any inactive version (no inactive row is normal).',
+    "CALL FUNCTION 'DD_OBJ_DEL'",
+    "  EXPORTING",
+    `    object_name = ${view}`,
+    "    object_type = 'VIEW'",
+    "    del_state   = 'N'",
+    "    prid        = -1",
+    "  EXCEPTIONS",
+    "    OTHERS      = 1.",
+  ];
+
+  // Step 4: remove the TADIR row. wi_test_modus defaults to 'X' (test
+  // mode) — omitting it is a silent no-op that still reports success, so
+  // it is passed explicitly. Not subrc-checked here; step 6 proves the
+  // outcome by re-reading TADIR instead.
+  const step4 = [
+    '" Step 4: remove the TADIR row (wi_test_modus = space, or this no-ops).',
+    "CALL FUNCTION 'TR_TADIR_INTERFACE'",
+    "  EXPORTING",
+    "    wi_test_modus         = space",
+    "    wi_tadir_pgmid        = 'R3TR'",
+    "    wi_tadir_object       = 'VIEW'",
+    `    wi_tadir_obj_name     = ${view}`,
+    "    wi_delete_tadir_entry = 'X'",
+    "  EXCEPTIONS",
+    "    OTHERS                = 1.",
   ];
 
   // No implicit commit on classrun return — ./view-create.ts records a live
   // false-success incident caused by exactly this omission.
-  const step3 = ['" Step 3: commit.', "COMMIT WORK."];
+  const step5 = ['" Step 5: commit.', "COMMIT WORK."];
 
-  // Re-read for ANY remaining row, no AS4LOCAL/version filter: a default
-  // STATE that deletes only the inactive version is the realistic
-  // partial-delete failure this step catches.
-  const step4 = [
-    '" Step 4: re-read DD25L for any remaining row.',
+  // Step 6: re-read both DD25L and TADIR — neither call above is trusted
+  // alone. A surviving TADIR row with DD25L already clear is reported by
+  // name (most likely cause: an object lock from an open transport
+  // request, TR022) rather than as "nothing was deleted".
+  const step6 = [
+    '" Step 6: re-read DD25L, then TADIR, before declaring the view gone.',
     `SELECT COUNT( * ) FROM dd25l INTO @lv_dd25l_count WHERE viewname = ${view}.`,
     "IF lv_dd25l_count <> 0.",
     `  out->write( |ZMCP-DDIC-ERR> delete of ${viewName} reported no error but DD25L still has a row| ).`,
     "  RETURN.",
     "ENDIF.",
+    "SELECT COUNT( * ) FROM tadir INTO @lv_tadir_count " +
+      `WHERE pgmid = 'R3TR' AND object = 'VIEW' AND obj_name = ${view}.`,
+    "IF lv_tadir_count <> 0.",
+    `  out->write( |ZMCP-DDIC-ERR> ${viewName}'s DD25L rows are gone but its TADIR row remains; ` +
+      "the DD25L delete worked; likely cause is an object lock from an open transport request " +
+      "(TR022)| ).",
+    "  RETURN.",
+    "ENDIF.",
     "out->write( 'VIEW-GONE' ).",
   ];
 
-  return [...step1, "", ...step2, "", ...step3, "", ...step4];
+  return [...step1, "", ...step2, "", ...step3, "", ...step4, "", ...step5, "", ...step6];
 }
 
 // ---------------------------------------------------------------------------

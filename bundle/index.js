@@ -67314,8 +67314,8 @@ var REGISTRY = {
     },
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
-      via: "DDIF_VIEW_DELETE (function group SDIC), called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading DD25L after COMMIT WORK, not by a clean FM return alone. See src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
-      limits: "DDIF_VIEW_DELETE's parameter set is transcribed from its signature, not live-verified \u2014 same discipline as bridgeCreate's DDIF_VIEW_PUT recon. TADIR/transport bookkeeping for deleting a TRANSPORTABLE view is not attempted by abapsmith: no corrNr is accepted and no RS_CORR_INSERT call is generated (src/adt/view-delete.ts). Whether the FM performs its own CTS registration internally is unknown; the transportable delete path is unexercised. $TMP is no better: per bridgeCreate's own finding above, a $TMP create leaves the view active but unregistered in TADIR, so it carries no packageRef for the delete gate to accept (PACKAGE_UNKNOWN) \u2014 no live run has ever produced a view this delete path could act on, in any package, and abapsmith no longer creates one anywhere. This delete can still act on a view SOMETHING ELSE registered properly; it cannot clear the orphans an earlier $TMP create left behind."
+      via: "DD_OBJ_DEL (object_type='VIEW', del_state='A' then 'N') clears DD25L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading DD25L and TADIR after COMMIT WORK, not by a clean FM return alone. See src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
+      limits: "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and abapsmith does NOT clear that lock (TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS is out of scope, deliberately unimplemented) \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. $TMP is no better: per bridgeCreate's own finding above, a $TMP create leaves the view active but unregistered in TADIR, so it carries no packageRef for the delete gate to accept (PACKAGE_UNKNOWN) \u2014 no live run has ever produced a view this delete path could act on, in any package, and abapsmith no longer creates one anywhere. This delete can still act on a view SOMETHING ELSE registered properly; it cannot clear the orphans an earlier $TMP create left behind."
     }
   },
   "TRAN/T": {
@@ -67465,6 +67465,9 @@ function writableTypesHint() {
   return clauses.join(" ");
 }
 var TERMINAL_REFUSAL_NOTE = "Terminal for this object type \u2014 an identical retry cannot succeed.";
+function deleteUnsupportedMessage(label, code) {
+  return `abap_write does not implement delete for ${label} (${code}). That is a gap in this tool's coverage, not a property of the object \u2014 it may still be removable by other means. ` + TERMINAL_REFUSAL_NOTE;
+}
 function assertRegistryCoversTypes(types = TYPES) {
   const missing = types.map((t) => t.type).filter((t) => !Object.prototype.hasOwnProperty.call(REGISTRY, t));
   if (missing.length > 0) {
@@ -92437,6 +92440,17 @@ async function containerPackage(conn, spec, containerName) {
     return void 0;
   }
 }
+function refuseDelete(spec) {
+  const enhancementRoute = isEnhancementType(spec.type) ? ` \`abap_enh operation=delete\` removes ENHO/XH, ENHO/XHH and ENHS/XS today (needs \`ABAP_ALLOW_ENHANCEMENT_DELETE=true\`).` : "";
+  throw new AbapError(
+    "UNSUPPORTED",
+    deleteUnsupportedMessage(spec.label, spec.type),
+    { type: spec.type, deletable: [...DELETABLE_TYPES] },
+    `Deletable types are ${DELETABLE_TYPES.join(", ")}. See that type's REGISTRY entry in src/adt/capabilities.ts for why abap_write has no delete route here \u2014 either it has never been tried live, or it was tried and did not reliably work. Neither finding means the object is stuck: SE80, SE11, and the type's own maintenance transaction are unaffected by this refusal.${enhancementRoute}`,
+    { retryable: false }
+    // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+  );
+}
 async function resolveWriteTarget(conn, target, op = "write") {
   const explicit = target.type ? specForType(target.type) ?? specForKeyword(target.type) : void 0;
   const parsed = parseObjectRef(target.name, explicit);
@@ -92500,6 +92514,7 @@ async function resolveWriteTarget(conn, target, op = "write") {
   }
   const activatable = op === "activate" && ACTIVATE_ONLY.has(spec.type);
   if (!CREATABLE.has(spec.type) && !ENHANCEABLE.has(spec.type) && !activatable) {
+    if (op === "delete") refuseDelete(spec);
     throw new AbapError(
       "UNSUPPORTED",
       `${spec.label} (${spec.type}) cannot be written by abapsmith. ${TERMINAL_REFUSAL_NOTE}`,
@@ -92510,14 +92525,7 @@ async function resolveWriteTarget(conn, target, op = "write") {
     );
   }
   if (op === "delete" && !DELETABLE.has(spec.type) && !isBridgeDeletableType(spec.type)) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${spec.label} (${spec.type}) cannot be deleted by abapsmith. ${TERMINAL_REFUSAL_NOTE}`,
-      { type: spec.type, deletable: [...DELETABLE_TYPES] },
-      `Deletable types are ${DELETABLE_TYPES.join(", ")}. See that type's REGISTRY entry in src/adt/capabilities.ts for why delete is refused here \u2014 either it has never been tried live, or it was tried and did not reliably work.`,
-      { retryable: false }
-      // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-    );
+    refuseDelete(spec);
   }
   const name = parsed.name.toUpperCase();
   if (!isAddressableAbapObjectName(name)) {
@@ -96631,7 +96639,8 @@ function validate2(p) {
 }
 var VIEW_DELETE_DATA_LINES = [
   "ls_dd25l TYPE dd25l.",
-  "lv_dd25l_count TYPE i."
+  "lv_dd25l_count TYPE i.",
+  "lv_tadir_count TYPE i."
 ];
 function viewDeleteFragment(p) {
   const { viewName } = validate2(p);
@@ -96645,23 +96654,56 @@ function viewDeleteFragment(p) {
     "ENDIF."
   ];
   const step2 = [
-    '" Step 2: delete the view.',
-    "CALL FUNCTION 'DDIF_VIEW_DELETE'",
-    `  EXPORTING name = ${view}`,
-    "  EXCEPTIONS OTHERS = 1.",
-    ...subrcCheckFragment("DDIF_VIEW_DELETE", "VIEW-DELETED")
+    '" Step 2: delete the active version.',
+    "CALL FUNCTION 'DD_OBJ_DEL'",
+    "  EXPORTING",
+    `    object_name = ${view}`,
+    "    object_type = 'VIEW'",
+    "    del_state   = 'A'",
+    "    prid        = -1",
+    "  EXCEPTIONS",
+    "    OTHERS      = 1.",
+    ...subrcCheckFragment("DD_OBJ_DEL", "VIEW-DELETED")
   ];
-  const step3 = ['" Step 3: commit.', "COMMIT WORK."];
+  const step3 = [
+    '" Step 3: delete any inactive version (no inactive row is normal).',
+    "CALL FUNCTION 'DD_OBJ_DEL'",
+    "  EXPORTING",
+    `    object_name = ${view}`,
+    "    object_type = 'VIEW'",
+    "    del_state   = 'N'",
+    "    prid        = -1",
+    "  EXCEPTIONS",
+    "    OTHERS      = 1."
+  ];
   const step4 = [
-    '" Step 4: re-read DD25L for any remaining row.',
+    '" Step 4: remove the TADIR row (wi_test_modus = space, or this no-ops).',
+    "CALL FUNCTION 'TR_TADIR_INTERFACE'",
+    "  EXPORTING",
+    "    wi_test_modus         = space",
+    "    wi_tadir_pgmid        = 'R3TR'",
+    "    wi_tadir_object       = 'VIEW'",
+    `    wi_tadir_obj_name     = ${view}`,
+    "    wi_delete_tadir_entry = 'X'",
+    "  EXCEPTIONS",
+    "    OTHERS                = 1."
+  ];
+  const step5 = ['" Step 5: commit.', "COMMIT WORK."];
+  const step6 = [
+    '" Step 6: re-read DD25L, then TADIR, before declaring the view gone.',
     `SELECT COUNT( * ) FROM dd25l INTO @lv_dd25l_count WHERE viewname = ${view}.`,
     "IF lv_dd25l_count <> 0.",
     `  out->write( |ZMCP-DDIC-ERR> delete of ${viewName} reported no error but DD25L still has a row| ).`,
     "  RETURN.",
     "ENDIF.",
+    `SELECT COUNT( * ) FROM tadir INTO @lv_tadir_count WHERE pgmid = 'R3TR' AND object = 'VIEW' AND obj_name = ${view}.`,
+    "IF lv_tadir_count <> 0.",
+    `  out->write( |ZMCP-DDIC-ERR> ${viewName}'s DD25L rows are gone but its TADIR row remains; the DD25L delete worked; likely cause is an object lock from an open transport request (TR022)| ).`,
+    "  RETURN.",
+    "ENDIF.",
     "out->write( 'VIEW-GONE' )."
   ];
-  return [...step1, "", ...step2, "", ...step3, "", ...step4];
+  return [...step1, "", ...step2, "", ...step3, "", ...step4, "", ...step5, "", ...step6];
 }
 async function deleteClassicViewViaBridge(conn, gate, params) {
   assertServerPackage(params.packageName, `view ${params.viewName}`);
