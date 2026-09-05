@@ -42,6 +42,7 @@ import {
   trCreate,
   trCreateSearchConfiguration,
   trDelete,
+  trFindEntryHolder,
   trList,
   trRelease,
   trRequirement,
@@ -51,6 +52,7 @@ import {
   trUsers,
   type TrCreated,
   type TrDeleteResult,
+  type TrEntryHolder,
   type TrHeader,
   type TrList,
   type TrObject,
@@ -62,6 +64,10 @@ import {
   type TrStatus,
   type TrTask,
 } from "../adt/transports.js";
+import {
+  removeTransportEntryViaBridge,
+  type TransportEntryRemoveResult,
+} from "../adt/transport-entry-remove.js";
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -69,20 +75,23 @@ import {
 
 export const transportInputSchema = {
   operation: z
-    .enum(["list", "show", "check", "users", "create", "addUser", "setOwner", "delete"])
+    .enum(["list", "show", "check", "users", "create", "addUser", "setOwner", "delete", "removeObject"])
     .describe(
       "What to do. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or " +
         "legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); delete additionally needs the " +
         "admin-only transport-delete ceiling (ABAP_MODE=admin — no legacy flag grants it) and " +
-        "confirm." +
+        "confirm; removeObject (drop one object entry, e.g. one already deleted from the " +
+        "system, so its request can then be deleted) needs that same admin-only " +
+        "transport-delete ceiling and confirm." +
         " Required args: list/users none; show transport; check object; create " +
-        "package+description; addUser/setOwner transport+user; delete transport+confirm.",
+        "package+description; addUser/setOwner transport+user; delete transport+confirm; " +
+        "removeObject transport+object+confirm.",
     ),
   transport: z
     .string()
     .optional()
     .describe(
-      "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete.",
+      "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject.",
     ),
   user: z
     .string()
@@ -93,7 +102,10 @@ export const transportInputSchema = {
   object: z
     .string()
     .optional()
-    .describe("Object name to check. Required for operation=check; optional anchor for create."),
+    .describe(
+      "Object name. Required for operation=check, and for operation=removeObject (the entry " +
+        "to remove). Optional anchor for create.",
+    ),
   package: z
     .string()
     .optional()
@@ -102,7 +114,10 @@ export const transportInputSchema = {
     .string()
     .optional()
     .describe("Short text for the new request, max 60 chars. Required for operation=create."),
-  confirm: z.string().optional().describe("Echo the request number to arm delete."),
+  confirm: z
+    .string()
+    .optional()
+    .describe("Echo the request number to arm delete or removeObject."),
 };
 
 const TransportInput = z.object(transportInputSchema);
@@ -127,9 +142,9 @@ export type TransportReleaseInput = z.infer<typeof TransportReleaseInput>;
 
 export const TRANSPORT_TOOL_DESCRIPTION =
   "Inspect and manage CTS transport requests: list, show, check (does an object need a " +
-  "transport?), users, create, addUser, setOwner, delete. Reads are always allowed; " +
-  "mutating operations obey the write allowlists. Release is a separate tool, " +
-  "abap_transport_release.";
+  "transport?), users, create, addUser, setOwner, delete, removeObject (drop one E071 entry " +
+  "so its request can then be deleted). Reads are always allowed; mutating operations obey " +
+  "the write allowlists. Release is a separate tool, abap_transport_release.";
 
 export const TRANSPORT_RELEASE_TOOL_DESCRIPTION =
   "Release one CTS transport request — irreversible. Gated by a release ceiling separate " +
@@ -572,6 +587,8 @@ export async function abapTransport(
       return await opSetOwner(conn, input, maxChars, gate, journal);
     case "delete":
       return await opDelete(conn, input, maxChars, gate, journal);
+    case "removeObject":
+      return await opRemoveObject(conn, input, maxChars, gate, journal);
   }
 }
 
@@ -1259,6 +1276,117 @@ async function opDelete(
   });
 }
 
+/**
+ * Drop one E071 row (plus its CTS lock) from a request/task, so a request
+ * holding an entry for an already-deleted object can afterwards be deleted.
+ * Order matters: every refusal below (bad input, missing confirm, ceiling,
+ * NOT_FOUND) costs zero network requests, let alone mutations.
+ */
+async function opRemoveObject(
+  conn: AbapConnection,
+  input: TransportInput,
+  maxChars: number,
+  gate: SafetyGate,
+  journal?: TransportJournalDeps,
+): Promise<BuiltResponse> {
+  const trkorr = normTrkorr(input.transport, "removeObject");
+  const objectName = required(input.object, "object", "removeObject").trim().toUpperCase();
+  const confirm = input.confirm;
+  if (confirm === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Removing ${objectName} from ${trkorr} is destructive. To remove, call again with confirm: "${trkorr}"`,
+      { transport: trkorr, object: objectName },
+    );
+  }
+  if (confirm.trim().toUpperCase() !== trkorr) {
+    throw new AbapError("BAD_INPUT", "confirm must echo the transport number exactly", {
+      transport: trkorr,
+      confirm,
+    });
+  }
+  // Same admin-only allowTransportDelete ceiling as "delete": removing a CTS
+  // row is destructive and, unlike an ordinary write, not undoable.
+  assertCeiling(gate, "delete", "removeObject");
+  // "transport", not "delete" — same reasoning as opDelete's own re-check;
+  // the assertCeiling above already proved the strictly stronger condition.
+  const proof = authorizeCeiling(gate, "transport");
+  // First network call, a read: NOT_FOUND propagates unchanged, before any mutation.
+  const holder: TrEntryHolder = await trFindEntryHolder(conn, trkorr, objectName);
+  let res: TransportEntryRemoveResult;
+  try {
+    res = await removeTransportEntryViaBridge(conn, gate, { trkorr: holder.trkorr, objectName }, proof);
+  } catch (e) {
+    // The ABAP loop can fail after removing one row — a bare rethrow would
+    // leave a real mutation unrecorded.
+    await recordMutation(
+      journal,
+      {
+        operation: "transport-remove-object",
+        trkorr: holder.trkorr,
+        description: `removeObject ${objectName} from ${holder.trkorr}`,
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: removeObjectBeforeImage(holder),
+        tool: "abap_transport removeObject",
+      },
+      { kind: "unproven", reason: (e as Error).message },
+    );
+    throw e;
+  }
+  await recordMutation(
+    journal,
+    {
+      operation: "transport-remove-object",
+      trkorr: res.holder,
+      description: `removeObject ${objectName} from ${res.holder}`,
+      existedBefore: true,
+      beforeCapture: "captured",
+      beforeSource: removeObjectBeforeImage(holder),
+      tool: "abap_transport removeObject",
+    },
+    { kind: "succeeded" },
+  );
+  const notes: string[] = [];
+  if (res.holder !== trkorr) {
+    notes.push(`${objectName} lived on ${res.holder}, a task of the request you passed (${trkorr}).`);
+  }
+  if (res.removed.length > 0) {
+    notes.push(
+      "Removed: " + res.removed.map((r) => `${r.pgmid} ${r.object} ${r.name}`).join(", ") + ".",
+    );
+  }
+  notes.push(
+    `This only removes the entry — it does not say ${res.holder} is now deletable. ` +
+      'Follow up with operation "delete" to find out.',
+  );
+  return buildResponse({
+    header: {
+      operation: "removeObject",
+      transport: trkorr,
+      holder: res.holder,
+      object: objectName,
+      removedCount: res.removed.length,
+      gone: res.transcript.tags.includes("TREN-GONE"),
+    },
+    notes,
+    maxChars,
+  });
+}
+
+/**
+ * The before image for a removeObject mutation: the resolved holder and the
+ * exact E071 row(s) about to be dropped — not undoable, so this is the only
+ * record of what they were.
+ */
+function removeObjectBeforeImage(holder: TrEntryHolder): string {
+  return JSON.stringify({
+    trkorr: holder.trkorr,
+    requested: holder.requested,
+    rows: holder.rows.map((r) => ({ pgmid: r.pgmid, type: r.type, name: r.name, locked: r.locked })),
+  });
+}
+
 /** One locked-request entry plus what a re-probe found for it. */
 interface LockedEntryDiagnosis {
   pgmid: string;
@@ -1273,9 +1401,9 @@ interface LockedEntryDiagnosis {
 const LOCKED_PROBE_CAP = 10;
 
 /**
- * `trDelete` threw TRANSPORT_LOCKED. abapsmith has no call to remove or unlock
- * an entry, so the only useful thing left is to say WHICH entries
- * are locked and whether they still exist, instead of repeating false advice.
+ * `trDelete` threw TRANSPORT_LOCKED. The census below says WHICH entries are
+ * locked and whether they still exist — that's what tells the caller whether
+ * `removeObject` is the right next move, instead of repeating false advice.
  * Any other error, or a re-read that itself fails, passes `e` through unchanged.
  */
 async function diagnoseLockedDelete(conn: AbapConnection, trkorr: string, e: unknown): Promise<unknown> {
@@ -1343,9 +1471,10 @@ function lockedDeleteHint(entries: LockedEntryDiagnosis[], discrepancy?: string)
 
 function lockedDeleteBaseHint(entries: LockedEntryDiagnosis[]): string {
   const exits =
-    "The only real exits: release the request (irreversible), or in SE03 run \"Unlock Objects " +
-    "(Expert Tool)\" and then handle it by hand in SE09/SE10. abapsmith cannot remove or unlock " +
-    "an entry.";
+    "The only real exits: abap_transport " +
+    "operation \"removeObject\" with object = the entry's name and confirm = the request " +
+    "number (admin mode only); release the request (irreversible); or in SE03 run " +
+    "\"Unlock Objects (Expert Tool)\" and then handle it by hand in SE09/SE10.";
   if (entries.length === 0) {
     return `A re-read found no locked entries, yet the server still refused the delete. ${exits} Check SE09/SE10 for this request's actual state.`;
   }

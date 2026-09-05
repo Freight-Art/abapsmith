@@ -173,6 +173,8 @@ describe("abap_transport operation param: required-argument map", () => {
     expect(desc).toContain("create package+description");
     expect(desc).toContain("addUser/setOwner transport+user");
     expect(desc).toContain("delete transport+confirm");
+    expect(desc).toContain("removeObject transport+object+confirm");
+    expect(desc).toMatch(/removeObject.*admin-only.*confirm/s);
   });
 });
 
@@ -1019,8 +1021,10 @@ describe("abap_transport operation: delete", () => {
 // ---------------------------------------------------------------------------
 // abap_transport delete: TRANSPORT_LOCKED diagnosis
 //
-// abapsmith has no entry-removal/unlock call. The 400 fixture below names
-// the CHILD TASK A4HK900118, not the A4HK900117 that was actually passed.
+// abapsmith can now remove one locked entry (operation "removeObject"), but
+// there is still no way to unlock one without removing it. The 400 fixture
+// below names the CHILD TASK A4HK900118, not the A4HK900117 that was
+// actually passed.
 // ---------------------------------------------------------------------------
 
 describe("abap_transport operation: delete — locked-entry diagnosis", () => {
@@ -1070,6 +1074,8 @@ describe("abap_transport operation: delete — locked-entry diagnosis", () => {
     expect(err.hint).toMatch(/leftover/i);
     expect(err.hint).not.toMatch(/remove the locked objects/i);
     expect(err.hint).not.toMatch(/delete the owning task first/i);
+    expect(err.hint).not.toMatch(/cannot remove or unlock an entry/i);
+    expect(err.hint).toContain('abap_transport operation "removeObject"');
     expect(err.details?.entries).toEqual([
       expect.objectContaining({ name: "ZMCP_CTS_PROBE", locked: true, object: "absent" }),
     ]);

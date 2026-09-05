@@ -59,6 +59,7 @@ export const DDIC_BRIDGE_CLASS = {
   deletePackage: "ZCL_ZMCP_DDIC_DPKG",
   deleteView: "ZCL_ZMCP_DDIC_DVIEW",
   deleteTransaction: "ZCL_ZMCP_DDIC_DTRAN",
+  removeTransportEntry: "ZCL_ZMCP_DDIC_TREN",
 } as const;
 
 /** Prefix of the line the generated `CATCH cx_root` handler — and every explicit `sy-subrc` check — writes. */
@@ -82,6 +83,9 @@ export const DDIC_TAGS = [
   "VIEW-GONE",
   "TRAN-DELETED",
   "TRAN-GONE",
+  // transport-entry-remove bridge:
+  "TREN-REMOVED",
+  "TREN-GONE",
 ] as const;
 export type DdicTag = (typeof DDIC_TAGS)[number];
 

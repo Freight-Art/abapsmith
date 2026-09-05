@@ -11,14 +11,27 @@ exemption requests, contact-person lookup and check documentation are
 deliberately absent: an agent that can request an ATC exemption is an agent
 that can silence a finding instead of fixing it.
 
-**No removing or unlocking a locked object entry from a transport request.**
-CTS keeps an object entry locked to its request until the request is
-released — deleting the object does not clear the entry, and the child task
-refuses the same delete for the same reason: `abap_transport
-operation=delete` returns `TRANSPORT_LOCKED` on both. ADT's Transport
-Organizer offers a "Remove Locked Object" action; abapsmith does not
-implement it, because its wire contract is unverified and a guessed mutating
-CTS call is not something to ship.
+**Removing one locked object entry from a transport request — implemented,
+narrowly; unlocking one without removing it is not.** CTS keeps an object
+entry locked to its request until the request is released — deleting the
+object does not clear the entry, and the child task refuses the same delete
+for the same reason: `abap_transport operation=delete` returns
+`TRANSPORT_LOCKED` on both. `abap_transport operation=removeObject`
+(admin-only ceiling, same as `delete`, plus `confirm`) now drops one such
+entry's E071 row(s) and CTS lock. It does not use ADT's Transport Organizer
+`removeobject` link (see below) — instead it reaches CTS's own backend the
+way `tran-delete`/`view-delete` do, through a generated `$TMP` classrun
+calling `TRINT_READ_REQUEST` to find the row and `TR_DELETE_COMM_OBJECT_KEYS`
+(`is_e071_delete`, `iv_dialog_flag = space`) to remove it, then
+`COMMIT WORK`. This exact route ran live on A4H on 2026-09-04: `sy-subrc = 0`,
+the lock cleared, and a subsequent request delete succeeded.
+
+Still missing: the ADT `removeobject` link's own verb and body remain
+unverified and are not used — a guessed mutating CTS call is not something to
+ship. There is still no way to *unlock* an entry without removing it — no
+equivalent of `lockobject`'s inverse exists. And the classrun route has only
+been proven live for the one object type removed in the 2026-09-04 run; it
+has not been exercised against every object type CTS can lock.
 
 Confirmed across the fixtures in `test/fixtures/cts/`: every `tm:abap_object`
 carries a `removeobject` link (title "Transport Organizer Remove Locked
@@ -30,12 +43,16 @@ request (`A4HK900125`) for entries under the request, the task (`A4HK900126`)
 for the one under the task. Read the TRKORR off the link itself — never
 derive it from the request queried. Missing: the verb and body — no
 `objectentries` sub-resource in ADT's discovery document, no entry removal in
-abap-adt-api. Establishing the contract needs live probing of a mutating CTS
-call.
+abap-adt-api. Establishing that contract would still need live probing of a
+mutating CTS call — `operation=removeObject` sidesteps it rather than
+resolving it.
 
-The only way to clear such a request is to release it (irreversible) or
-unlock it by hand in SAPGUI (SE03 "Unlock Objects (Expert Tool)", then
-SE09/SE10 to delete). This is a real cost of ordinary sessions: with
+The ways to clear such a request now: `abap_transport operation=removeObject`
+for one entry at a time (admin mode, irreversible, does not itself prove the
+request becomes deletable — follow up with `operation=delete`), release the
+request (also irreversible), or unlock it by hand in SAPGUI (SE03 "Unlock
+Objects (Expert Tool)", then SE09/SE10 to delete). This is a real cost of
+ordinary sessions: with
 `ABAP_ALLOW_PACKAGES` defaulting to `["*"]`, an ordinary write
 auto-creates a request only when it cannot adopt an existing one — a
 modifiable workbench request owned by the connected user with an

@@ -538,15 +538,23 @@ describe("trDelete: real refusals do throw", () => {
 
     // Regression guard: TRANSPORT_LOCKED must keep its own specific hint,
     // untouched by the generic TRANSPORT_ERROR fallback hint added for the
-    // unclassified-error case. The OLD hint ("release or remove the locked
-    // objects, or delete the owning task first") was false — abapsmith has no such call.
+    // unclassified-error case. The very old hint ("release or remove the locked
+    // objects, or delete the owning task first") was false — abapsmith had no such call.
+    // This is `trDelete`'s own raw hint (ctsError in src/adt/transports.ts); it now
+    // names operation "removeObject" as the first real exit, since that call landed.
+    // The tool layer's own hint, built by `diagnoseLockedDelete`/`lockedDeleteBaseHint`
+    // in src/tools/transport.ts and exercised via `abapTransport` in
+    // test/transport-tools.test.ts, enriches this further with a discrepancy prefix
+    // and per-entry present/absent detail.
     const caught = await trDelete(conn, "A4HK900117", deleteProof).catch((e: unknown) => e);
     expect(caught).toMatchObject({
       code: "TRANSPORT_LOCKED",
       message: expect.stringContaining("locked objects"),
-      hint: expect.stringContaining("abapsmith has no call to remove or unlock a locked entry"),
+      hint: expect.stringContaining('operation "removeObject"'),
     });
     const hint = (caught as { hint?: string }).hint ?? "";
+    expect(hint).toMatch(/may be a child task/i);
+    expect(hint).not.toMatch(/abapsmith has no call/i);
     expect(hint).not.toMatch(/delete the owning task first/i);
     expect(hint).not.toMatch(/release or remove the locked objects/i);
 
