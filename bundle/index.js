@@ -48,9 +48,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// ../../abap-mcp/node_modules/fast-xml-parser/lib/fxp.cjs
+// node_modules/fast-xml-parser/lib/fxp.cjs
 var require_fxp = __commonJS({
-  "../../abap-mcp/node_modules/fast-xml-parser/lib/fxp.cjs"(exports2, module) {
+  "node_modules/fast-xml-parser/lib/fxp.cjs"(exports2, module) {
     (() => {
       "use strict";
       var t = { d: (e2, i2) => {
@@ -1770,9 +1770,9 @@ var require_fxp = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/function.js
+// node_modules/fp-ts/lib/function.js
 var require_function = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/function.js"(exports2) {
+  "node_modules/fp-ts/lib/function.js"(exports2) {
     "use strict";
     var __spreadArray = exports2 && exports2.__spreadArray || function(to, from, pack) {
       if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
@@ -2059,9 +2059,9 @@ var require_function = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/internal.js
+// node_modules/fp-ts/lib/internal.js
 var require_internal = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/internal.js"(exports2) {
+  "node_modules/fp-ts/lib/internal.js"(exports2) {
     "use strict";
     var __spreadArray = exports2 && exports2.__spreadArray || function(to, from, pack) {
       if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
@@ -2200,9 +2200,9 @@ var require_internal = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Apply.js
+// node_modules/fp-ts/lib/Apply.js
 var require_Apply = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Apply.js"(exports2) {
+  "node_modules/fp-ts/lib/Apply.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -2444,9 +2444,9 @@ var require_Apply = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Functor.js
+// node_modules/fp-ts/lib/Functor.js
 var require_Functor = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Functor.js"(exports2) {
+  "node_modules/fp-ts/lib/Functor.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.map = map2;
@@ -2519,9 +2519,9 @@ var require_Functor = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Applicative.js
+// node_modules/fp-ts/lib/Applicative.js
 var require_Applicative = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Applicative.js"(exports2) {
+  "node_modules/fp-ts/lib/Applicative.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getApplicativeMonoid = getApplicativeMonoid;
@@ -2554,9 +2554,9 @@ var require_Applicative = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Chain.js
+// node_modules/fp-ts/lib/Chain.js
 var require_Chain = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Chain.js"(exports2) {
+  "node_modules/fp-ts/lib/Chain.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.chainFirst = chainFirst;
@@ -2594,9 +2594,9 @@ var require_Chain = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/ChainRec.js
+// node_modules/fp-ts/lib/ChainRec.js
 var require_ChainRec = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/ChainRec.js"(exports2) {
+  "node_modules/fp-ts/lib/ChainRec.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.tailRec = void 0;
@@ -2611,9 +2611,9 @@ var require_ChainRec = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/FromEither.js
+// node_modules/fp-ts/lib/FromEither.js
 var require_FromEither = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/FromEither.js"(exports2) {
+  "node_modules/fp-ts/lib/FromEither.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -2729,9 +2729,9 @@ var require_FromEither = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Separated.js
+// node_modules/fp-ts/lib/Separated.js
 var require_Separated = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Separated.js"(exports2) {
+  "node_modules/fp-ts/lib/Separated.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.right = exports2.left = exports2.flap = exports2.Functor = exports2.Bifunctor = exports2.URI = exports2.bimap = exports2.mapLeft = exports2.map = exports2.separated = void 0;
@@ -2790,9 +2790,9 @@ var require_Separated = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Witherable.js
+// node_modules/fp-ts/lib/Witherable.js
 var require_Witherable = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Witherable.js"(exports2) {
+  "node_modules/fp-ts/lib/Witherable.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -2859,9 +2859,9 @@ var require_Witherable = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Either.js
+// node_modules/fp-ts/lib/Either.js
 var require_Either = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Either.js"(exports2) {
+  "node_modules/fp-ts/lib/Either.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -3469,9 +3469,9 @@ var require_Either = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/io-ts/lib/index.js
+// node_modules/io-ts/lib/index.js
 var require_lib = __commonJS({
-  "../../abap-mcp/node_modules/io-ts/lib/index.js"(exports2) {
+  "node_modules/io-ts/lib/index.js"(exports2) {
     "use strict";
     var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
@@ -4909,9 +4909,9 @@ var require_lib = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/html-entities/dist/commonjs/named-references.js
+// node_modules/html-entities/dist/commonjs/named-references.js
 var require_named_references = __commonJS({
-  "../../abap-mcp/node_modules/html-entities/dist/commonjs/named-references.js"(exports2) {
+  "node_modules/html-entities/dist/commonjs/named-references.js"(exports2) {
     "use strict";
     var __assign = exports2 && exports2.__assign || function() {
       __assign = Object.assign || function(t) {
@@ -4961,9 +4961,9 @@ var require_named_references = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/html-entities/dist/commonjs/numeric-unicode-map.js
+// node_modules/html-entities/dist/commonjs/numeric-unicode-map.js
 var require_numeric_unicode_map = __commonJS({
-  "../../abap-mcp/node_modules/html-entities/dist/commonjs/numeric-unicode-map.js"(exports2) {
+  "node_modules/html-entities/dist/commonjs/numeric-unicode-map.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.numericUnicodeMap = void 0;
@@ -5000,9 +5000,9 @@ var require_numeric_unicode_map = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/html-entities/dist/commonjs/surrogate-pairs.js
+// node_modules/html-entities/dist/commonjs/surrogate-pairs.js
 var require_surrogate_pairs = __commonJS({
-  "../../abap-mcp/node_modules/html-entities/dist/commonjs/surrogate-pairs.js"(exports2) {
+  "node_modules/html-entities/dist/commonjs/surrogate-pairs.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.highSurrogateTo = exports2.highSurrogateFrom = exports2.getCodePoint = exports2.fromCodePoint = void 0;
@@ -5019,9 +5019,9 @@ var require_surrogate_pairs = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/html-entities/dist/commonjs/index.js
+// node_modules/html-entities/dist/commonjs/index.js
 var require_commonjs = __commonJS({
-  "../../abap-mcp/node_modules/html-entities/dist/commonjs/index.js"(exports2) {
+  "node_modules/html-entities/dist/commonjs/index.js"(exports2) {
     "use strict";
     var __assign = exports2 && exports2.__assign || function() {
       __assign = Object.assign || function(t) {
@@ -5142,9 +5142,9 @@ var require_commonjs = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/utilities.js
+// node_modules/abap-adt-api/build/utilities.js
 var require_utilities = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/utilities.js"(exports2) {
+  "node_modules/abap-adt-api/build/utilities.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -5367,9 +5367,9 @@ var require_utilities = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Eq.js
+// node_modules/fp-ts/lib/Eq.js
 var require_Eq = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Eq.js"(exports2) {
+  "node_modules/fp-ts/lib/Eq.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.eqDate = exports2.eqNumber = exports2.eqString = exports2.eqBoolean = exports2.eq = exports2.strictEqual = exports2.getStructEq = exports2.getTupleEq = exports2.Contravariant = exports2.getMonoid = exports2.getSemigroup = exports2.eqStrict = exports2.URI = exports2.contramap = exports2.tuple = exports2.struct = exports2.fromEquals = void 0;
@@ -5463,9 +5463,9 @@ var require_Eq = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/These.js
+// node_modules/fp-ts/lib/These.js
 var require_These = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/These.js"(exports2) {
+  "node_modules/fp-ts/lib/These.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -5862,9 +5862,9 @@ var require_These = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Ord.js
+// node_modules/fp-ts/lib/Ord.js
 var require_Ord = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Ord.js"(exports2) {
+  "node_modules/fp-ts/lib/Ord.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ordDate = exports2.ordNumber = exports2.ordString = exports2.ordBoolean = exports2.ord = exports2.getDualOrd = exports2.getTupleOrd = exports2.between = exports2.clamp = exports2.max = exports2.min = exports2.geq = exports2.leq = exports2.gt = exports2.lt = exports2.equals = exports2.trivial = exports2.Contravariant = exports2.getMonoid = exports2.getSemigroup = exports2.URI = exports2.contramap = exports2.reverse = exports2.tuple = exports2.fromCompare = exports2.equalsDefault = void 0;
@@ -6034,9 +6034,9 @@ var require_Ord = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Magma.js
+// node_modules/fp-ts/lib/Magma.js
 var require_Magma = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Magma.js"(exports2) {
+  "node_modules/fp-ts/lib/Magma.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.concatAll = exports2.endo = exports2.filterSecond = exports2.filterFirst = exports2.reverse = void 0;
@@ -6091,9 +6091,9 @@ var require_Magma = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Semigroup.js
+// node_modules/fp-ts/lib/Semigroup.js
 var require_Semigroup = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Semigroup.js"(exports2) {
+  "node_modules/fp-ts/lib/Semigroup.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -6251,9 +6251,9 @@ var require_Semigroup = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/ReadonlyNonEmptyArray.js
+// node_modules/fp-ts/lib/ReadonlyNonEmptyArray.js
 var require_ReadonlyNonEmptyArray = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/ReadonlyNonEmptyArray.js"(exports2) {
+  "node_modules/fp-ts/lib/ReadonlyNonEmptyArray.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -7038,9 +7038,9 @@ var require_ReadonlyNonEmptyArray = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/NonEmptyArray.js
+// node_modules/fp-ts/lib/NonEmptyArray.js
 var require_NonEmptyArray = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/NonEmptyArray.js"(exports2) {
+  "node_modules/fp-ts/lib/NonEmptyArray.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -7751,9 +7751,9 @@ var require_NonEmptyArray = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/number.js
+// node_modules/fp-ts/lib/number.js
 var require_number = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/number.js"(exports2) {
+  "node_modules/fp-ts/lib/number.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Field = exports2.MonoidProduct = exports2.MonoidSum = exports2.SemigroupProduct = exports2.SemigroupSum = exports2.MagmaSub = exports2.Show = exports2.Bounded = exports2.Ord = exports2.Eq = exports2.isNumber = void 0;
@@ -7825,9 +7825,9 @@ var require_number = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Zero.js
+// node_modules/fp-ts/lib/Zero.js
 var require_Zero = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Zero.js"(exports2) {
+  "node_modules/fp-ts/lib/Zero.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.guard = guard;
@@ -7839,9 +7839,9 @@ var require_Zero = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/ReadonlyArray.js
+// node_modules/fp-ts/lib/ReadonlyArray.js
 var require_ReadonlyArray = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/ReadonlyArray.js"(exports2) {
+  "node_modules/fp-ts/lib/ReadonlyArray.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -9114,9 +9114,9 @@ var require_ReadonlyArray = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Array.js
+// node_modules/fp-ts/lib/Array.js
 var require_Array = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Array.js"(exports2) {
+  "node_modules/fp-ts/lib/Array.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -10152,9 +10152,9 @@ var require_Array = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Predicate.js
+// node_modules/fp-ts/lib/Predicate.js
 var require_Predicate = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Predicate.js"(exports2) {
+  "node_modules/fp-ts/lib/Predicate.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.and = exports2.or = exports2.not = exports2.Contravariant = exports2.getMonoidAll = exports2.getSemigroupAll = exports2.getMonoidAny = exports2.getSemigroupAny = exports2.URI = exports2.contramap = void 0;
@@ -10228,9 +10228,9 @@ var require_Predicate = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Option.js
+// node_modules/fp-ts/lib/Option.js
 var require_Option = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Option.js"(exports2) {
+  "node_modules/fp-ts/lib/Option.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -10772,9 +10772,9 @@ var require_Option = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/string.js
+// node_modules/fp-ts/lib/string.js
 var require_string = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/string.js"(exports2) {
+  "node_modules/fp-ts/lib/string.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.endsWith = exports2.startsWith = exports2.includes = exports2.split = exports2.size = exports2.isEmpty = exports2.slice = exports2.trimRight = exports2.trimLeft = exports2.trim = exports2.replace = exports2.toLowerCase = exports2.toUpperCase = exports2.isString = exports2.Show = exports2.Ord = exports2.Monoid = exports2.empty = exports2.Semigroup = exports2.Eq = void 0;
@@ -10877,9 +10877,9 @@ var require_string = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/ReadonlyRecord.js
+// node_modules/fp-ts/lib/ReadonlyRecord.js
 var require_ReadonlyRecord = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/ReadonlyRecord.js"(exports2) {
+  "node_modules/fp-ts/lib/ReadonlyRecord.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -11912,9 +11912,9 @@ var require_ReadonlyRecord = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/Record.js
+// node_modules/fp-ts/lib/Record.js
 var require_Record = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/Record.js"(exports2) {
+  "node_modules/fp-ts/lib/Record.js"(exports2) {
     "use strict";
     var __assign = exports2 && exports2.__assign || function() {
       __assign = Object.assign || function(t) {
@@ -12472,9 +12472,9 @@ var require_Record = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fp-ts/lib/pipeable.js
+// node_modules/fp-ts/lib/pipeable.js
 var require_pipeable = __commonJS({
-  "../../abap-mcp/node_modules/fp-ts/lib/pipeable.js"(exports2) {
+  "node_modules/fp-ts/lib/pipeable.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.pipe = void 0;
@@ -12832,9 +12832,9 @@ var require_pipeable = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/io-ts-reporters/target/src/utils.js
+// node_modules/io-ts-reporters/target/src/utils.js
 var require_utils = __commonJS({
-  "../../abap-mcp/node_modules/io-ts-reporters/target/src/utils.js"(exports2) {
+  "node_modules/io-ts-reporters/target/src/utils.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.takeUntil = void 0;
@@ -12854,9 +12854,9 @@ var require_utils = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/io-ts-reporters/target/src/index.js
+// node_modules/io-ts-reporters/target/src/index.js
 var require_src = __commonJS({
-  "../../abap-mcp/node_modules/io-ts-reporters/target/src/index.js"(exports2) {
+  "node_modules/io-ts-reporters/target/src/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.reporter = exports2.formatValidationErrors = exports2.formatValidationError = exports2.TYPE_MAX_LEN = void 0;
@@ -12972,9 +12972,9 @@ var require_src = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/AdtException.js
+// node_modules/abap-adt-api/build/AdtException.js
 var require_AdtException = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/AdtException.js"(exports2) {
+  "node_modules/abap-adt-api/build/AdtException.js"(exports2) {
     "use strict";
     var __importDefault = exports2 && exports2.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -13166,9 +13166,9 @@ var require_AdtException = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/delayed-stream/lib/delayed_stream.js
+// node_modules/delayed-stream/lib/delayed_stream.js
 var require_delayed_stream = __commonJS({
-  "../../abap-mcp/node_modules/delayed-stream/lib/delayed_stream.js"(exports2, module) {
+  "node_modules/delayed-stream/lib/delayed_stream.js"(exports2, module) {
     var Stream = __require("stream").Stream;
     var util2 = __require("util");
     module.exports = DelayedStream;
@@ -13257,9 +13257,9 @@ var require_delayed_stream = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/combined-stream/lib/combined_stream.js
+// node_modules/combined-stream/lib/combined_stream.js
 var require_combined_stream = __commonJS({
-  "../../abap-mcp/node_modules/combined-stream/lib/combined_stream.js"(exports2, module) {
+  "node_modules/combined-stream/lib/combined_stream.js"(exports2, module) {
     var util2 = __require("util");
     var Stream = __require("stream").Stream;
     var DelayedStream = require_delayed_stream();
@@ -13426,9 +13426,9 @@ var require_combined_stream = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/form-data/node_modules/mime-db/db.json
+// node_modules/form-data/node_modules/mime-db/db.json
 var require_db = __commonJS({
-  "../../abap-mcp/node_modules/form-data/node_modules/mime-db/db.json"(exports2, module) {
+  "node_modules/form-data/node_modules/mime-db/db.json"(exports2, module) {
     module.exports = {
       "application/1d-interleaved-parityfec": {
         source: "iana"
@@ -21951,16 +21951,16 @@ var require_db = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/form-data/node_modules/mime-db/index.js
+// node_modules/form-data/node_modules/mime-db/index.js
 var require_mime_db = __commonJS({
-  "../../abap-mcp/node_modules/form-data/node_modules/mime-db/index.js"(exports2, module) {
+  "node_modules/form-data/node_modules/mime-db/index.js"(exports2, module) {
     module.exports = require_db();
   }
 });
 
-// ../../abap-mcp/node_modules/form-data/node_modules/mime-types/index.js
+// node_modules/form-data/node_modules/mime-types/index.js
 var require_mime_types = __commonJS({
-  "../../abap-mcp/node_modules/form-data/node_modules/mime-types/index.js"(exports2) {
+  "node_modules/form-data/node_modules/mime-types/index.js"(exports2) {
     "use strict";
     var db = require_mime_db();
     var extname = __require("path").extname;
@@ -22048,9 +22048,9 @@ var require_mime_types = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/lib/defer.js
+// node_modules/asynckit/lib/defer.js
 var require_defer = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/lib/defer.js"(exports2, module) {
+  "node_modules/asynckit/lib/defer.js"(exports2, module) {
     module.exports = defer;
     function defer(fn) {
       var nextTick = typeof setImmediate == "function" ? setImmediate : typeof process == "object" && typeof process.nextTick == "function" ? process.nextTick : null;
@@ -22063,9 +22063,9 @@ var require_defer = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/lib/async.js
+// node_modules/asynckit/lib/async.js
 var require_async = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/lib/async.js"(exports2, module) {
+  "node_modules/asynckit/lib/async.js"(exports2, module) {
     var defer = require_defer();
     module.exports = async;
     function async(callback) {
@@ -22086,9 +22086,9 @@ var require_async = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/lib/abort.js
+// node_modules/asynckit/lib/abort.js
 var require_abort = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/lib/abort.js"(exports2, module) {
+  "node_modules/asynckit/lib/abort.js"(exports2, module) {
     module.exports = abort;
     function abort(state) {
       Object.keys(state.jobs).forEach(clean.bind(state));
@@ -22102,9 +22102,9 @@ var require_abort = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/lib/iterate.js
+// node_modules/asynckit/lib/iterate.js
 var require_iterate = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/lib/iterate.js"(exports2, module) {
+  "node_modules/asynckit/lib/iterate.js"(exports2, module) {
     var async = require_async();
     var abort = require_abort();
     module.exports = iterate;
@@ -22135,9 +22135,9 @@ var require_iterate = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/lib/state.js
+// node_modules/asynckit/lib/state.js
 var require_state = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/lib/state.js"(exports2, module) {
+  "node_modules/asynckit/lib/state.js"(exports2, module) {
     module.exports = state;
     function state(list5, sortMethod) {
       var isNamedList = !Array.isArray(list5), initState = {
@@ -22157,9 +22157,9 @@ var require_state = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/lib/terminator.js
+// node_modules/asynckit/lib/terminator.js
 var require_terminator = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/lib/terminator.js"(exports2, module) {
+  "node_modules/asynckit/lib/terminator.js"(exports2, module) {
     var abort = require_abort();
     var async = require_async();
     module.exports = terminator;
@@ -22174,9 +22174,9 @@ var require_terminator = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/parallel.js
+// node_modules/asynckit/parallel.js
 var require_parallel = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/parallel.js"(exports2, module) {
+  "node_modules/asynckit/parallel.js"(exports2, module) {
     var iterate = require_iterate();
     var initState = require_state();
     var terminator = require_terminator();
@@ -22201,9 +22201,9 @@ var require_parallel = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/serialOrdered.js
+// node_modules/asynckit/serialOrdered.js
 var require_serialOrdered = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/serialOrdered.js"(exports2, module) {
+  "node_modules/asynckit/serialOrdered.js"(exports2, module) {
     var iterate = require_iterate();
     var initState = require_state();
     var terminator = require_terminator();
@@ -22235,9 +22235,9 @@ var require_serialOrdered = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/serial.js
+// node_modules/asynckit/serial.js
 var require_serial = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/serial.js"(exports2, module) {
+  "node_modules/asynckit/serial.js"(exports2, module) {
     var serialOrdered = require_serialOrdered();
     module.exports = serial;
     function serial(list5, iterator, callback) {
@@ -22246,9 +22246,9 @@ var require_serial = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/asynckit/index.js
+// node_modules/asynckit/index.js
 var require_asynckit = __commonJS({
-  "../../abap-mcp/node_modules/asynckit/index.js"(exports2, module) {
+  "node_modules/asynckit/index.js"(exports2, module) {
     module.exports = {
       parallel: require_parallel(),
       serial: require_serial(),
@@ -22257,121 +22257,121 @@ var require_asynckit = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/es-object-atoms/index.js
+// node_modules/es-object-atoms/index.js
 var require_es_object_atoms = __commonJS({
-  "../../abap-mcp/node_modules/es-object-atoms/index.js"(exports2, module) {
+  "node_modules/es-object-atoms/index.js"(exports2, module) {
     "use strict";
     module.exports = Object;
   }
 });
 
-// ../../abap-mcp/node_modules/es-errors/index.js
+// node_modules/es-errors/index.js
 var require_es_errors = __commonJS({
-  "../../abap-mcp/node_modules/es-errors/index.js"(exports2, module) {
+  "node_modules/es-errors/index.js"(exports2, module) {
     "use strict";
     module.exports = Error;
   }
 });
 
-// ../../abap-mcp/node_modules/es-errors/eval.js
+// node_modules/es-errors/eval.js
 var require_eval = __commonJS({
-  "../../abap-mcp/node_modules/es-errors/eval.js"(exports2, module) {
+  "node_modules/es-errors/eval.js"(exports2, module) {
     "use strict";
     module.exports = EvalError;
   }
 });
 
-// ../../abap-mcp/node_modules/es-errors/range.js
+// node_modules/es-errors/range.js
 var require_range = __commonJS({
-  "../../abap-mcp/node_modules/es-errors/range.js"(exports2, module) {
+  "node_modules/es-errors/range.js"(exports2, module) {
     "use strict";
     module.exports = RangeError;
   }
 });
 
-// ../../abap-mcp/node_modules/es-errors/ref.js
+// node_modules/es-errors/ref.js
 var require_ref = __commonJS({
-  "../../abap-mcp/node_modules/es-errors/ref.js"(exports2, module) {
+  "node_modules/es-errors/ref.js"(exports2, module) {
     "use strict";
     module.exports = ReferenceError;
   }
 });
 
-// ../../abap-mcp/node_modules/es-errors/syntax.js
+// node_modules/es-errors/syntax.js
 var require_syntax = __commonJS({
-  "../../abap-mcp/node_modules/es-errors/syntax.js"(exports2, module) {
+  "node_modules/es-errors/syntax.js"(exports2, module) {
     "use strict";
     module.exports = SyntaxError;
   }
 });
 
-// ../../abap-mcp/node_modules/es-errors/type.js
+// node_modules/es-errors/type.js
 var require_type = __commonJS({
-  "../../abap-mcp/node_modules/es-errors/type.js"(exports2, module) {
+  "node_modules/es-errors/type.js"(exports2, module) {
     "use strict";
     module.exports = TypeError;
   }
 });
 
-// ../../abap-mcp/node_modules/es-errors/uri.js
+// node_modules/es-errors/uri.js
 var require_uri = __commonJS({
-  "../../abap-mcp/node_modules/es-errors/uri.js"(exports2, module) {
+  "node_modules/es-errors/uri.js"(exports2, module) {
     "use strict";
     module.exports = URIError;
   }
 });
 
-// ../../abap-mcp/node_modules/math-intrinsics/abs.js
+// node_modules/math-intrinsics/abs.js
 var require_abs = __commonJS({
-  "../../abap-mcp/node_modules/math-intrinsics/abs.js"(exports2, module) {
+  "node_modules/math-intrinsics/abs.js"(exports2, module) {
     "use strict";
     module.exports = Math.abs;
   }
 });
 
-// ../../abap-mcp/node_modules/math-intrinsics/floor.js
+// node_modules/math-intrinsics/floor.js
 var require_floor = __commonJS({
-  "../../abap-mcp/node_modules/math-intrinsics/floor.js"(exports2, module) {
+  "node_modules/math-intrinsics/floor.js"(exports2, module) {
     "use strict";
     module.exports = Math.floor;
   }
 });
 
-// ../../abap-mcp/node_modules/math-intrinsics/max.js
+// node_modules/math-intrinsics/max.js
 var require_max = __commonJS({
-  "../../abap-mcp/node_modules/math-intrinsics/max.js"(exports2, module) {
+  "node_modules/math-intrinsics/max.js"(exports2, module) {
     "use strict";
     module.exports = Math.max;
   }
 });
 
-// ../../abap-mcp/node_modules/math-intrinsics/min.js
+// node_modules/math-intrinsics/min.js
 var require_min = __commonJS({
-  "../../abap-mcp/node_modules/math-intrinsics/min.js"(exports2, module) {
+  "node_modules/math-intrinsics/min.js"(exports2, module) {
     "use strict";
     module.exports = Math.min;
   }
 });
 
-// ../../abap-mcp/node_modules/math-intrinsics/pow.js
+// node_modules/math-intrinsics/pow.js
 var require_pow = __commonJS({
-  "../../abap-mcp/node_modules/math-intrinsics/pow.js"(exports2, module) {
+  "node_modules/math-intrinsics/pow.js"(exports2, module) {
     "use strict";
     module.exports = Math.pow;
   }
 });
 
-// ../../abap-mcp/node_modules/math-intrinsics/round.js
+// node_modules/math-intrinsics/round.js
 var require_round = __commonJS({
-  "../../abap-mcp/node_modules/math-intrinsics/round.js"(exports2, module) {
+  "node_modules/math-intrinsics/round.js"(exports2, module) {
     "use strict";
     module.exports = Math.round;
   }
 });
 
-// ../../abap-mcp/node_modules/math-intrinsics/isNaN.js
+// node_modules/math-intrinsics/isNaN.js
 var require_isNaN = __commonJS({
-  "../../abap-mcp/node_modules/math-intrinsics/isNaN.js"(exports2, module) {
+  "node_modules/math-intrinsics/isNaN.js"(exports2, module) {
     "use strict";
     module.exports = Number.isNaN || function isNaN2(a) {
       return a !== a;
@@ -22379,9 +22379,9 @@ var require_isNaN = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/math-intrinsics/sign.js
+// node_modules/math-intrinsics/sign.js
 var require_sign = __commonJS({
-  "../../abap-mcp/node_modules/math-intrinsics/sign.js"(exports2, module) {
+  "node_modules/math-intrinsics/sign.js"(exports2, module) {
     "use strict";
     var $isNaN = require_isNaN();
     module.exports = function sign(number4) {
@@ -22393,17 +22393,17 @@ var require_sign = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/gopd/gOPD.js
+// node_modules/gopd/gOPD.js
 var require_gOPD = __commonJS({
-  "../../abap-mcp/node_modules/gopd/gOPD.js"(exports2, module) {
+  "node_modules/gopd/gOPD.js"(exports2, module) {
     "use strict";
     module.exports = Object.getOwnPropertyDescriptor;
   }
 });
 
-// ../../abap-mcp/node_modules/gopd/index.js
+// node_modules/gopd/index.js
 var require_gopd = __commonJS({
-  "../../abap-mcp/node_modules/gopd/index.js"(exports2, module) {
+  "node_modules/gopd/index.js"(exports2, module) {
     "use strict";
     var $gOPD = require_gOPD();
     if ($gOPD) {
@@ -22417,9 +22417,9 @@ var require_gopd = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/es-define-property/index.js
+// node_modules/es-define-property/index.js
 var require_es_define_property = __commonJS({
-  "../../abap-mcp/node_modules/es-define-property/index.js"(exports2, module) {
+  "node_modules/es-define-property/index.js"(exports2, module) {
     "use strict";
     var $defineProperty = Object.defineProperty || false;
     if ($defineProperty) {
@@ -22433,9 +22433,9 @@ var require_es_define_property = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/has-symbols/shams.js
+// node_modules/has-symbols/shams.js
 var require_shams = __commonJS({
-  "../../abap-mcp/node_modules/has-symbols/shams.js"(exports2, module) {
+  "node_modules/has-symbols/shams.js"(exports2, module) {
     "use strict";
     module.exports = function hasSymbols() {
       if (typeof Symbol !== "function" || typeof Object.getOwnPropertySymbols !== "function") {
@@ -22488,9 +22488,9 @@ var require_shams = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/has-symbols/index.js
+// node_modules/has-symbols/index.js
 var require_has_symbols = __commonJS({
-  "../../abap-mcp/node_modules/has-symbols/index.js"(exports2, module) {
+  "node_modules/has-symbols/index.js"(exports2, module) {
     "use strict";
     var origSymbol = typeof Symbol !== "undefined" && Symbol;
     var hasSymbolSham = require_shams();
@@ -22512,26 +22512,26 @@ var require_has_symbols = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/get-proto/Reflect.getPrototypeOf.js
+// node_modules/get-proto/Reflect.getPrototypeOf.js
 var require_Reflect_getPrototypeOf = __commonJS({
-  "../../abap-mcp/node_modules/get-proto/Reflect.getPrototypeOf.js"(exports2, module) {
+  "node_modules/get-proto/Reflect.getPrototypeOf.js"(exports2, module) {
     "use strict";
     module.exports = typeof Reflect !== "undefined" && Reflect.getPrototypeOf || null;
   }
 });
 
-// ../../abap-mcp/node_modules/get-proto/Object.getPrototypeOf.js
+// node_modules/get-proto/Object.getPrototypeOf.js
 var require_Object_getPrototypeOf = __commonJS({
-  "../../abap-mcp/node_modules/get-proto/Object.getPrototypeOf.js"(exports2, module) {
+  "node_modules/get-proto/Object.getPrototypeOf.js"(exports2, module) {
     "use strict";
     var $Object = require_es_object_atoms();
     module.exports = $Object.getPrototypeOf || null;
   }
 });
 
-// ../../abap-mcp/node_modules/function-bind/implementation.js
+// node_modules/function-bind/implementation.js
 var require_implementation = __commonJS({
-  "../../abap-mcp/node_modules/function-bind/implementation.js"(exports2, module) {
+  "node_modules/function-bind/implementation.js"(exports2, module) {
     "use strict";
     var ERROR_MESSAGE = "Function.prototype.bind called on incompatible ";
     var toStr = Object.prototype.toString;
@@ -22605,42 +22605,42 @@ var require_implementation = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/function-bind/index.js
+// node_modules/function-bind/index.js
 var require_function_bind = __commonJS({
-  "../../abap-mcp/node_modules/function-bind/index.js"(exports2, module) {
+  "node_modules/function-bind/index.js"(exports2, module) {
     "use strict";
     var implementation = require_implementation();
     module.exports = Function.prototype.bind || implementation;
   }
 });
 
-// ../../abap-mcp/node_modules/call-bind-apply-helpers/functionCall.js
+// node_modules/call-bind-apply-helpers/functionCall.js
 var require_functionCall = __commonJS({
-  "../../abap-mcp/node_modules/call-bind-apply-helpers/functionCall.js"(exports2, module) {
+  "node_modules/call-bind-apply-helpers/functionCall.js"(exports2, module) {
     "use strict";
     module.exports = Function.prototype.call;
   }
 });
 
-// ../../abap-mcp/node_modules/call-bind-apply-helpers/functionApply.js
+// node_modules/call-bind-apply-helpers/functionApply.js
 var require_functionApply = __commonJS({
-  "../../abap-mcp/node_modules/call-bind-apply-helpers/functionApply.js"(exports2, module) {
+  "node_modules/call-bind-apply-helpers/functionApply.js"(exports2, module) {
     "use strict";
     module.exports = Function.prototype.apply;
   }
 });
 
-// ../../abap-mcp/node_modules/call-bind-apply-helpers/reflectApply.js
+// node_modules/call-bind-apply-helpers/reflectApply.js
 var require_reflectApply = __commonJS({
-  "../../abap-mcp/node_modules/call-bind-apply-helpers/reflectApply.js"(exports2, module) {
+  "node_modules/call-bind-apply-helpers/reflectApply.js"(exports2, module) {
     "use strict";
     module.exports = typeof Reflect !== "undefined" && Reflect && Reflect.apply;
   }
 });
 
-// ../../abap-mcp/node_modules/call-bind-apply-helpers/actualApply.js
+// node_modules/call-bind-apply-helpers/actualApply.js
 var require_actualApply = __commonJS({
-  "../../abap-mcp/node_modules/call-bind-apply-helpers/actualApply.js"(exports2, module) {
+  "node_modules/call-bind-apply-helpers/actualApply.js"(exports2, module) {
     "use strict";
     var bind = require_function_bind();
     var $apply = require_functionApply();
@@ -22650,9 +22650,9 @@ var require_actualApply = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/call-bind-apply-helpers/index.js
+// node_modules/call-bind-apply-helpers/index.js
 var require_call_bind_apply_helpers = __commonJS({
-  "../../abap-mcp/node_modules/call-bind-apply-helpers/index.js"(exports2, module) {
+  "node_modules/call-bind-apply-helpers/index.js"(exports2, module) {
     "use strict";
     var bind = require_function_bind();
     var $TypeError = require_type();
@@ -22667,9 +22667,9 @@ var require_call_bind_apply_helpers = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/dunder-proto/get.js
+// node_modules/dunder-proto/get.js
 var require_get = __commonJS({
-  "../../abap-mcp/node_modules/dunder-proto/get.js"(exports2, module) {
+  "node_modules/dunder-proto/get.js"(exports2, module) {
     "use strict";
     var callBind = require_call_bind_apply_helpers();
     var gOPD = require_gopd();
@@ -22698,9 +22698,9 @@ var require_get = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/get-proto/index.js
+// node_modules/get-proto/index.js
 var require_get_proto = __commonJS({
-  "../../abap-mcp/node_modules/get-proto/index.js"(exports2, module) {
+  "node_modules/get-proto/index.js"(exports2, module) {
     "use strict";
     var reflectGetProto = require_Reflect_getPrototypeOf();
     var originalGetProto = require_Object_getPrototypeOf();
@@ -22718,9 +22718,9 @@ var require_get_proto = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/hasown/index.js
+// node_modules/hasown/index.js
 var require_hasown = __commonJS({
-  "../../abap-mcp/node_modules/hasown/index.js"(exports2, module) {
+  "node_modules/hasown/index.js"(exports2, module) {
     "use strict";
     var call = Function.prototype.call;
     var $hasOwn = Object.prototype.hasOwnProperty;
@@ -22729,9 +22729,9 @@ var require_hasown = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/get-intrinsic/index.js
+// node_modules/get-intrinsic/index.js
 var require_get_intrinsic = __commonJS({
-  "../../abap-mcp/node_modules/get-intrinsic/index.js"(exports2, module) {
+  "node_modules/get-intrinsic/index.js"(exports2, module) {
     "use strict";
     var undefined2;
     var $Object = require_es_object_atoms();
@@ -23060,9 +23060,9 @@ var require_get_intrinsic = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/has-tostringtag/shams.js
+// node_modules/has-tostringtag/shams.js
 var require_shams2 = __commonJS({
-  "../../abap-mcp/node_modules/has-tostringtag/shams.js"(exports2, module) {
+  "node_modules/has-tostringtag/shams.js"(exports2, module) {
     "use strict";
     var hasSymbols = require_shams();
     module.exports = function hasToStringTagShams() {
@@ -23071,9 +23071,9 @@ var require_shams2 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/es-set-tostringtag/index.js
+// node_modules/es-set-tostringtag/index.js
 var require_es_set_tostringtag = __commonJS({
-  "../../abap-mcp/node_modules/es-set-tostringtag/index.js"(exports2, module) {
+  "node_modules/es-set-tostringtag/index.js"(exports2, module) {
     "use strict";
     var GetIntrinsic = require_get_intrinsic();
     var $defineProperty = GetIntrinsic("%Object.defineProperty%", true);
@@ -23103,9 +23103,9 @@ var require_es_set_tostringtag = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/form-data/lib/populate.js
+// node_modules/form-data/lib/populate.js
 var require_populate = __commonJS({
-  "../../abap-mcp/node_modules/form-data/lib/populate.js"(exports2, module) {
+  "node_modules/form-data/lib/populate.js"(exports2, module) {
     "use strict";
     module.exports = function(dst, src) {
       Object.keys(src).forEach(function(prop) {
@@ -23116,9 +23116,9 @@ var require_populate = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/form-data/lib/form_data.js
+// node_modules/form-data/lib/form_data.js
 var require_form_data = __commonJS({
-  "../../abap-mcp/node_modules/form-data/lib/form_data.js"(exports2, module) {
+  "node_modules/form-data/lib/form_data.js"(exports2, module) {
     "use strict";
     var CombinedStream = require_combined_stream();
     var util2 = __require("util");
@@ -23438,9 +23438,9 @@ var require_form_data = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ms/index.js
+// node_modules/ms/index.js
 var require_ms = __commonJS({
-  "../../abap-mcp/node_modules/ms/index.js"(exports2, module) {
+  "node_modules/ms/index.js"(exports2, module) {
     var s = 1e3;
     var m = s * 60;
     var h = m * 60;
@@ -23554,9 +23554,9 @@ var require_ms = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/debug/src/common.js
+// node_modules/debug/src/common.js
 var require_common = __commonJS({
-  "../../abap-mcp/node_modules/debug/src/common.js"(exports2, module) {
+  "node_modules/debug/src/common.js"(exports2, module) {
     function setup(env) {
       createDebug.debug = createDebug;
       createDebug.default = createDebug;
@@ -23731,9 +23731,9 @@ var require_common = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/debug/src/browser.js
+// node_modules/debug/src/browser.js
 var require_browser = __commonJS({
-  "../../abap-mcp/node_modules/debug/src/browser.js"(exports2, module) {
+  "node_modules/debug/src/browser.js"(exports2, module) {
     exports2.formatArgs = formatArgs;
     exports2.save = save;
     exports2.load = load;
@@ -23901,9 +23901,9 @@ var require_browser = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/debug/src/node.js
+// node_modules/debug/src/node.js
 var require_node = __commonJS({
-  "../../abap-mcp/node_modules/debug/src/node.js"(exports2, module) {
+  "node_modules/debug/src/node.js"(exports2, module) {
     var tty = __require("tty");
     var util2 = __require("util");
     exports2.init = init;
@@ -24075,9 +24075,9 @@ var require_node = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/debug/src/index.js
+// node_modules/debug/src/index.js
 var require_src2 = __commonJS({
-  "../../abap-mcp/node_modules/debug/src/index.js"(exports2, module) {
+  "node_modules/debug/src/index.js"(exports2, module) {
     if (typeof process === "undefined" || process.type === "renderer" || process.browser === true || process.__nwjs) {
       module.exports = require_browser();
     } else {
@@ -24086,9 +24086,9 @@ var require_src2 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/agent-base/dist/src/promisify.js
+// node_modules/agent-base/dist/src/promisify.js
 var require_promisify = __commonJS({
-  "../../abap-mcp/node_modules/agent-base/dist/src/promisify.js"(exports2) {
+  "node_modules/agent-base/dist/src/promisify.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     function promisify(fn) {
@@ -24108,9 +24108,9 @@ var require_promisify = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/agent-base/dist/src/index.js
+// node_modules/agent-base/dist/src/index.js
 var require_src3 = __commonJS({
-  "../../abap-mcp/node_modules/agent-base/dist/src/index.js"(exports2, module) {
+  "node_modules/agent-base/dist/src/index.js"(exports2, module) {
     "use strict";
     var __importDefault = exports2 && exports2.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -24291,9 +24291,9 @@ var require_src3 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/https-proxy-agent/dist/parse-proxy-response.js
+// node_modules/https-proxy-agent/dist/parse-proxy-response.js
 var require_parse_proxy_response = __commonJS({
-  "../../abap-mcp/node_modules/https-proxy-agent/dist/parse-proxy-response.js"(exports2) {
+  "node_modules/https-proxy-agent/dist/parse-proxy-response.js"(exports2) {
     "use strict";
     var __importDefault = exports2 && exports2.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -24357,9 +24357,9 @@ var require_parse_proxy_response = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/https-proxy-agent/dist/agent.js
+// node_modules/https-proxy-agent/dist/agent.js
 var require_agent = __commonJS({
-  "../../abap-mcp/node_modules/https-proxy-agent/dist/agent.js"(exports2) {
+  "node_modules/https-proxy-agent/dist/agent.js"(exports2) {
     "use strict";
     var __awaiter = exports2 && exports2.__awaiter || function(thisArg, _arguments, P, generator) {
       function adopt(value) {
@@ -24517,9 +24517,9 @@ var require_agent = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/https-proxy-agent/dist/index.js
+// node_modules/https-proxy-agent/dist/index.js
 var require_dist = __commonJS({
-  "../../abap-mcp/node_modules/https-proxy-agent/dist/index.js"(exports2, module) {
+  "node_modules/https-proxy-agent/dist/index.js"(exports2, module) {
     "use strict";
     var __importDefault = exports2 && exports2.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -24536,9 +24536,9 @@ var require_dist = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/follow-redirects/debug.js
+// node_modules/follow-redirects/debug.js
 var require_debug = __commonJS({
-  "../../abap-mcp/node_modules/follow-redirects/debug.js"(exports2, module) {
+  "node_modules/follow-redirects/debug.js"(exports2, module) {
     var debug;
     module.exports = function() {
       if (!debug) {
@@ -24556,9 +24556,9 @@ var require_debug = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/follow-redirects/index.js
+// node_modules/follow-redirects/index.js
 var require_follow_redirects = __commonJS({
-  "../../abap-mcp/node_modules/follow-redirects/index.js"(exports2, module) {
+  "node_modules/follow-redirects/index.js"(exports2, module) {
     var url2 = __require("url");
     var URL3 = url2.URL;
     var http3 = __require("http");
@@ -25067,9 +25067,9 @@ var require_follow_redirects = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/axios/dist/node/axios.cjs
+// node_modules/axios/dist/node/axios.cjs
 var require_axios = __commonJS({
-  "../../abap-mcp/node_modules/axios/dist/node/axios.cjs"(exports2, module) {
+  "node_modules/axios/dist/node/axios.cjs"(exports2, module) {
     "use strict";
     var FormData$1 = require_form_data();
     var crypto = __require("crypto");
@@ -29850,9 +29850,9 @@ var require_axios = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/requestLogger.js
+// node_modules/abap-adt-api/build/requestLogger.js
 var require_requestLogger = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/requestLogger.js"(exports2) {
+  "node_modules/abap-adt-api/build/requestLogger.js"(exports2) {
     "use strict";
     var __importDefault = exports2 && exports2.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -29952,9 +29952,9 @@ var require_requestLogger = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/AxiosHttpClient.js
+// node_modules/abap-adt-api/build/AxiosHttpClient.js
 var require_AxiosHttpClient = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/AxiosHttpClient.js"(exports2) {
+  "node_modules/abap-adt-api/build/AxiosHttpClient.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -30068,9 +30068,9 @@ var require_AxiosHttpClient = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/AdtHTTP.js
+// node_modules/abap-adt-api/build/AdtHTTP.js
 var require_AdtHTTP = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/AdtHTTP.js"(exports2) {
+  "node_modules/abap-adt-api/build/AdtHTTP.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AdtHTTP = exports2.isHttpClientException = exports2.HttpClientException = exports2.isHeaderValue = exports2.session_types = void 0;
@@ -30289,9 +30289,9 @@ var require_AdtHTTP = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/urlparser.js
+// node_modules/abap-adt-api/build/api/urlparser.js
 var require_urlparser = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/urlparser.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/urlparser.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -30392,9 +30392,9 @@ var require_urlparser = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/atc.js
+// node_modules/abap-adt-api/build/api/atc.js
 var require_atc = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/atc.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/atc.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -30858,9 +30858,9 @@ var require_atc = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/syntax.js
+// node_modules/abap-adt-api/build/api/syntax.js
 var require_syntax2 = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/syntax.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/syntax.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.syntaxCheckTypes = syntaxCheckTypes;
@@ -31182,9 +31182,9 @@ prettyprintersettings:indentation="${indent}" prettyprintersettings:style="${sty
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/cds.js
+// node_modules/abap-adt-api/build/api/cds.js
 var require_cds = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/cds.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/cds.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.syntaxCheckCDS = syntaxCheckCDS;
@@ -31327,9 +31327,9 @@ var require_cds = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/delete.js
+// node_modules/abap-adt-api/build/api/delete.js
 var require_delete = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/delete.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/delete.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.objectRegistrationInfo = objectRegistrationInfo;
@@ -31360,9 +31360,9 @@ var require_delete = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/discovery.js
+// node_modules/abap-adt-api/build/api/discovery.js
 var require_discovery = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/discovery.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/discovery.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.adtDiscovery = adtDiscovery;
@@ -31441,9 +31441,9 @@ var require_discovery = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/nodeContents.js
+// node_modules/abap-adt-api/build/api/nodeContents.js
 var require_nodeContents = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/nodeContents.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/nodeContents.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isNodeParent = isNodeParent;
@@ -31516,9 +31516,9 @@ ${parentnodes.map((n) => `<TV_NODEKEY>${n.toString().padStart(6, "0")}</TV_NODEK
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/transports.js
+// node_modules/abap-adt-api/build/api/transports.js
 var require_transports = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/transports.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/transports.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.TransportDateFilter = void 0;
@@ -31810,9 +31810,9 @@ var require_transports = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/sprintf-js/src/sprintf.js
+// node_modules/sprintf-js/src/sprintf.js
 var require_sprintf = __commonJS({
-  "../../abap-mcp/node_modules/sprintf-js/src/sprintf.js"(exports2) {
+  "node_modules/sprintf-js/src/sprintf.js"(exports2) {
     !(function() {
       "use strict";
       var re = {
@@ -32013,9 +32013,9 @@ var require_sprintf = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/objectcreator.js
+// node_modules/abap-adt-api/build/api/objectcreator.js
 var require_objectcreator = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/objectcreator.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/objectcreator.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CreatableTypes = exports2.isBindingOptions = exports2.isPackageOptions = exports2.hasPackageOptions = exports2.BindinTypes = void 0;
@@ -32405,9 +32405,9 @@ ${pkgname} adtcore:type="DEVC/K" adtcore:version="active" ${responsible}>
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/objectstructure.js
+// node_modules/abap-adt-api/build/api/objectstructure.js
 var require_objectstructure = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/objectstructure.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/objectstructure.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isClassMetaData = isClassMetaData;
@@ -32496,9 +32496,9 @@ var require_objectstructure = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/activate.js
+// node_modules/abap-adt-api/build/api/activate.js
 var require_activate = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/activate.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/activate.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.activate = activate2;
@@ -32601,9 +32601,9 @@ var require_activate = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/objectcontents.js
+// node_modules/abap-adt-api/build/api/objectcontents.js
 var require_objectcontents = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/objectcontents.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/objectcontents.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getObjectSource = getObjectSource;
@@ -32926,9 +32926,9 @@ var require_objectcontents = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/revisions.js
+// node_modules/abap-adt-api/build/api/revisions.js
 var require_revisions = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/revisions.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/revisions.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getRevisionLink = getRevisionLink;
@@ -32988,9 +32988,9 @@ var require_revisions = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/refactor.js
+// node_modules/abap-adt-api/build/api/refactor.js
 var require_refactor = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/refactor.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/refactor.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.fixProposals = fixProposals;
@@ -33438,9 +33438,9 @@ var require_refactor = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/search.js
+// node_modules/abap-adt-api/build/api/search.js
 var require_search = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/search.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/search.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.searchObject = searchObject;
@@ -33509,9 +33509,9 @@ var require_search = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/unittest.js
+// node_modules/abap-adt-api/build/api/unittest.js
 var require_unittest = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/unittest.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/unittest.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -33690,9 +33690,9 @@ var require_unittest = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/abapgit.js
+// node_modules/abap-adt-api/build/api/abapgit.js
 var require_abapgit = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/abapgit.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/abapgit.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.gitRepos = gitRepos;
@@ -33984,9 +33984,9 @@ var require_abapgit = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/enhancements.js
+// node_modules/abap-adt-api/build/api/enhancements.js
 var require_enhancements = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/enhancements.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/enhancements.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.objectEnhancements = objectEnhancements;
@@ -34094,9 +34094,9 @@ var require_enhancements = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/tablecontents.js
+// node_modules/abap-adt-api/build/api/tablecontents.js
 var require_tablecontents = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/tablecontents.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/tablecontents.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.servicePreviewUrl = exports2.parseBindingDetails = exports2.decodeQueryResult = exports2.extractBindingLinks = exports2.parseServiceBinding = exports2.TypeKinds = void 0;
@@ -34292,9 +34292,9 @@ var require_tablecontents = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/feeds.js
+// node_modules/abap-adt-api/build/api/feeds.js
 var require_feeds = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/feeds.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/feeds.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.feeds = feeds;
@@ -34391,9 +34391,9 @@ var require_feeds = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/debugger.js
+// node_modules/abap-adt-api/build/api/debugger.js
 var require_debugger = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/debugger.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/debugger.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isDebuggerBreakpoint = exports2.isDebuggee = exports2.isDebugListenerError = exports2.debugMetaIsComplex = void 0;
@@ -34690,9 +34690,9 @@ var require_debugger = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/tracetypes.js
+// node_modules/abap-adt-api/build/api/tracetypes.js
 var require_tracetypes = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/tracetypes.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/tracetypes.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -35170,9 +35170,9 @@ var require_tracetypes = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/traces.js
+// node_modules/abap-adt-api/build/api/traces.js
 var require_traces = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/traces.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/traces.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.tracesDelete = exports2.tracesDeleteConfiguration = exports2.tracesCreateConfiguration = exports2.tracesSetParameters = exports2.tracesStatements = exports2.tracesDbAccess = exports2.tracesHitList = exports2.tracesListRequests = exports2.tracesList = exports2.traceProcessObjects = void 0;
@@ -35274,9 +35274,9 @@ var require_traces = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/textelements.js
+// node_modules/abap-adt-api/build/api/textelements.js
 var require_textelements = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/textelements.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/textelements.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.textElementsUrl = textElementsUrl;
@@ -35404,9 +35404,9 @@ var require_textelements = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/rapgenerator.js
+// node_modules/abap-adt-api/build/api/rapgenerator.js
 var require_rapgenerator = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/rapgenerator.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/rapgenerator.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.BINDING_TYPES = void 0;
@@ -35592,9 +35592,9 @@ var require_rapgenerator = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/api/index.js
+// node_modules/abap-adt-api/build/api/index.js
 var require_api = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/api/index.js"(exports2) {
+  "node_modules/abap-adt-api/build/api/index.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -35640,9 +35640,9 @@ var require_api = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/AdtClient.js
+// node_modules/abap-adt-api/build/AdtClient.js
 var require_AdtClient = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/AdtClient.js"(exports2) {
+  "node_modules/abap-adt-api/build/AdtClient.js"(exports2) {
     "use strict";
     var __importDefault = exports2 && exports2.__importDefault || function(mod) {
       return mod && mod.__esModule ? mod : { "default": mod };
@@ -36373,9 +36373,9 @@ var require_AdtClient = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/abap-adt-api/build/index.js
+// node_modules/abap-adt-api/build/index.js
 var require_build = __commonJS({
-  "../../abap-mcp/node_modules/abap-adt-api/build/index.js"(exports2) {
+  "node_modules/abap-adt-api/build/index.js"(exports2) {
     "use strict";
     var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
@@ -36495,9 +36495,9 @@ var require_build = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/dotenv/lib/main.js
+// node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
-  "../../abap-mcp/node_modules/dotenv/lib/main.js"(exports2, module) {
+  "node_modules/dotenv/lib/main.js"(exports2, module) {
     var fs3 = __require("fs");
     var path6 = __require("path");
     var os2 = __require("os");
@@ -36814,9 +36814,9 @@ var require_main = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/codegen/code.js
+// node_modules/ajv/dist/compile/codegen/code.js
 var require_code = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/codegen/code.js"(exports2) {
+  "node_modules/ajv/dist/compile/codegen/code.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.regexpCode = exports2.getEsmExportName = exports2.getProperty = exports2.safeStringify = exports2.stringify = exports2.strConcat = exports2.addCodeArg = exports2.str = exports2._ = exports2.nil = exports2._Code = exports2.Name = exports2.IDENTIFIER = exports2._CodeOrName = void 0;
@@ -36968,9 +36968,9 @@ var require_code = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/codegen/scope.js
+// node_modules/ajv/dist/compile/codegen/scope.js
 var require_scope = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/codegen/scope.js"(exports2) {
+  "node_modules/ajv/dist/compile/codegen/scope.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ValueScope = exports2.ValueScopeName = exports2.Scope = exports2.varKinds = exports2.UsedValueState = void 0;
@@ -37113,9 +37113,9 @@ var require_scope = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/codegen/index.js
+// node_modules/ajv/dist/compile/codegen/index.js
 var require_codegen = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/codegen/index.js"(exports2) {
+  "node_modules/ajv/dist/compile/codegen/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.or = exports2.and = exports2.not = exports2.CodeGen = exports2.operators = exports2.varKinds = exports2.ValueScopeName = exports2.ValueScope = exports2.Scope = exports2.Name = exports2.regexpCode = exports2.stringify = exports2.getProperty = exports2.nil = exports2.strConcat = exports2.str = exports2._ = void 0;
@@ -37833,9 +37833,9 @@ var require_codegen = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/util.js
+// node_modules/ajv/dist/compile/util.js
 var require_util = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/util.js"(exports2) {
+  "node_modules/ajv/dist/compile/util.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.checkStrictMode = exports2.getErrorPath = exports2.Type = exports2.useFunc = exports2.setEvaluated = exports2.evaluatedPropsToName = exports2.mergeEvaluated = exports2.eachItem = exports2.unescapeJsonPointer = exports2.escapeJsonPointer = exports2.escapeFragment = exports2.unescapeFragment = exports2.schemaRefOrVal = exports2.schemaHasRulesButRef = exports2.schemaHasRules = exports2.checkUnknownRules = exports2.alwaysValidSchema = exports2.toHash = void 0;
@@ -38000,9 +38000,9 @@ var require_util = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/names.js
+// node_modules/ajv/dist/compile/names.js
 var require_names = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/names.js"(exports2) {
+  "node_modules/ajv/dist/compile/names.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -38039,9 +38039,9 @@ var require_names = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/errors.js
+// node_modules/ajv/dist/compile/errors.js
 var require_errors = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/errors.js"(exports2) {
+  "node_modules/ajv/dist/compile/errors.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.extendErrors = exports2.resetErrorsCount = exports2.reportExtraError = exports2.reportError = exports2.keyword$DataError = exports2.keywordError = void 0;
@@ -38161,9 +38161,9 @@ var require_errors = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/validate/boolSchema.js
+// node_modules/ajv/dist/compile/validate/boolSchema.js
 var require_boolSchema = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/validate/boolSchema.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/boolSchema.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.boolOrEmptySchema = exports2.topBoolOrEmptySchema = void 0;
@@ -38212,9 +38212,9 @@ var require_boolSchema = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/rules.js
+// node_modules/ajv/dist/compile/rules.js
 var require_rules = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/rules.js"(exports2) {
+  "node_modules/ajv/dist/compile/rules.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getRules = exports2.isJSONType = void 0;
@@ -38243,9 +38243,9 @@ var require_rules = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/validate/applicability.js
+// node_modules/ajv/dist/compile/validate/applicability.js
 var require_applicability = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/validate/applicability.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/applicability.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.shouldUseRule = exports2.shouldUseGroup = exports2.schemaHasRulesForType = void 0;
@@ -38266,9 +38266,9 @@ var require_applicability = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/validate/dataType.js
+// node_modules/ajv/dist/compile/validate/dataType.js
 var require_dataType = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/validate/dataType.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/dataType.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.reportTypeError = exports2.checkDataTypes = exports2.checkDataType = exports2.coerceAndCheckDataType = exports2.getJSONTypes = exports2.getSchemaTypes = exports2.DataType = void 0;
@@ -38450,9 +38450,9 @@ var require_dataType = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/validate/defaults.js
+// node_modules/ajv/dist/compile/validate/defaults.js
 var require_defaults = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/validate/defaults.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/defaults.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.assignDefaults = void 0;
@@ -38487,9 +38487,9 @@ var require_defaults = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/code.js
+// node_modules/ajv/dist/vocabularies/code.js
 var require_code2 = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/code.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/code.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateUnion = exports2.validateArray = exports2.usePattern = exports2.callValidateCode = exports2.schemaProperties = exports2.allSchemaProperties = exports2.noPropertyInData = exports2.propertyInData = exports2.isOwnProperty = exports2.hasPropFunc = exports2.reportMissingProp = exports2.checkMissingProp = exports2.checkReportMissingProp = void 0;
@@ -38620,9 +38620,9 @@ var require_code2 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/validate/keyword.js
+// node_modules/ajv/dist/compile/validate/keyword.js
 var require_keyword = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/validate/keyword.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/keyword.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateKeywordUsage = exports2.validSchemaType = exports2.funcKeywordCode = exports2.macroKeywordCode = void 0;
@@ -38738,9 +38738,9 @@ var require_keyword = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/validate/subschema.js
+// node_modules/ajv/dist/compile/validate/subschema.js
 var require_subschema = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/validate/subschema.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/subschema.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.extendSubschemaMode = exports2.extendSubschemaData = exports2.getSubschema = void 0;
@@ -38821,9 +38821,9 @@ var require_subschema = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fast-deep-equal/index.js
+// node_modules/fast-deep-equal/index.js
 var require_fast_deep_equal = __commonJS({
-  "../../abap-mcp/node_modules/fast-deep-equal/index.js"(exports2, module) {
+  "node_modules/fast-deep-equal/index.js"(exports2, module) {
     "use strict";
     module.exports = function equal(a, b) {
       if (a === b) return true;
@@ -38856,9 +38856,9 @@ var require_fast_deep_equal = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/json-schema-traverse/index.js
+// node_modules/json-schema-traverse/index.js
 var require_json_schema_traverse = __commonJS({
-  "../../abap-mcp/node_modules/json-schema-traverse/index.js"(exports2, module) {
+  "node_modules/json-schema-traverse/index.js"(exports2, module) {
     "use strict";
     var traverse = module.exports = function(schema, opts, cb) {
       if (typeof opts == "function") {
@@ -38944,9 +38944,9 @@ var require_json_schema_traverse = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/resolve.js
+// node_modules/ajv/dist/compile/resolve.js
 var require_resolve = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/resolve.js"(exports2) {
+  "node_modules/ajv/dist/compile/resolve.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getSchemaRefs = exports2.resolveUrl = exports2.normalizeId = exports2._getFullPath = exports2.getFullPath = exports2.inlineRef = void 0;
@@ -39100,9 +39100,9 @@ var require_resolve = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/validate/index.js
+// node_modules/ajv/dist/compile/validate/index.js
 var require_validate = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/validate/index.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getData = exports2.KeywordCxt = exports2.validateFunctionCode = void 0;
@@ -39608,9 +39608,9 @@ var require_validate = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/runtime/validation_error.js
+// node_modules/ajv/dist/runtime/validation_error.js
 var require_validation_error = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/runtime/validation_error.js"(exports2) {
+  "node_modules/ajv/dist/runtime/validation_error.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var ValidationError = class extends Error {
@@ -39624,9 +39624,9 @@ var require_validation_error = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/ref_error.js
+// node_modules/ajv/dist/compile/ref_error.js
 var require_ref_error = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/ref_error.js"(exports2) {
+  "node_modules/ajv/dist/compile/ref_error.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var resolve_1 = require_resolve();
@@ -39641,9 +39641,9 @@ var require_ref_error = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/compile/index.js
+// node_modules/ajv/dist/compile/index.js
 var require_compile = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/compile/index.js"(exports2) {
+  "node_modules/ajv/dist/compile/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.resolveSchema = exports2.getCompilingSchema = exports2.resolveRef = exports2.compileSchema = exports2.SchemaEnv = void 0;
@@ -39865,9 +39865,9 @@ var require_compile = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/refs/data.json
+// node_modules/ajv/dist/refs/data.json
 var require_data = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/refs/data.json"(exports2, module) {
+  "node_modules/ajv/dist/refs/data.json"(exports2, module) {
     module.exports = {
       $id: "https://raw.githubusercontent.com/ajv-validator/ajv/master/lib/refs/data.json#",
       description: "Meta-schema for $data reference (JSON AnySchema extension proposal)",
@@ -39884,9 +39884,9 @@ var require_data = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fast-uri/lib/utils.js
+// node_modules/fast-uri/lib/utils.js
 var require_utils2 = __commonJS({
-  "../../abap-mcp/node_modules/fast-uri/lib/utils.js"(exports2, module) {
+  "node_modules/fast-uri/lib/utils.js"(exports2, module) {
     "use strict";
     var isUUID = RegExp.prototype.test.bind(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu);
     var isIPv4 = RegExp.prototype.test.bind(/^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$/u);
@@ -40197,9 +40197,9 @@ var require_utils2 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fast-uri/lib/schemes.js
+// node_modules/fast-uri/lib/schemes.js
 var require_schemes = __commonJS({
-  "../../abap-mcp/node_modules/fast-uri/lib/schemes.js"(exports2, module) {
+  "node_modules/fast-uri/lib/schemes.js"(exports2, module) {
     "use strict";
     var { isUUID } = require_utils2();
     var URN_REG = /([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-.:;=@]|%[\da-f]{2})+)/iu;
@@ -40407,9 +40407,9 @@ var require_schemes = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/fast-uri/index.js
+// node_modules/fast-uri/index.js
 var require_fast_uri = __commonJS({
-  "../../abap-mcp/node_modules/fast-uri/index.js"(exports2, module) {
+  "node_modules/fast-uri/index.js"(exports2, module) {
     "use strict";
     var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, escapePreservingEscapes, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils2();
     var { SCHEMES, getSchemeHandler } = require_schemes();
@@ -40699,9 +40699,9 @@ var require_fast_uri = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/runtime/uri.js
+// node_modules/ajv/dist/runtime/uri.js
 var require_uri2 = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/runtime/uri.js"(exports2) {
+  "node_modules/ajv/dist/runtime/uri.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var uri = require_fast_uri();
@@ -40710,9 +40710,9 @@ var require_uri2 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/core.js
+// node_modules/ajv/dist/core.js
 var require_core = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/core.js"(exports2) {
+  "node_modules/ajv/dist/core.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CodeGen = exports2.Name = exports2.nil = exports2.stringify = exports2.str = exports2._ = exports2.KeywordCxt = void 0;
@@ -41321,9 +41321,9 @@ var require_core = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/core/id.js
+// node_modules/ajv/dist/vocabularies/core/id.js
 var require_id = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/core/id.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/core/id.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var def = {
@@ -41336,9 +41336,9 @@ var require_id = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/core/ref.js
+// node_modules/ajv/dist/vocabularies/core/ref.js
 var require_ref2 = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/core/ref.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/core/ref.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.callRef = exports2.getValidate = void 0;
@@ -41458,9 +41458,9 @@ var require_ref2 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/core/index.js
+// node_modules/ajv/dist/vocabularies/core/index.js
 var require_core2 = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/core/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/core/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var id_1 = require_id();
@@ -41479,9 +41479,9 @@ var require_core2 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/limitNumber.js
+// node_modules/ajv/dist/vocabularies/validation/limitNumber.js
 var require_limitNumber = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/limitNumber.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/limitNumber.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -41511,9 +41511,9 @@ var require_limitNumber = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/multipleOf.js
+// node_modules/ajv/dist/vocabularies/validation/multipleOf.js
 var require_multipleOf = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/multipleOf.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/multipleOf.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -41539,9 +41539,9 @@ var require_multipleOf = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/runtime/ucs2length.js
+// node_modules/ajv/dist/runtime/ucs2length.js
 var require_ucs2length = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/runtime/ucs2length.js"(exports2) {
+  "node_modules/ajv/dist/runtime/ucs2length.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     function ucs2length(str5) {
@@ -41565,9 +41565,9 @@ var require_ucs2length = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/limitLength.js
+// node_modules/ajv/dist/vocabularies/validation/limitLength.js
 var require_limitLength = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/limitLength.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/limitLength.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -41597,9 +41597,9 @@ var require_limitLength = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/pattern.js
+// node_modules/ajv/dist/vocabularies/validation/pattern.js
 var require_pattern = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/pattern.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/pattern.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -41634,9 +41634,9 @@ var require_pattern = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/limitProperties.js
+// node_modules/ajv/dist/vocabularies/validation/limitProperties.js
 var require_limitProperties = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/limitProperties.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/limitProperties.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -41663,9 +41663,9 @@ var require_limitProperties = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/required.js
+// node_modules/ajv/dist/vocabularies/validation/required.js
 var require_required = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/required.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/required.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -41745,9 +41745,9 @@ var require_required = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/limitItems.js
+// node_modules/ajv/dist/vocabularies/validation/limitItems.js
 var require_limitItems = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/limitItems.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/limitItems.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -41774,9 +41774,9 @@ var require_limitItems = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/runtime/equal.js
+// node_modules/ajv/dist/runtime/equal.js
 var require_equal = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/runtime/equal.js"(exports2) {
+  "node_modules/ajv/dist/runtime/equal.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var equal = require_fast_deep_equal();
@@ -41785,9 +41785,9 @@ var require_equal = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/uniqueItems.js
+// node_modules/ajv/dist/vocabularies/validation/uniqueItems.js
 var require_uniqueItems = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/uniqueItems.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/uniqueItems.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var dataType_1 = require_dataType();
@@ -41852,9 +41852,9 @@ var require_uniqueItems = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/const.js
+// node_modules/ajv/dist/vocabularies/validation/const.js
 var require_const = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/const.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/const.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -41881,9 +41881,9 @@ var require_const = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/enum.js
+// node_modules/ajv/dist/vocabularies/validation/enum.js
 var require_enum = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/enum.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/enum.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -41930,9 +41930,9 @@ var require_enum = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/index.js
+// node_modules/ajv/dist/vocabularies/validation/index.js
 var require_validation = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/validation/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var limitNumber_1 = require_limitNumber();
@@ -41968,9 +41968,9 @@ var require_validation = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/additionalItems.js
+// node_modules/ajv/dist/vocabularies/applicator/additionalItems.js
 var require_additionalItems = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/additionalItems.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/additionalItems.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateAdditionalItems = void 0;
@@ -42021,9 +42021,9 @@ var require_additionalItems = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/items.js
+// node_modules/ajv/dist/vocabularies/applicator/items.js
 var require_items = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/items.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/items.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateTuple = void 0;
@@ -42078,9 +42078,9 @@ var require_items = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/prefixItems.js
+// node_modules/ajv/dist/vocabularies/applicator/prefixItems.js
 var require_prefixItems = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/prefixItems.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/prefixItems.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var items_1 = require_items();
@@ -42095,9 +42095,9 @@ var require_prefixItems = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/items2020.js
+// node_modules/ajv/dist/vocabularies/applicator/items2020.js
 var require_items2020 = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/items2020.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/items2020.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -42130,9 +42130,9 @@ var require_items2020 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/contains.js
+// node_modules/ajv/dist/vocabularies/applicator/contains.js
 var require_contains = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/contains.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/contains.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -42224,9 +42224,9 @@ var require_contains = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/dependencies.js
+// node_modules/ajv/dist/vocabularies/applicator/dependencies.js
 var require_dependencies = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/dependencies.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/dependencies.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateSchemaDeps = exports2.validatePropertyDeps = exports2.error = void 0;
@@ -42318,9 +42318,9 @@ var require_dependencies = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/propertyNames.js
+// node_modules/ajv/dist/vocabularies/applicator/propertyNames.js
 var require_propertyNames = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/propertyNames.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/propertyNames.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -42361,9 +42361,9 @@ var require_propertyNames = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js
+// node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js
 var require_additionalProperties = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -42467,9 +42467,9 @@ var require_additionalProperties = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/properties.js
+// node_modules/ajv/dist/vocabularies/applicator/properties.js
 var require_properties = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/properties.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/properties.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var validate_1 = require_validate();
@@ -42525,9 +42525,9 @@ var require_properties = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/patternProperties.js
+// node_modules/ajv/dist/vocabularies/applicator/patternProperties.js
 var require_patternProperties = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/patternProperties.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/patternProperties.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -42599,9 +42599,9 @@ var require_patternProperties = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/not.js
+// node_modules/ajv/dist/vocabularies/applicator/not.js
 var require_not = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/not.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/not.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var util_1 = require_util();
@@ -42630,9 +42630,9 @@ var require_not = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/anyOf.js
+// node_modules/ajv/dist/vocabularies/applicator/anyOf.js
 var require_anyOf = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/anyOf.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/anyOf.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -42647,9 +42647,9 @@ var require_anyOf = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/oneOf.js
+// node_modules/ajv/dist/vocabularies/applicator/oneOf.js
 var require_oneOf = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/oneOf.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/oneOf.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -42705,9 +42705,9 @@ var require_oneOf = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/allOf.js
+// node_modules/ajv/dist/vocabularies/applicator/allOf.js
 var require_allOf = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/allOf.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/allOf.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var util_1 = require_util();
@@ -42732,9 +42732,9 @@ var require_allOf = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/if.js
+// node_modules/ajv/dist/vocabularies/applicator/if.js
 var require_if = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/if.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/if.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -42801,9 +42801,9 @@ var require_if = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/thenElse.js
+// node_modules/ajv/dist/vocabularies/applicator/thenElse.js
 var require_thenElse = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/thenElse.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/thenElse.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var util_1 = require_util();
@@ -42819,9 +42819,9 @@ var require_thenElse = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/index.js
+// node_modules/ajv/dist/vocabularies/applicator/index.js
 var require_applicator = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/applicator/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var additionalItems_1 = require_additionalItems();
@@ -42867,9 +42867,9 @@ var require_applicator = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/format/format.js
+// node_modules/ajv/dist/vocabularies/format/format.js
 var require_format = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/format/format.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/format/format.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -42957,9 +42957,9 @@ var require_format = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/format/index.js
+// node_modules/ajv/dist/vocabularies/format/index.js
 var require_format2 = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/format/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/format/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var format_1 = require_format();
@@ -42968,9 +42968,9 @@ var require_format2 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/metadata.js
+// node_modules/ajv/dist/vocabularies/metadata.js
 var require_metadata = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/metadata.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/metadata.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.contentVocabulary = exports2.metadataVocabulary = void 0;
@@ -42991,9 +42991,9 @@ var require_metadata = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/draft7.js
+// node_modules/ajv/dist/vocabularies/draft7.js
 var require_draft7 = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/draft7.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/draft7.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var core_1 = require_core2();
@@ -43013,9 +43013,9 @@ var require_draft7 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/discriminator/types.js
+// node_modules/ajv/dist/vocabularies/discriminator/types.js
 var require_types = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/discriminator/types.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/discriminator/types.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.DiscrError = void 0;
@@ -43027,9 +43027,9 @@ var require_types = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/vocabularies/discriminator/index.js
+// node_modules/ajv/dist/vocabularies/discriminator/index.js
 var require_discriminator = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/vocabularies/discriminator/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/discriminator/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -43132,9 +43132,9 @@ var require_discriminator = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/refs/json-schema-draft-07.json
+// node_modules/ajv/dist/refs/json-schema-draft-07.json
 var require_json_schema_draft_07 = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/refs/json-schema-draft-07.json"(exports2, module) {
+  "node_modules/ajv/dist/refs/json-schema-draft-07.json"(exports2, module) {
     module.exports = {
       $schema: "http://json-schema.org/draft-07/schema#",
       $id: "http://json-schema.org/draft-07/schema#",
@@ -43289,9 +43289,9 @@ var require_json_schema_draft_07 = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv/dist/ajv.js
+// node_modules/ajv/dist/ajv.js
 var require_ajv = __commonJS({
-  "../../abap-mcp/node_modules/ajv/dist/ajv.js"(exports2, module) {
+  "node_modules/ajv/dist/ajv.js"(exports2, module) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.MissingRefError = exports2.ValidationError = exports2.CodeGen = exports2.Name = exports2.nil = exports2.stringify = exports2.str = exports2._ = exports2.KeywordCxt = exports2.Ajv = void 0;
@@ -43359,9 +43359,9 @@ var require_ajv = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv-formats/dist/formats.js
+// node_modules/ajv-formats/dist/formats.js
 var require_formats = __commonJS({
-  "../../abap-mcp/node_modules/ajv-formats/dist/formats.js"(exports2) {
+  "node_modules/ajv-formats/dist/formats.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.formatNames = exports2.fastFormats = exports2.fullFormats = void 0;
@@ -43562,9 +43562,9 @@ var require_formats = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv-formats/dist/limit.js
+// node_modules/ajv-formats/dist/limit.js
 var require_limit = __commonJS({
-  "../../abap-mcp/node_modules/ajv-formats/dist/limit.js"(exports2) {
+  "node_modules/ajv-formats/dist/limit.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.formatLimitDefinition = void 0;
@@ -43634,9 +43634,9 @@ var require_limit = __commonJS({
   }
 });
 
-// ../../abap-mcp/node_modules/ajv-formats/dist/index.js
+// node_modules/ajv-formats/dist/index.js
 var require_dist2 = __commonJS({
-  "../../abap-mcp/node_modules/ajv-formats/dist/index.js"(exports2, module) {
+  "node_modules/ajv-formats/dist/index.js"(exports2, module) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var formats_1 = require_formats();
@@ -45986,7 +45986,7 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
 // src/config.ts
 var import_dotenv = __toESM(require_main(), 1);
 
-// ../../abap-mcp/node_modules/zod/v4/classic/external.js
+// node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
   $brand: () => $brand,
@@ -46229,7 +46229,7 @@ __export(external_exports, {
   xor: () => xor
 });
 
-// ../../abap-mcp/node_modules/zod/v4/core/index.js
+// node_modules/zod/v4/core/index.js
 var core_exports2 = {};
 __export(core_exports2, {
   $ZodAny: () => $ZodAny,
@@ -46508,7 +46508,7 @@ __export(core_exports2, {
   version: () => version
 });
 
-// ../../abap-mcp/node_modules/zod/v4/core/core.js
+// node_modules/zod/v4/core/core.js
 var _a;
 var NEVER = /* @__PURE__ */ Object.freeze({
   status: "aborted"
@@ -46585,7 +46585,7 @@ function config(newConfig) {
   return globalConfig;
 }
 
-// ../../abap-mcp/node_modules/zod/v4/core/util.js
+// node_modules/zod/v4/core/util.js
 var util_exports = {};
 __export(util_exports, {
   BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES,
@@ -47281,7 +47281,7 @@ var Class = class {
   }
 };
 
-// ../../abap-mcp/node_modules/zod/v4/core/errors.js
+// node_modules/zod/v4/core/errors.js
 var initializer = (inst, def) => {
   inst.name = "$ZodError";
   Object.defineProperty(inst, "_zod", {
@@ -47420,7 +47420,7 @@ function prettifyError(error51) {
   return lines.join("\n");
 }
 
-// ../../abap-mcp/node_modules/zod/v4/core/parse.js
+// node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? { ..._ctx, async: false } : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -47508,7 +47508,7 @@ var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
 };
 var safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync($ZodRealError);
 
-// ../../abap-mcp/node_modules/zod/v4/core/regexes.js
+// node_modules/zod/v4/core/regexes.js
 var regexes_exports = {};
 __export(regexes_exports, {
   base64: () => base64,
@@ -47667,7 +47667,7 @@ var sha512_hex = /^[0-9a-fA-F]{128}$/;
 var sha512_base64 = /* @__PURE__ */ fixedBase64(86, "==");
 var sha512_base64url = /* @__PURE__ */ fixedBase64url(86);
 
-// ../../abap-mcp/node_modules/zod/v4/core/checks.js
+// node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
   var _a3;
   inst._zod ?? (inst._zod = {});
@@ -48215,7 +48215,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
   };
 });
 
-// ../../abap-mcp/node_modules/zod/v4/core/doc.js
+// node_modules/zod/v4/core/doc.js
 var Doc = class {
   constructor(args = []) {
     this.content = [];
@@ -48251,14 +48251,14 @@ var Doc = class {
   }
 };
 
-// ../../abap-mcp/node_modules/zod/v4/core/versions.js
+// node_modules/zod/v4/core/versions.js
 var version = {
   major: 4,
   minor: 4,
   patch: 3
 };
 
-// ../../abap-mcp/node_modules/zod/v4/core/schemas.js
+// node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   var _a3;
   inst ?? (inst = {});
@@ -50351,7 +50351,7 @@ function handleRefineResult(result, payload, input, inst) {
   }
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/index.js
+// node_modules/zod/v4/locales/index.js
 var locales_exports = {};
 __export(locales_exports, {
   ar: () => ar_default,
@@ -50408,7 +50408,7 @@ __export(locales_exports, {
   zhTW: () => zh_TW_default
 });
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ar.js
+// node_modules/zod/v4/locales/ar.js
 var error = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0641", verb: "\u0623\u0646 \u064A\u062D\u0648\u064A" },
@@ -50515,7 +50515,7 @@ function ar_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/az.js
+// node_modules/zod/v4/locales/az.js
 var error2 = () => {
   const Sizable = {
     string: { unit: "simvol", verb: "olmal\u0131d\u0131r" },
@@ -50621,7 +50621,7 @@ function az_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/be.js
+// node_modules/zod/v4/locales/be.js
 function getBelarusianPlural(count, one, few, many3) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -50778,7 +50778,7 @@ function be_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/bg.js
+// node_modules/zod/v4/locales/bg.js
 var error4 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0430", verb: "\u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430" },
@@ -50899,7 +50899,7 @@ function bg_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ca.js
+// node_modules/zod/v4/locales/ca.js
 var error5 = () => {
   const Sizable = {
     string: { unit: "car\xE0cters", verb: "contenir" },
@@ -51008,7 +51008,7 @@ function ca_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/cs.js
+// node_modules/zod/v4/locales/cs.js
 var error6 = () => {
   const Sizable = {
     string: { unit: "znak\u016F", verb: "m\xEDt" },
@@ -51120,7 +51120,7 @@ function cs_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/da.js
+// node_modules/zod/v4/locales/da.js
 var error7 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "havde" },
@@ -51236,7 +51236,7 @@ function da_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/de.js
+// node_modules/zod/v4/locales/de.js
 var error8 = () => {
   const Sizable = {
     string: { unit: "Zeichen", verb: "zu haben" },
@@ -51345,7 +51345,7 @@ function de_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/el.js
+// node_modules/zod/v4/locales/el.js
 var error9 = () => {
   const Sizable = {
     string: { unit: "\u03C7\u03B1\u03C1\u03B1\u03BA\u03C4\u03AE\u03C1\u03B5\u03C2", verb: "\u03BD\u03B1 \u03AD\u03C7\u03B5\u03B9" },
@@ -51455,7 +51455,7 @@ function el_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/en.js
+// node_modules/zod/v4/locales/en.js
 var error10 = () => {
   const Sizable = {
     string: { unit: "characters", verb: "to have" },
@@ -51568,7 +51568,7 @@ function en_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/eo.js
+// node_modules/zod/v4/locales/eo.js
 var error11 = () => {
   const Sizable = {
     string: { unit: "karaktrojn", verb: "havi" },
@@ -51678,7 +51678,7 @@ function eo_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/es.js
+// node_modules/zod/v4/locales/es.js
 var error12 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "tener" },
@@ -51811,7 +51811,7 @@ function es_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/fa.js
+// node_modules/zod/v4/locales/fa.js
 var error13 = () => {
   const Sizable = {
     string: { unit: "\u06A9\u0627\u0631\u0627\u06A9\u062A\u0631", verb: "\u062F\u0627\u0634\u062A\u0647 \u0628\u0627\u0634\u062F" },
@@ -51926,7 +51926,7 @@ function fa_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/fi.js
+// node_modules/zod/v4/locales/fi.js
 var error14 = () => {
   const Sizable = {
     string: { unit: "merkki\xE4", subject: "merkkijonon" },
@@ -52039,7 +52039,7 @@ function fi_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/fr.js
+// node_modules/zod/v4/locales/fr.js
 var error15 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -52165,7 +52165,7 @@ function fr_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/fr-CA.js
+// node_modules/zod/v4/locales/fr-CA.js
 var error16 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -52273,7 +52273,7 @@ function fr_CA_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/he.js
+// node_modules/zod/v4/locales/he.js
 var error17 = () => {
   const TypeNames = {
     string: { label: "\u05DE\u05D7\u05E8\u05D5\u05D6\u05EA", gender: "f" },
@@ -52468,7 +52468,7 @@ function he_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/hr.js
+// node_modules/zod/v4/locales/hr.js
 var error18 = () => {
   const Sizable = {
     string: { unit: "znakova", verb: "imati" },
@@ -52591,7 +52591,7 @@ function hr_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/hu.js
+// node_modules/zod/v4/locales/hu.js
 var error19 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "legyen" },
@@ -52700,7 +52700,7 @@ function hu_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/hy.js
+// node_modules/zod/v4/locales/hy.js
 function getArmenianPlural(count, one, many3) {
   return Math.abs(count) === 1 ? one : many3;
 }
@@ -52848,7 +52848,7 @@ function hy_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/id.js
+// node_modules/zod/v4/locales/id.js
 var error21 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "memiliki" },
@@ -52955,7 +52955,7 @@ function id_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/is.js
+// node_modules/zod/v4/locales/is.js
 var error22 = () => {
   const Sizable = {
     string: { unit: "stafi", verb: "a\xF0 hafa" },
@@ -53065,7 +53065,7 @@ function is_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/it.js
+// node_modules/zod/v4/locales/it.js
 var error23 = () => {
   const Sizable = {
     string: { unit: "caratteri", verb: "avere" },
@@ -53174,7 +53174,7 @@ function it_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ja.js
+// node_modules/zod/v4/locales/ja.js
 var error24 = () => {
   const Sizable = {
     string: { unit: "\u6587\u5B57", verb: "\u3067\u3042\u308B" },
@@ -53282,7 +53282,7 @@ function ja_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ka.js
+// node_modules/zod/v4/locales/ka.js
 var error25 = () => {
   const Sizable = {
     string: { unit: "\u10E1\u10D8\u10DB\u10D1\u10DD\u10DA\u10DD", verb: "\u10E3\u10DC\u10D3\u10D0 \u10E8\u10D4\u10D8\u10EA\u10D0\u10D5\u10D3\u10D4\u10E1" },
@@ -53395,7 +53395,7 @@ function ka_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/km.js
+// node_modules/zod/v4/locales/km.js
 var error26 = () => {
   const Sizable = {
     string: { unit: "\u178F\u17BD\u17A2\u1780\u17D2\u179F\u179A", verb: "\u1782\u17BD\u179A\u1798\u17B6\u1793" },
@@ -53506,12 +53506,12 @@ function km_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/kh.js
+// node_modules/zod/v4/locales/kh.js
 function kh_default() {
   return km_default();
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ko.js
+// node_modules/zod/v4/locales/ko.js
 var error27 = () => {
   const Sizable = {
     string: { unit: "\uBB38\uC790", verb: "to have" },
@@ -53623,7 +53623,7 @@ function ko_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/lt.js
+// node_modules/zod/v4/locales/lt.js
 var capitalizeFirstCharacter = (text3) => {
   return text3.charAt(0).toUpperCase() + text3.slice(1);
 };
@@ -53827,7 +53827,7 @@ function lt_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/mk.js
+// node_modules/zod/v4/locales/mk.js
 var error29 = () => {
   const Sizable = {
     string: { unit: "\u0437\u043D\u0430\u0446\u0438", verb: "\u0434\u0430 \u0438\u043C\u0430\u0430\u0442" },
@@ -53937,7 +53937,7 @@ function mk_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ms.js
+// node_modules/zod/v4/locales/ms.js
 var error30 = () => {
   const Sizable = {
     string: { unit: "aksara", verb: "mempunyai" },
@@ -54045,7 +54045,7 @@ function ms_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/nl.js
+// node_modules/zod/v4/locales/nl.js
 var error31 = () => {
   const Sizable = {
     string: { unit: "tekens", verb: "heeft" },
@@ -54156,7 +54156,7 @@ function nl_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/no.js
+// node_modules/zod/v4/locales/no.js
 var error32 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "\xE5 ha" },
@@ -54265,7 +54265,7 @@ function no_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ota.js
+// node_modules/zod/v4/locales/ota.js
 var error33 = () => {
   const Sizable = {
     string: { unit: "harf", verb: "olmal\u0131d\u0131r" },
@@ -54375,7 +54375,7 @@ function ota_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ps.js
+// node_modules/zod/v4/locales/ps.js
 var error34 = () => {
   const Sizable = {
     string: { unit: "\u062A\u0648\u06A9\u064A", verb: "\u0648\u0644\u0631\u064A" },
@@ -54490,7 +54490,7 @@ function ps_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/pl.js
+// node_modules/zod/v4/locales/pl.js
 var error35 = () => {
   const Sizable = {
     string: { unit: "znak\xF3w", verb: "mie\u0107" },
@@ -54600,7 +54600,7 @@ function pl_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/pt.js
+// node_modules/zod/v4/locales/pt.js
 var error36 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "ter" },
@@ -54709,7 +54709,7 @@ function pt_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ro.js
+// node_modules/zod/v4/locales/ro.js
 var error37 = () => {
   const Sizable = {
     string: { unit: "caractere", verb: "s\u0103 aib\u0103" },
@@ -54829,7 +54829,7 @@ function ro_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ru.js
+// node_modules/zod/v4/locales/ru.js
 function getRussianPlural(count, one, few, many3) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -54986,7 +54986,7 @@ function ru_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/sl.js
+// node_modules/zod/v4/locales/sl.js
 var error39 = () => {
   const Sizable = {
     string: { unit: "znakov", verb: "imeti" },
@@ -55096,7 +55096,7 @@ function sl_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/sv.js
+// node_modules/zod/v4/locales/sv.js
 var error40 = () => {
   const Sizable = {
     string: { unit: "tecken", verb: "att ha" },
@@ -55207,7 +55207,7 @@ function sv_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ta.js
+// node_modules/zod/v4/locales/ta.js
 var error41 = () => {
   const Sizable = {
     string: { unit: "\u0B8E\u0BB4\u0BC1\u0BA4\u0BCD\u0BA4\u0BC1\u0B95\u0BCD\u0B95\u0BB3\u0BCD", verb: "\u0B95\u0BCA\u0BA3\u0BCD\u0B9F\u0BBF\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD" },
@@ -55318,7 +55318,7 @@ function ta_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/th.js
+// node_modules/zod/v4/locales/th.js
 var error42 = () => {
   const Sizable = {
     string: { unit: "\u0E15\u0E31\u0E27\u0E2D\u0E31\u0E01\u0E29\u0E23", verb: "\u0E04\u0E27\u0E23\u0E21\u0E35" },
@@ -55429,7 +55429,7 @@ function th_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/tr.js
+// node_modules/zod/v4/locales/tr.js
 var error43 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "olmal\u0131" },
@@ -55535,7 +55535,7 @@ function tr_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/uk.js
+// node_modules/zod/v4/locales/uk.js
 var error44 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0456\u0432", verb: "\u043C\u0430\u0442\u0438\u043C\u0435" },
@@ -55644,12 +55644,12 @@ function uk_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ua.js
+// node_modules/zod/v4/locales/ua.js
 function ua_default() {
   return uk_default();
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/ur.js
+// node_modules/zod/v4/locales/ur.js
 var error45 = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0648\u0641", verb: "\u06C1\u0648\u0646\u0627" },
@@ -55760,7 +55760,7 @@ function ur_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/uz.js
+// node_modules/zod/v4/locales/uz.js
 var error46 = () => {
   const Sizable = {
     string: { unit: "belgi", verb: "bo\u2018lishi kerak" },
@@ -55871,7 +55871,7 @@ function uz_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/vi.js
+// node_modules/zod/v4/locales/vi.js
 var error47 = () => {
   const Sizable = {
     string: { unit: "k\xFD t\u1EF1", verb: "c\xF3" },
@@ -55980,7 +55980,7 @@ function vi_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/zh-CN.js
+// node_modules/zod/v4/locales/zh-CN.js
 var error48 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u7B26", verb: "\u5305\u542B" },
@@ -56090,7 +56090,7 @@ function zh_CN_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/zh-TW.js
+// node_modules/zod/v4/locales/zh-TW.js
 var error49 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u5143", verb: "\u64C1\u6709" },
@@ -56198,7 +56198,7 @@ function zh_TW_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/locales/yo.js
+// node_modules/zod/v4/locales/yo.js
 var error50 = () => {
   const Sizable = {
     string: { unit: "\xE0mi", verb: "n\xED" },
@@ -56306,7 +56306,7 @@ function yo_default() {
   };
 }
 
-// ../../abap-mcp/node_modules/zod/v4/core/registries.js
+// node_modules/zod/v4/core/registries.js
 var _a2;
 var $output = /* @__PURE__ */ Symbol("ZodOutput");
 var $input = /* @__PURE__ */ Symbol("ZodInput");
@@ -56356,7 +56356,7 @@ function registry() {
 (_a2 = globalThis).__zod_globalRegistry ?? (_a2.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
 
-// ../../abap-mcp/node_modules/zod/v4/core/api.js
+// node_modules/zod/v4/core/api.js
 // @__NO_SIDE_EFFECTS__
 function _string(Class2, params) {
   return new Class2({
@@ -57395,7 +57395,7 @@ function _stringFormat(Class2, format, fnOrRegex, _params = {}) {
   return inst;
 }
 
-// ../../abap-mcp/node_modules/zod/v4/core/to-json-schema.js
+// node_modules/zod/v4/core/to-json-schema.js
 function initializeContext(params) {
   let target = params?.target ?? "draft-2020-12";
   if (target === "draft-4")
@@ -57754,7 +57754,7 @@ var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) =
   return finalize(ctx, schema);
 };
 
-// ../../abap-mcp/node_modules/zod/v4/core/json-schema-processors.js
+// node_modules/zod/v4/core/json-schema-processors.js
 var formatMap = {
   guid: "uuid",
   url: "uri",
@@ -58298,7 +58298,7 @@ function toJSONSchema(input, params) {
   return finalize(ctx, input);
 }
 
-// ../../abap-mcp/node_modules/zod/v4/core/json-schema-generator.js
+// node_modules/zod/v4/core/json-schema-generator.js
 var JSONSchemaGenerator = class {
   /** @deprecated Access via ctx instead */
   get metadataRegistry() {
@@ -58373,10 +58373,10 @@ var JSONSchemaGenerator = class {
   }
 };
 
-// ../../abap-mcp/node_modules/zod/v4/core/json-schema.js
+// node_modules/zod/v4/core/json-schema.js
 var json_schema_exports = {};
 
-// ../../abap-mcp/node_modules/zod/v4/classic/schemas.js
+// node_modules/zod/v4/classic/schemas.js
 var schemas_exports2 = {};
 __export(schemas_exports2, {
   ZodAny: () => ZodAny,
@@ -58547,7 +58547,7 @@ __export(schemas_exports2, {
   xor: () => xor
 });
 
-// ../../abap-mcp/node_modules/zod/v4/classic/checks.js
+// node_modules/zod/v4/classic/checks.js
 var checks_exports2 = {};
 __export(checks_exports2, {
   endsWith: () => _endsWith,
@@ -58581,7 +58581,7 @@ __export(checks_exports2, {
   uppercase: () => _uppercase
 });
 
-// ../../abap-mcp/node_modules/zod/v4/classic/iso.js
+// node_modules/zod/v4/classic/iso.js
 var iso_exports = {};
 __export(iso_exports, {
   ZodISODate: () => ZodISODate,
@@ -58622,7 +58622,7 @@ function duration2(params) {
   return _isoDuration(ZodISODuration, params);
 }
 
-// ../../abap-mcp/node_modules/zod/v4/classic/errors.js
+// node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = "ZodError";
@@ -58662,7 +58662,7 @@ var ZodRealError = /* @__PURE__ */ $constructor("ZodError", initializer2, {
   Parent: Error
 });
 
-// ../../abap-mcp/node_modules/zod/v4/classic/parse.js
+// node_modules/zod/v4/classic/parse.js
 var parse2 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse2 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -58676,7 +58676,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// ../../abap-mcp/node_modules/zod/v4/classic/schemas.js
+// node_modules/zod/v4/classic/schemas.js
 var _installedGroups = /* @__PURE__ */ new WeakMap();
 function _installLazyMethods(inst, group, methods) {
   const proto = Object.getPrototypeOf(inst);
@@ -59966,7 +59966,7 @@ function preprocess(fn, schema) {
   });
 }
 
-// ../../abap-mcp/node_modules/zod/v4/classic/compat.js
+// node_modules/zod/v4/classic/compat.js
 var ZodIssueCode = {
   invalid_type: "invalid_type",
   too_big: "too_big",
@@ -59992,7 +59992,7 @@ var ZodFirstPartyTypeKind;
 /* @__PURE__ */ (function(ZodFirstPartyTypeKind3) {
 })(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
 
-// ../../abap-mcp/node_modules/zod/v4/classic/from-json-schema.js
+// node_modules/zod/v4/classic/from-json-schema.js
 var z = {
   ...schemas_exports2,
   ...checks_exports2,
@@ -60472,7 +60472,7 @@ function fromJSONSchema(schema, params) {
   return convertSchema(normalized, ctx);
 }
 
-// ../../abap-mcp/node_modules/zod/v4/classic/coerce.js
+// node_modules/zod/v4/classic/coerce.js
 var coerce_exports = {};
 __export(coerce_exports, {
   bigint: () => bigint3,
@@ -60497,10 +60497,10 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// ../../abap-mcp/node_modules/zod/v4/classic/external.js
+// node_modules/zod/v4/classic/external.js
 config(en_default());
 
-// ../../abap-mcp/node_modules/fast-xml-parser/src/util.js
+// node_modules/fast-xml-parser/src/util.js
 var nameStartChar = ":A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD";
 var nameChar = nameStartChar + "\\-.\\d\\u00B7\\u0300-\\u036F\\u203F-\\u2040";
 var nameRegexp = "[" + nameStartChar + "][" + nameChar + "]*";
@@ -60541,7 +60541,7 @@ var DANGEROUS_PROPERTY_NAMES = [
 ];
 var criticalProperties = ["__proto__", "constructor", "prototype"];
 
-// ../../abap-mcp/node_modules/fast-xml-parser/src/validator.js
+// node_modules/fast-xml-parser/src/validator.js
 var defaultOptions = {
   allowBooleanAttributes: false,
   //A tag can have attributes without any value
@@ -60847,7 +60847,7 @@ function getPositionFromMatch(match) {
   return match.startIndex + match[1].length;
 }
 
-// ../../abap-mcp/node_modules/@nodable/entities/src/entities.js
+// node_modules/@nodable/entities/src/entities.js
 var CURRENCY = {
   cent: "\xA2",
   pound: "\xA3",
@@ -60895,7 +60895,7 @@ var COMMON_HTML = {
   frac34: "\xBE"
 };
 
-// ../../abap-mcp/node_modules/@nodable/entities/src/EntityDecoder.js
+// node_modules/@nodable/entities/src/EntityDecoder.js
 var ENTITY_ACTION = Object.freeze({
   /** Resolve and expand the entity normally. */
   ALLOW: "allow",
@@ -61339,7 +61339,7 @@ var EntityDecoder = class {
   }
 };
 
-// ../../abap-mcp/node_modules/fast-xml-parser/src/xmlparser/OptionsBuilder.js
+// node_modules/fast-xml-parser/src/xmlparser/OptionsBuilder.js
 var defaultOnDangerousProperty = (name) => {
   if (DANGEROUS_PROPERTY_NAMES.includes(name)) {
     return "__" + name;
@@ -61474,7 +61474,7 @@ var buildOptions = function(options) {
   return built;
 };
 
-// ../../abap-mcp/node_modules/fast-xml-parser/src/xmlparser/xmlNode.js
+// node_modules/fast-xml-parser/src/xmlparser/xmlNode.js
 var METADATA_SYMBOL;
 if (typeof Symbol !== "function") {
   METADATA_SYMBOL = "@@xmlMetadata";
@@ -61508,7 +61508,7 @@ var XmlNode = class {
   }
 };
 
-// ../../abap-mcp/node_modules/xml-naming/src/index.js
+// node_modules/xml-naming/src/index.js
 var nameStartChar10 = ":A-Za-z_\xC0-\xD6\xD8-\xF6\xF8-\u02FF\u0370-\u037D\u037F-\u0486\u0488-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD";
 var nameChar10 = nameStartChar10 + "\\-\\.\\d\xB7\u0300-\u036F\u203F-\u2040";
 var nameStartChar11 = ":A-Za-z_\xC0-\u02FF\u0370-\u037D\u037F-\u0486\u0488-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u{10000}-\u{EFFFF}";
@@ -61536,7 +61536,7 @@ var getRegexes = (xmlVersion = "1.0", asciiOnly = false) => {
 };
 var qName = (str5, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str5);
 
-// ../../abap-mcp/node_modules/fast-xml-parser/src/xmlparser/DocTypeReader.js
+// node_modules/fast-xml-parser/src/xmlparser/DocTypeReader.js
 var DocTypeReader = class {
   constructor(options, xmlVersion) {
     this.suppressValidationErr = !options;
@@ -61816,7 +61816,7 @@ function validateEntityName2(name, xmlVersion) {
     throw new Error(`Invalid entity name ${name}`);
 }
 
-// ../../abap-mcp/node_modules/anynum/digitTable.js
+// node_modules/anynum/digitTable.js
 var SCRIPT_ZEROS = [
   // Basic Latin (ASCII) — included for completeness / pass-through
   48,
@@ -61966,7 +61966,7 @@ for (const zero of SCRIPT_ZEROS) {
   }
 }
 
-// ../../abap-mcp/node_modules/anynum/anynum.js
+// node_modules/anynum/anynum.js
 var CHAR_0 = 48;
 var CHAR_9 = 57;
 var CHAR_MINUS = 45;
@@ -62044,7 +62044,7 @@ function anynum(str5) {
 }
 var anynum_default = anynum;
 
-// ../../abap-mcp/node_modules/strnum/strnum.js
+// node_modules/strnum/strnum.js
 var hexRegex = /^[-+]?0x[a-fA-F0-9]+$/;
 var binRegex = /^0b[01]+$/;
 var octRegex = /^0o[0-7]+$/;
@@ -62180,7 +62180,7 @@ function handleInfinity(str5, num3, options) {
   }
 }
 
-// ../../abap-mcp/node_modules/fast-xml-parser/src/ignoreAttributes.js
+// node_modules/fast-xml-parser/src/ignoreAttributes.js
 function getIgnoreAttributesFn(ignoreAttributes) {
   if (typeof ignoreAttributes === "function") {
     return ignoreAttributes;
@@ -62200,7 +62200,7 @@ function getIgnoreAttributesFn(ignoreAttributes) {
   return () => false;
 }
 
-// ../../abap-mcp/node_modules/path-expression-matcher/src/Expression.js
+// node_modules/path-expression-matcher/src/Expression.js
 var Expression = class {
   /**
    * Create a new Expression
@@ -62363,7 +62363,7 @@ var Expression = class {
   }
 };
 
-// ../../abap-mcp/node_modules/path-expression-matcher/src/ExpressionSet.js
+// node_modules/path-expression-matcher/src/ExpressionSet.js
 var ExpressionSet = class {
   constructor() {
     this._byDepthAndTag = /* @__PURE__ */ new Map();
@@ -62532,7 +62532,7 @@ var ExpressionSet = class {
   }
 };
 
-// ../../abap-mcp/node_modules/path-expression-matcher/src/Matcher.js
+// node_modules/path-expression-matcher/src/Matcher.js
 var MatcherView = class {
   /**
    * @param {Matcher} matcher - The parent Matcher instance to read from.
@@ -63049,7 +63049,7 @@ var Matcher = class {
   }
 };
 
-// ../../abap-mcp/node_modules/is-unsafe/src/contexts/html.js
+// node_modules/is-unsafe/src/contexts/html.js
 var HTML_PATTERNS = [
   {
     id: "html-script-open",
@@ -63142,7 +63142,7 @@ var HTML_PATTERNS = [
 ];
 var html_default = HTML_PATTERNS;
 
-// ../../abap-mcp/node_modules/is-unsafe/src/contexts/xml.js
+// node_modules/is-unsafe/src/contexts/xml.js
 var XML_PATTERNS = [
   {
     id: "xml-cdata-injection",
@@ -63209,7 +63209,7 @@ var XML_PATTERNS = [
 ];
 var xml_default = XML_PATTERNS;
 
-// ../../abap-mcp/node_modules/is-unsafe/src/contexts/svg.js
+// node_modules/is-unsafe/src/contexts/svg.js
 var SVG_PATTERNS = [
   {
     id: "svg-script-element",
@@ -63281,7 +63281,7 @@ var SVG_PATTERNS = [
 ];
 var svg_default = SVG_PATTERNS;
 
-// ../../abap-mcp/node_modules/is-unsafe/src/contexts/sql.js
+// node_modules/is-unsafe/src/contexts/sql.js
 var SQL_PATTERNS = [
   {
     id: "sql-block-comment-open",
@@ -63363,7 +63363,7 @@ var SQL_PATTERNS = [
 ];
 var sql_default = SQL_PATTERNS;
 
-// ../../abap-mcp/node_modules/is-unsafe/src/contexts/shell.js
+// node_modules/is-unsafe/src/contexts/shell.js
 var SHELL_PATTERNS = [
   {
     id: "shell-path-traversal-unix",
@@ -63461,7 +63461,7 @@ var SHELL_PATTERNS = [
 ];
 var shell_default = SHELL_PATTERNS;
 
-// ../../abap-mcp/node_modules/is-unsafe/src/contexts/redos.js
+// node_modules/is-unsafe/src/contexts/redos.js
 var REDOS_PATTERNS = [
   {
     id: "redos-nested-quantifier-plus",
@@ -63510,7 +63510,7 @@ var REDOS_PATTERNS = [
 ];
 var redos_default = REDOS_PATTERNS;
 
-// ../../abap-mcp/node_modules/is-unsafe/src/contexts/nosql.js
+// node_modules/is-unsafe/src/contexts/nosql.js
 var sep = `["'\\s]*:`;
 var NOSQL_PATTERNS = [
   // ─── MongoDB $ operator injection ────────────────────────────────────────
@@ -63600,7 +63600,7 @@ var NOSQL_PATTERNS = [
 ];
 var nosql_default = NOSQL_PATTERNS;
 
-// ../../abap-mcp/node_modules/is-unsafe/src/contexts/log.js
+// node_modules/is-unsafe/src/contexts/log.js
 var LOG_PATTERNS = [
   // ─── CRLF / newline injection ─────────────────────────────────────────────
   {
@@ -63674,7 +63674,7 @@ var LOG_PATTERNS = [
 ];
 var log_default = LOG_PATTERNS;
 
-// ../../abap-mcp/node_modules/is-unsafe/src/contexts/sql-strict.js
+// node_modules/is-unsafe/src/contexts/sql-strict.js
 var SQL_STRICT_EXTRA = [
   {
     id: "sql-line-comment",
@@ -63695,7 +63695,7 @@ var SQL_STRICT_EXTRA = [
 var SQL_STRICT_PATTERNS = [...sql_default, ...SQL_STRICT_EXTRA];
 var sql_strict_default = SQL_STRICT_PATTERNS;
 
-// ../../abap-mcp/node_modules/is-unsafe/src/index.js
+// node_modules/is-unsafe/src/index.js
 html_default.label = "HTML";
 xml_default.label = "XML";
 svg_default.label = "SVG";
@@ -63769,7 +63769,7 @@ function isUnsafe(value, context) {
   return false;
 }
 
-// ../../abap-mcp/node_modules/fast-xml-parser/src/xmlparser/OrderedObjParser.js
+// node_modules/fast-xml-parser/src/xmlparser/OrderedObjParser.js
 function extractRawAttributes(prefixedAttrs, options) {
   if (!prefixedAttrs) return {};
   const attrs = options.attributesGroupName ? prefixedAttrs[options.attributesGroupName] : prefixedAttrs;
@@ -64359,7 +64359,7 @@ function sanitizeName(name, options) {
   return name;
 }
 
-// ../../abap-mcp/node_modules/fast-xml-parser/src/xmlparser/node2json.js
+// node_modules/fast-xml-parser/src/xmlparser/node2json.js
 var METADATA_SYMBOL2 = XmlNode.getMetaDataSymbol();
 function stripAttributePrefix(attrs, prefix) {
   if (!attrs || typeof attrs !== "object") return {};
@@ -64471,7 +64471,7 @@ function isLeafTag(obj, options) {
   return false;
 }
 
-// ../../abap-mcp/node_modules/fast-xml-parser/src/xmlparser/XMLParser.js
+// node_modules/fast-xml-parser/src/xmlparser/XMLParser.js
 var XMLParser = class {
   constructor(options) {
     this.externalEntities = {};
@@ -71765,7 +71765,7 @@ var import_https_proxy_agent = __toESM(require_dist(), 1);
 import http from "node:http";
 import https2 from "node:https";
 
-// ../../abap-mcp/node_modules/proxy-from-env/index.js
+// node_modules/proxy-from-env/index.js
 var DEFAULT_PORTS = {
   ftp: 21,
   gopher: 70,
@@ -73495,7 +73495,7 @@ async function shutdownAllDebugSessions(log2) {
 // src/server.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
 
-// ../../abap-mcp/node_modules/zod/v3/helpers/util.js
+// node_modules/zod/v3/helpers/util.js
 var util;
 (function(util2) {
   util2.assertEqual = (_) => {
@@ -73629,7 +73629,7 @@ var getParsedType2 = (data) => {
   }
 };
 
-// ../../abap-mcp/node_modules/zod/v3/ZodError.js
+// node_modules/zod/v3/ZodError.js
 var ZodIssueCode2 = util.arrayToEnum([
   "invalid_type",
   "invalid_literal",
@@ -73743,7 +73743,7 @@ ZodError2.create = (issues) => {
   return error51;
 };
 
-// ../../abap-mcp/node_modules/zod/v3/locales/en.js
+// node_modules/zod/v3/locales/en.js
 var errorMap = (issue2, _ctx) => {
   let message;
   switch (issue2.code) {
@@ -73846,13 +73846,13 @@ var errorMap = (issue2, _ctx) => {
 };
 var en_default2 = errorMap;
 
-// ../../abap-mcp/node_modules/zod/v3/errors.js
+// node_modules/zod/v3/errors.js
 var overrideErrorMap = en_default2;
 function getErrorMap2() {
   return overrideErrorMap;
 }
 
-// ../../abap-mcp/node_modules/zod/v3/helpers/parseUtil.js
+// node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
   const { data, path: path6, errorMaps, issueData } = params;
   const fullPath = [...path6, ...issueData.path || []];
@@ -73961,14 +73961,14 @@ var isDirty = (x) => x.status === "dirty";
 var isValid = (x) => x.status === "valid";
 var isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
 
-// ../../abap-mcp/node_modules/zod/v3/helpers/errorUtil.js
+// node_modules/zod/v3/helpers/errorUtil.js
 var errorUtil;
 (function(errorUtil2) {
   errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
   errorUtil2.toString = (message) => typeof message === "string" ? message : message?.message;
 })(errorUtil || (errorUtil = {}));
 
-// ../../abap-mcp/node_modules/zod/v3/types.js
+// node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
   constructor(parent, value, path6, key) {
     this._cachedPath = [];
@@ -77371,7 +77371,7 @@ var nullableType = ZodNullable2.create;
 var preprocessType = ZodEffects.createWithPreprocess;
 var pipelineType = ZodPipeline.create;
 
-// ../../abap-mcp/node_modules/zod/v4/mini/schemas.js
+// node_modules/zod/v4/mini/schemas.js
 var ZodMiniType = /* @__PURE__ */ $constructor("ZodMiniType", (inst, def) => {
   if (!inst._zod)
     throw new Error("Uninitialized schema in ZodMiniType.");
@@ -77417,7 +77417,7 @@ function object2(shape, params) {
   return new ZodMiniObject(def);
 }
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-compat.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-compat.js
 function isZ4Schema(s) {
   const schema = s;
   return !!schema._zod;
@@ -77577,7 +77577,7 @@ function getLiteralValue(schema) {
   return void 0;
 }
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
@@ -79108,12 +79108,12 @@ var UrlElicitationRequiredError = class extends McpError {
   }
 };
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/interfaces.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/interfaces.js
 function isTerminal(status) {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/Options.js
+// node_modules/zod-to-json-schema/dist/esm/Options.js
 var ignoreOverride = /* @__PURE__ */ Symbol("Let zodToJsonSchema decide on which parser to use");
 var defaultOptions3 = {
   name: void 0,
@@ -79147,7 +79147,7 @@ var getDefaultOptions = (options) => typeof options === "string" ? {
   ...options
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/Refs.js
+// node_modules/zod-to-json-schema/dist/esm/Refs.js
 var getRefs = (options) => {
   const _options = getDefaultOptions(options);
   const currentPath = _options.name !== void 0 ? [..._options.basePath, _options.definitionPath, _options.name] : _options.basePath;
@@ -79168,7 +79168,7 @@ var getRefs = (options) => {
   };
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/errorMessages.js
+// node_modules/zod-to-json-schema/dist/esm/errorMessages.js
 function addErrorMessage(res, key, errorMessage, refs) {
   if (!refs?.errorMessages)
     return;
@@ -79184,7 +79184,7 @@ function setResponseValueAndErrors(res, key, value, errorMessage, refs) {
   addErrorMessage(res, key, errorMessage, refs);
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/getRelativePath.js
+// node_modules/zod-to-json-schema/dist/esm/getRelativePath.js
 var getRelativePath = (pathA, pathB) => {
   let i = 0;
   for (; i < pathA.length && i < pathB.length; i++) {
@@ -79194,7 +79194,7 @@ var getRelativePath = (pathA, pathB) => {
   return [(pathA.length - i).toString(), ...pathB.slice(i)].join("/");
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/any.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/any.js
 function parseAnyDef(refs) {
   if (refs.target !== "openAi") {
     return {};
@@ -79210,7 +79210,7 @@ function parseAnyDef(refs) {
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/array.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/array.js
 function parseArrayDef(def, refs) {
   const res = {
     type: "array"
@@ -79234,7 +79234,7 @@ function parseArrayDef(def, refs) {
   return res;
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/bigint.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/bigint.js
 function parseBigintDef(def, refs) {
   const res = {
     type: "integer",
@@ -79280,24 +79280,24 @@ function parseBigintDef(def, refs) {
   return res;
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/boolean.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/boolean.js
 function parseBooleanDef() {
   return {
     type: "boolean"
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/branded.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/branded.js
 function parseBrandedDef(_def, refs) {
   return parseDef(_def.type._def, refs);
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/catch.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/catch.js
 var parseCatchDef = (def, refs) => {
   return parseDef(def.innerType._def, refs);
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/date.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/date.js
 function parseDateDef(def, refs, overrideDateStrategy) {
   const strategy = overrideDateStrategy ?? refs.dateStrategy;
   if (Array.isArray(strategy)) {
@@ -79356,7 +79356,7 @@ var integerDateParser = (def, refs) => {
   return res;
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/default.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/default.js
 function parseDefaultDef(_def, refs) {
   return {
     ...parseDef(_def.innerType._def, refs),
@@ -79364,12 +79364,12 @@ function parseDefaultDef(_def, refs) {
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/effects.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/effects.js
 function parseEffectsDef(_def, refs) {
   return refs.effectStrategy === "input" ? parseDef(_def.schema._def, refs) : parseAnyDef(refs);
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/enum.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/enum.js
 function parseEnumDef(def) {
   return {
     type: "string",
@@ -79377,7 +79377,7 @@ function parseEnumDef(def) {
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/intersection.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/intersection.js
 var isJsonSchema7AllOfType = (type) => {
   if ("type" in type && type.type === "string")
     return false;
@@ -79419,7 +79419,7 @@ function parseIntersectionDef(def, refs) {
   } : void 0;
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/literal.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/literal.js
 function parseLiteralDef(def, refs) {
   const parsedType2 = typeof def.value;
   if (parsedType2 !== "bigint" && parsedType2 !== "number" && parsedType2 !== "boolean" && parsedType2 !== "string") {
@@ -79439,7 +79439,7 @@ function parseLiteralDef(def, refs) {
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/string.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/string.js
 var emojiRegex2 = void 0;
 var zodPatterns = {
   /**
@@ -79764,7 +79764,7 @@ function stringifyRegExpWithFlags(regex, refs) {
   return pattern;
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/record.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/record.js
 function parseRecordDef(def, refs) {
   if (refs.target === "openAi") {
     console.warn("Warning: OpenAI may not support records in schemas! Try an array of key-value pairs instead.");
@@ -79816,7 +79816,7 @@ function parseRecordDef(def, refs) {
   return schema;
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/map.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/map.js
 function parseMapDef(def, refs) {
   if (refs.mapStrategy === "record") {
     return parseRecordDef(def, refs);
@@ -79841,7 +79841,7 @@ function parseMapDef(def, refs) {
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/nativeEnum.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/nativeEnum.js
 function parseNativeEnumDef(def) {
   const object3 = def.values;
   const actualKeys = Object.keys(def.values).filter((key) => {
@@ -79855,7 +79855,7 @@ function parseNativeEnumDef(def) {
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/never.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/never.js
 function parseNeverDef(refs) {
   return refs.target === "openAi" ? void 0 : {
     not: parseAnyDef({
@@ -79865,7 +79865,7 @@ function parseNeverDef(refs) {
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/null.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/null.js
 function parseNullDef(refs) {
   return refs.target === "openApi3" ? {
     enum: ["null"],
@@ -79875,7 +79875,7 @@ function parseNullDef(refs) {
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/union.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/union.js
 var primitiveMappings = {
   ZodString: "string",
   ZodNumber: "number",
@@ -79943,7 +79943,7 @@ var asAnyOf = (def, refs) => {
   return anyOf.length ? { anyOf } : void 0;
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/nullable.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/nullable.js
 function parseNullableDef(def, refs) {
   if (["ZodString", "ZodNumber", "ZodBigInt", "ZodBoolean", "ZodNull"].includes(def.innerType._def.typeName) && (!def.innerType._def.checks || !def.innerType._def.checks.length)) {
     if (refs.target === "openApi3") {
@@ -79975,7 +79975,7 @@ function parseNullableDef(def, refs) {
   return base && { anyOf: [base, { type: "null" }] };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/number.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/number.js
 function parseNumberDef(def, refs) {
   const res = {
     type: "number"
@@ -80024,7 +80024,7 @@ function parseNumberDef(def, refs) {
   return res;
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/object.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/object.js
 function parseObjectDef(def, refs) {
   const forceOptionalIntoNullable = refs.target === "openAi";
   const result = {
@@ -80094,7 +80094,7 @@ function safeIsOptional(schema) {
   }
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/optional.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/optional.js
 var parseOptionalDef = (def, refs) => {
   if (refs.currentPath.toString() === refs.propertyPath?.toString()) {
     return parseDef(def.innerType._def, refs);
@@ -80113,7 +80113,7 @@ var parseOptionalDef = (def, refs) => {
   } : parseAnyDef(refs);
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/pipeline.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/pipeline.js
 var parsePipelineDef = (def, refs) => {
   if (refs.pipeStrategy === "input") {
     return parseDef(def.in._def, refs);
@@ -80133,12 +80133,12 @@ var parsePipelineDef = (def, refs) => {
   };
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/promise.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/promise.js
 function parsePromiseDef(def, refs) {
   return parseDef(def.type._def, refs);
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/set.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/set.js
 function parseSetDef(def, refs) {
   const items = parseDef(def.valueType._def, {
     ...refs,
@@ -80158,7 +80158,7 @@ function parseSetDef(def, refs) {
   return schema;
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/tuple.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/tuple.js
 function parseTupleDef(def, refs) {
   if (def.rest) {
     return {
@@ -80186,24 +80186,24 @@ function parseTupleDef(def, refs) {
   }
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/undefined.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/undefined.js
 function parseUndefinedDef(refs) {
   return {
     not: parseAnyDef(refs)
   };
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/unknown.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/unknown.js
 function parseUnknownDef(refs) {
   return parseAnyDef(refs);
 }
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parsers/readonly.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/readonly.js
 var parseReadonlyDef = (def, refs) => {
   return parseDef(def.innerType._def, refs);
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/selectParser.js
+// node_modules/zod-to-json-schema/dist/esm/selectParser.js
 var selectParser = (def, typeName, refs) => {
   switch (typeName) {
     case ZodFirstPartyTypeKind2.ZodString:
@@ -80279,7 +80279,7 @@ var selectParser = (def, typeName, refs) => {
   }
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/parseDef.js
+// node_modules/zod-to-json-schema/dist/esm/parseDef.js
 function parseDef(def, refs, forceResolution = false) {
   const seenItem = refs.seen.get(def);
   if (refs.override) {
@@ -80335,7 +80335,7 @@ var addMeta = (def, refs, jsonSchema) => {
   return jsonSchema;
 };
 
-// ../../abap-mcp/node_modules/zod-to-json-schema/dist/esm/zodToJsonSchema.js
+// node_modules/zod-to-json-schema/dist/esm/zodToJsonSchema.js
 var zodToJsonSchema = (schema, options) => {
   const refs = getRefs(options);
   let definitions = typeof options === "object" && options.definitions ? Object.entries(options.definitions).reduce((acc, [name2, schema2]) => ({
@@ -80397,7 +80397,7 @@ var zodToJsonSchema = (schema, options) => {
   return combined;
 };
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js
 function mapMiniTarget(t) {
   if (!t)
     return "draft-7";
@@ -80439,7 +80439,7 @@ function parseWithCompat(schema, data) {
   return result.data;
 }
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js
 var DEFAULT_REQUEST_TIMEOUT_MSEC = 6e4;
 var Protocol = class {
   constructor(_options) {
@@ -81393,7 +81393,7 @@ function mergeCapabilities(base, additional) {
   return result;
 }
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/validation/ajv-provider.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/validation/ajv-provider.js
 var import_ajv = __toESM(require_ajv(), 1);
 var import_ajv_formats = __toESM(require_dist2(), 1);
 function createDefaultAjvInstance() {
@@ -81461,7 +81461,7 @@ var AjvJsonSchemaValidator = class {
   }
 };
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/server.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/server.js
 var ExperimentalServerTasks = class {
   constructor(_server) {
     this._server = _server;
@@ -81674,7 +81674,7 @@ var ExperimentalServerTasks = class {
   }
 };
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/helpers.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/helpers.js
 function assertToolsCallTaskCapability(requests, method, entityName) {
   if (!requests) {
     throw new Error(`${entityName} does not support task creation (required for ${method})`);
@@ -81709,7 +81709,7 @@ function assertClientRequestTaskCapability(requests, method, entityName) {
   }
 }
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js
 var Server = class extends Protocol {
   /**
    * Initializes this server with the given name and version information.
@@ -82080,7 +82080,7 @@ var Server = class extends Protocol {
   }
 };
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/server/completable.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/completable.js
 var COMPLETABLE_SYMBOL = /* @__PURE__ */ Symbol.for("mcp.completable");
 function isCompletable(schema) {
   return !!schema && typeof schema === "object" && COMPLETABLE_SYMBOL in schema;
@@ -82094,7 +82094,7 @@ var McpZodTypeKind;
   McpZodTypeKind2["Completable"] = "McpCompletable";
 })(McpZodTypeKind || (McpZodTypeKind = {}));
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/toolNameValidation.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/toolNameValidation.js
 var TOOL_NAME_REGEX = /^[A-Za-z0-9._-]{1,128}$/;
 function validateToolName(name) {
   const warnings = [];
@@ -82152,7 +82152,7 @@ function validateAndWarnToolName(name) {
   return result.isValid;
 }
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/mcp-server.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/mcp-server.js
 var ExperimentalMcpServerTasks = class {
   constructor(_mcpServer) {
     this._mcpServer = _mcpServer;
@@ -82167,7 +82167,7 @@ var ExperimentalMcpServerTasks = class {
   }
 };
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/mcp.js
 var McpServer = class {
   constructor(serverInfo, options) {
     this._registeredResources = {};
@@ -82959,10 +82959,10 @@ var EMPTY_COMPLETION_RESULT = {
   }
 };
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 import process3 from "node:process";
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var STDIO_DEFAULT_MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 var ReadBuffer = class {
   constructor(options) {
@@ -82999,7 +82999,7 @@ function serializeMessage(message) {
   return JSON.stringify(message) + "\n";
 }
 
-// ../../abap-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 var StdioServerTransport = class {
   constructor(_stdin = process3.stdin, _stdout = process3.stdout, options) {
     this._stdin = _stdin;
