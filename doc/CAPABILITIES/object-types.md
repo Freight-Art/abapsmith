@@ -168,10 +168,19 @@ The `Object` column values are the registry `label` fields, unreworded.
   (typically from its create) survives the delete, and the safety gate judges
   the delete itself as a local mutation rather than against
   `ABAP_ALLOW_TRANSPORTS`.
-  `TABL/DI` (a table's secondary index) joins them
-  as a third bridge create/delete-only type with no read route: ADT REST has
-  no index collection at all (404 on every route probed live on A4H
-  2026-09-05), so creation goes through DD_INDEX_INTERFACE the same way.
+  `TABL/DI` (a table's secondary index) is a third bridge-only type with no
+  read route — ADT REST has no index collection at all — so creation goes
+  through `DD_INDEX_INTERFACE` too. A non-unique, one-field create in `$TMP`
+  was proven live on A4H 2026-09-05, confirmed by a post-COMMIT re-read of
+  `DD12V` (`AS4LOCAL = 'A'`) and `DD17S`. The delete's `DD12V` pre-check
+  correctly returned `NOT_FOUND` for a nonexistent index, but every real-index
+  delete was rejected live for omitting `DD_INDEX_INTERFACE`'s mandatory
+  `INDEX_FIELDS` table parameter — now fixed, not re-run. A unique create over
+  two non-client fields of a client-dependent table failed with `ACTFAILED`;
+  the suspected, unconfirmed cause is a client-field requirement, and the
+  bridge now refuses that case as `BAD_INPUT`, unverified live. Deleting the
+  base table was not blocked live by a surviving index, with no way to confirm
+  the index went too. The transportable-package path is unexercised.
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and

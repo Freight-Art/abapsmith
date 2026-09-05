@@ -114,13 +114,17 @@
   content. SU21 is the only way to view or edit an authorization object.
 - **No table secondary index (TABL/DI) change or read; create and delete are
   bridge-only.** A live probe on A4H 2026-09-05 confirmed there is no ADT
-  REST route for indexes at all — every route under a table 404s, and the
-  table XML's only index link is a GUI handoff to SE11's Indexes tab, not a
-  REST resource. Creation and deletion instead run through
-  `DD_INDEX_INTERFACE` via a classrun bridge (see `src/adt/capabilities.ts`);
-  the bridge cannot update an existing index — drop and recreate instead —
-  and there is no read-back for `TABL/DI` through abapsmith either way. SE11
-  (the table's "Indexes" button) is the only way to inspect one directly; the
+  REST route for indexes at all — every route under a table 404s. Creation
+  and deletion instead run through `DD_INDEX_INTERFACE` via a classrun
+  bridge (see `src/adt/capabilities.ts`); the bridge cannot update an
+  existing index — drop and recreate instead — and there is no read-back
+  for `TABL/DI` through abapsmith either way. A unique index on a
+  client-dependent table must include that table's client field or
+  `DD_INDEX_INTERFACE` fails activation, so the bridge checks for it and
+  refuses the create instead. Deleting the base table is not blocked by a
+  surviving secondary index, and abapsmith cannot confirm the index went
+  with it, since there is nothing to read back either way. SE11 (the
+  table's "Indexes" button) is the only way to inspect one directly; the
   table itself stays writable here as `TABL/DT`.
 
 ## FPM / Web Dynpro configuration is read-only, deliberately
