@@ -2,8 +2,11 @@
  * DDIC data preview: reads rows from exactly one DDIC table or view over
  * `POST /sap/bc/adt/datapreview/ddic`. No free-form SQL surface, and no way
  * to add one — the endpoint takes a name, not a statement. The `freestyle`
- * sibling (takes an Open-SQL string; server-side guard was only a
- * leading-keyword test) stays private to `probeT000()` and is not wired up.
+ * sibling (takes an Open-SQL SELECT string) is now wired up too, but only as
+ * `AbapConnection.dataPreviewFreestyle()` (`connection.ts`) — reachable only
+ * from `img-query.ts`'s module-assembled SQL, never from a tool argument
+ * directly. `probeT000()` (`system-role.ts`) keeps its own separate,
+ * no-retry route to the same URL.
  *
  * Wire behavior captured on A4H 2026-08-11 — see
  * the git history:
