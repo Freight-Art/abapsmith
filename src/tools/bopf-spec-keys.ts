@@ -186,6 +186,8 @@ const EMBED_DEPENDENT_OBJECT_FIELDS: FieldTable = {
   xmlName: "string",
   multiplicity: "string",
   implementationClassRef: "ref",
+};
+
 /** bopf.ts's set_association_fields patch path: attribute fields via `patchOpenTagAttrs`, ref fields via `spliceSetElementRef` — every one `unsettable`, so `null` clears it. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
 const SET_ASSOCIATION_FIELDS: FieldTable = {
   xmlName: "stringOrNull",

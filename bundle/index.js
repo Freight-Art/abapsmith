@@ -21988,11 +21988,11 @@ var require_mime_types = __commonJS({
       }
       return false;
     }
-    function contentType2(str4) {
-      if (!str4 || typeof str4 !== "string") {
+    function contentType2(str5) {
+      if (!str5 || typeof str5 !== "string") {
         return false;
       }
-      var mime = str4.indexOf("/") === -1 ? exports2.lookup(str4) : str4;
+      var mime = str5.indexOf("/") === -1 ? exports2.lookup(str5) : str5;
       if (!mime) {
         return false;
       }
@@ -22555,14 +22555,14 @@ var require_implementation = __commonJS({
       return arr;
     };
     var joiny = function(arr, joiner) {
-      var str4 = "";
+      var str5 = "";
       for (var i = 0; i < arr.length; i += 1) {
-        str4 += arr[i];
+        str5 += arr[i];
         if (i + 1 < arr.length) {
-          str4 += joiner;
+          str5 += joiner;
         }
       }
-      return str4;
+      return str5;
     };
     module.exports = function bind(that) {
       var target = this;
@@ -23134,8 +23134,8 @@ var require_form_data = __commonJS({
     var setToStringTag = require_es_set_tostringtag();
     var hasOwn = require_hasown();
     var populate = require_populate();
-    function escapeHeaderParam(str4) {
-      return String(str4).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
+    function escapeHeaderParam(str5) {
+      return String(str5).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
     }
     function FormData2(options) {
       if (!(this instanceof FormData2)) {
@@ -23459,13 +23459,13 @@ var require_ms = __commonJS({
         "val is not a non-empty string or a valid number. val=" + JSON.stringify(val)
       );
     };
-    function parse4(str4) {
-      str4 = String(str4);
-      if (str4.length > 100) {
+    function parse4(str5) {
+      str5 = String(str5);
+      if (str5.length > 100) {
         return;
       }
       var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
-        str4
+        str5
       );
       if (!match) {
         return;
@@ -24066,7 +24066,7 @@ var require_node = __commonJS({
     var { formatters } = module.exports;
     formatters.o = function(v) {
       this.inspectOpts.colors = this.useColors;
-      return util2.inspect(v, this.inspectOpts).split("\n").map((str4) => str4.trim()).join(" ");
+      return util2.inspect(v, this.inspectOpts).split("\n").map((str5) => str5.trim()).join(" ");
     };
     formatters.O = function(v) {
       this.inspectOpts.colors = this.useColors;
@@ -25119,8 +25119,8 @@ var require_axios = __commonJS({
     };
     var getSafeProp = (obj, prop) => obj != null && hasOwnInPrototypeChain(obj, prop) ? obj[prop] : void 0;
     var kindOf2 = /* @__PURE__ */ ((cache) => (thing) => {
-      const str4 = toString.call(thing);
-      return cache[str4] || (cache[str4] = str4.slice(8, -1).toLowerCase());
+      const str5 = toString.call(thing);
+      return cache[str5] || (cache[str5] = str5.slice(8, -1).toLowerCase());
     })(/* @__PURE__ */ Object.create(null));
     var kindOfTest = (type) => {
       type = type.toLowerCase();
@@ -25200,8 +25200,8 @@ var require_axios = __commonJS({
     };
     var isURLSearchParams = kindOfTest("URLSearchParams");
     var [isReadableStream, isRequest, isResponse, isHeaders] = ["ReadableStream", "Request", "Response", "Headers"].map(kindOfTest);
-    var trim = (str4) => {
-      return str4.trim ? str4.trim() : str4.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
+    var trim = (str5) => {
+      return str5.trim ? str5.trim() : str5.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
     };
     function forEach(obj, fn, {
       allOwnKeys = false
@@ -25363,13 +25363,13 @@ var require_axios = __commonJS({
       } while (sourceObj && (!filter || filter(sourceObj, destObj)) && sourceObj !== Object.prototype);
       return destObj;
     };
-    var endsWith = (str4, searchString, position) => {
-      str4 = String(str4);
-      if (position === void 0 || position > str4.length) {
-        position = str4.length;
+    var endsWith = (str5, searchString, position) => {
+      str5 = String(str5);
+      if (position === void 0 || position > str5.length) {
+        position = str5.length;
       }
       position -= searchString.length;
-      const lastIndex = str4.indexOf(searchString, position);
+      const lastIndex = str5.indexOf(searchString, position);
       return lastIndex !== -1 && lastIndex === position;
     };
     var toArray2 = (thing) => {
@@ -25397,17 +25397,17 @@ var require_axios = __commonJS({
         fn.call(obj, pair[0], pair[1]);
       }
     };
-    var matchAll = (regExp, str4) => {
+    var matchAll = (regExp, str5) => {
       let matches;
       const arr = [];
-      while ((matches = regExp.exec(str4)) !== null) {
+      while ((matches = regExp.exec(str5)) !== null) {
         arr.push(matches);
       }
       return arr;
     };
     var isHTMLForm = kindOfTest("HTMLFormElement");
-    var toCamelCase = (str4) => {
-      return str4.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
+    var toCamelCase = (str5) => {
+      return str5.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
         return p1.toUpperCase() + p2;
       });
     };
@@ -25612,24 +25612,24 @@ var require_axios = __commonJS({
       });
       return parsed;
     };
-    function trimSPorHTAB(str4) {
+    function trimSPorHTAB(str5) {
       let start = 0;
-      let end = str4.length;
+      let end = str5.length;
       while (start < end) {
-        const code = str4.charCodeAt(start);
+        const code = str5.charCodeAt(start);
         if (code !== 9 && code !== 32) {
           break;
         }
         start += 1;
       }
       while (end > start) {
-        const code = str4.charCodeAt(end - 1);
+        const code = str5.charCodeAt(end - 1);
         if (code !== 9 && code !== 32) {
           break;
         }
         end -= 1;
       }
-      return start === 0 && end === str4.length ? str4 : str4.slice(start, end);
+      return start === 0 && end === str5.length ? str5 : str5.slice(start, end);
     }
     var INVALID_UNICODE_HEADER_VALUE_CHARS = new RegExp("[\\u0000-\\u0008\\u000a-\\u001f\\u007f]+", "g");
     var INVALID_BYTE_STRING_HEADER_VALUE_CHARS = new RegExp("[^\\u0009\\u0020-\\u007e\\u0080-\\u00ff]+", "g");
@@ -25658,11 +25658,11 @@ var require_axios = __commonJS({
       }
       return utils$1.isArray(value) ? value.map(normalizeValue) : sanitizeHeaderValue(String(value));
     }
-    function parseTokens(str4) {
+    function parseTokens(str5) {
       const tokens = /* @__PURE__ */ Object.create(null);
       const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
       let match;
-      while (match = tokensRE.exec(str4)) {
+      while (match = tokensRE.exec(str5)) {
         tokens[match[1]] = match[2];
       }
       return tokens;
@@ -25710,12 +25710,12 @@ var require_axios = __commonJS({
     }
     function parseParameters(value) {
       const parameters = /* @__PURE__ */ Object.create(null);
-      const str4 = String(value);
+      const str5 = String(value);
       let start = 0;
       let quoted6 = false;
       let escaped = false;
       function parseParameter(end) {
-        const part = trimOWS(str4.slice(start, end));
+        const part = trimOWS(str5.slice(start, end));
         const equals = part.indexOf("=");
         if (equals < 1) {
           return;
@@ -25731,8 +25731,8 @@ var require_axios = __commonJS({
         const parameterValue = trimOWS(part.slice(equals + 1));
         parameters[normalizedName] = decodeQuotedString(parameterValue);
       }
-      for (let i = 0; i < str4.length; i++) {
-        const code = str4.charCodeAt(i);
+      for (let i = 0; i < str5.length; i++) {
+        const code = str5.charCodeAt(i);
         if (quoted6) {
           if (escaped) {
             escaped = false;
@@ -25748,10 +25748,10 @@ var require_axios = __commonJS({
           start = i + 1;
         }
       }
-      parseParameter(str4.length);
+      parseParameter(str5.length);
       return parameters;
     }
-    var isValidHeaderName = (str4) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str4.trim());
+    var isValidHeaderName = (str5) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str5.trim());
     function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
       if (utils$1.isFunction(filter)) {
         return filter.call(this, value, header);
@@ -25768,8 +25768,8 @@ var require_axios = __commonJS({
       }
     }
     function formatHeader(header) {
-      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str4) => {
-        return char.toUpperCase() + str4;
+      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str5) => {
+        return char.toUpperCase() + str5;
       });
     }
     function buildAccessors(obj, header) {
@@ -26281,7 +26281,7 @@ var require_axios = __commonJS({
       build(obj);
       return formData;
     }
-    function encode$1(str4) {
+    function encode$1(str5) {
       const charMap = {
         "!": "%21",
         "'": "%27",
@@ -26290,7 +26290,7 @@ var require_axios = __commonJS({
         "~": "%7E",
         "%20": "+"
       };
-      return encodeURIComponent(str4).replace(/[!'()~]|%20/g, function replacer(match) {
+      return encodeURIComponent(str5).replace(/[!'()~]|%20/g, function replacer(match) {
         return charMap[match];
       });
     }
@@ -26415,16 +26415,16 @@ var require_axios = __commonJS({
       ALPHA_DIGIT: ALPHA + ALPHA.toUpperCase() + DIGIT
     };
     var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
-      let str4 = "";
+      let str5 = "";
       const {
         length
       } = alphabet;
       const randomValues = new Uint32Array(size);
       crypto.randomFillSync(randomValues);
       for (let i = 0; i < size; i++) {
-        str4 += alphabet[randomValues[i] % length];
+        str5 += alphabet[randomValues[i] % length];
       }
-      return str4;
+      return str5;
     };
     var platform$1 = {
       isNode: true,
@@ -27470,7 +27470,7 @@ var require_axios = __commonJS({
     };
     var asyncDecorator = (fn, scheduler = utils$1.asap) => (...args) => scheduler(() => fn(...args));
     var isHexDigit = (charCode) => charCode >= 48 && charCode <= 57 || charCode >= 65 && charCode <= 70 || charCode >= 97 && charCode <= 102;
-    var isPercentEncodedByte = (str4, i, len) => i + 2 < len && isHexDigit(str4.charCodeAt(i + 1)) && isHexDigit(str4.charCodeAt(i + 2));
+    var isPercentEncodedByte = (str5, i, len) => i + 2 < len && isHexDigit(str5.charCodeAt(i + 1)) && isHexDigit(str5.charCodeAt(i + 2));
     var hexValue = (charCode) => charCode <= 57 ? charCode - 48 : (charCode & 223) - 55;
     var isBase64Char = (charCode) => charCode >= 65 && charCode <= 90 || // A-Z
     charCode >= 97 && charCode <= 122 || // a-z
@@ -28608,7 +28608,7 @@ var require_axios = __commonJS({
       }
       return config3;
     }
-    var encodeUTF8$1 = (str4) => encodeURIComponent(str4).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
+    var encodeUTF8$1 = (str5) => encodeURIComponent(str5).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
     function resolveConfig(config2) {
       const newConfig = mergeConfig({}, config2);
       const own2 = (key) => utils$1.hasOwnProp(newConfig, key) ? newConfig[key] : void 0;
@@ -28916,7 +28916,7 @@ var require_axios = __commonJS({
     var {
       isFunction
     } = utils$1;
-    var encodeUTF8 = (str4) => encodeURIComponent(str4).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
+    var encodeUTF8 = (str5) => encodeURIComponent(str5).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
     var decodeURIComponentSafe = (value) => {
       if (!utils$1.isString(value)) {
         return value;
@@ -28966,7 +28966,7 @@ var require_axios = __commonJS({
         return false;
       }
       const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream2);
-      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str4) => encoder.encode(str4))(new TextEncoder2()) : async (str4) => new Uint8Array(await new Request(str4).arrayBuffer()));
+      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str5) => encoder.encode(str5))(new TextEncoder2()) : async (str5) => new Uint8Array(await new Request(str5).arrayBuffer()));
       const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test3(() => {
         let duplexAccessed = false;
         const request = new Request(platform.origin, {
@@ -32963,9 +32963,9 @@ var require_revisions = __commonJS({
         return (0, utilities_1.xmlNode)(base, "@_adtcore:name") || "";
     };
     async function revisions(h, objectUrl, includeName) {
-      const str4 = (0, utilities_1.isString)(objectUrl) ? await (0, objectstructure_1.objectStructure)(h, objectUrl) : objectUrl;
-      const name = str4.metaData["adtcore:name"];
-      const revisionUrl = getRevisionLink(str4, includeName);
+      const str5 = (0, utilities_1.isString)(objectUrl) ? await (0, objectstructure_1.objectStructure)(h, objectUrl) : objectUrl;
+      const name = str5.metaData["adtcore:name"];
+      const revisionUrl = getRevisionLink(str5, includeName);
       if (!revisionUrl)
         throw (0, AdtException_1.adtException)(`Revision URL not found for object ${name}`);
       const headers = { Accept: "application/atom+xml;type=feed" };
@@ -36882,7 +36882,7 @@ var require_code = __commonJS({
     }
     exports2._ = _;
     var plus = new _Code("+");
-    function str4(strs, ...args) {
+    function str5(strs, ...args) {
       const expr = [safeStringify(strs[0])];
       let i = 0;
       while (i < args.length) {
@@ -36893,7 +36893,7 @@ var require_code = __commonJS({
       optimize(expr);
       return new _Code(expr);
     }
-    exports2.str = str4;
+    exports2.str = str5;
     function addCodeArg(code, arg) {
       if (arg instanceof _Code)
         code.push(...arg._items);
@@ -36936,7 +36936,7 @@ var require_code = __commonJS({
       return;
     }
     function strConcat(c1, c2) {
-      return c2.emptyStr() ? c1 : c1.emptyStr() ? c2 : str4`${c1}${c2}`;
+      return c2.emptyStr() ? c1 : c1.emptyStr() ? c2 : str5`${c1}${c2}`;
     }
     exports2.strConcat = strConcat;
     function interpolate(x) {
@@ -37898,22 +37898,22 @@ var require_util = __commonJS({
       return (0, codegen_1._)`${topSchemaRef}${schemaPath}${(0, codegen_1.getProperty)(keyword)}`;
     }
     exports2.schemaRefOrVal = schemaRefOrVal;
-    function unescapeFragment(str4) {
-      return unescapeJsonPointer(decodeURIComponent(str4));
+    function unescapeFragment(str5) {
+      return unescapeJsonPointer(decodeURIComponent(str5));
     }
     exports2.unescapeFragment = unescapeFragment;
-    function escapeFragment(str4) {
-      return encodeURIComponent(escapeJsonPointer(str4));
+    function escapeFragment(str5) {
+      return encodeURIComponent(escapeJsonPointer(str5));
     }
     exports2.escapeFragment = escapeFragment;
-    function escapeJsonPointer(str4) {
-      if (typeof str4 == "number")
-        return `${str4}`;
-      return str4.replace(/~/g, "~0").replace(/\//g, "~1");
+    function escapeJsonPointer(str5) {
+      if (typeof str5 == "number")
+        return `${str5}`;
+      return str5.replace(/~/g, "~0").replace(/\//g, "~1");
     }
     exports2.escapeJsonPointer = escapeJsonPointer;
-    function unescapeJsonPointer(str4) {
-      return str4.replace(/~1/g, "/").replace(/~0/g, "~");
+    function unescapeJsonPointer(str5) {
+      return str5.replace(/~1/g, "/").replace(/~0/g, "~");
     }
     exports2.unescapeJsonPointer = unescapeJsonPointer;
     function eachItem(xs, f) {
@@ -38938,8 +38938,8 @@ var require_json_schema_traverse = __commonJS({
         post(schema, jsonPtr, rootSchema, parentJsonPtr, parentKeyword, parentSchema, keyIndex);
       }
     }
-    function escapeJsonPtr(str4) {
-      return str4.replace(/~/g, "~0").replace(/\//g, "~1");
+    function escapeJsonPtr(str5) {
+      return str5.replace(/~/g, "~0").replace(/\//g, "~1");
     }
   }
 });
@@ -39058,26 +39058,26 @@ var require_resolve = __commonJS({
         addAnchor.call(this, sch.$anchor);
         addAnchor.call(this, sch.$dynamicAnchor);
         baseIds[jsonPtr] = innerBaseId;
-        function addRef(ref2) {
+        function addRef(ref3) {
           const _resolve = this.opts.uriResolver.resolve;
-          ref2 = normalizeId(innerBaseId ? _resolve(innerBaseId, ref2) : ref2);
-          if (schemaRefs.has(ref2))
-            throw ambiguos(ref2);
-          schemaRefs.add(ref2);
-          let schOrRef = this.refs[ref2];
+          ref3 = normalizeId(innerBaseId ? _resolve(innerBaseId, ref3) : ref3);
+          if (schemaRefs.has(ref3))
+            throw ambiguos(ref3);
+          schemaRefs.add(ref3);
+          let schOrRef = this.refs[ref3];
           if (typeof schOrRef == "string")
             schOrRef = this.refs[schOrRef];
           if (typeof schOrRef == "object") {
-            checkAmbiguosRef(sch, schOrRef.schema, ref2);
-          } else if (ref2 !== normalizeId(fullPath)) {
-            if (ref2[0] === "#") {
-              checkAmbiguosRef(sch, localRefs[ref2], ref2);
-              localRefs[ref2] = sch;
+            checkAmbiguosRef(sch, schOrRef.schema, ref3);
+          } else if (ref3 !== normalizeId(fullPath)) {
+            if (ref3[0] === "#") {
+              checkAmbiguosRef(sch, localRefs[ref3], ref3);
+              localRefs[ref3] = sch;
             } else {
-              this.refs[ref2] = fullPath;
+              this.refs[ref3] = fullPath;
             }
           }
-          return ref2;
+          return ref3;
         }
         function addAnchor(anchor) {
           if (typeof anchor == "string") {
@@ -39088,12 +39088,12 @@ var require_resolve = __commonJS({
         }
       });
       return localRefs;
-      function checkAmbiguosRef(sch1, sch2, ref2) {
+      function checkAmbiguosRef(sch1, sch2, ref3) {
         if (sch2 !== void 0 && !equal(sch1, sch2))
-          throw ambiguos(ref2);
+          throw ambiguos(ref3);
       }
-      function ambiguos(ref2) {
-        return new Error(`reference "${ref2}" resolves to more than one schema`);
+      function ambiguos(ref3) {
+        return new Error(`reference "${ref3}" resolves to more than one schema`);
       }
     }
     exports2.getSchemaRefs = getSchemaRefs;
@@ -39631,9 +39631,9 @@ var require_ref_error = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     var resolve_1 = require_resolve();
     var MissingRefError = class extends Error {
-      constructor(resolver, baseId, ref2, msg) {
-        super(msg || `can't resolve reference ${ref2} from id ${baseId}`);
-        this.missingRef = (0, resolve_1.resolveUrl)(resolver, baseId, ref2);
+      constructor(resolver, baseId, ref3, msg) {
+        super(msg || `can't resolve reference ${ref3} from id ${baseId}`);
+        this.missingRef = (0, resolve_1.resolveUrl)(resolver, baseId, ref3);
         this.missingSchema = (0, resolve_1.normalizeId)((0, resolve_1.getFullPath)(resolver, this.missingRef));
       }
     };
@@ -39759,22 +39759,22 @@ var require_compile = __commonJS({
       }
     }
     exports2.compileSchema = compileSchema;
-    function resolveRef2(root, baseId, ref2) {
+    function resolveRef2(root, baseId, ref3) {
       var _a3;
-      ref2 = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, ref2);
-      const schOrFunc = root.refs[ref2];
+      ref3 = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, ref3);
+      const schOrFunc = root.refs[ref3];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve3.call(this, root, ref2);
+      let _sch = resolve3.call(this, root, ref3);
       if (_sch === void 0) {
-        const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref2];
+        const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref3];
         const { schemaId } = this.opts;
         if (schema)
           _sch = new SchemaEnv({ schema, schemaId, root, baseId });
       }
       if (_sch === void 0)
         return;
-      return root.refs[ref2] = inlineOrCompile.call(this, _sch);
+      return root.refs[ref3] = inlineOrCompile.call(this, _sch);
     }
     exports2.resolveRef = resolveRef2;
     function inlineOrCompile(sch) {
@@ -39792,14 +39792,14 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve3(root, ref2) {
+    function resolve3(root, ref3) {
       let sch;
-      while (typeof (sch = this.refs[ref2]) == "string")
-        ref2 = sch;
-      return sch || this.schemas[ref2] || resolveSchema.call(this, root, ref2);
+      while (typeof (sch = this.refs[ref3]) == "string")
+        ref3 = sch;
+      return sch || this.schemas[ref3] || resolveSchema.call(this, root, ref3);
     }
-    function resolveSchema(root, ref2) {
-      const p = this.opts.uriResolver.parse(ref2);
+    function resolveSchema(root, ref3) {
+      const p = this.opts.uriResolver.parse(ref3);
       const refPath = (0, resolve_1._getFullPath)(this.opts.uriResolver, p);
       let baseId = (0, resolve_1.getFullPath)(this.opts.uriResolver, root.baseId, void 0);
       if (Object.keys(root.schema).length > 0 && refPath === baseId) {
@@ -39817,7 +39817,7 @@ var require_compile = __commonJS({
         return;
       if (!schOrRef.validate)
         compileSchema.call(this, schOrRef);
-      if (id === (0, resolve_1.normalizeId)(ref2)) {
+      if (id === (0, resolve_1.normalizeId)(ref3)) {
         const { schema } = schOrRef;
         const { schemaId } = this.opts;
         const schId = schema[schemaId];
@@ -40003,10 +40003,10 @@ var require_utils2 = __commonJS({
         return { host, isIPV6: false };
       }
     }
-    function findToken(str4, token) {
+    function findToken(str5, token) {
       let ind = 0;
-      for (let i = 0; i < str4.length; i++) {
-        if (str4[i] === token) ind++;
+      for (let i = 0; i < str5.length; i++) {
+        if (str5[i] === token) ind++;
       }
       return ind;
     }
@@ -40749,7 +40749,7 @@ var require_core = __commonJS({
     var util_1 = require_util();
     var $dataRefSchema = require_data();
     var uri_1 = require_uri2();
-    var defaultRegExp = (str4, flags) => new RegExp(str4, flags);
+    var defaultRegExp = (str5, flags) => new RegExp(str5, flags);
     defaultRegExp.code = "new RegExp";
     var META_IGNORE_OPTIONS = ["removeAdditional", "useDefaults", "coerceTypes"];
     var EXT_SCOPE_NAMES = /* @__PURE__ */ new Set([
@@ -40910,26 +40910,26 @@ var require_core = __commonJS({
             return _compileAsync.call(this, sch);
           }
         }
-        function checkLoaded({ missingSchema: ref2, missingRef }) {
-          if (this.refs[ref2]) {
-            throw new Error(`AnySchema ${ref2} is loaded but ${missingRef} cannot be resolved`);
+        function checkLoaded({ missingSchema: ref3, missingRef }) {
+          if (this.refs[ref3]) {
+            throw new Error(`AnySchema ${ref3} is loaded but ${missingRef} cannot be resolved`);
           }
         }
-        async function loadMissingSchema(ref2) {
-          const _schema = await _loadSchema.call(this, ref2);
-          if (!this.refs[ref2])
+        async function loadMissingSchema(ref3) {
+          const _schema = await _loadSchema.call(this, ref3);
+          if (!this.refs[ref3])
             await loadMetaSchema.call(this, _schema.$schema);
-          if (!this.refs[ref2])
-            this.addSchema(_schema, ref2, meta3);
+          if (!this.refs[ref3])
+            this.addSchema(_schema, ref3, meta3);
         }
-        async function _loadSchema(ref2) {
-          const p = this._loading[ref2];
+        async function _loadSchema(ref3) {
+          const p = this._loading[ref3];
           if (p)
             return p;
           try {
-            return await (this._loading[ref2] = loadSchema(ref2));
+            return await (this._loading[ref3] = loadSchema(ref3));
           } finally {
-            delete this._loading[ref2];
+            delete this._loading[ref3];
           }
         }
       }
@@ -41544,16 +41544,16 @@ var require_ucs2length = __commonJS({
   "../../abap-mcp/node_modules/ajv/dist/runtime/ucs2length.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    function ucs2length(str4) {
-      const len = str4.length;
+    function ucs2length(str5) {
+      const len = str5.length;
       let length = 0;
       let pos = 0;
       let value;
       while (pos < len) {
         length++;
-        value = str4.charCodeAt(pos++);
+        value = str5.charCodeAt(pos++);
         if (value >= 55296 && value <= 56319 && pos < len) {
-          value = str4.charCodeAt(pos);
+          value = str5.charCodeAt(pos);
           if ((value & 64512) === 56320)
             pos++;
         }
@@ -43088,12 +43088,12 @@ var require_discriminator = __commonJS({
           for (let i = 0; i < oneOf.length; i++) {
             let sch = oneOf[i];
             if ((sch === null || sch === void 0 ? void 0 : sch.$ref) && !(0, util_1.schemaHasRulesButRef)(sch, it.self.RULES)) {
-              const ref2 = sch.$ref;
-              sch = compile_1.resolveRef.call(it.self, it.schemaEnv.root, it.baseId, ref2);
+              const ref3 = sch.$ref;
+              sch = compile_1.resolveRef.call(it.self, it.schemaEnv.root, it.baseId, ref3);
               if (sch instanceof compile_1.SchemaEnv)
                 sch = sch.schema;
               if (sch === void 0)
-                throw new ref_error_1.default(it.opts.uriResolver, it.baseId, ref2);
+                throw new ref_error_1.default(it.opts.uriResolver, it.baseId, ref3);
             }
             const propSch = (_a3 = sch === null || sch === void 0 ? void 0 : sch.properties) === null || _a3 === void 0 ? void 0 : _a3[tagName];
             if (typeof propSch != "object") {
@@ -43436,8 +43436,8 @@ var require_formats = __commonJS({
     }
     var DATE = /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
     var DAYS = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    function date5(str4) {
-      const matches = DATE.exec(str4);
+    function date5(str5) {
+      const matches = DATE.exec(str5);
       if (!matches)
         return false;
       const year = +matches[1];
@@ -43456,8 +43456,8 @@ var require_formats = __commonJS({
     }
     var TIME = /^(\d\d):(\d\d):(\d\d(?:\.\d+)?)(z|([+-])(\d\d)(?::?(\d\d))?)?$/i;
     function getTime(strictTimeZone) {
-      return function time3(str4) {
-        const matches = TIME.exec(str4);
+      return function time3(str5) {
+        const matches = TIME.exec(str5);
         if (!matches)
           return false;
         const hr = +matches[1];
@@ -43503,8 +43503,8 @@ var require_formats = __commonJS({
     var DATE_TIME_SEPARATOR = /t|\s/i;
     function getDateTime(strictTimeZone) {
       const time3 = getTime(strictTimeZone);
-      return function date_time(str4) {
-        const dateTime = str4.split(DATE_TIME_SEPARATOR);
+      return function date_time(str5) {
+        const dateTime = str5.split(DATE_TIME_SEPARATOR);
         return dateTime.length === 2 && date5(dateTime[0]) && time3(dateTime[1]);
       };
     }
@@ -43529,13 +43529,13 @@ var require_formats = __commonJS({
     }
     var NOT_URI_FRAGMENT = /\/|:/;
     var URI = /^(?:[a-z][a-z0-9+\-.]*:)(?:\/?\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}|(?:(?:[0-9a-f]{1,4}:){0,1}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::[0-9a-f]{1,4}:|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::)(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?))|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::)|[Vv][0-9a-f]+\.[a-z0-9\-._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)|(?:[a-z0-9\-._~!$&'()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)(?:\?(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?(?:#(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?$/i;
-    function uri(str4) {
-      return NOT_URI_FRAGMENT.test(str4) && URI.test(str4);
+    function uri(str5) {
+      return NOT_URI_FRAGMENT.test(str5) && URI.test(str5);
     }
     var BYTE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/gm;
-    function byte(str4) {
+    function byte(str5) {
       BYTE.lastIndex = 0;
-      return BYTE.test(str4);
+      return BYTE.test(str5);
     }
     var MIN_INT32 = -(2 ** 31);
     var MAX_INT32 = 2 ** 31 - 1;
@@ -43549,11 +43549,11 @@ var require_formats = __commonJS({
       return true;
     }
     var Z_ANCHOR = /[^\\]\\Z/;
-    function regex(str4) {
-      if (Z_ANCHOR.test(str4))
+    function regex(str5) {
+      if (Z_ANCHOR.test(str5))
         return false;
       try {
-        new RegExp(str4);
+        new RegExp(str5);
         return true;
       } catch (e) {
         return false;
@@ -46768,14 +46768,14 @@ function promiseAllObject(promisesObj) {
 }
 function randomString(length = 10) {
   const chars = "abcdefghijklmnopqrstuvwxyz";
-  let str4 = "";
+  let str5 = "";
   for (let i = 0; i < length; i++) {
-    str4 += chars[Math.floor(Math.random() * chars.length)];
+    str5 += chars[Math.floor(Math.random() * chars.length)];
   }
-  return str4;
+  return str5;
 }
-function esc(str4) {
-  return JSON.stringify(str4);
+function esc(str5) {
+  return JSON.stringify(str5);
 }
 function slugify(input) {
   return input.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -46889,8 +46889,8 @@ var primitiveTypes = /* @__PURE__ */ new Set([
   "symbol",
   "undefined"
 ]);
-function escapeRegex(str4) {
-  return str4.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function escapeRegex(str5) {
+  return str5.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function clone(inst, def, params) {
   const cl = new inst._zod.constr(def ?? inst._zod.def);
@@ -57509,7 +57509,7 @@ function extractDefs(ctx, schema) {
       return;
     }
     const seen = entry[1];
-    const { ref: ref2, defId } = makeURI(entry);
+    const { ref: ref3, defId } = makeURI(entry);
     seen.def = { ...seen.schema };
     if (defId)
       seen.defId = defId;
@@ -57517,7 +57517,7 @@ function extractDefs(ctx, schema) {
     for (const key in schema2) {
       delete schema2[key];
     }
-    schema2.$ref = ref2;
+    schema2.$ref = ref3;
   };
   if (ctx.cycles === "throw") {
     for (const entry of ctx.seen.entries()) {
@@ -57569,11 +57569,11 @@ function finalize(ctx, schema) {
       return;
     const schema2 = seen.def ?? seen.schema;
     const _cached = { ...schema2 };
-    const ref2 = seen.ref;
+    const ref3 = seen.ref;
     seen.ref = null;
-    if (ref2) {
-      flattenRef(ref2);
-      const refSeen = ctx.seen.get(ref2);
+    if (ref3) {
+      flattenRef(ref3);
+      const refSeen = ctx.seen.get(ref3);
       const refSchema = refSeen.schema;
       if (refSchema.$ref && (ctx.target === "draft-07" || ctx.target === "draft-04" || ctx.target === "openapi-3.0")) {
         schema2.allOf = schema2.allOf ?? [];
@@ -57582,7 +57582,7 @@ function finalize(ctx, schema) {
         Object.assign(schema2, refSchema);
       }
       Object.assign(schema2, _cached);
-      const isParentRef = zodSchema._zod.parent === ref2;
+      const isParentRef = zodSchema._zod.parent === ref3;
       if (isParentRef) {
         for (const key in schema2) {
           if (key === "$ref" || key === "allOf")
@@ -57603,7 +57603,7 @@ function finalize(ctx, schema) {
       }
     }
     const parent = zodSchema._zod.parent;
-    if (parent && parent !== ref2) {
+    if (parent && parent !== ref3) {
       flattenRef(parent);
       const parentSeen = ctx.seen.get(parent);
       if (parentSeen?.schema.$ref) {
@@ -60080,11 +60080,11 @@ function detectVersion(schema, defaultTarget) {
   }
   return defaultTarget ?? "draft-2020-12";
 }
-function resolveRef(ref2, ctx) {
-  if (!ref2.startsWith("#")) {
+function resolveRef(ref3, ctx) {
+  if (!ref3.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path6 = ref2.slice(1).split("/").filter(Boolean);
+  const path6 = ref3.slice(1).split("/").filter(Boolean);
   if (path6.length === 0) {
     return ctx.rootSchema;
   }
@@ -60092,11 +60092,11 @@ function resolveRef(ref2, ctx) {
   if (path6[0] === defsKey) {
     const key = path6[1];
     if (!key || !ctx.defs[key]) {
-      throw new Error(`Reference not found: ${ref2}`);
+      throw new Error(`Reference not found: ${ref3}`);
     }
     return ctx.defs[key];
   }
-  throw new Error(`Reference not found: ${ref2}`);
+  throw new Error(`Reference not found: ${ref3}`);
 }
 function convertBaseSchema(schema, ctx) {
   if (schema.not !== void 0) {
@@ -61141,29 +61141,29 @@ var EntityDecoder = class {
    * @param {string} str
    * @returns {string}
    */
-  decode(str4) {
-    if (typeof str4 !== "string" || str4.length === 0) return str4;
-    if (str4.indexOf("&") === -1) return str4;
-    const original = str4;
+  decode(str5) {
+    if (typeof str5 !== "string" || str5.length === 0) return str5;
+    if (str5.indexOf("&") === -1) return str5;
+    const original = str5;
     const chunks = [];
-    const len = str4.length;
+    const len = str5.length;
     let last = 0;
     let i = 0;
     const limitExpansions = this._maxTotalExpansions > 0;
     const limitLength = this._maxExpandedLength > 0;
     const checkLimits = limitExpansions || limitLength;
     while (i < len) {
-      if (str4.charCodeAt(i) !== 38) {
+      if (str5.charCodeAt(i) !== 38) {
         i++;
         continue;
       }
       let j = i + 1;
-      while (j < len && str4.charCodeAt(j) !== 59 && j - i <= 32) j++;
-      if (j >= len || str4.charCodeAt(j) !== 59) {
+      while (j < len && str5.charCodeAt(j) !== 59 && j - i <= 32) j++;
+      if (j >= len || str5.charCodeAt(j) !== 59) {
         i++;
         continue;
       }
-      const token = str4.slice(i + 1, j);
+      const token = str5.slice(i + 1, j);
       if (token.length === 0) {
         i++;
         continue;
@@ -61195,7 +61195,7 @@ var EntityDecoder = class {
         i++;
         continue;
       }
-      if (i > last) chunks.push(str4.slice(last, i));
+      if (i > last) chunks.push(str5.slice(last, i));
       chunks.push(replacement);
       last = j + 1;
       i = last;
@@ -61221,8 +61221,8 @@ var EntityDecoder = class {
         }
       }
     }
-    if (last < len) chunks.push(str4.slice(last));
-    const result = chunks.length === 0 ? str4 : chunks.join("");
+    if (last < len) chunks.push(str5.slice(last));
+    const result = chunks.length === 0 ? str5 : chunks.join("");
     return this._postCheck(result, original);
   }
   // -------------------------------------------------------------------------
@@ -61532,7 +61532,7 @@ var getRegexes = (xmlVersion = "1.0", asciiOnly = false) => {
   if (asciiOnly) return regexesAscii;
   return xmlVersion === "1.1" ? regexes11 : regexes10;
 };
-var qName = (str4, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str4);
+var qName = (str5, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str5);
 
 // ../../abap-mcp/node_modules/fast-xml-parser/src/xmlparser/DocTypeReader.js
 var DocTypeReader = class {
@@ -61969,13 +61969,13 @@ var CHAR_0 = 48;
 var CHAR_9 = 57;
 var CHAR_MINUS = 45;
 var MINUS_SET = /* @__PURE__ */ new Set([8722, 65293, 65123]);
-function anynum(str4) {
-  if (typeof str4 !== "string") return str4;
-  const len = str4.length;
-  if (len === 0) return str4;
+function anynum(str5) {
+  if (typeof str5 !== "string") return str5;
+  const len = str5.length;
+  if (len === 0) return str5;
   let firstHit = -1;
   for (let i = 0; i < len; i++) {
-    const cc = str4.charCodeAt(i);
+    const cc = str5.charCodeAt(i);
     if (cc >= CHAR_0 && cc <= CHAR_9 || cc === CHAR_MINUS) continue;
     if (cc < TABLE_OFFSET) {
       if (MINUS_SET.has(cc)) {
@@ -61986,7 +61986,7 @@ function anynum(str4) {
     }
     if (cc >= 55296 && cc <= 56319) {
       if (i + 1 < len) {
-        const low = str4.charCodeAt(i + 1);
+        const low = str5.charCodeAt(i + 1);
         if (low >= 56320 && low <= 57343) {
           const cp = 65536 + (cc - 55296 << 10) + (low - 56320);
           if (HIGH_MAP.has(cp)) {
@@ -62002,22 +62002,22 @@ function anynum(str4) {
       break;
     }
   }
-  if (firstHit === -1) return str4;
+  if (firstHit === -1) return str5;
   const chars = [];
-  if (firstHit > 0) chars.push(str4.slice(0, firstHit));
+  if (firstHit > 0) chars.push(str5.slice(0, firstHit));
   for (let i = firstHit; i < len; i++) {
-    const cc = str4.charCodeAt(i);
+    const cc = str5.charCodeAt(i);
     if (cc >= CHAR_0 && cc <= CHAR_9 || cc === CHAR_MINUS) {
-      chars.push(str4[i]);
+      chars.push(str5[i]);
       continue;
     }
     if (cc < TABLE_OFFSET) {
-      chars.push(MINUS_SET.has(cc) ? "-" : str4[i]);
+      chars.push(MINUS_SET.has(cc) ? "-" : str5[i]);
       continue;
     }
     if (cc >= 55296 && cc <= 56319) {
       if (i + 1 < len) {
-        const low = str4.charCodeAt(i + 1);
+        const low = str5.charCodeAt(i + 1);
         if (low >= 56320 && low <= 57343) {
           const cp = 65536 + (cc - 55296 << 10) + (low - 56320);
           const d2 = HIGH_MAP.get(cp);
@@ -62028,7 +62028,7 @@ function anynum(str4) {
           }
         }
       }
-      chars.push(str4[i]);
+      chars.push(str5[i]);
       continue;
     }
     if (MINUS_SET.has(cc)) {
@@ -62036,7 +62036,7 @@ function anynum(str4) {
       continue;
     }
     const d = TABLE[cc - TABLE_OFFSET];
-    chars.push(d !== NOT_DIGIT ? String.fromCharCode(d + 48) : str4[i]);
+    chars.push(d !== NOT_DIGIT ? String.fromCharCode(d + 48) : str5[i]);
   }
   return chars.join("");
 }
@@ -62059,12 +62059,12 @@ var consider = {
   // "null", "infinity" (Infinity type), "string" ("Infinity" (the string literal))
   unicode: false
 };
-function toNumber(str4, options = {}) {
+function toNumber(str5, options = {}) {
   options = Object.assign({}, consider, options);
-  if (!str4 || typeof str4 !== "string") return str4;
-  let trimmedStr = str4.trim();
-  if (trimmedStr.length === 0) return str4;
-  else if (options.skipLike !== void 0 && options.skipLike.test(trimmedStr)) return str4;
+  if (!str5 || typeof str5 !== "string") return str5;
+  let trimmedStr = str5.trim();
+  if (trimmedStr.length === 0) return str5;
+  else if (options.skipLike !== void 0 && options.skipLike.test(trimmedStr)) return str5;
   else if (trimmedStr === "0") return 0;
   if (options.unicode) {
     trimmedStr = anynum_default(trimmedStr);
@@ -62077,9 +62077,9 @@ function toNumber(str4, options = {}) {
   } else if (options.octal && octRegex.test(trimmedStr)) {
     return parse_int(trimmedStr, 8);
   } else if (!isFinite(trimmedStr)) {
-    return handleInfinity(str4, Number(trimmedStr), options);
+    return handleInfinity(str5, Number(trimmedStr), options);
   } else if (trimmedStr.includes("e") || trimmedStr.includes("E")) {
-    return resolveEnotation(str4, trimmedStr, options);
+    return resolveEnotation(str5, trimmedStr, options);
   } else {
     const match = numRegex.exec(trimmedStr);
     if (match) {
@@ -62088,38 +62088,38 @@ function toNumber(str4, options = {}) {
       let numTrimmedByZeros = trimZeros(match[3]);
       const decimalAdjacentToLeadingZeros = sign ? (
         // 0., -00., 000.
-        str4[leadingZeros.length + 1] === "."
-      ) : str4[leadingZeros.length] === ".";
+        str5[leadingZeros.length + 1] === "."
+      ) : str5[leadingZeros.length] === ".";
       if (!options.leadingZeros && (leadingZeros.length > 1 || leadingZeros.length === 1 && !decimalAdjacentToLeadingZeros)) {
-        return str4;
+        return str5;
       } else {
         const num3 = Number(trimmedStr);
         const parsedStr = String(num3);
         if (num3 === 0) return num3;
         if (parsedStr.search(/[eE]/) !== -1) {
           if (options.eNotation) return num3;
-          else return str4;
+          else return str5;
         } else if (trimmedStr.indexOf(".") !== -1) {
           if (parsedStr === "0") return num3;
           else if (parsedStr === numTrimmedByZeros) return num3;
           else if (parsedStr === `${sign}${numTrimmedByZeros}`) return num3;
-          else return str4;
+          else return str5;
         }
         let n = leadingZeros ? numTrimmedByZeros : trimmedStr;
         if (leadingZeros) {
-          return n === parsedStr || sign + n === parsedStr ? num3 : str4;
+          return n === parsedStr || sign + n === parsedStr ? num3 : str5;
         } else {
-          return n === parsedStr || n === sign + parsedStr ? num3 : str4;
+          return n === parsedStr || n === sign + parsedStr ? num3 : str5;
         }
       }
     } else {
-      return str4;
+      return str5;
     }
   }
 }
 var eNotationRegx = /^([-+])?(0*)(\d*(\.\d*)?[eE][-\+]?\d+)$/;
-function resolveEnotation(str4, trimmedStr, options) {
-  if (!options.eNotation) return str4;
+function resolveEnotation(str5, trimmedStr, options) {
+  if (!options.eNotation) return str5;
   const notation = trimmedStr.match(eNotationRegx);
   if (notation) {
     let sign = notation[1] || "";
@@ -62127,21 +62127,21 @@ function resolveEnotation(str4, trimmedStr, options) {
     const leadingZeros = notation[2];
     const eAdjacentToLeadingZeros = sign ? (
       // 0E.
-      str4[leadingZeros.length + 1] === eChar
-    ) : str4[leadingZeros.length] === eChar;
-    if (leadingZeros.length > 1 && eAdjacentToLeadingZeros) return str4;
+      str5[leadingZeros.length + 1] === eChar
+    ) : str5[leadingZeros.length] === eChar;
+    if (leadingZeros.length > 1 && eAdjacentToLeadingZeros) return str5;
     else if (leadingZeros.length === 1 && (notation[3].startsWith(`.${eChar}`) || notation[3][0] === eChar)) {
       return Number(trimmedStr);
     } else if (leadingZeros.length > 0) {
       if (options.leadingZeros && !eAdjacentToLeadingZeros) {
         trimmedStr = (notation[1] || "") + notation[3];
         return Number(trimmedStr);
-      } else return str4;
+      } else return str5;
     } else {
       return Number(trimmedStr);
     }
   } else {
-    return str4;
+    return str5;
   }
 }
 function trimZeros(numStr) {
@@ -62155,14 +62155,14 @@ function trimZeros(numStr) {
   return numStr;
 }
 function parse_int(numStr, base) {
-  const str4 = numStr.trim();
-  if (base === 2 || base === 8) numStr = str4.substring(2);
+  const str5 = numStr.trim();
+  if (base === 2 || base === 8) numStr = str5.substring(2);
   if (parseInt) return parseInt(numStr, base);
   else if (Number.parseInt) return Number.parseInt(numStr, base);
   else if (window && window.parseInt) return window.parseInt(numStr, base);
   else throw new Error("parseInt, Number.parseInt, window.parseInt are not supported");
 }
-function handleInfinity(str4, num3, options) {
+function handleInfinity(str5, num3, options) {
   const isPositive = num3 === Infinity;
   switch (options.infinity.toLowerCase()) {
     case "null":
@@ -62174,7 +62174,7 @@ function handleInfinity(str4, num3, options) {
       return isPositive ? "Infinity" : "-Infinity";
     case "original":
     default:
-      return str4;
+      return str5;
   }
 }
 
@@ -64240,12 +64240,12 @@ function tagExpWithClosingIndex(xmlData, i, closingChar = ">") {
     }
   }
 }
-function findClosingIndex(xmlData, str4, i, errMsg) {
-  const closingIndex = xmlData.indexOf(str4, i);
+function findClosingIndex(xmlData, str5, i, errMsg) {
+  const closingIndex = xmlData.indexOf(str5, i);
   if (closingIndex === -1) {
     throw new Error(errMsg);
   } else {
-    return closingIndex + str4.length - 1;
+    return closingIndex + str5.length - 1;
   }
 }
 function findClosingChar(xmlData, char, i, errMsg) {
@@ -82409,13 +82409,13 @@ var McpServer = class {
     });
     this._completionHandlerInitialized = true;
   }
-  async handlePromptCompletion(request, ref2) {
-    const prompt = this._registeredPrompts[ref2.name];
+  async handlePromptCompletion(request, ref3) {
+    const prompt = this._registeredPrompts[ref3.name];
     if (!prompt) {
-      throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref2.name} not found`);
+      throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref3.name} not found`);
     }
     if (!prompt.enabled) {
-      throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref2.name} disabled`);
+      throw new McpError(ErrorCode.InvalidParams, `Prompt ${ref3.name} disabled`);
     }
     if (!prompt.argsSchema) {
       return EMPTY_COMPLETION_RESULT;
@@ -82432,10 +82432,10 @@ var McpServer = class {
     const suggestions = await completer(request.params.argument.value, request.params.context);
     return createCompletionResult(suggestions);
   }
-  async handleResourceCompletion(request, ref2) {
-    const template = Object.values(this._registeredResourceTemplates).find((t) => t.resourceTemplate.uriTemplate.toString() === ref2.uri);
+  async handleResourceCompletion(request, ref3) {
+    const template = Object.values(this._registeredResourceTemplates).find((t) => t.resourceTemplate.uriTemplate.toString() === ref3.uri);
     if (!template) {
-      if (this._registeredResources[ref2.uri]) {
+      if (this._registeredResources[ref3.uri]) {
         return EMPTY_COMPLETION_RESULT;
       }
       throw new McpError(ErrorCode.InvalidParams, `Resource template ${request.params.ref.uri} not found`);
@@ -88672,9 +88672,9 @@ function displayInactive(inactive) {
   const objects = [];
   const seen = /* @__PURE__ */ new Set();
   let unnamed = 0;
-  for (const ref2 of inactive) {
-    const name = String(ref2.name ?? "").trim();
-    const type = String(ref2.type ?? "").trim();
+  for (const ref3 of inactive) {
+    const name = String(ref3.name ?? "").trim();
+    const type = String(ref3.type ?? "").trim();
     if (name === "(unknown)" && type === "(unknown)" || !name && !type) {
       unnamed++;
       continue;
@@ -88682,7 +88682,7 @@ function displayInactive(inactive) {
     const key = `${name.toLowerCase()} ${type.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    objects.push(ref2);
+    objects.push(ref3);
   }
   return { objects, unnamed };
 }
@@ -88958,24 +88958,24 @@ function preauditActivationSet(seeds, inactive) {
   const targets = [...seeds];
   const seen = new Set(seeds.map((s) => activationRefKey(s.uri)));
   let unaddressable = 0;
-  for (const ref2 of inactive) {
-    if (!ref2.uri) {
+  for (const ref3 of inactive) {
+    if (!ref3.uri) {
       unaddressable++;
       continue;
     }
-    const key = activationRefKey(ref2.uri);
+    const key = activationRefKey(ref3.uri);
     if (seen.has(key)) continue;
     seen.add(key);
-    targets.push({ name: ref2.name, uri: ref2.uri, ...ref2.type ? { type: ref2.type } : {} });
+    targets.push({ name: ref3.name, uri: ref3.uri, ...ref3.type ? { type: ref3.type } : {} });
   }
   return { targets, unaddressable };
 }
-function toInactiveRecord(ref2) {
+function toInactiveRecord(ref3) {
   return {
     object: {
-      "adtcore:name": ref2.name,
-      "adtcore:type": ref2.type,
-      ...ref2.uri ? { "adtcore:uri": ref2.uri } : {}
+      "adtcore:name": ref3.name,
+      "adtcore:type": ref3.type,
+      ...ref3.uri ? { "adtcore:uri": ref3.uri } : {}
     }
   };
 }
@@ -89304,11 +89304,11 @@ var wireOrderMatchesModel = (entries) => entries.every((entry, i) => {
 });
 function repairSearchDescriptions(refs) {
   const groups = /* @__PURE__ */ new Map();
-  refs.forEach((ref2, index) => {
-    const key = typeGroupOf(ref2);
+  refs.forEach((ref3, index) => {
+    const key = typeGroupOf(ref3);
     const bucket = groups.get(key);
-    if (bucket) bucket.push({ index, ref: ref2 });
-    else groups.set(key, [{ index, ref: ref2 }]);
+    if (bucket) bucket.push({ index, ref: ref3 });
+    else groups.set(key, [{ index, ref: ref3 }]);
   });
   const out = refs.slice();
   const repairedGroups = /* @__PURE__ */ new Set();
@@ -95308,8 +95308,8 @@ function createLiveDebugToolDeps(params) {
       c.dispose();
       return c;
     },
-    resolveObject(conn, ref2) {
-      return resolveObject(conn, ref2);
+    resolveObject(conn, ref3) {
+      return resolveObject(conn, ref3);
     },
     triggerRun(conn, input, maxChars, gate) {
       return abapRun(conn, input, maxChars, gate);
@@ -98465,9 +98465,9 @@ var readInputSchema = {
 var ReadInput = external_exports.object(readInputSchema);
 var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
 var ENHANCEMENT_KINDS = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS"]);
-function renderRef(ref2) {
-  if (!ref2?.name) return "(none)";
-  return ref2.type ? `${ref2.type} ${ref2.name}` : ref2.name;
+function renderRef(ref3) {
+  if (!ref3?.name) return "(none)";
+  return ref3.type ? `${ref3.type} ${ref3.name}` : ref3.name;
 }
 function renderFilterTree(node2, indent) {
   if (node2.kind === "filter") {
@@ -102265,13 +102265,13 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
 async function abapBridgeCrud(conn, target, input, maxChars, gate, journal) {
   return (input.mode ?? "write") === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal);
 }
-async function journalBridgeCreate(journal, conn, ref2, beforeCapture, corrNr, mutate) {
+async function journalBridgeCreate(journal, conn, ref3, beforeCapture, corrNr, mutate) {
   const { result, entryId, settle } = await withJournalledMutation(
     journal,
     {
       begin: () => ({
         operation: "create",
-        object: journalRef(ref2),
+        object: journalRef(ref3),
         existedBefore: false,
         beforeCapture,
         systemKey: systemKey(conn.cfg),
@@ -104362,6 +104362,16 @@ var ALTERNATIVE_KEY_ATTR_ORDER = [
   "checkBeforeSave",
   "noCheck"
 ];
+var PROPERTY_ATTR_ORDER = [
+  "name",
+  "enabled",
+  "readonly",
+  "mandatory",
+  "enabledFinal",
+  "readonlyFinal",
+  "mandatoryFinal",
+  "transientAttribute"
+];
 var DETERMINATION_TRIGGER_ATTR_ORDER = [
   "node",
   "association",
@@ -104687,14 +104697,14 @@ var NODE_REF_KINDS = [
   "dataAccessClassRef",
   "authorizationClassRef"
 ];
-function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder) {
+function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref3, childOrder) {
   const existing = tokens.find(
     (t) => t.name === refTag && t.depth === ownerToken.depth + 1 && t.openStart > ownerToken.openStart && t.openStart < ownerToken.closeEnd
   );
-  if (ref2 === null) {
+  if (ref3 === null) {
     return existing ? xml3.slice(0, existing.openStart) + xml3.slice(existing.closeEnd) : xml3;
   }
-  const fragment = renderRef2(refTag, ref2);
+  const fragment = renderRef2(refTag, ref3);
   if (existing) {
     return xml3.slice(0, existing.openStart) + fragment + xml3.slice(existing.closeEnd);
   }
@@ -104715,10 +104725,10 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder)
   }
   return splice(xml3, insertAt, fragment);
 }
-function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
+function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref3, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
   if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
-  return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
+  return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref3, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
   if (v === "undefined" || v === "null") {
@@ -104757,16 +104767,19 @@ function renderElement(kind, attrs, childrenXml) {
   if (!childrenXml) return `${open}/>`;
   return `${open}>${childrenXml}</${tag}>`;
 }
-function renderRef2(tag, ref2) {
+function renderRef2(tag, ref3) {
   const parts = [];
-  if (ref2.uri !== void 0) parts.push(`adtcore:uri="${escapeAttrValue(ref2.uri, `${tag}/@adtcore:uri`)}"`);
-  parts.push(`adtcore:type="${escapeAttrValue(ref2.type, `${tag}/@adtcore:type`)}"`);
-  parts.push(`adtcore:name="${escapeAttrValue(ref2.name, `${tag}/@adtcore:name`)}"`);
+  if (ref3.uri !== void 0) parts.push(`adtcore:uri="${escapeAttrValue(ref3.uri, `${tag}/@adtcore:uri`)}"`);
+  parts.push(`adtcore:type="${escapeAttrValue(ref3.type, `${tag}/@adtcore:type`)}"`);
+  parts.push(`adtcore:name="${escapeAttrValue(ref3.name, `${tag}/@adtcore:name`)}"`);
   return `<${tag} ${parts.join(" ")}/>`;
 }
 function renderLeaf(tag, order, attrs) {
   const t = renderAttrText(order, attrs, "bo");
   return `<${tag}${t ? " " + t : ""}/>`;
+}
+function renderProperty(p) {
+  return renderLeaf("bo:properties", PROPERTY_ATTR_ORDER, p);
 }
 function renderKeyElement(name) {
   return renderLeaf("bo:keyElements", KEY_ELEMENT_ATTR_ORDER, { name });
@@ -105132,6 +105145,96 @@ function parseModel(xmlText2) {
   };
 }
 
+// src/adt/bopf-node-kinds.ts
+function splitTargetNodeRef(name) {
+  if (!name) return {};
+  const tilde = name.lastIndexOf("~");
+  if (tilde < 0) return { node: name };
+  return { bo: name.slice(0, tilde), node: name.slice(tilde + 1) };
+}
+function isCrossBoTarget(model, name) {
+  const { bo } = splitTargetNodeRef(name);
+  return bo !== void 0 && bo.toLowerCase() !== model.name.toLowerCase();
+}
+function classifyAssociation(model, assoc) {
+  const targetName = assoc.targetNodeRef?.name;
+  const { bo: targetBo, node: targetNode } = splitTargetNodeRef(targetName);
+  const type = (assoc.implementationType ?? "").toLowerCase();
+  const crossBo = isCrossBoTarget(model, targetName);
+  const bo = crossBo ? targetBo : void 0;
+  if (type === "docomposition") return { kind: "do-composition", targetBo: bo, targetNode };
+  if (type === "composition") return { kind: "composition", targetBo: bo, targetNode };
+  if (crossBo) return { kind: "cross-bo", targetBo, targetNode };
+  return { kind: "association", targetNode };
+}
+function classifyNodes(model) {
+  const embeddings = /* @__PURE__ */ new Map();
+  for (const parent of model.nodes) {
+    for (const assoc of parent.associations) {
+      const kind = classifyAssociation(model, assoc);
+      if (kind.kind !== "do-composition" || !kind.targetNode) continue;
+      const targetRef = splitTargetNodeRef(assoc.targetNodeRef?.name);
+      const dependentObject = targetRef.bo && targetRef.bo.toLowerCase() !== model.name.toLowerCase() ? targetRef.bo : void 0;
+      embeddings.set(kind.targetNode.toLowerCase(), { assoc, parent, dependentObject });
+    }
+  }
+  const result = /* @__PURE__ */ new Map();
+  for (const node2 of model.nodes) {
+    const key = node2.name.toLowerCase();
+    if (node2.rootNode === true) {
+      result.set(key, { kind: "root" });
+      continue;
+    }
+    const embedding = embeddings.get(key);
+    if (embedding) {
+      result.set(key, {
+        kind: "delegated",
+        embeddingAssociation: embedding.assoc.name,
+        embeddingParent: embedding.parent.name,
+        ...embedding.assoc.doEmbeddingName ? { doEmbeddingName: embedding.assoc.doEmbeddingName } : {},
+        ...embedding.dependentObject ? { dependentObject: embedding.dependentObject } : {}
+      });
+      continue;
+    }
+    if (!node2.parent && !node2.persistentStructureRef) {
+      result.set(key, { kind: "representative" });
+      continue;
+    }
+    result.set(key, { kind: "standard" });
+  }
+  return result;
+}
+function describeNodeKind(k) {
+  switch (k.kind) {
+    case "root":
+      return "root";
+    case "standard":
+      return "";
+    case "representative":
+      return "representative";
+    case "delegated": {
+      const base = `delegated via ${k.embeddingParent}.${k.embeddingAssociation}`;
+      return k.dependentObject ? `${base} -> ${k.dependentObject}` : base;
+    }
+  }
+}
+function describeAssociationKind(k) {
+  switch (k.kind) {
+    case "association":
+      return "";
+    case "composition":
+      return "composition";
+    case "do-composition":
+      return "do-composition";
+    case "cross-bo":
+      if (!k.targetBo) return "";
+      return k.targetNode ? `-> ${k.targetBo}~${k.targetNode}` : `-> ${k.targetBo}`;
+  }
+}
+function classifyNode(model, node2) {
+  return classifyNodes(model).get(node2.name.toLowerCase()) ?? { kind: "standard" };
+}
+
 // src/adt/bopf.ts
 var BOPF_COLLECTION = "/sap/bc/adt/bopf/businessobjects";
 var BOPF_ACCEPT_V4 = "application/vnd.sap.ap.adt.bopf.businessobjects.v4+xml";
@@ -105489,16 +105592,16 @@ function collectDdicCascadeCandidates(model) {
   pushCandidate(generated, model.constantsInterfaceRef, "constants-interface", void 0, "constantsInterfaceRef");
   return { generated, referenced };
 }
-function pushCandidate(out, ref2, kind, guessKind, refSite) {
-  if (!ref2 || !ref2.name) return;
-  const uri = ref2.uri ?? ddicGuessUri(ref2, guessKind);
+function pushCandidate(out, ref3, kind, guessKind, refSite) {
+  if (!ref3 || !ref3.name) return;
+  const uri = ref3.uri ?? ddicGuessUri(ref3, guessKind);
   if (!uri) return;
   if (out.some((c) => c.uri === uri)) return;
-  out.push({ name: ref2.name, kind, uri, type: ref2.type, refSite });
+  out.push({ name: ref3.name, kind, uri, type: ref3.type, refSite });
 }
-function ddicGuessUri(ref2, guessKind) {
-  if (!ref2.name || !guessKind) return void 0;
-  return `/sap/bc/adt/ddic/${guessKind}/${ref2.name.toLowerCase()}`;
+function ddicGuessUri(ref3, guessKind) {
+  if (!ref3.name || !guessKind) return void 0;
+  return `/sap/bc/adt/ddic/${guessKind}/${ref3.name.toLowerCase()}`;
 }
 async function deleteDdicCandidate(conn, session, cand, authorized) {
   assertAuthorizedMatches(authorized, { name: cand.name }, "deleteDdicCandidate");
@@ -105680,15 +105783,15 @@ var DDIC_ELEMENTS = /* @__PURE__ */ new Set([
 ]);
 function collectRefSites(model) {
   const sites = [];
-  const push = (node2, owner, member, element, ref2, requiredInterface) => {
-    if (!ref2) return;
+  const push = (node2, owner, member, element, ref3, requiredInterface) => {
+    if (!ref3) return;
     sites.push({
       owner,
       node: node2,
       ...member !== void 0 ? { member } : {},
       element,
       kind: DDIC_ELEMENTS.has(element) ? "ddic" : "class",
-      ref: ref2,
+      ref: ref3,
       ...requiredInterface ? { requiredInterface } : {}
     });
   };
@@ -105746,17 +105849,25 @@ async function evaluateSite(conn, model, site) {
 function evaluateTargetNodeRef(model, site) {
   const name = site.ref.name;
   if (!name) return { site, verdict: "unchecked", detail: "targetNodeRef has no name" };
+  if (isCrossBoTarget(model, name)) {
+    const { bo, node: node2 } = splitTargetNodeRef(name);
+    return {
+      site,
+      verdict: "unchecked",
+      detail: `targetNodeRef points at ${node2 ?? "?"} on ${bo ?? "another business object"}, which this read does not fetch`
+    };
+  }
   const prefix = `${model.name}~`;
   const bareName2 = name.startsWith(prefix) ? name.slice(prefix.length) : name;
   const found = model.nodes.some((n) => n.name === bareName2 || n.name === name);
   return { site, verdict: found ? "present" : "missing" };
 }
 async function evaluateDdicRef(conn, site) {
-  const { ref: ref2, element } = site;
+  const { ref: ref3, element } = site;
   const isPendingKind = element === "combinedStructureRef" || element === "combinedTableRef" || element === "persistentTableRef";
-  const uri = ref2.uri ?? (ref2.name ? `/sap/bc/adt/ddic/tables/${ref2.name.toLowerCase()}` : void 0);
+  const uri = ref3.uri ?? (ref3.name ? `/sap/bc/adt/ddic/tables/${ref3.name.toLowerCase()}` : void 0);
   if (!uri) {
-    if (!ref2.name) return { site, verdict: "unchecked", detail: "ref has neither uri nor name" };
+    if (!ref3.name) return { site, verdict: "unchecked", detail: "ref has neither uri nor name" };
   }
   if (!uri) return { site, verdict: "unchecked", detail: "could not construct a probe uri" };
   try {
@@ -105922,6 +106033,16 @@ var SET_NODE_FLAGS_FIELDS = {
   dataAccessClassRef: "refOrNull",
   authorizationClassRef: "refOrNull"
 };
+var ADD_REPRESENTATIVE_NODE_FIELDS = {
+  representedBo: "string",
+  xmlName: "string"
+};
+var EMBED_DEPENDENT_OBJECT_FIELDS = {
+  dependentObject: "string",
+  xmlName: "string",
+  multiplicity: "string",
+  implementationClassRef: "ref"
+};
 var SET_ASSOCIATION_FIELDS = {
   xmlName: "stringOrNull",
   multiplicity: "stringOrNull",
@@ -106011,6 +106132,10 @@ var OPERATION_FIELDS = {
   add_alternative_key: ADD_ALTERNATIVE_KEY_FIELDS,
   remove_alternative_key: NO_SPEC_FIELDS,
   set_node_flags: SET_NODE_FLAGS_FIELDS,
+  add_representative_node: ADD_REPRESENTATIVE_NODE_FIELDS,
+  remove_representative_node: NO_SPEC_FIELDS,
+  embed_dependent_object: EMBED_DEPENDENT_OBJECT_FIELDS,
+  remove_dependent_object: NO_SPEC_FIELDS,
   ...SET_CHILD_FIELD_TABLES,
   activate: NO_SPEC_FIELDS
 };
@@ -106236,6 +106361,603 @@ function validateSpecKeys(operation, spec) {
   throw new AbapError("BAD_INPUT", message, { operation, issues: issues.map((iss) => iss.detail) }, hint);
 }
 
+// src/tools/bopf-delegation.ts
+var DELEGATION_OPERATIONS = [
+  "add_representative_node",
+  "remove_representative_node",
+  "embed_dependent_object",
+  "remove_dependent_object"
+];
+function isDelegationOperation(op) {
+  return DELEGATION_OPERATIONS.includes(op);
+}
+var DEFAULT_EMBED_IMPL_CLASS_REF = {
+  uri: "/sap/bc/adt/oo/classes/%2fbobf%2fcl_c_bopf_2_bopf_simple",
+  type: "CLAS/OC",
+  name: "/BOBF/CL_C_BOPF_2_BOPF_SIMPLE"
+};
+function str2(v) {
+  return typeof v === "string" && v.trim() ? v : void 0;
+}
+function ref(v) {
+  if (!v || typeof v !== "object") return void 0;
+  const o = v;
+  const name = str2(o.name);
+  const type = str2(o.type);
+  if (!name || !type) return void 0;
+  const uri = str2(o.uri);
+  return uri ? { uri, type, name } : { type, name };
+}
+function describeError(e) {
+  return e instanceof Error ? e.message : String(e);
+}
+function resolveTargetNodeName(target) {
+  if (!target) return void 0;
+  if (target.uri) {
+    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(target.uri);
+    if (m) return m[1];
+  }
+  const tilde = target.name.lastIndexOf("~");
+  return tilde >= 0 ? target.name.slice(tilde + 1) : target.name;
+}
+function findModelNode(model, name) {
+  const wanted = name.toLowerCase();
+  return model.nodes.find((n) => n.name.toLowerCase() === wanted);
+}
+function nodeNameList(model) {
+  return model.nodes.map((n) => n.name).join(", ");
+}
+function requireInputNode(input) {
+  if (!input.node) {
+    throw new AbapError("BAD_INPUT", `${input.operation} requires node.`, { operation: input.operation });
+  }
+  return input.node;
+}
+function requireInputName(input) {
+  if (!input.name) {
+    throw new AbapError("BAD_INPUT", `${input.operation} requires name.`, { operation: input.operation });
+  }
+  return input.name;
+}
+function validateDelegationShape(input) {
+  const spec = input.spec ?? {};
+  switch (input.operation) {
+    case "add_representative_node": {
+      requireInputName(input);
+      if (input.node !== void 0) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `add_representative_node does not take node \u2014 a representative node has no parent (it stands in for another BO, not a child of one). Name the new node with "name".`,
+          { operation: input.operation, node: input.node }
+        );
+      }
+      if (!str2(spec.representedBo)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `add_representative_node requires spec.representedBo (the BO this node will stand in for).`,
+          { operation: input.operation }
+        );
+      }
+      return;
+    }
+    case "remove_representative_node":
+      requireInputNode(input);
+      return;
+    case "embed_dependent_object": {
+      requireInputNode(input);
+      requireInputName(input);
+      if (!str2(spec.dependentObject)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `embed_dependent_object requires spec.dependentObject (the dependent object BO being embedded).`,
+          { operation: input.operation }
+        );
+      }
+      if (input.i_know_this_may_not_activate !== true) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `embed_dependent_object requires i_know_this_may_not_activate: true \u2014 this writes the exact wire shape observed for an embedding (an association plus a "<name>.ROOT" node), but the host BO's XML never names the dependent object anywhere, so a 200 plus a matching read-back is not confirmed to create a working embedding server-side.`,
+          { operation: input.operation }
+        );
+      }
+      return;
+    }
+    case "remove_dependent_object":
+      requireInputNode(input);
+      requireInputName(input);
+      return;
+    default:
+      throw new AbapError("UNSUPPORTED", `"${input.operation}" is not a delegation operation.`, {
+        operation: input.operation
+      });
+  }
+}
+function refuseHandAssembledDelegation(operation, spec, name) {
+  const named = name ? ` "${name}"` : "";
+  if (operation === "add_association") {
+    const implementationType = str2(spec.implementationType);
+    const doEmbeddingName = str2(spec.doEmbeddingName);
+    if (implementationType && implementationType.toLowerCase() === "docomposition" || doEmbeddingName !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `add_association${named} with implementationType "DoComposition" (or a doEmbeddingName) builds half of an embedding \u2014 the pair is the association plus a matching "<name>.ROOT" node, and BOPF silently discards a bare association written alone. Use embed_dependent_object instead.`,
+        { operation, name, implementationType, doEmbeddingName }
+      );
+    }
+    return;
+  }
+  if (operation === "add_node") {
+    const doEmbeddingName = str2(spec.doEmbeddingName);
+    const isDependentObjectNode = spec.isDependentObjectNode === true;
+    if (doEmbeddingName !== void 0 || isDependentObjectNode) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `add_node${named} with doEmbeddingName set (or isDependentObjectNode: true) builds half of an embedding by hand \u2014 use embed_dependent_object instead, which writes both the association and the node together.`,
+        { operation, name, doEmbeddingName, isDependentObjectNode }
+      );
+    }
+    const hasParent = str2(spec.parent) !== void 0 || str2(spec.parentNodeId) !== void 0;
+    if (!hasParent && spec.rootNode !== true) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `add_node${named} with no spec.parent/spec.parentNodeId and rootNode not true is a deliberately parentless node \u2014 that is add_representative_node, not add_node. BOPF answers 200 and silently discards a node it cannot place, rather than rejecting it.`,
+        { operation, name }
+      );
+    }
+    return;
+  }
+}
+async function delegationNetworkPreflight(input, readOtherModel) {
+  const spec = input.spec ?? {};
+  if (input.operation === "add_representative_node") {
+    const representedBo = str2(spec.representedBo) ?? "";
+    try {
+      await readOtherModel(representedBo);
+    } catch (e) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `add_representative_node: represented BO "${representedBo}" could not be read (${describeError(e)}) \u2014 the cross-BO association you add next would dangle against a BO that isn't there.`,
+        { operation: input.operation, representedBo }
+      );
+    }
+    return;
+  }
+  if (input.operation === "embed_dependent_object") {
+    const dependentObject = str2(spec.dependentObject) ?? "";
+    let model;
+    try {
+      model = await readOtherModel(dependentObject);
+    } catch (e) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `embed_dependent_object: dependent object "${dependentObject}" could not be read (${describeError(e)}).`,
+        { operation: input.operation, dependentObject }
+      );
+    }
+    if (model.objectCategory !== "dependentObject") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `embed_dependent_object: "${dependentObject}" has objectCategory "${model.objectCategory ?? "(none)"}", not "dependentObject" \u2014 only a BO created as a dependent object can be embedded this way.`,
+        { operation: input.operation, dependentObject, objectCategory: model.objectCategory }
+      );
+    }
+    return;
+  }
+}
+function delegationModelPreflight(model, input) {
+  switch (input.operation) {
+    case "add_representative_node": {
+      const name = requireInputName(input);
+      if (findModelNode(model, name)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `node "${name}" already exists on ${model.name} \u2014 BOPF answers 200 and silently discards a duplicate.`,
+          { bo: model.name, node: name }
+        );
+      }
+      return;
+    }
+    case "remove_representative_node": {
+      const nodeName = requireInputNode(input);
+      const node2 = findModelNode(model, nodeName);
+      if (!node2) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `node "${nodeName}" not found on ${model.name}. Nodes present: ${nodeNameList(model)}.`,
+          { bo: model.name, node: nodeName }
+        );
+      }
+      const kind = classifyNode(model, node2);
+      if (kind.kind !== "representative") {
+        const pointer = kind.kind === "delegated" ? "remove_dependent_object" : "remove_node";
+        throw new AbapError(
+          "BAD_INPUT",
+          `node "${node2.name}" is classified as "${kind.kind}", not a representative node \u2014 use ${pointer} instead.`,
+          { bo: model.name, node: node2.name, kind: kind.kind }
+        );
+      }
+      const offenders = [];
+      for (const n of model.nodes) {
+        for (const a of n.associations) {
+          if ((resolveTargetNodeName(a.targetNodeRef) ?? "").toLowerCase() === node2.name.toLowerCase()) {
+            offenders.push(`${n.name}.${a.name}`);
+          }
+        }
+      }
+      if (offenders.length) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `association(s) still target node "${node2.name}": ${offenders.join(", ")} \u2014 remove those first.`,
+          { bo: model.name, node: node2.name, offenders }
+        );
+      }
+      return;
+    }
+    case "embed_dependent_object": {
+      const nodeName = requireInputNode(input);
+      const emb = requireInputName(input);
+      const parent = findModelNode(model, nodeName);
+      if (!parent) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `node "${nodeName}" not found on ${model.name}. Nodes present: ${nodeNameList(model)}.`,
+          { bo: model.name, node: nodeName }
+        );
+      }
+      if (parent.associations.some((a) => a.name.toLowerCase() === emb.toLowerCase())) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `association "${emb}" already exists on node "${parent.name}" \u2014 BOPF answers 200 and silently discards a duplicate.`,
+          { bo: model.name, node: parent.name, name: emb }
+        );
+      }
+      const embNodeName = `${emb}.ROOT`;
+      if (findModelNode(model, embNodeName)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `node "${embNodeName}" already exists on ${model.name} \u2014 BOPF answers 200 and silently discards a duplicate.`,
+          { bo: model.name, node: embNodeName }
+        );
+      }
+      return;
+    }
+    case "remove_dependent_object": {
+      const nodeName = requireInputNode(input);
+      const emb = requireInputName(input);
+      const parent = findModelNode(model, nodeName);
+      if (!parent) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `node "${nodeName}" not found on ${model.name}. Nodes present: ${nodeNameList(model)}.`,
+          { bo: model.name, node: nodeName }
+        );
+      }
+      const assoc = parent.associations.find((a) => a.name.toLowerCase() === emb.toLowerCase());
+      if (!assoc) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `no association named "${emb}" on node "${parent.name}". Associations present: ${parent.associations.map((a) => a.name).join(", ")}.`,
+          { bo: model.name, node: parent.name, name: emb }
+        );
+      }
+      if ((assoc.implementationType ?? "").toLowerCase() !== "docomposition") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `association "${emb}" on node "${parent.name}" has implementationType "${assoc.implementationType}", not DoComposition \u2014 this is not an embedding; use remove_association instead.`,
+          { bo: model.name, node: parent.name, name: emb, implementationType: assoc.implementationType }
+        );
+      }
+      const targetName = resolveTargetNodeName(assoc.targetNodeRef);
+      if (!targetName) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `association "${emb}" on node "${parent.name}" has no resolvable targetNodeRef \u2014 cannot find the embedded node.`,
+          { bo: model.name, node: parent.name, name: emb }
+        );
+      }
+      const targetNode = findModelNode(model, targetName);
+      if (!targetNode) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `embedded node "${targetName}" (named by association "${emb}"'s targetNodeRef) does not exist on ${model.name}.`,
+          { bo: model.name, node: parent.name, name: emb, targetName }
+        );
+      }
+      const kind = classifyNode(model, targetNode);
+      if (kind.kind !== "delegated") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `node "${targetNode.name}" is classified as "${kind.kind}", not delegated \u2014 association "${emb}" does not look like a real embedding.`,
+          { bo: model.name, node: targetNode.name, kind: kind.kind }
+        );
+      }
+      const offenders = [];
+      for (const n of model.nodes) {
+        for (const a of n.associations) {
+          if (n === parent && a.name.toLowerCase() === emb.toLowerCase()) continue;
+          if ((resolveTargetNodeName(a.targetNodeRef) ?? "").toLowerCase() === targetNode.name.toLowerCase()) {
+            offenders.push(`${n.name}.${a.name}`);
+          }
+        }
+      }
+      if (offenders.length) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `other association(s) still target node "${targetNode.name}": ${offenders.join(", ")} \u2014 remove those first.`,
+          { bo: model.name, node: targetNode.name, offenders }
+        );
+      }
+      return;
+    }
+  }
+}
+function findDepth1Node(tokens, name, nodeId) {
+  return tokens.find(
+    (t) => t.name === "bo:nodes" && t.depth === 1 && t.attrs.get("bo:name") === name && (nodeId === void 0 || t.attrs.get("bo:nodeID") === nodeId)
+  );
+}
+function mutateAddRepresentativeNode(freshXml, tokens, input, deps) {
+  const name = requireInputName(input);
+  const spec = input.spec ?? {};
+  const properties = ["KEY", "PARENT_KEY", "ROOT_KEY"].map(
+    (propName2) => renderProperty({
+      name: propName2,
+      enabled: true,
+      readonly: false,
+      mandatory: false,
+      enabledFinal: false,
+      readonlyFinal: false,
+      mandatoryFinal: false,
+      transientAttribute: false
+    })
+  );
+  const fields = {
+    name,
+    nodeId: mintGuid("node"),
+    xmlName: str2(spec.xmlName),
+    objectModelGenerated: false,
+    authorizationCheck: false,
+    isExtensible: false,
+    isDependentObjectNode: false,
+    textNode: false,
+    createEnabled: true,
+    updateEnabled: true,
+    deleteEnabled: true,
+    rootNode: false,
+    objectModelObsolete: false,
+    properties
+  };
+  return deps.insertNodeAtRoot(freshXml, tokens, renderNodeElement(fields));
+}
+function mutateRemoveRepresentativeNode(freshXml, tokens, input) {
+  const nodeName = requireInputNode(input);
+  const range = locate(tokens, { node: nodeName, nodeId: input.nodeId });
+  if (!range) {
+    throw new AbapError("NOT_FOUND", `node "${nodeName}" not found while removing it.`, { node: nodeName });
+  }
+  return spliceOut(freshXml, range);
+}
+function mutateEmbedDependentObject(freshXml, tokens, input, deps) {
+  const parentName = requireInputNode(input);
+  const emb = requireInputName(input);
+  const spec = input.spec ?? {};
+  const parentTok = findDepth1Node(tokens, parentName, input.nodeId);
+  if (!parentTok) {
+    throw new AbapError("NOT_FOUND", `parent node "${parentName}" not found while embedding "${emb}".`, {
+      node: parentName
+    });
+  }
+  const parentNodeId = parentTok.attrs.get("bo:nodeID");
+  if (!parentNodeId) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `parent node "${parentName}" has no bo:nodeID on the wire \u2014 the embedded node's bo:parentNodeID must be written together with it, and there is nothing to copy.`,
+      { node: parentName }
+    );
+  }
+  const xmlName = str2(spec.xmlName);
+  const embNodeName = `${emb}.ROOT`;
+  const nodeFields = {
+    name: embNodeName,
+    nodeId: mintGuid("node"),
+    parent: `#//bo:businessObject/bo:nodes[@bo:name='${parentName}']`,
+    parentNodeId,
+    xmlName,
+    objectModelGenerated: false,
+    authorizationCheck: false,
+    isExtensible: false,
+    isDependentObjectNode: false,
+    textNode: false,
+    createEnabled: false,
+    updateEnabled: false,
+    deleteEnabled: false,
+    rootNode: false,
+    objectModelObsolete: false
+  };
+  let xml3 = deps.insertNodeAtRoot(freshXml, tokens, renderNodeElement(nodeFields));
+  const tokens2 = scanModel(xml3);
+  const multiplicity = str2(spec.multiplicity) ?? "0_1";
+  const implementationClassRef = ref(spec.implementationClassRef) ?? DEFAULT_EMBED_IMPL_CLASS_REF;
+  const targetUri = `/sap/bc/adt/bopf/businessobjects/${encodeURIComponent(input.bo.toLowerCase()).toLowerCase()}#//bo:businessObject/bo:nodes[@bo:name='${embNodeName}']`;
+  const assocFields = {
+    name: emb,
+    nodeId: mintGuid("association"),
+    implementationType: "DoComposition",
+    objectModelGenerated: false,
+    xmlName,
+    doEmbeddingName: emb,
+    multiplicity,
+    targetNodeRef: { uri: targetUri, type: "BOBF", name: `${input.bo.toUpperCase()}~${embNodeName}` },
+    implementationClassRef
+  };
+  xml3 = spliceInsertChild(xml3, tokens2, parentName, "association", renderAssociationElement(assocFields), {
+    nodeId: input.nodeId
+  });
+  return xml3;
+}
+function mutateRemoveDependentObject(freshXml, tokens, input) {
+  const parentName = requireInputNode(input);
+  const emb = requireInputName(input);
+  const assocRange = locate(tokens, { node: parentName, nodeId: input.nodeId, child: "association", name: emb });
+  if (!assocRange) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `association "${emb}" not found on node "${parentName}" while removing the embedding.`,
+      { node: parentName, name: emb }
+    );
+  }
+  const targetRefTok = tokens.find(
+    (t) => t.name === "bo:targetNodeRef" && t.openStart > assocRange.start && t.openStart < assocRange.end
+  );
+  const embNodeName = resolveTargetNodeName(
+    targetRefTok ? { uri: targetRefTok.attrs.get("adtcore:uri"), type: "", name: targetRefTok.attrs.get("adtcore:name") ?? "" } : void 0
+  );
+  if (!embNodeName) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `association "${emb}" on node "${parentName}" has no resolvable targetNodeRef \u2014 cannot find the embedded node to remove.`,
+      { node: parentName, name: emb }
+    );
+  }
+  let xml3 = spliceOut(freshXml, assocRange);
+  const tokens2 = scanModel(xml3);
+  const nodeRange = locate(tokens2, { node: embNodeName });
+  if (!nodeRange) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `embedded node "${embNodeName}" not found after removing association "${emb}" from "${parentName}".`,
+      { node: embNodeName, association: emb }
+    );
+  }
+  xml3 = spliceOut(xml3, nodeRange);
+  return xml3;
+}
+function mutateDelegation(freshXml, input, deps) {
+  const tokens = scanModel(freshXml);
+  switch (input.operation) {
+    case "add_representative_node":
+      return mutateAddRepresentativeNode(freshXml, tokens, input, deps);
+    case "remove_representative_node":
+      return mutateRemoveRepresentativeNode(freshXml, tokens, input);
+    case "embed_dependent_object":
+      return mutateEmbedDependentObject(freshXml, tokens, input, deps);
+    case "remove_dependent_object":
+      return mutateRemoveDependentObject(freshXml, tokens, input);
+    default:
+      throw new AbapError("UNSUPPORTED", `"${input.operation}" is not a delegation operation.`, {
+        operation: input.operation
+      });
+  }
+}
+function countNodesNamed(model, name) {
+  const wanted = name.toLowerCase();
+  return model.nodes.filter((n) => n.name.toLowerCase() === wanted).length;
+}
+function countAssociationsNamed(model, nodeName, assocName) {
+  const wantedNode = nodeName.toLowerCase();
+  const wantedAssoc = assocName.toLowerCase();
+  return model.nodes.filter((n) => n.name.toLowerCase() === wantedNode).flatMap((n) => n.associations).filter((a) => a.name.toLowerCase() === wantedAssoc).length;
+}
+var HOUSE_SENTENCE = "A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.";
+function verifyDelegation(input, before, after, journalEntryId) {
+  const entryId = journalEntryId ?? "(none)";
+  switch (input.operation) {
+    case "add_representative_node": {
+      const name = input.name ?? "";
+      const countBefore = countNodesNamed(before, name);
+      const countAfter = countNodesNamed(after, name);
+      if (countAfter <= countBefore) {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `add_representative_node "${name}" on ${before.name}: the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${countAfter} node(s) named "${name}" after the write, versus ${countBefore} before \u2014 the node was not actually added. ${HOUSE_SENTENCE}`,
+          { bo: before.name, node: name, countBefore, countAfter, journalEntryId }
+        );
+      }
+      return;
+    }
+    case "remove_representative_node": {
+      const name = input.node ?? "";
+      const countBefore = countNodesNamed(before, name);
+      const countAfter = countNodesNamed(after, name);
+      if (countAfter >= countBefore) {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `remove_representative_node "${name}" on ${before.name}: the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${countAfter} node(s) named "${name}" after the write, versus ${countBefore} before \u2014 the node was not actually removed. ${HOUSE_SENTENCE}`,
+          { bo: before.name, node: name, countBefore, countAfter, journalEntryId }
+        );
+      }
+      return;
+    }
+    case "embed_dependent_object": {
+      const parent = input.node ?? "";
+      const emb = input.name ?? "";
+      const embNodeName = `${emb}.ROOT`;
+      const nodeCountBefore = countNodesNamed(before, embNodeName);
+      const nodeCountAfter = countNodesNamed(after, embNodeName);
+      const assocCountBefore = countAssociationsNamed(before, parent, emb);
+      const assocCountAfter = countAssociationsNamed(after, parent, emb);
+      const nodeMissing = nodeCountAfter <= nodeCountBefore;
+      const assocMissing = assocCountAfter <= assocCountBefore;
+      if (nodeMissing || assocMissing) {
+        const missing = [
+          nodeMissing ? `the "${embNodeName}" node` : void 0,
+          assocMissing ? `the "${emb}" association on "${parent}"` : void 0
+        ].filter((x) => x !== void 0).join(" and ");
+        throw new AbapError(
+          "CHECK_FAILED",
+          `embed_dependent_object "${emb}" on ${before.name} node "${parent}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${missing} did not land \u2014 node count ${nodeCountBefore} -> ${nodeCountAfter}, association count ${assocCountBefore} -> ${assocCountAfter}. ${HOUSE_SENTENCE}`,
+          { bo: before.name, node: parent, name: emb, nodeCountBefore, nodeCountAfter, assocCountBefore, assocCountAfter, journalEntryId }
+        );
+      }
+      return;
+    }
+    case "remove_dependent_object": {
+      const parent = input.node ?? "";
+      const emb = input.name ?? "";
+      const beforeParent = findModelNode(before, parent);
+      const beforeAssoc = beforeParent?.associations.find((a) => a.name.toLowerCase() === emb.toLowerCase());
+      const embNodeName = (beforeAssoc ? resolveTargetNodeName(beforeAssoc.targetNodeRef) : void 0) ?? `${emb}.ROOT`;
+      const nodeCountBefore = countNodesNamed(before, embNodeName);
+      const nodeCountAfter = countNodesNamed(after, embNodeName);
+      const assocCountBefore = countAssociationsNamed(before, parent, emb);
+      const assocCountAfter = countAssociationsNamed(after, parent, emb);
+      const nodeRemains = nodeCountAfter >= nodeCountBefore;
+      const assocRemains = assocCountAfter >= assocCountBefore;
+      if (nodeRemains || assocRemains) {
+        const remaining = [
+          assocRemains ? `the "${emb}" association on "${parent}"` : void 0,
+          nodeRemains ? `the "${embNodeName}" node` : void 0
+        ].filter((x) => x !== void 0).join(" and ");
+        throw new AbapError(
+          "CHECK_FAILED",
+          `remove_dependent_object "${emb}" on ${before.name} node "${parent}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${remaining} still present \u2014 node count ${nodeCountBefore} -> ${nodeCountAfter}, association count ${assocCountBefore} -> ${assocCountAfter}. ${HOUSE_SENTENCE}`,
+          { bo: before.name, node: parent, name: emb, nodeCountBefore, nodeCountAfter, assocCountBefore, assocCountAfter, journalEntryId }
+        );
+      }
+      return;
+    }
+  }
+}
+function delegationNotes(input) {
+  const spec = input.spec ?? {};
+  switch (input.operation) {
+    case "add_representative_node": {
+      const representedBo = str2(spec.representedBo) ?? "<REPRESENTED_BO>";
+      return [
+        `The wire carries no link from a representative node to the BO it represents \u2014 "${representedBo}" was checked for existence and deliberately NOT written to the node. Add the cross-BO association yourself: abap_bopf_edit add_association on the node that should carry the link, with spec.implementationType: "Association" and spec.targetNodeRef: { name: "${representedBo}~ROOT", type: "BOBF" }. Observed captures of real cross-BO associations also carry a spec.implementationClassRef (e.g. /BOBF/CL_C_DEMO_CUSTOMER_XBO for /BOBF/DEMO_CUSTOMER~ROOT) \u2014 BOPF may require one too.`
+      ];
+    }
+    case "embed_dependent_object": {
+      const dependentObject = str2(spec.dependentObject) ?? "<DEPENDENT_OBJECT>";
+      return [
+        `The host BO's XML never names the dependent object anywhere, so a 200 plus a read-back showing the association/node pair does NOT prove the dependent object is really embedded. spec.dependentObject ("${dependentObject}") was checked to exist and to have objectCategory "dependentObject" but is deliberately not written to the wire \u2014 activation and a runtime check are the only way to confirm the embedding actually works.`
+      ];
+    }
+    default:
+      return [];
+  }
+}
+
 // src/tools/bopf.ts
 var bopfInputSchema = {
   mode: external_exports.enum(["show", "raw", "search", "check_refs"]).optional().describe('Default "show" (digest). "raw" is the expensive escape hatch.'),
@@ -106271,15 +106993,21 @@ var bopfEditInputSchema = {
     "remove_alternative_key",
     "set_alternative_key_fields",
     "set_node_flags",
+    "add_representative_node",
+    "remove_representative_node",
+    "embed_dependent_object",
+    "remove_dependent_object",
     "activate"
   ]).describe("The single edit to make."),
   node: external_exports.string().optional().describe("Node the edit targets."),
   nodeId: external_exports.string().optional().describe("Disambiguator for a non-unique node name."),
-  name: external_exports.string().optional().describe("Element name. Required except for create_bo/remove_node/set_node_flags/activate."),
+  name: external_exports.string().optional().describe(
+    "Element name. Required except for create_bo/remove_node/set_node_flags/activate/remove_representative_node."
+  ),
   spec: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe("Per-operation fields \u2014 see the abapsmith-edit-a-bopf-object skill."),
   activate: external_exports.boolean().optional().describe("Activate after the edit succeeds."),
   allow_dangling_ref: external_exports.boolean().optional().describe("Accepts the dangling-ref risk that otherwise refuses the write."),
-  i_know_this_may_not_activate: external_exports.boolean().optional().describe("Required true for add_alternative_key and set_alternative_key_fields."),
+  i_know_this_may_not_activate: external_exports.boolean().optional().describe("Required true for add_alternative_key, set_alternative_key_fields and embed_dependent_object."),
   package: external_exports.string().optional().describe("create_bo: local ($TMP-style) package, required."),
   description: external_exports.string().optional().describe("create_bo: optional description."),
   rootNodeName: external_exports.string().optional().describe('create_bo only: root node name, default "ROOT".')
@@ -106306,7 +107034,8 @@ var ok10 = (text3, journalEntryId) => ({
   ...journalEntryId ? { journalEntryId } : {}
 });
 var SHOW_NOTES = [
-  "This digest covers the business object's structural definition only (nodes, associations, actions, determinations, validations, queries, alternative keys). It does not include BOPF configuration/customizing \u2014 abapsmith has no read surface and no write surface of any kind for it."
+  "This digest covers the business object's structural definition only (nodes, associations, actions, determinations, validations, queries, alternative keys). It does not include BOPF configuration/customizing \u2014 abapsmith has no read surface and no write surface of any kind for it.",
+  `"(representative)" marks a parentless node standing in for another BO (the link itself is a separate cross-BO association, never on the node); "(delegated via PARENT.ASSOC)" marks an embedded dependent object's node; a cross-BO association is suffixed "(-> OTHER_BO~NODE)".`
 ];
 function buildShowResponse(model, maxChars) {
   const header = {
@@ -106318,6 +107047,7 @@ function buildShowResponse(model, maxChars) {
     constantsInterface: model.constantsInterfaceRef?.name,
     nodeCount: model.nodes.length
   };
+  const kinds = classifyNodes(model);
   const sections = model.nodes.map((n) => {
     const lines = [
       `nodeId: ${n.nodeId ?? "(unknown)"}${n.parent ? `  parent: ${n.parent}` : ""}`,
@@ -106325,14 +107055,19 @@ function buildShowResponse(model, maxChars) {
       n.persistentStructureRef ? `persistentStructureRef: ${n.persistentStructureRef.name}` : void 0,
       n.combinedStructureRef ? `combinedStructureRef: ${n.combinedStructureRef.name}` : void 0,
       n.combinedTableRef ? `combinedTableRef: ${n.combinedTableRef.name}` : void 0,
-      n.associations.length ? `associations: ${n.associations.map((a) => a.name || "(unnamed)").join(", ")}` : void 0,
+      n.associations.length ? `associations: ${n.associations.map((a) => {
+        const label = a.name || "(unnamed)";
+        const kindText2 = describeAssociationKind(classifyAssociation(model, a));
+        return kindText2 ? `${label} (${kindText2})` : label;
+      }).join(", ")}` : void 0,
       n.actions.length ? `actions: ${n.actions.map((a) => a.name).join(", ")}` : void 0,
       n.determinations.length ? `determinations: ${n.determinations.map((d) => d.name).join(", ")}` : void 0,
       n.validations.length ? `validations: ${n.validations.map((v) => v.name).join(", ")}` : void 0,
       n.queries.length ? `queries: ${n.queries.map((q) => q.name).join(", ")}` : void 0,
       n.alternativeKeys.length ? `alternativeKeys: ${n.alternativeKeys.map((k) => k.name).join(", ")}` : void 0
     ].filter((l) => l !== void 0);
-    return { title: `NODE ${n.name}${n.rootNode ? " (root)" : ""}`, content: lines.join("\n") };
+    const kindText = describeNodeKind(kinds.get(n.name.toLowerCase()) ?? { kind: "standard" });
+    return { title: `NODE ${n.name}${kindText ? ` (${kindText})` : ""}`, content: lines.join("\n") };
   });
   return buildResponse({ header, sections, notes: SHOW_NOTES, maxChars }).text;
 }
@@ -106464,11 +107199,11 @@ var IMPL_INTERFACE_BY_OP = {
 function danglingRefElementLabel(operation) {
   return operation.replace(/^(add|set)_/, "").replace(/_fields$/, "");
 }
-function str2(v) {
+function str3(v) {
   return typeof v === "string" && v.trim() ? v : void 0;
 }
 function strEnum(v, allowed, field) {
-  const s = str2(v);
+  const s = str3(v);
   if (s === void 0) return void 0;
   if (!allowed.includes(s)) {
     throw new AbapError(
@@ -106483,13 +107218,13 @@ function strEnum(v, allowed, field) {
 function bool(v) {
   return typeof v === "boolean" ? v : void 0;
 }
-function ref(v) {
+function ref2(v) {
   if (!v || typeof v !== "object") return void 0;
   const o = v;
-  const name = str2(o.name);
-  const type = str2(o.type);
+  const name = str3(o.name);
+  const type = str3(o.type);
   if (!name || !type) return void 0;
-  const uri = str2(o.uri);
+  const uri = str3(o.uri);
   return uri ? { uri, type, name } : { type, name };
 }
 function strArray(v) {
@@ -106498,16 +107233,16 @@ function strArray(v) {
   return out.length ? out : void 0;
 }
 function classRefFromSpec(spec) {
-  const explicit = ref(spec.implementationClassRef);
+  const explicit = ref2(spec.implementationClassRef);
   if (explicit) return explicit;
-  const className = str2(spec.class) ?? str2(spec.implementationClass);
+  const className = str3(spec.class) ?? str3(spec.implementationClass);
   return className ? { type: "CLAS/OC", name: className.toUpperCase() } : void 0;
 }
 function specClassName(spec) {
   if (!spec) return void 0;
-  const explicit = ref(spec.implementationClassRef);
+  const explicit = ref2(spec.implementationClassRef);
   if (explicit) return explicit.name;
-  return str2(spec.class) ?? str2(spec.implementationClass);
+  return str3(spec.class) ?? str3(spec.implementationClass);
 }
 async function danglingRefPreflight(conn, operation, spec, allowDangling) {
   if (!DANGLING_REF_OPS.has(operation)) return void 0;
@@ -106555,9 +107290,9 @@ function actionRefPreflight(model, ownerNode, spec, allowDangling) {
   for (const t of spec.triggers) {
     if (!t || typeof t !== "object") continue;
     const o = t;
-    const actionName = str2(o.action);
+    const actionName = str3(o.action);
     if (actionName === void 0) continue;
-    const actionNodeName = str2(o.actionNode) ?? ownerNode;
+    const actionNodeName = str3(o.actionNode) ?? ownerNode;
     const node2 = model.nodes.find((n) => n.name === actionNodeName);
     const exists = node2?.actions.some((a) => a.name === actionName) === true;
     if (exists || allowDangling) continue;
@@ -106616,9 +107351,9 @@ function requireLocate(tokens, sel) {
 function validateAlternativeKeySpec(name, spec) {
   strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness");
   const missing = [];
-  if (str2(spec.uniqueness) === void 0) missing.push("uniqueness");
-  if (ref(spec.dataTypeRef) === void 0) missing.push("dataTypeRef");
-  if (ref(spec.dataTableTypeRef) === void 0) missing.push("dataTableTypeRef");
+  if (str3(spec.uniqueness) === void 0) missing.push("uniqueness");
+  if (ref2(spec.dataTypeRef) === void 0) missing.push("dataTypeRef");
+  if (ref2(spec.dataTableTypeRef) === void 0) missing.push("dataTableTypeRef");
   if (strArray(spec.keyElements) === void 0) missing.push("keyElements");
   if (missing.length === 0) return;
   throw new AbapError(
@@ -106649,7 +107384,10 @@ function validateEditInputShape(input) {
     "add_alternative_key",
     "remove_alternative_key",
     "set_alternative_key_fields",
-    "set_node_flags"
+    "set_node_flags",
+    "remove_representative_node",
+    "embed_dependent_object",
+    "remove_dependent_object"
   ]);
   const needsName = /* @__PURE__ */ new Set([
     "add_node",
@@ -106670,6 +107408,9 @@ function validateEditInputShape(input) {
     "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
+    "add_representative_node",
+    "embed_dependent_object",
+    "remove_dependent_object",
     "set_alternative_key_fields"
   ]);
   if (needsNode.has(input.operation)) requireNode(input);
@@ -106678,10 +107419,14 @@ function validateEditInputShape(input) {
   if (input.operation === "add_alternative_key") {
     validateAlternativeKeySpec(requireName(input), input.spec ?? {});
   }
+  if (isDelegationOperation(input.operation)) validateDelegationShape(input);
+  if (input.operation === "add_node" || input.operation === "add_association") {
+    refuseHandAssembledDelegation(input.operation, input.spec ?? {}, input.name);
+  }
 }
 function resolveParentLink(spec, tokens) {
-  const parentSpec = str2(spec.parent);
-  const parentNodeIdSpec = str2(spec.parentNodeId);
+  const parentSpec = str3(spec.parent);
+  const parentNodeIdSpec = str3(spec.parentNodeId);
   if (parentSpec === void 0 && parentNodeIdSpec === void 0) return void 0;
   const candidates = tokens.filter((t) => t.name === "bo:nodes" && t.depth === 1);
   const existingNames = () => candidates.map((t) => t.attrs.get("bo:name") || "(unnamed)").join(", ") || "none";
@@ -106731,8 +107476,8 @@ function buildNodeFields(name, nodeId, spec, parentLink) {
     nodeId,
     parent: parentLink?.parent,
     parentNodeId: parentLink?.parentNodeId,
-    xmlName: str2(spec.xmlName),
-    doEmbeddingName: str2(spec.doEmbeddingName),
+    xmlName: str3(spec.xmlName),
+    doEmbeddingName: str3(spec.doEmbeddingName),
     // Explicit spec.rootNode (false included) always wins; otherwise a
     // resolved parent link means this can't be the root — every captured
     // non-root node carries bo:rootNode="false" explicitly.
@@ -106746,43 +107491,43 @@ function buildNodeFields(name, nodeId, spec, parentLink) {
     isExtensible: bool(spec.isExtensible),
     objectModelGenerated: bool(spec.objectModelGenerated),
     objectModelObsolete: bool(spec.objectModelObsolete),
-    persistentStructureRef: ref(spec.persistentStructureRef),
-    transientStructureRef: ref(spec.transientStructureRef),
-    combinedStructureRef: ref(spec.combinedStructureRef),
-    combinedTableRef: ref(spec.combinedTableRef),
-    persistentTableRef: ref(spec.persistentTableRef),
-    defaultingClassRef: ref(spec.defaultingClassRef),
-    dataAccessClassRef: ref(spec.dataAccessClassRef),
-    authorizationClassRef: ref(spec.authorizationClassRef)
+    persistentStructureRef: ref2(spec.persistentStructureRef),
+    transientStructureRef: ref2(spec.transientStructureRef),
+    combinedStructureRef: ref2(spec.combinedStructureRef),
+    combinedTableRef: ref2(spec.combinedTableRef),
+    persistentTableRef: ref2(spec.persistentTableRef),
+    defaultingClassRef: ref2(spec.defaultingClassRef),
+    dataAccessClassRef: ref2(spec.dataAccessClassRef),
+    authorizationClassRef: ref2(spec.authorizationClassRef)
   };
 }
 function buildAssociationFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
-    multiplicity: str2(spec.multiplicity),
-    implementationType: str2(spec.implementationType),
+    xmlName: str3(spec.xmlName),
+    multiplicity: str3(spec.multiplicity),
+    implementationType: str3(spec.implementationType),
     objectModelGenerated: bool(spec.objectModelGenerated),
-    doEmbeddingName: str2(spec.doEmbeddingName),
-    targetNodeRef: ref(spec.targetNodeRef),
+    doEmbeddingName: str3(spec.doEmbeddingName),
+    targetNodeRef: ref2(spec.targetNodeRef),
     implementationClassRef: classRefFromSpec(spec),
-    parameterStructureRef: ref(spec.parameterStructureRef)
+    parameterStructureRef: ref2(spec.parameterStructureRef)
   };
 }
 function buildActionFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
-    category: str2(spec.category),
-    instanceMultiplicity: str2(spec.instanceMultiplicity),
-    exportingParameterCategoryType: str2(spec.exportingParameterCategoryType),
+    xmlName: str3(spec.xmlName),
+    category: str3(spec.category),
+    instanceMultiplicity: str3(spec.instanceMultiplicity),
+    exportingParameterCategoryType: str3(spec.exportingParameterCategoryType),
     exportParameterLink: bool(spec.exportParameterLink),
     isExtensible: bool(spec.isExtensible),
     objectModelGenerated: bool(spec.objectModelGenerated),
     implementationClassRef: classRefFromSpec(spec),
-    parameterStructureRef: ref(spec.parameterStructureRef)
+    parameterStructureRef: ref2(spec.parameterStructureRef)
   };
 }
 function boNodeRef(boName, nodeName) {
@@ -106812,10 +107557,10 @@ function buildTriggerFragments(boName, ownerNode, spec, kind) {
       );
     }
     const o = t;
-    const nodeName = str2(o.node);
+    const nodeName = str3(o.node);
     const assocGiven = typeof o.association === "string";
     const assocRaw = assocGiven ? o.association : void 0;
-    const actionName = str2(o.action);
+    const actionName = str3(o.action);
     if (actionName !== void 0 && kind === "determination") {
       throw new AbapError(
         "BAD_INPUT",
@@ -106850,7 +107595,7 @@ function buildTriggerFragments(boName, ownerNode, spec, kind) {
       nodeRef = boNodeRef(boName, effectiveNode);
       assocRef = boAssociationRef(boName, effectiveNode, effectiveAssoc);
     }
-    const actionRef = actionName !== void 0 ? boActionRef(boName, str2(o.actionNode) ?? ownerNode, actionName) : void 0;
+    const actionRef = actionName !== void 0 ? boActionRef(boName, str3(o.actionNode) ?? ownerNode, actionName) : void 0;
     const base = {
       node: nodeRef,
       association: assocRef,
@@ -106883,8 +107628,8 @@ function buildRelationFragments(boName, spec) {
       );
     }
     const o = r;
-    const nodeName = str2(o.node);
-    const detName = str2(o.determination);
+    const nodeName = str3(o.node);
+    const detName = str3(o.determination);
     if (nodeName === void 0) {
       throw new AbapError(
         "BAD_INPUT",
@@ -106896,7 +107641,7 @@ function buildRelationFragments(boName, spec) {
       renderRelation({
         node: boNodeRef(boName, nodeName),
         determination: detName !== void 0 ? boDeterminationRef(boName, nodeName, detName) : void 0,
-        relationType: str2(o.relationType)
+        relationType: str3(o.relationType)
       })
     );
   }
@@ -106927,7 +107672,7 @@ function buildDeterminationFields(boName, ownerNode, name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
+    xmlName: str3(spec.xmlName),
     category: strEnum(spec.category, DETERMINATION_CATEGORIES, "category"),
     objectModelGenerated: bool(spec.objectModelGenerated),
     implementationClassRef: classRefFromSpec(spec),
@@ -106942,7 +107687,7 @@ function buildValidationFields(boName, ownerNode, name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
+    xmlName: str3(spec.xmlName),
     category: strEnum(spec.category, VALIDATION_CATEGORIES, "category"),
     checkBeforeSave: bool(spec.checkBeforeSave),
     createNode: bool(spec.createNode),
@@ -106957,10 +107702,10 @@ function buildQueryFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
+    xmlName: str3(spec.xmlName),
     category: strEnum(spec.category, QUERY_CATEGORIES, "category"),
     objectModelGenerated: bool(spec.objectModelGenerated),
-    dataTypeRef: ref(spec.dataTypeRef),
+    dataTypeRef: ref2(spec.dataTypeRef),
     implementationClassRef: classRefFromSpec(spec)
   };
 }
@@ -106968,14 +107713,14 @@ function buildAlternativeKeyFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
+    xmlName: str3(spec.xmlName),
     uniqueness: strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness"),
     checkAfterModify: bool(spec.checkAfterModify),
     checkBeforeSave: bool(spec.checkBeforeSave),
     noCheck: bool(spec.noCheck),
     objectModelGenerated: bool(spec.objectModelGenerated),
-    dataTypeRef: ref(spec.dataTypeRef),
-    dataTableTypeRef: ref(spec.dataTableTypeRef),
+    dataTypeRef: ref2(spec.dataTypeRef),
+    dataTableTypeRef: ref2(spec.dataTableTypeRef),
     keyElements: strArray(spec.keyElements)
   };
 }
@@ -107065,7 +107810,7 @@ function patchNodeFlags(xml3, tokens, sel, spec) {
       result = spliceSetNodeRef(result, freshTokens, currentName, refKind, null, { nodeId: sel.nodeId });
       continue;
     }
-    const r = ref(value);
+    const r = ref2(value);
     if (!r) {
       throw new AbapError(
         "BAD_INPUT",
@@ -107180,7 +107925,7 @@ function patchChildFields(freshXml, tokens, input, op) {
       if (raw === null) {
         value = null;
       } else {
-        const parsed = ref(raw);
+        const parsed = ref2(raw);
         if (!parsed) continue;
         value = parsed;
       }
@@ -107226,7 +107971,7 @@ function mutateModel(freshXml, input) {
       if (!link && spec.rootNode !== true) {
         throw new AbapError(
           "BAD_INPUT",
-          `add_node "${name}" needs a parent \u2014 spec.parent (the parent node's name) or spec.parentNodeId is required unless spec.rootNode: true (a BO has exactly one root). BOPF answers 200 and silently discards a node it can't place, rather than rejecting it.`,
+          `add_node "${name}" needs a parent \u2014 neither spec.parent nor spec.parentNodeId names one, and spec.rootNode is not true. BOPF answers 200 and silently discards a node it can't place, rather than rejecting it.`,
           { name }
         );
       }
@@ -107303,6 +108048,11 @@ function mutateModel(freshXml, input) {
       return patchChildFields(freshXml, tokens, input, input.operation);
     case "set_node_flags":
       return patchNodeFlags(freshXml, tokens, requireNode(input), spec);
+    case "add_representative_node":
+    case "remove_representative_node":
+    case "embed_dependent_object":
+    case "remove_dependent_object":
+      return mutateDelegation(freshXml, input, { insertNodeAtRoot });
     case "create_bo":
     case "activate":
       throw new AbapError(
@@ -107315,7 +108065,7 @@ function mutateModel(freshXml, input) {
 function determinationCategoryOmittedNote(input) {
   if (input.operation !== "add_determination") return void 0;
   const spec = input.spec ?? {};
-  if (str2(spec.category) !== void 0) return void 0;
+  if (str3(spec.category) !== void 0) return void 0;
   return 'spec.category was omitted \u2014 BOPF defaults an unset determination category to the literal "undefined" server-side, and (per live A4H recon) a determination in that state does not fire its triggers. Pass a real category (e.g. "reactDuringSave", "reactAfterModification") if this determination is meant to run.';
 }
 function createBoActivatabilityNotes(model) {
@@ -107331,8 +108081,8 @@ function createBoActivatabilityNotes(model) {
     );
   }
   const autoAssigned = ["persistentTableRef", "persistentStructureRef"].flatMap((kind) => {
-    const ref2 = root[kind];
-    return ref2 ? [`${kind} ${ref2.name}`] : [];
+    const ref3 = root[kind];
+    return ref3 ? [`${kind} ${ref3.name}`] : [];
   });
   if (autoAssigned.length > 0) {
     notes.push(
@@ -107365,7 +108115,7 @@ function addNodeAutoAssignedRefsNote(input, model) {
   if (!node2) return void 0;
   const spec = input.spec ?? {};
   const autoAssigned = ["persistentTableRef", "persistentStructureRef"].flatMap((kind) => {
-    if (ref(spec[kind])) return [];
+    if (ref2(spec[kind])) return [];
     const r = node2[kind];
     return r ? [`${kind} ${r.name}`] : [];
   });
@@ -107421,20 +108171,20 @@ function countMembers(model, kind, node2, member) {
   const memberName = member.toLowerCase();
   return model.nodes.filter((n) => n.name.toLowerCase() === nodeName).flatMap((n) => MEMBERS_BY_KIND[kind](n)).filter((m) => m.name.toLowerCase() === memberName).length;
 }
-function resolveTargetNodeName(ref2) {
-  if (!ref2) return void 0;
-  if (ref2.uri) {
-    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref2.uri);
+function resolveTargetNodeName2(ref3) {
+  if (!ref3) return void 0;
+  if (ref3.uri) {
+    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref3.uri);
     if (m) return m[1];
   }
-  const tilde = ref2.name.lastIndexOf("~");
-  return tilde >= 0 ? ref2.name.slice(tilde + 1) : ref2.name;
+  const tilde = ref3.name.lastIndexOf("~");
+  return tilde >= 0 ? ref3.name.slice(tilde + 1) : ref3.name;
 }
 function findEquivalentAssociation(node2, implementationType, targetNode) {
   const wantType = implementationType.toLowerCase();
   const wantTarget = targetNode.toLowerCase();
   return node2.associations.find(
-    (a) => (a.implementationType ?? "").toLowerCase() === wantType && (resolveTargetNodeName(a.targetNodeRef) ?? "").toLowerCase() === wantTarget
+    (a) => (a.implementationType ?? "").toLowerCase() === wantType && (resolveTargetNodeName2(a.targetNodeRef) ?? "").toLowerCase() === wantTarget
   );
 }
 var MEMBER_CHECK_BY_OP = {
@@ -107477,7 +108227,7 @@ function nodeFlagMismatches(node2, spec) {
       if (readBack !== void 0) out.push({ field: kind, sent: null, readBack });
       continue;
     }
-    const wanted = ref(sent);
+    const wanted = ref2(sent);
     if (!wanted) continue;
     if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
       out.push({ field: kind, sent: wanted, readBack: readBack ?? null });
@@ -107511,7 +108261,7 @@ function childFieldMismatches(element, spec, table) {
         if (readBack !== void 0) out.push({ field: key, sent: null, readBack });
         continue;
       }
-      const wanted = ref(sent);
+      const wanted = ref2(sent);
       if (!wanted) continue;
       if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
         out.push({ field: key, sent: wanted, readBack: readBack ?? null });
@@ -107545,7 +108295,7 @@ function attributeSessionDeath(e, input) {
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
   return new AbapError(e.code, message, details, hint);
 }
-var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 the same short-dump-prone mapper handles both; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four.";
+var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 the same short-dump-prone mapper handles both; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four. add_representative_node adds a parentless node standing in for another BO (spec.representedBo required); embed_dependent_object embeds a dependent object under a node (spec.dependentObject required, plus i_know_this_may_not_activate: true \u2014 neither the represented BO nor the dependent object is ever written to the wire).";
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
@@ -107719,6 +108469,10 @@ async function runBopfEdit(deps, args) {
           input.allow_dangling_ref === true
         );
       }
+      if (isDelegationOperation(input.operation)) {
+        await delegationNetworkPreflight(input, async (other) => (await readModel(conn, other)).model);
+        delegationModelPreflight(initial.model, input);
+      }
       let afterMutate;
       let entryId;
       let mutationCorr = { kind: "unresolved" };
@@ -107802,8 +108556,8 @@ async function runBopfEdit(deps, args) {
             let equivalentTarget;
             if (input.operation === "add_association") {
               const spec = input.spec ?? {};
-              const implementationType = str2(spec.implementationType);
-              const requestedTarget = resolveTargetNodeName(ref(spec.targetNodeRef));
+              const implementationType = str3(spec.implementationType);
+              const requestedTarget = resolveTargetNodeName2(ref2(spec.targetNodeRef));
               if (implementationType && requestedTarget) {
                 const targetNode = afterMutate.model.nodes.find((n) => n.name.toLowerCase() === nodeName.toLowerCase());
                 equivalent = targetNode && findEquivalentAssociation(targetNode, implementationType, requestedTarget);
@@ -107870,6 +108624,9 @@ async function runBopfEdit(deps, args) {
             );
           }
         }
+        if (isDelegationOperation(input.operation)) {
+          verifyDelegation(input, initial.model, afterMutate.model, entryId);
+        }
         if (input.operation === "set_association_fields" || input.operation === "set_action_fields" || input.operation === "set_determination_fields" || input.operation === "set_validation_fields" || input.operation === "set_query_fields" || input.operation === "set_alternative_key_fields") {
           const op = input.operation;
           const sel = requireNode(input);
@@ -107927,7 +108684,9 @@ async function runBopfEdit(deps, args) {
       false,
       result.entryId,
       deps.cfg.maxResponseChars,
-      [categoryNote, addNodeNote].filter((n) => n !== void 0)
+      [categoryNote, addNodeNote, ...delegationNotes(input)].filter(
+        (n) => n !== void 0
+      )
     ),
     result.entryId
   );
@@ -108184,14 +108943,14 @@ function nodeStructureRef(node2) {
 function nodeTableRef(node2) {
   return node2.persistentTableRef?.name;
 }
-function targetNodeName(ref2) {
-  if (!ref2) return void 0;
-  if (ref2.uri) {
-    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref2.uri);
+function targetNodeName(ref3) {
+  if (!ref3) return void 0;
+  if (ref3.uri) {
+    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref3.uri);
     if (m) return m[1];
   }
-  const tilde = ref2.name.lastIndexOf("~");
-  return tilde >= 0 ? ref2.name.slice(tilde + 1) : ref2.name;
+  const tilde = ref3.name.lastIndexOf("~");
+  return tilde >= 0 ? ref3.name.slice(tilde + 1) : ref3.name;
 }
 function findAssociation(model, parentNodeName, wantedTargetNodeName) {
   const parent = model.nodes.find((n) => n.name === parentNodeName);
@@ -116366,8 +117125,8 @@ function parseEdmx(body) {
       const name = attr6(t, "Name");
       if (!name) continue;
       const keys = [];
-      for (const ref2 of list(child2(t, "Key"), "PropertyRef")) {
-        const k = attr6(ref2, "Name");
+      for (const ref3 of list(child2(t, "Key"), "PropertyRef")) {
+        const k = attr6(ref3, "Name");
         if (k) keys.push(k);
       }
       const properties = [];
@@ -117720,6 +118479,38 @@ var ABAP_DO_ACTIONS = [
     args: "node, nodeId, spec, activate"
   },
   {
+    action: "bopf_add_representative_node",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"add_representative_node"})',
+    summary: "Add a parentless representative node standing in for another BO.",
+    args: "name (new node name), spec.representedBo (required), spec.xmlName, activate"
+  },
+  {
+    action: "bopf_remove_representative_node",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"remove_representative_node"})',
+    summary: "Remove a representative node.",
+    args: "node, nodeId, activate"
+  },
+  {
+    action: "bopf_embed_dependent_object",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"embed_dependent_object"})',
+    summary: 'Embed a dependent object under a node (a DoComposition association plus a "<name>.ROOT" node).',
+    args: "node (parent), name (new embedding/association name), spec.dependentObject (required), spec.xmlName, spec.multiplicity, spec.implementationClassRef, i_know_this_may_not_activate (required true), activate"
+  },
+  {
+    action: "bopf_remove_dependent_object",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"remove_dependent_object"})',
+    summary: 'Remove an embedded dependent object (its association and "<name>.ROOT" node).',
+    args: "node (parent), name, activate"
+  },
+  {
     action: "bopf_activate",
     group: "bopf",
     minMode: "edit",
@@ -118177,6 +118968,10 @@ var BOPF_HANDLERS = /* @__PURE__ */ new Map([
   ["bopf_remove_alternative_key", editOp("remove_alternative_key")],
   ["bopf_set_alternative_key_fields", editOp("set_alternative_key_fields")],
   ["bopf_set_node_flags", editOp("set_node_flags")],
+  ["bopf_add_representative_node", editOp("add_representative_node")],
+  ["bopf_remove_representative_node", editOp("remove_representative_node")],
+  ["bopf_embed_dependent_object", editOp("embed_dependent_object")],
+  ["bopf_remove_dependent_object", editOp("remove_dependent_object")],
   ["bopf_activate", editOp("activate")],
   ["bopf_test", test2],
   ["bopf_delete", del2]
@@ -119205,7 +120000,7 @@ var MAX_PROPERTY_VALUE_CHARS = 300;
 var MAX_RESIDUAL_PROPERTIES = 24;
 var MAX_MESSAGE_CHARS = 500;
 var SUBTYPE_KEY2 = "com.sap.adt.communicationFramework.subType";
-function str3(v) {
+function str4(v) {
   if (typeof v === "string") return v.trim() || void 0;
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return void 0;
@@ -119307,9 +120102,9 @@ function adtEnvelopeFromThrown(e) {
   const env = envelopeFromProperties(info.properties);
   if (info.status !== void 0) env.status = info.status;
   env.exceptionType ??= info.type;
-  env.namespace ??= str3(any2.namespace);
-  env.code ??= str3(any2.code);
-  const localized = str3(any2.localizedMessage);
+  env.namespace ??= str4(any2.namespace);
+  env.code ??= str4(any2.code);
+  const localized = str4(any2.localizedMessage);
   if (localized && localized !== info.message) env.localizedMessage = localized;
   return env;
 }
@@ -119326,8 +120121,8 @@ function adtEnvelopeFromDetails(details) {
         } else rest[k] = v;
         break;
       case "adtExceptionType":
-        if (str3(v)) {
-          env.exceptionType = str3(v);
+        if (str4(v)) {
+          env.exceptionType = str4(v);
           sawAny = true;
         } else rest[k] = v;
         break;
@@ -119344,14 +120139,14 @@ function adtEnvelopeFromDetails(details) {
         } else rest[k] = v;
         break;
       case "blockingUser":
-        if (str3(v)) {
-          env.lock = { ...env.lock, blockingUser: str3(v) };
+        if (str4(v)) {
+          env.lock = { ...env.lock, blockingUser: str4(v) };
           sawAny = true;
         } else rest[k] = v;
         break;
       case "transport":
-        if (str3(v)) {
-          env.transport = str3(v);
+        if (str4(v)) {
+          env.transport = str4(v);
           sawAny = true;
         } else rest[k] = v;
         break;
