@@ -341,9 +341,9 @@ describe("packageName must be a genuine server-resolved ServerPackage, not a cal
 // ---------------------------------------------------------------------------
 
 describe("viewDeleteFragment generates the expected ABAP (closed template — regression guard)", () => {
-  it("DDIF_VIEW_DELETE call, THEN an IF sy-subrc <> 0 guard, THEN the VIEW-DELETED tag — in that order", () => {
+  it("DD_OBJ_DEL ('A') call, THEN an IF sy-subrc <> 0 guard, THEN the VIEW-DELETED tag — in that order", () => {
     const lines = viewDeleteFragment(PARAMS);
-    const callIdx = lines.findIndex((l) => l.includes("CALL FUNCTION 'DDIF_VIEW_DELETE'"));
+    const callIdx = lines.findIndex((l) => l.includes("CALL FUNCTION 'DD_OBJ_DEL'"));
     const guardIdx = lines.findIndex((l, i) => i > callIdx && l.trim() === "IF sy-subrc <> 0.");
     const tagIdx = lines.findIndex((l, i) => i > guardIdx && l.includes("out->write( 'VIEW-DELETED' )"));
     expect(callIdx).toBeGreaterThanOrEqual(0);
@@ -351,14 +351,74 @@ describe("viewDeleteFragment generates the expected ABAP (closed template — re
     expect(tagIdx).toBeGreaterThan(guardIdx);
   });
 
-  it("the call carries only NAME and EXCEPTIONS OTHERS = 1 — no STATE, no named exception", () => {
+  it("the active-version ('A') call carries object_name/object_type/del_state/prid and EXCEPTIONS OTHERS = 1", () => {
     const lines = viewDeleteFragment(PARAMS);
-    const start = lines.findIndex((l) => l.includes("CALL FUNCTION 'DDIF_VIEW_DELETE'"));
+    const start = lines.findIndex((l) => l.includes("CALL FUNCTION 'DD_OBJ_DEL'"));
     const end = lines.findIndex((l, i) => i >= start && l.trim().endsWith("."));
     const stmt = lines.slice(start, end + 1).join("\n");
-    expect(stmt).toContain(`EXPORTING name = '${VIEW}'`);
-    expect(stmt).not.toContain("STATE");
-    expect(stmt).toContain("EXCEPTIONS OTHERS = 1.");
+    expect(stmt).toContain(`object_name = '${VIEW}'`);
+    expect(stmt).toContain("object_type = 'VIEW'");
+    expect(stmt).toContain("del_state   = 'A'");
+    expect(stmt).toContain("prid        = -1");
+    expect(stmt).toContain("OTHERS      = 1.");
+  });
+
+  it("a SECOND DD_OBJ_DEL call clears the inactive version with del_state = 'N', and is NOT subrc-guarded", () => {
+    const lines = viewDeleteFragment(PARAMS);
+    const calls = lines
+      .map((l, i) => (l.includes("CALL FUNCTION 'DD_OBJ_DEL'") ? i : -1))
+      .filter((i) => i >= 0);
+    expect(calls.length).toBe(2);
+    const [firstIdx, secondIdx] = calls;
+    const firstStmt = lines.slice(firstIdx, firstIdx + 9).join("\n");
+    const secondStmt = lines.slice(secondIdx, secondIdx + 9).join("\n");
+    expect(firstStmt).toContain("del_state   = 'A'");
+    expect(secondStmt).toContain("del_state   = 'N'");
+    // The second call's own statement block has no "IF sy-subrc <> 0." guard
+    // immediately after it — that pattern only follows the FIRST call.
+    const afterSecond = lines.slice(secondIdx, secondIdx + 12).join("\n");
+    expect(afterSecond).not.toContain("IF sy-subrc <> 0.");
+  });
+
+  it("TR_TADIR_INTERFACE is generated with wi_test_modus = space AND wi_delete_tadir_entry = 'X' (the silent-no-op trap)", () => {
+    const lines = viewDeleteFragment(PARAMS);
+    const start = lines.findIndex((l) => l.includes("CALL FUNCTION 'TR_TADIR_INTERFACE'"));
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = lines.findIndex((l, i) => i >= start && l.trim().endsWith("."));
+    const stmt = lines.slice(start, end + 1).join("\n");
+    expect(stmt).toContain("wi_test_modus         = space");
+    expect(stmt).toContain("wi_delete_tadir_entry = 'X'");
+    expect(stmt).toContain("wi_tadir_pgmid        = 'R3TR'");
+    expect(stmt).toContain("wi_tadir_object       = 'VIEW'");
+    expect(stmt).toContain(`wi_tadir_obj_name     = '${VIEW}'`);
+  });
+
+  it("the TADIR residue re-read is emitted BEFORE the VIEW-GONE write", () => {
+    const lines = viewDeleteFragment(PARAMS);
+    const tadirSelectIdx = lines.findIndex((l) => l.includes("SELECT COUNT( * ) FROM tadir"));
+    const goneIdx = lines.findIndex((l) => l.includes("out->write( 'VIEW-GONE' )"));
+    expect(tadirSelectIdx).toBeGreaterThanOrEqual(0);
+    expect(goneIdx).toBeGreaterThan(tadirSelectIdx);
+  });
+
+  it("a surviving TADIR row produces an error line that does not claim nothing was deleted", () => {
+    const lines = viewDeleteFragment(PARAMS);
+    const errLine = lines.find((l) => l.includes("TADIR row remains"));
+    expect(errLine).toBeDefined();
+    expect(errLine).toContain("TR022");
+    expect(errLine).not.toContain("the delete did nothing");
+  });
+
+  it("RS_DD_DELETE_OBJ and DDIF_VIEW_DELETE appear nowhere in the generated source", () => {
+    const source = viewDeleteFragment(PARAMS).join("\n");
+    expect(source).not.toContain("RS_DD_DELETE_OBJ");
+    expect(source).not.toContain("DDIF_VIEW_DELETE");
+  });
+
+  it("is pure ASCII — no em-dash or other non-ASCII character", () => {
+    const src = viewDeleteFragment(PARAMS).join("\n");
+    expect(src).not.toMatch(/—/);
+    expect(/[^\x00-\x7F]/.test(src)).toBe(false);
   });
 
   it('every comment uses " — never a *-style comment', () => {
@@ -379,6 +439,7 @@ describe("viewDeleteFragment generates the expected ABAP (closed template — re
   it("VIEW_DELETE_DATA_LINES declares the locals the fragment relies on", () => {
     expect(VIEW_DELETE_DATA_LINES).toContain("ls_dd25l TYPE dd25l.");
     expect(VIEW_DELETE_DATA_LINES).toContain("lv_dd25l_count TYPE i.");
+    expect(VIEW_DELETE_DATA_LINES).toContain("lv_tadir_count TYPE i.");
   });
 });
 
@@ -451,7 +512,7 @@ describe("empty and ZMCP-DDIC-ERR> transcripts are both failures", () => {
 // ---------------------------------------------------------------------------
 
 describe("deleteClassicViewViaBridge happy path", () => {
-  it("VIEW-DELETED, VIEW-GONE resolves; the deployed source carries DDIF_VIEW_DELETE, COMMIT WORK, and the DD25L re-read in that order", async () => {
+  it("VIEW-DELETED, VIEW-GONE resolves; the deployed source carries DD_OBJ_DEL, TR_TADIR_INTERFACE, COMMIT WORK, and the DD25L/TADIR re-reads in that order", async () => {
     const route = combine(
       objectHappyPath(CLASS_COLLECTION, BRIDGE),
       sharedRoute(classrunOutput(["VIEW-DELETED", "VIEW-GONE"])),
@@ -464,12 +525,16 @@ describe("deleteClassicViewViaBridge happy path", () => {
     const sourceUri = `${CLASS_COLLECTION}/${BRIDGE.toLowerCase()}/source/main`;
     const put = inner.calls.find((c) => (c.method ?? "").toUpperCase() === "PUT" && c.url === sourceUri);
     const body = String(put?.body);
-    const deleteIdx = body.indexOf("DDIF_VIEW_DELETE");
+    const deleteIdx = body.indexOf("CALL FUNCTION 'DD_OBJ_DEL'");
+    const tadirCallIdx = body.indexOf("CALL FUNCTION 'TR_TADIR_INTERFACE'");
     const commitIdx = body.indexOf("COMMIT WORK.");
-    const reselectIdx = body.indexOf("SELECT COUNT( * ) FROM dd25l");
+    const reselectIdx = body.indexOf("SELECT COUNT( * ) FROM dd25l INTO @lv_dd25l_count");
+    const tadirReselectIdx = body.indexOf("SELECT COUNT( * ) FROM tadir");
     expect(deleteIdx).toBeGreaterThanOrEqual(0);
-    expect(commitIdx).toBeGreaterThan(deleteIdx);
+    expect(tadirCallIdx).toBeGreaterThan(deleteIdx);
+    expect(commitIdx).toBeGreaterThan(tadirCallIdx);
     expect(reselectIdx).toBeGreaterThan(commitIdx);
+    expect(tadirReselectIdx).toBeGreaterThan(reselectIdx);
   });
 
   it("gates against the correct bridge class name (ZCL_ZMCP_DDIC_DVIEW)", async () => {
