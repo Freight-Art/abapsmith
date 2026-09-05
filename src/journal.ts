@@ -249,6 +249,8 @@ export interface JournalEntry {
   beforeCapture: BeforeImageCapture;
   /** Server source immediately before the mutation. Absent iff !existedBefore. */
   before?: JournalImage;
+  /** Set when `before` is not the object's source but its metadata document — must never be replayed through the write path. */
+  beforeKind?: "package-metadata";
   /** What we intended to leave behind. Absent for a delete. */
   after?: JournalImage;
   /**
@@ -372,6 +374,8 @@ export interface JournalBeginInput {
    */
   beforeCapture?: BeforeImageCapture;
   beforeSource?: string;
+  /** Set when `beforeSource` is not the object's source but its metadata document — must never be replayed through the write path. */
+  beforeKind?: "package-metadata";
   afterSource?: string;
   beforeServerEtag?: string;
   /** `systemKey()` of the live connection. Recorded verbatim; never defaulted. */
@@ -1043,6 +1047,7 @@ export class Journal {
       object: input.object,
       existedBefore: input.existedBefore,
       beforeCapture,
+      ...(input.beforeKind ? { beforeKind: input.beforeKind } : {}),
       outcome: "pending",
       ...(input.undoOf ? { undoOf: input.undoOf } : {}),
       ...(input.tool ? { tool: input.tool } : {}),

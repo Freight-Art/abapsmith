@@ -438,13 +438,11 @@ function captureOf(img: BeforeImage): BeforeImageCapture {
 
 /**
  * The mode=delete response's undo-ability note — selected by the JOURNAL'S
- * OWN capture outcome (`captureOf`, above), never guessed from the object's
- * type. Fixes a bug where a `DEVC/K` delete used to unconditionally claim
- * "abap_journal mode=undo … re-creates the object from it" even though a
- * package has no source, `captureOf` records `beforeCapture: "failed"` for
- * it, and `planUndo` (src/adt/undo.ts) refuses to restore from a "failed"
- * entry — the note was reassuring the operator about an undo that could not
- * happen.
+ * OWN capture outcome (`captureOf`, above) plus the before-image's KIND,
+ * never guessed from the object's type alone. A package's metadata XML
+ * counts as a genuine capture (`captureOf` returns `"captured"` for it), but
+ * it is not source, so it gets its own branch: the entry preserves the
+ * metadata, and undo does not re-create the package from it.
  *
  * Only `"captured"` and `"failed"` are reachable through `abap_write`'s
  * mode=delete path: `authorizeMutation` already refuses NOT_FOUND before
@@ -454,7 +452,20 @@ function captureOf(img: BeforeImage): BeforeImageCapture {
  * generically, so nothing here silently mis-describes a value it wasn't
  * written to expect if that invariant ever changes.
  */
-function deleteJournalNote(entryId: string, capture: BeforeImageCapture, type: string, name: string): string {
+function deleteJournalNote(
+  entryId: string,
+  capture: BeforeImageCapture,
+  type: string,
+  name: string,
+  kind?: "package-metadata",
+): string {
+  if (capture === "captured" && kind === "package-metadata") {
+    return (
+      `The package's metadata was journalled as ${entryId} before the delete — a package has no ` +
+      `source, so that is the whole before-image, and abap_journal mode=undo will NOT re-create ` +
+      `${type} ${name} from it. Re-create it with abap_write type="DEVC/K" if you need it back.`
+    );
+  }
   if (capture === "captured") {
     return (
       `The source was journalled as ${entryId} before the delete — ` +
@@ -1288,17 +1299,20 @@ export async function abapWrite(
     // response's note (below) can be selected by the SAME outcome the
     // journal entry itself records — never re-derived or guessed.
     let beforeCapture: BeforeImageCapture | undefined;
+    let beforeKind: BeforeImage["sourceKind"];
     const { result: res, entryId, settle } = await withJournalledMutation(
       journal,
       {
         begin: (img: BeforeImage) => {
           beforeCapture = captureOf(img);
+          beforeKind = img.sourceKind;
           return {
             operation: "delete",
             object: journalRef(img.target),
             existedBefore: img.existed,
             beforeCapture,
             ...(img.source !== undefined ? { beforeSource: img.source } : {}),
+            ...(img.sourceKind !== undefined ? { beforeKind: img.sourceKind } : {}),
             // On begin(), not finish(): resolution is pre-flight, so the
             // request is already known — see BeforeImage.corrNr (src/adt/write.ts).
             ...(img.corrNr !== undefined ? { corrNr: img.corrNr } : {}),
@@ -1377,7 +1391,7 @@ export async function abapWrite(
             // `entryId`, so `entryId !== undefined` cannot happen without
             // `beforeCapture` having already been assigned. The `?? "failed"`
             // is a type-only fallback, never expected to fire.
-            deleteJournalNote(entryId, beforeCapture ?? "failed", res.target.type, res.target.name)
+            deleteJournalNote(entryId, beforeCapture ?? "failed", res.target.type, res.target.name, beforeKind)
           : "Nothing was journalled (the write journal is off or was not available), so " +
             "abapsmith kept NO copy of the source: this deletion is IRREVERSIBLE from here.",
         // Package delete only: unlike the ordinary REST delete's hardcoded
@@ -2423,6 +2437,7 @@ export async function abapWriteBatchDelete(
             existedBefore: img.existed,
             beforeCapture: captureOf(img),
             ...(img.source !== undefined ? { beforeSource: img.source } : {}),
+            ...(img.sourceKind !== undefined ? { beforeKind: img.sourceKind } : {}),
             ...(img.corrNr !== undefined ? { corrNr: img.corrNr } : {}),
             systemKey: systemKey(conn.cfg),
             tool: "abap_write",

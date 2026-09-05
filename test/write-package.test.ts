@@ -48,6 +48,8 @@ import {
   type WriteTarget,
 } from "../src/adt/write.js";
 import { abapWrite } from "../src/tools/write.js";
+import { abapJournal } from "../src/tools/journal.js";
+import { planUndo } from "../src/adt/undo.js";
 import { SafetyGate } from "../src/safety.js";
 import { SessionTransport } from "../src/adt/session-transport.js";
 import type { TrRequirement } from "../src/adt/transports.js";
@@ -841,12 +843,12 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
     expect(adt.calls.length).toBe(callsAfterResolve);
   });
 
-  // A package has no source, so `captureOf` (src/tools/write.ts)
-  // records `beforeCapture: "failed"` for it — the delete response must not
-  // then claim `abap_journal mode=undo` "re-creates the object from it". This
-  // pins WHICH note is emitted for beforeCapture="failed"; it asserts nothing
-  // about whether an undo would actually work (that is undo's own test suite).
-  it("a DEVC/K delete's note says the journal entry cannot restore it, not that undo re-creates the object", async () => {
+  // A package has no source, but its metadata document IS readable at its
+  // own URI — the same GET `resolveWriteTarget` already makes. `captureOf`
+  // (src/tools/write.ts) now records `beforeCapture: "captured"` /
+  // `beforeKind: "package-metadata"` for it, and the note says the metadata
+  // was journalled, not that undo re-creates the package.
+  it("a DEVC/K delete journals the package's own metadata as its before-image, and the note doesn't claim undo re-creates it", async () => {
     const dir = await mkdtemp(join(tmpdir(), "abapsmith-pkg-delete-journal-"));
     try {
       const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
@@ -858,12 +860,106 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
       const res = await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate, journal);
 
       expect(res.text).toMatch(/^deleted: true$/m);
-      expect(res.text).toContain("CANNOT restore it from this entry");
+
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.beforeCapture).toBe("captured");
+      expect(entries[0]!.beforeKind).toBe("package-metadata");
+      expect(await journal.beforeImage(entries[0]!)).toBe(PACKAGE_XML(PKG));
+
+      expect(res.text).toContain("The package's metadata was journalled as");
+      expect(res.text).toContain("will NOT re-create");
+      expect(res.text).not.toContain("no source was captured");
+      expect(res.text).not.toContain("effectively irreversible");
       expect(res.text).not.toContain("re-creates the object from it");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  // If the re-read of the package's own metadata fails, the delete must not
+  // be blocked by it — this degrades to EXACTLY today's beforeCapture=
+  // "failed" behaviour (no source, the old note, deletion still proceeds).
+  it("a DEVC/K delete degrades to the old beforeCapture=\"failed\" note when the metadata re-read fails", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-pkg-delete-journal-degrade-"));
+    try {
+      const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
+      const gate = bridgeGate();
+      let getCount = 0;
+      const flakyMetadataRoute: Route = (r) => {
+        if (r.url === PKG_URI && r.method === "GET") {
+          getCount += 1;
+          return getCount === 1 ? resp(200, PACKAGE_XML(PKG), OK_XML) : resp(500, "<x/>", OK_XML);
+        }
+        return undefined;
+      };
+      const { conn } = await connected(
+        combineRoutes(flakyMetadataRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+      );
+
+      const res = await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate, journal);
+
+      expect(res.text).toMatch(/^deleted: true$/m);
+      expect(res.text).toContain("no source was captured");
+      expect(res.text).toContain("effectively irreversible");
 
       const entries = await journal.list();
       expect(entries).toHaveLength(1);
       expect(entries[0]!.beforeCapture).toBe("failed");
+      expect(entries[0]!.beforeKind).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A package has no source: undoing a delete-of-a-package would have to PUT
+  // the recorded metadata at a URI with no source document, i.e. re-create
+  // the package. Refused locally by packageRecreateBlocker (src/adt/undo.ts)
+  // before any request — undo of a package delete is simply not a thing.
+  it("undo of a DEVC/K delete entry is refused locally — abapsmith does not re-create packages — with ZERO requests", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-pkg-delete-undo-"));
+    try {
+      const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
+      const gate = bridgeGate();
+      const { conn, adt } = await connected(
+        combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+      );
+
+      await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate, journal);
+      const entry = (await journal.list())[0]!;
+      const callsBefore = adt.calls.length;
+
+      const plan = await planUndo(conn, journal, entry);
+
+      expect(plan.undoable).toBe(false);
+      expect(plan.blocker).toMatch(/does not re-create\s+packages from a journal entry/);
+      expect(plan.blocker).toContain('abap_write type="DEVC/K"');
+      expect(plan.blocker).toContain("cannot be overridden with force=true");
+      expect(adt.calls.length).toBe(callsBefore);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Same refusal through the abap_journal mode=undo tool surface:
+  // performUndo turns planUndo's blocker into a thrown BAD_INPUT before any
+  // request reaches the server.
+  it("abap_journal mode=undo on a DEVC/K delete entry throws BAD_INPUT, refusing to re-create the package", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-pkg-delete-undo-throw-"));
+    try {
+      const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
+      const gate = bridgeGate();
+      const { conn } = await connected(
+        combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+      );
+
+      await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate, journal);
+      const entry = (await journal.list())[0]!;
+
+      const err = await catchErr(abapJournal(conn, { mode: "undo", entry: entry.id }, 60_000, journal, bridgeGate()));
+
+      expect(err.code).toBe("BAD_INPUT");
+      expect(err.message).toMatch(/does not re-create\s+packages from a journal entry/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

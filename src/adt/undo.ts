@@ -297,6 +297,28 @@ function classIncludeBlocker(entry: JournalEntry): string | undefined {
   );
 }
 
+/**
+ * A package has no source: its before-image is the metadata document read by
+ * `readPackageMetadata` (src/adt/write.ts). abapsmith restores a before-image
+ * by writing it through the ordinary write path, which would PUT that XML at
+ * a URI that has no source document — i.e. it would not restore anything,
+ * just fail or corrupt state. Refused unconditionally; there is no
+ * force-override for a mechanism that does not exist.
+ */
+export function packageRecreateBlocker(entry: JournalEntry): string | undefined {
+  if (entry.operation !== "delete" || !isPackageType(entry.object.type)) return undefined;
+  const name = entry.object.name;
+  return (
+    `Undoing this entry would RE-CREATE package ${name}, and abapsmith does not re-create ` +
+    "packages from a journal entry. The before-image is the package's metadata document (a " +
+    "package has no source), and abapsmith restores a before-image by writing it through the " +
+    "ordinary write path, which would PUT that XML at a URI that has no source document. That " +
+    "is refused rather than attempted. Nothing was changed. Re-create the package deliberately " +
+    `with abap_write type="DEVC/K" (abap_journal mode=show entry=<id> prints the recorded ` +
+    "metadata), then move its contents back. This refusal cannot be overridden with force=true."
+  );
+}
+
 function undoBlocker(entry: JournalEntry): string | undefined {
   // Checked first: a released transport is the one place a regression here
   // would be unrecoverable.
@@ -828,12 +850,13 @@ export async function planUndo(
 
   // ---- purely local refusals, decided before a single request ------------
   // Order: system check first (an entry from another box is wrong about
-  // everything), then operation-shape blockers incl. classIncludeBlocker,
-  // then the narrower delete-evidence gate.
+  // everything), then operation-shape blockers incl. classIncludeBlocker and
+  // packageRecreateBlocker, then the narrower delete-evidence gate.
   const localBlocker =
     systemMismatchBlocker(entry, liveSystem(conn, journal)) ??
     undoBlocker(entry) ??
     classIncludeBlocker(entry) ??
+    packageRecreateBlocker(entry) ??
     deleteEvidenceBlocker(entry);
 
   if (localBlocker) {
@@ -1363,6 +1386,7 @@ export async function performUndo(
           beforeCapture: captureFor(img),
           systemKey: liveKey,
           ...(img.source !== undefined ? { beforeSource: img.source } : {}),
+          ...(img.sourceKind !== undefined ? { beforeKind: img.sourceKind } : {}),
           undoOf: entry.id,
           tool: "abap_journal undo",
         }),

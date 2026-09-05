@@ -14,7 +14,14 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { AbapConnection } from "../adt/connection.js";
 import { AbapError } from "../adt/errors.js";
 import { renderMessages } from "../adt/activate.js";
-import { deleteEvidenceBlocker, enhancementUndoBlocked, performUndo, planUndo, plannedAction } from "../adt/undo.js";
+import {
+  deleteEvidenceBlocker,
+  enhancementUndoBlocked,
+  packageRecreateBlocker,
+  performUndo,
+  planUndo,
+  plannedAction,
+} from "../adt/undo.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, sliceLines, type BuiltResponse } from "../compact.js";
@@ -105,7 +112,12 @@ function undoHint(e: JournalEntry): string {
       ? `undo would DELETE this object, and WILL BE REFUSED: ${refusal}`
       : "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
   }
-  if (action === "recreate") return "undo would RE-CREATE this object from the before-image";
+  if (action === "recreate") {
+    const refusal = packageRecreateBlocker(e);
+    return refusal
+      ? `undo would RE-CREATE this object, and WILL BE REFUSED: ${refusal}`
+      : "undo would RE-CREATE this object from the before-image";
+  }
   return "undo would restore the previous source";
 }
 
@@ -280,7 +292,8 @@ export async function abapJournal(
     const sections: Array<{ title: string; content: string }> = [];
     if (before !== undefined) {
       const win = sliceLines(before, 1);
-      sections.push({ title: `BEFORE-IMAGE (${entry.before?.bytes ?? 0} bytes)`, content: win.text });
+      const label = entry.beforeKind === "package-metadata" ? "package metadata, " : "";
+      sections.push({ title: `BEFORE-IMAGE (${label}${entry.before?.bytes ?? 0} bytes)`, content: win.text });
     } else {
       sections.push({
         title: "BEFORE-IMAGE",
@@ -308,7 +321,9 @@ export async function abapJournal(
     notes.push(
       `Before-image provenance: beforeCapture="${entry.beforeCapture}" — ` +
         (entry.beforeCapture === "captured"
-          ? "the previous source was read successfully."
+          ? entry.beforeKind === "package-metadata"
+            ? "the captured image is the package's metadata document, not source — undo will not re-create the package."
+            : "the previous source was read successfully."
           : entry.beforeCapture === "confirmed-absent"
             ? "the object was positively confirmed absent beforehand."
             : entry.beforeCapture === "failed"
@@ -338,6 +353,7 @@ export async function abapJournal(
         package: entry.object.package,
         existedBefore: entry.existedBefore,
         beforeCapture: entry.beforeCapture,
+        beforeKind: entry.beforeKind,
         outcome: entry.outcome,
         error: entry.error,
         beforeEtag: entry.before?.etag,
