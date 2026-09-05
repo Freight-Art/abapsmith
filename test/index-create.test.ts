@@ -40,6 +40,10 @@
  * 15. the bridge-refresh pin — a stale (pre-fix) server-side bridge class
  *     body still gets PUT over with the current generated body, rather than
  *     skipped as unchanged.
+ * 16. worst-case assembled-source line length — longest legal names, largest
+ *     legal field list, through `ddicBridgeSource` — stays within
+ *     `ABAP_SOURCE_LINE_MAX` (fix 4, the class-source PUT rejecting a >255-char
+ *     line before `DD_INDEX_INTERFACE` was ever called, live 2026-09-05 round 3).
  */
 import { describe, expect, it } from "vitest";
 import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
@@ -49,6 +53,7 @@ import { ConfigSchema, type Config } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import {
+  ABAP_SOURCE_LINE_MAX,
   DDIC_BRIDGE_CLASS,
   DDIC_BRIDGE_PACKAGE,
   DDIC_ERR_PREFIX,
@@ -62,8 +67,10 @@ import {
 } from "../src/adt/ddic-bridge.js";
 import {
   DD_INDEX_EXCEPTIONS,
+  INDEX_DATA_LINES,
   INDEX_DELETE_DATA_LINES,
   INDEX_FIELD_NAME_MAX,
+  INDEX_NAME_MAX,
   MAX_INDEX_FIELDS,
   assertSecondaryIndexTarget,
   createSecondaryIndex,
@@ -108,6 +115,29 @@ const INDEX: SecondaryIndexParams = {
   corrNr: CORR_NR,
 };
 const LOCAL_INDEX: SecondaryIndexParams = { ...INDEX, packageName: pkg("$TMP"), corrNr: undefined };
+
+/** `DD12V-SQLTAB`/`TABNAME` is CHAR30 — mirrors src/adt/index-create.ts's own (un-exported) BASE_TABLE_MAX. */
+const BASE_TABLE_MAX = 30;
+
+/** Longest legal name at each limit — starts with a letter, as `isValidAbapIdentifier` requires. */
+const MAX_INDEX_NAME = "A".repeat(INDEX_NAME_MAX);
+const MAX_BASE_TABLE = "T".repeat(BASE_TABLE_MAX);
+const MAX_FIELD_NAME = "F".repeat(INDEX_FIELD_NAME_MAX);
+const MAX_FIELDS = Array.from({ length: MAX_INDEX_FIELDS }, () => MAX_FIELD_NAME);
+
+const WORST_CASE_INDEX = {
+  indexName: MAX_INDEX_NAME,
+  baseTable: MAX_BASE_TABLE,
+  fields: MAX_FIELDS,
+  description: "worst-case description",
+  packageName: { name: "$TMP" },
+} as unknown as SecondaryIndexParams;
+
+const WORST_CASE_DELETE = {
+  indexName: MAX_INDEX_NAME,
+  baseTable: MAX_BASE_TABLE,
+  packageName: { name: "$TMP" },
+} as unknown as IndexDeleteParams;
 
 const DELETE_INDEX: IndexDeleteParams = {
   indexName: "Z01",
@@ -173,6 +203,24 @@ function fmWhatFromFragment(lines: readonly string[]): string {
 
 const CREATE_WHAT = fmWhatFromFragment(secondaryIndexFragment(INDEX));
 const DELETE_WHAT = fmWhatFromFragment(indexDeleteFragment(DELETE_INDEX));
+
+/**
+ * A delete-fragment message is built into `lv_msg` across several short
+ * `lv_msg = ...`/`lv_msg = lv_msg && ...` lines and written once (fix 4: one
+ * long interpolated line pushed the assembled class source over 255 chars,
+ * live 2026-09-05 round 3) — finds the block from its first line through the
+ * `out->write( lv_msg )` that follows, so callers can assert on the joined text.
+ */
+function lvMsgBlock(
+  lines: readonly string[],
+  startsAt: (l: string) => boolean,
+): { text: string; endIdx: number } {
+  const start = lines.findIndex(startsAt);
+  if (start < 0) throw new Error("no lv_msg block start found");
+  const endIdx = lines.findIndex((l, i) => i > start && l.trim() === "out->write( lv_msg ).");
+  if (endIdx < 0) throw new Error("no out->write( lv_msg ) found after block start");
+  return { text: lines.slice(start, endIdx + 1).join(""), endIdx };
+}
 
 // ---------------------------------------------------------------------------
 // 1 — generator/parser drift
@@ -559,11 +607,10 @@ describe("ACTFAILED branches disclose an unfiltered DD12V row count", () => {
     expect(dd12vAny!.toLowerCase()).not.toContain("as4local");
     expect(dd12vActive!.toLowerCase()).toContain("as4local");
 
-    const errLine = readback.find((l) => l.includes(DDIC_ERR_PREFIX) && l.includes("left rows behind"));
-    expect(errLine).toBeDefined();
-    expect(errLine).toContain("{ lv_dd12v_count }");
-    expect(errLine).toContain("{ lv_dd12v_active }");
-    expect(errLine).toContain("{ lv_dd17s_count }");
+    const { text: errBlock } = lvMsgBlock(readback, (l) => l.includes(DDIC_ERR_PREFIX) && l.includes("left rows behind"));
+    expect(errBlock).toContain("{ lv_dd12v_count }");
+    expect(errBlock).toContain("{ lv_dd12v_active }");
+    expect(errBlock).toContain("{ lv_dd17s_count }");
   });
 });
 
@@ -604,16 +651,17 @@ describe("indexDeleteFragment's ACTFAILED-tolerant read-back", () => {
   });
 
   it("rows still in DD12V/DD17S after commit is still a real failure, distinguishable from the ACTFAILED-but-gone note", () => {
-    const errLine = DELETE_LINES.find((l) => l.includes(DDIC_ERR_PREFIX) && l.includes("left rows behind"));
-    expect(errLine).toBeDefined();
-    expect(errLine).toContain("{ lv_dd12v_count }");
-    expect(errLine).toContain("{ lv_dd12v_active }");
-    expect(errLine).toContain("{ lv_dd17s_count }");
-    expect(errLine).toContain(`${DELETE_WHAT} ACTFAILED = '{ lv_actfailed }'`);
-    expect(errLine).not.toContain(DDIC_NOTE_PREFIX);
+    const { text: errBlock, endIdx } = lvMsgBlock(
+      DELETE_LINES,
+      (l) => l.includes(DDIC_ERR_PREFIX) && l.includes("left rows behind"),
+    );
+    expect(errBlock).toContain("{ lv_dd12v_count }");
+    expect(errBlock).toContain("{ lv_dd12v_active }");
+    expect(errBlock).toContain("{ lv_dd17s_count }");
+    expect(errBlock).toContain(`${DELETE_WHAT} ACTFAILED = '{ lv_actfailed }'`);
+    expect(errBlock).not.toContain(DDIC_NOTE_PREFIX);
 
-    const errIdx = DELETE_LINES.indexOf(errLine!);
-    expect(DELETE_LINES[errIdx + 1]!.trim()).toBe("RETURN.");
+    expect(DELETE_LINES[endIdx + 1]!.trim()).toBe("RETURN.");
   });
 
   it("no RETURN sits between the FM call's sy-subrc guard and COMMIT WORK — ACTFAILED can no longer short-circuit the commit", () => {
@@ -769,5 +817,57 @@ describe("deleteSecondaryIndexViaBridge re-PUTs a stale bridge class body", () =
     await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
 
     expect(inner.calls.some((c) => (c.method ?? "").toUpperCase() === "PUT")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 16 — worst-case assembled-source line length (fix 4: a >255-char class-
+// source line rejected the PUT itself, live 2026-09-05 round 3, before
+// DD_INDEX_INTERFACE was ever called)
+// ---------------------------------------------------------------------------
+
+describe("worst-case assembled-source line length stays within ABAP_SOURCE_LINE_MAX", () => {
+  // Deliberately a literal, not the imported constant: this test has to stay red against a
+  // source tree where ABAP_SOURCE_LINE_MAX does not exist yet, where the import is undefined
+  // and every `length > undefined` comparison silently passes.
+  const LINE_MAX = 255;
+
+  /** Every line over the limit, with its 1-based number and length — an empty array is the pass. */
+  function offendingLines(source: string): Array<{ line: number; length: number }> {
+    return source
+      .split("\n")
+      .map((text, i) => ({ line: i + 1, length: text.length }))
+      .filter((l) => l.length > LINE_MAX);
+  }
+
+  it("ABAP_SOURCE_LINE_MAX matches the literal this suite measures against", () => {
+    expect(ABAP_SOURCE_LINE_MAX).toBe(LINE_MAX);
+  });
+
+  it("secondaryIndexFragment (non-unique), longest names and a full field list, at MAX_INDEX_FIELDS", () => {
+    const source = ddicBridgeSource(
+      DDIC_BRIDGE_CLASS.createIndex,
+      INDEX_DATA_LINES,
+      secondaryIndexFragment({ ...WORST_CASE_INDEX, unique: false }),
+    );
+    expect(offendingLines(source)).toEqual([]);
+  });
+
+  it("secondaryIndexFragment (unique), longest names and a full field list, at MAX_INDEX_FIELDS", () => {
+    const source = ddicBridgeSource(
+      DDIC_BRIDGE_CLASS.createIndex,
+      INDEX_DATA_LINES,
+      secondaryIndexFragment({ ...WORST_CASE_INDEX, unique: true }),
+    );
+    expect(offendingLines(source)).toEqual([]);
+  });
+
+  it("indexDeleteFragment, longest index name and base table", () => {
+    const source = ddicBridgeSource(
+      DDIC_BRIDGE_CLASS.deleteIndex,
+      INDEX_DELETE_DATA_LINES,
+      indexDeleteFragment(WORST_CASE_DELETE),
+    );
+    expect(offendingLines(source)).toEqual([]);
   });
 });

@@ -39,6 +39,7 @@
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
 import type { Operation, SafetyCorr, SafetyGate } from "../safety.js";
+import { ECHO_LINE_MAX, truncateForDisplay } from "../truncate.js";
 import {
   assertPlainName,
   BRIDGE_PACKAGE,
@@ -63,6 +64,9 @@ export const DDIC_BRIDGE_CLASS = {
   createIndex: "ZCL_ZMCP_DDIC_CINDX",
   deleteIndex: "ZCL_ZMCP_DDIC_DINDX",
 } as const;
+
+/** ABAP class-source line limit — a line over this 255s the PUT with SEDI_ADT15/TooLongLine (live 2026-09-05). */
+export const ABAP_SOURCE_LINE_MAX = 255;
 
 /** Prefix of the line the generated `CATCH cx_root` handler — and every explicit `sy-subrc` check — writes. */
 export const DDIC_ERR_PREFIX = "ZMCP-DDIC-ERR>";
@@ -129,7 +133,7 @@ export function ddicBridgeSource(
   const cls = assertPlainName(className, "Class name").toLowerCase();
   const data = dataLines.map((l) => `    DATA ${l}`).join("\n");
   const body = bodyLines.map((l) => `    ${l}`).join("\n");
-  return `CLASS ${cls} DEFINITION
+  const source = `CLASS ${cls} DEFINITION
   PUBLIC FINAL
   CREATE PUBLIC.
 
@@ -155,6 +159,20 @@ ${body}
 
 ENDCLASS.
 `;
+  // Caught here, not at the server: a line over this fails the class-source PUT itself
+  // (SEDI_ADT15/TooLongLine, live 2026-09-05) before DD_INDEX_INTERFACE or any other FM runs.
+  source.split("\n").forEach((line, i) => {
+    if (line.length > ABAP_SOURCE_LINE_MAX) {
+      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated bridge source line ${i + 1} is ${line.length} chars, over ABAP's ` +
+          `${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
+        { line: i + 1, length: line.length, excerpt },
+      );
+    }
+  });
+  return source;
 }
 
 /**

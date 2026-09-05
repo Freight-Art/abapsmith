@@ -21,8 +21,14 @@
  * by the guard before the FM was ever called. The delete bridge's missing
  * `TABLES` parameter (round 1) is fixed and confirmed deployed live
  * (round 2). Round 2 also found ACTFAILED = 'X' on delete can fire after
- * the row is already gone from DD12V/DD17S — the ACTFAILED-tolerant
- * read-back added to close that has NOT itself been run live yet. The
+ * the row is already gone from DD12V/DD17S; the ACTFAILED-tolerant
+ * read-back added to close that was worse than unverified — round 3 found
+ * it had never once executed, because the rendered delete-bridge class
+ * source carried a line over 255 chars (SEDI_ADT15/TooLongLine at the
+ * class-source PUT), so DD_INDEX_INTERFACE was never called and the bridge
+ * class was never refreshed. That line-length defect is fixed (see
+ * `indexDeleteFragment` and `ddicBridgeSource`'s line-length guard); the
+ * read-back's live behavior itself remains unexercised. The
  * transportable-package path, either direction, remains unexercised.
  *
  * Two independent gates, one closed template — same shape as `./view-create.ts`
@@ -426,6 +432,9 @@ export const INDEX_DELETE_DATA_LINES: readonly string[] = [
   "lv_dd12v_count TYPE i.",
   "lv_dd12v_active TYPE i.",
   "lv_dd17s_count TYPE i.",
+  // built up over several assignments, not one literal — a 30-char baseTable pushes either
+  // message past the 255-char class-source line limit if written in one piece (live 2026-09-05).
+  "lv_msg TYPE string.",
 ];
 
 /**
@@ -594,17 +603,21 @@ export function indexDeleteFragment(p: IndexDeleteParams): string[] {
   // Step 5: the read-back decides, not ACTFAILED. All-zero is success even when ACTFAILED = 'X'
   // fired (live 2026-09-05: the FM's own failure report lagged behind a catalog change that had
   // already committed); any row surviving is still a real failure either way.
+  // Each message is built into lv_msg across several short lines and written once — never split
+  // across out->write calls, since parseDdicTranscript keeps only the LAST ZMCP-DDIC-ERR> line.
   lines.push(
     "IF lv_dd12v_count <> 0 OR lv_dd12v_active <> 0 OR lv_dd17s_count <> 0.",
-    `  out->write( |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} left rows behind after commit ` +
-      `(DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }); ` +
-      `${DELETE_FM_WHAT} ACTFAILED = '{ lv_actfailed }'| ).`,
+    `  lv_msg = |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} left rows behind after commit |.`,
+    "  lv_msg = lv_msg && |(DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, |.",
+    `  lv_msg = lv_msg && |DD17S: { lv_dd17s_count }); ${DELETE_FM_WHAT} ACTFAILED = '{ lv_actfailed }'|.`,
+    "  out->write( lv_msg ).",
     "  RETURN.",
     "ENDIF.",
     "IF lv_actfailed = 'X'.",
-    `  out->write( |${DDIC_NOTE_PREFIX} ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}, ` +
-      `but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, DD12V active: ` +
-      `{ lv_dd12v_active }, DD17S: { lv_dd17s_count }) — treating as deleted| ).`,
+    `  lv_msg = |${DDIC_NOTE_PREFIX} ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}, |.`,
+    "  lv_msg = lv_msg && |but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, |.",
+    "  lv_msg = lv_msg && |DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }) — treating as deleted|.",
+    "  out->write( lv_msg ).",
     "  out->write( 'INDEX-DELETED-ACTFAILED' ).",
     "ENDIF.",
     "out->write( 'INDEX-DELETED' ).",
