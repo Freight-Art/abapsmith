@@ -121,11 +121,14 @@ const BRIDGE_DELETE_NOTE = {
     "rendered as a 272-character ABAP source line (292 at the longest legal names), over the " +
     "255-character class-source limit, so every delete failed the class-source PUT " +
     "(ADT_ERROR / TooLongLine, SEDI_ADT15) before DD_INDEX_INTERFACE was ever called, and the " +
-    "deployed bridge class silently stayed on its pre-fix body. The ACTFAILED-tolerant " +
-    "read-back has therefore never executed live, not once. Fixed again: the fragment's long " +
+    "deployed bridge class silently stayed on its pre-fix body. Fixed again: the fragment's long " +
     "messages are now built up in a variable across short lines, and every generated bridge " +
-    "class body is now rejected before it is written if any line exceeds 255 characters — " +
-    "correct by measurement and unit test, not yet by a live delete. A base-table delete is " +
+    "class body is now rejected before it is written if any line exceeds 255 characters. " +
+    "Round 4 then ran live (A4H 2026-09-05, $TMP): a non-unique and a unique index were each " +
+    "deleted through the redeployed bridge (INDEX-DELETED-ACTFAILED / INDEX-DELETED / " +
+    "INDEX-GONE), a re-delete returned NOT_FOUND, and the deployed class body read back with " +
+    "no line over 255 — delete is live-proven. ACTFAILED='X' was still set on both deletes " +
+    "that took effect, so the flag is noise, not a result. A base-table delete is " +
     "not blocked by an index still on it (round 1); a later cleanup deleted a base table " +
     "while its indexes' DD12V rows may still have existed, and whether the delete cascaded " +
     "them away or left them orphaned is unverified — abap_data_preview has no WHERE filter, " +
