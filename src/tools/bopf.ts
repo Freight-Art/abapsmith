@@ -1910,49 +1910,74 @@ function createBoActivatabilityNotes(model: BoModel): string[] {
 }
 
 /**
- * Renders the root-node-name discrepancy on a `create_bo`, if any, from a
- * precomputed `RootNodeNameCheck` (`checkRootNodeName`, `src/adt/bopf.ts`) —
- * shared by both the normal and `SESSION_DEAD`-recovery return paths in
- * `runBopfEdit` below, so the wording lives in exactly one place.
- * `buildCreateBody` (`src/adt/bopf.ts`) always sends an explicitly named
- * `bo:nodes` element — but the create POST is non-atomic (see that module's
- * header), and a `SESSION_DEAD` on it can still let the object land
- * server-side with a root node the server itself auto-generated, unnamed.
- * BOPF bakes that empty name into the generated `Z*_C` constants interface AT
- * CREATE TIME (`BEGIN OF ,` — invalid ABAP) and never regenerates that
- * interface on any later PUT, rename, or activation attempt — live-proven in
- * this repo (renaming the empty-name root post-create and retrying
- * activation twice left the interface's source etag unchanged both times;
- * see `doc/analysis/irreversible-operations.md`). Renaming is therefore not a
- * repair, and this function never suggests it — the only remedy is
- * `abap_bopf_delete` followed by creating the BO again.
+ * Renders the root-node-name discrepancy on a `create_bo` — a root node that
+ * DID land, under a non-empty name other than the one requested. The
+ * unnamed/absent cases are not reportable notes any more: `runBopfEdit`
+ * refuses those with `BOPF_CREATE_UNUSABLE` (see `unusableRootNodeError`
+ * below) before a success response is ever built.
  */
 function createBoRootNodeNotes(boName: string, check: RootNodeNameCheck): string[] {
-  if (check.actual === undefined) {
-    return [
-      `create_bo for "${boName}" requested root node "${check.requested}", but the model read back after ` +
-        "create carries no root node at all — the requested name could not be confirmed.",
-    ];
-  }
-  if (check.actual === "") {
-    return [
-      `create_bo for "${boName}" requested root node "${check.requested}", but the root node BOPF actually ` +
-        'created came back UNNAMED (bo:name="") instead. BOPF bakes that empty name into the generated ' +
-        'constants interface AT CREATE TIME (an invalid "BEGIN OF ," ABAP structure) and never regenerates ' +
-        "that interface, so this business object can never be activated. Renaming the root node afterward " +
-        "does NOT repair the interface — live-observed in this repo (two activation retries, source etag " +
-        "unchanged; see doc/analysis/irreversible-operations.md). The only remedy: abap_bopf_delete " +
-        `"${boName}", then create it again. This BO already exists on the system right now and is ` +
-        "residue that must be cleaned up.",
-    ];
-  }
-  if (!check.matches) {
+  if (check.actual !== undefined && check.actual !== "" && !check.matches) {
     return [
       `create_bo for "${boName}" requested root node "${check.requested}", but the root node actually created ` +
         `is named "${check.actual}" instead.`,
     ];
   }
   return [];
+}
+
+/**
+ * The create landed, but the root node BOPF actually created is unnamed
+ * (`bo:name=""`) or the read-back model carries no root node at all.
+ * `buildCreateBody` (`src/adt/bopf.ts`) always sends an explicitly named
+ * `bo:nodes` element — but the create POST is non-atomic (see that module's
+ * header), and a `SESSION_DEAD` on it can still let the object land
+ * server-side with a root node the server itself auto-generated, unnamed.
+ * BOPF bakes that name into the generated `Z*_C` constants interface AT
+ * CREATE TIME (`BEGIN OF ,` — invalid ABAP, when the name is empty) and
+ * never regenerates that interface on any later PUT, rename, or activation
+ * attempt — live-proven in this repo (renaming the empty-name root
+ * post-create and retrying activation twice left the interface's source
+ * etag unchanged both times; see the `create_bo` paragraph in
+ * `doc/TOOLS/bopf.md` and the tests in `test/bopf-create-recovery.test.ts`).
+ * Renaming is therefore not a repair — the only remedy is `abap_bopf_delete`
+ * followed by creating the BO again.
+ */
+function unusableRootNodeError(
+  boName: string,
+  check: RootNodeNameCheck,
+  entryId: string | undefined,
+  activationSkipped: boolean,
+): AbapError {
+  // Only the leading clause differs between the two unusable shapes; the
+  // rest of the wording (remedy, residue warning, journal reference, and
+  // the activation-skipped addendum) is identical, so it is built once here
+  // instead of twice.
+  const lead =
+    check.actual === undefined
+      ? `create_bo for "${boName}" requested root node "${check.requested}", but the model read back after ` +
+        "create carries no root node at all. BOPF bakes the root node name into the generated constants " +
+        "interface AT CREATE TIME"
+      : `create_bo for "${boName}" requested root node "${check.requested}", but the root node BOPF actually ` +
+        'created came back UNNAMED (bo:name="") instead. BOPF bakes that empty name into the generated ' +
+        'constants interface AT CREATE TIME (an invalid "BEGIN OF ," ABAP structure)';
+  const tail =
+    " and never regenerates that interface, so this business object can never be activated. Renaming the " +
+    "root node afterward does NOT repair the interface — live-observed in this repo (two activation " +
+    `retries, source etag unchanged). The only remedy: abap_bopf_delete "${boName}", then create it again. ` +
+    "This BO already exists on the system right now and is residue that must be cleaned up" +
+    (entryId !== undefined ? ` (journal entry ${entryId})` : "") +
+    "." +
+    (activationSkipped
+      ? " No activation was attempted — an object whose constants interface is already invalid can only " +
+        "fail to activate."
+      : "");
+  return new AbapError(
+    "BOPF_CREATE_UNUSABLE",
+    lead + tail,
+    { bo: boName, requested: check.requested, actual: check.actual, journalEntryId: entryId },
+    `abap_bopf_delete "${boName}", then create_bo again.`,
+  );
 }
 
 /**
@@ -2043,9 +2068,9 @@ function buildEditResponse(
       constantsInterface: model.constantsInterfaceRef?.name,
       nodeCount: model.nodes.length,
       // Makes a clean live create's root node name observable at a glance.
-      ...(rootNodeCheck
-        ? { rootNode: rootNodeCheck.actual === undefined ? "(none)" : rootNodeCheck.actual === "" ? "(unnamed)" : rootNodeCheck.actual }
-        : {}),
+      // The unnamed/absent cases never reach here — runBopfEdit refuses
+      // those with BOPF_CREATE_UNUSABLE before building a response.
+      ...(rootNodeCheck ? { rootNode: rootNodeCheck.actual } : {}),
       activated: activation?.activated,
       activationMessages: activation && activation.messages.length ? JSON.stringify(activation.messages) : undefined,
       journalEntryId,
@@ -2404,8 +2429,11 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
               { corr: { kind: "unresolved" } },
             );
             const created = await createBusinessObject(conn, deps.transport, createRequest, authorized);
+            const unusable = created.rootNodeCheck.actual === undefined || created.rootNodeCheck.actual === "";
             let activation: ActivationOutcomeBopf | undefined;
-            if (wantsActivate) {
+            // An object whose constants interface is already invalid can only
+            // fail to activate — the round trip is refused below instead.
+            if (wantsActivate && !unusable) {
               // Judges the same transport question createBusinessObject already
               // resolved, instead of a fabricated "auto" — one logical create,
               // one transport decision.
@@ -2449,7 +2477,13 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
         }
       },
     );
+    // The object genuinely exists on the system, so the journal entry stays
+    // `succeeded` regardless of what happens next — the residue has to be
+    // recorded, not hidden behind a failed mutation.
     await settle({ outcome: "succeeded", afterSource: result.xml });
+    if (result.rootNodeCheck.actual === undefined || result.rootNodeCheck.actual === "") {
+      throw unusableRootNodeError(bo, result.rootNodeCheck, entryId, wantsActivate);
+    }
     return ok(
       buildEditResponse(
         bo,

@@ -108,6 +108,15 @@ export type AbapErrorCode =
    * the model is well-formed, the problem is a dangling reference inside it.
    */
   | "BOPF_DANGLING_REF"
+  /**
+   * `create_bo` landed but the business object has no usable root node name
+   * — unnamed (`bo:name=""`) or absent entirely. BOPF generates the `Z*_C`
+   * constants interface from the root node name at create time and never
+   * regenerates it, so the object can never activate and there is no
+   * in-band repair. Not `CHECK_FAILED` (nothing was activated or syntax-
+   * checked) and not `ADT_ERROR` (the create POST itself did not fail).
+   */
+  | "BOPF_CREATE_UNUSABLE"
   // ---- Enhancements (design-time authoring) ----
   /**
    * `ABAP_ALLOW_ENHANCEMENTS` is unset/false, or `ABAP_ENHANCE_TARGETS=none`
@@ -304,6 +313,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   TRANSPORT_GONE: "conditional",
   HTTP_PATH_DENIED: "terminal", // policy denial checked before any network activity
   BOPF_DANGLING_REF: "conditional",
+  BOPF_CREATE_UNUSABLE: "terminal", // the object exists and its interface is already invalid; delete it first
   ENHANCEMENT_DISABLED: "terminal", // the flag is off; no payload turns it on
   ENHANCEMENT_TARGET_DENIED: "terminal", // the allowlist excludes the target, not the request
   REPAIR_REFUSED: "terminal", // non-overridable ceiling, no allowlist widens it

@@ -91,6 +91,21 @@ Example (add an alternative key):
 }
 ```
 
+`create_bo` always sends the root `bo:nodes` element with an explicit
+non-empty `bo:name` (`rootNodeName`, default `"ROOT"`). An unnamed root has
+been observed on objects that landed from a create whose session died
+mid-request — a partially-processed create the client cannot prevent, only
+detect. BOPF generates the `Z*_C` constants interface from the root node
+name at create time and never regenerates it, so an unnamed root is
+permanently unactivatable and renaming it afterward does not repair the
+interface. If the object that lands has an unnamed root, or no root node at
+all, `create_bo` refuses with `BOPF_CREATE_UNUSABLE` instead of reporting
+success; the business object still exists and must be removed with
+`abap_bopf_delete` before retrying, and the journal entry id of the create
+is in the error details. A root node that exists under a different non-empty
+name is reported as a discrepancy note, not refused. See
+`test/bopf-create-recovery.test.ts`.
+
 `add_node` needs a parent — `spec.parent` (the parent node's name) or
 `spec.parentNodeId` — unless `spec.rootNode: true`. abapsmith writes
 `bo:parent` and `bo:parentNodeID` as a matched pair, because BOPF accepts a
