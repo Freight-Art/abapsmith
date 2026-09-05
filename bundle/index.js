@@ -43717,6 +43717,8 @@ var RETRYABILITY = {
   JOURNAL_IO: "conditional",
   TRANSPORT_LOCKED: "conditional",
   TRANSPORT_GONE: "conditional",
+  CTS_DUPLICATE_ENTRY: "terminal",
+  // the duplicate E071 rows persist until a human edits the object list
   HTTP_PATH_DENIED: "terminal",
   // policy denial checked before any network activity
   BOPF_DANGLING_REF: "conditional",
@@ -67351,7 +67353,7 @@ var REGISTRY = {
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
       via: "DD_OBJ_DEL (object_type='VIEW', del_state='A' then 'N') clears DD25L, then TR_TADIR_INTERFACE (wi_delete_tadir_entry='X', wi_test_modus=space) clears the TADIR row \u2014 both called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading DD25L and TADIR after COMMIT WORK, not by a clean FM return alone. See src/adt/view-delete.ts and src/adt/ddic-bridge.ts.",
-      limits: "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and this delete path itself does not attempt to clear that lock. The separate route, abap_transport operation=removeObject, does call TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS to clear it, but CTS refuses that call for a DDIC deletion entry (observed live for a R3TR TABL entry), leaving the entry, its lock, and this view's TADIR row in place, and the holding request undeletable through abapsmith \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. abapsmith's own create now registers every view in TADIR, including one in a `$` package, so the delete path acts on views abapsmith created \u2014 proven live on A4H 2026-09-05, where a bridge-created view in a LOCAL package was deleted with VIEW-DELETED / VIEW-GONE."
+      limits: "DDIF_VIEW_DELETE, the route this bridge used before, was live-disproven on A4H 2026-09-04: the function does not exist on this system (CHECK_FAILED). The DD_OBJ_DEL route is measured, not exhaustively verified \u2014 RS_DD_DELETE_OBJ, the obvious alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails sy-subrc=1 / TR022, and this delete path itself does not attempt to clear that lock. The separate route, abap_transport operation=removeObject, does call TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS to clear it: it clears the entry when the request holds exactly one E071 row for the object, and CTS refuses when two or more rows share PGMID+OBJECT+OBJ_NAME (typically a create and a delete of the same object recorded under one request), which leaves the entry, its lock, and this view's TADIR row in place, and the holding request undeletable through abapsmith \u2014 so a locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted (src/tools/write.ts refuses one outright), so this path cannot fully remove a view sitting on an open transport request. abapsmith's own create now registers every view in TADIR, including one in a `$` package, so the delete path acts on views abapsmith created \u2014 proven live on A4H 2026-09-05, where a bridge-created view in a LOCAL package was deleted with VIEW-DELETED / VIEW-GONE."
     }
   },
   "TRAN/T": {
@@ -103599,7 +103601,10 @@ var TRANSPORT_ENTRY_REMOVE_DATA_LINES = [
   "lv_subrc TYPE sy-subrc.",
   "ls_msg TYPE symsg.",
   "lv_msgtext TYPE string.",
-  "lv_readerr TYPE string."
+  "lv_readerr TYPE string.",
+  "ls_other TYPE e071.",
+  "lv_n TYPE i.",
+  "lv_positions TYPE string."
 ];
 function transportEntryRemoveFragment(p) {
   const trkorr = assertTrkorr(p.trkorr, "transportEntryRemove");
@@ -103627,7 +103632,7 @@ function transportEntryRemoveFragment(p) {
     "  lv_subrc = sy-subrc.",
     "  MOVE-CORRESPONDING sy TO ls_msg.",
     "  IF lv_subrc <> 0.",
-    "    lv_readerr = |{ lv_trkorr } sy-subrc={ lv_subrc } msg={ ls_msg-msgty }{ ls_msg-msgid }{ ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
+    "    lv_readerr = |{ lv_trkorr } sy-subrc={ lv_subrc } msg={ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
     "    CONTINUE.",
     "  ENDIF.",
     "  CLEAR lt_rows.",
@@ -103653,7 +103658,27 @@ function transportEntryRemoveFragment(p) {
   ];
   const step3 = ['" Step 3: name the resolved holder.', "out->write( |ZMCP-TREN-HOLDER { lv_holder }| )."];
   const step4 = [
-    '" Step 4: remove every collected row.',
+    '" Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name.',
+    "LOOP AT lt_rows INTO ls_e071.",
+    "  lv_n = 0.",
+    "  CLEAR lv_positions.",
+    "  LOOP AT lt_rows INTO ls_other WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object",
+    "                                  AND obj_name = ls_e071-obj_name.",
+    "    lv_n = lv_n + 1.",
+    "    IF lv_positions IS INITIAL.",
+    "      lv_positions = |{ ls_other-as4pos }|.",
+    "    ELSE.",
+    "      lv_positions = |{ lv_positions },{ ls_other-as4pos }|.",
+    "    ENDIF.",
+    "  ENDLOOP.",
+    "  IF lv_n >= 2.",
+    "    out->write( |ZMCP-DDIC-ERR> duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }| ).",
+    "    RETURN.",
+    "  ENDIF.",
+    "ENDLOOP."
+  ];
+  const step5 = [
+    '" Step 5: remove every collected row.',
     "LOOP AT lt_rows INTO ls_e071.",
     "  CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'",
     "    EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071",
@@ -103662,20 +103687,21 @@ function transportEntryRemoveFragment(p) {
     "  lv_subrc = sy-subrc.",
     "  MOVE-CORRESPONDING sy TO ls_msg.",
     "  IF lv_subrc <> 0.",
-    // Classic EXCEPTIONS, not cx_root: OTHERS is used because the real signature can't be
-    // verified offline. sy-msg* is best-effort — a bare RAISE leaves it blank, so a blank
-    // msg= here proves nothing either way.
-    "    lv_msgtext = |{ ls_msg-msgty }{ ls_msg-msgid }{ ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
+    // OTHERS = 1, not a named exception: which exceptions exist is a property of the installed
+    // release; naming one absent here is a syntax error at class activation, not runtime —
+    // so sy-subrc/sy-msg* are read instead. sy-msg* is best-effort (bare RAISE leaves it blank);
+    // the duplicate case's E TR 292, blank v1-v4, is expected: MESSAGE e292(tr) takes no WITH operands.
+    "    lv_msgtext = |{ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
     "    out->write( |ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }, sy-subrc={ lv_subrc }, msg={ lv_msgtext }| ).",
     "    RETURN.",
     "  ENDIF.",
     "  out->write( |ZMCP-TREN-ROW { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }| ).",
     "ENDLOOP."
   ];
-  const step5 = ['" Step 5: one success tag for the whole batch.', "out->write( 'TREN-REMOVED' )."];
-  const step6 = ['" Step 6: commit.', "COMMIT WORK AND WAIT."];
-  const step7 = [
-    '" Step 7: prove absence.',
+  const step6 = ['" Step 6: one success tag for the whole batch.', "out->write( 'TREN-REMOVED' )."];
+  const step7 = ['" Step 7: commit.', "COMMIT WORK AND WAIT."];
+  const step8 = [
+    '" Step 8: prove absence.',
     `SELECT SINGLE trkorr FROM e071 INTO @lv_check WHERE trkorr = @lv_holder AND obj_name = ${nameLit}.`,
     "IF sy-subrc = 0.",
     `  out->write( |ZMCP-DDIC-ERR> removal of ${objectName} reported no error but a row is still there| ).`,
@@ -103683,7 +103709,23 @@ function transportEntryRemoveFragment(p) {
     "ENDIF.",
     "out->write( 'TREN-GONE' )."
   ];
-  return [...step1, "", ...step2, "", ...step3, "", ...step4, "", ...step5, "", ...step6, "", ...step7];
+  return [
+    ...step1,
+    "",
+    ...step2,
+    "",
+    ...step3,
+    "",
+    ...step4,
+    "",
+    ...step5,
+    "",
+    ...step6,
+    "",
+    ...step7,
+    "",
+    ...step8
+  ];
 }
 async function removeTransportEntryViaBridge(conn, gate, params, proof) {
   void proof;
@@ -103698,6 +103740,30 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
     transportEntryRemoveFragment({ trkorr, objectName })
   );
   const beforeAssert = (transcript2) => {
+    if (transcript2.errorLine?.startsWith("duplicate E071 entries for")) {
+      const m = /^duplicate E071 entries for (\S+) (\S+) (\S+) on (\S+): (\d+) rows at AS4POS (\S+)$/.exec(
+        transcript2.errorLine
+      );
+      if (!m) {
+        throw new AbapError(
+          "CTS_DUPLICATE_ENTRY",
+          `CTS refused to remove ${objectName} from ${trkorr}: duplicate E071 entries \u2014 nothing was removed. Raw ABAP-side detail: ${transcript2.errorLine}`,
+          { trkorr, objectName, raw: transcript2.raw }
+        );
+      }
+      const pgmid = m[1];
+      const object3 = m[2];
+      const objName = m[3];
+      const holder2 = m[4];
+      const count = Number(m[5]);
+      const positions = m[6].split(",");
+      throw new AbapError(
+        "CTS_DUPLICATE_ENTRY",
+        `CTS refused to remove ${objName} from ${holder2}: ${count} E071 rows share ${pgmid} ${object3} ${objName} (AS4POS ${positions.join(", ")}) \u2014 nothing was removed. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { trkorr, objectName, holder: holder2, pgmid, object: object3, count, positions, raw: transcript2.raw },
+        `TRINT_DELETE_COMM_OBJECT_KEYS counts the request's E071 rows matching PGMID+OBJECT+OBJ_NAME and raises w_duplicate_entry (message TR 292) at two or more; TR_DELETE_COMM_OBJECT_KEYS has no parameter naming which AS4POS to drop, and the guard has no bypass. E071's key is TRKORR+AS4POS, so the duplicate rows are legal and usually come from creating and then deleting the same object under one request. SE03's "Unlock Objects (Expert Tool)" does NOT fix this on its own \u2014 the refusal counts E071 rows, not locks. The remedy is outside abapsmith: edit the request's object list in SE09/SE10 so at most one row remains for the object, then retry removeObject; or release the request, which is irreversible.`
+      );
+    }
     if (transcript2.errorLine?.startsWith("no entry for")) {
       throw new AbapError(
         "NOT_FOUND",
@@ -103732,7 +103798,7 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
 // src/tools/transport.ts
 var transportInputSchema = {
   operation: external_exports.enum(["list", "show", "check", "users", "create", "addUser", "setOwner", "delete", "removeObject"]).describe(
-    "What to do. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object already deleted from the system, so its request can then be deleted \u2014 if the object still exists, its lock goes too; CTS has refused this for some entries, e.g. a deletion entry for an already-deleted DDIC object on a live A4H appliance, leaving the request undeletable through abapsmith) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; create package+description; addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm."
+    "What to do. create/addUser/setOwner need write access (ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); delete additionally needs the admin-only transport-delete ceiling (ABAP_MODE=admin \u2014 no legacy flag grants it) and confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object already deleted from the system, so its request can then be deleted \u2014 if the object still exists, its lock goes too; CTS refuses this when the request holds 2 or more E071 rows for that object (same PGMID+OBJECT+OBJ_NAME, e.g. a create and a delete both recorded under one request), leaving the request undeletable through abapsmith) needs that same admin-only transport-delete ceiling and confirm. Required args: list/users none; show transport; check object; create package+description; addUser/setOwner transport+user; delete transport+confirm; removeObject transport+object+confirm."
   ),
   transport: external_exports.string().optional().describe(
     "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete/removeObject."
@@ -104530,7 +104596,7 @@ async function opRemoveObject(conn, input, maxChars, gate, journal) {
       },
       { kind: "unproven", reason: e.message }
     );
-    throw enrichCommObjectKeysRefusal(e, objectOnSystem);
+    throw enrichRemovalRefusal(e, objectOnSystem);
   }
   await recordMutation(
     journal,
@@ -104602,15 +104668,38 @@ async function probeObjectOnSystem(conn, rows) {
   if (unknown2 > 0) return "unknown";
   return absent > 0 ? "absent" : "unknown";
 }
-var COMM_OBJECT_KEYS_HINT = 'The entry and its CTS lock are still on the request \u2014 it cannot be deleted while they are. Every remaining route is outside abapsmith: in SE03 run "Unlock Objects (Expert Tool)" for this request, then delete the entry in SE09/SE10; or release the request (irreversible). The msg= fragment in the message above is the T100 message CTS itself raised \u2014 it may be blank (a function module that raises with a bare RAISE sets no message) \u2014 but quote it when reporting this failure.';
-function enrichCommObjectKeysRefusal(e, objectOnSystem) {
-  if (!(e instanceof AbapError) || e.code !== "CHECK_FAILED") return e;
-  if (!e.message.includes("TR_DELETE_COMM_OBJECT_KEYS")) return e;
-  return new AbapError(
-    e.code,
-    e.message,
-    { ...e.details, objectOnSystem },
-    [e.hint, COMM_OBJECT_KEYS_HINT].filter((h) => h !== void 0).join(" ")
+var COMM_OBJECT_KEYS_HINT = `The entry and its CTS lock are still on the request \u2014 it cannot be deleted while they are. If the refusal names a lock or an owner, SE03's "Unlock Objects (Expert Tool)" is the tool for that \u2014 it does nothing for the duplicate-row guard (TR 292), which counts E071 rows, not locks. Every remaining route is outside abapsmith and not guaranteed to succeed: edit the request's object list in SE09/SE10; or release the request (irreversible). The msg= fragment in the message above is the T100 message CTS itself raised \u2014 it may be blank (a function module that raises with a bare RAISE sets no message) \u2014 but quote it when reporting this failure.`;
+var LATE_DUPLICATE_ENTRY_HINT = "The request holds two or more E071 rows for this object (same PGMID+OBJECT+OBJ_NAME) \u2014 E071's key is TRKORR+AS4POS, not object identity, so a create and a delete of the same object under one request both get recorded, and TR_DELETE_COMM_OBJECT_KEYS refuses to pick one to drop. The entry and its lock are still on the request. Every remaining route is outside abapsmith and not guaranteed to succeed: edit the request's object list in SE09/SE10; or release the request (irreversible).";
+function carryOrigin(fresh, origin) {
+  fresh.stack = origin.stack;
+  fresh.cause = origin.cause;
+  return fresh;
+}
+function enrichRemovalRefusal(e, objectOnSystem) {
+  if (!(e instanceof AbapError)) return e;
+  if (e.code === "CTS_DUPLICATE_ENTRY") {
+    return carryOrigin(new AbapError(e.code, e.message, { ...e.details, objectOnSystem }, e.hint), e);
+  }
+  if (e.code !== "CHECK_FAILED" || !e.message.includes("TR_DELETE_COMM_OBJECT_KEYS")) return e;
+  if (e.message.includes("msg=E TR 292")) {
+    return carryOrigin(
+      new AbapError(
+        "CTS_DUPLICATE_ENTRY",
+        e.message,
+        { ...e.details, objectOnSystem },
+        [e.hint, LATE_DUPLICATE_ENTRY_HINT].filter((h) => h !== void 0).join(" ")
+      ),
+      e
+    );
+  }
+  return carryOrigin(
+    new AbapError(
+      e.code,
+      e.message,
+      { ...e.details, objectOnSystem },
+      [e.hint, COMM_OBJECT_KEYS_HINT].filter((h) => h !== void 0).join(" ")
+    ),
+    e
   );
 }
 function removeObjectBeforeImage(holder) {
