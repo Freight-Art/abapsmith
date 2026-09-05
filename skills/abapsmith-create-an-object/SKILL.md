@@ -33,6 +33,9 @@ abap_write { object, type, package: "$TMP", source, description }
   its own nested object, not a `mode`; `mode` takes only `write` or `delete`.
 - A bare `{object, source}` full rewrite does **not** auto-supply the etag. Pass
   `expect_etag` yourself or you will silently overwrite a concurrent change.
+- Pass `dry_run: true` to see the gate verdict, the package a create would
+  use, and a diff of the source, without creating anything. Refused for
+  the classrun-bridge creates (`VIEW/DV`, `TRAN/T`) and for `DEVC/K`.
 - `CLAS/OC` sub-includes: pass `include: "testclasses" | "definitions" |
   "implementations" | "macros"`. Omitting it writes MAIN.
 

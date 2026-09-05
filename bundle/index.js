@@ -66993,19 +66993,25 @@ var REGISTRY = {
   // mechanism that fills the gap; see SkeletonCreate's doc for the shape and
   // its provenance caveat.
   //
-  // `implementation unmanaged` is the only usable flavour on-prem (SAP's own
-  // 1909 FPS00 RAP guide: managed is not possible on premises). On 7.56+
-  // BDEF strict mode the bare `implementation {managed|unmanaged};` header
-  // this skeleton pairs with is obsolete and becomes a syntax error — a known
-  // forward-compat limitation, not solved here.
+  // A `managed` behavior definition over a CDS root view with a persistent
+  // table was created and activated live on this release (A4H, 2026-09-05) —
+  // `implementation unmanaged` is NOT the only usable flavour on-prem, contra
+  // the 1909 FPS00 RAP guide. On 7.56+ BDEF strict mode the bare
+  // `implementation {managed|unmanaged};` header this skeleton pairs with is
+  // obsolete and becomes a syntax error — a known forward-compat limitation,
+  // not solved here.
   //
-  // `delete: false` — DISPROVEN 2026-08-19. A live-created BDEF/BDO
-  // survived two "successful" delete calls (DELETE reported success but
-  // abap_read still returned the object both times, including a THIRD read
-  // after a second DELETE reported NOT_FOUND). ZBD_D205A could not be
-  // removed through abapsmith's own tool surface and was left on A4H's $TMP
-  // package. `write`/`create` are untouched — only `delete` is downgraded.
-  // Full incident record: the git history.
+  // `delete: true` — a live lock + raw DELETE answered 200, and the absence
+  // was independently confirmed two ways: the repository search row was
+  // gone, and a GET of the object URI answered the identical
+  // "Error while importing object ... from the database" a never-existing
+  // name gets (A4H, 2026-09-05). The earlier "survived two deletes" reading
+  // was a misdiagnosis — the source endpoint answers 200 with an empty body
+  // for an absent BDEF/BDO (see `blankSourceOnAbsence` below), which reads as
+  // "still there" unless the object URI is also asked; `write-verify.ts` and
+  // `source.ts` now do that. Exercised so far only via a raw lock+DELETE, not
+  // yet through abapsmith's own `abap_write mode=delete` end to end — a live
+  // run is queued to confirm that path too.
   "BDEF/BDO": {
     label: "Behavior definition",
     write: { shape: "source" },
@@ -67017,16 +67023,16 @@ var REGISTRY = {
         // No `; charset=utf-8` — see SkeletonCreate.contentType's doc.
         contentType: "application/vnd.sap.adt.blues.v1+xml"
       },
-      // verified: true rests on the pre-existing raw-wire citation on
-      // SkeletonCreate's own doc comment above — an honest best-available
-      // signal, not a claim that abapsmith's own choreography has run this
-      // live. the create-verification sweep deliberately did NOT (re-)create a BDEF/BDO live,
-      // given the delete: false finding below (avoids leaking a second
-      // permanent object for the same known reason).
+      // verified: true — create ran live end to end through abap_write on
+      // A4H 2026-09-05 (table → classic CDS root view → BDEF with a
+      // `managed;` header): created: true, activated: true.
       verified: true
     },
-    delete: false,
-    activate: true
+    delete: true,
+    activate: true,
+    // The source endpoint answers 200/empty for an absent object — see the
+    // field's own doc comment.
+    blankSourceOnAbsence: true
   },
   // `create.vendor: false` — no XSLT/VT row in abap-adt-api's CreatableTypes
   // (checked against objectcreator.js), so create needs a skeleton like
@@ -67558,6 +67564,11 @@ function assertNoConflictingCapabilities() {
     if (cap.namePrefixes && cap.namePrefixes.filter((p) => p.trim() !== "").length === 0) {
       throw new Error(
         `src/adt/capabilities.ts REGISTRY entry ${code} declares an empty namePrefixes override, which would refuse every possible name for that type. Omit the field to inherit the global list instead.`
+      );
+    }
+    if (cap.blankSourceOnAbsence && cap.write?.shape !== "source") {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares blankSourceOnAbsence but write.shape is ${JSON.stringify(cap.write?.shape)} \u2014 this only makes sense for a type whose write.shape is "source".`
       );
     }
   }
@@ -91453,8 +91464,8 @@ function isSessionDeadFailure(e) {
 async function probeObjectPresence(conn, uri, accept) {
   const get = () => conn.get(uri, { headers: { Accept: accept } });
   try {
-    await get();
-    return { presence: "present", revived: false };
+    const resp = await get();
+    return { presence: "present", revived: false, body: resp.body };
   } catch (e) {
     if (isNotFoundError(e)) return { presence: "absent", error: e, revived: false };
     if (!isSessionDeadFailure(e)) return { presence: "no-answer", error: e, revived: false };
@@ -91465,8 +91476,8 @@ async function probeObjectPresence(conn, uri, accept) {
     return { presence: "no-answer", error: e, revived: false };
   }
   try {
-    await get();
-    return { presence: "present", revived: true };
+    const resp = await get();
+    return { presence: "present", revived: true, body: resp.body };
   } catch (e) {
     return { presence: isNotFoundError(e) ? "absent" : "no-answer", error: e, revived: true };
   }
@@ -91590,8 +91601,12 @@ async function verifyObjectPresent(conn, opts) {
   const { uri, accept, objectName, expectType } = opts;
   let readBackReason;
   try {
-    await conn.get(uri, { headers: { Accept: accept } });
-    return { status: "confirmed", uri, via: "read-back" };
+    const resp = await conn.get(uri, { headers: { Accept: accept } });
+    if (isBlankBody(resp.body) && blankSourceIsAmbiguous(expectType)) {
+      readBackReason = "the source endpoint answered 200 with an empty body, which does not distinguish an absent object from an empty one for this type";
+    } else {
+      return { status: "confirmed", uri, via: "read-back" };
+    }
   } catch (e) {
     if (isNotFoundError(e)) {
       readBackReason = "the read-back answered 404";
@@ -91611,6 +91626,15 @@ function answeredFiveHundredWithType(e) {
   const info = adtExceptionInfo(e);
   return info?.status === 500 && typeof info.type === "string" && info.type.length > 0;
 }
+function blankSourceIsAmbiguous(type) {
+  return capabilitiesFor(type)?.blankSourceOnAbsence === true;
+}
+function objectAcceptFor(type) {
+  return capabilitiesFor(type)?.mediaType ?? "application/*";
+}
+function isBlankBody(body) {
+  return typeof body === "string" && body.trim() === "";
+}
 async function verifyObjectDeleted(conn, opts) {
   const { uri, accept, objectName, expectType } = opts;
   const readBack = await probeObjectPresence(conn, uri, accept);
@@ -91620,7 +91644,7 @@ async function verifyObjectDeleted(conn, opts) {
   let readBackUri = uri;
   const objUri = objectUriOf(uri);
   if (!sawObject && objUri !== uri && answeredFiveHundredWithType(readBack.error)) {
-    const objAccept = capabilitiesFor(expectType)?.mediaType ?? "application/*";
+    const objAccept = objectAcceptFor(expectType);
     const direct = await probeObjectPresence(conn, objUri, objAccept);
     if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
     if (direct.presence === "present") {
@@ -91631,6 +91655,18 @@ async function verifyObjectDeleted(conn, opts) {
       readBackUri = objUri;
       readBackReason = `the read-back answered HTTP 500 with an ADT exception type, and a confirming GET of ${objUri} did not answer at all, so it established nothing either way`;
     }
+  } else if (sawObject && objUri !== uri && isBlankBody(readBack.body) && blankSourceIsAmbiguous(expectType)) {
+    const objAccept = objectAcceptFor(expectType);
+    const direct = await probeObjectPresence(conn, objUri, objAccept);
+    if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
+    if (direct.presence === "present") {
+      readBackUri = objUri;
+      readBackReason = `the source endpoint answered 200 with an empty body, and a confirming GET of ${objUri} answered 200 \u2014 the object is still there`;
+    } else {
+      sawObject = false;
+      readBackUri = objUri;
+      readBackReason = `the source endpoint answered 200 with an empty body, which proves nothing on its own, and a confirming GET of ${objUri} did not answer at all`;
+    }
   }
   const search = await verifyViaRepositorySearch(conn, objectName, expectType);
   if (search.status === "confirmed") return search;
@@ -91639,7 +91675,7 @@ async function verifyObjectDeleted(conn, opts) {
       return {
         status: "indeterminate",
         uri,
-        reason: `The post-delete read-back of ${expectType} ${objectName} answered 200 at ${readBackUri}, but the repository search found no trace of it \u2014 the same contradiction recorded live for BDEF/BDO. A stale 200 read-back is not proof the delete failed; treated as unproven.`
+        reason: `The post-delete read-back of ${expectType} ${objectName} answered 200 at ${readBackUri}, but the repository search found no trace of it \u2014 a stale 200 read-back is not proof the delete failed; treated as unproven.`
       };
     }
     return {
@@ -91696,9 +91732,11 @@ function isTimeoutError(e) {
   if (any2.name === "AbortError" || any2.name === "TimeoutError") return true;
   return /\btime(d)?\s*-?\s*out\b|\btimeout\b/i.test(String(any2.message ?? ""));
 }
-async function objectUriPresenceAt500(conn, obj) {
-  const accept = capabilitiesFor(obj.type)?.mediaType ?? "application/*";
-  return (await probeObjectPresence(conn, obj.uri, accept)).presence;
+async function objectUriPresence(conn, obj) {
+  return (await probeObjectPresence(conn, obj.uri, objectAcceptFor(obj.type))).presence;
+}
+function isBlankBody2(body) {
+  return typeof body === "string" && body.trim() === "";
 }
 function sourceUriFor(obj, include) {
   const inc = include ?? obj.include;
@@ -91727,6 +91765,17 @@ async function readSource(conn, obj, include, version2) {
       headers: { Accept: "text/plain" },
       ...version2 ? { qs: { version: version2 } } : {}
     });
+    if (isBlankBody2(resp.body) && blankSourceIsAmbiguous(obj.type)) {
+      const presence = await objectUriPresence(conn, obj);
+      if (presence === "absent") {
+        throw new AbapError(
+          "NOT_FOUND",
+          `${obj.type} ${obj.name} does not exist: its source endpoint answered HTTP 200 with an empty body (this type's known response for an absent object there), and a direct GET of ${obj.uri} confirmed the absence with a not-found response.`,
+          { type: obj.type, name: obj.name, uri: sourceUri, absenceConfirmedVia: obj.uri },
+          "Check the name with abap_search, or create it first with abap_write. This was established by a second, independent request against the object URI, not inferred from the empty body."
+        );
+      }
+    }
     return {
       source: resp.body,
       serverEtag: typeof resp.headers.etag === "string" ? resp.headers.etag : void 0,
@@ -91737,7 +91786,7 @@ async function readSource(conn, obj, include, version2) {
     const err = classifySourceFailure(e, ctx);
     const answered500WithType = err.code === "ADT_ERROR" && err.details.status === 500 && typeof err.details.adtExceptionType === "string" && Boolean(err.details.adtExceptionType);
     if (answered500WithType) {
-      const presence = await objectUriPresenceAt500(conn, obj);
+      const presence = await objectUriPresence(conn, obj);
       if (presence === "absent") {
         throw new AbapError(
           "NOT_FOUND",
@@ -101127,6 +101176,137 @@ function describeEditFailure(r) {
   return "old_string was not found (0 matches), and not even its first line appears anywhere in the current source. Re-read the object to confirm old_string against what is actually there.";
 }
 
+// src/tools/write-dry-run.ts
+var WRITE_DRY_RUN_MAX_HUNKS = 200;
+function dryRunNotSupported(route, detail) {
+  if (route === "objects") {
+    return new AbapError(
+      "BAD_INPUT",
+      "`dry_run` does not apply to the `objects` batch-delete form.",
+      { route },
+      'Preview one object at a time with `object` + mode: "delete", or drop `dry_run` to run the batch.'
+    );
+  }
+  if (route === "bridge") {
+    return new AbapError(
+      "BAD_INPUT",
+      `\`dry_run\` cannot preview a \`${detail}\`: this type is created and deleted by generating and running an ABAP program through the classrun bridge, so there is nothing to preview short of performing it.`,
+      { route, type: detail },
+      "Drop `dry_run`. Read the object first with abap_read if you want to see its current state."
+    );
+  }
+  return new AbapError(
+    "BAD_INPUT",
+    "`dry_run` cannot preview a package (DEVC/K): a package create resolves \u2014 and can create \u2014 its transport request before anything else is decided, which a dry run must not do.",
+    { route },
+    "Drop `dry_run` to create the package for real."
+  );
+}
+function transportPreviewNote(target, input) {
+  if (input.corr_nr) {
+    return `A real write would send corr_nr "${input.corr_nr}" and re-judge it against the safety gate's transport allowlist once resolved \u2014 a second gate check this dry run did not make.`;
+  }
+  if (isLocalPackageName(target.packageName)) {
+    return `${target.packageName} is a $-local package, so a real write resolves no transport request.`;
+  }
+  return `${target.packageName} is transportable, so a real write would ask CTS for a request (possibly creating one) and judge the resolved number against the safety gate's transport allowlist; this dry run made no CTS call, so that second gate check did not run \u2014 a preview that looks clean can still be refused there.`;
+}
+function buildWriteDryRunResponse(args) {
+  const { conn, target, input, source, current, expectEtag, formatted, journalled: journalled2, maxChars } = args;
+  const diff = diffSources(current ?? "", source, {
+    context: DEFAULT_CONTEXT_LINES,
+    maxHunks: WRITE_DRY_RUN_MAX_HUNKS
+  });
+  const body = diff.identical ? "(no change: the composed source is line-for-line identical to what is on the system)" : renderHunks(diff.hunks);
+  const notes = [];
+  notes.push(
+    "Dry run: nothing was written and nothing was journalled \u2014 no lock, PUT, DELETE, activation, unlock or CTS call was made. Every request this preview made was a read." + (formatted ? " `format: true` also sent the source to ADT's pretty-printer, a POST that formats text and writes nothing." : "")
+  );
+  notes.push(
+    "The safety gate ran on this preview at the same point and with the same inputs as a real write (authorizeMutation, with the transport still unresolved) \u2014 a refusal would have been returned instead of this diff."
+  );
+  notes.push(transportPreviewNote(target, input));
+  if (diff.identical) {
+    notes.push(
+      "A real write would detect this same byte-identical no-op and skip the lock/PUT entirely, rather than writing unchanged bytes."
+    );
+  }
+  if (target.exists && expectEtag === void 0) {
+    notes.push(
+      `This form asserts no precondition. Repeat the call without \`dry_run\` and with expect_etag: "${canonicalEtag(current ?? "")}" to make the applied write compare against exactly the bytes previewed.`
+    );
+  } else if (!target.exists) {
+    notes.push(
+      `${target.type} ${target.name} does not exist on ${conn.cfg.sid}, so a real write would create it in ${target.packageName}` + (input.activate === false ? "." : " and activate it.")
+    );
+  }
+  if (diff.coarse) {
+    notes.push(
+      "COARSE DIFF: the current source and the composed write share almost no leading or trailing lines, so the exact line-matching pass was skipped and the whole changed region is reported as one delete-then-insert block. The diff is correct but not minimal."
+    );
+  }
+  if (diff.droppedHunks > 0) {
+    notes.push(
+      `TRUNCATED: showing ${diff.hunks.length} of ${diff.totalHunks} hunks; ${diff.droppedHunks} were withheld to stay inside the response budget. Narrow the change or apply it in smaller pieces.`
+    );
+  }
+  if (input.activate === false) {
+    notes.push("`activate: false` on this call means a real write would skip activation.");
+  }
+  if (!journalled2) {
+    notes.push("The write journal is off, so a real write would not be undoable through abap_journal.");
+  }
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${target.type} ${target.name}`,
+      uri: target.uri,
+      package: target.packageName,
+      package_source: target.packageSource,
+      mode: "write",
+      dry_run: true,
+      created: !target.exists,
+      expect_etag: expectEtag ?? "none (this form asserts no precondition)",
+      current_etag: current !== void 0 ? canonicalEtag(current) : void 0,
+      transport: "unresolved (dry run makes no transport call)",
+      journal: "nothing recorded (dry run)",
+      added: diff.added,
+      removed: diff.removed,
+      hunks: diff.hunks.length
+    },
+    body,
+    bodyLabel: "DIFF",
+    notes,
+    maxChars
+  });
+}
+function buildDeleteDryRunResponse(args) {
+  const { conn, target, input, journalled: journalled2, maxChars } = args;
+  const notes = [
+    "Dry run: nothing was deleted and nothing was journalled \u2014 no lock, DELETE or CTS call was made. Every request this preview made was a read.",
+    "The safety gate ran on this preview at the same point and with the same inputs as a real delete (authorizeMutation, with the transport still unresolved) \u2014 a refusal would have been returned instead of this response.",
+    transportPreviewNote(target, input),
+    journalled2 ? "A real delete would attempt to capture a before-image first and, if that capture succeeds, would be undoable through abap_journal mode=undo." : "The write journal is off, so a real delete would be irreversible."
+  ];
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${target.type} ${target.name}`,
+      uri: target.uri,
+      package: target.packageName,
+      package_source: target.packageSource,
+      mode: "delete",
+      dry_run: true,
+      would_delete: true,
+      expect_etag: input.expect_etag,
+      transport: "unresolved (dry run makes no transport call)",
+      journal: "nothing recorded (dry run)"
+    },
+    notes,
+    maxChars
+  });
+}
+
 // src/tools/write.ts
 var deleteEntryAffectsSchema = external_exports.object({
   name: external_exports.string().describe("Object this enhancement binds to."),
@@ -101187,6 +101367,9 @@ var writeInputSchema = {
   activate: external_exports.boolean().optional().describe("Default true."),
   verify: external_exports.boolean().optional().describe("Force verified mode; reads back after write."),
   format: external_exports.boolean().optional().describe("Pretty-print source before writing."),
+  dry_run: external_exports.boolean().optional().describe(
+    "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
+  ),
   corr_nr: external_exports.string().optional().describe(
     "Transport request. $TMP needs none. Required for a VIEW/DV, TRAN/T or TABL/DI create into a transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived requirement as its create, not refused."
   ),
@@ -101611,7 +101794,8 @@ async function resolveWriteSource(conn, authorized, input) {
     }
     return {
       source: result.result,
-      expectEtag: input.expect_etag ? stripPartialEtag(input.expect_etag) : canonicalEtag(current)
+      expectEtag: input.expect_etag ? stripPartialEtag(input.expect_etag) : canonicalEtag(current),
+      current
     };
   }
   if (input.method !== void 0) {
@@ -101664,7 +101848,7 @@ async function resolveWriteSource(conn, authorized, input) {
       ...ms.implementationRange ? { range: ms.implementationRange } : {},
       object: t.name
     });
-    return { source: spliced, expectEtag: input.expect_etag ?? canonicalEtag(current) };
+    return { source: spliced, expectEtag: input.expect_etag ?? canonicalEtag(current), current };
   }
   if (input.source !== void 0) {
     assertNotOrphanMethodBlock(input.source, t.name, t.type);
@@ -101680,6 +101864,7 @@ async function resolveWriteSource(conn, authorized, input) {
 }
 async function abapWrite(conn, input, maxChars, gate, journal, transport, verifyWrites = "speculative") {
   if (input.objects !== void 0) {
+    if (input.dry_run) throw dryRunNotSupported("objects");
     const stray = [
       "object",
       "type",
@@ -101745,6 +101930,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     input = { ...input, source: resolveDdicStructuredSource(input, target) };
   }
   if (isBridgeOnlyCreateType(input.type)) {
+    if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
     return await abapBridgeCrud(conn, target, input, maxChars, gate, journal);
   }
   const corrNr = normalizeCorrNr(input.corr_nr);
@@ -101766,6 +101952,15 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       );
     }
     const authorized2 = await authorizeMutation(conn, gate, "delete", target);
+    if (input.dry_run) {
+      return buildDeleteDryRunResponse({
+        conn,
+        target: authorized2.target,
+        input,
+        journalled: journal !== void 0,
+        maxChars
+      });
+    }
     let beforeCapture;
     let beforeKind;
     const { result: res, entryId: entryId2, settle: settle2 } = await withJournalledMutation(
@@ -101862,6 +102057,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   }
   const requestedSpec = input.type ? specForType(input.type) ?? specForKeyword(input.type) : void 0;
   if (isPackageType(requestedSpec?.type)) {
+    if (input.dry_run) throw dryRunNotSupported("package");
     return await abapCreatePackage(conn, target, input, maxChars, gate, trOpts, journal);
   }
   if (input.source === void 0 && input.edit === void 0 && input.method === void 0) {
@@ -101873,11 +102069,11 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     );
   }
   const authorized = await authorizeMutation(conn, gate, "write", target);
-  const { source: resolvedSource, expectEtag: resolvedExpectEtag } = await resolveWriteSource(
-    conn,
-    authorized,
-    input
-  );
+  const {
+    source: resolvedSource,
+    expectEtag: resolvedExpectEtag,
+    current: resolvedCurrent
+  } = await resolveWriteSource(conn, authorized, input);
   if (input.format && capabilitiesFor(authorized.target.type)?.write?.shape === "properties") {
     throw new AbapError(
       "BAD_INPUT",
@@ -101892,6 +102088,23 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     gate.assertDdlsSqlViewName(source, { name: authorized.target.name, type: authorized.target.type });
   }
   assertDdicDescriptorShape(authorized.target.type, authorized.target.name, source);
+  if (input.dry_run) {
+    return buildWriteDryRunResponse({
+      conn,
+      target: authorized.target,
+      input,
+      source,
+      // The plain-{object,source} form reads nothing on a real write, so
+      // `resolvedCurrent` is undefined here even for an existing object —
+      // spend one extra GET so the preview can still show a diff and a
+      // candidate etag.
+      current: resolvedCurrent ?? (authorized.target.exists ? await readCurrentSource(conn, authorized.target) : void 0),
+      expectEtag: resolvedExpectEtag,
+      formatted: formatted !== void 0,
+      journalled: journal !== void 0,
+      maxChars
+    });
+  }
   let written;
   let entryId;
   let settle;
@@ -103236,7 +103449,7 @@ function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty. dry_run previews the diff and expect_etag without writing anything.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -119618,19 +119831,31 @@ async function handleAbapWrite(args, deps) {
         deps.cfg.verifyWrites
       )
     );
-    const next = deps.cfg.verifyWrites === "verified" ? [
+    const next = a.dry_run ? [
       {
-        tool: "abap_read",
-        args: { object: objectName, version: "active" },
-        why: "verify: already confirmed presence and activation \u2014 read back to confirm the CONTENT matches what you intended."
+        tool: "abap_write",
+        args: { object: objectName },
+        why: "This was a preview \u2014 nothing was written. Repeat the same call without `dry_run`: for `edit`/`method` writes pass `expect_etag` as the preview reported it; for a plain `{object, source}` write, pass the preview's `current_etag` instead."
       }
-    ] : writeMode !== "delete" && a.activate === false ? [
-      {
-        tool: "abap_do",
-        args: { action: "activate", object: objectName },
-        why: "activate:false skipped activation on this write \u2014 activate it separately when ready."
-      }
-    ] : [];
+    ] : (
+      // Read-back is mode-gated: `verified` wants proof, `speculative` (default)
+      // treats a clean write as sufficient and does not spend a read on it.
+      // `version:"active"` is required — an unactivated object would otherwise
+      // read back as its newer INACTIVE version, defeating the check.
+      deps.cfg.verifyWrites === "verified" ? [
+        {
+          tool: "abap_read",
+          args: { object: objectName, version: "active" },
+          why: "verify: already confirmed presence and activation \u2014 read back to confirm the CONTENT matches what you intended."
+        }
+      ] : writeMode !== "delete" && a.activate === false ? [
+        {
+          tool: "abap_do",
+          args: { action: "activate", object: objectName },
+          why: "activate:false skipped activation on this write \u2014 activate it separately when ready."
+        }
+      ] : []
+    );
     const ok19 = { ok: true, tool: "abap_write", data: result.text, next };
     return v2Result(ok19);
   } catch (e) {
@@ -119666,7 +119891,7 @@ var abapReadInputSchema = {
   limit: external_exports.number().int().min(1).optional(),
   version: external_exports.string().optional().describe("active (default) | inactive.")
 };
-var ABAP_WRITE_DESCRIPTION = "Change source. Prefer the edit splice \u2014 it is the cheapest and safest form. Forms: {object,edit:{old_string,new_string}} unique-match splice; {object,method,source} whole-method replace; {object,source} full rewrite; {object,mode:'delete'}.";
+var ABAP_WRITE_DESCRIPTION = "Change source. Prefer the edit splice \u2014 it is the cheapest and safest form. Forms: {object,edit:{old_string,new_string}} unique-match splice; {object,method,source} whole-method replace; {object,source} full rewrite; {object,mode:'delete'}. dry_run previews without writing.";
 var abapWriteInputSchema = {
   object: external_exports.string().optional().describe("Object name or ADT URI."),
   edit: external_exports.object({
@@ -119687,6 +119912,7 @@ var abapWriteInputSchema = {
   corr_nr: external_exports.string().optional().describe("Transport request."),
   activate: external_exports.boolean().optional(),
   format: external_exports.boolean().optional(),
+  dry_run: external_exports.boolean().optional().describe("Preview: return the diff and the expect_etag a real write would assert, without writing."),
   // Mirrors v1's `ddic` (src/tools/write.ts) field-for-field.
   ddic: external_exports.object({
     dataType: external_exports.string().optional(),

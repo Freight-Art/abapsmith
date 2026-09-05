@@ -310,6 +310,7 @@ const V2_WRITE_SAMPLES: Record<string, unknown> = {
   corr_nr: "A4HK900123",
   activate: false,
   format: true,
+  dry_run: true,
   // Not `mode`-coupled: §3 sends one field at a time on top of `object`,
   // so this never meets the table's `mode: "delete"`. `testclasses` rather than
   // `main` on purpose — `main` is the default, so a handler that dropped the

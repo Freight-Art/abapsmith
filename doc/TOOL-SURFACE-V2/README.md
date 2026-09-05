@@ -25,7 +25,7 @@ consolidates the same functionality into six:
 |---|---|
 | `abap_find` | Search — repository objects, where-used, BOPF business objects, FPM configs, transports |
 | `abap_read` | Read one object — source, outline, method body, public contract, BOPF node detail, FPM config |
-| `abap_write` | Mutate one object — targeted string splice, whole-method replace, full rewrite, delete |
+| `abap_write` | Mutate one object — targeted string splice, whole-method replace, full rewrite, delete, or `dry_run` a preview of any of those |
 | `abap_do` | Everything verb-shaped: activate/check/run/test, journal list/show/undo, transport lifecycle, BOPF model edits, enhancement/BAdI operations |
 | `abap_debug` | The step debugger — start/step/stack/frame/vars/value/keepalive/stop/status |
 | `abap_adt` | Raw ADT REST escape hatch, GET-only |
@@ -43,7 +43,7 @@ consolidates the same functionality into six:
 | `abap_bopf_test` | `abap_do` (`bopf_test`) |
 | `abap_fpm_read` | `abap_find` (`kind: "fpm"`) / `abap_read` (`view: "fpm"`) |
 | `abap_read` | `abap_read` (`view: source \| method \| outline \| contract \| metadata`) |
-| `abap_write` | `abap_write` (`edit` splice, `method` replace, `source` rewrite, `mode: "delete"`) |
+| `abap_write` | `abap_write` (`edit` splice, `method` replace, `source` rewrite, `mode: "delete"`, `dry_run` preview) |
 | `abap_activate` | `abap_do` (`activate`, `check`) |
 | `abap_run` | `abap_do` (`run`) |
 | `abap_test` | `abap_do` (`test`) |
