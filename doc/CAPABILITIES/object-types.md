@@ -177,17 +177,30 @@ The `Object` column values are the registry `label` fields, unreworded.
   was proven live on A4H 2026-09-05, confirmed by a post-COMMIT re-read of
   `DD12V` (`AS4LOCAL = 'A'`) and `DD17S`. A unique index on a client-dependent
   table needing that table's client field, once only suspected, is now
-  CONFIRMED live (A4H, 2026-09-05): including the field succeeds, omitting it
-  is refused `BAD_INPUT` by a generated `DD03L` guard before the FM runs. The
-  delete's `DD12V` pre-check correctly returned `NOT_FOUND` for a nonexistent
-  index; the earlier omission of `DD_INDEX_INTERFACE`'s mandatory
-  `INDEX_FIELDS` table parameter is fixed and confirmed deployed. A second,
-  newer delete defect surfaced live — `ACTFAILED='X'` reported even though
-  the delete had already taken effect — and is fixed but not yet re-run live:
-  the fragment now commits regardless and confirms success by re-reading
-  `DD12V`/`DD17S` instead of trusting `ACTFAILED` alone. Deleting the base
-  table was not blocked live by a surviving index, with no way to confirm
-  the index went too. The transportable-package path is unexercised.
+  CONFIRMED live (A4H, 2026-09-05, re-demonstrated in a third round the same
+  day): including the field succeeds, omitting it is refused `BAD_INPUT` by a
+  generated `DD03L` guard before the FM runs. The delete's `DD12V` pre-check
+  correctly returned `NOT_FOUND` for a nonexistent index, and the earlier
+  omission of `DD_INDEX_INTERFACE`'s mandatory `INDEX_FIELDS` table parameter
+  is fixed and confirmed deployed. A second delete defect — `ACTFAILED='X'`
+  reported even though the delete had already taken effect — got a fix that
+  was itself broken: the fix's own added note line rendered as a
+  272-character ABAP source line (292 at the longest legal names), over the
+  255-character class-source limit, so every delete failed the class-source
+  PUT (`ADT_ERROR` / `TooLongLine`) before `DD_INDEX_INTERFACE` was ever
+  called, and the deployed bridge class silently stayed on its pre-fix body.
+  The `ACTFAILED`-tolerant re-read by `DD12V`/`DD17S` has therefore never run
+  live, not once. It is fixed again — the long messages are now built up in
+  a variable across short lines, and every generated bridge class body is
+  checked for a line over 255 characters before it is written, so this
+  defect class cannot recur in any bridge — but that fix is proven by
+  measurement and unit test, not by a live delete. Deleting the base table
+  was not blocked live by a surviving index (round 1); a later cleanup
+  deleted a base table while its indexes' `DD12V` rows may still have
+  existed, and whether the delete cascaded them away or left them orphaned
+  is unverified — `abap_data_preview` has no `WHERE` filter, so a targeted
+  `DD12V` check was not practical. The transportable-package path is
+  unexercised.
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and

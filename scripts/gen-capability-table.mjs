@@ -81,7 +81,9 @@ const BRIDGE_NOTE = {
     "re-read. The client-field requirement for a unique index on a client-dependent table, " +
     "once suspected, is now CONFIRMED live (A4H, 2026-09-05): the generated DD03L guard " +
     "refuses an omitting create with BAD_INPUT before the FM runs, and an including create " +
-    "succeeds with all three markers.",
+    "succeeds with all three markers. A third live round re-ran both creates the same day " +
+    "and got all three markers again for each — the round-3 delete-path defect below never " +
+    "touched create.",
   "DEVC/K":
     "`software_component: \"LOCAL\"` goes over ADT REST; anything else needs the bridge and a " +
     "transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects.",
@@ -111,12 +113,21 @@ const BRIDGE_DELETE_NOTE = {
     "DELETE takes the same transport pair as create — DD_INDEX_INTERFACE ACTION='D' needs it " +
     "too. The DD12V pre-check is proven live (2026-09-05: NOT_FOUND for a nonexistent index). " +
     "The missing mandatory INDEX_FIELDS table parameter is fixed and confirmed deployed live " +
-    "(2026-09-05). A second defect then surfaced live: ACTION='D' reports ACTFAILED='X' even " +
-    "when the delete already took effect (DD12V/DD17S come back empty for the pair). The " +
-    "fragment now commits regardless and reports success (tag INDEX-DELETED-ACTFAILED) only " +
-    "when a post-commit DD12V/DD17S re-read is empty — fixed, not yet re-run live. A " +
-    "base-table delete is not blocked by an index still on it, but abapsmith cannot confirm " +
-    "the index went with it.",
+    "(2026-09-05). A second defect surfaced live: ACTION='D' reports ACTFAILED='X' even when " +
+    "the delete already took effect. The round-2 fix for that — commit regardless, then " +
+    "re-verify via a post-commit DD12V/DD17S re-read — never ran: its own added note line " +
+    "rendered as a 272-character ABAP source line (292 at the longest legal names), over the " +
+    "255-character class-source limit, so every delete failed the class-source PUT " +
+    "(ADT_ERROR / TooLongLine, SEDI_ADT15) before DD_INDEX_INTERFACE was ever called, and the " +
+    "deployed bridge class silently stayed on its pre-fix body. The ACTFAILED-tolerant " +
+    "read-back has therefore never executed live, not once. Fixed again: the fragment's long " +
+    "messages are now built up in a variable across short lines, and every generated bridge " +
+    "class body is now rejected before it is written if any line exceeds 255 characters — " +
+    "correct by measurement and unit test, not yet by a live delete. A base-table delete is " +
+    "not blocked by an index still on it (round 1); a later cleanup deleted a base table " +
+    "while its indexes' DD12V rows may still have existed, and whether the delete cascaded " +
+    "them away or left them orphaned is unverified — abap_data_preview has no WHERE filter, " +
+    "so a targeted check was not practical.",
 };
 
 /** Buckets every type in the given REGISTRY and renders the generated block. Exported so tests can inspect the bucketing directly instead of re-deriving it from REGISTRY by hand. */

@@ -1227,7 +1227,9 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H " +
         "2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this " +
         "bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine " +
-        "post-commit DD12V/DD17S re-read.",
+        "post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates — " +
+        "non-unique Z01 and unique Z02 with MANDT — and each again returned all three " +
+        "markers; the round-3 delete-path defect below never touched create.",
       limits:
         "Changing or updating an existing index is not supported: the bridge creates and " +
         "deletes only, the same as VIEW/DV and TRAN/T — drop the index (bridgeDelete) and " +
@@ -1267,13 +1269,25 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "effect — the failure message's own DD12V read showed zero rows for the pair, and " +
         "an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal " +
         "and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and " +
-        "never recorded. It now commits regardless, re-reads DD12V (unfiltered and " +
-        "AS4LOCAL='A') and DD17S, and reports success — tagging the transcript " +
-        "INDEX-DELETED-ACTFAILED with a caller-facing note — only when all three come back " +
-        "empty; a surviving row still fails CHECK_FAILED. What ACTFAILED means on this path " +
-        "is not established — it may reflect the index's database-level drop or the " +
-        "table's re-activation rather than the dictionary removal itself. Fixed but " +
-        "UNVERIFIED live: round 3 will test it.",
+        "never recorded. The fix written for round 2 — commit regardless, re-read " +
+        "DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the " +
+        "transcript INDEX-DELETED-ACTFAILED) only when all three come back empty — never " +
+        "ran: round 3 found its own added ACTFAILED note line rendered as a " +
+        "272-character ABAP source line (292 at the longest legal names), over the " +
+        "255-character class-source limit, so every TABL/DI delete failed the " +
+        "class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of " +
+        "ZCL_ZMCP_DDIC_DINDX) before DD_INDEX_INTERFACE was ever called — the bridge " +
+        "class was never refreshed and stayed on its round-2 body. The " +
+        "ACTFAILED-tolerant read-back above has therefore never executed live, not " +
+        "once. Round 4 fixes the generator two ways: this fragment's two long messages " +
+        "are now built up in a string variable across several short source lines and " +
+        "written once, so no generated line can exceed 255 for any legal name; and " +
+        "ddicBridgeSource — the single point every bridge class body is assembled " +
+        "through — now throws CHECK_FAILED before returning if any line exceeds 255, " +
+        "naming the line and its length, so this defect class cannot reach the server " +
+        "again from any bridge. Both are correct by measurement and unit test, not by " +
+        "live evidence — round 4 has not yet re-run this delete path live. What " +
+        "ACTFAILED itself means is therefore still not established.",
       limits:
         "The bridge deletes any index it finds in DD12V for the given table by name — it checks " +
         "only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge " +
@@ -1286,7 +1300,11 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create " +
         "does — a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable " +
         "package REQUIRES corr_nr as TRANSPORT_NUMBER — because DD_INDEX_INTERFACE with " +
-        "ACTION='D' does.",
+        "ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own " +
+        "DD12V/DD17S rows may still have existed; whether the base-table delete cascaded " +
+        "them away or orphaned them is unverified, not confirmed-absent — there is no ADT " +
+        "resource for TABL/DI to check with, and abap_data_preview was confirmed live to " +
+        "carry no WHERE filter, so a targeted DD12V check was not practical.",
     },
   },
 };

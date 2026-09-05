@@ -118,17 +118,27 @@
   and deletion instead run through `DD_INDEX_INTERFACE` via a classrun
   bridge (see `src/adt/capabilities.ts`); the bridge cannot update an
   existing index — drop and recreate instead — and there is no read-back
-  for `TABL/DI` through abapsmith either way. A unique index on a
-  client-dependent table must include that table's client field or
-  `DD_INDEX_INTERFACE` fails activation — confirmed live, A4H 2026-09-05 —
-  so the bridge checks for it and refuses the create instead. A delete can
-  report `ACTFAILED` even after it already took effect; the bridge now
-  re-checks `DD12V`/`DD17S` post-commit rather than trust that flag alone —
-  fixed, not yet re-run live. Deleting the base table is not blocked by a
-  surviving secondary index, and abapsmith cannot confirm the index went
-  with it, since there is nothing to read back either way. SE11 (the
-  table's "Indexes" button) is the only way to inspect one directly; the
-  table itself stays writable here as `TABL/DT`.
+  for `TABL/DI` through abapsmith either way. Create is live-proven and
+  unaffected by anything below: a non-unique index and a unique index that
+  includes the base table's client field both succeed, an omitting create
+  is refused `BAD_INPUT` before the FM runs, and a third live round the
+  same day reran both and got the same result. A delete can report
+  `ACTFAILED` even after it already took effect; the fix for that — commit
+  regardless, then re-verify via `DD12V`/`DD17S` — never ran live, because
+  the fix's own added message rendered as a source line over the
+  255-character ABAP limit, so every delete failed the class-source PUT
+  before `DD_INDEX_INTERFACE` was ever called and the deployed bridge
+  class stayed on its pre-fix body. The `ACTFAILED`-tolerant read-back has
+  therefore never executed live. It is fixed again, with a line-length
+  guard on every generated bridge class body, not just this one — correct
+  by measurement and unit test, not yet by a live delete. Deleting the
+  base table is not blocked by a surviving secondary index; a later
+  cleanup deleted a base table whose indexes' catalog rows may still have
+  existed, and whether they were cascaded away or orphaned is unverified —
+  there is nothing to read back either way, and `abap_data_preview` has no
+  `WHERE` filter to target one. SE11 (the table's "Indexes" button) is the
+  only way to inspect one directly; the table itself stays writable here
+  as `TABL/DT`.
 
 ## FPM / Web Dynpro configuration is read-only, deliberately
 
