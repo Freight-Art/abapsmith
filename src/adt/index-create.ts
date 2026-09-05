@@ -12,14 +12,14 @@
  * a field list.
  *
  * `DD_INDEX_INTERFACE`'s signature below is read from the system, not
- * guessed. The only LIVE evidence this FM behaves the way its signature
- * suggests is a hand-written, throwaway `$TMP` classrun — NOT this module,
- * NOT this bridge — that called it with `ACTION='I'` then `ACTION='D'` on a
- * `$TMP` table and got `sy-subrc 0` both times, with the DD12V/DD17S rows
- * appearing and then disappearing. This module's OWN generated ABAP — the
- * exact choreography below, including the DD12V/DD17S re-read it relies on
- * since no ADT resource can read an index back either — has never been run
- * against a live system.
+ * guessed. Live evidence as of 2026-09-05, against A4H: this module's OWN
+ * generated create bridge ran and created a non-unique, single-field index
+ * in `$TMP`, all three read-back markers firing. The unique path failed
+ * activation (ACTFAILED) there; the client-field guard below is an
+ * unconfirmed diagnosis of why, not a proven fix. The delete bridge ran
+ * too, but its `CALL FUNCTION` was rejected for a missing `TABLES`
+ * parameter — fixed here, not yet re-run live. The transportable-package
+ * path, either direction, remains unexercised.
  *
  * Two independent gates, one closed template — same shape as `./view-create.ts`
  * and `./view-delete.ts`, which this file otherwise mirrors structurally.
@@ -409,11 +409,14 @@ export const INDEX_DATA_LINES: readonly string[] = [
   "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
   "lv_actfailed TYPE ddrefstruc-flag.",
   "lv_dd12v_count TYPE i.",
+  "lv_dd12v_any TYPE i.",
   "lv_dd17s_count TYPE i.",
+  "lv_client_field TYPE dd03l-fieldname.",
 ];
 
 /** Bare `DATA` declarations (no leading `DATA` keyword) for the delete bridge. */
 export const INDEX_DELETE_DATA_LINES: readonly string[] = [
+  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
   "lv_actfailed TYPE ddrefstruc-flag.",
   "lv_dd12v_count TYPE i.",
   "lv_dd17s_count TYPE i.",
@@ -445,6 +448,23 @@ export function secondaryIndexFragment(p: SecondaryIndexParams): string[] {
   });
   lines.push("");
 
+  // A unique secondary index on a client-dependent table must carry the client field, or
+  // activation fails; suspected cause of the live 2026-09-05 ACTFAILED on a unique index over a
+  // client-dependent table, not itself confirmed live.
+  if (unique) {
+    lines.push(
+      `SELECT SINGLE fieldname FROM dd03l INTO @lv_client_field WHERE tabname = ${table} AND as4local = 'A' AND datatype = 'CLNT'.`,
+      "IF sy-subrc = 0 AND lv_client_field IS NOT INITIAL.",
+      "  READ TABLE lt_fields TRANSPORTING NO FIELDS WITH KEY name = lv_client_field.",
+      "  IF sy-subrc <> 0.",
+      `    out->write( |ZMCP-DDIC-ERR> unique index ${indexName} on ${baseTable} omits the client field { lv_client_field }| ).`,
+      "    RETURN.",
+      "  ENDIF.",
+      "ENDIF.",
+      "",
+    );
+  }
+
   // Step 2: create + activate in one call.
   lines.push(
     "CALL FUNCTION 'DD_INDEX_INTERFACE'",
@@ -464,7 +484,10 @@ export function secondaryIndexFragment(p: SecondaryIndexParams): string[] {
     ...ddIndexExceptionsClause(),
     ...subrcGuardFragment(CREATE_FM_WHAT),
     "IF lv_actfailed = 'X'.",
-    `  out->write( |ZMCP-DDIC-ERR> ${CREATE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}| ).`,
+    // DD_INDEX_INTERFACE exports no activation log; the cheapest evidence of what a failed
+    // activation left behind is a DD12V row count with no AS4LOCAL filter at all.
+    `  SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_any WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `  out->write( |ZMCP-DDIC-ERR> ${CREATE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}; DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_any }| ).`,
     "  RETURN.",
     "ENDIF.",
     "out->write( 'INDEX-CREATED' ).",
@@ -537,11 +560,18 @@ export function indexDeleteFragment(p: IndexDeleteParams): string[] {
     transportParamLine(local, corrNr),
     "  IMPORTING",
     "    actfailed = lv_actfailed",
+    // DD_INDEX_INTERFACE requires INDEX_FIELDS for every ACTION, content or not; omitting it
+    // failed live on 2026-09-05 with "the mandatory parameter INDEX_FIELDS was not filled".
+    "  TABLES",
+    "    index_fields = lt_fields",
     "  EXCEPTIONS",
     ...ddIndexExceptionsClause(),
     ...subrcGuardFragment(DELETE_FM_WHAT),
     "IF lv_actfailed = 'X'.",
-    `  out->write( |ZMCP-DDIC-ERR> ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}| ).`,
+    // Same rationale as the create side: no activation log, so the DD12V row count is the
+    // cheapest evidence of what a failed activation left behind.
+    `  SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `  out->write( |ZMCP-DDIC-ERR> ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}; DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_count }| ).`,
     "  RETURN.",
     "ENDIF.",
     "out->write( 'INDEX-DELETED' ).",
@@ -598,12 +628,12 @@ export function indexCreatePartialSuccess(
 }
 
 /**
- * Turns two known transcript shapes into a specific `AbapError` instead of
+ * Turns three known transcript shapes into a specific `AbapError` instead of
  * the generic missing-tag `CHECK_FAILED` the plain assertion would give:
- * a "does not exist" line (delete only), and a `sy-subrc=<n>` line from
- * {@link subrcGuardFragment} for the matching `*_FM_WHAT` constant, mapped
- * through {@link DD_INDEX_EXCEPTIONS}. Anything else returns, leaving
- * `assertDdicTranscript` to handle it.
+ * a "does not exist" line (delete only), an "omits the client field" line
+ * (create, unique only), and a `sy-subrc=<n>` line from {@link subrcGuardFragment}
+ * for the matching `*_FM_WHAT` constant, mapped through {@link DD_INDEX_EXCEPTIONS}.
+ * Anything else returns, leaving `assertDdicTranscript` to handle it.
  */
 export function indexBridgeErrorHook(
   what: "insert" | "delete",
@@ -625,6 +655,15 @@ export function indexBridgeErrorHook(
         `Index ${indexName} on ${baseTable} does not exist, so there is nothing to delete. Raw ` +
           `ABAP-side detail: ${line}`,
         { indexName, baseTable, raw: transcript.raw },
+      );
+    }
+    if (line.includes(`unique index ${indexName} on ${baseTable} omits the client field`)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Index ${indexName} was not created: a unique secondary index on client-dependent base ` +
+          `table ${baseTable} must include that table's client field. Raw ABAP-side detail: ${line}`,
+        { indexName, baseTable, raw: transcript.raw },
+        `Add ${baseTable}'s client field to index_fields, or create ${indexName} without index_unique.`,
       );
     }
     const m = subrcRe.exec(line);

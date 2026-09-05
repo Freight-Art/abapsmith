@@ -2031,7 +2031,10 @@ describe("tool surface", () => {
       "TABL/DI create only, required: base-table fields the index covers, in order.",
     );
     expect(props.index_unique?.description).toBe(
-      "TABL/DI create only: mark the index UNIQUE. Default false.",
+      "TABL/DI create only: mark the index UNIQUE. Default false. On a client-dependent base " +
+        "table, a unique index must include the table's client field (usually MANDT) in " +
+        "`index_fields` — a create that omits it is refused rather than left to fail activation " +
+        "on the server.",
     );
   });
 

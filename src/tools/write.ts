@@ -230,7 +230,15 @@ export const writeInputSchema = {
     .array(z.string())
     .optional()
     .describe("TABL/DI create only, required: base-table fields the index covers, in order."),
-  index_unique: z.boolean().optional().describe("TABL/DI create only: mark the index UNIQUE. Default false."),
+  index_unique: z
+    .boolean()
+    .optional()
+    .describe(
+      "TABL/DI create only: mark the index UNIQUE. Default false. On a client-dependent base " +
+        "table, a unique index must include the table's client field (usually MANDT) in " +
+        "`index_fields` — a create that omits it is refused rather than left to fail activation " +
+        "on the server.",
+    ),
   // "EXISTING" and "SUBMIT-only" are load-bearing: abapsmith checks the
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.

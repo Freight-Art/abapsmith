@@ -1207,21 +1207,25 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by " +
         "re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone — " +
         "the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an " +
-        "ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. What was actually " +
-        "run live is a hand-written throwaway classrun class in $TMP — not this bridge — " +
-        "calling DD_INDEX_INTERFACE directly with ACTION='I' against a $TMP table: sy-subrc " +
-        "0, and the DD12V and DD17S rows appeared. That probe class was deleted afterward. " +
-        "abapsmith's own ZCL_ZMCP_DDIC_CINDX bridge class has not itself been run against a " +
-        "live system.",
+        "ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H " +
+        "2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this " +
+        "bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine " +
+        "post-commit DD12V/DD17S re-read.",
       limits:
         "Changing or updating an existing index is not supported: the bridge creates and " +
         "deletes only, the same as VIEW/DV and TRAN/T — drop the index (bridgeDelete) and " +
-        "recreate it instead. There is no abap_read route for TABL/DI either way, before or " +
-        "after this change — there is genuinely no ADT-readable resource to read, per adtRest " +
-        "above. The package is not the caller's to choose: an index is DDIC content of its " +
-        "base table and belongs to the base table's package, so abap_write reads the base " +
-        "table's own ADT resource and gates on THAT package — a caller-supplied `package` is " +
-        "only ever checked for agreement, never trusted. The transport pairing itself mirrors " +
+        "recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A " +
+        "unique create over two non-client fields of a client-dependent table returned " +
+        "ACTFAILED='X' live on A4H 2026-09-05; DD_INDEX_INTERFACE exports no activation log, " +
+        "so no server-side reason was captured. The suspected cause, unconfirmed, is that a " +
+        "UNIQUE index on a client-dependent table must include that table's client field. The " +
+        "generated create now looks up the client field in DD03L (DATATYPE='CLNT') and " +
+        "refuses a client-field-omitting unique index with BAD_INPUT before calling the FM; " +
+        "neither that refusal nor a well-formed unique create has been run live since. The " +
+        "package is not the caller's to choose: an index is DDIC content of its base table " +
+        "and belongs to the base table's package, so abap_write reads the base table's own " +
+        "ADT resource and gates on THAT package — a caller-supplied `package` is only ever " +
+        "checked for agreement, never trusted. The transport pairing itself mirrors " +
         "VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied " +
         "corr_nr, a transportable package REQUIRES corr_nr, passed through as " +
         "TRANSPORT_NUMBER. The create is not journalled — there is no ADT resource to capture " +
@@ -1234,16 +1238,20 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated " +
         "IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading " +
         "DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See " +
-        "src/adt/index-create.ts and src/adt/ddic-bridge.ts. The same hand-written throwaway " +
-        "$TMP classrun probe then called ACTION='D' against that table: sy-subrc 0, and the " +
-        "DD12V and DD17S rows disappeared. abapsmith's own ZCL_ZMCP_DDIC_DINDX bridge class " +
-        "has not itself been run against a live system.",
+        "src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check " +
+        "is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned " +
+        "NOT_FOUND correctly, before ever calling the FM. Every delete of a real index was " +
+        "then rejected by the server: the generated ABAP omitted DD_INDEX_INTERFACE's " +
+        "mandatory TABLES parameter INDEX_FIELDS. The generated delete now passes an empty " +
+        "INDEX_FIELDS table — fixed, not re-run live.",
       limits:
         "The bridge deletes any index it finds in DD12V for the given table by name — it checks " +
         "only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge " +
-        "itself created. What was actually probed live is narrower still: the same throwaway " +
-        "$TMP classrun calling DD_INDEX_INTERFACE with ACTION='D' directly, not this bridge — " +
-        "see bridgeCreate.via above. Same package rule as bridgeCreate: the base table's " +
+        "itself created. Deleting the BASE TABLE is not itself blocked by an index still on " +
+        "it — live-proven on A4H 2026-09-05, the table delete succeeded with an index in " +
+        "place — but abapsmith cannot confirm the index went with it: no ADT resource can " +
+        "read an index back, per adtRest above, so a table delete's effect on its indexes is " +
+        "unverifiable either way. Same package rule as bridgeCreate: the base table's " +
         "package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a " +
         "caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create " +
         "does — a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable " +
