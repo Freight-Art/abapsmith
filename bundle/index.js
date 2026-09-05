@@ -3525,10 +3525,10 @@ var require_lib = __commonJS({
     var Type = (
       /** @class */
       (function() {
-        function Type2(name, is, validate4, encode3) {
+        function Type2(name, is, validate5, encode3) {
           this.name = name;
           this.is = is;
-          this.validate = validate4;
+          this.validate = validate5;
           this.encode = encode3;
           this.decode = this.decode.bind(this);
         }
@@ -4137,8 +4137,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(LiteralType2, _super);
-        function LiteralType2(name, is, validate4, encode3, value) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function LiteralType2(name, is, validate5, encode3, value) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.value = value;
           _this._tag = "LiteralType";
           return _this;
@@ -4163,8 +4163,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(KeyofType2, _super);
-        function KeyofType2(name, is, validate4, encode3, keys) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function KeyofType2(name, is, validate5, encode3, keys) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.keys = keys;
           _this._tag = "KeyofType";
           return _this;
@@ -4191,8 +4191,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(RefinementType2, _super);
-        function RefinementType2(name, is, validate4, encode3, type2, predicate) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function RefinementType2(name, is, validate5, encode3, type2, predicate) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this.predicate = predicate;
           _this._tag = "RefinementType";
@@ -4213,8 +4213,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(RecursiveType2, _super);
-        function RecursiveType2(name, is, validate4, encode3, runDefinition) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function RecursiveType2(name, is, validate5, encode3, runDefinition) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.runDefinition = runDefinition;
           _this._tag = "RecursiveType";
           return _this;
@@ -4253,8 +4253,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ArrayType2, _super);
-        function ArrayType2(name, is, validate4, encode3, type2) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function ArrayType2(name, is, validate5, encode3, type2) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this._tag = "ArrayType";
           return _this;
@@ -4303,8 +4303,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(InterfaceType2, _super);
-        function InterfaceType2(name, is, validate4, encode3, props) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function InterfaceType2(name, is, validate5, encode3, props) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.props = props;
           _this._tag = "InterfaceType";
           return _this;
@@ -4378,8 +4378,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(PartialType2, _super);
-        function PartialType2(name, is, validate4, encode3, props) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function PartialType2(name, is, validate5, encode3, props) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.props = props;
           _this._tag = "PartialType";
           return _this;
@@ -4454,8 +4454,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(DictionaryType2, _super);
-        function DictionaryType2(name, is, validate4, encode3, domain2, codomain) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function DictionaryType2(name, is, validate5, encode3, domain2, codomain) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.domain = domain2;
           _this.codomain = codomain;
           _this._tag = "DictionaryType";
@@ -4474,8 +4474,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(UnionType2, _super);
-        function UnionType2(name, is, validate4, encode3, types) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function UnionType2(name, is, validate5, encode3, types) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.types = types;
           _this._tag = "UnionType";
           return _this;
@@ -4559,8 +4559,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(IntersectionType2, _super);
-        function IntersectionType2(name, is, validate4, encode3, types) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function IntersectionType2(name, is, validate5, encode3, types) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.types = types;
           _this._tag = "IntersectionType";
           return _this;
@@ -4604,8 +4604,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(TupleType2, _super);
-        function TupleType2(name, is, validate4, encode3, types) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function TupleType2(name, is, validate5, encode3, types) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.types = types;
           _this._tag = "TupleType";
           return _this;
@@ -4661,8 +4661,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ReadonlyType2, _super);
-        function ReadonlyType2(name, is, validate4, encode3, type2) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function ReadonlyType2(name, is, validate5, encode3, type2) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this._tag = "ReadonlyType";
           return _this;
@@ -4682,8 +4682,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ReadonlyArrayType2, _super);
-        function ReadonlyArrayType2(name, is, validate4, encode3, type2) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function ReadonlyArrayType2(name, is, validate5, encode3, type2) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this._tag = "ReadonlyArrayType";
           return _this;
@@ -4708,8 +4708,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(ExactType2, _super);
-        function ExactType2(name, is, validate4, encode3, type2) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function ExactType2(name, is, validate5, encode3, type2) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.type = type2;
           _this._tag = "ExactType";
           return _this;
@@ -4827,8 +4827,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(TaggedUnionType2, _super);
-        function TaggedUnionType2(name, is, validate4, encode3, codecs, tag) {
-          var _this = _super.call(this, name, is, validate4, encode3, codecs) || this;
+        function TaggedUnionType2(name, is, validate5, encode3, codecs, tag) {
+          var _this = _super.call(this, name, is, validate5, encode3, codecs) || this;
           _this.tag = tag;
           return _this;
         }
@@ -4886,8 +4886,8 @@ var require_lib = __commonJS({
       /** @class */
       (function(_super) {
         __extends(StrictType2, _super);
-        function StrictType2(name, is, validate4, encode3, props) {
-          var _this = _super.call(this, name, is, validate4, encode3) || this;
+        function StrictType2(name, is, validate5, encode3, props) {
+          var _this = _super.call(this, name, is, validate5, encode3) || this;
           _this.props = props;
           _this._tag = "StrictType";
           return _this;
@@ -21988,11 +21988,11 @@ var require_mime_types = __commonJS({
       }
       return false;
     }
-    function contentType2(str4) {
-      if (!str4 || typeof str4 !== "string") {
+    function contentType2(str5) {
+      if (!str5 || typeof str5 !== "string") {
         return false;
       }
-      var mime = str4.indexOf("/") === -1 ? exports2.lookup(str4) : str4;
+      var mime = str5.indexOf("/") === -1 ? exports2.lookup(str5) : str5;
       if (!mime) {
         return false;
       }
@@ -22555,14 +22555,14 @@ var require_implementation = __commonJS({
       return arr;
     };
     var joiny = function(arr, joiner) {
-      var str4 = "";
+      var str5 = "";
       for (var i = 0; i < arr.length; i += 1) {
-        str4 += arr[i];
+        str5 += arr[i];
         if (i + 1 < arr.length) {
-          str4 += joiner;
+          str5 += joiner;
         }
       }
-      return str4;
+      return str5;
     };
     module.exports = function bind(that) {
       var target = this;
@@ -23134,8 +23134,8 @@ var require_form_data = __commonJS({
     var setToStringTag = require_es_set_tostringtag();
     var hasOwn = require_hasown();
     var populate = require_populate();
-    function escapeHeaderParam(str4) {
-      return String(str4).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
+    function escapeHeaderParam(str5) {
+      return String(str5).replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/"/g, "%22");
     }
     function FormData2(options) {
       if (!(this instanceof FormData2)) {
@@ -23459,13 +23459,13 @@ var require_ms = __commonJS({
         "val is not a non-empty string or a valid number. val=" + JSON.stringify(val)
       );
     };
-    function parse4(str4) {
-      str4 = String(str4);
-      if (str4.length > 100) {
+    function parse4(str5) {
+      str5 = String(str5);
+      if (str5.length > 100) {
         return;
       }
       var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
-        str4
+        str5
       );
       if (!match) {
         return;
@@ -24066,7 +24066,7 @@ var require_node = __commonJS({
     var { formatters } = module.exports;
     formatters.o = function(v) {
       this.inspectOpts.colors = this.useColors;
-      return util2.inspect(v, this.inspectOpts).split("\n").map((str4) => str4.trim()).join(" ");
+      return util2.inspect(v, this.inspectOpts).split("\n").map((str5) => str5.trim()).join(" ");
     };
     formatters.O = function(v) {
       this.inspectOpts.colors = this.useColors;
@@ -25119,8 +25119,8 @@ var require_axios = __commonJS({
     };
     var getSafeProp = (obj, prop) => obj != null && hasOwnInPrototypeChain(obj, prop) ? obj[prop] : void 0;
     var kindOf2 = /* @__PURE__ */ ((cache) => (thing) => {
-      const str4 = toString.call(thing);
-      return cache[str4] || (cache[str4] = str4.slice(8, -1).toLowerCase());
+      const str5 = toString.call(thing);
+      return cache[str5] || (cache[str5] = str5.slice(8, -1).toLowerCase());
     })(/* @__PURE__ */ Object.create(null));
     var kindOfTest = (type) => {
       type = type.toLowerCase();
@@ -25200,8 +25200,8 @@ var require_axios = __commonJS({
     };
     var isURLSearchParams = kindOfTest("URLSearchParams");
     var [isReadableStream, isRequest, isResponse, isHeaders] = ["ReadableStream", "Request", "Response", "Headers"].map(kindOfTest);
-    var trim = (str4) => {
-      return str4.trim ? str4.trim() : str4.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
+    var trim = (str5) => {
+      return str5.trim ? str5.trim() : str5.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
     };
     function forEach(obj, fn, {
       allOwnKeys = false
@@ -25363,13 +25363,13 @@ var require_axios = __commonJS({
       } while (sourceObj && (!filter || filter(sourceObj, destObj)) && sourceObj !== Object.prototype);
       return destObj;
     };
-    var endsWith = (str4, searchString, position) => {
-      str4 = String(str4);
-      if (position === void 0 || position > str4.length) {
-        position = str4.length;
+    var endsWith = (str5, searchString, position) => {
+      str5 = String(str5);
+      if (position === void 0 || position > str5.length) {
+        position = str5.length;
       }
       position -= searchString.length;
-      const lastIndex = str4.indexOf(searchString, position);
+      const lastIndex = str5.indexOf(searchString, position);
       return lastIndex !== -1 && lastIndex === position;
     };
     var toArray2 = (thing) => {
@@ -25397,17 +25397,17 @@ var require_axios = __commonJS({
         fn.call(obj, pair[0], pair[1]);
       }
     };
-    var matchAll = (regExp, str4) => {
+    var matchAll = (regExp, str5) => {
       let matches;
       const arr = [];
-      while ((matches = regExp.exec(str4)) !== null) {
+      while ((matches = regExp.exec(str5)) !== null) {
         arr.push(matches);
       }
       return arr;
     };
     var isHTMLForm = kindOfTest("HTMLFormElement");
-    var toCamelCase = (str4) => {
-      return str4.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
+    var toCamelCase = (str5) => {
+      return str5.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
         return p1.toUpperCase() + p2;
       });
     };
@@ -25612,24 +25612,24 @@ var require_axios = __commonJS({
       });
       return parsed;
     };
-    function trimSPorHTAB(str4) {
+    function trimSPorHTAB(str5) {
       let start = 0;
-      let end = str4.length;
+      let end = str5.length;
       while (start < end) {
-        const code = str4.charCodeAt(start);
+        const code = str5.charCodeAt(start);
         if (code !== 9 && code !== 32) {
           break;
         }
         start += 1;
       }
       while (end > start) {
-        const code = str4.charCodeAt(end - 1);
+        const code = str5.charCodeAt(end - 1);
         if (code !== 9 && code !== 32) {
           break;
         }
         end -= 1;
       }
-      return start === 0 && end === str4.length ? str4 : str4.slice(start, end);
+      return start === 0 && end === str5.length ? str5 : str5.slice(start, end);
     }
     var INVALID_UNICODE_HEADER_VALUE_CHARS = new RegExp("[\\u0000-\\u0008\\u000a-\\u001f\\u007f]+", "g");
     var INVALID_BYTE_STRING_HEADER_VALUE_CHARS = new RegExp("[^\\u0009\\u0020-\\u007e\\u0080-\\u00ff]+", "g");
@@ -25658,11 +25658,11 @@ var require_axios = __commonJS({
       }
       return utils$1.isArray(value) ? value.map(normalizeValue) : sanitizeHeaderValue(String(value));
     }
-    function parseTokens(str4) {
+    function parseTokens(str5) {
       const tokens = /* @__PURE__ */ Object.create(null);
       const tokensRE = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
       let match;
-      while (match = tokensRE.exec(str4)) {
+      while (match = tokensRE.exec(str5)) {
         tokens[match[1]] = match[2];
       }
       return tokens;
@@ -25710,12 +25710,12 @@ var require_axios = __commonJS({
     }
     function parseParameters(value) {
       const parameters = /* @__PURE__ */ Object.create(null);
-      const str4 = String(value);
+      const str5 = String(value);
       let start = 0;
       let quoted6 = false;
       let escaped = false;
       function parseParameter(end) {
-        const part = trimOWS(str4.slice(start, end));
+        const part = trimOWS(str5.slice(start, end));
         const equals = part.indexOf("=");
         if (equals < 1) {
           return;
@@ -25731,8 +25731,8 @@ var require_axios = __commonJS({
         const parameterValue = trimOWS(part.slice(equals + 1));
         parameters[normalizedName] = decodeQuotedString(parameterValue);
       }
-      for (let i = 0; i < str4.length; i++) {
-        const code = str4.charCodeAt(i);
+      for (let i = 0; i < str5.length; i++) {
+        const code = str5.charCodeAt(i);
         if (quoted6) {
           if (escaped) {
             escaped = false;
@@ -25748,10 +25748,10 @@ var require_axios = __commonJS({
           start = i + 1;
         }
       }
-      parseParameter(str4.length);
+      parseParameter(str5.length);
       return parameters;
     }
-    var isValidHeaderName = (str4) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str4.trim());
+    var isValidHeaderName = (str5) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str5.trim());
     function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
       if (utils$1.isFunction(filter)) {
         return filter.call(this, value, header);
@@ -25768,8 +25768,8 @@ var require_axios = __commonJS({
       }
     }
     function formatHeader(header) {
-      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str4) => {
-        return char.toUpperCase() + str4;
+      return header.trim().toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str5) => {
+        return char.toUpperCase() + str5;
       });
     }
     function buildAccessors(obj, header) {
@@ -26281,7 +26281,7 @@ var require_axios = __commonJS({
       build(obj);
       return formData;
     }
-    function encode$1(str4) {
+    function encode$1(str5) {
       const charMap = {
         "!": "%21",
         "'": "%27",
@@ -26290,7 +26290,7 @@ var require_axios = __commonJS({
         "~": "%7E",
         "%20": "+"
       };
-      return encodeURIComponent(str4).replace(/[!'()~]|%20/g, function replacer(match) {
+      return encodeURIComponent(str5).replace(/[!'()~]|%20/g, function replacer(match) {
         return charMap[match];
       });
     }
@@ -26415,16 +26415,16 @@ var require_axios = __commonJS({
       ALPHA_DIGIT: ALPHA + ALPHA.toUpperCase() + DIGIT
     };
     var generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
-      let str4 = "";
+      let str5 = "";
       const {
         length
       } = alphabet;
       const randomValues = new Uint32Array(size);
       crypto.randomFillSync(randomValues);
       for (let i = 0; i < size; i++) {
-        str4 += alphabet[randomValues[i] % length];
+        str5 += alphabet[randomValues[i] % length];
       }
-      return str4;
+      return str5;
     };
     var platform$1 = {
       isNode: true,
@@ -27470,7 +27470,7 @@ var require_axios = __commonJS({
     };
     var asyncDecorator = (fn, scheduler = utils$1.asap) => (...args) => scheduler(() => fn(...args));
     var isHexDigit = (charCode) => charCode >= 48 && charCode <= 57 || charCode >= 65 && charCode <= 70 || charCode >= 97 && charCode <= 102;
-    var isPercentEncodedByte = (str4, i, len) => i + 2 < len && isHexDigit(str4.charCodeAt(i + 1)) && isHexDigit(str4.charCodeAt(i + 2));
+    var isPercentEncodedByte = (str5, i, len) => i + 2 < len && isHexDigit(str5.charCodeAt(i + 1)) && isHexDigit(str5.charCodeAt(i + 2));
     var hexValue = (charCode) => charCode <= 57 ? charCode - 48 : (charCode & 223) - 55;
     var isBase64Char = (charCode) => charCode >= 65 && charCode <= 90 || // A-Z
     charCode >= 97 && charCode <= 122 || // a-z
@@ -28608,7 +28608,7 @@ var require_axios = __commonJS({
       }
       return config3;
     }
-    var encodeUTF8$1 = (str4) => encodeURIComponent(str4).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
+    var encodeUTF8$1 = (str5) => encodeURIComponent(str5).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
     function resolveConfig(config2) {
       const newConfig = mergeConfig({}, config2);
       const own2 = (key) => utils$1.hasOwnProp(newConfig, key) ? newConfig[key] : void 0;
@@ -28916,7 +28916,7 @@ var require_axios = __commonJS({
     var {
       isFunction
     } = utils$1;
-    var encodeUTF8 = (str4) => encodeURIComponent(str4).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
+    var encodeUTF8 = (str5) => encodeURIComponent(str5).replace(/%([0-9A-F]{2})/gi, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
     var decodeURIComponentSafe = (value) => {
       if (!utils$1.isString(value)) {
         return value;
@@ -28966,7 +28966,7 @@ var require_axios = __commonJS({
         return false;
       }
       const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream2);
-      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str4) => encoder.encode(str4))(new TextEncoder2()) : async (str4) => new Uint8Array(await new Request(str4).arrayBuffer()));
+      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder) => (str5) => encoder.encode(str5))(new TextEncoder2()) : async (str5) => new Uint8Array(await new Request(str5).arrayBuffer()));
       const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test3(() => {
         let duplexAccessed = false;
         const request = new Request(platform.origin, {
@@ -32963,9 +32963,9 @@ var require_revisions = __commonJS({
         return (0, utilities_1.xmlNode)(base, "@_adtcore:name") || "";
     };
     async function revisions(h, objectUrl, includeName) {
-      const str4 = (0, utilities_1.isString)(objectUrl) ? await (0, objectstructure_1.objectStructure)(h, objectUrl) : objectUrl;
-      const name = str4.metaData["adtcore:name"];
-      const revisionUrl = getRevisionLink(str4, includeName);
+      const str5 = (0, utilities_1.isString)(objectUrl) ? await (0, objectstructure_1.objectStructure)(h, objectUrl) : objectUrl;
+      const name = str5.metaData["adtcore:name"];
+      const revisionUrl = getRevisionLink(str5, includeName);
       if (!revisionUrl)
         throw (0, AdtException_1.adtException)(`Revision URL not found for object ${name}`);
       const headers = { Accept: "application/atom+xml;type=feed" };
@@ -36882,7 +36882,7 @@ var require_code = __commonJS({
     }
     exports2._ = _;
     var plus = new _Code("+");
-    function str4(strs, ...args) {
+    function str5(strs, ...args) {
       const expr = [safeStringify(strs[0])];
       let i = 0;
       while (i < args.length) {
@@ -36893,7 +36893,7 @@ var require_code = __commonJS({
       optimize(expr);
       return new _Code(expr);
     }
-    exports2.str = str4;
+    exports2.str = str5;
     function addCodeArg(code, arg) {
       if (arg instanceof _Code)
         code.push(...arg._items);
@@ -36936,7 +36936,7 @@ var require_code = __commonJS({
       return;
     }
     function strConcat(c1, c2) {
-      return c2.emptyStr() ? c1 : c1.emptyStr() ? c2 : str4`${c1}${c2}`;
+      return c2.emptyStr() ? c1 : c1.emptyStr() ? c2 : str5`${c1}${c2}`;
     }
     exports2.strConcat = strConcat;
     function interpolate(x) {
@@ -37898,22 +37898,22 @@ var require_util = __commonJS({
       return (0, codegen_1._)`${topSchemaRef}${schemaPath}${(0, codegen_1.getProperty)(keyword)}`;
     }
     exports2.schemaRefOrVal = schemaRefOrVal;
-    function unescapeFragment(str4) {
-      return unescapeJsonPointer(decodeURIComponent(str4));
+    function unescapeFragment(str5) {
+      return unescapeJsonPointer(decodeURIComponent(str5));
     }
     exports2.unescapeFragment = unescapeFragment;
-    function escapeFragment(str4) {
-      return encodeURIComponent(escapeJsonPointer(str4));
+    function escapeFragment(str5) {
+      return encodeURIComponent(escapeJsonPointer(str5));
     }
     exports2.escapeFragment = escapeFragment;
-    function escapeJsonPointer(str4) {
-      if (typeof str4 == "number")
-        return `${str4}`;
-      return str4.replace(/~/g, "~0").replace(/\//g, "~1");
+    function escapeJsonPointer(str5) {
+      if (typeof str5 == "number")
+        return `${str5}`;
+      return str5.replace(/~/g, "~0").replace(/\//g, "~1");
     }
     exports2.escapeJsonPointer = escapeJsonPointer;
-    function unescapeJsonPointer(str4) {
-      return str4.replace(/~1/g, "/").replace(/~0/g, "~");
+    function unescapeJsonPointer(str5) {
+      return str5.replace(/~1/g, "/").replace(/~0/g, "~");
     }
     exports2.unescapeJsonPointer = unescapeJsonPointer;
     function eachItem(xs, f) {
@@ -38651,8 +38651,8 @@ var require_keyword = __commonJS({
       var _a3;
       const { gen, keyword, schema, parentSchema, $data, it } = cxt;
       checkAsyncKeyword(it, def);
-      const validate4 = !$data && def.compile ? def.compile.call(it.self, schema, parentSchema, it) : def.validate;
-      const validateRef = useKeyword(gen, keyword, validate4);
+      const validate5 = !$data && def.compile ? def.compile.call(it.self, schema, parentSchema, it) : def.validate;
+      const validateRef = useKeyword(gen, keyword, validate5);
       const valid = gen.let("valid");
       cxt.block$data(valid, validateKeyword);
       cxt.ok((_a3 = def.valid) !== null && _a3 !== void 0 ? _a3 : valid);
@@ -38938,8 +38938,8 @@ var require_json_schema_traverse = __commonJS({
         post(schema, jsonPtr, rootSchema, parentJsonPtr, parentKeyword, parentSchema, keyIndex);
       }
     }
-    function escapeJsonPtr(str4) {
-      return str4.replace(/~/g, "~0").replace(/\//g, "~1");
+    function escapeJsonPtr(str5) {
+      return str5.replace(/~/g, "~0").replace(/\//g, "~1");
     }
   }
 });
@@ -39725,28 +39725,28 @@ var require_compile = __commonJS({
         if (this.opts.code.process)
           sourceCode = this.opts.code.process(sourceCode, sch);
         const makeValidate = new Function(`${names_1.default.self}`, `${names_1.default.scope}`, sourceCode);
-        const validate4 = makeValidate(this, this.scope.get());
-        this.scope.value(validateName, { ref: validate4 });
-        validate4.errors = null;
-        validate4.schema = sch.schema;
-        validate4.schemaEnv = sch;
+        const validate5 = makeValidate(this, this.scope.get());
+        this.scope.value(validateName, { ref: validate5 });
+        validate5.errors = null;
+        validate5.schema = sch.schema;
+        validate5.schemaEnv = sch;
         if (sch.$async)
-          validate4.$async = true;
+          validate5.$async = true;
         if (this.opts.code.source === true) {
-          validate4.source = { validateName, validateCode, scopeValues: gen._values };
+          validate5.source = { validateName, validateCode, scopeValues: gen._values };
         }
         if (this.opts.unevaluated) {
           const { props, items } = schemaCxt;
-          validate4.evaluated = {
+          validate5.evaluated = {
             props: props instanceof codegen_1.Name ? void 0 : props,
             items: items instanceof codegen_1.Name ? void 0 : items,
             dynamicProps: props instanceof codegen_1.Name,
             dynamicItems: items instanceof codegen_1.Name
           };
-          if (validate4.source)
-            validate4.source.evaluated = (0, codegen_1.stringify)(validate4.evaluated);
+          if (validate5.source)
+            validate5.source.evaluated = (0, codegen_1.stringify)(validate5.evaluated);
         }
-        sch.validate = validate4;
+        sch.validate = validate5;
         return sch;
       } catch (e) {
         delete sch.validate;
@@ -40003,10 +40003,10 @@ var require_utils2 = __commonJS({
         return { host, isIPV6: false };
       }
     }
-    function findToken(str4, token) {
+    function findToken(str5, token) {
       let ind = 0;
-      for (let i = 0; i < str4.length; i++) {
-        if (str4[i] === token) ind++;
+      for (let i = 0; i < str5.length; i++) {
+        if (str5[i] === token) ind++;
       }
       return ind;
     }
@@ -40749,7 +40749,7 @@ var require_core = __commonJS({
     var util_1 = require_util();
     var $dataRefSchema = require_data();
     var uri_1 = require_uri2();
-    var defaultRegExp = (str4, flags) => new RegExp(str4, flags);
+    var defaultRegExp = (str5, flags) => new RegExp(str5, flags);
     defaultRegExp.code = "new RegExp";
     var META_IGNORE_OPTIONS = ["removeAdditional", "useDefaults", "coerceTypes"];
     var EXT_SCOPE_NAMES = /* @__PURE__ */ new Set([
@@ -41544,16 +41544,16 @@ var require_ucs2length = __commonJS({
   "../../abap-mcp/node_modules/ajv/dist/runtime/ucs2length.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    function ucs2length(str4) {
-      const len = str4.length;
+    function ucs2length(str5) {
+      const len = str5.length;
       let length = 0;
       let pos = 0;
       let value;
       while (pos < len) {
         length++;
-        value = str4.charCodeAt(pos++);
+        value = str5.charCodeAt(pos++);
         if (value >= 55296 && value <= 56319 && pos < len) {
-          value = str4.charCodeAt(pos);
+          value = str5.charCodeAt(pos);
           if ((value & 64512) === 56320)
             pos++;
         }
@@ -43365,8 +43365,8 @@ var require_formats = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.formatNames = exports2.fastFormats = exports2.fullFormats = void 0;
-    function fmtDef(validate4, compare) {
-      return { validate: validate4, compare };
+    function fmtDef(validate5, compare) {
+      return { validate: validate5, compare };
     }
     exports2.fullFormats = {
       // date: http://tools.ietf.org/html/rfc3339#section-5.6
@@ -43436,8 +43436,8 @@ var require_formats = __commonJS({
     }
     var DATE = /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
     var DAYS = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    function date5(str4) {
-      const matches = DATE.exec(str4);
+    function date5(str5) {
+      const matches = DATE.exec(str5);
       if (!matches)
         return false;
       const year = +matches[1];
@@ -43456,8 +43456,8 @@ var require_formats = __commonJS({
     }
     var TIME = /^(\d\d):(\d\d):(\d\d(?:\.\d+)?)(z|([+-])(\d\d)(?::?(\d\d))?)?$/i;
     function getTime(strictTimeZone) {
-      return function time3(str4) {
-        const matches = TIME.exec(str4);
+      return function time3(str5) {
+        const matches = TIME.exec(str5);
         if (!matches)
           return false;
         const hr = +matches[1];
@@ -43503,8 +43503,8 @@ var require_formats = __commonJS({
     var DATE_TIME_SEPARATOR = /t|\s/i;
     function getDateTime(strictTimeZone) {
       const time3 = getTime(strictTimeZone);
-      return function date_time(str4) {
-        const dateTime = str4.split(DATE_TIME_SEPARATOR);
+      return function date_time(str5) {
+        const dateTime = str5.split(DATE_TIME_SEPARATOR);
         return dateTime.length === 2 && date5(dateTime[0]) && time3(dateTime[1]);
       };
     }
@@ -43529,13 +43529,13 @@ var require_formats = __commonJS({
     }
     var NOT_URI_FRAGMENT = /\/|:/;
     var URI = /^(?:[a-z][a-z0-9+\-.]*:)(?:\/?\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}|(?:(?:[0-9a-f]{1,4}:){0,1}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::[0-9a-f]{1,4}:|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::)(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?))|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::)|[Vv][0-9a-f]+\.[a-z0-9\-._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)|(?:[a-z0-9\-._~!$&'()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)(?:\?(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?(?:#(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?$/i;
-    function uri(str4) {
-      return NOT_URI_FRAGMENT.test(str4) && URI.test(str4);
+    function uri(str5) {
+      return NOT_URI_FRAGMENT.test(str5) && URI.test(str5);
     }
     var BYTE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/gm;
-    function byte(str4) {
+    function byte(str5) {
       BYTE.lastIndex = 0;
-      return BYTE.test(str4);
+      return BYTE.test(str5);
     }
     var MIN_INT32 = -(2 ** 31);
     var MAX_INT32 = 2 ** 31 - 1;
@@ -43549,11 +43549,11 @@ var require_formats = __commonJS({
       return true;
     }
     var Z_ANCHOR = /[^\\]\\Z/;
-    function regex(str4) {
-      if (Z_ANCHOR.test(str4))
+    function regex(str5) {
+      if (Z_ANCHOR.test(str5))
         return false;
       try {
-        new RegExp(str4);
+        new RegExp(str5);
         return true;
       } catch (e) {
         return false;
@@ -46768,14 +46768,14 @@ function promiseAllObject(promisesObj) {
 }
 function randomString(length = 10) {
   const chars = "abcdefghijklmnopqrstuvwxyz";
-  let str4 = "";
+  let str5 = "";
   for (let i = 0; i < length; i++) {
-    str4 += chars[Math.floor(Math.random() * chars.length)];
+    str5 += chars[Math.floor(Math.random() * chars.length)];
   }
-  return str4;
+  return str5;
 }
-function esc(str4) {
-  return JSON.stringify(str4);
+function esc(str5) {
+  return JSON.stringify(str5);
 }
 function slugify(input) {
   return input.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -46889,8 +46889,8 @@ var primitiveTypes = /* @__PURE__ */ new Set([
   "symbol",
   "undefined"
 ]);
-function escapeRegex(str4) {
-  return str4.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function escapeRegex(str5) {
+  return str5.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function clone(inst, def, params) {
   const cl = new inst._zod.constr(def ?? inst._zod.def);
@@ -61141,29 +61141,29 @@ var EntityDecoder = class {
    * @param {string} str
    * @returns {string}
    */
-  decode(str4) {
-    if (typeof str4 !== "string" || str4.length === 0) return str4;
-    if (str4.indexOf("&") === -1) return str4;
-    const original = str4;
+  decode(str5) {
+    if (typeof str5 !== "string" || str5.length === 0) return str5;
+    if (str5.indexOf("&") === -1) return str5;
+    const original = str5;
     const chunks = [];
-    const len = str4.length;
+    const len = str5.length;
     let last = 0;
     let i = 0;
     const limitExpansions = this._maxTotalExpansions > 0;
     const limitLength = this._maxExpandedLength > 0;
     const checkLimits = limitExpansions || limitLength;
     while (i < len) {
-      if (str4.charCodeAt(i) !== 38) {
+      if (str5.charCodeAt(i) !== 38) {
         i++;
         continue;
       }
       let j = i + 1;
-      while (j < len && str4.charCodeAt(j) !== 59 && j - i <= 32) j++;
-      if (j >= len || str4.charCodeAt(j) !== 59) {
+      while (j < len && str5.charCodeAt(j) !== 59 && j - i <= 32) j++;
+      if (j >= len || str5.charCodeAt(j) !== 59) {
         i++;
         continue;
       }
-      const token = str4.slice(i + 1, j);
+      const token = str5.slice(i + 1, j);
       if (token.length === 0) {
         i++;
         continue;
@@ -61195,7 +61195,7 @@ var EntityDecoder = class {
         i++;
         continue;
       }
-      if (i > last) chunks.push(str4.slice(last, i));
+      if (i > last) chunks.push(str5.slice(last, i));
       chunks.push(replacement);
       last = j + 1;
       i = last;
@@ -61221,8 +61221,8 @@ var EntityDecoder = class {
         }
       }
     }
-    if (last < len) chunks.push(str4.slice(last));
-    const result = chunks.length === 0 ? str4 : chunks.join("");
+    if (last < len) chunks.push(str5.slice(last));
+    const result = chunks.length === 0 ? str5 : chunks.join("");
     return this._postCheck(result, original);
   }
   // -------------------------------------------------------------------------
@@ -61532,7 +61532,7 @@ var getRegexes = (xmlVersion = "1.0", asciiOnly = false) => {
   if (asciiOnly) return regexesAscii;
   return xmlVersion === "1.1" ? regexes11 : regexes10;
 };
-var qName = (str4, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str4);
+var qName = (str5, { xmlVersion = "1.0", asciiOnly = false } = {}) => getRegexes(xmlVersion, asciiOnly).qName.test(str5);
 
 // ../../abap-mcp/node_modules/fast-xml-parser/src/xmlparser/DocTypeReader.js
 var DocTypeReader = class {
@@ -61969,13 +61969,13 @@ var CHAR_0 = 48;
 var CHAR_9 = 57;
 var CHAR_MINUS = 45;
 var MINUS_SET = /* @__PURE__ */ new Set([8722, 65293, 65123]);
-function anynum(str4) {
-  if (typeof str4 !== "string") return str4;
-  const len = str4.length;
-  if (len === 0) return str4;
+function anynum(str5) {
+  if (typeof str5 !== "string") return str5;
+  const len = str5.length;
+  if (len === 0) return str5;
   let firstHit = -1;
   for (let i = 0; i < len; i++) {
-    const cc = str4.charCodeAt(i);
+    const cc = str5.charCodeAt(i);
     if (cc >= CHAR_0 && cc <= CHAR_9 || cc === CHAR_MINUS) continue;
     if (cc < TABLE_OFFSET) {
       if (MINUS_SET.has(cc)) {
@@ -61986,7 +61986,7 @@ function anynum(str4) {
     }
     if (cc >= 55296 && cc <= 56319) {
       if (i + 1 < len) {
-        const low = str4.charCodeAt(i + 1);
+        const low = str5.charCodeAt(i + 1);
         if (low >= 56320 && low <= 57343) {
           const cp = 65536 + (cc - 55296 << 10) + (low - 56320);
           if (HIGH_MAP.has(cp)) {
@@ -62002,22 +62002,22 @@ function anynum(str4) {
       break;
     }
   }
-  if (firstHit === -1) return str4;
+  if (firstHit === -1) return str5;
   const chars = [];
-  if (firstHit > 0) chars.push(str4.slice(0, firstHit));
+  if (firstHit > 0) chars.push(str5.slice(0, firstHit));
   for (let i = firstHit; i < len; i++) {
-    const cc = str4.charCodeAt(i);
+    const cc = str5.charCodeAt(i);
     if (cc >= CHAR_0 && cc <= CHAR_9 || cc === CHAR_MINUS) {
-      chars.push(str4[i]);
+      chars.push(str5[i]);
       continue;
     }
     if (cc < TABLE_OFFSET) {
-      chars.push(MINUS_SET.has(cc) ? "-" : str4[i]);
+      chars.push(MINUS_SET.has(cc) ? "-" : str5[i]);
       continue;
     }
     if (cc >= 55296 && cc <= 56319) {
       if (i + 1 < len) {
-        const low = str4.charCodeAt(i + 1);
+        const low = str5.charCodeAt(i + 1);
         if (low >= 56320 && low <= 57343) {
           const cp = 65536 + (cc - 55296 << 10) + (low - 56320);
           const d2 = HIGH_MAP.get(cp);
@@ -62028,7 +62028,7 @@ function anynum(str4) {
           }
         }
       }
-      chars.push(str4[i]);
+      chars.push(str5[i]);
       continue;
     }
     if (MINUS_SET.has(cc)) {
@@ -62036,7 +62036,7 @@ function anynum(str4) {
       continue;
     }
     const d = TABLE[cc - TABLE_OFFSET];
-    chars.push(d !== NOT_DIGIT ? String.fromCharCode(d + 48) : str4[i]);
+    chars.push(d !== NOT_DIGIT ? String.fromCharCode(d + 48) : str5[i]);
   }
   return chars.join("");
 }
@@ -62059,12 +62059,12 @@ var consider = {
   // "null", "infinity" (Infinity type), "string" ("Infinity" (the string literal))
   unicode: false
 };
-function toNumber(str4, options = {}) {
+function toNumber(str5, options = {}) {
   options = Object.assign({}, consider, options);
-  if (!str4 || typeof str4 !== "string") return str4;
-  let trimmedStr = str4.trim();
-  if (trimmedStr.length === 0) return str4;
-  else if (options.skipLike !== void 0 && options.skipLike.test(trimmedStr)) return str4;
+  if (!str5 || typeof str5 !== "string") return str5;
+  let trimmedStr = str5.trim();
+  if (trimmedStr.length === 0) return str5;
+  else if (options.skipLike !== void 0 && options.skipLike.test(trimmedStr)) return str5;
   else if (trimmedStr === "0") return 0;
   if (options.unicode) {
     trimmedStr = anynum_default(trimmedStr);
@@ -62077,9 +62077,9 @@ function toNumber(str4, options = {}) {
   } else if (options.octal && octRegex.test(trimmedStr)) {
     return parse_int(trimmedStr, 8);
   } else if (!isFinite(trimmedStr)) {
-    return handleInfinity(str4, Number(trimmedStr), options);
+    return handleInfinity(str5, Number(trimmedStr), options);
   } else if (trimmedStr.includes("e") || trimmedStr.includes("E")) {
-    return resolveEnotation(str4, trimmedStr, options);
+    return resolveEnotation(str5, trimmedStr, options);
   } else {
     const match = numRegex.exec(trimmedStr);
     if (match) {
@@ -62088,38 +62088,38 @@ function toNumber(str4, options = {}) {
       let numTrimmedByZeros = trimZeros(match[3]);
       const decimalAdjacentToLeadingZeros = sign ? (
         // 0., -00., 000.
-        str4[leadingZeros.length + 1] === "."
-      ) : str4[leadingZeros.length] === ".";
+        str5[leadingZeros.length + 1] === "."
+      ) : str5[leadingZeros.length] === ".";
       if (!options.leadingZeros && (leadingZeros.length > 1 || leadingZeros.length === 1 && !decimalAdjacentToLeadingZeros)) {
-        return str4;
+        return str5;
       } else {
         const num3 = Number(trimmedStr);
         const parsedStr = String(num3);
         if (num3 === 0) return num3;
         if (parsedStr.search(/[eE]/) !== -1) {
           if (options.eNotation) return num3;
-          else return str4;
+          else return str5;
         } else if (trimmedStr.indexOf(".") !== -1) {
           if (parsedStr === "0") return num3;
           else if (parsedStr === numTrimmedByZeros) return num3;
           else if (parsedStr === `${sign}${numTrimmedByZeros}`) return num3;
-          else return str4;
+          else return str5;
         }
         let n = leadingZeros ? numTrimmedByZeros : trimmedStr;
         if (leadingZeros) {
-          return n === parsedStr || sign + n === parsedStr ? num3 : str4;
+          return n === parsedStr || sign + n === parsedStr ? num3 : str5;
         } else {
-          return n === parsedStr || n === sign + parsedStr ? num3 : str4;
+          return n === parsedStr || n === sign + parsedStr ? num3 : str5;
         }
       }
     } else {
-      return str4;
+      return str5;
     }
   }
 }
 var eNotationRegx = /^([-+])?(0*)(\d*(\.\d*)?[eE][-\+]?\d+)$/;
-function resolveEnotation(str4, trimmedStr, options) {
-  if (!options.eNotation) return str4;
+function resolveEnotation(str5, trimmedStr, options) {
+  if (!options.eNotation) return str5;
   const notation = trimmedStr.match(eNotationRegx);
   if (notation) {
     let sign = notation[1] || "";
@@ -62127,21 +62127,21 @@ function resolveEnotation(str4, trimmedStr, options) {
     const leadingZeros = notation[2];
     const eAdjacentToLeadingZeros = sign ? (
       // 0E.
-      str4[leadingZeros.length + 1] === eChar
-    ) : str4[leadingZeros.length] === eChar;
-    if (leadingZeros.length > 1 && eAdjacentToLeadingZeros) return str4;
+      str5[leadingZeros.length + 1] === eChar
+    ) : str5[leadingZeros.length] === eChar;
+    if (leadingZeros.length > 1 && eAdjacentToLeadingZeros) return str5;
     else if (leadingZeros.length === 1 && (notation[3].startsWith(`.${eChar}`) || notation[3][0] === eChar)) {
       return Number(trimmedStr);
     } else if (leadingZeros.length > 0) {
       if (options.leadingZeros && !eAdjacentToLeadingZeros) {
         trimmedStr = (notation[1] || "") + notation[3];
         return Number(trimmedStr);
-      } else return str4;
+      } else return str5;
     } else {
       return Number(trimmedStr);
     }
   } else {
-    return str4;
+    return str5;
   }
 }
 function trimZeros(numStr) {
@@ -62155,14 +62155,14 @@ function trimZeros(numStr) {
   return numStr;
 }
 function parse_int(numStr, base) {
-  const str4 = numStr.trim();
-  if (base === 2 || base === 8) numStr = str4.substring(2);
+  const str5 = numStr.trim();
+  if (base === 2 || base === 8) numStr = str5.substring(2);
   if (parseInt) return parseInt(numStr, base);
   else if (Number.parseInt) return Number.parseInt(numStr, base);
   else if (window && window.parseInt) return window.parseInt(numStr, base);
   else throw new Error("parseInt, Number.parseInt, window.parseInt are not supported");
 }
-function handleInfinity(str4, num3, options) {
+function handleInfinity(str5, num3, options) {
   const isPositive = num3 === Infinity;
   switch (options.infinity.toLowerCase()) {
     case "null":
@@ -62174,7 +62174,7 @@ function handleInfinity(str4, num3, options) {
       return isPositive ? "Infinity" : "-Infinity";
     case "original":
     default:
-      return str4;
+      return str5;
   }
 }
 
@@ -64240,12 +64240,12 @@ function tagExpWithClosingIndex(xmlData, i, closingChar = ">") {
     }
   }
 }
-function findClosingIndex(xmlData, str4, i, errMsg) {
-  const closingIndex = xmlData.indexOf(str4, i);
+function findClosingIndex(xmlData, str5, i, errMsg) {
+  const closingIndex = xmlData.indexOf(str5, i);
   if (closingIndex === -1) {
     throw new Error(errMsg);
   } else {
-    return closingIndex + str4.length - 1;
+    return closingIndex + str5.length - 1;
   }
 }
 function findClosingChar(xmlData, char, i, errMsg) {
@@ -67344,7 +67344,7 @@ var REGISTRY = {
     bridgeCreate: {
       adtRest: "ADT's REST surface is GET-only for classic (non-CDS) views: /sap/bc/adt/ddic/views/... returns 405 ExceptionMethodNotSupported on every mutating verb, and the discovery collection advertises an empty <app:accept>. That GET is not a route a caller can take from here: with no collection there is nothing to resolve a name against, and abap_search rejects VIEW/DV as an unrecognised type, so there is no way to read a classic view through abapsmith either. Four independent recons agree. This entry previously read 'not reachable over ADT, every read and write 404s' and concluded the type was unwritable \u2014 the REST finding is right, the conclusion was not: SE11 does not use REST either.",
       via: "DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE (function group SDIC \u2014 the same DD_VIEW_EXPAND/DD_VIEW_PUT/DD_VIEW_ACT primitives SE11's view editor drives), called from a generated IF_OO_ADT_CLASSRUN bridge. See src/adt/view-create.ts and src/adt/ddic-bridge.ts.",
-      limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (not through abap_read \u2014 that path stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package requires corr_nr; a LOCAL package refuses one (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts. The create is otherwise irreversible in the sense that abapsmith cannot read the view back to verify it: success is proven by the transcript markers, not by a read-back."
+      limits: "The bridge builds a database view (DD25V view class 'D') projecting fields of exactly ONE base table. Multi-table joins (DD28J), selection conditions (DD28V) and search-help attachments (DD35V/DD36M) are not exposed. NO SE54 table-maintenance dialog is generated: VIEW_MAINTENANCE_GENERATE is a SET PARAMETER + CALL TRANSACTION 'SE55' wrapper around an interactive wizard with no headless equivalent, so a view created here has no maintenance view/dialog and SM30 will not open it. The bridge creates and deletes only \u2014 changing an existing view is not supported. Whether DDIF_VIEW_PUT would behave as an upsert against a view that already exists is inferred, not live-verified: no create-over-an-existing-view call has ever been attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / VIEW-ACTIVATED, the view read back with its fields (not through abap_read \u2014 that path stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character DICT object key returned sy-subrc 0 and wrote a TADIR row under that package's `$` devclass, and the created view was then removed cleanly by the delete bridge (see bridgeDelete below). A TRANSPORTABLE package resolves a transport request the same way a DEVC/K create does: preflightPackageCorr (src/adt/write.ts) hands off to SessionTransport.resolveForNewTransportable, honouring the caller's corr_nr when given or else picking or creating one under the ABAP_ALLOW_TRANSPORTS policy (a pinned TRKORR from the list, or a fresh request when the policy is `*`/AUTO), gate-judged before the bridge runs. The resolver's own refusals surface as TRANSPORT_ERROR (policy disabled, or no usable request), TRANSPORT_LOCKED (a request pinned elsewhere), or BAD_INPUT (a malformed number). A LOCAL package still refuses a corr_nr (BAD_INPUT). Registering the view in TADIR either way \u2014 with the caller's corr_nr or with korrnum = space \u2014 is what makes the created view deletable afterwards. See src/adt/view-create.ts. The create is otherwise irreversible in the sense that abapsmith cannot read the view back to verify it: success is proven by the transcript markers, not by a read-back."
     },
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: ADT's REST surface is GET-only for classic views, 405 ExceptionMethodNotSupported on every mutating verb \u2014 there is no REST delete route either.",
@@ -67406,26 +67406,26 @@ var REGISTRY = {
       alternative: "Authorization objects can only be created and edited in SU21, a SAPGUI transaction outside abapsmith's reach. There is no ABAP-code equivalent to fall back on."
     }
   },
-  // Not in types.ts — see the module doc. A table's secondary
-  // index was the one unreachable DDIC concept this registry did not name at
-  // all, so it appeared in NONE of the three buckets of the generated skill
-  // table and a caller could only learn the answer by burning three failed
-  // calls (abap_write TABL/DI, an inline `define index` in a TABL/DT source
-  // PUT, an abap_ui/SE11 probe). This entry exists to make the answer
-  // discoverable, NOT to record a proven ADT limitation — see the reason text.
-  //
-  // Type code chosen deliberately: `TABL/DI` is the code callers actually
-  // reach for, and the one consistent with
-  // this registry's own `TABL/DT`/`TABL/DS`. It is NOT confirmed against a
-  // live repository/informationsystem/objecttypes listing — no probe has been
-  // run — and the transport-layer name for an index (LIMU INDX) is
-  // deliberately not used here, for the same reason TRAN/T's entry refuses to
-  // conflate the ADT type code with the underlying table name TSTC.
+  // Not in types.ts — see the module doc. Type code chosen deliberately:
+  // `TABL/DI` is the code callers actually reach for, and the one consistent
+  // with this registry's own `TABL/DT`/`TABL/DS`; the transport-layer name
+  // for an index (LIMU INDX) is deliberately not used here, for the same
+  // reason TRAN/T's entry refuses to conflate the ADT type code with the
+  // underlying table name TSTC. Was `unsupported` (no probed ADT resource at
+  // all) until a live probe on A4H 2026-09-05 found the REST route
+  // conclusively absent and a working classrun-bridge route instead — see
+  // bridgeCreate/bridgeDelete below.
   "TABL/DI": {
     label: "Table secondary index",
-    unsupported: {
-      reason: "A table's secondary index is not an object abapsmith can reach in either direction: TABL/DI is on the not-writable list abap_write's `type` description carries (that parameter is a free-form string, not an enum), and neither in-band route works \u2014 appending a second `define index ...` statement to a TABL/DT source write is rejected at check time (the table source grammar accepts one statement), and abap_ui cannot drive SE11's Indexes tab (SE11 reports CINFO=84, so `press` refuses it). Both were reproduced on A4H. What is NOT established here: whether ADT itself can create an index. The table-child resource named (/sap/bc/adt/ddic/tables/{table}/indexes/{id}) has never been probed from this repo, so this entry states abapsmith's own reach, not a proven limit of ADT \u2014 unlike SHLP/DH or SUSO/B, whose reasons rest on live recon.",
-      alternative: "Create or change the index by hand in SE11 (the table's 'Indexes' button) or in ADT's table editor, both outside abapsmith. Nothing else about the table is affected: the table itself stays fully writable here as TABL/DT, so a table built through abapsmith can be indexed afterwards without redoing it. Do not spend turns hunting for a workaround inside abapsmith \u2014 there is none today."
+    bridgeCreate: {
+      adtRest: `Probed live on A4H 2026-09-05: GET /sap/bc/adt/ddic/tables/t000/indexes 404s, and PUT /sap/bc/adt/ddic/tables/t000/indexes/z01 404s for any body and any content type \u2014 there is no writable (or even readable) index collection under a table. The table XML itself (application/vnd.sap.adt.tables.v2+xml) carries exactly one index-related link, rel="http://www.sap.com/adt/relations/indexes" pointing at /sap/bc/adt/vit/wb/object_type/tabldt/object_name/<TABLE>#view=INDX with type="application/vnd.sap.sapgui" \u2014 a GUI handoff (SE11's Indexes tab), not a REST resource. No discovery collection mentions indexes either.`,
+      via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates \u2014 non-unique Z01 and unique Z02 with MANDT \u2014 and each again returned all three markers; the round-3 delete-path defect below never touched create.",
+      limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, the same as VIEW/DV and TRAN/T \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A unique create over two non-client fields of a client-dependent table returned ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that included the base table's client field (MANDT) returned INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever called \u2014 raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without index_unique.\" The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER \u2014 unexercised live in either direction. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
+    },
+    bridgeDelete: {
+      adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
+      via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of ZCL_ZMCP_DDIC_DINDX) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above has therefore never executed live, not once. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Both are correct by measurement and unit test, not by live evidence \u2014 round 4 has not yet re-run this delete path live. What ACTFAILED itself means is therefore still not established.",
+      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and abap_data_preview was confirmed live to carry no WHERE filter, so a targeted DD12V check was not practical."
     }
   }
 };
@@ -91265,9 +91265,13 @@ var DDIC_BRIDGE_CLASS = {
   deletePackage: "ZCL_ZMCP_DDIC_DPKG",
   deleteView: "ZCL_ZMCP_DDIC_DVIEW",
   deleteTransaction: "ZCL_ZMCP_DDIC_DTRAN",
-  removeTransportEntry: "ZCL_ZMCP_DDIC_TREN"
+  removeTransportEntry: "ZCL_ZMCP_DDIC_TREN",
+  createIndex: "ZCL_ZMCP_DDIC_CINDX",
+  deleteIndex: "ZCL_ZMCP_DDIC_DINDX"
 };
+var ABAP_SOURCE_LINE_MAX = 255;
 var DDIC_ERR_PREFIX = "ZMCP-DDIC-ERR>";
+var DDIC_NOTE_PREFIX = "ZMCP-DDIC-NOTE>";
 var DDIC_TAGS = [
   "VIEW-PUT",
   "VIEW-REGISTERED",
@@ -91287,13 +91291,21 @@ var DDIC_TAGS = [
   "TRAN-GONE",
   // transport-entry-remove bridge:
   "TREN-REMOVED",
-  "TREN-GONE"
+  "TREN-GONE",
+  // index-create / index-delete bridges (TABL/DI, DD_INDEX_INTERFACE):
+  "INDEX-CREATED",
+  "INDEX-ACTIVE",
+  "INDEX-FIELDS",
+  "INDEX-DELETED",
+  "INDEX-GONE",
+  // FM reported ACTFAILED on delete but the post-commit DD12V/DD17S read-back found the index gone anyway — live 2026-09-05.
+  "INDEX-DELETED-ACTFAILED"
 ];
 function ddicBridgeSource(className, dataLines, bodyLines) {
   const cls = assertPlainName(className, "Class name").toLowerCase();
   const data = dataLines.map((l) => `    DATA ${l}`).join("\n");
   const body = bodyLines.map((l) => `    ${l}`).join("\n");
-  return `CLASS ${cls} DEFINITION
+  const source = `CLASS ${cls} DEFINITION
   PUBLIC FINAL
   CREATE PUBLIC.
 
@@ -91319,6 +91331,17 @@ ${body}
 
 ENDCLASS.
 `;
+  source.split("\n").forEach((line, i) => {
+    if (line.length > ABAP_SOURCE_LINE_MAX) {
+      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated bridge source line ${i + 1} is ${line.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
+        { line: i + 1, length: line.length, excerpt }
+      );
+    }
+  });
+  return source;
 }
 function subrcGuardFragment(what) {
   if (!/^[A-Za-z0-9_ ]+$/.test(what)) {
@@ -99922,6 +99945,429 @@ function discardedDescriptorValues(sent, stored) {
   return out;
 }
 
+// src/adt/index-create.ts
+var INDEX_NAME_MAX = 3;
+var INDEX_TEXT_MAX = 60;
+var MAX_INDEX_FIELDS = 16;
+var INDEX_FIELD_NAME_MAX = 30;
+var BASE_TABLE_MAX = 30;
+var PACKAGE_MAX = 30;
+var PACKAGE_RULES2 = { maxLength: PACKAGE_MAX, allowLocal: true };
+var CREATE_FM_WHAT = "DD_INDEX_INTERFACE insert";
+var DELETE_FM_WHAT = "DD_INDEX_INTERFACE delete";
+async function resolveIndexOwner(conn, baseTable) {
+  const uri = buildUri(specForType("TABL/DT"), baseTable);
+  let body;
+  try {
+    const resp = await conn.get(uri, { headers: { Accept: "application/*" } });
+    body = resp.body ?? "";
+  } catch (e) {
+    if (isNotFoundError(e)) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Base table ${baseTable} does not exist, so there is nothing to index.`,
+        { baseTable, uri }
+      );
+    }
+    throw e;
+  }
+  const resolved = serverPackage({
+    status: "confirmed",
+    uri,
+    via: "read-back",
+    packageName: packageRefName(body)
+  });
+  if (!resolved) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `abapsmith could not determine which package base table ${baseTable} \u2014 and therefore any index on it \u2014 belongs to: the table's ADT XML answered but carried no <adtcore:packageRef adtcore:name> element.`,
+      { reason: "PACKAGE_UNKNOWN", baseTable, uri },
+      "Every write, delete and activation is judged against the object's real package. Rather than trust a caller-supplied or guessed value, abapsmith stops here. Confirm the table is registered with a real packageRef, then retry.",
+      { retryable: true }
+      // a failure to determine the package, not a policy verdict
+    );
+  }
+  return { packageName: resolved, uri };
+}
+function isLocalPackage(packageName) {
+  return isLocalPackageName(packageName);
+}
+function quotedIdentifier(value, what, opts) {
+  return abapLiteral(assertEnhIdentifier(value, what, opts));
+}
+function assertCorrNr2(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value.trim().toUpperCase();
+}
+function assertSecondaryIndexTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
+  const local = isLocalPackage(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) index is created with NO_TRANSP_REQUEST = 'X' rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this index must be created with TRANSPORT_NUMBER set, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  return local ? "" : assertCorrNr2(corrNr);
+}
+function indexGateName(baseTable, indexName) {
+  return `${baseTable}-${indexName}`;
+}
+function validate3(p) {
+  const indexName = assertEnhIdentifier(p.indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  if (!Array.isArray(p.fields) || p.fields.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "fields must be a non-empty list of base-table field names \u2014 a secondary index with no field at all is not one DD_INDEX_INTERFACE would accept.",
+      { indexName, baseTable }
+    );
+  }
+  if (p.fields.length > MAX_INDEX_FIELDS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `fields has ${p.fields.length} entries, more than the ${MAX_INDEX_FIELDS} this bridge generates.`,
+      { indexName, count: p.fields.length, max: MAX_INDEX_FIELDS }
+    );
+  }
+  const fields = p.fields.map(
+    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: INDEX_FIELD_NAME_MAX })
+  );
+  const description = assertAbapText(p.description, "description", INDEX_TEXT_MAX);
+  const packageNameStr = assertEnhIdentifier(p.packageName.name, "packageName", PACKAGE_RULES2);
+  const trkorr = assertSecondaryIndexTarget(packageNameStr, p.corrNr);
+  const corrNr = trkorr === "" ? void 0 : trkorr;
+  const unique = p.unique === true;
+  return { indexName, baseTable, fields, description, packageName: p.packageName, corrNr, unique };
+}
+function validateDelete(p) {
+  const indexName = assertEnhIdentifier(p.indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  const packageNameStr = assertEnhIdentifier(p.packageName.name, "packageName", PACKAGE_RULES2);
+  const trkorr = assertSecondaryIndexTarget(packageNameStr, p.corrNr);
+  const corrNr = trkorr === "" ? void 0 : trkorr;
+  return { indexName, baseTable, packageName: p.packageName, corrNr };
+}
+var DD_INDEX_EXCEPTIONS = [
+  {
+    subrc: 1,
+    name: "cancelled",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE was cancelled (CANCELLED) \u2014 typically a popup a headless bridge execution cannot answer.",
+    hint: "Retry once; a cancelled dialog is not evidence anything about the request itself was wrong."
+  },
+  {
+    subrc: 2,
+    name: "already_exist",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE reports this index already exists on the base table (ALREADY_EXIST).",
+    hint: 'Use mode: "delete" to remove the existing index first if a different definition is wanted, then create again.'
+  },
+  {
+    subrc: 3,
+    name: "permission_error",
+    code: "SAFETY_DENIED",
+    message: "DD_INDEX_INTERFACE refused its own authority check (PERMISSION_ERROR) \u2014 this is SAP's OWN MAKE_CORR_ENTRY authorization check inside the function module, not abapsmith's safety gate.",
+    hint: "The service user this bridge runs as lacks authority for this object; a different corr_nr will not change that."
+  },
+  {
+    subrc: 4,
+    name: "name_not_allowed",
+    code: "BAD_INPUT",
+    message: "DD_INDEX_INTERFACE refused this index name (NAME_NOT_ALLOWED) \u2014 commonly outside the customer namespace or already used elsewhere.",
+    hint: "Pick a different index name."
+  },
+  {
+    subrc: 5,
+    name: "db_access_error",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE hit a database access error (DB_ACCESS_ERROR) while writing the dictionary tables.",
+    hint: "Not a request-shape problem; check the base table for an inconsistent or locked dictionary state."
+  },
+  {
+    subrc: 6,
+    name: "basetab_error",
+    code: "NOT_FOUND",
+    message: "DD_INDEX_INTERFACE reports a problem with the base table (BASETAB_ERROR) \u2014 commonly that it does not exist or is inactive.",
+    hint: "Confirm the base table exists and is active before creating an index on it."
+  },
+  {
+    subrc: 7,
+    name: "not_exist",
+    code: "NOT_FOUND",
+    message: "DD_INDEX_INTERFACE reports this index does not exist (NOT_EXIST).",
+    hint: "Confirm the index name and base table; deleting a name that was never created returns this."
+  },
+  {
+    subrc: 8,
+    name: "others",
+    code: "CHECK_FAILED",
+    message: "DD_INDEX_INTERFACE failed with an unclassified exception (OTHERS).",
+    hint: void 0
+  }
+];
+function ddIndexExceptionsClause() {
+  return DD_INDEX_EXCEPTIONS.map((e, i) => {
+    const kw = e.name === "others" ? "OTHERS" : e.name;
+    const end = i === DD_INDEX_EXCEPTIONS.length - 1 ? "." : "";
+    return `    ${kw} = ${e.subrc}${end}`;
+  });
+}
+function transportParamLine(local, corrNr) {
+  return local ? "    no_transp_request   = 'X'" : `    transport_number    = ${abapLiteral(corrNr)}`;
+}
+var INDEX_DATA_LINES = [
+  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
+  "lv_actfailed TYPE ddrefstruc-flag.",
+  "lv_dd12v_count TYPE i.",
+  "lv_dd12v_any TYPE i.",
+  "lv_dd17s_count TYPE i.",
+  "lv_client_field TYPE dd03l-fieldname."
+];
+var INDEX_DELETE_DATA_LINES = [
+  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
+  "lv_actfailed TYPE ddrefstruc-flag.",
+  "lv_dd12v_count TYPE i.",
+  "lv_dd12v_active TYPE i.",
+  "lv_dd17s_count TYPE i.",
+  // built up over several assignments, not one literal — a 30-char baseTable pushes either
+  // message past the 255-char class-source line limit if written in one piece (live 2026-09-05).
+  "lv_msg TYPE string."
+];
+function secondaryIndexFragment(p) {
+  const v = validate3(p);
+  const { indexName, baseTable, fields, description, corrNr, unique } = v;
+  const index = quotedIdentifier(indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const table = quotedIdentifier(baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  const local = corrNr === void 0;
+  const lines = [];
+  fields.forEach((f, i) => {
+    const quoted6 = quotedIdentifier(f, `fields[${i}]`, { maxLength: INDEX_FIELD_NAME_MAX });
+    lines.push(`APPEND VALUE #( name = ${quoted6} ) TO lt_fields.`);
+  });
+  lines.push("");
+  if (unique) {
+    lines.push(
+      `SELECT SINGLE fieldname FROM dd03l INTO @lv_client_field WHERE tabname = ${table} AND as4local = 'A' AND datatype = 'CLNT'.`,
+      "IF sy-subrc = 0 AND lv_client_field IS NOT INITIAL.",
+      "  READ TABLE lt_fields TRANSPORTING NO FIELDS WITH KEY name = lv_client_field.",
+      "  IF sy-subrc <> 0.",
+      `    out->write( |ZMCP-DDIC-ERR> unique index ${indexName} on ${baseTable} omits the client field { lv_client_field }| ).`,
+      "    RETURN.",
+      "  ENDIF.",
+      "ENDIF.",
+      ""
+    );
+  }
+  lines.push(
+    "CALL FUNCTION 'DD_INDEX_INTERFACE'",
+    "  EXPORTING",
+    `    table_name          = ${table}`,
+    `    index_name          = ${index}`,
+    "    action              = 'I'",
+    `    shorttext           = ${abapLiteral(description)}`,
+    "    activate            = 'X'",
+    ...unique ? ["    unique              = 'X'"] : [],
+    transportParamLine(local, corrNr),
+    "  IMPORTING",
+    "    actfailed = lv_actfailed",
+    "  TABLES",
+    "    index_fields = lt_fields",
+    "  EXCEPTIONS",
+    ...ddIndexExceptionsClause(),
+    ...subrcGuardFragment(CREATE_FM_WHAT),
+    "IF lv_actfailed = 'X'.",
+    // DD_INDEX_INTERFACE exports no activation log; the cheapest evidence of what a failed
+    // activation left behind is a DD12V row count with no AS4LOCAL filter at all.
+    `  SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_any WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `  out->write( |ZMCP-DDIC-ERR> ${CREATE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}; DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_any }| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    "out->write( 'INDEX-CREATED' ).",
+    ""
+  );
+  lines.push("COMMIT WORK.", "");
+  lines.push(
+    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index} AND as4local = 'A'.`,
+    "IF lv_dd12v_count = 0.",
+    `  out->write( |ZMCP-DDIC-ERR> ${indexName} on ${baseTable} not found active (AS4LOCAL = 'A') in DD12V after commit| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    "out->write( 'INDEX-ACTIVE' ).",
+    ""
+  );
+  lines.push(
+    `SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `IF lv_dd17s_count < ${fields.length}.`,
+    `  out->write( |ZMCP-DDIC-ERR> expected at least ${fields.length} DD17S field row(s) for ${indexName} on ${baseTable}, got { lv_dd17s_count }| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    "out->write( 'INDEX-FIELDS' )."
+  );
+  return lines;
+}
+function indexDeleteFragment(p) {
+  const v = validateDelete(p);
+  const { indexName, baseTable, corrNr } = v;
+  const index = quotedIdentifier(indexName, "indexName", { maxLength: INDEX_NAME_MAX });
+  const table = quotedIdentifier(baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
+  const local = corrNr === void 0;
+  const lines = [];
+  lines.push(
+    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    "IF lv_dd12v_count = 0.",
+    `  out->write( |ZMCP-DDIC-ERR> index ${indexName} on ${baseTable} does not exist| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    ""
+  );
+  lines.push(
+    "CALL FUNCTION 'DD_INDEX_INTERFACE'",
+    "  EXPORTING",
+    `    table_name          = ${table}`,
+    `    index_name          = ${index}`,
+    "    action              = 'D'",
+    "    activate            = 'X'",
+    transportParamLine(local, corrNr),
+    "  IMPORTING",
+    "    actfailed = lv_actfailed",
+    // DD_INDEX_INTERFACE requires INDEX_FIELDS for every ACTION, content or not; omitting it
+    // failed live on 2026-09-05 with "the mandatory parameter INDEX_FIELDS was not filled".
+    "  TABLES",
+    "    index_fields = lt_fields",
+    "  EXCEPTIONS",
+    ...ddIndexExceptionsClause(),
+    ...subrcGuardFragment(DELETE_FM_WHAT),
+    ""
+  );
+  lines.push("COMMIT WORK.", "");
+  lines.push(
+    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_active WHERE sqltab = ${table} AND indexname = ${index} AND as4local = 'A'.`,
+    `SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count WHERE sqltab = ${table} AND indexname = ${index}.`,
+    ""
+  );
+  lines.push(
+    "IF lv_dd12v_count <> 0 OR lv_dd12v_active <> 0 OR lv_dd17s_count <> 0.",
+    `  lv_msg = |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} left rows behind after commit |.`,
+    "  lv_msg = lv_msg && |(DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, |.",
+    `  lv_msg = lv_msg && |DD17S: { lv_dd17s_count }); ${DELETE_FM_WHAT} ACTFAILED = '{ lv_actfailed }'|.`,
+    "  out->write( lv_msg ).",
+    "  RETURN.",
+    "ENDIF.",
+    "IF lv_actfailed = 'X'.",
+    `  lv_msg = |${DDIC_NOTE_PREFIX} ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}, |.`,
+    "  lv_msg = lv_msg && |but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, |.",
+    "  lv_msg = lv_msg && |DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }) \u2014 treating as deleted|.",
+    "  out->write( lv_msg ).",
+    "  out->write( 'INDEX-DELETED-ACTFAILED' ).",
+    "ENDIF.",
+    "out->write( 'INDEX-DELETED' ).",
+    "out->write( 'INDEX-GONE' )."
+  );
+  return lines;
+}
+function indexCreatePartialSuccess(indexName, baseTable) {
+  return {
+    completed: {
+      "INDEX-CREATED": `DD_INDEX_INTERFACE (action='I') created ${indexName} on ${baseTable}, and the COMMIT WORK that follows it committed it.`,
+      "INDEX-ACTIVE": `${indexName} was found active (AS4LOCAL = 'A') in DD12V on re-read after the commit.`
+    },
+    hint: `If INDEX-CREATED fired, ${indexName} exists on ${baseTable} \u2014 abap_write mode="delete" type="TABL/DI" can remove it rather than retrying the create, which would collide with it.`
+  };
+}
+function indexBridgeErrorHook(what, indexName, baseTable) {
+  const fmWhat = what === "insert" ? CREATE_FM_WHAT : DELETE_FM_WHAT;
+  const subrcRe = new RegExp(`^${fmWhat} failed, sy-subrc=(\\d+),`);
+  return (transcript) => {
+    const line = transcript.errorLine;
+    if (!line) return;
+    if (line.includes(`${indexName} on ${baseTable} does not exist`)) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `Index ${indexName} on ${baseTable} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${line}`,
+        { indexName, baseTable, raw: transcript.raw }
+      );
+    }
+    if (line.includes(`unique index ${indexName} on ${baseTable} omits the client field`)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Index ${indexName} was not created: a unique secondary index on client-dependent base table ${baseTable} must include that table's client field. Raw ABAP-side detail: ${line}`,
+        { indexName, baseTable, raw: transcript.raw },
+        `Add ${baseTable}'s client field to index_fields, or create ${indexName} without index_unique.`
+      );
+    }
+    const m = subrcRe.exec(line);
+    if (!m) return;
+    const subrc = Number(m[1]);
+    const entry = DD_INDEX_EXCEPTIONS.find((e) => e.subrc === subrc);
+    if (!entry) return;
+    throw new AbapError(entry.code, entry.message, { indexName, baseTable, subrc, raw: transcript.raw }, entry.hint);
+  };
+}
+async function createSecondaryIndex(conn, gate, params) {
+  assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
+  const validated = validate3(params);
+  const { indexName, baseTable, packageName, corrNr } = validated;
+  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
+    { activate: true, ...corr !== void 0 ? { corr } : {} }
+  );
+  const source = ddicBridgeSource(DDIC_BRIDGE_CLASS.createIndex, INDEX_DATA_LINES, secondaryIndexFragment(validated));
+  const partial2 = indexCreatePartialSuccess(indexName, baseTable);
+  return runDdicBridge(conn, gate, {
+    className: DDIC_BRIDGE_CLASS.createIndex,
+    source,
+    description: `abapsmith create-secondary-index bridge (${indexName} on ${baseTable})`,
+    what: `Creating secondary index ${indexName} on ${baseTable}`,
+    expectTags: ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"],
+    beforeAssert: indexBridgeErrorHook("insert", indexName, baseTable),
+    completed: partial2.completed,
+    partialHint: partial2.hint
+  });
+}
+async function deleteSecondaryIndexViaBridge(conn, gate, params) {
+  assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
+  const validated = validateDelete(params);
+  const { indexName, baseTable, packageName, corrNr } = validated;
+  const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
+    { activate: true, op: "delete", ...corr !== void 0 ? { corr } : {} }
+  );
+  const source = ddicBridgeSource(
+    DDIC_BRIDGE_CLASS.deleteIndex,
+    INDEX_DELETE_DATA_LINES,
+    indexDeleteFragment(validated)
+  );
+  return runDdicBridge(conn, gate, {
+    className: DDIC_BRIDGE_CLASS.deleteIndex,
+    source,
+    description: `abapsmith delete-secondary-index bridge (${indexName} on ${baseTable})`,
+    what: `Deleting secondary index ${indexName} on ${baseTable}`,
+    expectTags: ["INDEX-DELETED", "INDEX-GONE"],
+    beforeAssert: indexBridgeErrorHook("delete", indexName, baseTable)
+  });
+}
+
 // src/adt/package-create.ts
 var PACKAGE_MAX_LENGTH4 = 30;
 var CTEXT_MAX_LENGTH = 60;
@@ -99944,7 +100390,7 @@ function assertSoftwareComponent(value, what = "softwareComponent") {
   }
   return value;
 }
-function assertCorrNr2(value) {
+function assertCorrNr3(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -99998,7 +100444,7 @@ function packageFragment(p) {
   const packageName = assertEnhIdentifier(p.packageName, "packageName", { maxLength: PACKAGE_MAX_LENGTH4 });
   const description = assertAbapText(p.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(p.softwareComponent);
-  const corrNr = assertCorrNr2(p.corrNr);
+  const corrNr = assertCorrNr3(p.corrNr);
   const packType = assertPackageType(p.packageType);
   const superPackage = p.superPackage === void 0 ? void 0 : assertEnhIdentifier(p.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const lines = [
@@ -100162,7 +100608,7 @@ async function createPackageViaBridge(conn, gate, params) {
   });
   const description = assertAbapText(params.description, "description", CTEXT_MAX_LENGTH);
   const softwareComponent = assertSoftwareComponent(params.softwareComponent);
-  const corrNr = assertCorrNr2(params.corrNr);
+  const corrNr = assertCorrNr3(params.corrNr);
   assertPackageType(params.packageType);
   const superPackage = params.superPackage === void 0 ? void 0 : assertEnhIdentifier(params.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
   const corr = { kind: "transport", corrNr, source: params.corrSource ?? "auto" };
@@ -100219,14 +100665,17 @@ var DICT_KEY_NAME_LENGTH = 40;
 function dictObjectKey(viewName) {
   return `VIEW${viewName.padEnd(DICT_KEY_NAME_LENGTH)}`;
 }
-function isLocalPackage(packageName) {
+function isLocalPackage2(packageName) {
   return isLocalPackageName(packageName);
 }
-function quotedIdentifier(value, what, opts = {}) {
+function classicViewUri(viewName) {
+  return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
+}
+function quotedIdentifier2(value, what, opts = {}) {
   return abapLiteral(assertEnhIdentifier(value, what, { maxLength: VIEW_NAME_MAX2, ...opts }));
 }
-var PACKAGE_RULES2 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
-function assertCorrNr3(value) {
+var PACKAGE_RULES3 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
+function assertCorrNr4(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -100237,8 +100686,8 @@ function assertCorrNr3(value) {
   return value;
 }
 function assertClassicViewCreateTarget(packageName, corrNr) {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES2);
-  const local = isLocalPackage(validated);
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES3);
+  const local = isLocalPackage2(validated);
   if (local && corrNr !== void 0) {
     throw new AbapError(
       "BAD_INPUT",
@@ -100246,18 +100695,10 @@ function assertClassicViewCreateTarget(packageName, corrNr) {
       { packageName: validated, corrNr }
     );
   }
-  if (!local && corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
-      { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
-    );
-  }
-  if (corrNr !== void 0) assertCorrNr3(corrNr);
+  if (corrNr !== void 0) assertCorrNr4(corrNr);
   return validated;
 }
-function validate3(p) {
+function validate4(p) {
   const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX2 });
   const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: VIEW_NAME_MAX2 });
   if (!Array.isArray(p.fields) || p.fields.length === 0) {
@@ -100279,8 +100720,17 @@ function validate3(p) {
   );
   const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
   const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
-  const corrNr = isLocalPackage(packageName) ? void 0 : p.corrNr;
-  return { viewName, baseTable, fields, description, packageName, corrNr };
+  const local = isLocalPackage2(packageName);
+  if (!local && p.corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  const corrNr = local ? void 0 : p.corrNr;
+  return { viewName, baseTable, fields, description, packageName, corrNr, corrSource: p.corrSource };
 }
 var VIEW_DATA_LINES = [
   "ls_dd25v TYPE dd25v.",
@@ -100291,10 +100741,10 @@ var VIEW_DATA_LINES = [
   "lv_rc TYPE sy-subrc."
 ];
 function classicViewFragment(p) {
-  const { viewName, baseTable, fields, description, packageName, corrNr } = validate3(p);
-  const view = quotedIdentifier(viewName, "viewName");
-  const table = quotedIdentifier(baseTable, "baseTable");
-  const local = isLocalPackage(packageName);
+  const { viewName, baseTable, fields, description, packageName, corrNr } = validate4(p);
+  const view = quotedIdentifier2(viewName, "viewName");
+  const table = quotedIdentifier2(baseTable, "baseTable");
+  const local = isLocalPackage2(packageName);
   const lines = [];
   lines.push(
     // --- TADIR registration, BEFORE any dictionary write: a key
@@ -100307,7 +100757,7 @@ function classicViewFragment(p) {
     // 44-byte layout.
     `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
     "            object_class = 'DICT'",
-    `            devclass = ${quotedIdentifier(packageName, "packageName", PACKAGE_RULES2)}`,
+    `            devclass = ${quotedIdentifier2(packageName, "packageName", PACKAGE_RULES3)}`,
     "            master_language = sy-langu",
     "            mode = 'INSERT'",
     // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
@@ -100345,7 +100795,7 @@ function classicViewFragment(p) {
     "CLEAR lt_dd27p."
   );
   fields.forEach((field, index) => {
-    const quoted6 = quotedIdentifier(field, `fields[${index}]`);
+    const quoted6 = quotedIdentifier2(field, `fields[${index}]`);
     const objpos = String(index + 1).padStart(4, "0");
     lines.push(
       "CLEAR ls_dd27p.",
@@ -100399,9 +100849,9 @@ function viewCreatePartialSuccess(viewName) {
   };
 }
 async function createClassicView(conn, gate, params) {
-  const validated = validate3(params);
-  const { viewName, packageName, corrNr } = validated;
-  const corr = isLocalPackage(packageName) ? void 0 : { kind: "transport", corrNr, source: "named" };
+  const validated = validate4(params);
+  const { viewName, packageName, corrNr, corrSource } = validated;
+  const corr = isLocalPackage2(packageName) ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
   assertBridgeMutation(
     gate,
     { type: "VIEW/DV", name: viewName, packageName },
@@ -100911,7 +101361,7 @@ var writeInputSchema = {
   // (src/tools/read.ts), turns a typo into a schema rejection.
   include: external_exports.enum(CLASS_INCLUDES).optional().describe("CLAS/OC only; testclasses=ABAP Unit tests, default main."),
   package: external_exports.string().optional().describe(
-    "Package for a NEW object. Default $TMP. VIEW/DV and TRAN/T: a transportable one needs corr_nr, a $-package refuses it."
+    "Package for a NEW object. Default $TMP. TRAN/T: a transportable one needs corr_nr. VIEW/DV: a transportable one resolves its own. A $-package refuses corr_nr. TABL/DI: ignored except to check agreement \u2014 an index's package is always the base table's, never caller-chosen."
   ),
   description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
   // Structured create for the three XML-only DDIC types, so a
@@ -100946,7 +101396,7 @@ var writeInputSchema = {
     "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, activation, unlock or transport call and journals nothing."
   ),
   corr_nr: external_exports.string().optional().describe(
-    "Transport request. $TMP needs none. Required for a VIEW/DV or TRAN/T create into a transportable package, refused for a $ package. Refused on VIEW/DV or TRAN/T delete."
+    "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a transportable package; optional for a VIEW/DV create, which resolves one under ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived requirement as its create, not refused."
   ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
@@ -100958,8 +101408,14 @@ var writeInputSchema = {
   // deliberately: schema prose is billed on every `tools/list`, while the
   // fuller guidance is billed only to a caller who gets it wrong
   // (`abapCreateViaBridge`, below) — see test/tools.test.ts's "tool surface".
-  base_table: external_exports.string().optional().describe("VIEW/DV create only: the single base table the view projects."),
+  base_table: external_exports.string().optional().describe(
+    "VIEW/DV create: the single base table the view projects. TABL/DI create+delete, required: the table the index belongs to."
+  ),
   view_fields: external_exports.array(external_exports.string()).optional().describe("VIEW/DV create only: base-table fields to project, in order."),
+  index_fields: external_exports.array(external_exports.string()).optional().describe("TABL/DI create only, required: base-table fields the index covers, in order."),
+  index_unique: external_exports.boolean().optional().describe(
+    "TABL/DI create only: mark the index UNIQUE. Default false. On a client-dependent base table, a unique index must include the table's client field (usually MANDT) in `index_fields` \u2014 a create that omits it is refused rather than left to fail activation on the server."
+  ),
   // "EXISTING" and "SUBMIT-only" are load-bearing: abapsmith checks the
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.
@@ -101452,6 +101908,8 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       "transport_layer",
       "base_table",
       "view_fields",
+      "index_fields",
+      "index_unique",
       "program",
       "affects",
       "ddic"
@@ -101498,7 +101956,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   }
   if (isBridgeOnlyCreateType(input.type)) {
     if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
-    return await abapBridgeCrud(conn, target, input, maxChars, gate, journal);
+    return await abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport);
   }
   const corrNr = normalizeCorrNr(input.corr_nr);
   const trOpts = transport ? { transport, gate, ...corrNr ? { corrNr } : {}, ...input.affects ? { affects: input.affects } : {} } : { ...corrNr ? { corrNr } : {}, ...input.affects ? { affects: input.affects } : {} };
@@ -102475,8 +102933,12 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
     maxChars
   });
 }
-async function abapBridgeCrud(conn, target, input, maxChars, gate, journal) {
-  return (input.mode ?? "write") === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal);
+async function abapBridgeCrud(conn, target, input, maxChars, gate, journal, transport) {
+  const type = (input.type ?? "").trim().toUpperCase();
+  if (type === "TABL/DI") {
+    return (input.mode ?? "write") === "delete" ? abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) : abapCreateIndexViaBridge(conn, target, input, maxChars, gate);
+  }
+  return (input.mode ?? "write") === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
 }
 async function journalBridgeCreate(journal, conn, ref2, beforeCapture, corrNr, mutate) {
   const { result, entryId, settle } = await withJournalledMutation(
@@ -102528,7 +102990,7 @@ function bridgeReversalNote(entryId, beforeCapture, registration, label, type, o
   }
   return `Journalled as ${entryId}. abap_journal mode=undo entry=${entryId} can reach it through the same classrun bridge abap_write mode="delete" uses if it is registered \u2014 but this create's read-back did not establish a package for it, and a bridge create can land active but unregistered in TADIR, in which case both refuse with SAFETY_DENIED / PACKAGE_UNKNOWN.`;
 }
-async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal) {
+async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport) {
   const type = (input.type ?? "").trim().toUpperCase();
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
@@ -102567,6 +103029,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
   let verifyNote;
   let entryId;
   let registration;
+  let transportInfo;
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
   const objectUri = vitBridgeUri(vitType, target.name);
   let beforeCapture = "failed";
@@ -102602,7 +103065,36 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
     const baseTable = input.base_table;
     const viewFields = input.view_fields;
     bridgeClass = DDIC_BRIDGE_CLASS.createView;
-    const corrNr = normalizeCorrNr(input.corr_nr);
+    const named = normalizeCorrNr(input.corr_nr);
+    const localPkg = isLocalPackageName(packageName);
+    let corrNr;
+    let corrSource;
+    if (localPkg) {
+      corrNr = named;
+    } else {
+      if (transport === void 0) {
+        throw new AbapError(
+          "TRANSPORT_ERROR",
+          `${target.name} needs a transport request (package ${packageName} is not local), but no transport manager is wired into this call. This is an internal wiring failure in abapsmith, not a mistake in the request.`,
+          { name: target.name, packageName }
+        );
+      }
+      const preflightTarget = {
+        uri: classicViewUri(target.name),
+        name: target.name,
+        type: "VIEW/DV",
+        packageName,
+        exists: false
+      };
+      const corr = await preflightPackageCorr(conn, preflightTarget, {
+        transport,
+        gate,
+        ...named !== void 0 ? { corrNr: named } : {}
+      });
+      corrNr = corr.corrNr;
+      corrSource = corr.source;
+    }
+    if (corrNr !== void 0) transportInfo = { status: "transport", required: true, corrNr };
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
       conn,
@@ -102614,7 +103106,8 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
         viewName: target.name,
         baseTable,
         fields: viewFields,
-        corrNr
+        corrNr,
+        ...corrSource !== void 0 ? { corrSource } : {}
       })
     ));
     detail = `database view (DD25V class 'D') projecting ${viewFields.length} field(s) of ${baseTable}`;
@@ -102697,6 +103190,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal)
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName,
+      ...transportInfo !== void 0 ? { transport: transportHeaderText(transportInfo) } : {},
       mode: "create-bridge",
       created: true,
       verified,
@@ -102836,12 +103330,183 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
     maxChars
   });
 }
+async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate) {
+  const type = "TABL/DI";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message, hint) => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+  if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0) {
+    bad(
+      `A ${label} (${type}) has no source: it is created from its definition, not from ABAP text. Omit \`source\`, \`edit\` and \`method\`.`
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply.`);
+  if (input.include !== void 0) {
+    bad(`\`include\` is a CLAS/OC field; a ${label} (${type}) has no class includes.`);
+  }
+  if (input.expect_etag !== void 0) {
+    bad(`\`expect_etag\` does not apply to a ${label} create \u2014 there is no prior version to compare.`);
+  }
+  if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K fields only.");
+  }
+  if (input.program !== void 0) bad("`program` is a TRAN/T field; an index does not start a program.");
+  if (input.view_fields !== void 0) {
+    bad("`view_fields` is a VIEW/DV field; an index projects nothing of its own \u2014 use `index_fields`.");
+  }
+  if (input.activate === false) {
+    bad(
+      "A secondary index cannot be created without activating it: DD_INDEX_INTERFACE runs with ACTIVATE = 'X'. Omit `activate`."
+    );
+  }
+  if (!input.description?.trim()) {
+    bad(
+      `\`description\` is required to create a ${label} (${type}) \u2014 it is the index's short text (DD12V-DDTEXT), and the API has no default for it.`
+    );
+  }
+  if (!input.base_table?.trim()) {
+    bad(
+      `\`base_table\` is required to create a ${label} (${type}): the existing table the index is built over, e.g. ZMCP_CARRIER.`
+    );
+  }
+  if (!input.index_fields || input.index_fields.length === 0) {
+    bad(
+      `\`index_fields\` is required to create a ${label} (${type}): the base-table fields the index covers, in order, e.g. ["CARRIER_ID"]. There is no "all fields" default.`
+    );
+  }
+  const description = input.description.trim();
+  const baseTable = input.base_table.trim();
+  const indexFields = input.index_fields;
+  const owner = await resolveIndexOwner(conn, baseTable);
+  const requestedPackage = target.packageName?.trim().toUpperCase();
+  if (requestedPackage && requestedPackage !== owner.packageName.name) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Base table ${baseTable} is in package ${owner.packageName.name}, but the request asked for ${requestedPackage}. abapsmith does not move objects between packages, and will not create an index in a package other than its base table's.`,
+      { object: target.name, type, baseTable, serverPackage: owner.packageName.name, requestedPackage },
+      "Drop the `package` argument to create the index where its base table actually lives, or correct it if this named the wrong table."
+    );
+  }
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+  const created = await createSecondaryIndex(conn, gate, {
+    indexName: target.name,
+    baseTable,
+    fields: indexFields,
+    description,
+    packageName: owner.packageName,
+    corrNr,
+    unique: input.index_unique
+  });
+  const detail = `secondary index over ${indexFields.length} field(s) of ${baseTable}` + (input.index_unique ? ", unique" : "");
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: owner.packageName.name,
+      mode: "create-bridge",
+      created: true,
+      verified: false,
+      detail,
+      bridge_class: DDIC_BRIDGE_CLASS.createIndex,
+      markers: created.transcript.tags.join(" "),
+      journal: "off (never journalled \u2014 see notes)"
+    },
+    notes: [
+      `Created by running a generated ${DDIC_BRIDGE_CLASS.createIndex} classrun bridge, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
+      cap?.bridgeCreate?.limits ?? "",
+      "NOT independently verified: a secondary index has no ADT resource of its own to read back from (see this type's REGISTRY entry in src/adt/capabilities.ts). The INDEX-ACTIVE and INDEX-FIELDS markers above come from the generated bridge's own post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, independent read \u2014 abapsmith still reports created:true, trusting that transcript, but verified is always false here.",
+      'NOT journalled: an index create has no undo path (src/adt/undo.ts recognises no TABL/DI shape and would throw on one). To reverse this, delete the index with a fresh abap_write { mode: "delete", type: "TABL/DI" } call, not abap_journal mode=undo.'
+    ].filter((n) => n !== ""),
+    maxChars
+  });
+}
+async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) {
+  const type = "TABL/DI";
+  const cap = capabilitiesFor(type);
+  const label = cap?.label ?? type;
+  const bad = (message, hint) => {
+    throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
+  };
+  if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0 || input.include !== void 0) {
+    bad(
+      `A ${label} (${type}) delete has no source to touch: omit \`source\`, \`edit\`, \`method\` and \`include\`.`
+    );
+  }
+  if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply to a delete.`);
+  if (input.expect_etag !== void 0) {
+    bad(`\`expect_etag\` does not apply to a ${label} delete \u2014 the classrun bridge has no etag to compare.`);
+  }
+  if (input.description !== void 0) {
+    bad("`description` is a create-only field; a delete does not rename anything.");
+  }
+  if (input.activate !== void 0) bad("`activate` is a create-only field; a delete has nothing to activate.");
+  if (input.view_fields !== void 0) bad("`view_fields` is a VIEW/DV create field; an index delete needs none.");
+  if (input.program !== void 0) bad("`program` is a TRAN/T create field; an index delete needs no program.");
+  if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
+    bad("`software_component`, `package_type` and `transport_layer` are DEVC/K create fields only.");
+  }
+  if (input.index_fields !== void 0) {
+    bad("`index_fields` is a create-only field; a delete removes the index as it already stands.");
+  }
+  if (input.index_unique !== void 0) {
+    bad("`index_unique` is a create-only field; a delete removes the index as it already stands.");
+  }
+  if (!input.base_table?.trim()) {
+    bad(
+      `\`base_table\` is required to delete a ${label} (${type}): DD_INDEX_INTERFACE deletes an index by base table and index name together, and abapsmith needs it to find the owning package too.`
+    );
+  }
+  const baseTable = input.base_table.trim();
+  const owner = await resolveIndexOwner(conn, baseTable);
+  const requestedPackage = target.packageName?.trim().toUpperCase();
+  if (requestedPackage && requestedPackage !== owner.packageName.name) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Base table ${baseTable} is in package ${owner.packageName.name}, but the request asked for ${requestedPackage}. abapsmith does not move objects between packages, and will not delete against the wrong one.`,
+      { object: target.name, type, baseTable, serverPackage: owner.packageName.name, requestedPackage },
+      "Drop the `package` argument to delete the index where its base table actually lives, or correct it if this named the wrong table."
+    );
+  }
+  const corrNr = normalizeCorrNr(input.corr_nr);
+  assertSecondaryIndexTarget(owner.packageName.name, corrNr);
+  const deleted = await deleteSecondaryIndexViaBridge(conn, gate, {
+    indexName: target.name,
+    baseTable,
+    packageName: owner.packageName,
+    corrNr
+  });
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${type} ${target.name}`,
+      package: owner.packageName.name,
+      mode: "delete-bridge",
+      deleted: true,
+      verified: false,
+      bridge_class: DDIC_BRIDGE_CLASS.deleteIndex,
+      markers: deleted.transcript.tags.join(" "),
+      journal: "off (not journalled \u2014 see notes)"
+    },
+    notes: [
+      `Deleted by running a generated ${DDIC_BRIDGE_CLASS.deleteIndex} classrun bridge, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
+      "NOT independently verified: a secondary index has no ADT resource of its own to read back from. The INDEX-GONE marker above comes from the generated bridge's own post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, independent read \u2014 abapsmith still reports deleted:true, trusting that transcript, but verified is always false here.",
+      "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this index. To bring it back, create it again with a fresh abap_write call.",
+      ...deleted.transcript.tags.includes("INDEX-DELETED-ACTFAILED") ? [
+        "ACTFAILED: DD_INDEX_INTERFACE itself reported ACTFAILED = 'X' for this delete, but the bridge's post-COMMIT WORK re-read of DD12V (both unfiltered and AS4LOCAL = 'A') and DD17S found no rows left for this index, so abapsmith reports deleted:true anyway. This was observed live on 2026-09-05 and its cause is not established \u2014 it may mean the database-level index drop or the table's re-activation failed rather than the dictionary removal itself. If the table's runtime behaviour looks wrong, check it in SE11/SE14 rather than assuming the delete was clean; abapsmith performs no further check on this path."
+      ] : []
+    ],
+    maxChars
+  });
+}
 var ok8 = (text3) => ({ content: [{ type: "text", text: text3 }] });
 function registerWriteTools(mcp, deps) {
   mcp.registerTool(
     "abap_write",
     {
-      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create needs corr_nr for a transportable package, none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty. dry_run previews the diff and expect_etag without writing anything.",
+      description: "Create, change or delete an ABAP object: save/check/activate; locking handled. TRAN/T deletable+undoable, and needs corr_nr for a transportable package, none for a $ one. VIEW/DV create resolves its own corr_nr for a transportable package (supply one to pin it), none for a $ one; the view can't be read back via abap_read. DEVC/K delete only if empty. dry_run previews the diff and expect_etag without writing anything.",
       inputSchema: writeInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -105345,6 +106010,96 @@ function parseModel(xmlText2) {
   };
 }
 
+// src/adt/bopf-node-kinds.ts
+function splitTargetNodeRef(name) {
+  if (!name) return {};
+  const tilde = name.lastIndexOf("~");
+  if (tilde < 0) return { node: name };
+  return { bo: name.slice(0, tilde), node: name.slice(tilde + 1) };
+}
+function isCrossBoTarget(model, name) {
+  const { bo } = splitTargetNodeRef(name);
+  return bo !== void 0 && bo.toLowerCase() !== model.name.toLowerCase();
+}
+function classifyAssociation(model, assoc) {
+  const targetName = assoc.targetNodeRef?.name;
+  const { bo: targetBo, node: targetNode } = splitTargetNodeRef(targetName);
+  const type = (assoc.implementationType ?? "").toLowerCase();
+  const crossBo = isCrossBoTarget(model, targetName);
+  const bo = crossBo ? targetBo : void 0;
+  if (type === "docomposition") return { kind: "do-composition", targetBo: bo, targetNode };
+  if (type === "composition") return { kind: "composition", targetBo: bo, targetNode };
+  if (crossBo) return { kind: "cross-bo", targetBo, targetNode };
+  return { kind: "association", targetNode };
+}
+function classifyNodes(model) {
+  const embeddings = /* @__PURE__ */ new Map();
+  for (const parent of model.nodes) {
+    for (const assoc of parent.associations) {
+      const kind = classifyAssociation(model, assoc);
+      if (kind.kind !== "do-composition" || !kind.targetNode) continue;
+      const targetRef = splitTargetNodeRef(assoc.targetNodeRef?.name);
+      const dependentObject = targetRef.bo && targetRef.bo.toLowerCase() !== model.name.toLowerCase() ? targetRef.bo : void 0;
+      embeddings.set(kind.targetNode.toLowerCase(), { assoc, parent, dependentObject });
+    }
+  }
+  const result = /* @__PURE__ */ new Map();
+  for (const node2 of model.nodes) {
+    const key = node2.name.toLowerCase();
+    if (node2.rootNode === true) {
+      result.set(key, { kind: "root" });
+      continue;
+    }
+    const embedding = embeddings.get(key);
+    if (embedding) {
+      result.set(key, {
+        kind: "delegated",
+        embeddingAssociation: embedding.assoc.name,
+        embeddingParent: embedding.parent.name,
+        ...embedding.assoc.doEmbeddingName ? { doEmbeddingName: embedding.assoc.doEmbeddingName } : {},
+        ...embedding.dependentObject ? { dependentObject: embedding.dependentObject } : {}
+      });
+      continue;
+    }
+    if (!node2.parent && !node2.persistentStructureRef) {
+      result.set(key, { kind: "representative" });
+      continue;
+    }
+    result.set(key, { kind: "standard" });
+  }
+  return result;
+}
+function describeNodeKind(k) {
+  switch (k.kind) {
+    case "root":
+      return "root";
+    case "standard":
+      return "";
+    case "representative":
+      return "representative";
+    case "delegated": {
+      const base = `delegated via ${k.embeddingParent}.${k.embeddingAssociation}`;
+      return k.dependentObject ? `${base} -> ${k.dependentObject}` : base;
+    }
+  }
+}
+function describeAssociationKind(k) {
+  switch (k.kind) {
+    case "association":
+      return "";
+    case "composition":
+      return "composition";
+    case "do-composition":
+      return "do-composition";
+    case "cross-bo":
+      if (!k.targetBo) return "";
+      return k.targetNode ? `-> ${k.targetBo}~${k.targetNode}` : `-> ${k.targetBo}`;
+  }
+}
+function classifyNode(model, node2) {
+  return classifyNodes(model).get(node2.name.toLowerCase()) ?? { kind: "standard" };
+}
+
 // src/adt/bopf.ts
 var BOPF_COLLECTION = "/sap/bc/adt/bopf/businessobjects";
 var BOPF_ACCEPT_V4 = "application/vnd.sap.ap.adt.bopf.businessobjects.v4+xml";
@@ -105959,6 +106714,14 @@ async function evaluateSite(conn, model, site) {
 function evaluateTargetNodeRef(model, site) {
   const name = site.ref.name;
   if (!name) return { site, verdict: "unchecked", detail: "targetNodeRef has no name" };
+  if (isCrossBoTarget(model, name)) {
+    const { bo, node: node2 } = splitTargetNodeRef(name);
+    return {
+      site,
+      verdict: "unchecked",
+      detail: `targetNodeRef points at ${node2 ?? "?"} on ${bo ?? "another business object"}, which this read does not fetch`
+    };
+  }
   const prefix = `${model.name}~`;
   const bareName2 = name.startsWith(prefix) ? name.slice(prefix.length) : name;
   const found = model.nodes.some((n) => n.name === bareName2 || n.name === name);
@@ -106224,6 +106987,7 @@ var OPERATION_FIELDS = {
   add_alternative_key: ADD_ALTERNATIVE_KEY_FIELDS,
   remove_alternative_key: NO_SPEC_FIELDS,
   set_node_flags: SET_NODE_FLAGS_FIELDS,
+  remove_dependent_object: NO_SPEC_FIELDS,
   ...SET_CHILD_FIELD_TABLES,
   activate: NO_SPEC_FIELDS
 };
@@ -106449,6 +107213,283 @@ function validateSpecKeys(operation, spec) {
   throw new AbapError("BAD_INPUT", message, { operation, issues: issues.map((iss) => iss.detail) }, hint);
 }
 
+// src/tools/bopf-delegation.ts
+var DELEGATION_OPERATIONS = ["remove_dependent_object"];
+function isDelegationOperation(op) {
+  return DELEGATION_OPERATIONS.includes(op);
+}
+function str2(v) {
+  return typeof v === "string" && v.trim() ? v : void 0;
+}
+function resolveTargetNodeName(target) {
+  if (!target) return void 0;
+  if (target.uri) {
+    const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(target.uri);
+    if (m) return m[1];
+  }
+  const tilde = target.name.lastIndexOf("~");
+  return tilde >= 0 ? target.name.slice(tilde + 1) : target.name;
+}
+function findModelNode(model, name) {
+  const wanted = name.toLowerCase();
+  return model.nodes.find((n) => n.name.toLowerCase() === wanted);
+}
+function nodeNameList(model) {
+  return model.nodes.map((n) => n.name).join(", ");
+}
+function requireInputNode(input) {
+  if (!input.node) {
+    throw new AbapError("BAD_INPUT", `${input.operation} requires node.`, { operation: input.operation });
+  }
+  return input.node;
+}
+function requireInputName(input) {
+  if (!input.name) {
+    throw new AbapError("BAD_INPUT", `${input.operation} requires name.`, { operation: input.operation });
+  }
+  return input.name;
+}
+function validateDelegationShape(input) {
+  switch (input.operation) {
+    case "remove_dependent_object":
+      requireInputNode(input);
+      requireInputName(input);
+      return;
+    default:
+      throw new AbapError("UNSUPPORTED", `"${input.operation}" is not a delegation operation.`, {
+        operation: input.operation
+      });
+  }
+}
+function refuseHandAssembledDelegation(operation, spec, name) {
+  const named = name ? ` "${name}"` : "";
+  if (operation === "add_association") {
+    const implementationType = str2(spec.implementationType);
+    const doEmbeddingName = str2(spec.doEmbeddingName);
+    if (implementationType && implementationType.toLowerCase() === "docomposition" || doEmbeddingName !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `add_association${named} with implementationType "DoComposition" (or a doEmbeddingName) tries to build a dependent-object embedding, and abapsmith cannot create one on this release. That shape was sent to a real system: the PUT answered 200, but the read-back had implementationType rewritten to "Composition" with bo:doEmbeddingName dropped, and activation rejected the "<name>.ROOT" node the pair needs ("Node name contains characters that are not allowed"). No working request shape is known \u2014 see doc/CAPABILITIES/bopf.md. remove_dependent_object still removes an embedding that already exists.`,
+        { operation, name, implementationType, doEmbeddingName }
+      );
+    }
+    return;
+  }
+  if (operation === "add_node") {
+    const doEmbeddingName = str2(spec.doEmbeddingName);
+    const isDependentObjectNode = spec.isDependentObjectNode === true;
+    if (doEmbeddingName !== void 0 || isDependentObjectNode) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `add_node${named} with doEmbeddingName set (or isDependentObjectNode: true) builds half of a dependent-object embedding by hand. abapsmith cannot create an embedding on this release, and the other half cannot be written either \u2014 see doc/CAPABILITIES/bopf.md.`,
+        { operation, name, doEmbeddingName, isDependentObjectNode }
+      );
+    }
+    const hasParent = str2(spec.parent) !== void 0 || str2(spec.parentNodeId) !== void 0;
+    if (!hasParent && spec.rootNode !== true) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `add_node${named} with no spec.parent/spec.parentNodeId and rootNode not true is a deliberately parentless node, and BOPF will not accept one: the server rejects a client-written parentless node outright in the /BOBF/ST_CONF_ADT deserializer. Parentless "representative" nodes do exist, but the server mints them itself \u2014 add a cross-BO association instead (add_association with spec.targetNodeRef naming OTHER_BO~ROOT and a spec.implementationClassRef), and the server creates a node named REP_<random> alongside it.`,
+        { operation, name }
+      );
+    }
+    return;
+  }
+}
+function delegationModelPreflight(model, input) {
+  switch (input.operation) {
+    case "remove_dependent_object": {
+      const nodeName = requireInputNode(input);
+      const emb = requireInputName(input);
+      const parent = findModelNode(model, nodeName);
+      if (!parent) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `node "${nodeName}" not found on ${model.name}. Nodes present: ${nodeNameList(model)}.`,
+          { bo: model.name, node: nodeName }
+        );
+      }
+      const assoc = parent.associations.find((a) => a.name.toLowerCase() === emb.toLowerCase());
+      if (!assoc) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `no association named "${emb}" on node "${parent.name}". Associations present: ${parent.associations.map((a) => a.name).join(", ")}.`,
+          { bo: model.name, node: parent.name, name: emb }
+        );
+      }
+      if ((assoc.implementationType ?? "").toLowerCase() !== "docomposition") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `association "${emb}" on node "${parent.name}" has implementationType "${assoc.implementationType}", not DoComposition \u2014 this is not an embedding; use remove_association instead.`,
+          { bo: model.name, node: parent.name, name: emb, implementationType: assoc.implementationType }
+        );
+      }
+      const targetName = resolveTargetNodeName(assoc.targetNodeRef);
+      if (!targetName) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `association "${emb}" on node "${parent.name}" has no resolvable targetNodeRef \u2014 cannot find the embedded node.`,
+          { bo: model.name, node: parent.name, name: emb }
+        );
+      }
+      const targetNode = findModelNode(model, targetName);
+      if (!targetNode) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `embedded node "${targetName}" (named by association "${emb}"'s targetNodeRef) does not exist on ${model.name}.`,
+          { bo: model.name, node: parent.name, name: emb, targetName }
+        );
+      }
+      const kind = classifyNode(model, targetNode);
+      if (kind.kind !== "delegated") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `node "${targetNode.name}" is classified as "${kind.kind}", not delegated \u2014 association "${emb}" does not look like a real embedding.`,
+          { bo: model.name, node: targetNode.name, kind: kind.kind }
+        );
+      }
+      const offenders = [];
+      for (const n of model.nodes) {
+        for (const a of n.associations) {
+          if (n === parent && a.name.toLowerCase() === emb.toLowerCase()) continue;
+          if ((resolveTargetNodeName(a.targetNodeRef) ?? "").toLowerCase() === targetNode.name.toLowerCase()) {
+            offenders.push(`${n.name}.${a.name}`);
+          }
+        }
+      }
+      if (offenders.length) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `other association(s) still target node "${targetNode.name}": ${offenders.join(", ")} \u2014 remove those first.`,
+          { bo: model.name, node: targetNode.name, offenders }
+        );
+      }
+      return;
+    }
+  }
+}
+function mutateRemoveDependentObject(freshXml, tokens, input) {
+  const parentName = requireInputNode(input);
+  const emb = requireInputName(input);
+  const assocRange = locate(tokens, { node: parentName, nodeId: input.nodeId, child: "association", name: emb });
+  if (!assocRange) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `association "${emb}" not found on node "${parentName}" while removing the embedding.`,
+      { node: parentName, name: emb }
+    );
+  }
+  const targetRefTok = tokens.find(
+    (t) => t.name === "bo:targetNodeRef" && t.openStart > assocRange.start && t.openStart < assocRange.end
+  );
+  const embNodeName = resolveTargetNodeName(
+    targetRefTok ? { uri: targetRefTok.attrs.get("adtcore:uri"), type: "", name: targetRefTok.attrs.get("adtcore:name") ?? "" } : void 0
+  );
+  if (!embNodeName) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `association "${emb}" on node "${parentName}" has no resolvable targetNodeRef \u2014 cannot find the embedded node to remove.`,
+      { node: parentName, name: emb }
+    );
+  }
+  let xml3 = spliceOut(freshXml, assocRange);
+  const tokens2 = scanModel(xml3);
+  const nodeRange = locate(tokens2, { node: embNodeName });
+  if (!nodeRange) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `embedded node "${embNodeName}" not found after removing association "${emb}" from "${parentName}".`,
+      { node: embNodeName, association: emb }
+    );
+  }
+  xml3 = spliceOut(xml3, nodeRange);
+  return xml3;
+}
+function mutateDelegation(freshXml, input) {
+  const tokens = scanModel(freshXml);
+  switch (input.operation) {
+    case "remove_dependent_object":
+      return mutateRemoveDependentObject(freshXml, tokens, input);
+    default:
+      throw new AbapError("UNSUPPORTED", `"${input.operation}" is not a delegation operation.`, {
+        operation: input.operation
+      });
+  }
+}
+function countNodesNamed(model, name) {
+  const wanted = name.toLowerCase();
+  return model.nodes.filter((n) => n.name.toLowerCase() === wanted).length;
+}
+function countAssociationsNamed(model, nodeName, assocName) {
+  const wantedNode = nodeName.toLowerCase();
+  const wantedAssoc = assocName.toLowerCase();
+  return model.nodes.filter((n) => n.name.toLowerCase() === wantedNode).flatMap((n) => n.associations).filter((a) => a.name.toLowerCase() === wantedAssoc).length;
+}
+var HOUSE_SENTENCE = "A BOPF PUT answers 200 whether or not the server kept what was sent, and nothing was activated.";
+function verifyDelegation(input, before, after, journalEntryId) {
+  const entryId = journalEntryId ?? "(none)";
+  switch (input.operation) {
+    case "remove_dependent_object": {
+      const parent = input.node ?? "";
+      const emb = input.name ?? "";
+      const beforeParent = findModelNode(before, parent);
+      const beforeAssoc = beforeParent?.associations.find((a) => a.name.toLowerCase() === emb.toLowerCase());
+      const embNodeName = (beforeAssoc ? resolveTargetNodeName(beforeAssoc.targetNodeRef) : void 0) ?? `${emb}.ROOT`;
+      const nodeCountBefore = countNodesNamed(before, embNodeName);
+      const nodeCountAfter = countNodesNamed(after, embNodeName);
+      const assocCountBefore = countAssociationsNamed(before, parent, emb);
+      const assocCountAfter = countAssociationsNamed(after, parent, emb);
+      const nodeRemains = nodeCountAfter >= nodeCountBefore;
+      const assocRemains = assocCountAfter >= assocCountBefore;
+      if (nodeRemains || assocRemains) {
+        const remaining = [
+          assocRemains ? `the "${emb}" association on "${parent}"` : void 0,
+          nodeRemains ? `the "${embNodeName}" node` : void 0
+        ].filter((x) => x !== void 0).join(" and ");
+        throw new AbapError(
+          "CHECK_FAILED",
+          `remove_dependent_object "${emb}" on ${before.name} node "${parent}": the PUT was accepted (journalEntryId ${entryId}) but a fresh re-read shows ${remaining} still present \u2014 node count ${nodeCountBefore} -> ${nodeCountAfter}, association count ${assocCountBefore} -> ${assocCountAfter}. ${HOUSE_SENTENCE}`,
+          { bo: before.name, node: parent, name: emb, nodeCountBefore, nodeCountAfter, assocCountBefore, assocCountAfter, journalEntryId }
+        );
+      }
+      return;
+    }
+  }
+}
+function delegationNotes(input) {
+  const spec = input.spec ?? {};
+  if (input.operation === "add_association") {
+    const targetRef = spec.targetNodeRef;
+    let targetName;
+    let targetBo;
+    if (targetRef && typeof targetRef === "object") {
+      const o = targetRef;
+      const name = str2(o.name);
+      if (name && name.includes("~")) {
+        targetName = name;
+        targetBo = name.slice(0, name.indexOf("~"));
+      } else {
+        const uri = str2(o.uri);
+        if (uri) {
+          const hashIdx = uri.indexOf("#");
+          const beforeHash = hashIdx >= 0 ? uri.slice(0, hashIdx) : uri;
+          const segments = beforeHash.split("/").filter(Boolean);
+          targetBo = segments[segments.length - 1];
+          targetName = name ?? targetBo;
+        }
+      }
+    }
+    if (targetBo && targetBo.toLowerCase() !== input.bo.toLowerCase()) {
+      return [
+        `Cross-BO association: targetNodeRef names "${targetName}", a node on another business object. Observed on this release: the server answers such a write by minting a representative node of its own, named REP_<random> \u2014 the name is server-assigned and cannot be chosen, and a client-written parentless node is rejected outright by the /BOBF/ST_CONF_ADT deserializer. Confirmed live: running remove_association on this cross-BO association removes the minted node too \u2014 abap_bopf show's nodeCount fell from 2 to 1 and the node was gone from the read-back.`,
+        `Cross-BO associations captured from SAP's own business objects also carry an implementationClassRef (an XBO class such as /BOBF/CL_C_DEMO_CUSTOMER_XBO); without one, activation reported "Association has to have exactly one Attribute Binding". Observed once on this release: activating a business object with a cross-BO association present destroyed the ABAP session with an ASSERTION_FAILED short dump in /BOBF/CL_CONF_MODEL_API_MAP. Neither behaviour is established as a rule.`
+      ];
+    }
+    return [];
+  }
+  return [];
+}
+
 // src/tools/bopf.ts
 var bopfInputSchema = {
   mode: external_exports.enum(["show", "raw", "search", "check_refs"]).optional().describe('Default "show" (digest). "raw" is the expensive escape hatch.'),
@@ -106484,11 +107525,14 @@ var bopfEditInputSchema = {
     "remove_alternative_key",
     "set_alternative_key_fields",
     "set_node_flags",
+    "remove_dependent_object",
     "activate"
   ]).describe("The single edit to make."),
   node: external_exports.string().optional().describe("Node the edit targets."),
   nodeId: external_exports.string().optional().describe("Disambiguator for a non-unique node name."),
-  name: external_exports.string().optional().describe("Element name. Required except for create_bo/remove_node/set_node_flags/activate."),
+  name: external_exports.string().optional().describe(
+    "Element name. Required except for create_bo/remove_node/set_node_flags/activate."
+  ),
   spec: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe("Per-operation fields \u2014 see the abapsmith-edit-a-bopf-object skill."),
   activate: external_exports.boolean().optional().describe("Activate after the edit succeeds."),
   allow_dangling_ref: external_exports.boolean().optional().describe("Accepts the dangling-ref risk that otherwise refuses the write."),
@@ -106519,7 +107563,8 @@ var ok10 = (text3, journalEntryId) => ({
   ...journalEntryId ? { journalEntryId } : {}
 });
 var SHOW_NOTES = [
-  "This digest covers the business object's structural definition only (nodes, associations, actions, determinations, validations, queries, alternative keys). It does not include BOPF configuration/customizing \u2014 abapsmith has no read surface and no write surface of any kind for it."
+  "This digest covers the business object's structural definition only (nodes, associations, actions, determinations, validations, queries, alternative keys). It does not include BOPF configuration/customizing \u2014 abapsmith has no read surface and no write surface of any kind for it.",
+  `"(representative)" marks a parentless node the server minted itself (named REP_<random>) in response to a cross-BO association \u2014 the link is the association, never the node, and abapsmith cannot create one of these nodes directly; "(delegated via PARENT.ASSOC)" marks an embedded dependent object's node; a cross-BO association is suffixed "(-> OTHER_BO~NODE)".`
 ];
 function buildShowResponse(model, maxChars) {
   const header = {
@@ -106531,6 +107576,7 @@ function buildShowResponse(model, maxChars) {
     constantsInterface: model.constantsInterfaceRef?.name,
     nodeCount: model.nodes.length
   };
+  const kinds = classifyNodes(model);
   const sections = model.nodes.map((n) => {
     const lines = [
       `nodeId: ${n.nodeId ?? "(unknown)"}${n.parent ? `  parent: ${n.parent}` : ""}`,
@@ -106538,14 +107584,19 @@ function buildShowResponse(model, maxChars) {
       n.persistentStructureRef ? `persistentStructureRef: ${n.persistentStructureRef.name}` : void 0,
       n.combinedStructureRef ? `combinedStructureRef: ${n.combinedStructureRef.name}` : void 0,
       n.combinedTableRef ? `combinedTableRef: ${n.combinedTableRef.name}` : void 0,
-      n.associations.length ? `associations: ${n.associations.map((a) => a.name || "(unnamed)").join(", ")}` : void 0,
+      n.associations.length ? `associations: ${n.associations.map((a) => {
+        const label = a.name || "(unnamed)";
+        const kindText2 = describeAssociationKind(classifyAssociation(model, a));
+        return kindText2 ? `${label} (${kindText2})` : label;
+      }).join(", ")}` : void 0,
       n.actions.length ? `actions: ${n.actions.map((a) => a.name).join(", ")}` : void 0,
       n.determinations.length ? `determinations: ${n.determinations.map((d) => d.name).join(", ")}` : void 0,
       n.validations.length ? `validations: ${n.validations.map((v) => v.name).join(", ")}` : void 0,
       n.queries.length ? `queries: ${n.queries.map((q) => q.name).join(", ")}` : void 0,
       n.alternativeKeys.length ? `alternativeKeys: ${n.alternativeKeys.map((k) => k.name).join(", ")}` : void 0
     ].filter((l) => l !== void 0);
-    return { title: `NODE ${n.name}${n.rootNode ? " (root)" : ""}`, content: lines.join("\n") };
+    const kindText = describeNodeKind(kinds.get(n.name.toLowerCase()) ?? { kind: "standard" });
+    return { title: `NODE ${n.name}${kindText ? ` (${kindText})` : ""}`, content: lines.join("\n") };
   });
   return buildResponse({ header, sections, notes: SHOW_NOTES, maxChars }).text;
 }
@@ -106677,11 +107728,11 @@ var IMPL_INTERFACE_BY_OP = {
 function danglingRefElementLabel(operation) {
   return operation.replace(/^(add|set)_/, "").replace(/_fields$/, "");
 }
-function str2(v) {
+function str3(v) {
   return typeof v === "string" && v.trim() ? v : void 0;
 }
 function strEnum(v, allowed, field) {
-  const s = str2(v);
+  const s = str3(v);
   if (s === void 0) return void 0;
   if (!allowed.includes(s)) {
     throw new AbapError(
@@ -106699,10 +107750,10 @@ function bool(v) {
 function ref(v) {
   if (!v || typeof v !== "object") return void 0;
   const o = v;
-  const name = str2(o.name);
-  const type = str2(o.type);
+  const name = str3(o.name);
+  const type = str3(o.type);
   if (!name || !type) return void 0;
-  const uri = str2(o.uri);
+  const uri = str3(o.uri);
   return uri ? { uri, type, name } : { type, name };
 }
 function strArray(v) {
@@ -106713,14 +107764,14 @@ function strArray(v) {
 function classRefFromSpec(spec) {
   const explicit = ref(spec.implementationClassRef);
   if (explicit) return explicit;
-  const className = str2(spec.class) ?? str2(spec.implementationClass);
+  const className = str3(spec.class) ?? str3(spec.implementationClass);
   return className ? { type: "CLAS/OC", name: className.toUpperCase() } : void 0;
 }
 function specClassName(spec) {
   if (!spec) return void 0;
   const explicit = ref(spec.implementationClassRef);
   if (explicit) return explicit.name;
-  return str2(spec.class) ?? str2(spec.implementationClass);
+  return str3(spec.class) ?? str3(spec.implementationClass);
 }
 async function danglingRefPreflight(conn, operation, spec, allowDangling) {
   if (!DANGLING_REF_OPS.has(operation)) return void 0;
@@ -106768,9 +107819,9 @@ function actionRefPreflight(model, ownerNode, spec, allowDangling) {
   for (const t of spec.triggers) {
     if (!t || typeof t !== "object") continue;
     const o = t;
-    const actionName = str2(o.action);
+    const actionName = str3(o.action);
     if (actionName === void 0) continue;
-    const actionNodeName = str2(o.actionNode) ?? ownerNode;
+    const actionNodeName = str3(o.actionNode) ?? ownerNode;
     const node2 = model.nodes.find((n) => n.name === actionNodeName);
     const exists = node2?.actions.some((a) => a.name === actionName) === true;
     if (exists || allowDangling) continue;
@@ -106829,7 +107880,7 @@ function requireLocate(tokens, sel) {
 function validateAlternativeKeySpec(name, spec) {
   strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness");
   const missing = [];
-  if (str2(spec.uniqueness) === void 0) missing.push("uniqueness");
+  if (str3(spec.uniqueness) === void 0) missing.push("uniqueness");
   if (ref(spec.dataTypeRef) === void 0) missing.push("dataTypeRef");
   if (ref(spec.dataTableTypeRef) === void 0) missing.push("dataTableTypeRef");
   if (strArray(spec.keyElements) === void 0) missing.push("keyElements");
@@ -106862,7 +107913,8 @@ function validateEditInputShape(input) {
     "add_alternative_key",
     "remove_alternative_key",
     "set_alternative_key_fields",
-    "set_node_flags"
+    "set_node_flags",
+    "remove_dependent_object"
   ]);
   const needsName = /* @__PURE__ */ new Set([
     "add_node",
@@ -106883,6 +107935,7 @@ function validateEditInputShape(input) {
     "set_query_fields",
     "add_alternative_key",
     "remove_alternative_key",
+    "remove_dependent_object",
     "set_alternative_key_fields"
   ]);
   if (needsNode.has(input.operation)) requireNode(input);
@@ -106891,10 +107944,14 @@ function validateEditInputShape(input) {
   if (input.operation === "add_alternative_key") {
     validateAlternativeKeySpec(requireName(input), input.spec ?? {});
   }
+  if (isDelegationOperation(input.operation)) validateDelegationShape(input);
+  if (input.operation === "add_node" || input.operation === "add_association") {
+    refuseHandAssembledDelegation(input.operation, input.spec ?? {}, input.name);
+  }
 }
 function resolveParentLink(spec, tokens) {
-  const parentSpec = str2(spec.parent);
-  const parentNodeIdSpec = str2(spec.parentNodeId);
+  const parentSpec = str3(spec.parent);
+  const parentNodeIdSpec = str3(spec.parentNodeId);
   if (parentSpec === void 0 && parentNodeIdSpec === void 0) return void 0;
   const candidates = tokens.filter((t) => t.name === "bo:nodes" && t.depth === 1);
   const existingNames = () => candidates.map((t) => t.attrs.get("bo:name") || "(unnamed)").join(", ") || "none";
@@ -106944,8 +108001,8 @@ function buildNodeFields(name, nodeId, spec, parentLink) {
     nodeId,
     parent: parentLink?.parent,
     parentNodeId: parentLink?.parentNodeId,
-    xmlName: str2(spec.xmlName),
-    doEmbeddingName: str2(spec.doEmbeddingName),
+    xmlName: str3(spec.xmlName),
+    doEmbeddingName: str3(spec.doEmbeddingName),
     // Explicit spec.rootNode (false included) always wins; otherwise a
     // resolved parent link means this can't be the root — every captured
     // non-root node carries bo:rootNode="false" explicitly.
@@ -106973,11 +108030,11 @@ function buildAssociationFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
-    multiplicity: str2(spec.multiplicity),
-    implementationType: str2(spec.implementationType),
+    xmlName: str3(spec.xmlName),
+    multiplicity: str3(spec.multiplicity),
+    implementationType: str3(spec.implementationType),
     objectModelGenerated: bool(spec.objectModelGenerated),
-    doEmbeddingName: str2(spec.doEmbeddingName),
+    doEmbeddingName: str3(spec.doEmbeddingName),
     targetNodeRef: ref(spec.targetNodeRef),
     implementationClassRef: classRefFromSpec(spec),
     parameterStructureRef: ref(spec.parameterStructureRef)
@@ -106987,10 +108044,10 @@ function buildActionFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
-    category: str2(spec.category),
-    instanceMultiplicity: str2(spec.instanceMultiplicity),
-    exportingParameterCategoryType: str2(spec.exportingParameterCategoryType),
+    xmlName: str3(spec.xmlName),
+    category: str3(spec.category),
+    instanceMultiplicity: str3(spec.instanceMultiplicity),
+    exportingParameterCategoryType: str3(spec.exportingParameterCategoryType),
     exportParameterLink: bool(spec.exportParameterLink),
     isExtensible: bool(spec.isExtensible),
     objectModelGenerated: bool(spec.objectModelGenerated),
@@ -107025,10 +108082,10 @@ function buildTriggerFragments(boName, ownerNode, spec, kind) {
       );
     }
     const o = t;
-    const nodeName = str2(o.node);
+    const nodeName = str3(o.node);
     const assocGiven = typeof o.association === "string";
     const assocRaw = assocGiven ? o.association : void 0;
-    const actionName = str2(o.action);
+    const actionName = str3(o.action);
     if (actionName !== void 0 && kind === "determination") {
       throw new AbapError(
         "BAD_INPUT",
@@ -107063,7 +108120,7 @@ function buildTriggerFragments(boName, ownerNode, spec, kind) {
       nodeRef = boNodeRef(boName, effectiveNode);
       assocRef = boAssociationRef(boName, effectiveNode, effectiveAssoc);
     }
-    const actionRef = actionName !== void 0 ? boActionRef(boName, str2(o.actionNode) ?? ownerNode, actionName) : void 0;
+    const actionRef = actionName !== void 0 ? boActionRef(boName, str3(o.actionNode) ?? ownerNode, actionName) : void 0;
     const base = {
       node: nodeRef,
       association: assocRef,
@@ -107096,8 +108153,8 @@ function buildRelationFragments(boName, spec) {
       );
     }
     const o = r;
-    const nodeName = str2(o.node);
-    const detName = str2(o.determination);
+    const nodeName = str3(o.node);
+    const detName = str3(o.determination);
     if (nodeName === void 0) {
       throw new AbapError(
         "BAD_INPUT",
@@ -107109,7 +108166,7 @@ function buildRelationFragments(boName, spec) {
       renderRelation({
         node: boNodeRef(boName, nodeName),
         determination: detName !== void 0 ? boDeterminationRef(boName, nodeName, detName) : void 0,
-        relationType: str2(o.relationType)
+        relationType: str3(o.relationType)
       })
     );
   }
@@ -107140,7 +108197,7 @@ function buildDeterminationFields(boName, ownerNode, name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
+    xmlName: str3(spec.xmlName),
     category: strEnum(spec.category, DETERMINATION_CATEGORIES, "category"),
     objectModelGenerated: bool(spec.objectModelGenerated),
     implementationClassRef: classRefFromSpec(spec),
@@ -107155,7 +108212,7 @@ function buildValidationFields(boName, ownerNode, name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
+    xmlName: str3(spec.xmlName),
     category: strEnum(spec.category, VALIDATION_CATEGORIES, "category"),
     checkBeforeSave: bool(spec.checkBeforeSave),
     createNode: bool(spec.createNode),
@@ -107170,7 +108227,7 @@ function buildQueryFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
+    xmlName: str3(spec.xmlName),
     category: strEnum(spec.category, QUERY_CATEGORIES, "category"),
     objectModelGenerated: bool(spec.objectModelGenerated),
     dataTypeRef: ref(spec.dataTypeRef),
@@ -107181,7 +108238,7 @@ function buildAlternativeKeyFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str2(spec.xmlName),
+    xmlName: str3(spec.xmlName),
     uniqueness: strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness"),
     checkAfterModify: bool(spec.checkAfterModify),
     checkBeforeSave: bool(spec.checkBeforeSave),
@@ -107439,7 +108496,7 @@ function mutateModel(freshXml, input) {
       if (!link && spec.rootNode !== true) {
         throw new AbapError(
           "BAD_INPUT",
-          `add_node "${name}" needs a parent \u2014 spec.parent (the parent node's name) or spec.parentNodeId is required unless spec.rootNode: true (a BO has exactly one root). BOPF answers 200 and silently discards a node it can't place, rather than rejecting it.`,
+          `add_node "${name}" needs a parent \u2014 neither spec.parent nor spec.parentNodeId names one, and spec.rootNode is not true. BOPF answers 200 and silently discards a node it can't place, rather than rejecting it.`,
           { name }
         );
       }
@@ -107516,6 +108573,8 @@ function mutateModel(freshXml, input) {
       return patchChildFields(freshXml, tokens, input, input.operation);
     case "set_node_flags":
       return patchNodeFlags(freshXml, tokens, requireNode(input), spec);
+    case "remove_dependent_object":
+      return mutateDelegation(freshXml, input);
     case "create_bo":
     case "activate":
       throw new AbapError(
@@ -107528,7 +108587,7 @@ function mutateModel(freshXml, input) {
 function determinationCategoryOmittedNote(input) {
   if (input.operation !== "add_determination") return void 0;
   const spec = input.spec ?? {};
-  if (str2(spec.category) !== void 0) return void 0;
+  if (str3(spec.category) !== void 0) return void 0;
   return 'spec.category was omitted \u2014 BOPF defaults an unset determination category to the literal "undefined" server-side, and (per live A4H recon) a determination in that state does not fire its triggers. Pass a real category (e.g. "reactDuringSave", "reactAfterModification") if this determination is meant to run.';
 }
 function createBoActivatabilityNotes(model) {
@@ -107634,7 +108693,7 @@ function countMembers(model, kind, node2, member) {
   const memberName = member.toLowerCase();
   return model.nodes.filter((n) => n.name.toLowerCase() === nodeName).flatMap((n) => MEMBERS_BY_KIND[kind](n)).filter((m) => m.name.toLowerCase() === memberName).length;
 }
-function resolveTargetNodeName(ref2) {
+function resolveTargetNodeName2(ref2) {
   if (!ref2) return void 0;
   if (ref2.uri) {
     const m = /bo:nodes\[@bo:name='([^']*)'\]\s*$/.exec(ref2.uri);
@@ -107647,7 +108706,7 @@ function findEquivalentAssociation(node2, implementationType, targetNode) {
   const wantType = implementationType.toLowerCase();
   const wantTarget = targetNode.toLowerCase();
   return node2.associations.find(
-    (a) => (a.implementationType ?? "").toLowerCase() === wantType && (resolveTargetNodeName(a.targetNodeRef) ?? "").toLowerCase() === wantTarget
+    (a) => (a.implementationType ?? "").toLowerCase() === wantType && (resolveTargetNodeName2(a.targetNodeRef) ?? "").toLowerCase() === wantTarget
   );
 }
 var MEMBER_CHECK_BY_OP = {
@@ -107758,7 +108817,7 @@ function attributeSessionDeath(e, input) {
   const hint = e.details.kind === "dump" ? "The session died while the server was processing this edit, so every lock it held is already released and nothing was activated. Do NOT retry the identical call \u2014 an ASSERTION_FAILED in BOPF's model mapper (/BOBF/CL_CONF_MODEL_API_MAP) is deterministic in the payload, and the same request will kill the session again. Re-read the BO first, since the PUT may or may not have landed, and check the spec fields the mapper has to map (uniqueness/dataTypeRef/dataTableTypeRef/keyElements on an alternative key, category on a determination/validation/query). This is NOT an authentication failure." : e.hint;
   return new AbapError(e.code, message, details, hint);
 }
-var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 the same short-dump-prone mapper handles both; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four.";
+var BOPF_EDIT_TOOL_DESCRIPTION = 'One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics \u2014 see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and dangling-ref handling. add_alternative_key and set_alternative_key_fields both need i_know_this_may_not_activate: true \u2014 the same short-dump-prone mapper handles both; add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four. remove_dependent_object removes an existing dependent-object embedding (its DoComposition association plus the matching "<name>.ROOT" node); abapsmith cannot create one \u2014 see doc/CAPABILITIES/bopf.md.';
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
@@ -107932,6 +108991,9 @@ async function runBopfEdit(deps, args) {
           input.allow_dangling_ref === true
         );
       }
+      if (isDelegationOperation(input.operation)) {
+        delegationModelPreflight(initial.model, input);
+      }
       let afterMutate;
       let entryId;
       let mutationCorr = { kind: "unresolved" };
@@ -108015,8 +109077,8 @@ async function runBopfEdit(deps, args) {
             let equivalentTarget;
             if (input.operation === "add_association") {
               const spec = input.spec ?? {};
-              const implementationType = str2(spec.implementationType);
-              const requestedTarget = resolveTargetNodeName(ref(spec.targetNodeRef));
+              const implementationType = str3(spec.implementationType);
+              const requestedTarget = resolveTargetNodeName2(ref(spec.targetNodeRef));
               if (implementationType && requestedTarget) {
                 const targetNode = afterMutate.model.nodes.find((n) => n.name.toLowerCase() === nodeName.toLowerCase());
                 equivalent = targetNode && findEquivalentAssociation(targetNode, implementationType, requestedTarget);
@@ -108083,6 +109145,9 @@ async function runBopfEdit(deps, args) {
             );
           }
         }
+        if (isDelegationOperation(input.operation)) {
+          verifyDelegation(input, initial.model, afterMutate.model, entryId);
+        }
         if (input.operation === "set_association_fields" || input.operation === "set_action_fields" || input.operation === "set_determination_fields" || input.operation === "set_validation_fields" || input.operation === "set_query_fields" || input.operation === "set_alternative_key_fields") {
           const op = input.operation;
           const sel = requireNode(input);
@@ -108140,7 +109205,9 @@ async function runBopfEdit(deps, args) {
       false,
       result.entryId,
       deps.cfg.maxResponseChars,
-      [categoryNote, addNodeNote].filter((n) => n !== void 0)
+      [categoryNote, addNodeNote, ...delegationNotes(input)].filter(
+        (n) => n !== void 0
+      )
     ),
     result.entryId
   );
@@ -117933,6 +119000,14 @@ var ABAP_DO_ACTIONS = [
     args: "node, nodeId, spec, activate"
   },
   {
+    action: "bopf_remove_dependent_object",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"remove_dependent_object"})',
+    summary: 'Remove an existing dependent-object embedding (its association and "<name>.ROOT" node).',
+    args: "node (parent), name, activate"
+  },
+  {
     action: "bopf_activate",
     group: "bopf",
     minMode: "edit",
@@ -118390,6 +119465,7 @@ var BOPF_HANDLERS = /* @__PURE__ */ new Map([
   ["bopf_remove_alternative_key", editOp("remove_alternative_key")],
   ["bopf_set_alternative_key_fields", editOp("set_alternative_key_fields")],
   ["bopf_set_node_flags", editOp("set_node_flags")],
+  ["bopf_remove_dependent_object", editOp("remove_dependent_object")],
   ["bopf_activate", editOp("activate")],
   ["bopf_test", test2],
   ["bopf_delete", del2]
@@ -119431,7 +120507,7 @@ var MAX_PROPERTY_VALUE_CHARS = 300;
 var MAX_RESIDUAL_PROPERTIES = 24;
 var MAX_MESSAGE_CHARS = 500;
 var SUBTYPE_KEY2 = "com.sap.adt.communicationFramework.subType";
-function str3(v) {
+function str4(v) {
   if (typeof v === "string") return v.trim() || void 0;
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return void 0;
@@ -119533,9 +120609,9 @@ function adtEnvelopeFromThrown(e) {
   const env = envelopeFromProperties(info.properties);
   if (info.status !== void 0) env.status = info.status;
   env.exceptionType ??= info.type;
-  env.namespace ??= str3(any2.namespace);
-  env.code ??= str3(any2.code);
-  const localized = str3(any2.localizedMessage);
+  env.namespace ??= str4(any2.namespace);
+  env.code ??= str4(any2.code);
+  const localized = str4(any2.localizedMessage);
   if (localized && localized !== info.message) env.localizedMessage = localized;
   return env;
 }
@@ -119552,8 +120628,8 @@ function adtEnvelopeFromDetails(details) {
         } else rest[k] = v;
         break;
       case "adtExceptionType":
-        if (str3(v)) {
-          env.exceptionType = str3(v);
+        if (str4(v)) {
+          env.exceptionType = str4(v);
           sawAny = true;
         } else rest[k] = v;
         break;
@@ -119570,14 +120646,14 @@ function adtEnvelopeFromDetails(details) {
         } else rest[k] = v;
         break;
       case "blockingUser":
-        if (str3(v)) {
-          env.lock = { ...env.lock, blockingUser: str3(v) };
+        if (str4(v)) {
+          env.lock = { ...env.lock, blockingUser: str4(v) };
           sawAny = true;
         } else rest[k] = v;
         break;
       case "transport":
-        if (str3(v)) {
-          env.transport = str3(v);
+        if (str4(v)) {
+          env.transport = str4(v);
           sawAny = true;
         } else rest[k] = v;
         break;

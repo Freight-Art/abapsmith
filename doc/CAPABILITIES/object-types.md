@@ -93,7 +93,7 @@ inputs to this derivation rather than registry fields:
 | `PROG/PC` | GUI status (CUA status) | no | no | no | no | no | tests |
 | `PROG/PT` | GUI title (titlebar) | no | no | no | no | no | tests |
 | `SUSO/B` | Authorization object | no | no | no | no | no | tests |
-| `TABL/DI` | Table secondary index | no | no | no | no | no | tests |
+| `TABL/DI` | Table secondary index | partial | no | no | partial | no | unverified |
 
 The `Object` column values are the registry `label` fields, unreworded.
 
@@ -153,10 +153,14 @@ The `Object` column values are the registry `label` fields, unreworded.
   creating one you cannot ask abapsmith what it looks like. There is no
   source write either, so an existing one cannot be changed — only deleted
   and recreated. Their `bridgeCreate.limits` text states this, and a test
-  requires it to. `VIEW/DV` and `TRAN/T` share the same package rule: a
-  transportable package requires `corr_nr` for the create, and a `$` package
-  (`$TMP` included) refuses one and registers with `korrnum = space` instead.
-  For `VIEW/DV`, the created view lands in TADIR either way, so the delete
+  requires it to. For `TRAN/T`, a transportable package requires `corr_nr`
+  for the create, and a `$` package (`$TMP` included) refuses one and
+  registers with `korrnum = space` instead. For `VIEW/DV`, a transportable
+  package resolves a transport request the same way a `DEVC/K` create
+  does — the caller's `corr_nr` if given, or else one picked or created
+  under `ABAP_ALLOW_TRANSPORTS`; a `$` package (`$TMP` included) still
+  refuses a `corr_nr` and registers with `korrnum = space` instead.
+  The created view lands in TADIR either way, so the delete
   bridge can remove it afterwards — proven live on A4H, 2026-09-04
   (transportable package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a
   `$`-prefixed package: view registered with `korrnum = space`, then deleted,
@@ -171,6 +175,36 @@ The `Object` column values are the registry `label` fields, unreworded.
   (typically from its create) survives the delete, and the safety gate judges
   the delete itself as a local mutation rather than against
   `ABAP_ALLOW_TRANSPORTS`.
+  `TABL/DI` (a table's secondary index) is a third bridge-only type with no
+  read route — ADT REST has no index collection at all — so creation goes
+  through `DD_INDEX_INTERFACE` too. A non-unique, one-field create in `$TMP`
+  was proven live on A4H 2026-09-05, confirmed by a post-COMMIT re-read of
+  `DD12V` (`AS4LOCAL = 'A'`) and `DD17S`. A unique index on a client-dependent
+  table needing that table's client field, once only suspected, is now
+  CONFIRMED live (A4H, 2026-09-05, re-demonstrated in a third round the same
+  day): including the field succeeds, omitting it is refused `BAD_INPUT` by a
+  generated `DD03L` guard before the FM runs. The delete's `DD12V` pre-check
+  correctly returned `NOT_FOUND` for a nonexistent index, and the earlier
+  omission of `DD_INDEX_INTERFACE`'s mandatory `INDEX_FIELDS` table parameter
+  is fixed and confirmed deployed. A second delete defect — `ACTFAILED='X'`
+  reported even though the delete had already taken effect — got a fix that
+  was itself broken: the fix's own added note line rendered as a
+  272-character ABAP source line (292 at the longest legal names), over the
+  255-character class-source limit, so every delete failed the class-source
+  PUT (`ADT_ERROR` / `TooLongLine`) before `DD_INDEX_INTERFACE` was ever
+  called, and the deployed bridge class silently stayed on its pre-fix body.
+  The `ACTFAILED`-tolerant re-read by `DD12V`/`DD17S` has therefore never run
+  live, not once. It is fixed again — the long messages are now built up in
+  a variable across short lines, and every generated bridge class body is
+  checked for a line over 255 characters before it is written, so this
+  defect class cannot recur in any bridge — but that fix is proven by
+  measurement and unit test, not by a live delete. Deleting the base table
+  was not blocked live by a surviving index (round 1); a later cleanup
+  deleted a base table while its indexes' `DD12V` rows may still have
+  existed, and whether the delete cascaded them away or left them orphaned
+  is unverified — `abap_data_preview` has no `WHERE` filter, so a targeted
+  `DD12V` check was not practical. The transportable-package path is
+  unexercised.
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and
@@ -183,13 +217,11 @@ The `Object` column values are the registry `label` fields, unreworded.
   equality. Hook anchors on a class are discoverable, but creating a hook
   implementation on one is refused; a function group would be refused the
   same way.
-- `SHLP/DH`, `PROG/PS`, `PROG/PC`, `PROG/PT`, `SUSO/B`, `TABL/DI` — carry an
-  `unsupported` entry: no read, no write, no URI. All but `TABL/DI` state a
-  reason established by live reconnaissance — 404s on every collection, 405s
-  on every write verb, content-free VIT stubs — so the `tests` in their
+- `SHLP/DH`, `PROG/PS`, `PROG/PC`, `PROG/PT`, `SUSO/B` — carry an
+  `unsupported` entry: no read, no write, no URI. Each states a reason
+  established by live reconnaissance — 404s on every collection, 405s on
+  every write verb, content-free VIT stubs — so the `tests` in their
   Evidence column grades the refusal the tests pin, not the recon behind it.
-  For `TABL/DI` the registry's stated reason is abapsmith's own reach,
-  explicitly not a proven ADT limitation, and no ADT probe has been run.
 - `PROG/I` — `create.verified` and `delete` are both `true`, live-verified
   full cycle on A4H 2026-09-04: create, check, activate, re-write, read-back,
   delete. Create goes through the vendor `CreatableTypes` route, not a

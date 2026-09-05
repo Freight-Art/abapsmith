@@ -348,6 +348,14 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     args: "node, nodeId, spec, activate",
   },
   {
+    action: "bopf_remove_dependent_object",
+    group: "bopf",
+    minMode: "edit",
+    v1: 'abap_bopf_edit({operation:"remove_dependent_object"})',
+    summary: 'Remove an existing dependent-object embedding (its association and "<name>.ROOT" node).',
+    args: "node (parent), name, activate",
+  },
+  {
     action: "bopf_activate",
     group: "bopf",
     minMode: "edit",

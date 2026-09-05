@@ -277,6 +277,7 @@ const OPERATION_FIELDS: Readonly<Record<string, FieldTable>> = {
   add_alternative_key: ADD_ALTERNATIVE_KEY_FIELDS,
   remove_alternative_key: NO_SPEC_FIELDS,
   set_node_flags: SET_NODE_FLAGS_FIELDS,
+  remove_dependent_object: NO_SPEC_FIELDS,
   ...SET_CHILD_FIELD_TABLES,
   activate: NO_SPEC_FIELDS,
 };
