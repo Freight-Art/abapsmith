@@ -245,6 +245,8 @@ describe("add_node: parent resolution puts the matched bo:parent/bo:parentNodeID
   });
 
   it("refuses BAD_INPUT when neither spec.parent nor spec.parentNodeId is given and spec.rootNode is not true, before any PUT", async () => {
+    // Caught by refuseHandAssembledDelegation (src/tools/bopf-delegation.ts), wired into
+    // validateEditInputShape — a zero-network check that now runs ahead of mutateModel's own (still-present) parentless refusal.
     const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
     const { conn, server } = await wired({ routes: [store.route] });
     const { tools } = await registered(conn);
@@ -259,6 +261,7 @@ describe("add_node: parent resolution puts the matched bo:parent/bo:parentNodeID
 
     const payload = errorPayload(result);
     expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message)).toContain("add_representative_node");
     expect(String(payload.message)).toContain("ITEM");
 
     const calls = server.calls.slice(before);

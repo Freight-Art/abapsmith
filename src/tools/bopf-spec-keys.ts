@@ -170,6 +170,20 @@ const SET_NODE_FLAGS_FIELDS: FieldTable = {
   authorizationClassRef: "refOrNull",
 };
 
+/** `mutateAddRepresentativeNode` + `validateDelegationShape`/`delegationNetworkPreflight` (bopf-delegation.ts). */
+const ADD_REPRESENTATIVE_NODE_FIELDS: FieldTable = {
+  representedBo: "string",
+  xmlName: "string",
+};
+
+/** `mutateEmbedDependentObject` + `validateDelegationShape`/`delegationNetworkPreflight` (bopf-delegation.ts). */
+const EMBED_DEPENDENT_OBJECT_FIELDS: FieldTable = {
+  dependentObject: "string",
+  xmlName: "string",
+  multiplicity: "string",
+  implementationClassRef: "ref",
+};
+
 const OPERATION_FIELDS: Readonly<Record<string, FieldTable>> = {
   create_bo: NO_SPEC_FIELDS,
   add_node: ADD_NODE_FIELDS,
@@ -187,6 +201,10 @@ const OPERATION_FIELDS: Readonly<Record<string, FieldTable>> = {
   add_alternative_key: ADD_ALTERNATIVE_KEY_FIELDS,
   remove_alternative_key: NO_SPEC_FIELDS,
   set_node_flags: SET_NODE_FLAGS_FIELDS,
+  add_representative_node: ADD_REPRESENTATIVE_NODE_FIELDS,
+  remove_representative_node: NO_SPEC_FIELDS,
+  embed_dependent_object: EMBED_DEPENDENT_OBJECT_FIELDS,
+  remove_dependent_object: NO_SPEC_FIELDS,
   activate: NO_SPEC_FIELDS,
 };
 

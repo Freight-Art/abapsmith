@@ -169,17 +169,20 @@ export function validateDelegationShape(input: DelegationInput): void {
 }
 
 /** Refuses a delegation hand-assembled through add_node/add_association and names the proper operation. Throws BAD_INPUT. */
-export function refuseHandAssembledDelegation(operation: string, spec: Record<string, unknown>): void {
+export function refuseHandAssembledDelegation(operation: string, spec: Record<string, unknown>, name?: string): void {
+  // `name` is the element's own name (input.name), so a caller adding several nodes in one
+  // session still learns which one was refused.
+  const named = name ? ` "${name}"` : "";
   if (operation === "add_association") {
     const implementationType = str(spec.implementationType);
     const doEmbeddingName = str(spec.doEmbeddingName);
     if ((implementationType && implementationType.toLowerCase() === "docomposition") || doEmbeddingName !== undefined) {
       throw new AbapError(
         "BAD_INPUT",
-        `add_association with implementationType "DoComposition" (or a doEmbeddingName) builds half of an embedding ` +
+        `add_association${named} with implementationType "DoComposition" (or a doEmbeddingName) builds half of an embedding ` +
           `— the pair is the association plus a matching "<name>.ROOT" node, and BOPF silently discards a bare ` +
           `association written alone. Use embed_dependent_object instead.`,
-        { operation, implementationType, doEmbeddingName },
+        { operation, name, implementationType, doEmbeddingName },
       );
     }
     return;
@@ -190,19 +193,19 @@ export function refuseHandAssembledDelegation(operation: string, spec: Record<st
     if (doEmbeddingName !== undefined || isDependentObjectNode) {
       throw new AbapError(
         "BAD_INPUT",
-        `add_node with doEmbeddingName set (or isDependentObjectNode: true) builds half of an embedding by hand — ` +
+        `add_node${named} with doEmbeddingName set (or isDependentObjectNode: true) builds half of an embedding by hand — ` +
           `use embed_dependent_object instead, which writes both the association and the node together.`,
-        { operation, doEmbeddingName, isDependentObjectNode },
+        { operation, name, doEmbeddingName, isDependentObjectNode },
       );
     }
     const hasParent = str(spec.parent) !== undefined || str(spec.parentNodeId) !== undefined;
     if (!hasParent && spec.rootNode !== true) {
       throw new AbapError(
         "BAD_INPUT",
-        `add_node with no spec.parent/spec.parentNodeId and rootNode not true is a deliberately parentless node — ` +
-          `that is add_representative_node, not add_node. BOPF answers 200 and silently discards a node it cannot ` +
+        `add_node${named} with no spec.parent/spec.parentNodeId and rootNode not true is a deliberately parentless node ` +
+          `— that is add_representative_node, not add_node. BOPF answers 200 and silently discards a node it cannot ` +
           `place, rather than rejecting it.`,
-        { operation },
+        { operation, name },
       );
     }
     return;
@@ -719,7 +722,9 @@ export function delegationNotes(input: DelegationInput): readonly string[] {
         `The wire carries no link from a representative node to the BO it represents — "${representedBo}" was ` +
           `checked for existence and deliberately NOT written to the node. Add the cross-BO association yourself: ` +
           `abap_bopf_edit add_association on the node that should carry the link, with spec.implementationType: ` +
-          `"Association" and spec.targetNodeRef: { name: "${representedBo}~ROOT", type: "BOBF" }.`,
+          `"Association" and spec.targetNodeRef: { name: "${representedBo}~ROOT", type: "BOBF" }. Observed captures ` +
+          `of real cross-BO associations also carry a spec.implementationClassRef (e.g. ` +
+          `/BOBF/CL_C_DEMO_CUSTOMER_XBO for /BOBF/DEMO_CUSTOMER~ROOT) — BOPF may require one too.`,
       ];
     }
     case "embed_dependent_object": {

@@ -43,6 +43,17 @@ function expectAbapError(fn: () => unknown, code: string, substr: string): void 
   throw new Error(`expected to throw AbapError ${code}`);
 }
 
+function expectNoLiteralUndefined(fn: () => unknown): void {
+  try {
+    fn();
+  } catch (e) {
+    if (!(e instanceof AbapError)) throw e;
+    expect(e.message).not.toContain("undefined");
+    return;
+  }
+  throw new Error("expected to throw AbapError");
+}
+
 async function expectAbapErrorAsync(fn: () => Promise<unknown>, code: string, substr: string): Promise<void> {
   try {
     await fn();
@@ -232,6 +243,20 @@ describe("refuseHandAssembledDelegation", () => {
     );
   });
 
+  it("names the association when a name is given, and stays coherent without one", () => {
+    expectAbapError(
+      () => refuseHandAssembledDelegation("add_association", { implementationType: "DoComposition" }, "TO_ITEM"),
+      "BAD_INPUT",
+      "TO_ITEM",
+    );
+    expectAbapError(
+      () => refuseHandAssembledDelegation("add_association", { implementationType: "DoComposition" }),
+      "BAD_INPUT",
+      "add_association with implementationType",
+    );
+    expectNoLiteralUndefined(() => refuseHandAssembledDelegation("add_association", { implementationType: "DoComposition" }));
+  });
+
   it("refuses add_association with a doEmbeddingName even if implementationType is absent", () => {
     expectAbapError(
       () => refuseHandAssembledDelegation("add_association", { doEmbeddingName: "FOO" }),
@@ -252,6 +277,20 @@ describe("refuseHandAssembledDelegation", () => {
     );
   });
 
+  it("names the embedded node when a name is given, and stays coherent without one", () => {
+    expectAbapError(
+      () => refuseHandAssembledDelegation("add_node", { doEmbeddingName: "FOO" }, "ITEM_NOTES"),
+      "BAD_INPUT",
+      "ITEM_NOTES",
+    );
+    expectAbapError(
+      () => refuseHandAssembledDelegation("add_node", { doEmbeddingName: "FOO" }),
+      "BAD_INPUT",
+      "add_node with doEmbeddingName set",
+    );
+    expectNoLiteralUndefined(() => refuseHandAssembledDelegation("add_node", { doEmbeddingName: "FOO" }));
+  });
+
   it("refuses add_node with isDependentObjectNode true", () => {
     expectAbapError(
       () => refuseHandAssembledDelegation("add_node", { isDependentObjectNode: true }),
@@ -266,6 +305,16 @@ describe("refuseHandAssembledDelegation", () => {
       "BAD_INPUT",
       "add_representative_node",
     );
+  });
+
+  it("names the parentless node when a name is given, and stays coherent without one", () => {
+    expectAbapError(() => refuseHandAssembledDelegation("add_node", {}, "ITEM"), "BAD_INPUT", "ITEM");
+    expectAbapError(
+      () => refuseHandAssembledDelegation("add_node", {}),
+      "BAD_INPUT",
+      "add_node with no spec.parent",
+    );
+    expectNoLiteralUndefined(() => refuseHandAssembledDelegation("add_node", {}));
   });
 
   it("allows add_node with a parent", () => {
