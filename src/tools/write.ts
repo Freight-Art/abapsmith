@@ -1203,6 +1203,10 @@ export async function abapWrite(
   /** Configured verification posture (`ABAP_VERIFY_WRITES`). A per-call
    * `verify:true` raises this to "verified"; nothing can lower it. */
   verifyWrites: VerifyWritesMode = "speculative",
+  /** Journal attribution: who actually made the write. abap_quick_fix routes
+   * through this same core, so its journal entries should say so, not
+   * "abap_write". */
+  toolLabel: string = "abap_write",
 ): Promise<BuiltResponse> {
   // ---- batch delete dispatch ---------------------------------------------
   //
@@ -1624,7 +1628,7 @@ export async function abapWrite(
           ...(img.corrNr !== undefined ? { corrNr: img.corrNr } : {}),
           afterSource: source,
           systemKey: systemKey(conn.cfg),
-          tool: "abap_write",
+          tool: toolLabel,
         }),
       },
       (onBeforeImage) =>

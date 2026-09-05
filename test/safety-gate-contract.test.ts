@@ -197,6 +197,15 @@ describe("safety-gate contract (heuristic, see file header)", () => {
     // `conn.discovery.assertSupported(...)` and its registrar calls
     // `safety.assert("execute", ...)`, which is what the heuristic below
     // matches.
+    // `adt/quickfix.ts` added 2026-09 — its two `conn.post(...)`s are the
+    // quick-fix evaluation and proposal hops (`evaluateQuickFixes`,
+    // `fetchQuickFixDelta`), each computing a fix from source posted in the
+    // request body; neither changes a repository object. The module takes no
+    // `SafetyGate` itself. Its only importer, `src/tools/quickfix.ts`, calls
+    // `gate.authorize("write", ...)` before either hop — deliberately gating
+    // BOTH `mode="list"` and `mode="apply"` as a write, because even listing
+    // POSTs the whole object source — which is what the one-hop importer
+    // clause in the second test matches.
     expect(rel).toEqual(
       [
         "adt/activate.ts",
@@ -205,6 +214,7 @@ describe("safety-gate contract (heuristic, see file header)", () => {
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
+        "adt/quickfix.ts",
         "adt/transports.ts",
         "adt/write.ts",
         "debug/transport.ts",

@@ -18,6 +18,7 @@ An MCP server that lets an LLM develop in SAP ABAP on a live system over ADT (`/
 | Debugger | Arm breakpoints, trigger a run, step, read the call stack, inspect any variable in scope down to one field or table row. |
 | ABAP Unit | Run existing tests. Four distinct outcomes — "nothing ran" is never reported as a pass. |
 | ATC | Run ABAP Test Cockpit static analysis, return the findings. No IDE needed. |
+| Quick fixes | List and apply ADT position-driven quick fixes as a gated, journalled write. Deterministic proposals only. |
 | Transports | List, show, check, users, create, add user, set owner, delete. Release is separately gated and dry-run unless confirmed. |
 | Run | Classes via `IF_OO_ADT_CLASSRUN`, and classic reports through a generated bridge, with list output and selection-screen parameters captured. |
 | Activate | Check-only or activate, single object or batched. |

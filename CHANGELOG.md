@@ -271,9 +271,19 @@ was last set to `0.3.0`.
   preserved byte-for-byte. `null` clears an attribute or a ref, as
   `set_node_flags` already did. Each re-reads after the write and fails
   `CHECK_FAILED` if a named field did not stick.
+- `abap_quick_fix` — lists and applies ADT position-driven quick fixes
+  (`mode: "list"` / `mode: "apply"`), routed through the same journalled
+  write pipeline as `abap_write` and undoable. `mode: "list"` is itself
+  gated as a write because it posts the whole object source; v1 accepts
+  deterministic proposals only, refusing a parameterized one `BAD_INPUT`.
 
 ### Changed
 
+<<<<<<< HEAD
+- Two source comments caught up with the code: `abap_ui`'s deps type now takes `allowUiPress` straight from `Config` instead of describing the `ABAP_ALLOW_UI_PRESS` flag as not yet implemented, and the `BDEF/BDO` skeleton-create note no longer refers to the development process that captured it.
+=======
+- The committed plugin bundle labels its modules with paths inside the repository (`node_modules/...`) instead of the build machine's real dependency directory; a test now fails if a label escapes the repository again. The ignore list no longer carries the project's former working-directory name.
+>>>>>>> main
 - `VIEW/DV` create into a transportable package resolves a transport
   request the same way a `DEVC/K` create does — `preflightPackageCorr`
   honours the caller's `corr_nr` when given, or else picks or creates one
@@ -452,6 +462,7 @@ was last set to `0.3.0`.
   remedy: `abap_bopf_delete` then recreate), and no activation request is
   sent even with `activate: true`. A differently-named, non-empty root is
   still only a discrepancy note. See `test/bopf-create-recovery.test.ts`.
+- Documentation, code comments and registry notes no longer name the appliance's transportable test package; they say "a transportable package" instead.
 
 ### Fixed
 
@@ -789,6 +800,10 @@ was last set to `0.3.0`.
   blocks them (an explicit deny-all still does), and the delete response
   now flags any transport-request entry the object's create left behind
   for `abap_transport removeObject` to clean up.
+- `abap_bopf_edit operation:"add_alternative_key"`/`"set_alternative_key_fields"`
+  now refuse the `checkAfterModify`/`checkBeforeSave`/`noCheck` combinations
+  that made BOPF's model mapper assert and take down the ADT session; `unique`/
+  `uniqueIfNotInitial` now require exactly one of `noCheck`/`checkAfterModify`.
 
 ### Security
 
