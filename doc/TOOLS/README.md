@@ -17,6 +17,7 @@ requiredness and defaults are taken from the schema, not from prose.
 | [write-and-activate.md](write-and-activate.md) | `abap_write`, `abap_activate` — creating, changing, deleting and activating ABAP objects. |
 | [execute-and-test.md](execute-and-test.md) | `abap_run`, `abap_test` — headless execution and ABAP Unit. |
 | [abap-atc.md](abap-atc.md) | `abap_atc` — ABAP Test Cockpit static analysis, including the wire-protocol grounding notes. |
+| [abap-quick-fix.md](abap-quick-fix.md) | `abap_quick_fix` — applying ADT position-driven quick fixes as a gated, journalled write, including the wire-protocol grounding notes. |
 | [transports.md](transports.md) | `abap_transport`, `abap_transport_release` — inspecting, creating and releasing CTS transport requests. |
 | [journal.md](journal.md) | `abap_journal` — listing, inspecting and undoing writes this server has made. |
 | [debugger.md](debugger.md) | `abap_debug`, `abap_debug_vars`, `abap_debug_value` — the ABAP debugger driver and variable inspection. |

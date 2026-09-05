@@ -141,6 +141,7 @@ Two surfaces ship. **`v1` is the default** — one tool per job:
 | Execute a class or report | `abap_run` |
 | ABAP Unit | `abap_test` |
 | Static checks | `abap_atc` |
+| List/apply position-driven quick fixes | `abap_quick_fix` |
 | Short dumps | `abap_dumps` |
 | Debugger | `abap_debug`, `abap_debug_vars`, `abap_debug_value` |
 | History and undo | `abap_journal` |

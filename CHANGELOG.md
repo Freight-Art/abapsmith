@@ -236,6 +236,11 @@ was last set to `0.3.0`.
   preserved byte-for-byte. `null` clears an attribute or a ref, as
   `set_node_flags` already did. Each re-reads after the write and fails
   `CHECK_FAILED` if a named field did not stick.
+- `abap_quick_fix` — lists and applies ADT position-driven quick fixes
+  (`mode: "list"` / `mode: "apply"`), routed through the same journalled
+  write pipeline as `abap_write` and undoable. `mode: "list"` is itself
+  gated as a write because it posts the whole object source; v1 accepts
+  deterministic proposals only, refusing a parameterized one `BAD_INPUT`.
 
 ### Changed
 
