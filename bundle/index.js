@@ -66993,19 +66993,25 @@ var REGISTRY = {
   // mechanism that fills the gap; see SkeletonCreate's doc for the shape and
   // its provenance caveat.
   //
-  // `implementation unmanaged` is the only usable flavour on-prem (SAP's own
-  // 1909 FPS00 RAP guide: managed is not possible on premises). On 7.56+
-  // BDEF strict mode the bare `implementation {managed|unmanaged};` header
-  // this skeleton pairs with is obsolete and becomes a syntax error — a known
-  // forward-compat limitation, not solved here.
+  // A `managed` behavior definition over a CDS root view with a persistent
+  // table was created and activated live on this release (A4H, 2026-09-05) —
+  // `implementation unmanaged` is NOT the only usable flavour on-prem, contra
+  // the 1909 FPS00 RAP guide. On 7.56+ BDEF strict mode the bare
+  // `implementation {managed|unmanaged};` header this skeleton pairs with is
+  // obsolete and becomes a syntax error — a known forward-compat limitation,
+  // not solved here.
   //
-  // `delete: false` — DISPROVEN 2026-08-19. A live-created BDEF/BDO
-  // survived two "successful" delete calls (DELETE reported success but
-  // abap_read still returned the object both times, including a THIRD read
-  // after a second DELETE reported NOT_FOUND). ZBD_D205A could not be
-  // removed through abapsmith's own tool surface and was left on A4H's $TMP
-  // package. `write`/`create` are untouched — only `delete` is downgraded.
-  // Full incident record: the git history.
+  // `delete: true` — a live lock + raw DELETE answered 200, and the absence
+  // was independently confirmed two ways: the repository search row was
+  // gone, and a GET of the object URI answered the identical
+  // "Error while importing object ... from the database" a never-existing
+  // name gets (A4H, 2026-09-05). The earlier "survived two deletes" reading
+  // was a misdiagnosis — the source endpoint answers 200 with an empty body
+  // for an absent BDEF/BDO (see `blankSourceOnAbsence` below), which reads as
+  // "still there" unless the object URI is also asked; `write-verify.ts` and
+  // `source.ts` now do that. Exercised so far only via a raw lock+DELETE, not
+  // yet through abapsmith's own `abap_write mode=delete` end to end — a live
+  // run is queued to confirm that path too.
   "BDEF/BDO": {
     label: "Behavior definition",
     write: { shape: "source" },
@@ -67017,16 +67023,16 @@ var REGISTRY = {
         // No `; charset=utf-8` — see SkeletonCreate.contentType's doc.
         contentType: "application/vnd.sap.adt.blues.v1+xml"
       },
-      // verified: true rests on the pre-existing raw-wire citation on
-      // SkeletonCreate's own doc comment above — an honest best-available
-      // signal, not a claim that abapsmith's own choreography has run this
-      // live. the create-verification sweep deliberately did NOT (re-)create a BDEF/BDO live,
-      // given the delete: false finding below (avoids leaking a second
-      // permanent object for the same known reason).
+      // verified: true — create ran live end to end through abap_write on
+      // A4H 2026-09-05 (table → classic CDS root view → BDEF with a
+      // `managed;` header): created: true, activated: true.
       verified: true
     },
-    delete: false,
-    activate: true
+    delete: true,
+    activate: true,
+    // The source endpoint answers 200/empty for an absent object — see the
+    // field's own doc comment.
+    blankSourceOnAbsence: true
   },
   // `create.vendor: false` — no XSLT/VT row in abap-adt-api's CreatableTypes
   // (checked against objectcreator.js), so create needs a skeleton like
@@ -67564,6 +67570,11 @@ function assertNoConflictingCapabilities() {
     if (cap.namePrefixes && cap.namePrefixes.filter((p) => p.trim() !== "").length === 0) {
       throw new Error(
         `src/adt/capabilities.ts REGISTRY entry ${code} declares an empty namePrefixes override, which would refuse every possible name for that type. Omit the field to inherit the global list instead.`
+      );
+    }
+    if (cap.blankSourceOnAbsence && cap.write?.shape !== "source") {
+      throw new Error(
+        `src/adt/capabilities.ts REGISTRY entry ${code} declares blankSourceOnAbsence but write.shape is ${JSON.stringify(cap.write?.shape)} \u2014 this only makes sense for a type whose write.shape is "source".`
       );
     }
   }
@@ -91448,8 +91459,8 @@ function isSessionDeadFailure(e) {
 async function probeObjectPresence(conn, uri, accept) {
   const get = () => conn.get(uri, { headers: { Accept: accept } });
   try {
-    await get();
-    return { presence: "present", revived: false };
+    const resp = await get();
+    return { presence: "present", revived: false, body: resp.body };
   } catch (e) {
     if (isNotFoundError(e)) return { presence: "absent", error: e, revived: false };
     if (!isSessionDeadFailure(e)) return { presence: "no-answer", error: e, revived: false };
@@ -91460,8 +91471,8 @@ async function probeObjectPresence(conn, uri, accept) {
     return { presence: "no-answer", error: e, revived: false };
   }
   try {
-    await get();
-    return { presence: "present", revived: true };
+    const resp = await get();
+    return { presence: "present", revived: true, body: resp.body };
   } catch (e) {
     return { presence: isNotFoundError(e) ? "absent" : "no-answer", error: e, revived: true };
   }
@@ -91585,8 +91596,12 @@ async function verifyObjectPresent(conn, opts) {
   const { uri, accept, objectName, expectType } = opts;
   let readBackReason;
   try {
-    await conn.get(uri, { headers: { Accept: accept } });
-    return { status: "confirmed", uri, via: "read-back" };
+    const resp = await conn.get(uri, { headers: { Accept: accept } });
+    if (isBlankBody(resp.body) && blankSourceIsAmbiguous(expectType)) {
+      readBackReason = "the source endpoint answered 200 with an empty body, which does not distinguish an absent object from an empty one for this type";
+    } else {
+      return { status: "confirmed", uri, via: "read-back" };
+    }
   } catch (e) {
     if (isNotFoundError(e)) {
       readBackReason = "the read-back answered 404";
@@ -91606,6 +91621,15 @@ function answeredFiveHundredWithType(e) {
   const info = adtExceptionInfo(e);
   return info?.status === 500 && typeof info.type === "string" && info.type.length > 0;
 }
+function blankSourceIsAmbiguous(type) {
+  return capabilitiesFor(type)?.blankSourceOnAbsence === true;
+}
+function objectAcceptFor(type) {
+  return capabilitiesFor(type)?.mediaType ?? "application/*";
+}
+function isBlankBody(body) {
+  return typeof body === "string" && body.trim() === "";
+}
 async function verifyObjectDeleted(conn, opts) {
   const { uri, accept, objectName, expectType } = opts;
   const readBack = await probeObjectPresence(conn, uri, accept);
@@ -91615,7 +91639,7 @@ async function verifyObjectDeleted(conn, opts) {
   let readBackUri = uri;
   const objUri = objectUriOf(uri);
   if (!sawObject && objUri !== uri && answeredFiveHundredWithType(readBack.error)) {
-    const objAccept = capabilitiesFor(expectType)?.mediaType ?? "application/*";
+    const objAccept = objectAcceptFor(expectType);
     const direct = await probeObjectPresence(conn, objUri, objAccept);
     if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
     if (direct.presence === "present") {
@@ -91626,6 +91650,18 @@ async function verifyObjectDeleted(conn, opts) {
       readBackUri = objUri;
       readBackReason = `the read-back answered HTTP 500 with an ADT exception type, and a confirming GET of ${objUri} did not answer at all, so it established nothing either way`;
     }
+  } else if (sawObject && objUri !== uri && isBlankBody(readBack.body) && blankSourceIsAmbiguous(expectType)) {
+    const objAccept = objectAcceptFor(expectType);
+    const direct = await probeObjectPresence(conn, objUri, objAccept);
+    if (direct.presence === "absent") return { status: "confirmed-absent", uri: objUri, via: "read-back" };
+    if (direct.presence === "present") {
+      readBackUri = objUri;
+      readBackReason = `the source endpoint answered 200 with an empty body, and a confirming GET of ${objUri} answered 200 \u2014 the object is still there`;
+    } else {
+      sawObject = false;
+      readBackUri = objUri;
+      readBackReason = `the source endpoint answered 200 with an empty body, which proves nothing on its own, and a confirming GET of ${objUri} did not answer at all`;
+    }
   }
   const search = await verifyViaRepositorySearch(conn, objectName, expectType);
   if (search.status === "confirmed") return search;
@@ -91634,7 +91670,7 @@ async function verifyObjectDeleted(conn, opts) {
       return {
         status: "indeterminate",
         uri,
-        reason: `The post-delete read-back of ${expectType} ${objectName} answered 200 at ${readBackUri}, but the repository search found no trace of it \u2014 the same contradiction recorded live for BDEF/BDO. A stale 200 read-back is not proof the delete failed; treated as unproven.`
+        reason: `The post-delete read-back of ${expectType} ${objectName} answered 200 at ${readBackUri}, but the repository search found no trace of it \u2014 a stale 200 read-back is not proof the delete failed; treated as unproven.`
       };
     }
     return {
@@ -91691,9 +91727,11 @@ function isTimeoutError(e) {
   if (any2.name === "AbortError" || any2.name === "TimeoutError") return true;
   return /\btime(d)?\s*-?\s*out\b|\btimeout\b/i.test(String(any2.message ?? ""));
 }
-async function objectUriPresenceAt500(conn, obj) {
-  const accept = capabilitiesFor(obj.type)?.mediaType ?? "application/*";
-  return (await probeObjectPresence(conn, obj.uri, accept)).presence;
+async function objectUriPresence(conn, obj) {
+  return (await probeObjectPresence(conn, obj.uri, objectAcceptFor(obj.type))).presence;
+}
+function isBlankBody2(body) {
+  return typeof body === "string" && body.trim() === "";
 }
 function sourceUriFor(obj, include) {
   const inc = include ?? obj.include;
@@ -91722,6 +91760,17 @@ async function readSource(conn, obj, include, version2) {
       headers: { Accept: "text/plain" },
       ...version2 ? { qs: { version: version2 } } : {}
     });
+    if (isBlankBody2(resp.body) && blankSourceIsAmbiguous(obj.type)) {
+      const presence = await objectUriPresence(conn, obj);
+      if (presence === "absent") {
+        throw new AbapError(
+          "NOT_FOUND",
+          `${obj.type} ${obj.name} does not exist: its source endpoint answered HTTP 200 with an empty body (this type's known response for an absent object there), and a direct GET of ${obj.uri} confirmed the absence with a not-found response.`,
+          { type: obj.type, name: obj.name, uri: sourceUri, absenceConfirmedVia: obj.uri },
+          "Check the name with abap_search, or create it first with abap_write. This was established by a second, independent request against the object URI, not inferred from the empty body."
+        );
+      }
+    }
     return {
       source: resp.body,
       serverEtag: typeof resp.headers.etag === "string" ? resp.headers.etag : void 0,
@@ -91732,7 +91781,7 @@ async function readSource(conn, obj, include, version2) {
     const err = classifySourceFailure(e, ctx);
     const answered500WithType = err.code === "ADT_ERROR" && err.details.status === 500 && typeof err.details.adtExceptionType === "string" && Boolean(err.details.adtExceptionType);
     if (answered500WithType) {
-      const presence = await objectUriPresenceAt500(conn, obj);
+      const presence = await objectUriPresence(conn, obj);
       if (presence === "absent") {
         throw new AbapError(
           "NOT_FOUND",
