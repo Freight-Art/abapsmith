@@ -7,9 +7,12 @@
  * Scope: `abapCreateViaBridge`'s `corr_nr`/`package` pairing for VIEW/DV
  * (RS_CORR_INSERT now registers a view for every package, so the create
  * reaches the bridge for a transportable package WITH corr_nr, for $TMP, and
- * for an omitted `package`; a bad pairing — corr_nr on a $ package, or none
- * on a transportable one — is still refused, zero-network), and the
- * new `abapDeleteViaBridge` dispatch — most load-bearingly, that a
+ * for an omitted `package`; a corr_nr on a $ package is still refused
+ * zero-network, and a transportable package with no corr_nr now resolves a
+ * request through the wired `SessionTransport` instead of being refused up
+ * front — it is refused only when the resolver itself declines, e.g.
+ * transports disabled or a caller-named request outside the allowlist), and
+ * the new `abapDeleteViaBridge` dispatch — most load-bearingly, that a
  * delete's package is judged against a SERVER-confirmed value via
  * `verifyViaVitBridge`, never a caller-supplied `package`. Neither delete
  * bridge module (`src/adt/view-delete.ts`, `src/adt/tran-delete.ts`) can look
@@ -24,7 +27,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
@@ -32,6 +35,7 @@ import { ConfigSchema, type Config } from "../src/config.js";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import { abapWrite } from "../src/tools/write.js";
 import { SafetyGate } from "../src/safety.js";
+import { SessionTransport } from "../src/adt/session-transport.js";
 import { DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
 import { Journal } from "../src/journal.js";
@@ -254,29 +258,122 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     view_fields: ["CARRIER_ID", "NAME"],
   };
 
+  /** Finds the classrun PUT that carries the generated ABAP (the one whose body calls RS_CORR_INSERT). */
+  const deployedSource = (adt: FakeAdt): string | undefined =>
+    adt.calls.map((c) => c.body).find((b) => b?.includes("RS_CORR_INSERT"));
+
+  /**
+   * A `SessionTransport` that only validates a caller-NAMED request (Step 5's
+   * `#checkUsable`, which calls `trShow`) — never CTS's classification
+   * pre-flight, which `resolveForNewTransportable` never runs. Same fake
+   * `trShow` shape as test/session-transport-adopt.test.ts.
+   */
+  function namedTransport(): { transport: SessionTransport; trShow: ReturnType<typeof vi.fn> } {
+    const trShow = vi.fn(async () => ({
+      trkorr: "A4HK900117",
+      kind: "workbench" as const,
+      kindRaw: "K",
+      status: "modifiable" as const,
+      statusRaw: "D",
+      owner: "DEVELOPER",
+      description: "abapsmith session 2026-09-05",
+      tasks: [],
+      objects: [],
+    }));
+    return { transport: new SessionTransport({ allowTransports: ["*"], cts: { trShow } as never }), trShow };
+  }
+
+  /** A `SessionTransport` in auto mode — no caller-named request, so `#resolveAuto` creates one via `trCreate`. */
+  function autoTransport(): { transport: SessionTransport; trCreate: ReturnType<typeof vi.fn> } {
+    const devClass = "ZTM";
+    const authorizeCreate = () =>
+      new SafetyGate({ readOnly: false, allowPackages: ["*"] }).authorize(
+        "transport",
+        { name: devClass, packageName: devClass },
+        { corr: { kind: "unresolved" } },
+      );
+    const trCreate = vi.fn(async () => ({
+      trkorr: "A4HK900321",
+      path: "/com.sap.cts/object_record/A4HK900321",
+    }));
+    return {
+      transport: new SessionTransport({ allowTransports: ["auto"], authorizeCreate, cts: { trCreate } as never }),
+      trCreate,
+    };
+  }
+
   it("a transportable package WITH a valid corr_nr reaches the bridge and the create succeeds", async () => {
     const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
     const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "ZTM");
     const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const { transport, trShow } = namedTransport();
     const result = await abapWrite(
       conn,
-      { ...validInput, package: "ZTM", corr_nr: "TR1K900123" },
+      { ...validInput, package: "ZTM", corr_nr: "A4HK900117" },
       MAX,
       gate(),
+      undefined,
+      transport,
     );
     expect(result.text).toMatch(/created: true/);
     expect(result.text).toMatch(/verified: true/);
     expect(result.text).toMatch(new RegExp(BRIDGE));
+    expect(result.text).toMatch(/transport: A4HK900117/);
+    expect(trShow).toHaveBeenCalledTimes(1);
+    expect(deployedSource(adt)).toContain("A4HK900117");
     expect(adt.calls.length).toBeGreaterThan(0);
   });
 
-  it("a transportable package with NO corr_nr is refused TRANSPORT_ERROR before any network call", async () => {
+  it("a transportable package with no corr_nr and an explicitly empty ABAP_ALLOW_TRANSPORTS is refused with the resolver's own TRANSPORT_ERROR, before any network call", async () => {
     const offline = null as unknown as AbapConnection;
+    const transport = new SessionTransport({ allowTransports: [] });
     const e = await catchErr(
-      abapWrite(offline, { ...validInput, package: "ZTM" }, MAX, gate()),
+      abapWrite(offline, { ...validInput, package: "ZTM" }, MAX, gate(), undefined, transport),
     );
     expect(e.code).toBe("TRANSPORT_ERROR");
-    expect(String(e.message)).toMatch(/corr_nr/);
+    expect(String(e.message)).toMatch(/ABAP_ALLOW_TRANSPORTS/);
+  });
+
+  it("a transportable package with NO corr_nr under the auto policy resolves a request and the bridge receives it", async () => {
+    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "ZTM");
+    const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const { transport, trCreate } = autoTransport();
+    const result = await abapWrite(
+      conn,
+      { ...validInput, package: "ZTM" },
+      MAX,
+      gate(),
+      undefined,
+      transport,
+    );
+    expect(result.text).toMatch(/created: true/);
+    expect(result.text).toMatch(/transport: A4HK900321/);
+    expect(trCreate).toHaveBeenCalledTimes(1);
+    expect(deployedSource(adt)).toContain("A4HK900321");
+    // resolveForNewTransportable never classifies a not-yet-existing object, so the
+    // synthesized view URI (classicViewUri) is never sent to CTS's classification check.
+    expect(adt.calls.some((c) => c.url.includes("transportchecks"))).toBe(false);
+  });
+
+  it("a resolver refusal (a caller-named corr_nr outside a pinned allowlist) stops the write before the bridge is deployed", async () => {
+    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "ZTM");
+    const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const transport = new SessionTransport({ allowTransports: ["A4HK900117"] });
+    const e = await catchErr(
+      abapWrite(
+        conn,
+        { ...validInput, package: "ZTM", corr_nr: "A4HK900999" },
+        MAX,
+        gate(),
+        undefined,
+        transport,
+      ),
+    );
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(String(e.message)).toMatch(/not permitted by ABAP_ALLOW_TRANSPORTS/);
+    expect(adt.calls.some((c) => c.url.toLowerCase().includes(BRIDGE.toLowerCase()) || (c.body ?? "").includes(BRIDGE))).toBe(false);
   });
 
   it("$TMP reaches the bridge too — RS_CORR_INSERT registers it with korrnum = space, not a refusal", async () => {
