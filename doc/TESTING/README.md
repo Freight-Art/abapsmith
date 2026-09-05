@@ -114,19 +114,31 @@ sandbox](../CONCURRENCY/several-agents-one-sandbox.md).
 
 `test/live-appliance-state.ts` gives the live suites a third, greppable
 outcome alongside pass/fail: anything prefixed `APPLIANCE STATE:` — grep a
-sweep log for it. A **skip** with that prefix means "we could not run this"
-(a fixture never deployed, a stranded debug session found on arrival). A
-**failure** with that prefix means the test ran and hit a failure shape that
+sweep log for it. A **skip** with that prefix means "this did not run, and
+here is why" — an appliance condition (a fixture never deployed, a stranded
+debug session found on arrival) or a run-configuration reason (`ABAP_URL`
+unset, write access not configured); `liveSuiteSkipReason` mints the
+run-configuration reasons and deliberately reuses the same prefix rather
+than adding a second one — one grep target beats a taxonomy. A **failure**
+with that prefix means the test ran and hit a failure shape that
 is itself appliance state — system down, breaker tripped, a request that
 timed out — and is still red; `underApplianceStateWatch` classifies but never
 converts a real problem into a green skip. Anything without the prefix is a
-candidate regression. Free dialog work processes are not measurable over
-ADT — there is no SM50-class data reachable this way — so
-`classifyApplianceStateFailure` recognises the failure shapes contention
-produces (a timed-out request, a tripped breaker) rather than pretending to
-count work processes; `integration.test.ts` and `integration-debug.test.ts`
-are wired, `integration-undo`, `integration-fpm-lock`,
-`integration-class-includes` and `integration-lock-handle` are not yet.
+candidate regression. `classifyApplianceStateFailure` recognises the failure
+shapes contention produces (a timed-out request, a tripped breaker) rather
+than counting work processes, because free dialog work processes are not
+measurable over ADT — there is no SM50-class data reachable this way.
+`integration.test.ts` and `integration-debug.test.ts` are wired to that
+classification; `integration-class-includes` and `integration-lock-handle`
+still are not. `integration-undo` and `integration-fpm-lock` aren't wired to
+it either, but each now pairs its whole-file `describe.skip` with one
+`skipForApplianceState` case stating `liveSuiteSkipReason`'s reason — a bare
+`describe.skip` says a suite didn't run but never says why, so a sweep log
+couldn't otherwise tell "write access wasn't configured" from "the appliance
+was dirty on arrival". For the same reason, a red live run with no
+`APPLIANCE STATE:` line anywhere may still be dialog-work-process
+contention rather than a regression: check SM50-class tooling on the
+appliance before treating an unexplained live failure as a regression.
 
 ## Scripts
 

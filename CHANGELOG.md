@@ -217,6 +217,11 @@ was last set to `0.3.0`.
 
 ### Changed
 
+- `abap_debug`'s `breakpoints` schema states the shared `condition`/`skipCount`
+  guidance once at the array level instead of once per union branch, trimming
+  the largest single property in the `tools/list` payload by about a third with
+  no validator change. The facts that left the schema now live in
+  `doc/TOOLS/debugger.md`; a test pins the property's size ceiling.
 - A failed connect is now classified instead of being labelled
   `AUTH_FAILED` unconditionally: 401/403 map to `AUTH_FAILED`, 5xx to
   `SYSTEM_UNAVAILABLE`, and anything unidentified to `ADT_ERROR` — never
@@ -323,6 +328,12 @@ was last set to `0.3.0`.
   unpageable raw XML; `abap_debug`/`abap_enh` tool-schema descriptions
   were trimmed to reduce `tools/list` token cost, with the displaced
   reference material moved into `doc/TOOLS/`.
+- The live suites `integration-undo` and `integration-fpm-lock` now pair
+  their whole-file `describe.skip` with a `liveSuiteSkipReason` case stating
+  why, under the greppable `APPLIANCE STATE:` prefix, instead of just
+  reporting "skipped" with no reason; the documented live-suite surface in
+  `CONTRIBUTING.md` and `doc/TESTING/README.md` was also corrected against
+  `LIVE_INTEGRATION_TESTS` in `vitest.config.ts`.
 
 ### Fixed
 
