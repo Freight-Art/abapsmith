@@ -484,6 +484,9 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     const connection = pool.primary();
     watchPrimary(connection);
     if (connection.isConnected) return;
+    // An explicit re-arm must not be blocked by the memoised auth rejection —
+    // exactly one attempt is allowed to reach the wire again.
+    if (connectPromise && connection.breaker.authProbeArmed) connectPromise = undefined;
     connectPromise ??= connection.connect().then(
       (info) => {
         // T000 probe is the authority; this only transcribes its verdict.

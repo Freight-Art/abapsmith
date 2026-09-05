@@ -44719,7 +44719,7 @@ function extractLockField(body, tag) {
 
 // src/adt/auth-latch.ts
 import { createHash, randomBytes as randomBytes4 } from "node:crypto";
-import { readFileSync as readFileSync2, statSync as statSync2 } from "node:fs";
+import { readFileSync as readFileSync2, statSync as statSync2, unlinkSync as unlinkSync2 } from "node:fs";
 import * as path2 from "node:path";
 
 // src/state-dir.ts
@@ -45291,6 +45291,39 @@ function recordTrippedFingerprint(fingerprint, info) {
   TRIPPED_FINGERPRINTS.set(fingerprint, info);
   return persistDurableLatch(fingerprint, info);
 }
+var AUTH_REARM_FILE = "auth-rearm";
+function authRearmSignalPath() {
+  if (underVitest()) {
+    return authLatchDirForTests ? path2.join(authLatchDirForTests, AUTH_REARM_FILE) : void 0;
+  }
+  return path2.join(resolveStateDir(process.env), AUTH_REARM_FILE);
+}
+function consumeAuthRearmSignal() {
+  const signalPath = authRearmSignalPath();
+  if (!signalPath) return false;
+  try {
+    statSync2(signalPath);
+  } catch {
+    return false;
+  }
+  try {
+    unlinkSync2(signalPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function clearTrippedFingerprint(fingerprint) {
+  TRIPPED_FINGERPRINTS.delete(fingerprint);
+  try {
+    const identity = FINGERPRINT_IDENTITIES.get(fingerprint);
+    if (!identity) return;
+    const latchPath = authLatchPath();
+    if (!latchPath) return;
+    dropLatchEntry(latchPath, authLatchKey(identity.url, identity.user));
+  } catch {
+  }
+}
 
 // src/adt/icf-classify.ts
 var ICF_LOGON_MARKERS_TIER_A = [
@@ -45396,6 +45429,9 @@ function isBenignDebugFailure(resp) {
 var DEFAULT_COOLDOWN_MS = 3e4;
 var DEFAULT_MAX_COOLDOWN_MS = 3e5;
 var DEFAULT_FAILURE_THRESHOLD = 3;
+var AUTH_REARM_BASE_COOLDOWN_MS = 15 * 6e4;
+var AUTH_REARM_MAX_COOLDOWN_MS = 4 * 60 * 6e4;
+var AUTH_REARM_POLL_MS = 1e3;
 var NO_PASSWORD_CREDENTIAL_DISCRIMINATOR = " session-cookie-auth";
 function asResponseLike(input) {
   return isResponseLike(input) ? input : void 0;
@@ -45452,6 +45488,18 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
    * set by `trip()` and by `forConfig`'s replay branch. See
    * {@link durableLatchFile}. */
   latchFile;
+  // ------------------------------------------------------- auth re-arm state
+  authProbeArmedFlag = false;
+  authProbeOutstanding = false;
+  /** `undefined` = a re-arm is accepted right now. */
+  authRearmNotBeforeMs;
+  authRearmCooldownMs = AUTH_REARM_BASE_COOLDOWN_MS;
+  /** Must NOT be 0: an injected clock can start at 0. */
+  lastRearmSignalCheckMs = Number.NEGATIVE_INFINITY;
+  /** Resolved once in `trip()`. */
+  rearmSignalFile;
+  /** The fingerprint to clear on a successful probe. */
+  latchFingerprint;
   constructor(opts = {}) {
     const base = opts.cooldownMs;
     const max = opts.maxCooldownMs;
@@ -45486,6 +45534,7 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
       const breaker = new _AuthCircuitBreaker();
       breaker.trip(prior.reason, prior.message, { status: prior.status, url: prior.url, at: prior.at });
       breaker.latchFile = durableLatchPathFor(fingerprint);
+      breaker.latchFingerprint = fingerprint;
       return breaker;
     }
     return new _AuthCircuitBreaker({ credentialFingerprint: fingerprint });
@@ -45525,6 +45574,8 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
   trip(reason, message, ctx = {}) {
     if (this.tripped) return this.tripped;
     this.tripped = { reason, message, status: ctx.status, url: ctx.url, at: ctx.at ?? /* @__PURE__ */ new Date() };
+    this.latchFingerprint ??= this.credentialFingerprint;
+    this.rearmSignalFile = authRearmSignalPath();
     if (this.credentialFingerprint) {
       this.latchFile = recordTrippedFingerprint(this.credentialFingerprint, this.tripped);
     }
@@ -45535,6 +45586,96 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
       }
     }
     return this.tripped;
+  }
+  // ------------------------------------------------------------- auth re-arm
+  /**
+   * Re-arm exactly ONE logon attempt. Never called on a timer — the
+   * operator's re-arm file or a direct call is the only way in.
+   */
+  rearmAuthProbe() {
+    if (!this.tripped) return { armed: false, outcome: "not-latched" };
+    const notBefore = this.authRearmNotBeforeMs;
+    if (notBefore !== void 0 && this.now() < notBefore) {
+      return {
+        armed: false,
+        outcome: "cooling-down",
+        msUntilRearm: Math.max(0, notBefore - this.now()),
+        rearmAt: new Date(notBefore)
+      };
+    }
+    this.authProbeArmedFlag = true;
+    this.authProbeOutstanding = false;
+    return { armed: true, outcome: "armed" };
+  }
+  /**
+   * True when a re-arm is armed and unspent. Reads the operator's re-arm
+   * file at most once per `AUTH_REARM_POLL_MS`. Never throws.
+   */
+  get authProbeArmed() {
+    this.syncAuthRearmSignal();
+    return this.authProbeArmedFlag;
+  }
+  /**
+   * Consume the armed probe: true at most once per re-arm, then false until
+   * the next one. `allowRequest()` still refuses every latched request —
+   * this is a separate, narrower door for the one admitted probe.
+   */
+  allowAuthProbe() {
+    if (!this.tripped) return false;
+    this.syncAuthRearmSignal();
+    if (!this.authProbeArmedFlag) return false;
+    this.authProbeArmedFlag = false;
+    this.authProbeOutstanding = true;
+    this.authRearmNotBeforeMs = this.now() + this.authRearmCooldownMs;
+    return true;
+  }
+  /**
+   * Reads the operator's re-arm signal file and, if present and the cooldown
+   * has elapsed, arms the probe. Throttled to once per `AUTH_REARM_POLL_MS`
+   * (one `statSync` each). Never throws — this file's contract.
+   */
+  syncAuthRearmSignal() {
+    try {
+      if (!this.tripped || this.authProbeArmedFlag) return;
+      const now = this.now();
+      if (now - this.lastRearmSignalCheckMs < AUTH_REARM_POLL_MS) return;
+      this.lastRearmSignalCheckMs = now;
+      if (this.authRearmNotBeforeMs !== void 0 && now < this.authRearmNotBeforeMs) return;
+      if (consumeAuthRearmSignal()) this.rearmAuthProbe();
+    } catch {
+    }
+  }
+  /**
+   * The successful probe: an authenticated response is the one piece of
+   * evidence that outranks the latch. Clears both machines back to a clean
+   * closed state.
+   */
+  clearAuthLatch() {
+    this.tripped = void 0;
+    this.authProbeArmedFlag = false;
+    this.authProbeOutstanding = false;
+    this.authRearmCooldownMs = AUTH_REARM_BASE_COOLDOWN_MS;
+    this.authRearmNotBeforeMs = void 0;
+    this.latchFile = void 0;
+    this.rearmSignalFile = void 0;
+    if (this.latchFingerprint) clearTrippedFingerprint(this.latchFingerprint);
+    this.phase = "closed";
+    this.probing = false;
+    this.consecutiveFailures = 0;
+    this.currentCooldownMs = this.baseCooldownMs;
+    this.openedAtMs = void 0;
+    this.nextProbeAtMs = void 0;
+  }
+  /**
+   * A re-armed probe failed to prove anything (wrong credentials, or nothing
+   * left the process): enforce the current cooldown before another re-arm is
+   * accepted, then double it for next time, capped at `AUTH_REARM_MAX_COOLDOWN_MS`.
+   */
+  failAuthProbe() {
+    this.authProbeOutstanding = false;
+    this.authProbeArmedFlag = false;
+    this.authRearmNotBeforeMs = this.now() + this.authRearmCooldownMs;
+    this.authRearmCooldownMs = Math.min(this.authRearmCooldownMs * 2, AUTH_REARM_MAX_COOLDOWN_MS);
   }
   // ----------------------------------------------------------- transient machine
   /** `"latched"` outranks everything; otherwise the transient phase. */
@@ -45567,11 +45708,17 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
     return true;
   }
   /**
-   * A request succeeded. No-op while latched (a success cannot un-reject
-   * credentials — and nothing should be in flight anyway).
+   * A request succeeded. While latched, this can only be the one re-armed
+   * probe — an authenticated response is the one piece of evidence that
+   * outranks the latch, so it clears it. A stray success with no outstanding
+   * probe is a no-op: nothing should be in flight against a latched breaker
+   * otherwise.
    */
   recordSuccess() {
-    if (this.tripped) return;
+    if (this.tripped) {
+      if (this.authProbeOutstanding) this.clearAuthLatch();
+      return;
+    }
     this.syncPhase();
     if (this.phase === "half-open") {
       if (!this.probing) {
@@ -45590,13 +45737,19 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
   }
   /**
    * A failure that is NOT a credential problem.
+   * latched with an outstanding re-armed probe: the probe failed to prove
+   * anything (nothing left the process, or it timed out) — spend it and
+   * escalate the re-arm cooldown.
    * half-open (probe failed): re-open immediately, DOUBLE the cooldown
    * (capped at `maxCooldownMs`) — one failed probe is enough.
    * closed: count it; at `failureThreshold` consecutive failures, open with
    * the base cooldown.
    */
   recordTransientFailure(detail = {}) {
-    if (this.tripped) return;
+    if (this.tripped) {
+      if (this.authProbeOutstanding) this.failAuthProbe();
+      return;
+    }
     this.syncPhase();
     this.lastFailureDesc = this.describeDetail(detail);
     if (this.phase === "half-open") {
@@ -45660,6 +45813,14 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
       return void 0;
     }
     const reason = classifyAuthFailure(resp);
+    if (this.tripped) {
+      if (reason) return this.tripForAuth(reason, resp.status, url2);
+      if (this.authProbeOutstanding) {
+        if (!isSessionDeath(resp) && resp.status >= 200 && resp.status < 400) this.clearAuthLatch();
+        else this.failAuthProbe();
+      }
+      return void 0;
+    }
     if (reason) return this.tripForAuth(reason, resp.status, url2);
     if (isSessionDeath(resp)) return void 0;
     const s = resp.status;
@@ -45736,8 +45897,14 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
     this.lastFailureDesc = void 0;
   }
   // ------------------------------------------------------------------ internals
-  /** Shared auth-trip path for `inspect()` and `noteFailure()`. */
+  /** Shared auth-trip path for `inspect()` and `noteFailure()`. A fresh 401
+   * answering a re-armed probe is a failed probe, not a new trip — the
+   * first trip reason still wins. */
   tripForAuth(reason, status, url2) {
+    if (this.tripped) {
+      if (this.authProbeOutstanding) this.failAuthProbe();
+      return this.tripped;
+    }
     const message = reason === "icf-logon-page" ? "SAP ICF returned a logon-failure page. This counts as a failed logon attempt." : reason === "icf-password-change" ? "SAP ICF returned a password-change page. This counts as a failed logon attempt against the same lockout counter and must not be retried automatically." : `Authentication rejected by the ABAP system (HTTP ${status}).`;
     return this.trip(reason, message, { status, url: url2 });
   }
@@ -45783,6 +45950,16 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
       out.nextProbeAt = new Date(this.nextProbeAtMs);
       out.msUntilNextProbe = Math.max(0, this.nextProbeAtMs - this.now());
     }
+    if (latched) {
+      out.authProbeArmed = this.authProbeArmedFlag;
+      if (this.rearmSignalFile === void 0) {
+        out.authTerminal = true;
+      } else {
+        out.authRearmSignalFile = this.rearmSignalFile;
+        out.authRearmAt = new Date(this.authRearmNotBeforeMs ?? this.now());
+        out.msUntilAuthRearm = Math.max(0, (this.authRearmNotBeforeMs ?? 0) - this.now());
+      }
+    }
     return out;
   }
   describeState(state) {
@@ -45790,7 +45967,8 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
       const info = this.tripped;
       const detail = info ? `${info.reason}: ${info.message}` : "authentication failure";
       const ttlMinutes = Math.round(AUTH_LATCH_TTL_MS / 6e4);
-      return `Authentication is permanently disabled for the lifetime of this process (${detail}). The ABAP system rejected these credentials; retrying would spend another logon attempt and can lock the SAP user (login/fails_to_user_lock defaults to 5). This process's own latch does NOT expire \u2014 only exiting the process clears it. It is ALSO recorded in auth-latch.json under the state directory (ABAP_STATE_DIR, default <cwd>/.abapsmith), so it holds across every terminal sharing these credentials; that durable entry expires on its own ${ttlMinutes} minutes after the first failure, or delete auth-latch.json now, which clears it for every terminal at once immediately.`;
+      const signal = this.rearmSignalFile;
+      return `Authentication is permanently disabled for the lifetime of this process (${detail}). The ABAP system rejected these credentials; retrying would spend another logon attempt and can lock the SAP user (login/fails_to_user_lock defaults to 5). Nothing retries on its own: exiting the process clears it, and so does one explicit re-arm` + (signal ? ` (create ${signal})` : "") + `, which admits exactly one further logon attempt and spends one of those attempts if the credentials are still wrong. It is ALSO recorded in auth-latch.json under the state directory (ABAP_STATE_DIR, default <cwd>/.abapsmith), so it holds across every terminal sharing these credentials; that durable entry expires on its own ${ttlMinutes} minutes after the first failure, or delete auth-latch.json now, which clears it for every terminal at once immediately.`;
     }
     if (state === "open") {
       const ms = this.nextProbeAtMs === void 0 ? 0 : Math.max(0, this.nextProbeAtMs - this.now());
@@ -69655,15 +69833,32 @@ function formatRemaining(ms) {
 var CREDENTIAL_CAVEAT = "A 401 can mean the wrong ABAP_USER / ABAP_PASSWORD, but it can equally mean a degraded ADT gateway returning a spurious one \u2014 the cheap way to tell them apart is a single manual authenticated request outside this server, not a retry through it, which would spend another attempt against login/fails_to_user_lock (defaults to 5).";
 function circuitOpenError(breaker) {
   const info = breaker.info;
-  const message = info?.message ?? breaker.status().message;
+  const status = breaker.status();
+  const message = info?.message ?? status.message;
   const latchFile = breaker.durableLatchFile;
   const details = info ? {
     reason: info.reason,
     status: info.status,
     url: info.url,
     trippedAt: info.at.toISOString()
-  } : { state: breaker.status().state };
+  } : { state: status.state };
   details.durable = Boolean(latchFile && info);
+  details.rearmRequired = true;
+  let rearmSentence;
+  if (status.authTerminal) {
+    details.terminal = true;
+    rearmSentence = "No re-arm path exists in this process \u2014 no state directory is configured, so there is no signal file to create; restarting the process is the only way out.";
+  } else {
+    details.nextAttemptAt = status.authRearmAt?.toISOString();
+    details.msUntilNextAttempt = status.msUntilAuthRearm;
+    details.rearmSignalFile = status.authRearmSignalFile;
+    if (status.authProbeArmed) {
+      details.rearmArmed = true;
+      rearmSentence = "A re-arm is already armed: the next ABAP request spends its one logon attempt.";
+    } else {
+      rearmSentence = `To retry without restarting anything: create ${status.authRearmSignalFile} (e.g. \`touch\` it). The next ABAP request then spends exactly ONE logon attempt \u2014 one more of the ~5 before login/fails_to_user_lock locks the user, if the credentials are still wrong \u2014 and the following re-arm is refused for ${formatRemaining(status.msUntilAuthRearm ?? 0)} after that.`;
+    }
+  }
   let hint;
   if (latchFile && info) {
     const ttlMinutes = Math.round(AUTH_LATCH_TTL_MS / 6e4);
@@ -69672,9 +69867,9 @@ function circuitOpenError(breaker) {
     details.latchFile = latchFile;
     details.expiresAt = new Date(expiresAtMs).toISOString();
     details.msRemaining = remainingMs;
-    hint = `This latch is DURABLE \u2014 recorded in ${latchFile} \u2014 and shared by every abapsmith process using these credentials. Restarting the MCP server will NOT clear it: a fresh process reads that same file on startup and re-latches immediately. It expires on its own AUTH_LATCH_TTL_MS (${ttlMinutes} minutes) after the first failure, about ${formatRemaining(remainingMs)} from now, or delete the file now to clear it for every terminal at once immediately. ${CREDENTIAL_CAVEAT}`;
+    hint = `This latch is DURABLE \u2014 recorded in ${latchFile} \u2014 and shared by every abapsmith process using these credentials. Restarting the MCP server will NOT clear it: a fresh process reads that same file on startup and re-latches immediately. It expires on its own AUTH_LATCH_TTL_MS (${ttlMinutes} minutes) after the first failure, about ${formatRemaining(remainingMs)} from now, or delete the file now to clear it for every terminal at once immediately. ${CREDENTIAL_CAVEAT} ` + rearmSentence;
   } else {
-    hint = `This latch is process-local, not durable \u2014 no auth-latch.json entry is in play \u2014 so it clears only when the MCP server process itself is restarted, which is not something a tool call running inside that same server can do to its own host; whoever operates this MCP server needs to be the one to restart it. ${CREDENTIAL_CAVEAT}`;
+    hint = `This latch is process-local, not durable \u2014 no auth-latch.json entry is in play \u2014 so it clears only when the MCP server process itself is restarted, which is not something a tool call running inside that same server can do to its own host; whoever operates this MCP server needs to be the one to restart it. ${CREDENTIAL_CAVEAT} ` + rearmSentence;
   }
   return new AbapError(
     "AUTH_CIRCUIT_OPEN",
@@ -69852,21 +70047,30 @@ var GuardedHttpClient = class {
   }
   async request(options) {
     assertHttpPathAllowed(options.method, options.url, options.qs);
-    if (this.breaker.isTripped) {
+    const authProbe = this.breaker.isTripped && this.breaker.allowAuthProbe();
+    if (this.breaker.isTripped && !authProbe) {
       this.blockedCount++;
       throw circuitOpenError(this.breaker);
     }
-    const wasHalfOpen = this.breaker.state === "half-open";
-    if (!this.breaker.allowRequest()) {
-      this.blockedCount++;
-      throw transientOpenError(this.breaker);
+    let isProbe = false;
+    if (!authProbe) {
+      const wasHalfOpen = this.breaker.state === "half-open";
+      if (!this.breaker.allowRequest()) {
+        this.blockedCount++;
+        throw transientOpenError(this.breaker);
+      }
+      isProbe = wasHalfOpen;
     }
-    const isProbe = wasHalfOpen;
     let release2;
     try {
       release2 = this.opts.acquire ? await this.opts.acquire(options.url) : NOOP_RELEASE;
     } catch (e) {
-      if (isProbe && this.breaker.status().probeInFlight) {
+      if (authProbe) {
+        this.breaker.recordTransientFailure({
+          message: e?.message,
+          url: options.url
+        });
+      } else if (isProbe && this.breaker.status().probeInFlight) {
         this.breaker.recordTransientFailure({
           message: e?.message,
           url: options.url
@@ -84156,7 +84360,7 @@ var AbapConnection = class {
     this.breaker = opts.breaker;
     this.breaker.onTrip((info) => {
       this.log(
-        `[abapsmith] CIRCUIT BREAKER TRIPPED (${info.reason}): ${info.message} No further requests will be sent for the lifetime of this process.`
+        `[abapsmith] CIRCUIT BREAKER TRIPPED (${info.reason}): ${info.message} No further requests until an explicit re-arm admits one (see the AUTH_CIRCUIT_OPEN hint).`
       );
     });
     this.exit = opts.exit ?? ((code) => process.exit(code));
@@ -84440,9 +84644,9 @@ var AbapConnection = class {
     if (typeof resp.status !== "number") return;
     this.noteWireResponse(carried, generation, "thrown");
   }
-  /** Re-raise a latched breaker as itself. Every caller is where the guard's own throw is unreachable or rewritten (`noRetryTransport()` bypasses the gate; `AdtHTTP` strips `instanceof AbapError`) — without this the latch would surface as a retryable local failure. */
+  /** Re-raise a latched breaker as itself. Every caller is where the guard's own throw is unreachable or rewritten (`noRetryTransport()` bypasses the gate; `AdtHTTP` strips `instanceof AbapError`) — without this the latch would surface as a retryable local failure. An armed re-arm is let through: the guard is the one place that actually spends it. */
   assertBreakerClosed() {
-    if (this.breaker.isTripped) throw circuitOpenError(this.breaker);
+    if (this.breaker.isTripped && !this.breaker.authProbeArmed) throw circuitOpenError(this.breaker);
   }
   assertUsable() {
     this.assertBreakerClosed();
@@ -118359,6 +118563,7 @@ function createServer(cfg, opts) {
     const connection = pool.primary();
     watchPrimary(connection);
     if (connection.isConnected) return;
+    if (connectPromise && connection.breaker.authProbeArmed) connectPromise = void 0;
     connectPromise ??= connection.connect().then(
       (info) => {
         safety.update({

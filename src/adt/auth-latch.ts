@@ -14,7 +14,7 @@
  * See the git history for full design history.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync, unlinkSync } from "node:fs";
 import * as path from "node:path";
 import { atomicWriteFileSync, hardenFileModeSync, resolveStateDir, withFileLockSync } from "../state-dir.js";
 import type { TripInfo, TripReason } from "./circuit-breaker.js";
@@ -34,7 +34,9 @@ import type { TripInfo, TripReason } from "./circuit-breaker.js";
  * see `INSTALL_SALT` below and the git history for
  * the full constraint and a known url+user+client keying gap.
  *
- * No exported clear function, and `resetForTests()` does not touch it — a
+ * The only clear is {@link clearTrippedFingerprint}, called after a re-armed
+ * probe comes back authenticated — wire success is the one piece of evidence
+ * that outranks the latch. `resetForTests()` still does not touch it — a
  * stray fixture call must not un-latch a real credential rejection.
  */
 const TRIPPED_FINGERPRINTS = new Map<string, TripInfo>();
@@ -547,4 +549,62 @@ export function recordTrippedFingerprint(fingerprint: string, info: TripInfo): s
   // Stops the second TERMINAL (not just the second connection) from
   // reaching `login/fails_to_user_lock`. Cannot throw.
   return persistDurableLatch(fingerprint, info);
+}
+
+// ---------------------------------------------------------------------------
+// Operator re-arm signal: the ONLY way to admit another logon attempt once
+// latched. No timer anywhere re-probes on its own — see circuit-breaker.ts.
+// ---------------------------------------------------------------------------
+
+/** Filename of the operator re-arm signal, beside auth-latch.json in the state dir. */
+const AUTH_REARM_FILE = "auth-rearm";
+
+/**
+ * Where an operator drops the re-arm signal, or `undefined` when no state
+ * directory is in play (the vitest default — a test opts in with
+ * {@link __setAuthLatchDirForTests}, exactly like the durable latch).
+ */
+export function authRearmSignalPath(): string | undefined {
+  if (underVitest()) {
+    return authLatchDirForTests ? path.join(authLatchDirForTests, AUTH_REARM_FILE) : undefined;
+  }
+  return path.join(resolveStateDir(process.env), AUTH_REARM_FILE);
+}
+
+/**
+ * Consume the operator's re-arm signal: true iff the file existed, and
+ * removes it — one file, one admitted logon attempt. Never throws.
+ */
+export function consumeAuthRearmSignal(): boolean {
+  const signalPath = authRearmSignalPath();
+  if (!signalPath) return false;
+  try {
+    statSync(signalPath);
+  } catch {
+    return false;
+  }
+  try {
+    unlinkSync(signalPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Forget a trip once a re-armed probe proved the credentials are accepted:
+ * drops the in-memory entry and the durable one, so neither the next
+ * connection here nor a fresh process replays it. Never throws.
+ */
+export function clearTrippedFingerprint(fingerprint: string): void {
+  TRIPPED_FINGERPRINTS.delete(fingerprint);
+  try {
+    const identity = FINGERPRINT_IDENTITIES.get(fingerprint);
+    if (!identity) return;
+    const latchPath = authLatchPath();
+    if (!latchPath) return;
+    dropLatchEntry(latchPath, authLatchKey(identity.url, identity.user));
+  } catch {
+    /* never throws */
+  }
 }

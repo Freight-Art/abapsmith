@@ -153,7 +153,8 @@ export function circuitOpenError(breaker: AuthCircuitBreaker): AbapError {
   // caller reaches here in any other state we must still produce an error
   // rather than crash on a non-null assertion.
   const info = breaker.info;
-  const message = info?.message ?? breaker.status().message;
+  const status = breaker.status();
+  const message = info?.message ?? status.message;
   const latchFile = breaker.durableLatchFile;
 
   const details: Record<string, unknown> = info
@@ -163,11 +164,36 @@ export function circuitOpenError(breaker: AuthCircuitBreaker): AbapError {
         url: info.url,
         trippedAt: info.at.toISOString(),
       }
-    : { state: breaker.status().state };
+    : { state: status.state };
   // Lets a caller that only inspects `details` (not the prose) tell the two
   // latches apart without pattern-matching `hint` — e.g. an agent deciding
   // whether to keep waiting versus surface this to whoever runs the process.
   details.durable = Boolean(latchFile && info);
+
+  // Re-arm path — same for both branches below. Terminal means no state
+  // directory is configured, so no operator-reachable signal file exists.
+  details.rearmRequired = true;
+  let rearmSentence: string;
+  if (status.authTerminal) {
+    details.terminal = true;
+    rearmSentence =
+      "No re-arm path exists in this process — no state directory is configured, so there is no " +
+      "signal file to create; restarting the process is the only way out.";
+  } else {
+    details.nextAttemptAt = status.authRearmAt?.toISOString();
+    details.msUntilNextAttempt = status.msUntilAuthRearm;
+    details.rearmSignalFile = status.authRearmSignalFile;
+    if (status.authProbeArmed) {
+      details.rearmArmed = true;
+      rearmSentence = "A re-arm is already armed: the next ABAP request spends its one logon attempt.";
+    } else {
+      rearmSentence =
+        `To retry without restarting anything: create ${status.authRearmSignalFile} (e.g. \`touch\` it). ` +
+        "The next ABAP request then spends exactly ONE logon attempt — one more of the ~5 before " +
+        "login/fails_to_user_lock locks the user, if the credentials are still wrong — and the following " +
+        `re-arm is refused for ${formatRemaining(status.msUntilAuthRearm ?? 0)} after that.`;
+    }
+  }
 
   let hint: string;
   if (latchFile && info) {
@@ -182,13 +208,15 @@ export function circuitOpenError(breaker: AuthCircuitBreaker): AbapError {
       "using these credentials. Restarting the MCP server will NOT clear it: a fresh process reads " +
       "that same file on startup and re-latches immediately. It expires on its own AUTH_LATCH_TTL_MS " +
       `(${ttlMinutes} minutes) after the first failure, about ${formatRemaining(remainingMs)} from now, ` +
-      `or delete the file now to clear it for every terminal at once immediately. ${CREDENTIAL_CAVEAT}`;
+      `or delete the file now to clear it for every terminal at once immediately. ${CREDENTIAL_CAVEAT} ` +
+      rearmSentence;
   } else {
     hint =
       "This latch is process-local, not durable — no auth-latch.json entry is in play — so it clears " +
       "only when the MCP server process itself is restarted, which is not something a tool call " +
       "running inside that same server can do to its own host; whoever operates this MCP server needs " +
-      `to be the one to restart it. ${CREDENTIAL_CAVEAT}`;
+      `to be the one to restart it. ${CREDENTIAL_CAVEAT} ` +
+      rearmSentence;
   }
 
   return new AbapError(
@@ -519,21 +547,27 @@ export class GuardedHttpClient implements HttpClient {
     //    would miss it.
     assertHttpPathAllowed(options.method, options.url, options.qs);
 
-    // 1. Hard stop. Nothing leaves the process once the auth latch has tripped.
-    if (this.breaker.isTripped) {
+    // 1. Hard stop. Nothing leaves the process once the auth latch has tripped —
+    //    except the one probe an explicit re-arm just admitted.
+    const authProbe = this.breaker.isTripped && this.breaker.allowAuthProbe();
+    if (this.breaker.isTripped && !authProbe) {
       this.blockedCount++;
       throw circuitOpenError(this.breaker);
     }
 
-    // 1b. Transient gate. `state` read and `allowRequest()` MUST stay adjacent
-    //     with no `await` between them, to keep half-open single-probe
-    //     admission correct under a concurrent burst.
-    const wasHalfOpen = this.breaker.state === "half-open";
-    if (!this.breaker.allowRequest()) {
-      this.blockedCount++;
-      throw transientOpenError(this.breaker);
+    // 1b. Transient gate. Skipped for an auth probe — allowRequest() refuses a
+    //     latched breaker outright. `state` read and `allowRequest()` MUST stay
+    //     adjacent with no `await` between them otherwise, to keep half-open
+    //     single-probe admission correct under a concurrent burst.
+    let isProbe = false;
+    if (!authProbe) {
+      const wasHalfOpen = this.breaker.state === "half-open";
+      if (!this.breaker.allowRequest()) {
+        this.blockedCount++;
+        throw transientOpenError(this.breaker);
+      }
+      isProbe = wasHalfOpen;
     }
-    const isProbe = wasHalfOpen;
 
     // 1c. Session mutex (B1). AFTER both breaker gates (a shed request must
     //     never queue, and the no-`await` invariant at 1b must not be
@@ -546,11 +580,16 @@ export class GuardedHttpClient implements HttpClient {
       release = this.opts.acquire ? await this.opts.acquire(options.url) : NOOP_RELEASE;
     } catch (e) {
       // Only `dispatch()` normally resolves the probe slot `allowRequest()`
-      // consumed at 1b; bailing here without handing it back would wedge the
-      // breaker in half-open forever (see archive). `recordTransientFailure`,
-      // not `recordSuccess` — nothing left the process, so nothing proves the
-      // remote healed; a transient failure self-heals after the cooldown.
-      if (isProbe && this.breaker.status().probeInFlight) {
+      // consumed at 1b (or the one `allowAuthProbe()` admitted at 1); bailing
+      // here without handing it back would wedge the breaker (see archive).
+      // `recordTransientFailure`, not `recordSuccess` — nothing left the
+      // process, so nothing proves the remote, or the credentials, are good.
+      if (authProbe) {
+        this.breaker.recordTransientFailure({
+          message: (e as Error)?.message,
+          url: options.url,
+        });
+      } else if (isProbe && this.breaker.status().probeInFlight) {
         this.breaker.recordTransientFailure({
           message: (e as Error)?.message,
           url: options.url,
