@@ -102,13 +102,15 @@ export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): str
   // Step 3: the resolved holder may be a task of the number the caller passed.
   const step3 = ['" Step 3: name the resolved holder.', "out->write( |ZMCP-TREN-HOLDER { lv_holder }| )."];
 
-  // Step 4: is_e071_delete is mandatory — passing it_e071 alone short-dumps. Tag is emitted
-  // once after the loop, not per row, so subrcCheckFragment isn't used here.
+  // Step 4: is_e071_delete and cs_request are both mandatory — passing is_e071_delete alone
+  // short-dumps on the missing CS_REQUEST. Tag is emitted once after the loop, not per row,
+  // so subrcCheckFragment isn't used here.
   const step4 = [
     '" Step 4: remove every collected row.',
     "LOOP AT lt_rows INTO ls_e071.",
     "  CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'",
     "    EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071",
+    "    CHANGING cs_request = ls_req",
     "    EXCEPTIONS OTHERS = 1.",
     "  IF sy-subrc <> 0.",
     "    out->write( |ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } " +

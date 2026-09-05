@@ -226,7 +226,7 @@ describe("transportEntryRemoveFragment ABAP shape", () => {
     expect(joined).toContain("'ZTMD_I26_P1'");
   });
 
-  it("is_e071_delete is passed on the SAME statement as TR_DELETE_COMM_OBJECT_KEYS — it_e071 alone short-dumps on the server", () => {
+  it("is_e071_delete and cs_request are passed on the SAME statement as TR_DELETE_COMM_OBJECT_KEYS — either missing short-dumps on the server", () => {
     const lines = transportEntryRemoveFragment(PARAMS);
     const callIdx = lines.findIndex((l) => l.includes("CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'"));
     expect(callIdx).toBeGreaterThanOrEqual(0);
@@ -234,6 +234,7 @@ describe("transportEntryRemoveFragment ABAP shape", () => {
     const stmt = lines.slice(callIdx, stmtEnd + 1).join("\n");
     expect(stmt).toContain("iv_dialog_flag = space");
     expect(stmt).toContain("is_e071_delete = ls_e071");
+    expect(stmt).toContain("cs_request = ls_req");
   });
 
   it("a COMMIT WORK follows the delete loop, not the other way around", () => {
