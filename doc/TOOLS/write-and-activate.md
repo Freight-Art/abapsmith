@@ -31,6 +31,7 @@ syntax-checks, activates. Locking is handled for you.
 | `program` | string | no (required for `TRAN/T`) | — | `TRAN/T` only — program the transaction starts. |
 | `affects` | object `{name, packageName, masterSystem?, spotName?}` | no (required for `ENHO/XHH`) | — | The object this write's target enhancement binds to. |
 | `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. |
+| `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for the bridge-only creates (`VIEW/DV`, `TRAN/T`), and for `DEVC/K`. |
 
 **Batch delete (`objects`)**: there is **no server-side batch-delete
 endpoint** — unlike `abap_activate`'s `objects`, which posts to ADT's own
@@ -90,6 +91,66 @@ means confirm the object yourself before building on it. See
 `verified` field on `TRAN/T`/`DEVC/K` bridge-create responses —
 that one is an always-on check unaffected by either mode, because those
 particular creates' own success responses cannot prove persistence.
+
+**Dry run (`dry_run`)**: resolves the target, reads the current source,
+applies the requested edit locally, and runs the safety gate exactly as
+a real write would — then returns a preview instead of writing. The
+response carries `system`, `object`, `uri`, `package`, `package_source`,
+`mode`, `dry_run: true`, `created` (whether the object would be created),
+`expect_etag` (the exact etag the real write would assert), `current_etag`
+(the content hash of the object's source as it stands now — the value
+to pass back as `expect_etag` on the applied write when the form does not
+supply one itself), a `transport:` line, `added`/`removed`/`hunks` diff
+counts, `journal: nothing recorded (dry run)`, and a unified diff as the
+body. A dry run makes **zero** mutating requests — no lock, PUT, DELETE,
+activation, unlock, or CTS call — and nothing is journalled.
+
+The `transport:` line always reads `unresolved (dry run makes no transport
+call)` — a dry run never asks CTS for a request and never creates
+one. More consequential: the safety gate is consulted twice on a real
+write, and a dry run runs only the first check. That first check is at
+`authorizeMutation` (`src/adt/write.ts`), with the transport still unresolved,
+and a dry run runs it identically; the second happens inside `preflightCorr`
+(`src/adt/write.ts`), only once CTS has returned the real request number,
+and it is the one that judges that number against the transport allowlist
+— a dry run cannot run it without making the CTS call it exists to avoid,
+so a preview of a **transportable** write that comes back clean can still
+be refused when it is applied. Writes to a `$`-local package resolve no
+request and are unaffected.
+
+If the safety gate would refuse the write (package outside the allowlist,
+a mode that forbids it, etc.), the dry run returns that refusal instead
+of a diff, so a preview never shows a change the caller could not actually
+apply. `format: true` works on a dry run — the pretty-printer is a stateless
+server call that writes nothing, so the previewed bytes are the bytes a real
+write would send. `mode=delete` supports `dry_run` too, but its response shape
+differs from a write preview: instead of a diff it returns a `would_delete:
+true` header line, the resolved object, uri and package, and the gate verdict,
+with no diff body — there is no source to diff against. Its `transport:`
+line is the same fixed `unresolved (dry run makes no transport call)` as
+the write form, since a delete dry run makes no CTS call either. Whether a
+real delete would be undoable depends on whether the write journal is on,
+and the response says so directly: either that a real delete would capture
+a before-image and be undoable through `abap_journal mode=undo`, or that
+the journal is off and a real delete would be irreversible.
+
+The `edit` and `method` forms make the real write assert `expect_etag`
+automatically, so a dry run followed by the same call with `dry_run`
+dropped is safe as-is. The plain `{object, source}` form does not — the real
+write asserts nothing unless the caller passes `expect_etag` explicitly. The
+documented workflow for that form: dry-run, read `current_etag` from the
+preview (`expect_etag` reads `none (this form asserts no precondition)` for
+this form, since nothing supplies one), then repeat the call without
+`dry_run` and with that value as `expect_etag`, so the applied write
+compares against exactly the bytes previewed.
+
+Three routes refuse `dry_run` with `BAD_INPUT` rather than half-performing
+it, because they cannot be evaluated without being performed: the `objects`
+batch-delete form (preview one object at a time instead); the bridge-only
+create types (`VIEW/DV`, `TRAN/T`), which are created by generating and
+running an ABAP program, leaving nothing to preview short of doing it; and
+`DEVC/K` (package create), where a transportable package create must claim
+or create its transport request before anything else can be decided.
 
 Example:
 

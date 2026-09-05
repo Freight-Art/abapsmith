@@ -2,7 +2,7 @@
 
 | Entity | Create | Read | Update | Delete | Activate | Evidence | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Behavior definition (`BDEF/BDO`) | yes | yes | yes | no | yes | live | Delete is live-disproven, see the [object row notes](object-types.md#object-row-notes). |
+| Behavior definition (`BDEF/BDO`) | yes | yes | yes | yes | yes | live | Delete works; a blank source read no longer counts as proof the object is there. See the [object row notes](object-types.md#object-row-notes). |
 | Behavior implementation class | yes | yes | yes | yes | yes | live | An ordinary `CLAS/OC`; nothing knows it is a behavior pool. |
 | Service definition (`SRVD/SRV`) | yes | yes | yes | yes | yes | live | Ordinary source object. |
 | Service binding (`SRVB/SVB`) | yes | partial | yes | yes | yes | live | Read needs `format: "raw"`. |

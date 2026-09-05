@@ -25,7 +25,7 @@ Check here before planning any create.
 - `DDLX/EX` — write shape `source`, delete: yes
 - `DCLS/DL` — write shape `source`, delete: yes
 - `SRVD/SRV` — write shape `source`, delete: yes
-- `BDEF/BDO` — write shape `source`, delete: no
+- `BDEF/BDO` — write shape `source`, delete: yes
 - `XSLT/VT` — write shape `source`, delete: yes
 - `TYPE/DG` — write shape `source`, delete: yes
 - `DRUL/DRL` — write shape `source`, delete: yes
