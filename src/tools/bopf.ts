@@ -785,6 +785,41 @@ function alternativeKeyPreflight(
 }
 
 /**
+ * `set_alternative_key_fields` patches attributes on an existing key, so
+ * the dangerous combination can come from a partial patch — this checks
+ * the EFFECTIVE post-patch state (existing key, spec's fields applied over
+ * it), not the spec alone. Runs on the pre-mutation model, unconditionally
+ * on any patch (the PUT re-sends the whole key regardless of which fields
+ * changed). Not gated by allow_dangling_ref: the refused combinations have
+ * no mapper arm at all, so no override makes them succeed.
+ */
+function alternativeKeyCheckModePreflight(
+  model: BoModel,
+  sel: NodeSelector,
+  name: string,
+  spec: Record<string, unknown> | undefined,
+): void {
+  if (!spec || Object.keys(spec).length === 0) return;
+  const node =
+    sel.nodeId !== undefined
+      ? model.nodes.find((n) => n.nodeId === sel.nodeId)
+      : model.nodes.find((n) => n.name.toLowerCase() === sel.node.toLowerCase());
+  if (!node) return; // requireLocate raises NOT_FOUND for this once mutateModel runs
+  const key = node.alternativeKeys.find((k) => k.name.toLowerCase() === name.toLowerCase());
+  if (!key) return; // NOT_FOUND path owns this
+
+  const effUniqueness = "uniqueness" in spec ? str(spec.uniqueness) : key.uniqueness;
+  const effCheckAfterModify = "checkAfterModify" in spec ? bool(spec.checkAfterModify) : key.checkAfterModify;
+  const effCheckBeforeSave = "checkBeforeSave" in spec ? bool(spec.checkBeforeSave) : key.checkBeforeSave;
+  const effNoCheck = "noCheck" in spec ? bool(spec.noCheck) : key.noCheck;
+  validateAlternativeKeyCheckMode("set_alternative_key_fields", key.name, effUniqueness, {
+    checkAfterModify: effCheckAfterModify,
+    checkBeforeSave: effCheckBeforeSave,
+    noCheck: effNoCheck,
+  });
+}
+
+/**
  * `input.node` may legitimately be `""` — `create_bo`'s auto-generated root
  * node has `bo:name=""`. Only genuinely missing (`undefined`) is rejected.
  * `input.nodeId` disambiguates when needed (e.g. targeting the empty-named
@@ -815,7 +850,9 @@ function requireLocate(tokens: readonly Token[], sel: Selector): Range {
  * element captured on the wire (`test/fixtures/bopf/01-get-demo_sales_order.v4.xml`)
  * carries uniqueness, dataTypeRef, dataTableTypeRef and at least one
  * keyElements entry. A partial one is what BOPF's model mapper faults on,
- * and that fault took the whole ADT session down.
+ * and that fault took the whole ADT session down. Once the shape is
+ * complete, the uniqueness/check-mode combination is checked too — see
+ * `validateAlternativeKeyCheckMode`.
  */
 function validateAlternativeKeySpec(name: string, spec: Record<string, unknown>): void {
   strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness");
@@ -824,19 +861,86 @@ function validateAlternativeKeySpec(name: string, spec: Record<string, unknown>)
   if (ref(spec.dataTypeRef) === undefined) missing.push("dataTypeRef");
   if (ref(spec.dataTableTypeRef) === undefined) missing.push("dataTableTypeRef");
   if (strArray(spec.keyElements) === undefined) missing.push("keyElements");
-  if (missing.length === 0) return;
-  throw new AbapError(
-    "BAD_INPUT",
-    `add_alternative_key "${name}" is missing required spec fields: ${missing.join(", ")}. Every ` +
-      `bo:alternativeKeys element in the captured wire XML carries uniqueness, dataTypeRef, ` +
-      `dataTableTypeRef and at least one keyElements entry; a partial one is what BOPF's model mapper ` +
-      `(/BOBF/CL_CONF_MODEL_API_MAP) fails on, and that failure destroys the whole ADT session.`,
-    { operation: "add_alternative_key", name, missing },
-    `dataTypeRef and dataTableTypeRef are { name, type } refs — the key's DDIC structure and its table ` +
-      `type, e.g. { "name": "ZSORDER_ID", "type": "TABL/DS" } and { "name": "ZTORDER_ID", "type": "TTYP/DA" }. ` +
-      `uniqueness is one of "unique", "uniqueIfNotInitial", "notUnique". keyElements lists the node field ` +
-      `names that make up the key.`,
-  );
+  if (missing.length > 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `add_alternative_key "${name}" is missing required spec fields: ${missing.join(", ")}. Every ` +
+        `bo:alternativeKeys element in the captured wire XML carries uniqueness, dataTypeRef, ` +
+        `dataTableTypeRef and at least one keyElements entry; a partial one is what BOPF's model mapper ` +
+        `(/BOBF/CL_CONF_MODEL_API_MAP) fails on, and that failure destroys the whole ADT session.`,
+      { operation: "add_alternative_key", name, missing },
+      `dataTypeRef and dataTableTypeRef are { name, type } refs — the key's DDIC structure and its table ` +
+        `type, e.g. { "name": "ZSORDER_ID", "type": "TABL/DS" } and { "name": "ZTORDER_ID", "type": "TTYP/DA" }. ` +
+        `uniqueness is one of "unique", "uniqueIfNotInitial", "notUnique". keyElements lists the node field ` +
+        `names that make up the key.`,
+    );
+  }
+  validateAlternativeKeyCheckMode("add_alternative_key", name, str(spec.uniqueness), {
+    checkAfterModify: bool(spec.checkAfterModify),
+    checkBeforeSave: bool(spec.checkBeforeSave),
+    noCheck: bool(spec.noCheck),
+  });
+}
+
+/**
+ * The three wire attributes map to one server-side field, `uniqueness_check`
+ * — an unmatched `CASE` arm on it in `/BOBF/CL_CONF_MODEL_API_MAP` executes
+ * `ASSERT 1 = 0` and kills the ADT session.
+ */
+function validateAlternativeKeyCheckMode(
+  operation: string,
+  name: string,
+  uniqueness: string | undefined,
+  flags: { checkAfterModify?: boolean; checkBeforeSave?: boolean; noCheck?: boolean },
+): void {
+  const { checkAfterModify, checkBeforeSave, noCheck } = flags;
+  const details = { operation, name, uniqueness, checkAfterModify, checkBeforeSave, noCheck };
+  const patchNote =
+    operation === "set_alternative_key_fields"
+      ? ` A patch re-sends the whole key, so include the fix in this same set_alternative_key_fields call.`
+      : "";
+
+  if (checkBeforeSave === true) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${operation} "${name}": checkBeforeSave is currently not supported — /BOBF/CL_CONF_MODEL_API_MAP's ` +
+        `uniqueness_check CASE has an arm for it whose body is ASSERT 1 = 0, marked "currently not supported" ` +
+        `in the mapper source, which short-dumps and takes the whole ADT session down.`,
+      details,
+      `Use checkAfterModify or noCheck instead of checkBeforeSave.${patchNote}`,
+    );
+  }
+  const trueCount = [checkAfterModify, checkBeforeSave, noCheck].filter((f) => f === true).length;
+  if (trueCount > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${operation} "${name}" sets more than one of checkAfterModify, checkBeforeSave, noCheck true — at most ` +
+        `one of these may be true; all three map to the single server-side field uniqueness_check.`,
+      details,
+      `Set only one of checkAfterModify, checkBeforeSave, noCheck.${patchNote}`,
+    );
+  }
+  if ((uniqueness === "unique" || uniqueness === "uniqueIfNotInitial") && trueCount === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${operation} "${name}": uniqueness "${uniqueness}" needs exactly one of checkAfterModify or noCheck set ` +
+        `true — with none set, uniqueness_check is initial server-side, an unmatched CASE arm that asserts and ` +
+        `kills the ADT session.`,
+      details,
+      `Add "noCheck": true (or "checkAfterModify": true) to the spec.${patchNote}`,
+    );
+  }
+  if (uniqueness === "notUnique" && checkAfterModify === true) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${operation} "${name}": uniqueness "notUnique" with checkAfterModify: true has no matching arm — the ` +
+        `mapper's non_unique branch only handles uniqueness_check no_check (or unset); checkAfterModify falls ` +
+        `to WHEN OTHERS, ASSERT 1 = 0, which kills the ADT session the same way as an unset uniqueness_check ` +
+        `on unique/uniqueIfNotInitial.`,
+      details,
+      `Omit checkAfterModify (or pass noCheck: true) when uniqueness is "notUnique".${patchNote}`,
+    );
+  }
 }
 
 /** Cheap, zero-network shape validation, run before any preflight assert or network call. */
@@ -2013,6 +2117,21 @@ function addNodeAutoAssignedRefsNote(input: BopfEditInput, model: BoModel): stri
   );
 }
 
+/**
+ * The write itself is confirmed to land, but no alternative key added this
+ * way has been observed to activate.
+ */
+function alternativeKeyActivationNote(input: BopfEditInput): string | undefined {
+  if (input.operation !== "add_alternative_key") return undefined;
+  return (
+    "add_alternative_key's PUT is confirmed to land, but no alternative key added through this tool has been " +
+    "observed to activate. With a TABL/DS dataTypeRef, activation drew a severity-E message that the key's " +
+    "data type is not a data element — including for a byte-exact copy of an SAP demo key that is active on " +
+    "SAP's own object. With a DTEL/DE dataTypeRef, activate instead reported activated: false with zero " +
+    "activation messages; removing the key restored activated: true in that case."
+  );
+}
+
 function buildEditResponse(
   bo: string,
   model: BoModel,
@@ -2306,8 +2425,9 @@ const BOPF_EDIT_TOOL_DESCRIPTION =
   "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics — " +
   "see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and " +
   "dangling-ref handling. add_alternative_key and set_alternative_key_fields both need " +
-  "i_know_this_may_not_activate: true — the same short-dump-prone mapper handles both; add_alternative_key " +
-  "additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four. remove_dependent_object " +
+  "i_know_this_may_not_activate: true — no alternative key added this way has been observed to activate; " +
+  "add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four, " +
+  "and its checkAfterModify/checkBeforeSave/noCheck are constrained by uniqueness. remove_dependent_object " +
   "removes an existing dependent-object embedding (its DoComposition association plus the matching " +
   '"<name>.ROOT" node); abapsmith cannot create one — see doc/CAPABILITIES/bopf.md.';
 
@@ -2333,9 +2453,9 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
   ) {
     throw new AbapError(
       "BAD_INPUT",
-      `${input.operation} requires i_know_this_may_not_activate: true — an alternative-key payload goes ` +
-        "through /BOBF/CL_CONF_MODEL_API_MAP, the same mapper an invalid one has short-dumped, and the " +
-        "operation is not confirmed to succeed on any node.",
+      `${input.operation} requires i_know_this_may_not_activate: true — the write itself is confirmed to land, ` +
+        "but no alternative key added this way has been observed to activate (see the tool's activation note " +
+        "for the two failure modes seen).",
       { operation: input.operation },
     );
   }
@@ -2560,6 +2680,15 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
           requireNode(input),
           input.spec as Record<string, unknown> | undefined,
           input.allow_dangling_ref === true,
+        );
+      }
+
+      if (input.operation === "set_alternative_key_fields") {
+        alternativeKeyCheckModePreflight(
+          initial.model,
+          requireNode(input),
+          requireName(input),
+          input.spec as Record<string, unknown> | undefined,
         );
       }
 
@@ -2855,6 +2984,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
 
   const categoryNote = determinationCategoryOmittedNote(input);
   const addNodeNote = input.operation === "add_node" ? addNodeAutoAssignedRefsNote(input, result.model) : undefined;
+  const altKeyNote = alternativeKeyActivationNote(input);
   return ok(
     buildEditResponse(
       bo,
@@ -2864,7 +2994,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
       false,
       result.entryId,
       deps.cfg.maxResponseChars,
-      [categoryNote, addNodeNote, ...delegationNotes(input as DelegationInput)].filter(
+      [categoryNote, addNodeNote, altKeyNote, ...delegationNotes(input as DelegationInput)].filter(
         (n): n is string => n !== undefined,
       ),
     ),
