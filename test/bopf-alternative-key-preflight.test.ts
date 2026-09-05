@@ -69,6 +69,7 @@ const COMPLETE_SPEC = {
   uniqueness: "unique",
   dataTypeRef: { name: "ZSORDER_ID", type: "TABL/DS" },
   dataTableTypeRef: { name: "ZTORDER_ID", type: "TTYP/DA" },
+  noCheck: true,
 };
 
 // ----------------------------------------------------------------------- harness ---
