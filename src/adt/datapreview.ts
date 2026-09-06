@@ -2,8 +2,11 @@
  * DDIC data preview: reads rows from exactly one DDIC table or view over
  * `POST /sap/bc/adt/datapreview/ddic`. No free-form SQL surface, and no way
  * to add one — the endpoint takes a name, not a statement. The `freestyle`
- * sibling (takes an Open-SQL string; server-side guard was only a
- * leading-keyword test) stays private to `probeT000()` and is not wired up.
+ * sibling (takes an Open-SQL SELECT string) is now wired up too, but only as
+ * `AbapConnection.dataPreviewFreestyle()` (`connection.ts`) — reachable only
+ * from `img-query.ts`'s module-assembled SQL, never from a tool argument
+ * directly. `probeT000()` (`system-role.ts`) keeps its own separate,
+ * no-retry route to the same URL.
  *
  * Wire behavior captured on A4H 2026-08-11 — see
  * the git history:
@@ -169,6 +172,17 @@ export function parsePreviewBody(body: string): {
   columns: PreviewColumn[];
   rows: string[][];
   messages: PreviewMessage[];
+  /**
+   * `<dataPreview:totalRows>`, parsed as a plain integer. On the `ddic`
+   * endpoint this is always 0 even when rows come back (pinned by the
+   * `ddic-t000-rows3` cassette's own capture notes) — it must never be read
+   * as a row count there. On `freestyle` it is the true total matching the
+   * statement's WHERE, independent of the `rowNumber` cap, which is what
+   * `img-read.ts` uses it for. Absent or not parseable as an integer stays
+   * `undefined` — never defaulted to `0`, which would be indistinguishable
+   * from a genuine "zero rows match" answer.
+   */
+  totalRows?: number;
 } {
   const doc = previewXml.parse(body) as Record<string, unknown>;
   const table = (doc.tableData ?? {}) as Record<string, unknown>;
@@ -215,7 +229,21 @@ export function parsePreviewBody(body: string): {
   for (let r = 0; r < rowCount; r++) {
     rows.push(values.map((v) => v[r] ?? ""));
   }
-  return { columns, rows, messages };
+
+  // `<dataPreview:totalRows>` is a direct child of `tableData`, sibling to
+  // `columns`/`message`, and is not in the `isArray` predicate, so it parses
+  // to a plain string (not an array) when present. A missing element or one
+  // that fails to parse as an integer must stay `undefined`; a genuinely
+  // parsed `0` (e.g. from the `ddic` endpoint, which always reports 0) is
+  // still reported as `0`.
+  let totalRows: number | undefined;
+  const totalRowsRaw = table.totalRows;
+  if (typeof totalRowsRaw === "string" && totalRowsRaw.trim() !== "") {
+    const parsed = Number.parseInt(totalRowsRaw, 10);
+    if (Number.isFinite(parsed)) totalRows = parsed;
+  }
+
+  return { columns, rows, messages, ...(totalRows === undefined ? {} : { totalRows }) };
 }
 
 // ---------------------------------------------------------------- failures ---

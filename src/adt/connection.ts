@@ -141,8 +141,37 @@ export interface RawResponse {
   headers: Record<string, unknown>;
 }
 
-/** ADT DDIC data preview — table named by query param, not Open-SQL, so there's nowhere to smuggle a WHERE/JOIN. Only this path (not `freestyle`) is tool-reachable. */
+/** ADT DDIC data preview — table named by query param, not Open-SQL, so there's nowhere to smuggle a WHERE/JOIN. The `freestyle` sibling takes real SQL and is reachable only through `dataPreviewFreestyle()` below, and only with SQL a module assembled itself from fixed identifiers — never a string that reached abapsmith from a tool argument. */
 const DATA_PREVIEW_DDIC = "/sap/bc/adt/datapreview/ddic";
+/** The freestyle sibling of {@link DATA_PREVIEW_DDIC} — plain-text SQL SELECT as the POST body. See `dataPreviewFreestyle()`. */
+const DATA_PREVIEW_FREESTYLE = "/sap/bc/adt/datapreview/freestyle";
+/** Ample for anything a fixed catalog builds; a builder bug cannot put an unbounded string on the wire. */
+const FREESTYLE_MAX_LENGTH = 4000;
+/**
+ * Mutating/control keywords refused as whole words (case-insensitive) in a
+ * `dataPreviewFreestyle` statement. Word-boundary, not `includes`, so a real
+ * column or table name like `CREATE_DATE` is never refused — see the doc on
+ * `dataPreviewFreestyle` for why that matters.
+ */
+const FREESTYLE_BANNED_KEYWORDS = [
+  "INSERT",
+  "UPDATE",
+  "DELETE",
+  "MODIFY",
+  "DROP",
+  "CREATE",
+  "ALTER",
+  "TRUNCATE",
+  "COMMIT",
+  "ROLLBACK",
+  "CALL",
+  "EXEC",
+  "SUBMIT",
+  "PERFORM",
+] as const;
+const FREESTYLE_BANNED_RE = new RegExp(`\\b(?:${FREESTYLE_BANNED_KEYWORDS.join("|")})\\b`, "i");
+/** The server appends its own `INTO TABLE @DATA(...) UP TO <rowNumber> ROWS .` — an in-text `UP TO` collides with it. */
+const FREESTYLE_UP_TO_RE = /\bUP\s+TO\b/i;
 /**
  * ⚠️ Live-proven: `ddicEntityName` is concatenated into SQL server-side — see
  * the git history. Real validation lives in
@@ -1483,6 +1512,102 @@ export class AbapConnection {
         qs: { rowNumber: String(rowNumber), ddicEntityName: entityName },
         headers: { Accept: DATA_PREVIEW_ACCEPT, "Content-Type": "text/plain" },
         body: "",
+      });
+    } catch (e) {
+      // Mirrors `probeT000()` (`system-role.ts`): a tripped breaker must not
+      // surface as a preview failure the caller would retry.
+      this.assertBreakerClosed();
+      throw e;
+    }
+  }
+
+  /**
+   * The freestyle data preview request — a real Open-SQL SELECT as the POST
+   * body, not a bare entity name.
+   *
+   * **Invariant that matters: the caller must have assembled `sql` itself
+   * from fixed identifiers and validated values. No string that reached
+   * abapsmith from a tool argument may be passed here.** The one module
+   * allowed to call this is `src/adt/img-query.ts` (the IMG catalog reader,
+   * built from `img-catalog.ts`'s frozen table/field list); `probeT000()`
+   * (`system-role.ts`) has its own separate, no-retry route to this same URL
+   * and must never be merged with this one.
+   *
+   * Same shape as `dataPreviewDdic` above: bypasses `post()`/`raw()`'s
+   * `READ_ONLY` guard (a read exposed over POST), goes through `request()`
+   * so a stale CSRF token is refreshed and resent once, and re-raises a
+   * tripped breaker rather than letting it surface as a retryable failure.
+   *
+   * `rowNumber` sent verbatim, same wire fact as `dataPreviewDdic`:
+   * `0`/empty/non-numeric all mean **unlimited**, so non-positive values are
+   * refused here rather than forwarded. Row limiting can ONLY go through
+   * `rowNumber` — the server appends its own
+   * `INTO TABLE @DATA(...) UP TO <rowNumber> ROWS .`, so an in-text `UP TO`
+   * is rejected client-side with a clear message instead of reaching the
+   * server's `"UP" is invalid here (due to grammar)` error.
+   */
+  async dataPreviewFreestyle(sql: string, rowNumber: number): Promise<RawResponse> {
+    this.assertUsable();
+    if (!Number.isInteger(rowNumber) || rowNumber < 1) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `rowNumber must be a positive integer, got ${String(rowNumber)}. ` +
+          `On this endpoint 0 and non-numeric values mean UNLIMITED, not "none".`,
+        { rowNumber },
+        "Ask for a specific positive row count.",
+      );
+    }
+    const trimmed = sql.trim();
+    if (!/^SELECT\b/i.test(trimmed)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "Refusing freestyle SQL that does not begin with SELECT.",
+        { sql },
+        "Only a single SELECT statement is accepted on this endpoint.",
+      );
+    }
+    if (trimmed.includes(";")) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "Refusing freestyle SQL containing ';': only a single statement is accepted.",
+        { sql },
+        "Remove the ';' — this endpoint takes exactly one SELECT, not a script.",
+      );
+    }
+    const keywordHit = FREESTYLE_BANNED_RE.exec(trimmed);
+    if (keywordHit) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Refusing freestyle SQL containing '${keywordHit[0].toUpperCase()}': only a read is accepted.`,
+        { sql },
+        "This endpoint is read-only — remove the mutating or control statement.",
+      );
+    }
+    if (FREESTYLE_UP_TO_RE.test(trimmed)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "Refusing freestyle SQL containing 'UP TO': row limiting goes through the rowNumber " +
+          "argument, because the server appends its own UP TO <rowNumber> ROWS clause.",
+        { sql },
+        "Remove the in-text UP TO clause and pass the row limit as rowNumber instead.",
+      );
+    }
+    if (trimmed.length > FREESTYLE_MAX_LENGTH) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Refusing freestyle SQL longer than ${FREESTYLE_MAX_LENGTH} characters (got ${trimmed.length}).`,
+        { length: trimmed.length },
+        "A statement built from a fixed catalog should never approach this length.",
+      );
+    }
+    try {
+      return await this.request(DATA_PREVIEW_FREESTYLE, {
+        method: "POST",
+        qs: { rowNumber: String(rowNumber) },
+        headers: { Accept: DATA_PREVIEW_ACCEPT, "Content-Type": "text/plain" },
+        // Sent verbatim, not `trimmed` — validation above tolerates
+        // surrounding whitespace, but the wire gets exactly what the caller passed.
+        body: sql,
       });
     } catch (e) {
       // Mirrors `probeT000()` (`system-role.ts`): a tripped breaker must not

@@ -22,6 +22,8 @@ requiredness and defaults are taken from the schema, not from prose.
 | [journal.md](journal.md) | `abap_journal` — listing, inspecting and undoing writes this server has made. |
 | [debugger.md](debugger.md) | `abap_debug`, `abap_debug_vars`, `abap_debug_value` — the ABAP debugger driver and variable inspection. |
 | [diagnostics.md](diagnostics.md) | `abap_dumps`, `abap_data_preview` — reading ST22 short dumps and previewing DDIC table/view rows. |
+| [abap-img.md](abap-img.md) | `abap_img` — navigating the IMG (SPRO) customizing structure read-only: activities, nodes, and the views and tables behind them. |
+| [abap-img-edit.md](abap-img-edit.md) | `abap_img_edit` — writing IMG (SPRO) customizing rows behind a resolved maintenance object, and creating the customizing request to record them on. |
 | [bopf.md](bopf.md) | `abap_bopf`, `abap_bopf_edit`, `abap_bopf_delete`, `abap_bopf_test` — reading, editing, deleting and exercising BOPF business objects. |
 | [enhancements.md](enhancements.md) | `abap_enh` — creating and driving BAdI spots, implementations, filters and hooks. |
 | [ui-and-fpm.md](ui-and-fpm.md) | `abap_fpm_read`, `abap_ui` — reading FPM/FBI configuration and driving classic dynpro screens via batch input. |

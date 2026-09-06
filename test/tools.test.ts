@@ -1883,6 +1883,8 @@ describe("tool surface", () => {
       "abap_dumps",
       "abap_enh",
       "abap_fpm_read",
+      "abap_img",
+      "abap_img_edit",
       "abap_journal",
       "abap_open_url",
       "abap_quick_fix",
@@ -2312,6 +2314,7 @@ describe("tool surface", () => {
       "abap_run",
       "abap_test",
       "abap_fpm_read",
+      "abap_img_edit",
       "abap_bopf_test",
       "abap_bopf_edit",
       "abap_bopf_delete",
@@ -2334,6 +2337,11 @@ describe("tool surface", () => {
       "abap_transport",
       "abap_journal",
       "abap_enh",
+      // Reads catalog tables straight through the freestyle data-preview
+      // endpoint (src/adt/img-read.ts) — generates no ABAP, deploys nothing,
+      // so it needs no write capability. `abap_img_edit` (above) is the
+      // mutating counterpart that actually writes customizing rows.
+      "abap_img",
     ];
 
     it("excludes every mutating tool from tools/list on a read-only server", async () => {

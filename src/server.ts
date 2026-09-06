@@ -39,6 +39,8 @@ import { registerTransportTools } from "./tools/transport.js";
 import { registerBopfTools } from "./tools/bopf.js";
 import { registerBopfTestTool, createBopfTestDeps } from "./tools/bopf-test.js";
 import { registerFpmTools } from "./tools/fpm.js";
+import { registerImgTools } from "./tools/img.js";
+import { registerImgEditTools } from "./tools/img-edit.js";
 import { registerUiTools } from "./tools/ui.js";
 import { registerEnhancementTools } from "./tools/enh.js";
 import { registerDataPreviewTools } from "./tools/data-preview.js";
@@ -602,6 +604,10 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     registerReadTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
     registerSearchTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
     registerOpenUrlTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
+    // `abap_img` reads catalog tables straight through the freestyle data-preview endpoint
+    // (src/adt/img-read.ts) — it generates no ABAP and deploys nothing, so it needs no write
+    // capability and registers unconditionally, same as the other read tools above.
+    registerImgTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
     // `abap_write`/`abap_fpm_read`/`abap_run`/`abap_test`/`abap_bopf_test`
     // have no ungated submode, so registration itself is skipped when
     // `!toolCapabilities.canWrite`. `abap_activate` (mode=check is a genuine
@@ -618,6 +624,11 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
       // `journal` for the before-image, `transport` for the CTS assignment.
       registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
+      // `abap_img_edit` writes IMG customizing rows via a generated $ZMCP_HELPERS bridge
+      // (src/adt/img-write-bridge.ts) — an irreversible business-data write, gated here like
+      // every other mutating tool. `journal` records the before-image; the wider `cfg` slice
+      // (`sid`/`url`/`client`) is for `systemKey()` on those journal entries.
+      registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
       registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       // `abap_atc`: inside `canWrite`, not beside `abap_dumps` — a run

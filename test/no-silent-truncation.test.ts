@@ -321,6 +321,12 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
       "Caller-supplied `limit` on Journal.list(): the caller asked for exactly N and receives exactly N, so there is nothing it does not already know. Not a budget the caller cannot see.",
   },
   {
+    file: "src/adt/img-read.ts",
+    contains: "merged.slice(0, limit)",
+    reason:
+      "Keyset pager for abap_img mode: \"search\". The freestyle data-preview endpoint has no OFFSET, which is why this pager is hand-rolled at all: readImgSearch over-fetches limit + 1 rows from both the id-match and title-match queries before merging and sorting them, so it always knows whether a page was cut short. The dropped tail IS disclosed to the caller, structurally and in the same return value: the result carries page: { after: q.after, next, limit, more }, where `more` says a further page exists and `next` is the exact keyset cursor to pass back as `after` to fetch it. Nothing is withheld silently.",
+  },
+  {
     file: "src/debug/render.ts",
     contains: "reachableTexts.slice(0, kept).reduce",
     reason:
