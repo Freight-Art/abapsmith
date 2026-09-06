@@ -294,6 +294,25 @@ function okText(result: CallToolResult): string {
   return text.text;
 }
 
+/**
+ * Slices out just the `--- TRANSPORT ENTRY RECORDED ---` section (up to the next section header or
+ * end of text), so assertions on its contents cannot be satisfied by the header block above it
+ * (which already prints `table:`/`view:`/`masterType:`). Fails loudly if the section is missing.
+ *
+ * The next-section boundary is matched as a whole line of the shape `--- TITLE ---` (`^--- .+
+ * ---$`), NOT merely a line starting with `---` — `textTable`'s own underline row (e.g. `---
+ * ------  ----------  ...`) also starts with `---`, and a naive `indexOf("\n---")` cutoff would
+ * truncate the section right after its own header, before ever reaching the data rows below the
+ * underline.
+ */
+function transportSection(text: string): string {
+  const idx = text.indexOf("--- TRANSPORT ENTRY RECORDED ---");
+  expect(idx).toBeGreaterThanOrEqual(0);
+  const lines = text.slice(idx).split("\n");
+  const nextHeaderIdx = lines.findIndex((l, i) => i > 0 && /^--- .+ ---$/.test(l));
+  return (nextHeaderIdx === -1 ? lines : lines.slice(0, nextHeaderIdx)).join("\n");
+}
+
 /** A `Journal` that never touches disk — `enabled: false` is modelled inside `Journal` itself; used by every test that does not inspect journal entries. */
 const disabledJournal = new Journal({ dir: join(tmpdir(), "abapsmith-img-edit-unused"), enabled: false, maxEntries: 1, maxAgeDays: 1 }, "TST");
 
@@ -367,6 +386,40 @@ const APPLY_TRANSCRIPT_DELETE =
   `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
   `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
   `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[10] value=[A4HK900001]\n` +
+  `IMGW> AABSENT row=[1]\n` +
+  `IMGW> APPLIED rows=[1]\n`;
+
+/**
+ * Same shape as `APPLY_TRANSCRIPT_UPSERT`, but with a `TRKEY` value that is
+ * deliberately NOT the trkorr text (`ZTMD`, 4 chars) — the real generated
+ * ABAP's `IMGW> TRKEY ... value=[{ <key_c> }]` is the table key cast to a
+ * character string, which the trkorr-shaped fixtures above obscure. This is
+ * the fixture the client-prefix tests below actually need: SAP stores
+ * `ls_e071k-tabkey = sy-mandt && <key_c>` (client `001` + this value), which
+ * the `IMGW> TRKEY` line itself never carries.
+ */
+const APPLY_TRANSCRIPT_UPSERT_TABKEY =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[4] value=[ZTMD]\n` +
+  `IMGW> AVAL row=[1] field=[ZDESC] len=[3] value=[New]\n` +
+  `IMGW> APPLIED rows=[1]\n`;
+
+/** Same as `APPLY_TRANSCRIPT_UPSERT_TABKEY`, but with no `IMGW> CLIENT` line at all — the fallback case where the client cannot be sourced to reconstruct the stored TABKEY. */
+const APPLY_TRANSCRIPT_UPSERT_TABKEY_NO_CLIENT =
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[4] value=[ZTMD]\n` +
+  `IMGW> AVAL row=[1] field=[ZDESC] len=[3] value=[New]\n` +
+  `IMGW> APPLIED rows=[1]\n`;
+
+/** Delete-side counterpart of `APPLY_TRANSCRIPT_UPSERT_TABKEY` — confirms the identity/tabkey disclosure is not upsert-only (deletes call `ctsRecordFragment` too — see `imgApplySource`'s delete branch in `src/adt/img-write-bridge.ts`). */
+const APPLY_TRANSCRIPT_DELETE_TABKEY =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[6] value=[DELKEY]\n` +
   `IMGW> AABSENT row=[1]\n` +
   `IMGW> APPLIED rows=[1]\n`;
 
@@ -595,6 +648,115 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
 
     expect(errorPayload(result).error).toBe("BAD_INPUT");
     expect(inner.calls).toHaveLength(0);
+  });
+});
+
+// ===========================================================================
+// The armed success response's own "TRANSPORT ENTRY RECORDED" section used to
+// show only trkorr/recorded_order/recorded_task — a caller who needed to
+// confirm what was actually filed (pgmid/object/objname/mastertype/
+// mastername, and the TABKEY as SAP actually stored it) had to read E071K
+// raw. These pin the fix: the identity fields render once above the per-row
+// table (constant across every row of one call), and the per-row TABKEY is
+// reconstructed as client + the bridge's bare key value — never fabricating
+// a client the transcript never reported.
+// ===========================================================================
+
+describe("abap_img_edit — armed transport entry identity disclosure", () => {
+  it("armed upsert discloses pgmid/object/objname/mastertype/mastername above the per-row table, with the plan's real values", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "upsert",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+    const section = transportSection(okText(result));
+
+    // R3TR/TABU are generator constants (see ctsRecordFragment in img-write-bridge.ts); ZTEST_IMGW
+    // (objname) is args.table, VDAT/ZTEST_IMGW_V (mastertype/mastername) are args.masterType/
+    // args.view — none of these are parsed off the TRKEY transcript line, which carries none of
+    // them.
+    expect(section).toContain("R3TR TABU ZTEST_IMGW (master VDAT ZTEST_IMGW_V)");
+  });
+
+  it("the rendered tabkey is client-prefixed: mandt 001 + a TRKEY value of ZTMD renders 001ZTMD, matching what SAP actually stored", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_UPSERT_TABKEY),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "upsert",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+    const section = transportSection(okText(result));
+    const tokens = section.split(/\s+/).filter(Boolean);
+
+    // The generated ABAP stores `ls_e071k-tabkey = sy-mandt && <key_c>` — client "001" concatenated
+    // with the key — but the IMGW> TRKEY line's own value=[...] is the bare key ("ZTMD") with no
+    // client. A cell showing the bare "ZTMD" instead of "001ZTMD" would be the exact mistake this
+    // pins against.
+    expect(tokens).toContain("001ZTMD");
+    expect(tokens).not.toContain("ZTMD");
+  });
+
+  it("without an IMGW> CLIENT line, no client prefix is fabricated — the key renders unprefixed and the response says so", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_UPSERT_TABKEY_NO_CLIENT),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "upsert",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+    const text = okText(result);
+    const section = transportSection(text);
+    const tokens = section.split(/\s+/).filter(Boolean);
+
+    expect(tokens).toContain("ZTMD");
+    expect(tokens).not.toContain("001ZTMD");
+    expect(text).toContain("key portion only");
+  });
+
+  it("a delete also records a CTS entry, and the section renders the same identity/tabkey disclosure", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_DELETE_TABKEY),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "delete",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" } }],
+    });
+    const section = transportSection(okText(result));
+    const tokens = section.split(/\s+/).filter(Boolean);
+
+    expect(section).toContain("R3TR TABU ZTEST_IMGW (master VDAT ZTEST_IMGW_V)");
+    expect(tokens).toContain("001DELKEY");
   });
 });
 

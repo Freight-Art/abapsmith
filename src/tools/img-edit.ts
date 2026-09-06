@@ -1071,15 +1071,46 @@ function renderArmed(
   if (t.errors.length) finalNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) finalNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
 
+  // The CTS identity fields (pgmid/object/objname/mastertype/mastername) are NOT carried by the
+  // IMGW> TRKEY transcript line — they are the generator's own inputs (see ctsRecordFragment in
+  // img-write-bridge.ts: PGMID/OBJECT are fixed constants 'R3TR'/'TABU', OBJNAME/MASTERTYPE/
+  // MASTERNAME are args.table/args.masterType/args.view baked into the generated ABAP before the
+  // apply ever runs), so they are read from args here, not parsed out of the transcript. They are
+  // constant across every row of one call, so they are rendered once, above the per-row table,
+  // rather than repeated in every row.
+  const CTS_PGMID = "R3TR";
+  const CTS_OBJECT = "TABU";
+  const identityLine =
+    `${CTS_PGMID} ${CTS_OBJECT} ${args.table.toUpperCase()} ` +
+    `(master ${args.masterType} ${args.view.toUpperCase()})`;
+
+  // The generated ABAP stores TABKEY as `sy-mandt` (client) followed by the cast key
+  // (`ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|`), but the IMGW> TRKEY line's own
+  // `value=[{ <key_c> }]` is the key WITHOUT the client prefix — so the client has to be sourced
+  // separately, from the IMGW> CLIENT line (`t.client?.mandt`), to reconstruct what was actually
+  // stored. When no CLIENT line was parsed, the client prefix is not fabricated — the key portion
+  // is shown alone and callers are told, via a note, that it is unprefixed.
+  const mandt = t.client?.mandt;
   const trkeyRows = t.trkeys.map((k) => ({
     row: String(k.row),
+    tabkey: mandt !== undefined ? `${mandt}${k.value}` : k.value,
     trkorr: k.trkorr,
     recorded_order: k.recordedOrder ?? "",
     recorded_task: k.recordedTask ?? "",
   }));
+  if (trkeyRows.length && mandt === undefined) {
+    finalNotes.push(
+      "The transport entry's tabkey below is the key portion only (no IMGW> CLIENT line was parsed to supply the client prefix SAP actually stored).",
+    );
+  }
 
   const sections: { title: string; content: string }[] = trkeyRows.length
-    ? [{ title: "TRANSPORT ENTRY RECORDED", content: textTable(trkeyRows, ["row", "trkorr", "recorded_order", "recorded_task"]) }]
+    ? [
+        {
+          title: "TRANSPORT ENTRY RECORDED",
+          content: `${identityLine}\n${textTable(trkeyRows, ["row", "tabkey", "trkorr", "recorded_order", "recorded_task"])}`,
+        },
+      ]
     : [];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
 
