@@ -844,6 +844,30 @@ was last set to `0.3.0`.
   `abap_write` already does — a process whose verdict is already settled
   still refuses without paying for a logon it doesn't need. The
   `write-lockout` rule itself is unchanged and intentionally fail-closed.
+- `abap_img_edit`'s `upsert` refused a row that named only key fields with
+  `BAD_INPUT: row 0 has no value fields to write` — a live run hit this
+  arming a row on `TB004` (key `BPKIND`), whose only non-key columns are
+  seven optional `FELDSTLSTn` field-status lists, a row SM30 itself
+  accepts. A key-only `upsert` row is now legal: if it doesn't already
+  exist it is inserted with the key fields and the client field set and
+  every other column left initial; if it already exists nothing is
+  written, and the per-row result reports `changed: no` with `row exists,
+  no value fields to write` — a success, not a refusal. Unverified live as
+  of this change.
+- `preview` now runs the same plan validation `upsert`/`delete` enforce
+  for real, instead of a looser check of its own — a row `preview`
+  accepted (the key-only case above being one instance) could previously
+  be refused once armed. The `corr_nr`/`confirm` requirements are still
+  only reported as advisory notes on `preview`, never as a refusal, since
+  `preview` never arms anything; every other check now matches exactly,
+  so `preview` can also refuse a row it used to merely display, e.g. one
+  naming a value field the table doesn't have.
+- `abap_img_edit`'s resolved base table name is now printed upper-cased as
+  SAP spells it, in the `confirm` token, the `preview` response header,
+  and the transport-entry line — previously all three showed the
+  lower-cased spelling the generated bridge happened to echo. The
+  `confirm` comparison was already case-insensitive, so arming a write is
+  unaffected.
 
 ### Security
 

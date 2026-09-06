@@ -30,7 +30,11 @@ you want the affected row(s) to have.
    `activity`/`object` you just resolved, plus the row(s) you're
    interested in (by key). This makes no change — it shows the current
    values and tells you, in advance, whether a customizing request will be
-   required and what to pass as `confirm`.
+   required and what to pass as `confirm`. `preview` now checks a row the
+   same way the armed call does, so a row it accepts here is one `upsert`/
+   `delete` will accept too — including refusing a row it would once have
+   just shown you, for example one naming a value field the table doesn't
+   have.
 4. **Arm the change.** `mode: "upsert"` (or `"delete"`) with the same
    target and rows, the new `values`, a `corr_nr` if one was called for, and
    `confirm` set to exactly the base table name the preview named — not
@@ -93,6 +97,29 @@ genuinely client-independent table has no client field for it to set, so
 the class fails to activate. `allow_cross_client: true` only clears this
 tool's own policy refusal — it does not make the write work. Maintain a
 cross-client table by hand (SM30/SM34) instead.
+
+## Adding a row with nothing else to set
+
+Some customizing tables have no required columns beyond the key — every
+other column is optional, so the SM30 equivalent of "add this entry" is
+typing in just the key and leaving the rest blank. `TB004` (field status
+groups, key `BPKIND`) is like this: its only non-key columns are seven
+optional field-status-list fields.
+
+For a table like that, an `upsert` row can name `key` alone and omit
+`values` entirely. If the row doesn't already exist, it's inserted with
+the key (and the client) set and everything else left at its initial
+value — the same result SM30 gives you for a bare new entry. If the row
+already exists, nothing is changed, and the per-row result reads
+`changed: no` with the text `row exists, no value fields to write`. Read
+that as success: the row was already there, and there was nothing this
+call was asked to set on it.
+
+This only makes sense on a table where every non-key column really is
+optional — check with `abap_img show`/`objects` (or SM30 itself) first. A
+table with a required non-key column still needs `values` supplying it;
+a key-only row there fails the same validation whether you send it to
+`preview` or to `upsert`.
 
 ## Never touch a SAP-delivered entry
 

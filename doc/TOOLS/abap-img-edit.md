@@ -58,15 +58,20 @@ Target resolution is identical to `abap_img`: an `activity` or `object`
 (`src/adt/img-resolve.ts`), to one base table. An activity behind several
 maintenance objects, or an object spanning several base tables, is refused
 with the same ambiguity message `abap_img show`/`objects` would show —
-name the object or table explicitly rather than the activity.
+name the object or table explicitly rather than the activity. The resolved
+table name is printed upper-cased, the way SAP itself spells it, in the
+`confirm` token, the `preview` response header, and the transport-entry
+line alike — the `confirm` comparison is case-insensitive regardless, so
+nothing about arming a write changes with this.
 
 - **`preview`** — resolves the target and runs `ZCL_ZMCP_IMG_WPROBE`, a
   generated helper that reads the table's client-dependence (`T000`), its
   DD02L/DD03L shape (delivery class, key fields), and the current values
-  of the requested rows. Makes no change. Everything `upsert`/`delete`
-  would refuse as a hard error is reported here too, but as advisory notes
-  — `corr_nr`/`confirm` requirements included — never as a refusal, since
-  nothing is being armed.
+  of the requested rows. Makes no change. It now runs the same plan
+  validation `upsert`/`delete` enforce for real, so a row `preview`
+  accepts is a row the armed call will accept too, and vice versa — the
+  one exception is `corr_nr`/`confirm`, which `preview` still only reports
+  as advisory notes, since nothing is being armed here either way.
 - **`upsert`** / **`delete`** — the same checks as `preview`, now enforced:
   delivery class must be `C`, `G`, or `E` (`A`/`L`/`S`/`W` are SAP-delivered
   or system tables and are refused by name); `allow_cross_client: true`
@@ -79,13 +84,23 @@ name the object or table explicitly rather than the activity.
   deny-list `abap_data_preview` uses (credentials/security, payroll/HR,
   accounting documents, and personal data); and the system's own client-change
   setting (`T000-CCCORACTIV`) must not block customizing changes outright.
-  `confirm` must then exactly equal the resolved base table name — not the
-  activity id, not the view name — to arm the call; without it, nothing is
-  written. If the client requires a recorded change, `corr_nr` (a
-  customizing request or task number) is required too. Once armed,
-  `ZCL_ZMCP_IMG_WAPPLY` runs: per row, read the before-image, record the
-  CTS entry (if `corr_nr` given), `MODIFY`/`DELETE`, `COMMIT WORK AND WAIT`,
-  then re-read the after-image.
+  An `upsert` row may name key fields only, with no `values` at all — that
+  is legal input, the same way SM30 accepts a new row for a table whose
+  every non-key column is optional (e.g. `TB004`, key `BPKIND`, whose only
+  non-key columns are seven optional `FELDSTLSTn` field-status lists). If
+  the row doesn't already exist it is inserted with the key fields and the
+  client field set and every other column left at its initial value; if it
+  already exists nothing is written, and the per-row result reports
+  `changed: no` with the text `row exists, no value fields to write` — a
+  success, not a refusal. `preview`'s prospective-change table shows such a
+  row as `key-only row (no value fields); insert if absent, otherwise no
+  change` rather than an empty set of fields. `confirm` must then exactly
+  equal the resolved base table name — not the activity id, not the view
+  name — to arm the call; without it, nothing is written. If the client
+  requires a recorded change, `corr_nr` (a customizing request or task
+  number) is required too. Once armed, `ZCL_ZMCP_IMG_WAPPLY` runs: per
+  row, read the before-image, record the CTS entry (if `corr_nr` given),
+  `MODIFY`/`DELETE`, `COMMIT WORK AND WAIT`, then re-read the after-image.
 - **`create_request`** — generates `ZCL_ZMCP_CTS_WREQ`, which calls
   `TR_INSERT_REQUEST_WITH_TASKS` to create a type-`W` (customizing)
   request, passing `IT_USERS` with one row so the request gets a task.
@@ -130,7 +145,7 @@ written, snake_case included.
 | `table` | string | expert escape hatch: exactly one of `activity`/`object`/`table`, for `preview`/`upsert`/`delete` | — | The base DDIC table to read/write directly, bypassing activity/object resolution. Requires `key_fields`. `client_field` is optional but the write always sets it from `sy-mandt`, so a genuinely client-independent table cannot be written this way — see "What this does not do". |
 | `client_field` | string | `table` (expert escape hatch) only | `MANDT` | The table's client field name, e.g. `MANDT`. Conflicts with `activity`/`object`, whose client field is resolved automatically. |
 | `key_fields` | array of string | `table` (expert escape hatch) only, at least one entry | — | The table's key field names, in order, excluding the client field. Conflicts with `activity`/`object`, whose key fields are resolved automatically. |
-| `rows` | array of `{ key: {...}, values: {...} }` | required for `preview`/`upsert`/`delete` | — | Row key fields and, for `upsert`, the non-key values to write. `delete` needs only `key`. 1–50 rows per call. |
+| `rows` | array of `{ key: {...}, values: {...} }` | required for `preview`/`upsert`/`delete` | — | Row key fields and, for `upsert`, the non-key values to write. `values` may be omitted entirely on an `upsert` row — see "Mechanism" for what a key-only row does. `delete` needs only `key`. 1–50 rows per call. |
 | `view` | string | optional, for `upsert`/`delete` | resolved view/cluster name (or table, if the resolved target is a table); with `table`, defaults to `table` | The maintenance view or view cluster name recorded on the transport entry. |
 | `master_type` | enum `VDAT` \| `CDAT` | optional, for `upsert`/`delete` | `VDAT` | The transport entry's object type — `VDAT` for a maintenance view, `CDAT` for a customizing object recorded directly. |
 | `language` | string, regex `^[A-Za-z]$` | optional | the server's configured language (`ABAP_LANGUAGE`/`cfg.language`) if set, else `"E"` | Single-character SAP language key (SPRAS) the probe reads DD02L/DD03L texts in — e.g. `"E"` for English, `"D"` for German. A two-character ISO code such as `EN`/`DE` is refused (`BAD_INPUT`) naming the one-character form, not silently mapped — see `doc/TOOLS/abap-img.md`'s `language` row for why. The `preview` response header prints the resolved value. |
@@ -258,3 +273,11 @@ this system use.
   unknown verdict for every write tool afterward, so a repeat of this
   specific failure on a call that is not a process's first is unexpected
   and worth investigating rather than assuming.
+- **`preview` can now refuse a row it used to just display.** Now that
+  `preview` runs the same plan validation `upsert`/`delete` enforce for
+  real (see "Mechanism"), any row that fails that validation — naming a
+  value field the table doesn't have, for instance — is refused at
+  `preview` too, instead of being shown with the bad field silently
+  ignored. This is a consequence of preview and the armed call sharing one
+  validator, not a new restriction on what can be written; a row `preview`
+  now accepts is a row the armed call will accept as well.
