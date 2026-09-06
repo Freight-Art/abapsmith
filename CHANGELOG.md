@@ -274,11 +274,19 @@ was last set to `0.3.0`.
   deterministic proposals only, refusing a parameterized one `BAD_INPUT`.
 - `abap_img` — read-only navigation of the IMG (SPRO) customizing structure,
   in four modes (`search`, `show`, `tree`, `objects`). ADT has no IMG REST
-  route, so it runs fixed, parameterised SELECTs through a generated
-  `$TMP` bridge class, the same mechanism `abap_fpm_read` uses; that makes
-  it register only when the server can write, though every call after the
-  first deploy is a pure read. The catalog table and field names it queries
-  (`src/adt/img-catalog.ts`) are not yet confirmed against a live system.
+  route, so it sends fixed, catalog-driven SELECTs (`src/adt/img-catalog.ts`)
+  to the ADT freestyle data-preview endpoint — no ABAP is generated or
+  deployed, so it registers under `ABAP_MODE=read`. Every table it actually
+  queries is measured against a live system.
+- `abap_img_edit` — writes IMG customizing rows: `preview`, `upsert`,
+  `delete`, and `create_request` (a type-`W` customizing request). Writes go
+  straight to the resolved base table with a guarded `MODIFY`/`DELETE`, not
+  through the maintenance view's own SM30-generated function module, and
+  are restricted to customizing delivery classes `C`/`G`/`E`. Transport
+  bookkeeping reuses the same CTS calls SM30 itself uses
+  (`TR_OBJECTS_CHECK`/`TR_OBJECTS_INSERT`/`TR_INSERT_REQUEST_WITH_TASKS`).
+  Generated helper classes go into the new dedicated `$ZMCP_HELPERS`
+  package, never `$TMP`.
 
 ### Changed
 
