@@ -92,10 +92,10 @@ describe("static exports", () => {
     expect(CTS_INSERT_FM.exceptions.cancelEditOtherError).not.toBe(CTS_INSERT_FM.exceptions.showOnlyOtherError);
   });
 
-  it("CTS_INSERT_FM's note says plainly, near the front, that no CTS call has ever been executed", () => {
+  it("CTS_INSERT_FM's note says plainly, near the front, that this server has never itself called either FM", () => {
     const upfront = CTS_INSERT_FM.note.slice(0, 80).toUpperCase();
     expect(upfront).toContain("UNPROVEN");
-    expect(CTS_INSERT_FM.note).toContain("has ever actually been executed");
+    expect(CTS_INSERT_FM.note).toContain("this server has never itself called either one");
     expect(CTS_INSERT_FM.params.weOrder).toBe("we_order");
     expect(CTS_INSERT_FM.params.weTask).toBe("we_task");
   });
