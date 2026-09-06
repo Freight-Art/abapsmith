@@ -12,11 +12,12 @@
  * IMPORTANT, stated once here rather than per row: `upsert`/`delete` do a
  * direct `MODIFY`/`DELETE` on the target table (see `img-write-bridge.ts`).
  * The target view's own foreign-key checks, fixed-value checks, and
- * table-maintenance-generator events do NOT run. Only the row data itself
- * is written; validation an SM30 dialog would have performed did not
- * happen. `evaluateImgWrite` already seeds this
- * disclosure as the first note on every ALLOWED verdict (including
- * `preview`) — this module renders it verbatim for `upsert`/`delete` and
+ * table-maintenance-generator events do NOT run — only the row data itself
+ * is written, so validation the SM30 dialog would have performed did not
+ * happen here. `evaluateImgWrite` (img-write-policy.ts) already seeds this
+ * disclosure, `SM30_BYPASS_NOTE`, as the first note on every ALLOWED verdict
+ * (including `preview`) — this module imports that constant rather than
+ * keeping its own copy, renders it verbatim for `upsert`/`delete`, and
  * deliberately filters that one sentence out of `preview`'s own notes,
  * since nothing has been written yet for a preview to disclose a bypass of.
  *
@@ -59,11 +60,14 @@ import {
 } from "../adt/img-write.js";
 import {
   evaluateImgWrite,
+  SM30_BYPASS_NOTE,
   type ImgWriteProbe,
   type ImgWriteRequest,
   type PolicyField,
   type PolicyTable,
 } from "../adt/img-write-policy.js";
+import { readImgShow, readImgObjects, type ImgObjectKind, type ImgReadConnection } from "../adt/img-read.js";
+import { resolveActivity, resolveObject, type ResolvedTable } from "../adt/img-resolve.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, textTable } from "../compact.js";
@@ -100,18 +104,55 @@ export const imgEditInputSchema = {
         "upsert: write rows (insert new keys, update existing ones). delete: remove rows. " +
         "create_request: create a new customizing (type W) transport request and return its number.",
     ),
+  activity: z
+    .string()
+    .optional()
+    .describe(
+      "preview/upsert/delete: an IMG activity id, exactly as abap_img show accepts. Resolved to its " +
+        "base table, key fields, and client field automatically. Exactly one of activity/object/table " +
+        "is required. Conflicts with key_fields/client_field (those are derived from the resolution).",
+    ),
+  object: z
+    .string()
+    .optional()
+    .describe(
+      "preview/upsert/delete: a maintenance view, view cluster, transaction, or table name, exactly as " +
+        "abap_img objects accepts. Resolved to its base table, key fields, and client field " +
+        "automatically. Exactly one of activity/object/table is required. Conflicts with " +
+        "key_fields/client_field (those are derived from the resolution).",
+    ),
+  kind: z
+    .enum(["table", "view", "cluster", "transaction", "customizing_object", "report"])
+    .optional()
+    .describe(
+      "Only meaningful together with object: which catalog to resolve object against. Omitted: probed " +
+        "as table, then view, then cluster, then transaction, then customizing object, first match wins.",
+    ),
   table: z
     .string()
     .optional()
-    .describe("preview/upsert/delete: the base DDIC table to read/write, e.g. ZTEST_IMGW."),
+    .describe(
+      "Expert escape hatch: the base DDIC table to read/write directly, e.g. ZTEST_IMGW, bypassing " +
+        "activity/object resolution. Exactly one of activity/object/table is required for " +
+        "preview/upsert/delete. Requires key_fields; client_field is optional (defaults to MANDT) " +
+        "but this tool cannot write a genuinely client-independent table regardless — the write " +
+        "always sets client_field from sy-mandt.",
+    ),
   client_field: z
     .string()
     .optional()
-    .describe('preview/upsert/delete: the table\'s client field name. Default "MANDT".'),
+    .describe(
+      "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with " +
+        "activity/object, whose client field is resolved automatically.",
+    ),
   key_fields: z
     .array(z.string())
     .optional()
-    .describe("preview/upsert/delete: the table's key field names, in order. At least one required."),
+    .describe(
+      "table (expert escape hatch) only: the table's key field names, in order, excluding the client " +
+        "field. At least one required. Conflicts with activity/object, whose key fields are resolved " +
+        "automatically.",
+    ),
   rows: z
     .array(imgEditRowSchema)
     .optional()
@@ -121,7 +162,8 @@ export const imgEditInputSchema = {
     .optional()
     .describe(
       "upsert/delete: the maintenance view or view cluster name recorded on the transport entry. " +
-        "Defaults to table.",
+        "With activity/object, defaults to the resolved view/cluster name (or table, if the resolved " +
+        "target is a table). With table, defaults to table.",
     ),
   master_type: z
     .enum(["VDAT", "CDAT"])
@@ -149,7 +191,11 @@ export const imgEditInputSchema = {
   allow_cross_client: z
     .boolean()
     .optional()
-    .describe("Pass true to write a client-independent table — affects every client on the system."),
+    .describe(
+      "Clears the policy refusal for a client-independent (affects-every-client) table. Does not make " +
+        "the write possible — the generated apply class always sets the client field from sy-mandt, " +
+        "which a genuinely client-independent table has none of.",
+    ),
   description: z.string().optional().describe("create_request only: the request's description text."),
   owner: z.string().optional().describe("create_request only: the request owner. Defaults to the logged-in user."),
 };
@@ -192,6 +238,23 @@ function rejectForMode(mode: string, field: string, value: unknown): void {
   }
 }
 
+/**
+ * Present only when `table` was resolved from `activity`/`object` rather than supplied directly.
+ * Carries what a RESOLVED response section needs to name, plus the resolution reads' own cost so it
+ * can be folded into that section's prose instead of inventing a new header field (`img-write.ts`'s
+ * `ImgProbeResult`/`ImgApplyResult` have no `statementsIssued` of their own to fold into instead).
+ */
+interface ResolutionSummary {
+  selector: "activity" | "object";
+  identifier: string;
+  activityTitle?: string;
+  objectName: string;
+  objectKind: ImgObjectKind;
+  policyTargetKind: "view" | "cluster" | "table" | "other";
+  statementsIssued: number;
+  durationMs: number;
+}
+
 interface RowEditArgs {
   table: string;
   clientField: string;
@@ -203,6 +266,7 @@ interface RowEditArgs {
   corrNr?: string;
   confirm?: string;
   allowCrossClient: boolean;
+  resolution?: ResolutionSummary;
 }
 
 function parseRowEditArgs(mode: "preview" | "upsert" | "delete", input: ImgEditInput, cfg: Pick<Config, "language">): RowEditArgs {
@@ -247,6 +311,309 @@ function targetKind(table: string, view: string): "view" | "table" {
   return table.trim().toUpperCase() === view.trim().toUpperCase() ? "table" : "view";
 }
 
+/** The resolved path's own real target-kind classification, so `evaluateReal`'s policy-kind check does not fall back to the string heuristic above (which would misclassify e.g. a resolved customizing_object as "table" — see `mapPolicyTargetKind`). */
+function resolvedPolicyTargetKind(args: RowEditArgs): "view" | "cluster" | "table" | "other" {
+  return args.resolution?.policyTargetKind ?? targetKind(args.table, args.view);
+}
+
+// ---------------------------------------------------------------------------
+// Resolution: activity/object -> base table
+// ---------------------------------------------------------------------------
+
+type Selector =
+  | { readonly kind: "table" }
+  | { readonly kind: "activity"; readonly activity: string }
+  | { readonly kind: "object"; readonly object: string; readonly objKind?: ImgObjectKind };
+
+/** Exactly one of activity/object/table is required for preview/upsert/delete; kind is only valid with object. */
+function selectTarget(mode: "preview" | "upsert" | "delete", input: ImgEditInput): Selector {
+  const present: string[] = [];
+  if (input.activity !== undefined) present.push("activity");
+  if (input.object !== undefined) present.push("object");
+  if (input.table !== undefined) present.push("table");
+
+  if (present.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `mode "${mode}" requires exactly one of "activity", "object", or "table".`,
+      { mode },
+    );
+  }
+  if (present.length > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `mode "${mode}" accepts only one of "activity", "object", or "table" at a time — got ${present.join(", ")}.`,
+      { mode, fields: present },
+    );
+  }
+  if (input.kind !== undefined && input.object === undefined) {
+    throw new AbapError("BAD_INPUT", '"kind" is only valid together with "object".', { mode });
+  }
+
+  if (present[0] === "table") return { kind: "table" };
+  if (present[0] === "activity") return { kind: "activity", activity: requireString(mode, "activity", input.activity) };
+  return { kind: "object", object: requireString(mode, "object", input.object), objKind: input.kind };
+}
+
+/** key_fields/client_field are derived from the resolution when activity/object is used — supplying them too is a conflict, not a merge. */
+function rejectDerivedFieldConflicts(mode: string, selector: Selector, input: ImgEditInput): void {
+  if (selector.kind === "table") return;
+  const via = selector.kind;
+  if (input.key_fields !== undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"key_fields" conflicts with "${via}" — key fields are derived from the resolved table, not supplied directly.`,
+      { mode, field: "key_fields" },
+    );
+  }
+  if (input.client_field !== undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"client_field" conflicts with "${via}" — the client field is derived from the resolved table, not supplied directly.`,
+      { mode, field: "client_field" },
+    );
+  }
+}
+
+/** Only "table"/"view"/"cluster" are writable (evaluateImgWrite rule 5) — everything else, including customizing_object, maps to "other" so that rule refuses it instead of the raw-table string heuristic silently misclassifying it. */
+function mapPolicyTargetKind(kind: ImgObjectKind): "view" | "cluster" | "table" | "other" {
+  switch (kind) {
+    case "table":
+      return "table";
+    case "view":
+      return "view";
+    case "cluster":
+      return "cluster";
+    default:
+      return "other";
+  }
+}
+
+/**
+ * Splits a resolved table's key fields into its client field (the CLNT-typed one) and the rest, in
+ * position order — the shape `img-write-bridge.ts`'s plans require (it rejects `keyFields` that
+ * still include the client field). Not "MANDT" by name: some tables (e.g. TB004) name their client
+ * field something else entirely; what makes a field the client field is its DDIC data type, `CLNT`.
+ */
+function splitClientField(table: ResolvedTable, objectLabel: string): { clientField: string; keyFields: string[] } {
+  const clientKeyField = table.keyFields.find((f) => f.dataType.trim().toUpperCase() === "CLNT");
+  if (!clientKeyField) {
+    if (!table.clientDependent) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `"${objectLabel}" resolves to base table ${table.table}, which is client-independent (no CLNT-typed ` +
+          "key field) — this tool cannot write a client-independent table at all, through this path or the " +
+          "table/key_fields/client_field expert escape hatch: the generated apply class always sets a client " +
+          "field from sy-mandt, which a table shaped this way does not have. Maintain this table by hand " +
+          "(SM30/SM34) instead.",
+        { table: table.table },
+      );
+    }
+    throw new AbapError(
+      "BAD_INPUT",
+      `"${objectLabel}" resolves to base table ${table.table}, which DD02L marks client-dependent but whose ` +
+        "key fields include no CLNT-typed field — this tool cannot tell which key field is the client field " +
+        "from that data alone. Use the table/key_fields/client_field expert escape hatch instead.",
+      { table: table.table },
+    );
+  }
+  const clientField = clientKeyField.field;
+  const keyFields = table.keyFields.filter((f) => f !== clientKeyField).map((f) => f.field);
+  return { clientField, keyFields };
+}
+
+interface TableResolutionOk {
+  readonly ok: true;
+  readonly table: ResolvedTable;
+  readonly objectName: string;
+  readonly objectKind: ImgObjectKind;
+  readonly statementsIssued: number;
+  readonly durationMs: number;
+}
+
+interface TableResolutionAmbiguous {
+  readonly ok: false;
+  readonly ambiguity: string;
+  readonly statementsIssued: number;
+  readonly durationMs: number;
+}
+
+type TableOutcome = TableResolutionOk | TableResolutionAmbiguous;
+
+/**
+ * Resolves an `abap_img objects`-shaped identifier down to a single base table's real (DD03L-sourced)
+ * key fields. Not-found throws `NOT_FOUND` directly; "resolved but not to exactly one table" (a
+ * cluster, a transaction, or an object spanning several tables) comes back as an ambiguity outcome
+ * rather than throwing, so the caller can route it through `evaluateImgWrite` rule 4 like any other
+ * ambiguous-target refusal instead of a parallel error path.
+ */
+async function resolveTableFromObjectName(
+  conn: ImgReadConnection,
+  objectName: string,
+  kind: ImgObjectKind | undefined,
+  language: string,
+): Promise<TableOutcome> {
+  const result = await readImgObjects(conn, { mode: "objects", object: objectName, language, kind });
+  const ro = resolveObject(result.transcript);
+  if (!ro || ro.kind === "unknown") {
+    throw new AbapError(
+      "NOT_FOUND",
+      `"${objectName}" did not resolve to a known maintenance view, view cluster, transaction, or table` +
+        (kind ? ` of kind "${kind}"` : "") +
+        ". Try abap_img objects or abap_img search to find the right name.",
+      { object: objectName, kind },
+    );
+  }
+  if (ro.tables.length === 0) {
+    return {
+      ok: false,
+      ambiguity:
+        `"${objectName}" resolved to a ${ro.kind} with no known base table for this reader to resolve — pass ` +
+        "the underlying table or view name explicitly instead.",
+      statementsIssued: result.statementsIssued,
+      durationMs: result.durationMs,
+    };
+  }
+  if (ro.tables.length > 1) {
+    const names = ro.tables.map((t) => t.table).join(", ");
+    return {
+      ok: false,
+      ambiguity: `"${objectName}" spans ${ro.tables.length} base tables — ${names} — a write must name one table explicitly.`,
+      statementsIssued: result.statementsIssued,
+      durationMs: result.durationMs,
+    };
+  }
+
+  // Exactly one base table. Re-resolve it BY NAME as its own "table" object regardless of what kind
+  // ro.kind actually was — this is the one call in this chain guaranteed to come from fillTable's
+  // DD03L join, which is the only one of the five fillX helpers that returns real per-field
+  // key/dataType data (fillView hardcodes key:false/dataType:"", fillCluster/fillTransaction never
+  // resolve a table at all, so this step cannot be skipped even when ro.kind was already "table").
+  const [onlyTable] = ro.tables;
+  if (!onlyTable) {
+    // Unreachable given the length===0/length>1 checks above, kept for type-safety under
+    // noUncheckedIndexedAccess rather than an unchecked index.
+    throw new AbapError("NOT_FOUND", `"${objectName}" resolved to no base table.`, { object: objectName });
+  }
+  const tableName = onlyTable.table;
+  const tableResult = await readImgObjects(conn, { mode: "objects", object: tableName, language, kind: "table" });
+  const tableObj = resolveObject(tableResult.transcript);
+  const [resolvedTable] = tableObj?.tables ?? [];
+  if (!tableObj || tableObj.kind === "unknown" || tableObj.tables.length !== 1 || !resolvedTable) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `"${objectName}" resolved to base table ${tableName}, but its key fields could not be read — no active ` +
+        `DD03L rows for ${tableName}. Try abap_img objects to check the table name directly.`,
+      { object: objectName, table: tableName },
+    );
+  }
+
+  return {
+    ok: true,
+    table: resolvedTable,
+    objectName: ro.name,
+    objectKind: ro.kind,
+    statementsIssued: result.statementsIssued + tableResult.statementsIssued,
+    durationMs: result.durationMs + tableResult.durationMs,
+  };
+}
+
+interface ActivityResolution {
+  readonly activityTitle: string;
+  readonly outcome: TableOutcome;
+}
+
+/**
+ * Resolves an IMG activity down to a single object, then delegates to the same table-resolution core
+ * the object path uses (see `resolveTableFromObjectName`'s doc comment) — `readImgShow`'s own
+ * `tables`/`primaryTable` are real but carry no reliable object `kind`, so re-querying the resolved
+ * object name through `readImgObjects` is what actually supplies one.
+ */
+async function resolveViaActivity(conn: ImgReadConnection, activity: string, language: string): Promise<ActivityResolution> {
+  const showResult = await readImgShow(conn, { mode: "show", activity, language });
+  const resolved = resolveActivity(showResult.transcript);
+
+  if (resolved.objects.length === 0) {
+    return {
+      activityTitle: resolved.title,
+      outcome: {
+        ok: false,
+        ambiguity:
+          `IMG activity "${activity}" (title: "${resolved.title}") has no linked maintenance objects for this ` +
+          "reader to resolve — pass the view or table name explicitly instead.",
+        statementsIssued: showResult.statementsIssued,
+        durationMs: showResult.durationMs,
+      },
+    };
+  }
+
+  if (resolved.ambiguity !== undefined) {
+    return {
+      activityTitle: resolved.title,
+      outcome: {
+        ok: false,
+        ambiguity: resolved.ambiguity,
+        statementsIssued: showResult.statementsIssued,
+        durationMs: showResult.durationMs,
+      },
+    };
+  }
+
+  const primary = resolved.primary;
+  if (!primary) {
+    // Defensive only: resolveActivity's own invariants already guarantee primary is set whenever
+    // objects.length === 1 and ambiguity is unset (the two cases handled above) — kept total rather
+    // than assumed.
+    return {
+      activityTitle: resolved.title,
+      outcome: {
+        ok: false,
+        ambiguity:
+          `IMG activity "${activity}" (title: "${resolved.title}") did not resolve to a single maintenance ` +
+          "object — pass the view or table name explicitly instead.",
+        statementsIssued: showResult.statementsIssued,
+        durationMs: showResult.durationMs,
+      },
+    };
+  }
+
+  const inner = await resolveTableFromObjectName(conn, primary.name, undefined, language);
+  if (inner.ok) {
+    return {
+      activityTitle: resolved.title,
+      outcome: {
+        ok: true,
+        table: inner.table,
+        objectName: inner.objectName,
+        objectKind: inner.objectKind,
+        statementsIssued: inner.statementsIssued + showResult.statementsIssued,
+        durationMs: inner.durationMs + showResult.durationMs,
+      },
+    };
+  }
+  return {
+    activityTitle: resolved.title,
+    outcome: {
+      ok: false,
+      ambiguity: inner.ambiguity,
+      statementsIssued: inner.statementsIssued + showResult.statementsIssued,
+      durationMs: inner.durationMs + showResult.durationMs,
+    },
+  };
+}
+
+function policyTableFromResolved(table: ResolvedTable, clientField: string): PolicyTable {
+  const fields: PolicyField[] = table.fields
+    .filter((f) => f.field.toUpperCase() !== clientField.toUpperCase())
+    .map((f) => ({ field: f.field, dataType: f.dataType, key: f.key }));
+  return {
+    table: table.table,
+    clientDependent: table.clientDependent,
+    deliveryClass: table.deliveryClass,
+    fields,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Two-phase policy evaluation
 // ---------------------------------------------------------------------------
@@ -268,6 +635,23 @@ const SAFE_PRECHECK_RULES: ReadonlySet<string> = new Set([
   "target-kind",
 ]);
 
+/** Subset of SAFE_PRECHECK_RULES trustworthy from a stub with no table identity at all — the config-only gate the activity/object path runs BEFORE the resolution read is even issued. */
+const CONFIG_ONLY_RULES: ReadonlySet<string> = new Set(["productive-system", "write-lockout", "read-only"]);
+
+/** Shared "evaluate, throw if refused-and-in-ruleset" tail used by every preflight function below. */
+function evaluateAgainstRules(
+  rules: ReadonlySet<string>,
+  probe: ImgWriteProbe,
+  req: ImgWriteRequest,
+  mode: "preview" | "upsert" | "delete",
+  safety: SafetyGate,
+): void {
+  const verdict = evaluateImgWrite(probe, req, safety.config, { previewDenyExtra: safety.config.dataPreviewDenyTables });
+  if (!verdict.allowed && rules.has(verdict.rule)) {
+    throw new AbapError("SAFETY_DENIED", verdict.reason, { operation: mode, rule: verdict.rule, table: probe.table.table });
+  }
+}
+
 /** No I/O: a config-only refusal (productive/lockout/read-only) is refused before any bridge is ever deployed. */
 function preflightPolicyCheck(args: RowEditArgs, mode: "preview" | "upsert" | "delete", safety: SafetyGate): void {
   const stubTable: PolicyTable = { table: args.table, clientDependent: false, deliveryClass: "", fields: [] };
@@ -279,10 +663,41 @@ function preflightPolicyCheck(args: RowEditArgs, mode: "preview" | "upsert" | "d
     confirm: args.confirm,
     allowCrossClient: args.allowCrossClient,
   };
-  const verdict = evaluateImgWrite(stubProbe, req, safety.config, { previewDenyExtra: safety.config.dataPreviewDenyTables });
-  if (!verdict.allowed && SAFE_PRECHECK_RULES.has(verdict.rule)) {
-    throw new AbapError("SAFETY_DENIED", verdict.reason, { operation: mode, rule: verdict.rule, table: args.table });
-  }
+  evaluateAgainstRules(SAFE_PRECHECK_RULES, stubProbe, req, mode, safety);
+}
+
+/**
+ * Activity/object path only, before the resolution read is issued: no table identity exists yet, so
+ * only a genuinely table-less config refusal (productive/lockout/read-only) is trustworthy.
+ */
+function preflightConfigOnly(mode: "preview" | "upsert" | "delete", safety: SafetyGate): void {
+  const stubTable: PolicyTable = { table: "", clientDependent: false, deliveryClass: "", fields: [] };
+  const stubProbe: ImgWriteProbe = { table: stubTable, targetKind: "table" };
+  const req: ImgWriteRequest = { mode, rows: [] };
+  evaluateAgainstRules(CONFIG_ONLY_RULES, stubProbe, req, mode, safety);
+}
+
+/**
+ * Activity/object path only, after the resolution read comes back — called twice: once with an
+ * "ambiguous-target" stub right after resolution reports ambiguity (expected to refuse via rule 4),
+ * and once with the real resolved table right before the probe bridge is deployed (the raw-table
+ * path's own `evaluateReal` does this same full-rule check, but post-probe; here the resolved table
+ * is already known, so it happens pre-probe instead).
+ */
+function preflightResolved(
+  mode: "preview" | "upsert" | "delete",
+  safety: SafetyGate,
+  table: PolicyTable,
+  targetKind: "view" | "cluster" | "table" | "other",
+  ambiguity: string | undefined,
+  rows: readonly { key: Record<string, string>; values?: Record<string, string> }[],
+  corrNr: string | undefined,
+  confirm: string | undefined,
+  allowCrossClient: boolean,
+): void {
+  const probe: ImgWriteProbe = { table, targetKind, ambiguity };
+  const req: ImgWriteRequest = { mode, rows: policyRows(rows), corrNr, confirm, allowCrossClient };
+  evaluateAgainstRules(SAFE_PRECHECK_RULES, probe, req, mode, safety);
 }
 
 function policyTableFromProbe(args: RowEditArgs, probe: ImgProbeResult): PolicyTable {
@@ -306,7 +721,7 @@ function evaluateReal(
 ) {
   const realProbe: ImgWriteProbe = {
     table: policyTableFromProbe(args, probe),
-    targetKind: targetKind(args.table, args.view),
+    targetKind: resolvedPolicyTargetKind(args),
     cccoractiv: probe.transcript.client?.cccoractiv,
   };
   const req: ImgWriteRequest = {
@@ -324,18 +739,6 @@ function evaluateReal(
   }
   return verdict;
 }
-
-/**
- * The exact sentence `evaluateImgWrite` unconditionally seeds first in
- * `notes` on every ALLOWED verdict, preview included (img-write-policy.ts).
- * Kept as a single named constant, matched verbatim, so a preview render
- * filters precisely this one disclosure and nothing else — never re-authored
- * independently, so it can never drift from the policy module's own wording.
- */
-const SM30_BYPASS_NOTE =
-  "This write does not run the target view's own table-maintenance event modules (PBO/PAI, F4 " +
-  "checks, consistency checks) — only the row data is written, so validation the SM30 dialog " +
-  "would have performed did not happen here.";
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -383,6 +786,18 @@ function prospectiveRowsTable(mode: "upsert" | "delete", args: RowEditArgs): str
   return textTable(rows, ["row", "key", "change"]);
 }
 
+/** Renders what activity/object resolved to, ahead of everything else — the caller may be seeing the base table for the first time. */
+function renderResolvedSection(r: ResolutionSummary, args: RowEditArgs): string {
+  const lines: string[] = [];
+  lines.push(`Input: ${r.selector} "${r.identifier}"${r.activityTitle ? ` (title: "${r.activityTitle}")` : ""}`);
+  lines.push(`Object: ${r.objectName} (${r.objectKind})`);
+  lines.push(`Base table: ${args.table}`);
+  lines.push(`Key fields (in order): ${args.keyFields.length ? args.keyFields.join(", ") : "(none)"}`);
+  lines.push(`Client field: ${args.clientField}`);
+  lines.push(`Resolution reads: ${r.statementsIssued} statement(s), ${r.durationMs}ms.`);
+  return lines.join("\n");
+}
+
 /** Descriptive only — a real TABKEY value is never computed here. See the module doc comment on why `preview` cannot show one. */
 function transportEntryPreview(args: RowEditArgs, table: PolicyTable): string {
   return (
@@ -400,6 +815,12 @@ function renderPreview(args: RowEditArgs, probe: ImgProbeResult, notes: readonly
   if (t.errors.length) filteredNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) filteredNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
 
+  const sections = [
+    { title: "CURRENT ROWS", content: currentRowsTable(probe) },
+    { title: "TRANSPORT ENTRY (DESCRIPTIVE ONLY)", content: transportEntryPreview(args, table) },
+  ];
+  if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
+
   return buildResponse({
     header: {
       mode: "preview",
@@ -411,10 +832,7 @@ function renderPreview(args: RowEditArgs, probe: ImgProbeResult, notes: readonly
       bridgeClass: probe.bridgeClass,
       bridgeRefreshed: probe.bridgeRefreshed,
     },
-    sections: [
-      { title: "CURRENT ROWS", content: currentRowsTable(probe) },
-      { title: "TRANSPORT ENTRY (DESCRIPTIVE ONLY)", content: transportEntryPreview(args, table) },
-    ],
+    sections,
     body: prospectiveRowsTable("upsert", { ...args }),
     bodyLabel: "PROSPECTIVE CHANGE",
     notes: filteredNotes,
@@ -443,6 +861,11 @@ function renderArmed(
     recorded_task: k.recordedTask ?? "",
   }));
 
+  const sections: { title: string; content: string }[] = trkeyRows.length
+    ? [{ title: "TRANSPORT ENTRY RECORDED", content: textTable(trkeyRows, ["row", "trkorr", "recorded_order", "recorded_task"]) }]
+    : [];
+  if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
+
   return buildResponse({
     header: {
       mode,
@@ -454,7 +877,7 @@ function renderArmed(
       bridgeClass: apply.bridgeClass,
       bridgeRefreshed: apply.bridgeRefreshed,
     },
-    sections: trkeyRows.length ? [{ title: "TRANSPORT ENTRY RECORDED", content: textTable(trkeyRows, ["row", "trkorr", "recorded_order", "recorded_task"]) }] : undefined,
+    sections: sections.length ? sections : undefined,
     body: prospectiveRowsTable(mode, args),
     bodyLabel: mode === "delete" ? "ROWS DELETED" : "ROWS WRITTEN",
     notes: finalNotes,
@@ -601,22 +1024,27 @@ async function recordRowMutation(
 // Mode handlers
 // ---------------------------------------------------------------------------
 
-async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" | "delete", input: ImgEditInput): Promise<CallToolResult> {
-  const args = parseRowEditArgs(mode, input, deps.cfg);
-
-  // Cheap, I/O-free short-circuit: a config-level refusal (productive/lockout/read-only) refuses
-  // before the probe bridge is ever deployed. Anything else the stub might (mis)report is discarded —
-  // see preflightPolicyCheck's own doc comment and SAFE_PRECHECK_RULES.
-  preflightPolicyCheck(args, mode, deps.safety);
-
-  deps.safety.assert("read");
+/**
+ * Shared tail for both target paths: deploy the probe bridge, evaluate the real policy, render
+ * preview or go on to deploy the apply bridge. `opts.needsReadAndConnect` gates the
+ * `assert("read")`/`ensureConnected()` calls so the raw-table path's original ordering
+ * (`assert(read)` -> `assert(write probe)` -> `ensureConnected()`) is preserved byte-for-byte, while
+ * the resolved path — which already did both of those before its resolution reads — skips them here.
+ */
+async function runProbeAndApply(
+  deps: ImgEditToolDeps,
+  mode: "preview" | "upsert" | "delete",
+  args: RowEditArgs,
+  opts: { needsReadAndConnect: boolean },
+): Promise<CallToolResult> {
+  if (opts.needsReadAndConnect) deps.safety.assert("read");
   deps.safety.assert(
     "write",
     { name: IMGW_BRIDGE_CLASS.probe, packageName: HELPER_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
 
-  await deps.ensureConnected();
+  if (opts.needsReadAndConnect) await deps.ensureConnected();
 
   const probePlan: ImgProbePlan = {
     table: args.table,
@@ -666,7 +1094,111 @@ async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" 
   return ok(renderArmed(mode, args, apply, verdict.notes, journalNote, deps.cfg.maxResponseChars));
 }
 
+interface ResolveCallbackResult {
+  readonly outcome: TableOutcome;
+  readonly activityTitle?: string;
+}
+
+async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" | "delete", input: ImgEditInput): Promise<CallToolResult> {
+  rejectForMode(mode, "description", input.description);
+  rejectForMode(mode, "owner", input.owner);
+
+  const selector = selectTarget(mode, input);
+
+  if (selector.kind === "table") {
+    const args = parseRowEditArgs(mode, input, deps.cfg);
+    // Cheap, I/O-free short-circuit: a config-level refusal (productive/lockout/read-only) refuses
+    // before the probe bridge is ever deployed. Anything else the stub might (mis)report is discarded —
+    // see preflightPolicyCheck's own doc comment and SAFE_PRECHECK_RULES.
+    preflightPolicyCheck(args, mode, deps.safety);
+    return runProbeAndApply(deps, mode, args, { needsReadAndConnect: true });
+  }
+
+  rejectDerivedFieldConflicts(mode, selector, input);
+
+  const rows = input.rows ?? [];
+  if (rows.length < 1) {
+    throw new AbapError("BAD_INPUT", `mode "${mode}" requires at least one row.`, { mode });
+  }
+  const masterType = input.master_type ?? "VDAT";
+  const language = (input.language ?? (deps.cfg.language || "EN")).trim();
+  const corrNr = input.corr_nr;
+  const confirm = input.confirm;
+  const allowCrossClient = input.allow_cross_client ?? false;
+  const identifier = selector.kind === "activity" ? selector.activity : selector.object;
+
+  // Config-level refusals must be checked BEFORE the resolution read is issued, not just before the
+  // probe bridge — see preflightConfigOnly's own doc comment.
+  preflightConfigOnly(mode, deps.safety);
+
+  deps.safety.assert("read");
+  await deps.ensureConnected();
+
+  const resolved: ResolveCallbackResult = await deps.pool.withRead("abap_img_edit", async (conn) => {
+    if (selector.kind === "activity") {
+      const r = await resolveViaActivity(conn, selector.activity, language);
+      return { outcome: r.outcome, activityTitle: r.activityTitle };
+    }
+    const r = await resolveTableFromObjectName(conn, selector.object, selector.objKind, language);
+    return { outcome: r };
+  });
+
+  if (!resolved.outcome.ok) {
+    const stubTable: PolicyTable = { table: "", clientDependent: false, deliveryClass: "", fields: [] };
+    preflightResolved(mode, deps.safety, stubTable, "table", resolved.outcome.ambiguity, rows, corrNr, confirm, allowCrossClient);
+    // Defensive only: preflightResolved is expected to always throw via rule 4 above, given a
+    // populated ambiguity string — this only guards against evaluateImgWrite somehow not doing so.
+    throw new AbapError("SAFETY_DENIED", resolved.outcome.ambiguity, { operation: mode, rule: "ambiguous-target" });
+  }
+
+  const resolvedTable = resolved.outcome.table;
+  const { clientField, keyFields } = splitClientField(resolvedTable, identifier);
+  const policyTargetKind = mapPolicyTargetKind(resolved.outcome.objectKind);
+  const computedView =
+    resolved.outcome.objectKind === "view" || resolved.outcome.objectKind === "cluster"
+      ? resolved.outcome.objectName
+      : resolvedTable.table;
+  // Mirrors parseRowEditArgs's raw-table `view` handling: an explicitly supplied view (even "") wins
+  // over the computed default — only an absent `input.view` falls back.
+  const view = (input.view ?? computedView).trim();
+
+  const realTable = policyTableFromResolved(resolvedTable, clientField);
+  // Full rule set, before the probe bridge is deployed — see preflightResolved's own doc comment.
+  preflightResolved(mode, deps.safety, realTable, policyTargetKind, undefined, rows, corrNr, confirm, allowCrossClient);
+
+  const resolution: ResolutionSummary = {
+    selector: selector.kind,
+    identifier,
+    activityTitle: resolved.activityTitle,
+    objectName: resolved.outcome.objectName,
+    objectKind: resolved.outcome.objectKind,
+    policyTargetKind,
+    statementsIssued: resolved.outcome.statementsIssued,
+    durationMs: resolved.outcome.durationMs,
+  };
+
+  const args: RowEditArgs = {
+    table: resolvedTable.table,
+    clientField,
+    keyFields,
+    rows,
+    view,
+    masterType,
+    language,
+    corrNr,
+    confirm,
+    allowCrossClient,
+    resolution,
+  };
+
+  // The read-assert and connect already happened above, before the resolution reads.
+  return runProbeAndApply(deps, mode, args, { needsReadAndConnect: false });
+}
+
 async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput): Promise<CallToolResult> {
+  rejectForMode("create_request", "activity", input.activity);
+  rejectForMode("create_request", "object", input.object);
+  rejectForMode("create_request", "kind", input.kind);
   rejectForMode("create_request", "table", input.table);
   rejectForMode("create_request", "key_fields", input.key_fields);
   rejectForMode("create_request", "rows", input.rows);

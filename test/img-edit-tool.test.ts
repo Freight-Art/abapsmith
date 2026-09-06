@@ -91,6 +91,34 @@ const PACKAGE_XML = (name: string): string =>
   `<pak:superPackage adtcore:name="$TMP"/>` +
   `</pak:package>`;
 
+/** Builds one column's `<dataPreview:columns>` block — same shape `test/img-read.test.ts` uses, duplicated here (not exported there) for `src/adt/img-read.ts`'s own SQL reads, which `resolveViaActivity`/`resolveTableFromObjectName` (src/tools/img-edit.ts) issue over the SAME connection as the bridge deploys below. */
+function columnXml(name: string, values: readonly string[]): string {
+  const data = values.map((v) => `<dataPreview:data>${v}</dataPreview:data>`).join("");
+  return (
+    `<dataPreview:columns><dataPreview:metadata dataPreview:name="${name}" dataPreview:type="C" dataPreview:keyAttribute="false"/>` +
+    `<dataPreview:dataSet>${data}</dataPreview:dataSet></dataPreview:columns>`
+  );
+}
+
+/** A hand-built freestyle response body: `cols` maps column name -> that column's values (column-major, matching the real wire shape). */
+function body(cols: Record<string, readonly string[]>): string {
+  const names = Object.keys(cols);
+  const rowCount = names.length === 0 ? 0 : cols[names[0]!]!.length;
+  for (const n of names) {
+    if (cols[n]!.length !== rowCount) throw new Error(`test fixture bug: column "${n}" has a different row count than "${names[0]}"`);
+  }
+  const colsXml = names.map((n) => columnXml(n, cols[n]!)).join("");
+  return (
+    '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview">' +
+    `${colsXml}</dataPreview:tableData>`
+  );
+}
+
+/** An empty result set — no rows, no columns. */
+function emptyBody(): string {
+  return '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview"></dataPreview:tableData>';
+}
+
 /** Base routes every test needs regardless of which bridge class(es) are being deployed: login, the $ZMCP_HELPERS existence GET (already there — no create needed), and the connect-time probes `AbapConnection.connect()` itself makes. */
 function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
   if (o.url.includes(SESSION_URL)) {
@@ -146,6 +174,49 @@ function multiBridgeHappyPath(
     if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
     if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
     return resp(200, "<ok/>", { "content-type": "application/xml" });
+  };
+}
+
+/**
+ * Same wire routing as `multiBridgeHappyPath`, plus a queue of freestyle
+ * (`/datapreview/freestyle`) response bodies for `src/adt/img-read.ts`'s own
+ * SQL reads — the resolution step `activity`/`object` selectors trigger
+ * before any bridge is ever deployed.
+ *
+ * The FIRST freestyle call on the wire is always `AbapConnection.connect()`'s
+ * own `detectSystemRole()` productive-check (see
+ * `test/helpers/system-role-fake.ts`) — that one always answers
+ * `T000_NONPRODUCTIVE` regardless of `imgBodies`. Every subsequent freestyle
+ * call dequeues the next body from `imgBodies`, in the exact order
+ * `img-read.ts`'s `issue()` helper issues them — so `imgBodies` must be
+ * ordered to match the resolution path a given test actually takes
+ * (`readImgShow`'s 7-call sequence, `resolveTableFromObjectName`'s 3- or
+ * 6-call sequence, etc.). A freestyle call past the end of the queue throws a
+ * descriptive error rather than falling through to some default body, so a
+ * fixture that is short by one call fails loudly instead of silently
+ * misreading a later column set as an earlier one.
+ */
+function resolutionRoute(
+  imgBodies: readonly string[],
+  classRuns: Record<string, (o: HttpClientOptions) => HttpClientResponse> = {},
+): (o: HttpClientOptions) => HttpClientResponse {
+  let freestyleCalls = 0;
+  const queue = [...imgBodies];
+  const rest = multiBridgeHappyPath(classRuns);
+  return (o: HttpClientOptions) => {
+    if (o.url.includes("/datapreview/freestyle")) {
+      freestyleCalls += 1;
+      if (freestyleCalls === 1) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+      const next = queue.shift();
+      if (next === undefined) {
+        throw new Error(
+          `resolutionRoute: freestyle call #${freestyleCalls} has no queued body left — the resolution ` +
+            "code issued more SQL reads than this fixture anticipated.",
+        );
+      }
+      return resp(200, next, { "content-type": "application/xml" });
+    }
+    return rest(o);
   };
 }
 
@@ -329,7 +400,7 @@ describe("abap_img_edit — mode: preview", () => {
     expect(text).toContain("SET ZDESC=New");
     // The SM30-bypass note is seeded on every allowed verdict, including preview — but nothing has
     // been written yet, so this module deliberately filters it out of preview's own rendering.
-    expect(text).not.toContain("table-maintenance event modules");
+    expect(text).not.toContain("table-maintenance-generator events");
 
     expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
     expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
@@ -382,7 +453,7 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
       expect(text).toContain("ROWS WRITTEN");
       expect(text).toContain("--- TRANSPORT ENTRY RECORDED ---");
       expect(text).toContain("A4HK900001");
-      expect(text).toContain("table-maintenance event modules");
+      expect(text).toContain("table-maintenance-generator events");
       expect(text).toMatch(/Journalled as entry/);
 
       expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
@@ -564,5 +635,391 @@ describe("abap_img_edit — mode: create_request", () => {
 
     expect(errorPayload(result).error).toBe("BAD_INPUT");
     expect(inner.calls).toHaveLength(0);
+  });
+});
+
+// ===========================================================================
+// Consultant-facing selectors: `activity` / `object` resolution (Task 1).
+// ===========================================================================
+
+describe("abap_img_edit — target selection (activity / object / table)", () => {
+  it("rejects when none of activity/object/table is given, naming all three, before any network call", async () => {
+    const { conn, inner } = await connected(multiBridgeHappyPath({}));
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      rows: [{ key: { ZKEY: "A" } }],
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("BAD_INPUT");
+    expect(String(err.message)).toContain("activity");
+    expect(String(err.message)).toContain("object");
+    expect(String(err.message)).toContain("table");
+    expect(inner.calls).toHaveLength(0);
+  });
+
+  it("rejects when more than one of activity/object/table is given, naming which, before any network call", async () => {
+    const { conn, inner } = await connected(multiBridgeHappyPath({}));
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      object: "TB004",
+      table: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" } }],
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("BAD_INPUT");
+    expect(String(err.message)).toContain("object");
+    expect(String(err.message)).toContain("table");
+    expect(inner.calls).toHaveLength(0);
+  });
+
+  it("`key_fields` conflicts with `activity` — key fields are derived, not supplied — before any network call", async () => {
+    const { conn, inner } = await connected(multiBridgeHappyPath({}));
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      activity: "ZACT1",
+      key_fields: ["ZKEY"],
+      rows: [{ key: { ZKEY: "A" } }],
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("BAD_INPUT");
+    expect(String(err.message)).toContain("key_fields");
+    expect(String(err.message)).toContain("activity");
+    expect(inner.calls).toHaveLength(0);
+  });
+
+  it("`client_field` conflicts with `object` — the client field is derived, not supplied — before any network call", async () => {
+    const { conn, inner } = await connected(multiBridgeHappyPath({}));
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      object: "TB004",
+      client_field: "MANDT",
+      rows: [{ key: { ZKEY: "A" } }],
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("BAD_INPUT");
+    expect(String(err.message)).toContain("client_field");
+    expect(String(err.message)).toContain("object");
+    expect(inner.calls).toHaveLength(0);
+  });
+
+  it("a read-only safety gate refuses the activity/object path before the resolution read is ever issued", async () => {
+    const { conn, inner } = await connected(multiBridgeHappyPath({}));
+    const { tools } = await registered(conn, { safety: readOnlyGate() });
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      activity: "ZACT1",
+      rows: [{ key: { ZFLD: "A" } }],
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("SAFETY_DENIED");
+    // Not one single freestyle/classrun call was made — the config-only check ran before
+    // deps.ensureConnected() and before the pool.withRead() resolution callback.
+    expect(inner.calls).toHaveLength(0);
+  });
+
+  describe("resolving from `object` (TB004-shaped: a CLIENT field that is not literally named MANDT)", () => {
+    // DD02L: delivery-class query. Minimal columns, same shape the existing img-read.test.ts fixtures use.
+    const tb004DcBody = body({ TABNAME: ["TB004"], CONTFLAG: ["C"], CLIDEP: ["X"] });
+    const tb004TextBody = body({ TABNAME: ["TB004"], DDTEXT: ["Sequence number ranges"] });
+    // The client key field is named CLIENT, not MANDT — splitClientField must pick it out by
+    // DATATYPE=CLNT, never by a hardcoded field name.
+    const tb004FieldsBody = body({
+      TABNAME: ["TB004", "TB004", "TB004"],
+      FIELDNAME: ["CLIENT", "SEQNR", "TEXT1"],
+      POSITION: ["0001", "0002", "0003"],
+      KEYFLAG: ["X", "X", ""],
+      DATATYPE: ["CLNT", "NUMC", "CHAR"],
+      LENG: ["000003", "000003", "000040"],
+      ROLLNAME: ["MANDT", "TB004_SEQNR", "TEXT40"],
+    });
+    // fillTable succeeds fully in 3 calls; resolveTableFromObjectName then unconditionally re-reads
+    // the same table a second time (the only fillX that returns real per-field key/type data) — 6 total.
+    const TB004_IMG_BODIES = [tb004DcBody, tb004TextBody, tb004FieldsBody, tb004DcBody, tb004TextBody, tb004FieldsBody];
+
+    const PROBE_TRANSCRIPT_TB004 =
+      `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+      `IMGW> TABLE table=[TB004] delclass=[C] clidep=[X]\n` +
+      `IMGW> FLD table=[TB004] field=[SEQNR] key=[X] type=[NUMC] len=[3] rollname=[TB004_SEQNR]\n` +
+      `IMGW> FLD table=[TB004] field=[TEXT1] key=[] type=[CHAR] len=[40] rollname=[TEXT40]\n` +
+      `IMGW> BVAL row=[0] field=[SEQNR] len=[3] value=[001]\n` +
+      `IMGW> BVAL row=[0] field=[TEXT1] len=[3] value=[Old]\n` +
+      `IMGW> PROBED rows=[1]\n`;
+
+    it("resolves `object` + `kind: table` to TB004, derives CLIENT (not MANDT) as the client field, and renders a RESOLVED section naming the base table", async () => {
+      const route = resolutionRoute(TB004_IMG_BODIES, { [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_TB004) });
+      const { conn, inner } = await connected(route);
+      const { tools } = await registered(conn);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        object: "TB004",
+        kind: "table",
+        rows: [{ key: { SEQNR: "001" }, values: { TEXT1: "New" } }],
+      });
+      const text = okText(result);
+
+      expect(text).toContain("--- RESOLVED ---");
+      expect(text).toContain('Input: object "TB004"');
+      expect(text).toContain("Object: TB004 (table)");
+      expect(text).toContain("Base table: TB004");
+      expect(text).toContain("Key fields (in order): SEQNR");
+      expect(text).toContain("Client field: CLIENT");
+      // Preview's arming line plainly names the resolved base table.
+      expect(text).toContain("TABU TB004");
+
+      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+      expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
+    });
+
+    it("an object/kind combination that does not resolve at all throws NOT_FOUND pointing at abap_img search/objects", async () => {
+      // DD02L comes back empty — TB999 is not a real table.
+      const route = resolutionRoute([emptyBody()], {});
+      const { conn, inner } = await connected(route);
+      const { tools } = await registered(conn);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        object: "TB999",
+        kind: "table",
+        rows: [{ key: { SEQNR: "001" } }],
+      });
+      const err = errorPayload(result);
+
+      expect(err.error).toBe("NOT_FOUND");
+      expect(String(err.message)).toContain("abap_img search");
+      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+    });
+
+    it("an object resolving to zero base tables (an empty view cluster) reaches evaluateImgWrite rule 4 as ambiguous-target", async () => {
+      const clusterHeaderBody = body({ VCLNAME: ["ZVCL1"] });
+      const clusterTextBody = body({ VCLNAME: ["ZVCL1"], TEXT: ["Empty Cluster"] });
+      const clusterMembersBody = emptyBody();
+      const route = resolutionRoute([clusterHeaderBody, clusterTextBody, clusterMembersBody], {});
+      const { conn, inner } = await connected(route);
+      const { tools } = await registered(conn);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        object: "ZVCL1",
+        kind: "cluster",
+        rows: [{ key: { ZKEY: "A" } }],
+      });
+      const err = errorPayload(result);
+
+      expect(err.error).toBe("SAFETY_DENIED");
+      expect((err.details as Record<string, unknown>).rule).toBe("ambiguous-target");
+      expect(String(err.message)).toContain("no known base table");
+      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+    });
+
+    it("an object resolving to more than one base table reaches evaluateImgWrite rule 4 as ambiguous-target", async () => {
+      const viewHeaderBody = body({ VIEWNAME: ["ZVIEW2"], AGGTYPE: [""], ROOTTAB: [""] });
+      const viewTextBody = body({ VIEWNAME: ["ZVIEW2"], DDTEXT: ["View spanning two tables"] });
+      const viewBaseTablesBody = body({ VIEWNAME: ["ZVIEW2", "ZVIEW2"], TABNAME: ["ZTABA", "ZTABB"], TABPOS: ["0001", "0002"] });
+      const viewDcBody = body({ TABNAME: ["ZTABA", "ZTABB"], CONTFLAG: ["C", "C"], CLIDEP: ["X", "X"] });
+      const viewFieldsBody = emptyBody();
+      const route = resolutionRoute([viewHeaderBody, viewTextBody, viewBaseTablesBody, viewDcBody, viewFieldsBody], {});
+      const { conn, inner } = await connected(route);
+      const { tools } = await registered(conn);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        object: "ZVIEW2",
+        kind: "view",
+        rows: [{ key: { ZKEY: "A" } }],
+      });
+      const err = errorPayload(result);
+
+      expect(err.error).toBe("SAFETY_DENIED");
+      expect((err.details as Record<string, unknown>).rule).toBe("ambiguous-target");
+      expect(String(err.message)).toContain("spans 2 base tables");
+      expect(String(err.message)).toMatch(/ZTABA/);
+      expect(String(err.message)).toMatch(/ZTABB/);
+      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+    });
+  });
+
+  describe("resolving from `activity`", () => {
+    const headerBody = body({ ACTIVITY: ["ZACT1"], C_ACTIVITY: ["CACT1"], DOCU_ID: [""], ATTRIBUTES: [""] });
+    const titleBody = body({ ACTIVITY: ["ZACT1"], TEXT: ["Maintain Z Table"] });
+    const refsBody = emptyBody();
+    const actHeaderBody = body({ ACT_ID: ["CACT1"] });
+    // The linked object shares its name with its own base table, so fillTable succeeds on the very
+    // first probe attempt inside resolveTableFromObjectName (no wasted table->view fallback).
+    const objBody = body({ ACT_ID: ["CACT1"], OBJECTTYPE: ["D"], OBJECTNAME: ["ZTAB1"], TCODE: [""], SUBOBJNAME: [""] });
+    const objTablesBody = body({ OBJECTNAME: ["ZTAB1"], OBJECTTYPE: ["D"], TABNAME: ["ZTAB1"] });
+    const showDcBody = body({ TABNAME: ["ZTAB1"], CONTFLAG: ["C"], CLIDEP: ["X"] });
+
+    const ztab1DcBody = body({ TABNAME: ["ZTAB1"], CONTFLAG: ["C"], CLIDEP: ["X"] });
+    const ztab1TextBody = body({ TABNAME: ["ZTAB1"], DDTEXT: ["Z Table"] });
+    const ztab1FieldsBody = body({
+      TABNAME: ["ZTAB1", "ZTAB1", "ZTAB1"],
+      FIELDNAME: ["MANDT", "ZFLD", "ZVAL"],
+      POSITION: ["0001", "0002", "0003"],
+      KEYFLAG: ["X", "X", ""],
+      DATATYPE: ["CLNT", "CHAR", "CHAR"],
+      LENG: ["000003", "000010", "000040"],
+      ROLLNAME: ["MANDT", "ZFLD", "ZVAL"],
+    });
+
+    // readImgShow's own 7-call sequence, then resolveTableFromObjectName's 6-call sequence (3 to
+    // find the table via probeOrder, 3 more for the unconditional per-field follow-up).
+    const ACTIVITY_IMG_BODIES = [
+      headerBody,
+      titleBody,
+      refsBody,
+      actHeaderBody,
+      objBody,
+      objTablesBody,
+      showDcBody,
+      ztab1DcBody,
+      ztab1TextBody,
+      ztab1FieldsBody,
+      ztab1DcBody,
+      ztab1TextBody,
+      ztab1FieldsBody,
+    ];
+
+    const PROBE_TRANSCRIPT_ZTAB1 =
+      `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+      `IMGW> TABLE table=[ZTAB1] delclass=[C] clidep=[X]\n` +
+      `IMGW> FLD table=[ZTAB1] field=[ZFLD] key=[X] type=[CHAR] len=[10] rollname=[ZFLD]\n` +
+      `IMGW> FLD table=[ZTAB1] field=[ZVAL] key=[] type=[CHAR] len=[40] rollname=[ZVAL]\n` +
+      `IMGW> BVAL row=[0] field=[ZFLD] len=[1] value=[A]\n` +
+      `IMGW> BVAL row=[0] field=[ZVAL] len=[3] value=[Old]\n` +
+      `IMGW> PROBED rows=[1]\n`;
+
+    const APPLY_TRANSCRIPT_ZTAB1 =
+      `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+      `IMGW> TABLE table=[ZTAB1] delclass=[C] clidep=[X]\n` +
+      `IMGW> BVAL row=[0] field=[ZVAL] len=[3] value=[Old]\n` +
+      `IMGW> TRKEY row=[0] trkorr=[A4HK900010] len=[10] value=[A4HK900010]\n` +
+      `IMGW> AVAL row=[0] field=[ZVAL] len=[3] value=[New]\n` +
+      `IMGW> APPLIED rows=[1]\n`;
+
+    it("resolves `activity` to its linked table, and an armed upsert renders RESOLVED (with the activity title) ahead of the write", async () => {
+      await withJournal(async (journal) => {
+        const route = resolutionRoute(ACTIVITY_IMG_BODIES, {
+          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_ZTAB1),
+          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_ZTAB1),
+        });
+        const { conn, inner } = await connected(route);
+        const { tools } = await registered(conn, { journal });
+
+        const result = await invoke(tools, "abap_img_edit", {
+          mode: "upsert",
+          activity: "ZACT1",
+          corr_nr: "A4HK900010",
+          confirm: "ZTAB1",
+          rows: [{ key: { ZFLD: "A" }, values: { ZVAL: "New" } }],
+        });
+        const text = okText(result);
+
+        expect(text).toContain("--- RESOLVED ---");
+        expect(text).toContain('Input: activity "ZACT1"');
+        expect(text).toContain('(title: "Maintain Z Table")');
+        expect(text).toContain("Object: ZTAB1 (table)");
+        expect(text).toContain("Base table: ZTAB1");
+        expect(text).toContain("Key fields (in order): ZFLD");
+        expect(text).toContain("Client field: MANDT");
+        expect(text).toContain("mode: upsert");
+        expect(text).toContain("ROWS WRITTEN");
+        expect(text).toContain("table-maintenance-generator events");
+
+        expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+        expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(true);
+
+        const entries = await journal.list({});
+        expect(entries).toHaveLength(1);
+        expect(entries[0]!.object.name).toBe("ZTAB1");
+      });
+    });
+
+    it("an explicit `view` on an activity-resolved upsert overrides the computed default and reaches the transport entry", async () => {
+      await withJournal(async (journal) => {
+        const route = resolutionRoute(ACTIVITY_IMG_BODIES, {
+          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_ZTAB1),
+          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_ZTAB1),
+        });
+        const { conn, inner } = await connected(route);
+        const { tools } = await registered(conn, { journal });
+
+        const result = await invoke(tools, "abap_img_edit", {
+          mode: "upsert",
+          activity: "ZACT1",
+          view: "ZCUSTOM_VIEW",
+          corr_nr: "A4HK900010",
+          confirm: "ZTAB1",
+          rows: [{ key: { ZFLD: "A" }, values: { ZVAL: "New" } }],
+        });
+        const text = okText(result);
+
+        // The computed default (ZTAB1, the resolved base table — this activity's object kind is
+        // "table") must be displaced by the explicitly supplied view, not merely coexist with it.
+        expect(text).toContain("view: ZCUSTOM_VIEW");
+        expect(text).not.toContain("view: ZTAB1");
+
+        // The generated apply class's source is what actually carries E071K-MASTERNAME/-VIEWNAME —
+        // the real "transport entry" this override has to reach, not just the rendered text above.
+        const sourcePut = inner.calls.find(
+          (c) =>
+            c.url === `/sap/bc/adt/oo/classes/${IMGW_BRIDGE_CLASS.apply.toLowerCase()}/source/main` &&
+            (c.method ?? "GET").toUpperCase() === "PUT",
+        );
+        expect(sourcePut).toBeDefined();
+        expect(String(sourcePut!.body)).toContain("ls_e071k-mastername = 'ZCUSTOM_VIEW'.");
+        expect(String(sourcePut!.body)).not.toContain("ls_e071k-mastername = 'ZTAB1'.");
+      });
+    });
+
+    it("an activity resolving to more than one linked object reaches evaluateImgWrite rule 4 as ambiguous-target, without ever probing a table", async () => {
+      const twoObjHeaderBody = body({ ACTIVITY: ["ZACT2"], C_ACTIVITY: ["CACT2"], DOCU_ID: [""], ATTRIBUTES: [""] });
+      const twoObjTitleBody = body({ ACTIVITY: ["ZACT2"], TEXT: ["Two Objects"] });
+      const twoObjRefsBody = emptyBody();
+      const twoObjActHeaderBody = body({ ACT_ID: ["CACT2"] });
+      const twoObjObjBody = body({
+        ACT_ID: ["CACT2", "CACT2"],
+        OBJECTTYPE: ["D", "D"],
+        OBJECTNAME: ["ZOBJA", "ZOBJB"],
+        TCODE: ["", ""],
+        SUBOBJNAME: ["", ""],
+      });
+      const twoObjTablesBody = body({ OBJECTNAME: ["ZOBJA", "ZOBJB"], OBJECTTYPE: ["D", "D"], TABNAME: ["ZTABA", "ZTABB"] });
+      const twoObjDcBody = body({ TABNAME: ["ZTABA", "ZTABB"], CONTFLAG: ["C", "C"], CLIDEP: ["X", "X"] });
+
+      const route = resolutionRoute(
+        [twoObjHeaderBody, twoObjTitleBody, twoObjRefsBody, twoObjActHeaderBody, twoObjObjBody, twoObjTablesBody, twoObjDcBody],
+        {},
+      );
+      const { conn, inner } = await connected(route);
+      const { tools } = await registered(conn);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        activity: "ZACT2",
+        rows: [{ key: { ZKEY: "A" } }],
+      });
+      const err = errorPayload(result);
+
+      expect(err.error).toBe("SAFETY_DENIED");
+      expect((err.details as Record<string, unknown>).rule).toBe("ambiguous-target");
+      expect(String(err.message)).toMatch(/ZOBJA/);
+      expect(String(err.message)).toMatch(/ZOBJB/);
+      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+    });
   });
 });
