@@ -31,7 +31,7 @@ function baseProbe(overrides: Partial<ImgProbePlan> = {}): ImgProbePlan {
     clientField: CLIENT_FIELD,
     keyFields: [KEY_FIELD],
     rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }],
-    language: "EN",
+    language: "E",
     ...overrides,
   };
 }
@@ -181,6 +181,20 @@ describe("validateProbePlan", () => {
       validateProbePlan(baseProbe({ rows: [{ key: { [KEY_FIELD]: "A".repeat(300) }, values: {} }] })),
     );
   });
+
+  // Regression pin for the live round-2 finding: SAP's catalog language columns
+  // (SPRAS/DDLANGUAGE/SPRSL/LANGUAGE) are all C(1,0) — a two-character ISO code
+  // like "EN" gets HTTP 400 'EN' is not a valid value for C(1,0)'. This module
+  // used to carry its own looser copy (assertWriteLanguage, 1-2 letters) instead
+  // of the shared img-query.ts validator (assertImgLanguage, exactly 1 letter) —
+  // that divergence is exactly what let a two-character key reach a live run.
+  it("rejects a two-character language key", () => {
+    expectBadInput(() => validateProbePlan(baseProbe({ language: "EN" })));
+  });
+
+  it("accepts a single-character language key", () => {
+    expect(() => validateProbePlan(baseProbe({ language: "E" }))).not.toThrow();
+  });
 });
 
 describe("validateApplyPlan", () => {
@@ -278,7 +292,7 @@ describe("imgProbeSource", () => {
       key: { [keyField]: `V${i}` },
       values: {},
     }));
-    const src = imgProbeSource({ table, clientField: CLIENT_FIELD, keyFields: [keyField], rows, language: "EN" });
+    const src = imgProbeSource({ table, clientField: CLIENT_FIELD, keyFields: [keyField], rows, language: "E" });
     expect(maxLineLength(src)).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
   });
 });
@@ -485,7 +499,7 @@ describe("imgApplySource: line length", () => {
       clientField: CLIENT_FIELD,
       keyFields: [keyField],
       rows,
-      language: "EN",
+      language: "E",
       op: "upsert",
       fields: [
         { field: keyField, key: true, dataType: "CHAR" },
@@ -512,7 +526,7 @@ describe("imgApplySource: line length", () => {
       clientField: CLIENT_FIELD,
       keyFields: [keyField],
       rows,
-      language: "EN",
+      language: "E",
       op: "delete",
       fields: [{ field: keyField, key: true, dataType: "CHAR" }],
       corrNr: "AAAK900050",

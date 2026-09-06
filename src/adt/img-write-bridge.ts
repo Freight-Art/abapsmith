@@ -36,6 +36,7 @@ import { ddicBridgeSource, DDIC_ERR_PREFIX } from "./ddic-bridge.js";
 import { ERR_LINE_PREFIX, parseBracketFields } from "./run.js";
 import { abapLiteral, assertAbapText } from "./enhancement-templates.js";
 import { assertTrkorr } from "./transports.js";
+import { assertImgLanguage } from "./img-query.js";
 
 export const IMGW_LINE_PREFIX = "IMGW> ";
 
@@ -183,14 +184,6 @@ function assertDdicIdentifier(value: string, what: string): string {
   return value;
 }
 
-function assertWriteLanguage(value: string): string {
-  const v = value.trim();
-  if (!/^[A-Za-z]{1,2}$/.test(v)) {
-    throw new AbapError("BAD_INPUT", `language "${value}" must be exactly 1 or 2 letters.`, { value });
-  }
-  return v.toUpperCase();
-}
-
 /**
  * A row field value is embedded as an ABAP string literal via
  * {@link abapLiteral} (quote-doubling only), never inside a `|...{ }...|`
@@ -216,7 +209,7 @@ function assertSingleCharCode(value: string, what: string): string {
 export function validateProbePlan(p: ImgProbePlan): void {
   assertDdicIdentifier(p.table, "table");
   const clientField = assertDdicIdentifier(p.clientField, "clientField").toUpperCase();
-  assertWriteLanguage(p.language);
+  assertImgLanguage(p.language);
 
   if (p.keyFields.length < 1) {
     throw new AbapError("BAD_INPUT", `${p.table} needs at least one key field.`, { table: p.table });
