@@ -431,12 +431,12 @@ describe("terminality overrides are deliberate and explained", () => {
     expect(retryableTrueHits.length).toBeGreaterThan(0);
   });
 
-  it("exactly 20 call sites pass a 5th argument to `new AbapError(...)` — 1 in adt/helper-package.ts, 2 in adt/resolve.ts, 8 in adt/write.ts, 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 1 in tools/write.ts, 1 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: 19 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry), and 1 (adt/helper-package.ts) is a re-wrap that carries a caught error's retryable across instead of recomputing it from code; most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
+  it("exactly 21 call sites pass a 5th argument to `new AbapError(...)` — 1 in adt/helper-package.ts, 1 in adt/img-write.ts, 2 in adt/resolve.ts, 8 in adt/write.ts, 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 1 in tools/write.ts, 1 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: 19 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry), and 2 (adt/helper-package.ts and adt/img-write.ts) are re-wraps that carry a caught error's retryable across instead of recomputing it from code; most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
     const { calls } = scanSrc();
     expect(
       calls.length,
       `found: ${calls.map((c) => `${c.file}:${c.line}`).join(", ")}`,
-    ).toBe(20);
+    ).toBe(21);
   });
 });
 

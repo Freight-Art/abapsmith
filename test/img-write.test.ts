@@ -153,6 +153,43 @@ function bridgeActivationRefused(className: string): (o: HttpClientOptions) => H
   };
 }
 
+/**
+ * Bridge class write succeeds, but activation reports a DUPLICATE DECLARATION —
+ * the exact live shape from the 2026-09-06 round-6 armed upsert against a
+ * two-key customizing table: `E line 58 col 13  "LV_KEY_FLAG" was already
+ * declared.` A generator defect, never a caller-input mistake.
+ */
+function bridgeActivationDuplicateDeclaration(className: string): (o: HttpClientOptions) => HttpClientResponse {
+  const classUri = `/sap/bc/adt/oo/classes/${className.toLowerCase()}`;
+  const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
+<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
+  <msg objDescr="Class ${className}" type="E" line="58"
+       href="${classUri}/source/main#start=58,13" forceSupported="true">
+    <shortText><txt>"LV_KEY_FLAG" was already declared.</txt></shortText>
+  </msg>
+</chkl:messages>`;
+  return (o: HttpClientOptions) => {
+    const base = baseRoute(o);
+    if (base) return base;
+    const qs = (o.qs ?? {}) as Record<string, string>;
+    const method = (o.method ?? "GET").toUpperCase();
+
+    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
+      throw new Error(`unrouted classrun call for ${className} — activation should have refused first`);
+    }
+    if (o.url === classUri && method === "GET" && !qs._action) {
+      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
+      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+    }
+    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
+    if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
+    if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url === `${classUri}/source/main` && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, ACTIVATION_ERROR, { "content-type": "application/xml" });
+    return resp(200, "<ok/>", { "content-type": "application/xml" });
+  };
+}
+
 /** A classrun POST that 500s — a scaffold-level failure below activation, with activation itself already having succeeded. */
 function bridgeClassrunBlowsUp(className: string): (o: HttpClientOptions) => HttpClientResponse {
   return bridgeHappyPath(className, (o) => {
@@ -404,5 +441,87 @@ describe("runCreateCustomizingRequest", () => {
 
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(isAbapError(outcome.e) || outcome.e instanceof Error).toBe(true);
+  });
+});
+
+// ===========================================================================
+// Task 1 — an "already declared" activation failure is a generator defect,
+// never a caller-input mistake, and must not be reported as one.
+// ===========================================================================
+
+describe("duplicate-declaration activation failures get a corrected hint", () => {
+  it("probe bridge: 'already declared' activation failure reports a generator defect, not a bad table/keyFields", async () => {
+    const { conn, inner } = await connected(bridgeActivationDuplicateDeclaration(IMGW_BRIDGE_CLASS.probe));
+
+    const err = await runImgProbe(conn, openGate(), PROBE_PLAN).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    expect((err as { code: string }).code).toBe("CHECK_FAILED");
+    const hint = (err as { hint?: string }).hint ?? "";
+    expect(hint).toContain("defect in abapsmith's own code generator");
+    expect(hint).toContain("not a mistake in the caller's plan");
+    // The old per-bridge hint's misspelling theory must NOT survive onto this failure.
+    expect(hint).not.toContain("the table does not exist or one of");
+    expect(inner.calls.some((c) => c.url.includes("/oo/classrun/"))).toBe(false);
+  });
+
+  it("apply bridge: 'already declared' activation failure reports a generator defect, not a drifted table structure or FM interface", async () => {
+    const { conn } = await connected(bridgeActivationDuplicateDeclaration(IMGW_BRIDGE_CLASS.apply));
+
+    const err = await runImgApply(conn, openGate(), APPLY_PLAN).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    expect((err as { code: string }).code).toBe("CHECK_FAILED");
+    const hint = (err as { hint?: string }).hint ?? "";
+    expect(hint).toContain("defect in abapsmith's own code generator");
+    // The old apply-bridge hint's structure-drift/FM-interface theory must NOT survive.
+    expect(hint).not.toContain("table's real structure having");
+    expect(hint).not.toContain("TR_OBJECTS_CHECK");
+  });
+
+  it("request bridge: 'already declared' activation failure reports a generator defect too — the fix is shared, not per-bridge", async () => {
+    const { conn } = await connected(bridgeActivationDuplicateDeclaration(CUSTOMIZING_REQUEST_CLASS));
+
+    const err = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    const hint = (err as { hint?: string }).hint ?? "";
+    expect(hint).toContain("defect in abapsmith's own code generator");
+    expect(hint).not.toContain("TR_INSERT_REQUEST_WITH_TASKS");
+  });
+
+  it("the corrected hint still preserves the residue disclosure: bridgeLeftBehind, bridgeClass and the 'safe to delete' sentence", async () => {
+    const { conn } = await connected(bridgeActivationDuplicateDeclaration(IMGW_BRIDGE_CLASS.probe));
+
+    const err = await runImgProbe(conn, openGate(), PROBE_PLAN).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    const details = (err as { details: Record<string, unknown> }).details;
+    expect(details.bridgeLeftBehind).toBe(true);
+    expect(details.bridgeClass).toBe(IMGW_BRIDGE_CLASS.probe);
+    // Every other detail field discloseBridgeResidue/checkFailedError put there must
+    // still be present — the rethrow must not have dropped anything but `hint`.
+    expect(details.object).toBe(IMGW_BRIDGE_CLASS.probe);
+    expect(typeof details.summary).toBe("string");
+    expect(typeof details.messages).toBe("string");
+    expect(Array.isArray(details.raw)).toBe(true);
+
+    const hint = (err as { hint?: string }).hint ?? "";
+    expect(hint).toContain(
+      `Bridge class ${IMGW_BRIDGE_CLASS.probe} was written to ${HELPER_PACKAGE} but failed to activate; it is left behind there, inactive — safe to delete.`,
+    );
+    expect((hint.match(/safe to delete/g) ?? []).length).toBe(1);
+  });
+
+  it("an ORDINARY activation failure (unknown field) keeps the probe bridge's own bespoke hint — never reported as a generator defect", async () => {
+    const { conn } = await connected(bridgeActivationRefused(IMGW_BRIDGE_CLASS.probe));
+
+    const err = await runImgProbe(conn, openGate(), PROBE_PLAN).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    const hint = (err as { hint?: string }).hint ?? "";
+    expect(hint).toContain("SELECTs the target table plus DD02L/DD03L");
+    expect(hint).not.toContain("defect in abapsmith's own code generator");
+    expect(hint).not.toContain("was already declared");
   });
 });
