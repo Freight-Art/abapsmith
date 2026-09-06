@@ -45,6 +45,7 @@ import { HELPER_PACKAGE } from "../adt/helper-package.js";
 import { IMG_DEFAULT_LANGUAGE, IMG_LANGUAGE_RE, assertImgLanguage } from "../adt/img-query.js";
 import {
   IMGW_BRIDGE_CLASS,
+  validateApplyPlan,
   type ImgProbePlan,
   type ImgApplyPlan,
   type ImgWriteField,
@@ -737,7 +738,12 @@ function policyTableFromProbe(args: RowEditArgs, probe: ImgProbeResult): PolicyT
     .filter((f) => f.field.toUpperCase() !== args.clientField.toUpperCase())
     .map((f) => ({ field: f.field, dataType: f.dataType, key: f.key }));
   return {
-    table: t?.table ?? args.table,
+    // The bridge's TABLE transcript line echoes the table name exactly as its own DDIC read
+    // returned it, which is not guaranteed to be upper case (SAP itself is case-insensitive about
+    // it, but ABAP string literals compared/displayed here are not) — normalise it the same way
+    // SAP itself would show it, so preview/armed headers and the descriptive transport-entry line
+    // never display a table name in whatever case a caller happened to type it.
+    table: (t?.table ?? args.table).trim().toUpperCase(),
     clientDependent: t?.clientDependent ?? false,
     deliveryClass: t?.deliveryClass ?? "",
     fields,
@@ -807,13 +813,24 @@ function currentRowsTable(probe: ImgProbeResult): string {
 }
 
 function prospectiveRowsTable(mode: "upsert" | "delete", args: RowEditArgs): string {
-  const rows = args.rows.map((r, i) => ({
-    row: String(i),
-    key: Object.entries(r.key)
+  const rows = args.rows.map((r, i) => {
+    const key = Object.entries(r.key)
       .map(([k, v]) => `${k}=${v}`)
-      .join(", "),
-    change: mode === "delete" ? "DELETE this row" : `SET ${Object.entries(r.values ?? {}).map(([k, v]) => `${k}=${v}`).join(", ")}`,
-  }));
+      .join(", ");
+    let change: string;
+    if (mode === "delete") {
+      change = "DELETE this row";
+    } else {
+      const values = Object.entries(r.values ?? {});
+      // A row naming zero value fields is a legal upsert (see validateApplyPlan,
+      // img-write-bridge.ts) — say what it actually does rather than rendering a dangling
+      // empty "SET ".
+      change = values.length
+        ? `SET ${values.map(([k, v]) => `${k}=${v}`).join(", ")}`
+        : "key-only row (no value fields); insert if absent, otherwise no change";
+    }
+    return { row: String(i), key, change };
+  });
   return textTable(rows, ["row", "key", "change"]);
 }
 
@@ -872,6 +889,73 @@ function renderPreview(args: RowEditArgs, probe: ImgProbeResult, notes: readonly
   }).text;
 }
 
+function sameFieldMap(a: Record<string, string>, b: Record<string, string>): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
+interface RowChangeSummary {
+  changed: "yes" | "no" | "unknown";
+  description: string;
+}
+
+/**
+ * Measures what an armed upsert actually did to each row, from the apply transcript's
+ * before/after images — never assumed from the caller's own input. Transcript row numbers are
+ * 1-based (`rowNo = i + 1` in `imgApplySource`, img-write-bridge.ts) while `args.rows`/the
+ * rendered table are 0-based, so row `i` here is looked up as transcript row `i + 1`.
+ */
+function rowChangeSummaries(rows: RowEditArgs["rows"], t: ImgApplyResult["transcript"]): RowChangeSummary[] {
+  const beforePresent = groupByRow(t.before);
+  const beforeAbsent = new Set(t.beforeAbsent.map((a) => a.row));
+  const afterPresent = groupByRow(t.after);
+  const afterAbsent = new Set(t.afterAbsent.map((a) => a.row));
+
+  return rows.map((r, i) => {
+    const rowNo = i + 1;
+    const wasAbsent = beforeAbsent.has(rowNo);
+    const wasPresent = beforePresent.has(rowNo);
+    const isAbsentAfter = afterAbsent.has(rowNo);
+    const isPresentAfter = afterPresent.has(rowNo);
+
+    if (!isAbsentAfter && !isPresentAfter) {
+      // The transcript said nothing about this row's after-image (e.g. truncated output) —
+      // never guess what happened.
+      return { changed: "unknown", description: "no after-image reported for this row" };
+    }
+    if (wasAbsent && isPresentAfter) {
+      return { changed: "yes", description: "inserted" };
+    }
+    if (wasPresent && isPresentAfter) {
+      const same = sameFieldMap(beforePresent.get(rowNo) ?? {}, afterPresent.get(rowNo) ?? {});
+      if (same) {
+        const keyOnly = Object.keys(r.values ?? {}).length === 0;
+        return { changed: "no", description: keyOnly ? "row exists, no value fields to write" : "no change" };
+      }
+      return { changed: "yes", description: "updated" };
+    }
+    // Any other before/after combination (e.g. present before, absent after, on an upsert row)
+    // should never happen — reported rather than silently misclassified.
+    return { changed: "unknown", description: "before/after image combination not recognised" };
+  });
+}
+
+function armedUpsertRowsTable(args: RowEditArgs, apply: ImgApplyResult): string {
+  const summaries = rowChangeSummaries(args.rows, apply.transcript);
+  const rows = args.rows.map((r, i) => ({
+    row: String(i),
+    key: Object.entries(r.key)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", "),
+    changed: summaries[i]!.changed,
+    description: summaries[i]!.description,
+  }));
+  return textTable(rows, ["row", "key", "changed", "description"]);
+}
+
 function renderArmed(
   mode: "upsert" | "delete",
   args: RowEditArgs,
@@ -911,7 +995,7 @@ function renderArmed(
       bridgeRefreshed: apply.bridgeRefreshed,
     },
     sections: sections.length ? sections : undefined,
-    body: prospectiveRowsTable(mode, args),
+    body: mode === "delete" ? prospectiveRowsTable(mode, args) : armedUpsertRowsTable(args, apply),
     bodyLabel: mode === "delete" ? "ROWS DELETED" : "ROWS WRITTEN",
     notes: finalNotes,
     maxChars,
@@ -1099,6 +1183,29 @@ async function recordRowMutation(
 // ---------------------------------------------------------------------------
 
 /**
+ * Builds the `ImgApplyPlan` both the preview and armed paths validate/apply against — see
+ * `runProbeAndApply`'s single `validateApplyPlan` call below for why this exists as its own
+ * function rather than being inlined twice.
+ */
+function buildApplyPlan(args: RowEditArgs, op: "upsert" | "delete", table: PolicyTable): ImgApplyPlan {
+  const fields: ImgWriteField[] = table.fields.map((f) => ({ ...f }));
+  return {
+    table: args.table,
+    clientField: args.clientField,
+    keyFields: args.keyFields,
+    rows: bridgeRows(args.rows),
+    language: args.language,
+    op,
+    fields,
+    corrNr: args.corrNr,
+    expectedDeliveryClass: table.deliveryClass,
+    expectedClientDependent: table.clientDependent,
+    view: args.view,
+    masterType: args.masterType,
+  };
+}
+
+/**
  * Shared tail for both target paths: deploy the probe bridge, evaluate the real policy, render
  * preview or go on to deploy the apply bridge. `opts.needsReadAndConnect` gates the
  * `assert("read")`/`ensureConnected()` calls so the raw-table path's original ordering
@@ -1133,32 +1240,27 @@ async function runProbeAndApply(
 
   const verdict = evaluateReal(args, mode, probe, deps.safety);
 
+  const table = policyTableFromProbe(args, probe);
+  // Preview and the armed call must never disagree about whether a plan is even well-formed: both
+  // build the identical ImgApplyPlan (preview always as if it were an upsert — its own prospective
+  // table already previews one) and run it through the SAME validateApplyPlan a real upsert would
+  // hit, before either one renders anything. This is what closed the bug where preview rendered a
+  // key-only row as an empty "SET" while the armed upsert call refused the identical row with
+  // BAD_INPUT — the two paths now share one plan and one validator instead of preview skipping it.
+  const planOp = mode === "preview" ? "upsert" : mode;
+  const applyPlan = buildApplyPlan(args, planOp, table);
+  validateApplyPlan(applyPlan);
+
   if (mode === "preview") {
     return ok(renderPreview(args, probe, verdict.notes, deps.cfg.maxResponseChars));
   }
 
-  const table = policyTableFromProbe(args, probe);
   deps.safety.assert(
     "write",
     { name: IMGW_BRIDGE_CLASS.apply, packageName: HELPER_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
 
-  const fields: ImgWriteField[] = table.fields.map((f) => ({ ...f }));
-  const applyPlan: ImgApplyPlan = {
-    table: args.table,
-    clientField: args.clientField,
-    keyFields: args.keyFields,
-    rows: bridgeRows(args.rows),
-    language: args.language,
-    op: mode,
-    fields,
-    corrNr: args.corrNr,
-    expectedDeliveryClass: table.deliveryClass,
-    expectedClientDependent: table.clientDependent,
-    view: args.view,
-    masterType: args.masterType,
-  };
   const apply = await deps.pool.withWrite("abap_img_edit", IMGW_BRIDGE_CLASS.apply, (conn) =>
     runImgApply(conn, deps.safety, applyPlan),
   );

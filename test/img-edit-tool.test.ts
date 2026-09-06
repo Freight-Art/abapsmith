@@ -410,12 +410,22 @@ describe("abap_img_edit — mode: preview", () => {
     const text = okText(result);
 
     expect(text).toContain("mode: preview");
+    // Header and confirm-note both name the base table exactly as SAP would show it, uppercased,
+    // even though PROBE_TRANSCRIPT_EXISTING's own TABLE line names it lowercase ("ztest_imgw").
+    expect(text).toContain("table: ZTEST_IMGW");
+    expect(text).toContain('confirm: "ZTEST_IMGW"');
     expect(text).toContain("--- CURRENT ROWS ---");
     expect(text).toContain("exists");
     expect(text).toContain("ZDESC=Old");
     expect(text).toContain("--- TRANSPORT ENTRY (DESCRIPTIVE ONLY) ---");
-    // Echoed as the probe transcript actually named it (lowercase in this fixture), not re-uppercased.
-    expect(text).toContain("TABU ztest_imgw");
+    // OLD (wrong) behavior this replaces: the fixture names the table lowercase
+    // ("table=[ztest_imgw]"), and this assertion used to check for `TABU ztest_imgw`, with a
+    // comment justifying the lowercase echo as intentional ("not re-uppercased"). SAP itself is
+    // case-insensitive about table names, so echoing back whatever case the DDIC read happened to
+    // return was a real bug (see `policyTableFromProbe`, src/tools/img-edit.ts) — the resolved
+    // table name is now normalised to upper case wherever it is rendered.
+    expect(text).toContain("TABU ZTEST_IMGW");
+    expect(text).not.toContain("ztest_imgw");
     expect(text).toContain("PROSPECTIVE CHANGE");
     expect(text).toContain("SET ZDESC=New");
     // The SM30-bypass note is seeded on every allowed verdict, including preview — but nothing has
@@ -553,6 +563,124 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
 
     expect(errorPayload(result).error).toBe("BAD_INPUT");
     expect(inner.calls).toHaveLength(0);
+  });
+});
+
+// ===========================================================================
+// Key-only rows (zero value fields): SM30 itself accepts a row on a table
+// whose every non-key column is optional (e.g. TB004, key BPKIND, seven
+// optional FELDSTLSTn field-status lists) — a live bug once had preview
+// silently rendering an empty "SET" for such a row while the identical row
+// armed as upsert was refused BAD_INPUT by validateApplyPlan. Preview and
+// apply must never disagree again: both now build the SAME ImgApplyPlan and
+// run it through the SAME validateApplyPlan before either renders anything.
+// ===========================================================================
+
+describe("abap_img_edit — key-only upsert rows (zero value fields is a legal upsert)", () => {
+  it("preview shows the new key-only wording, never a dangling empty SET", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      ...BASE_ARGS,
+      rows: [{ key: { ZKEY: "A" } }], // no `values` at all — a key-only row
+    });
+    const text = okText(result);
+
+    expect(text).toContain("key-only row (no value fields); insert if absent, otherwise no change");
+    // OLD (buggy) rendering emitted a dangling "SET " with nothing after it for this exact row.
+    expect(text).not.toContain("SET");
+  });
+
+  it("preview and the armed upsert call refuse the SAME plan-level defect with the SAME BAD_INPUT message", async () => {
+    // A value field the probe's own FLD list never declared (ZBOGUS) — a plan-level defect
+    // validateApplyPlan has always caught, on both paths. Before this fix, preview never ran
+    // validateApplyPlan at all and would have rendered this row instead of refusing it.
+    const badRows = [{ key: { ZKEY: "A" }, values: { ZBOGUS: "x" } }];
+
+    const previewConn = await connected(
+      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+    );
+    const { tools: previewTools } = await registered(previewConn.conn);
+    const previewResult = await invoke(previewTools, "abap_img_edit", {
+      mode: "preview",
+      ...BASE_ARGS,
+      rows: badRows,
+    });
+    const previewErr = errorPayload(previewResult);
+
+    const armedConn = await connected(
+      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+    );
+    const { tools: armedTools } = await registered(armedConn.conn);
+    const armedResult = await invoke(armedTools, "abap_img_edit", {
+      mode: "upsert",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: badRows,
+    });
+    const armedErr = errorPayload(armedResult);
+
+    expect(previewErr.error).toBe("BAD_INPUT");
+    expect(armedErr.error).toBe("BAD_INPUT");
+    expect(String(previewErr.message)).toContain("ZBOGUS");
+    expect(String(previewErr.message)).toBe(String(armedErr.message));
+    // Refused before the apply bridge was ever deployed — the armed call never got past shared
+    // validation to reach it either.
+    expect(armedConn.inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(
+      false,
+    );
+  });
+
+  it("armed upsert: an absent-before key-only row is reported inserted/changed yes; a present-before key-only row is changed no with 'row exists, no value fields to write'", async () => {
+    const APPLY_TRANSCRIPT_KEY_ONLY_MIXED =
+      `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+      `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+      `IMGW> BABSENT row=[1]\n` +
+      `IMGW> BVAL row=[2] field=[ZKEY] len=[2] value=[A2]\n` +
+      `IMGW> BVAL row=[2] field=[ZDESC] len=[3] value=[Old]\n` +
+      `IMGW> AVAL row=[1] field=[ZKEY] len=[2] value=[A1]\n` +
+      `IMGW> AVAL row=[1] field=[ZDESC] len=[0] value=[]\n` +
+      `IMGW> AVAL row=[2] field=[ZKEY] len=[2] value=[A2]\n` +
+      `IMGW> AVAL row=[2] field=[ZDESC] len=[3] value=[Old]\n` +
+      `IMGW> APPLIED rows=[2]\n`;
+
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_KEY_ONLY_MIXED),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "upsert",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A1" } }, { key: { ZKEY: "A2" } }],
+    });
+    const text = okText(result);
+
+    expect(text).toContain("ROWS WRITTEN");
+    expect(text).toContain("changed");
+    expect(text).toContain("description");
+    expect(text).toContain("inserted");
+    expect(text).toContain("row exists, no value fields to write");
+
+    // Row 0 (absent before, present after): changed yes / inserted.
+    const row0 = text.split("\n").find((l) => l.trim().startsWith("0 "));
+    expect(row0).toBeDefined();
+    expect(row0).toContain("yes");
+    expect(row0).toContain("inserted");
+
+    // Row 1 (present before and after, identical, key-only): changed no / row exists text.
+    const row1 = text.split("\n").find((l) => l.trim().startsWith("1 "));
+    expect(row1).toBeDefined();
+    expect(row1).toContain("no");
+    expect(row1).toContain("row exists, no value fields to write");
   });
 });
 
