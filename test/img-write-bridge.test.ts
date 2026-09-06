@@ -254,6 +254,74 @@ describe("validateApplyPlan", () => {
     );
   });
 
+  it("accepts a row naming a declared non-key column", () => {
+    expect(() =>
+      validateApplyPlan(baseApply({ rows: [{ key: { [KEY_FIELD]: "A1" }, values: { [VAL_FIELD]: "Hello" } }] })),
+    ).not.toThrow();
+  });
+
+  // Better refusal for an unknown value name: name what IS writable, both in the message and in
+  // details.valueFields, rather than the old bare "not declared in this plan's fields."
+  it("names the declared value columns in the refusal message and in details.valueFields", () => {
+    try {
+      validateApplyPlan(baseApply({ rows: [{ key: { [KEY_FIELD]: "A1" }, values: { ZUNDECLARED: "x" } }] }));
+      throw new Error("expected to throw");
+    } catch (e) {
+      if (!isAbapError(e)) throw e;
+      const err = e as AbapError;
+      expect(err.code).toBe("BAD_INPUT");
+      expect(err.message).toContain(VAL_FIELD);
+      expect(err.message).toContain(VAL_FIELD2);
+      expect(err.message).toContain(TABLE);
+      expect((err.details as { valueFields?: string[] }).valueFields).toEqual([VAL_FIELD, VAL_FIELD2]);
+      expect((err.details as { row?: number; field?: string }).row).toBe(0);
+      expect((err.details as { row?: number; field?: string }).field).toBe("ZUNDECLARED");
+    }
+  });
+
+  it("says explicitly that the probe reported no non-key columns when the plan declares none", () => {
+    try {
+      validateApplyPlan(
+        baseApply({
+          fields: [{ field: KEY_FIELD, key: true, dataType: "CHAR" }],
+          rows: [{ key: { [KEY_FIELD]: "A1" }, values: { ZUNDECLARED: "x" } }],
+        }),
+      );
+      throw new Error("expected to throw");
+    } catch (e) {
+      if (!isAbapError(e)) throw e;
+      const err = e as AbapError;
+      expect(err.message).toContain("no non-key columns");
+      expect((err.details as { valueFields?: string[] }).valueFields).toEqual([]);
+    }
+  });
+
+  // The exact live regression measured 2026-09-06: an armed upsert on TB004T (keys SPRAS +
+  // BPKIND, value column TEXT40) was refused before any wire call with "row 0 names value field
+  // TEXT40, which is not declared in this plan's fields." — because the probe only ever emitted
+  // key fields, so TEXT40 could never appear in a plan's fields no matter how the plan was built.
+  it("accepts an upsert row naming TEXT40 on a table keyed SPRAS + BPKIND", () => {
+    const plan: ImgApplyPlan = {
+      table: "TB004T",
+      clientField: "MANDT",
+      keyFields: ["SPRAS", "BPKIND"],
+      language: "E",
+      op: "upsert",
+      fields: [
+        { field: "SPRAS", key: true, dataType: "LANG" },
+        { field: "BPKIND", key: true, dataType: "CHAR" },
+        { field: "TEXT40", key: false, dataType: "CHAR" },
+      ],
+      corrNr: "XXXK900001",
+      expectedDeliveryClass: "C",
+      expectedClientDependent: true,
+      view: "V_TB004T",
+      masterType: "VDAT",
+      rows: [{ key: { SPRAS: "E", BPKIND: "01" }, values: { TEXT40: "Some description" } }],
+    };
+    expect(() => validateApplyPlan(plan)).not.toThrow();
+  });
+
   it("rejects a malformed corrNr", () => {
     expectBadInput(() => validateApplyPlan(baseApply({ corrNr: "not-a-transport" })));
   });
@@ -308,49 +376,98 @@ describe("imgProbeSource", () => {
     expect(maxLineLength(src)).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
   });
 
-  // Regression for the live round-6 TB004T failure: activation of ZCL_ZMCP_IMG_WPROBE failed with
-  // `"LV_KEY_FLAG" was already declared` because the per-key-field DD03L lookup declared its four
-  // result variables inline (@DATA(...)) once per key field. TB004 has one non-client key field
-  // and so never exposed this; any text table (SPRAS + something) has at least two and always did.
-  it("hoists the four DD03L lookup variables exactly once for a two-key table, and never re-declares them inline", () => {
+  // Core regression for the live 2026-09-06 TB004T finding: the probe's only IMGW> FLD emission
+  // used to sit inside the per-key-field loop, so it reported KEY FIELDS ONLY — an apply plan
+  // built from that probe could never legally name a value column. The fix reads every column of
+  // the base table once and reports each of them.
+  it("reads every column of the base table, not just the key fields", () => {
     const src = imgProbeSource(
       baseProbe({ keyFields: [KEY_FIELD, "ZKEY2"], rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} }] }),
     );
-    expect(src).not.toContain("@DATA(lv_key_flag)");
-    expect(src).not.toContain("@DATA(lv_key_type)");
-    expect(src).not.toContain("@DATA(lv_key_len)");
-    expect(src).not.toContain("@DATA(lv_key_roll)");
-    for (const decl of [
-      "DATA lv_key_flag TYPE dd03l-keyflag.",
-      "DATA lv_key_type TYPE dd03l-datatype.",
-      "DATA lv_key_len TYPE dd03l-leng.",
-      "DATA lv_key_roll TYPE dd03l-rollname.",
-    ]) {
-      expect(src.split(decl).length - 1).toBe(1);
-    }
-    expect(src.split("INTO (@lv_key_flag, @lv_key_type, @lv_key_len, @lv_key_roll)").length - 1).toBe(2);
+    // Exactly one DD03L read, regardless of key count.
+    expect(src.split("FROM dd03l").length - 1).toBe(1);
+    // Never restricted to a particular fieldname — every column comes back, not just the keys.
+    expect(src).not.toContain("fieldname = '");
+    // position is selected purely so ORDER BY position cannot trip the strict-SQL check.
+    expect(src).toContain("ORDER BY position.");
+    // The .INCLUDE/.APPEND marker-row guard.
+    expect(src).toContain("IF ls_fld-fieldname(1) = '.'.");
+    expect(src).toContain("CONTINUE.");
+    // The FLD line is written from inside the LOOP AT lt_fld, not the old per-key-field loop.
+    const loopIdx = src.indexOf("LOOP AT lt_fld INTO ls_fld.");
+    const endloopIdx = src.indexOf("ENDLOOP.");
+    const fldIdx = src.indexOf(`${IMGW_LINE_PREFIX}FLD table=`);
+    expect(loopIdx).toBeGreaterThan(-1);
+    expect(endloopIdx).toBeGreaterThan(loopIdx);
+    expect(fldIdx).toBeGreaterThan(loopIdx);
+    expect(fldIdx).toBeLessThan(endloopIdx);
   });
 
-  it("hoists the four DD03L lookup variables exactly once for a three-key table, and emits one SELECT per key field", () => {
-    const src = imgProbeSource(
+  // Rewritten Defect-H (duplicate declaration) regression, replacing the two tests this replaces
+  // ("hoists the four DD03L lookup variables exactly once for a two-/three-key table..."): those
+  // pinned the per-key-field SELECT shape being deleted here (one SELECT per key field, four
+  // hoisted lv_key_* variables). The new shape structurally cannot repeat the "LV_KEY_FLAG was
+  // already declared" failure measured live 2026-09-06, because the DD03L read is emitted exactly
+  // once no matter how many key fields (or columns) the table has — this pins that the FROM dd03l
+  // count stays at 1 as key count grows, and that no inline @DATA(...) survives anywhere in the
+  // generated probe source.
+  it("emits exactly one FROM dd03l regardless of key count, and never redeclares the same inline @DATA(name) twice, for both a two-key and a three-key table", () => {
+    const twoKey = imgProbeSource(
+      baseProbe({ keyFields: [KEY_FIELD, "ZKEY2"], rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} }] }),
+    );
+    const threeKey = imgProbeSource(
       baseProbe({
         keyFields: [KEY_FIELD, "ZKEY2", "ZKEY3"],
         rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2", ZKEY3: "C3" }, values: {} }],
       }),
     );
-    expect(src).not.toContain("@DATA(lv_key_flag)");
-    for (const decl of [
-      "DATA lv_key_flag TYPE dd03l-keyflag.",
-      "DATA lv_key_type TYPE dd03l-datatype.",
-      "DATA lv_key_len TYPE dd03l-leng.",
-      "DATA lv_key_roll TYPE dd03l-rollname.",
-    ]) {
-      expect(src.split(decl).length - 1).toBe(1);
+    expect(twoKey.split("FROM dd03l").length - 1).toBe(1);
+    expect(threeKey.split("FROM dd03l").length - 1).toBe(1);
+    // Neither the two-key-specific "lv_key_flag" etc. shape this replaces, nor any duplicate of
+    // the same inline @DATA(name) survives as key count grows — the DD03L read (and its
+    // lt_fld/ls_fld declarations, now hoisted plain DATA statements, not inline) is emitted
+    // exactly once regardless of how many key fields the table has.
+    for (const src of [twoKey, threeKey]) {
+      expect(src).not.toContain("lv_key_flag");
+      const names = [...src.matchAll(/@DATA\(([a-zA-Z_][a-zA-Z0-9_]*)\)/g)].map((m) => m[1]!);
+      const counts = new Map<string, number>();
+      for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
+      const dupes = [...counts.entries()].filter(([, c]) => c > 1);
+      expect(dupes).toEqual([]);
     }
-    expect(src.split("INTO (@lv_key_flag, @lv_key_type, @lv_key_len, @lv_key_roll)").length - 1).toBe(3);
-    // Each SELECT is preceded by a defensive CLEAR of the four so a not-found field can never
-    // print a previous field's stale values.
-    expect(src.split("CLEAR: lv_key_flag, lv_key_type, lv_key_len, lv_key_roll.").length - 1).toBe(3);
+  });
+
+  // Generator/parser drift check: the FLD line the generator actually emits, with concrete runtime
+  // values substituted for the { ls_fld-... } placeholders, must round-trip through the transcript
+  // parser as a VALUE (non-key) column — this is the pin that the probe's new value-column output
+  // is actually consumable by the rest of this module, not just present as text in the source.
+  it("the generated FLD line, with runtime values substituted, parses as a non-key value column", () => {
+    const src = imgProbeSource(baseProbe());
+    const fldLineStart = src.indexOf(`out->write( |${IMGW_LINE_PREFIX}FLD table=`);
+    expect(fldLineStart).toBeGreaterThan(-1);
+    const fldLineEnd = src.indexOf(").", fldLineStart);
+    const generatedTemplate = src.slice(fldLineStart, fldLineEnd);
+
+    // Pull out the two |...| string-literal segments the generator concatenates with && and join
+    // them exactly as ABAP would, then substitute concrete runtime values for the five
+    // { ls_fld-... } placeholders — this reconstructs the literal transcript line the generated
+    // ABAP would actually emit for a non-key CHAR(40) column named TEXT40.
+    const segments = [...generatedTemplate.matchAll(/\|([^|]*)\|/g)].map((m) => m[1]!);
+    expect(segments.length).toBe(2);
+    const literalLine = segments
+      .join("")
+      .replace("{ ls_fld-fieldname }", "TEXT40")
+      .replace("{ ls_fld-keyflag }", "")
+      .replace("{ ls_fld-datatype }", "CHAR")
+      .replace("{ ls_fld-leng }", "40")
+      .replace("{ ls_fld-rollname }", "TEXT40");
+    expect(literalLine).toBe(`${IMGW_LINE_PREFIX}FLD table=[${TABLE.toLowerCase()}] field=[TEXT40] key=[] type=[CHAR] len=[40] rollname=[TEXT40]`);
+
+    const t = parseImgWriteTranscript(literalLine);
+    expect(t.droppedLines).toBe(0);
+    expect(t.fields).toEqual([
+      { table: TABLE.toLowerCase(), field: "TEXT40", key: false, dataType: "CHAR", length: "40", dataElement: "TEXT40" },
+    ]);
   });
 });
 

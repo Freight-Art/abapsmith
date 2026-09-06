@@ -310,6 +310,11 @@ export function validateApplyPlan(p: ImgApplyPlan): void {
     assertTrkorr(p.corrNr, "imgApplyPlan");
   }
 
+  // Value columns this plan can actually write — everything in p.fields that isn't a key. Computed
+  // once, outside the per-row loop below, purely to name them in a refusal: the plan's field list
+  // does not change row to row.
+  const valueCols = p.fields.filter((f) => !f.key).map((f) => f.field);
+
   p.rows.forEach((row, i) => {
     const valueNames = Object.keys(row.values);
     // A zero-value-field upsert row is legal: SM30 itself accepts a key-only row on a table whose
@@ -327,10 +332,14 @@ export function validateApplyPlan(p: ImgApplyPlan): void {
         );
       }
       if (!fieldNamesUpper.has(upper)) {
+        const tail =
+          valueCols.length > 0
+            ? `Columns this plan can write: ${valueCols.join(", ")}.`
+            : "The probe reported no non-key columns for this table.";
         throw new AbapError(
           "BAD_INPUT",
-          `row ${i} names value field ${name}, which is not declared in this plan's fields.`,
-          { row: i, field: name },
+          `row ${i} names value field ${name}, which is not a column of ${p.table}. ${tail}`,
+          { row: i, field: name, valueFields: valueCols },
         );
       }
       assertRowValue(row.values[name]!, `row ${i} value ${name}`);
@@ -429,15 +438,18 @@ export function imgProbeSource(p: ImgProbePlan): string {
     "FIELD-SYMBOLS <fs_val> TYPE any.",
     "DATA lv_fval TYPE string.",
     `DATA ls_wa TYPE ${tableLower}.`,
-    // Declared once here, not inline in the per-key-field loop below: that loop runs once per
-    // key field, so an inline @DATA(...) declaration on the SELECT would be a duplicate
-    // declaration for any table with more than one key field (every text table, e.g. TB004T).
-    // Measured live 2026-09-06: activation of the generated probe failed with
-    // `"LV_KEY_FLAG" was already declared.` on exactly this shape.
-    "DATA lv_key_flag TYPE dd03l-keyflag.",
-    "DATA lv_key_type TYPE dd03l-datatype.",
-    "DATA lv_key_len TYPE dd03l-leng.",
-    "DATA lv_key_roll TYPE dd03l-rollname.",
+    // One DD03L read for the whole table, not one per key field: the DD03L loop below used to run
+    // once per key field with its four result variables bound inline (@DATA(...)) on the SELECT,
+    // which is a duplicate declaration for any table with more than one key field (every text
+    // table, e.g. TB004T) — measured live 2026-09-06, activation failed with `"LV_KEY_FLAG" was
+    // already declared.` on exactly this shape. Reading the whole table once, into a table
+    // variable declared here and reused by plain LOOP AT below, cannot repeat that: the
+    // declaration is emitted exactly once regardless of how many columns or key fields the table
+    // has. This read is also what makes VALUE (non-key) columns visible to the caller at all — the
+    // old per-key-field loop only ever emitted key fields, so no value column could ever be named
+    // in an apply plan.
+    "DATA lt_fld TYPE STANDARD TABLE OF dd03l WITH DEFAULT KEY.",
+    "DATA ls_fld TYPE dd03l.",
     "",
     ...clientCheckFragment(),
     "",
@@ -445,23 +457,30 @@ export function imgProbeSource(p: ImgProbePlan): string {
     "",
   ];
 
-  for (const kf of p.keyFields) {
-    const kfLit = kf.toUpperCase();
-    body.push(
-      // CLEARed before every SELECT so a key field not found in DD03L (sy-subrc <> 0, which
-      // the IF below already guards) cannot leave a previous field's values behind to be
-      // printed under this field's name — defensive, since the guard already prevents it.
-      "CLEAR: lv_key_flag, lv_key_type, lv_key_len, lv_key_roll.",
-      `SELECT SINGLE keyflag, datatype, leng, rollname FROM dd03l`,
-      `  INTO (@lv_key_flag, @lv_key_type, @lv_key_len, @lv_key_roll)`,
-      `  WHERE tabname = '${tableLit}' AND fieldname = '${kfLit}' AND as4local = 'A'.`,
-      "IF sy-subrc = 0.",
-      `  out->write( |${IMGW_LINE_PREFIX}FLD table=[${tableLower}] field=[${kf.toLowerCase()}] key=[{ lv_key_flag }] | &&`,
-      `    |type=[{ lv_key_type }] len=[{ lv_key_len }] rollname=[{ lv_key_roll }]| ).`,
-      "ENDIF.",
-      "",
-    );
-  }
+  // Reads every column of the base table (not just p.keyFields) so an apply plan built from this
+  // probe's output can name a value column, not only a key column. `position` is selected only so
+  // `ORDER BY position` cannot trip the strict-SQL "order by a column not in the select list"
+  // check; it is otherwise unused. The `.`-prefixed rows DD03L carries for a table's own
+  // `.INCLUDE`/`.APPEND` marker are skipped — the real columns an include contributes are separate
+  // DD03L rows of their own and are not skipped by this guard.
+  body.push(
+    `SELECT position, fieldname, keyflag, datatype, leng, rollname FROM dd03l`,
+    `  INTO CORRESPONDING FIELDS OF TABLE @lt_fld`,
+    `  WHERE tabname = '${tableLit}' AND as4local = 'A'`,
+    `  ORDER BY position.`,
+    "IF sy-subrc <> 0.",
+    `  out->write( |${DDIC_ERR_PREFIX} DD03L returned no fields for ${tableLower}| ).`,
+    "  RETURN.",
+    "ENDIF.",
+    "LOOP AT lt_fld INTO ls_fld.",
+    "  IF ls_fld-fieldname(1) = '.'.",
+    "    CONTINUE.",
+    "  ENDIF.",
+    `  out->write( |${IMGW_LINE_PREFIX}FLD table=[${tableLower}] field=[{ ls_fld-fieldname }] key=[{ ls_fld-keyflag }] | &&`,
+    `    |type=[{ ls_fld-datatype }] len=[{ ls_fld-leng }] rollname=[{ ls_fld-rollname }]| ).`,
+    "ENDLOOP.",
+    "",
+  );
 
   p.rows.forEach((row, i) => {
     const rowNo = i + 1;
