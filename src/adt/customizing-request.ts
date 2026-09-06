@@ -54,11 +54,14 @@ export const CUSTREQ_DESCRIPTION_MAX = 60;
  * the live system without re-deriving it, the same reason `img-write-bridge.ts`
  * keeps `CTS_INSERT_FM`, whose `confidence`/`note` shape this mirrors.
  *
- * UNPROVEN: `TR_INSERT_REQUEST_WITH_TASKS` has never actually been executed,
- * on this or any system — the first real run of the generated class is also
- * the first evidence that the call is accepted at all (authority, lock, or
- * request-type refusals are all unproven territory, which is exactly why
- * `EXCEPTIONS` and the `MESSAGE ... INTO lv_msg` capture below exist).
+ * UNPROVEN FROM HERE: `TR_INSERT_REQUEST_WITH_TASKS` is an ordinary,
+ * heavily-used standard SAP function module — SM30 and the rest of CTS call it
+ * constantly — but this server has never itself called it, on this or any
+ * system. The first real run of the generated class from here is also the
+ * first evidence that this server's call is accepted at all (authority,
+ * lock, or request-type refusals are all unproven territory from this
+ * server's side, which is exactly why `EXCEPTIONS` and the
+ * `MESSAGE ... INTO lv_msg` capture below exist).
  *
  * What IS measured, read live from this system's own `FUPARAREF`/`TFDIR` on
  * 2026-09-05 (not from this repo — this codebase had, and still has, no
@@ -98,12 +101,14 @@ export const CUSTOMIZING_REQUEST_FM = Object.freeze({
   }),
   confidence: "high",
   note:
-    "UNPROVEN: TR_INSERT_REQUEST_WITH_TASKS has never actually been executed, on this or " +
-    "any system. What was read live on 2026-09-05 is FUPARAREF (parameter lists) and TFDIR " +
-    "(function group) — not a successful or failed call. The parameter names and types here " +
-    "are read from the system's own dictionaries, not proven by execution; the first time " +
-    "this generated code actually runs is also the first time anyone learns whether the " +
-    "call itself is accepted. Measured shape: IV_TYPE (TRFUNCTION) and IV_TEXT (AS4TEXT) " +
+    "UNPROVEN FROM HERE: TR_INSERT_REQUEST_WITH_TASKS is an ordinary, heavily-used standard SAP " +
+    "function module — SM30 and the rest of CTS call it constantly — but this server has never " +
+    "itself called it, on this or any system. What was read live on 2026-09-05 is FUPARAREF " +
+    "(parameter lists) and TFDIR (function group) — not a successful or failed call from here. The " +
+    "parameter names and types here are read from the system's own dictionaries, not confirmed by a " +
+    "call this server has made; the first time this generated code actually runs is also the first " +
+    "time this server learns whether its own call is accepted. Measured shape: IV_TYPE " +
+    "(TRFUNCTION) and IV_TEXT (AS4TEXT) " +
     "are mandatory; IV_OWNER (AS4USER) is optional and defaults to SY-UNAME, so omitting it " +
     "means \"the logon user\", not \"no owner\"; ES_REQUEST_HEADER/ET_TASK_HEADERS are " +
     "exporting parameters 1 and 2, typed TRWBO_REQUEST_HEADER/TRWBO_REQUEST_HEADERS; the " +

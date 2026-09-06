@@ -1,11 +1,12 @@
 /**
- * IMG (SPRO customizing) row write, the counterpart to the read-only
- * `img-bridge.ts`. Same reason for existing (ADT has no IMG REST route,
- * only classic function-module plumbing) and the same delivery mechanism —
- * a generated `IF_OO_ADT_CLASSRUN` class — but this side touches a base
- * customizing table's own data, not a catalog table. Deployed into
- * `HELPER_PACKAGE` (`src/adt/helper-package.ts`), not `$TMP` — the owner
- * rule for bridge/helper classes going forward.
+ * IMG (SPRO customizing) row write. Reading the IMG catalog no longer needs
+ * a generated bridge (`src/adt/img-read.ts` reads straight through the
+ * freestyle data-preview endpoint), but writing still does — ADT has no IMG
+ * REST route, only classic function-module plumbing — so this module keeps
+ * the generated `IF_OO_ADT_CLASSRUN` class delivery mechanism, touching a
+ * base customizing table's own data rather than a catalog table. Deployed
+ * into `HELPER_PACKAGE` (`src/adt/helper-package.ts`), not `$TMP` — the
+ * owner rule for bridge/helper classes going forward.
  *
  * Two fixed classes: `ZCL_ZMCP_IMG_WPROBE` (read-only: T000 flags, the base
  * table's DD02L/DD03L shape, before-image rows for caller-supplied keys) and
@@ -93,19 +94,21 @@ export const CTS_INSERT_FM = Object.freeze({
   }),
   confidence: "high",
   note:
-    "UNPROVEN: neither function module below has ever actually been executed, on this or any system. " +
-    "What was read live on 2026-09-05 is FUPARAREF (parameter lists), DOKTL (long texts), the FMs' own " +
-    "source, and real E071/E071K rows — not a successful or failed call. The parameter names, types " +
-    "and the check-then-insert ordering here are read from the system's own dictionaries, not proven " +
-    "by execution; the first time this generated code actually runs is also the first time anyone " +
-    "learns whether the call itself is accepted — a runtime refusal on authority, lock, or request " +
-    "type is unproven territory, which is exactly why the exception names and sy-msg* capture below " +
-    "exist. Measured shape: objects table is WT_KO200 (type KO200), not WT_E071/E071; TR_OBJECTS_CHECK " +
-    "must run before TR_OBJECTS_INSERT; IV_NO_STANDARD_EDITOR and IV_NO_SHOW_OPTION must both be 'X' " +
-    "on both calls to suppress the dialog; both raise CANCEL_EDIT_OTHER_ERROR and " +
-    "SHOW_ONLY_OTHER_ERROR, the latter carrying the real reason in sy-msg*. " +
-    "TR_APPEND_TO_COMM_OBJS_KEYS also exists but its own long text calls it obsolete — deliberately " +
-    "not used.",
+    "UNPROVEN FROM HERE: TR_OBJECTS_CHECK and TR_OBJECTS_INSERT are ordinary, heavily-used standard " +
+    "SAP function modules — SM30 and the rest of CTS call them constantly — but this server has never " +
+    "itself called either one, on this or any system. What was read live on 2026-09-05 is FUPARAREF " +
+    "(parameter lists), DOKTL (long texts), the FMs' own source, and real E071/E071K rows — not a " +
+    "successful or failed call from here. The parameter names, types and the check-then-insert " +
+    "ordering here are read from the system's own dictionaries, not confirmed by a call this server " +
+    "has made; the first time this generated code actually runs is also the first time this server " +
+    "learns whether its own call is accepted — a runtime refusal on authority, lock, or request type " +
+    "is unproven territory from this server's side, which is exactly why the exception names and " +
+    "sy-msg* capture below exist. Measured shape: objects table is WT_KO200 (type KO200), not " +
+    "WT_E071/E071; TR_OBJECTS_CHECK must run before TR_OBJECTS_INSERT; IV_NO_STANDARD_EDITOR and " +
+    "IV_NO_SHOW_OPTION must both be 'X' on both calls to suppress the dialog; both raise " +
+    "CANCEL_EDIT_OTHER_ERROR and SHOW_ONLY_OTHER_ERROR, the latter carrying the real reason in " +
+    "sy-msg*. TR_APPEND_TO_COMM_OBJS_KEYS also exists but its own long text calls it obsolete — " +
+    "deliberately not used.",
 } as const);
 
 // ---------------------------------------------------------------------------
@@ -222,13 +225,13 @@ export function validateProbePlan(p: ImgProbePlan): void {
   if (keyFieldsUpper.includes(clientField)) {
     throw new AbapError(
       "BAD_INPUT",
-      `keyFields must not include the client field ${p.clientField} — it always comes from sy-mandt, never from the caller.`,
+      `key_fields must not include the client field ${p.clientField} — it always comes from sy-mandt, never from the caller.`,
       { clientField: p.clientField },
     );
   }
   const dupKey = keyFieldsUpper.find((f, i) => keyFieldsUpper.indexOf(f) !== i);
   if (dupKey) {
-    throw new AbapError("BAD_INPUT", `keyFields lists ${dupKey} more than once.`, { field: dupKey });
+    throw new AbapError("BAD_INPUT", `key_fields lists ${dupKey} more than once.`, { field: dupKey });
   }
 
   if (p.rows.length < 1) {
@@ -265,7 +268,7 @@ export function validateProbePlan(p: ImgProbePlan): void {
       if (!keyFieldsUpper.includes(upper)) {
         throw new AbapError(
           "BAD_INPUT",
-          `row ${i} names key field ${name}, which is not one of this plan's keyFields.`,
+          `row ${i} names key field ${name}, which is not one of this plan's key_fields.`,
           { row: i, field: name },
         );
       }
@@ -289,7 +292,7 @@ export function validateApplyPlan(p: ImgApplyPlan): void {
 
   assertDdicIdentifier(p.view, "view");
   if (p.masterType !== "VDAT" && p.masterType !== "CDAT") {
-    throw new AbapError("BAD_INPUT", `masterType must be "VDAT" or "CDAT".`, { masterType: p.masterType });
+    throw new AbapError("BAD_INPUT", `master_type must be "VDAT" or "CDAT".`, { masterType: p.masterType });
   }
 
   const fieldNamesUpper = new Set<string>();
