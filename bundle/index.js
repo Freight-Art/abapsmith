@@ -114465,6 +114465,15 @@ function imgProbeSource(p) {
     "FIELD-SYMBOLS <fs_val> TYPE any.",
     "DATA lv_fval TYPE string.",
     `DATA ls_wa TYPE ${tableLower}.`,
+    // Declared once here, not inline in the per-key-field loop below: that loop runs once per
+    // key field, so an inline @DATA(...) declaration on the SELECT would be a duplicate
+    // declaration for any table with more than one key field (every text table, e.g. TB004T).
+    // Measured live 2026-09-06: activation of the generated probe failed with
+    // `"LV_KEY_FLAG" was already declared.` on exactly this shape.
+    "DATA lv_key_flag TYPE dd03l-keyflag.",
+    "DATA lv_key_type TYPE dd03l-datatype.",
+    "DATA lv_key_len TYPE dd03l-leng.",
+    "DATA lv_key_roll TYPE dd03l-rollname.",
     "",
     ...clientCheckFragment(),
     "",
@@ -114474,8 +114483,12 @@ function imgProbeSource(p) {
   for (const kf of p.keyFields) {
     const kfLit = kf.toUpperCase();
     body.push(
+      // CLEARed before every SELECT so a key field not found in DD03L (sy-subrc <> 0, which
+      // the IF below already guards) cannot leave a previous field's values behind to be
+      // printed under this field's name — defensive, since the guard already prevents it.
+      "CLEAR: lv_key_flag, lv_key_type, lv_key_len, lv_key_roll.",
       `SELECT SINGLE keyflag, datatype, leng, rollname FROM dd03l`,
-      `  INTO (@DATA(lv_key_flag), @DATA(lv_key_type), @DATA(lv_key_len), @DATA(lv_key_roll))`,
+      `  INTO (@lv_key_flag, @lv_key_type, @lv_key_len, @lv_key_roll)`,
       `  WHERE tabname = '${tableLit}' AND fieldname = '${kfLit}' AND as4local = 'A'.`,
       "IF sy-subrc = 0.",
       `  out->write( |${IMGW_LINE_PREFIX}FLD table=[${tableLower}] field=[${kf.toLowerCase()}] key=[{ lv_key_flag }] | &&`,
@@ -115130,8 +115143,28 @@ function parseCustomizingRequestTranscript(text3) {
 
 // src/adt/img-write.ts
 var PROBE_HINT = "The probe only SELECTs the target table plus DD02L/DD03L, all named from the caller's own plan (table, keyFields) \u2014 a syntax error here most likely means the table does not exist or one of keyFields is not really a field on it, as spelled. It is never a symptom of a bad ROW VALUE: those reach this bridge only as quoted literals, never as identifiers.";
-var APPLY_HINT = "The apply bridge MODIFYs/DELETEs the target table directly and then calls TR_OBJECTS_CHECK/TR_OBJECTS_INSERT (see CTS_INSERT_FM) \u2014 ordinary standard SAP function modules, but this server has never called them, so their parameter names/types here were read from FUPARAREF rather than confirmed by a successful call, and the ADT syntax check cannot validate an FM interface. It DOES validate ordinary ABAP statements in the generated body, though \u2014 a syntax error here can equally mean the table's real structure has drifted from the field list the probe returned, or one of those two FMs' parameter names is wrong. It is never a symptom of a bad row value, for the same quoted-literal reason as the probe bridge.";
-var REQUEST_HINT = `This bridge only calls TR_INSERT_REQUEST_WITH_TASKS (see CUSTOMIZING_REQUEST_FM) \u2014 an ordinary standard SAP function module \u2014 with request type 'W' and the caller's description/owner as quoted literals. This server has never called it, so its parameter names here were read from FUPARAREF rather than confirmed by a successful call, and the ADT syntax check cannot validate an FM interface. But that same check DOES validate ordinary ABAP statements in the generated body \u2014 on 2026-09-06 it caught "SY-UNAME" and the row type of "LT_USERS" are incompatible in this bridge before the FM was ever called \u2014 so a syntax error here can be either cause, and the quoted activation message is what tells them apart, not a guess. Delete the left-behind bridge class with abap_write {"object":"class ${CUSTOMIZING_REQUEST_CLASS}","mode":"delete"}.`;
+var APPLY_HINT = "The apply bridge MODIFYs/DELETEs the target table directly and then calls TR_OBJECTS_CHECK/TR_OBJECTS_INSERT (see CTS_INSERT_FM) \u2014 ordinary standard SAP function modules whose interface here is confirmed by a successful live call, not merely read from FUPARAREF: on 2026-09-06 an armed upsert filed a real E071/E071K row pair through both, and a subsequent delete on the same table also succeeded. So a syntax error here is an ordinary ABAP error in the generated body, not a suspected FM-interface problem \u2014 the ADT syntax check DOES validate ordinary ABAP statements in the generated body, and the likeliest cause is the table's real structure having drifted from the field list the probe returned. It is never a symptom of a bad row value, for the same quoted-literal reason as the probe bridge.";
+var REQUEST_HINT = `This bridge only calls TR_INSERT_REQUEST_WITH_TASKS (see CUSTOMIZING_REQUEST_FM) \u2014 an ordinary standard SAP function module \u2014 with request type 'W' and the caller's description/owner as quoted literals. Its interface here is confirmed by a successful live call, not merely read from FUPARAREF: on 2026-09-06 it created a real type-W customizing request with a type-Q task. So a syntax error here is an ordinary ABAP error in the generated body, not a suspected FM-interface problem. The ADT syntax check DOES validate ordinary ABAP statements in the generated body: on 2026-09-06 it also caught "SY-UNAME" and the row type of "LT_USERS" are incompatible in this very bridge before the FM was ever called; the quoted activation message names the actual defect, not a guess. Delete the left-behind bridge class with abap_write {"object":"class ${CUSTOMIZING_REQUEST_CLASS}","mode":"delete"}.`;
+var DUPLICATE_DECLARATION_HINT = "The activation error says a name was already declared, which means the GENERATED ABAP source itself declares something twice \u2014 a defect in abapsmith's own code generator, not a mistake in the caller's plan. The table, keyFields and row values here are not suspects: nothing about them could make the generator emit the same declaration twice. Report this to abapsmith, quoting the activation message in this error, rather than editing or resubmitting the plan.";
+function withDuplicateDeclarationHintFix(e, originalHint) {
+  if (!isAbapError(e)) return e;
+  const rendered = typeof e.details.messages === "string" ? e.details.messages : "";
+  const raw = Array.isArray(e.details.raw) ? e.details.raw : [];
+  const rawText = raw.map((m) => typeof m?.text === "string" ? m.text : "").join("\n");
+  const isDuplicateDeclaration = /already declared/i.test(`${rendered}
+${rawText}`);
+  if (!isDuplicateDeclaration) return e;
+  const residue = e.hint !== void 0 && e.hint.startsWith(originalHint) ? e.hint.slice(originalHint.length) : "";
+  return new AbapError(
+    e.code,
+    e.message,
+    e.details,
+    `${DUPLICATE_DECLARATION_HINT}${residue}`,
+    { retryable: e.retryable }
+    // re-wrap, not an override — no site reachable here overrides RETRYABILITY today
+    // carries the caught error's retryable across instead of recomputing it, so that stays true if one ever does
+  );
+}
 async function runImgProbe(conn, gate, plan) {
   const started = Date.now();
   validateProbePlan(plan);
@@ -115146,6 +115179,8 @@ async function runImgProbe(conn, gate, plan) {
     what: "Activation of the generated IMG write-probe bridge",
     hint: PROBE_HINT,
     verify: (activation) => verifyBridgeActivation(activation, className, "IMG write-probe bridge", { table: plan.table })
+  }).catch((e) => {
+    throw withDuplicateDeclarationHintFix(e, PROBE_HINT);
   });
   const { bridgeRefreshed } = deployed;
   const run2 = await executeBridge(conn, gate, deployed);
@@ -115174,6 +115209,8 @@ async function runImgApply(conn, gate, plan) {
     what: "Activation of the generated IMG write-apply bridge",
     hint: APPLY_HINT,
     verify: (activation) => verifyBridgeActivation(activation, className, "IMG write-apply bridge", { table: plan.table, op: plan.op })
+  }).catch((e) => {
+    throw withDuplicateDeclarationHintFix(e, APPLY_HINT);
   });
   const { bridgeRefreshed } = deployed;
   const run2 = await executeBridge(conn, gate, deployed);
@@ -115202,6 +115239,8 @@ async function runCreateCustomizingRequest(conn, gate, plan) {
     what: "Activation of the generated customizing-request-creation bridge",
     hint: REQUEST_HINT,
     verify: (activation) => verifyBridgeActivation(activation, className, "customizing-request bridge", {})
+  }).catch((e) => {
+    throw withDuplicateDeclarationHintFix(e, REQUEST_HINT);
   });
   const { bridgeRefreshed } = deployed;
   const run2 = await executeBridge(conn, gate, deployed);
@@ -115932,13 +115971,29 @@ function renderArmed(mode, args, apply, notes, journalNote, maxChars) {
   if (journalNote) finalNotes.push(journalNote);
   if (t.errors.length) finalNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) finalNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
+  const CTS_PGMID = "R3TR";
+  const CTS_OBJECT = "TABU";
+  const identityLine = `${CTS_PGMID} ${CTS_OBJECT} ${args.table.toUpperCase()} (master ${args.masterType} ${args.view.toUpperCase()})`;
+  const mandt = t.client?.mandt;
   const trkeyRows = t.trkeys.map((k) => ({
     row: String(k.row),
+    tabkey: mandt !== void 0 ? `${mandt}${k.value}` : k.value,
     trkorr: k.trkorr,
     recorded_order: k.recordedOrder ?? "",
     recorded_task: k.recordedTask ?? ""
   }));
-  const sections = trkeyRows.length ? [{ title: "TRANSPORT ENTRY RECORDED", content: textTable(trkeyRows, ["row", "trkorr", "recorded_order", "recorded_task"]) }] : [];
+  if (trkeyRows.length && mandt === void 0) {
+    finalNotes.push(
+      "The transport entry's tabkey below is the key portion only (no IMGW> CLIENT line was parsed to supply the client prefix SAP actually stored)."
+    );
+  }
+  const sections = trkeyRows.length ? [
+    {
+      title: "TRANSPORT ENTRY RECORDED",
+      content: `${identityLine}
+${textTable(trkeyRows, ["row", "tabkey", "trkorr", "recorded_order", "recorded_task"])}`
+    }
+  ] : [];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
   return buildResponse({
     header: {
