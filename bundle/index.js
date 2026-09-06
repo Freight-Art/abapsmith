@@ -114513,6 +114513,14 @@ function ctsRecordFragment(tableLower, tableLit, corrNr, rowNo, view, masterType
     "  RETURN.",
     "ENDIF."
   ];
+  const dynCallErrorLines = (wording) => [
+    "  lo_exc_type = cl_abap_typedescr=>describe_by_object_ref( lx_cts ).",
+    "  lv_exc_class = lo_exc_type->get_relative_name( ).",
+    wording === "mismatch" ? "  lv_exc_text = |function-module interface mismatch: { lx_cts->get_text( ) }|." : "  lv_exc_text = lx_cts->get_text( ).",
+    `  out->write( |${IMGW_LINE_PREFIX}ERROR class=[{ lv_exc_class }] len=[{ strlen( lv_exc_text ) }] | &&`,
+    "    |value=[{ lv_exc_text }]| ).",
+    "  RETURN."
+  ];
   return [
     "CLEAR ls_ko200.",
     "ls_ko200-pgmid = 'R3TR'.",
@@ -114533,34 +114541,43 @@ function ctsRecordFragment(tableLower, tableLit, corrNr, rowNo, view, masterType
     "ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|.",
     "REFRESH lt_e071k.",
     "APPEND ls_e071k TO lt_e071k.",
-    `CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`,
-    "  EXPORTING",
-    `    ${P.noStandardEditor} = 'X'`,
-    `    ${P.noShowOption}     = 'X'`,
-    "  TABLES",
-    `    ${P.objects} = lt_ko200`,
-    `    ${P.keys}    = lt_e071k`,
-    "  EXCEPTIONS",
-    `    ${X.cancelEditOtherError} = 1`,
-    `    ${X.showOnlyOtherError}   = 2`,
-    "    OTHERS = 3.",
-    ...errorLines(CTS_INSERT_FM.checkFm),
-    `CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`,
-    "  EXPORTING",
-    `    ${P.order}            = ${corrLit}`,
-    `    ${P.noStandardEditor} = 'X'`,
-    `    ${P.noShowOption}     = 'X'`,
-    "  IMPORTING",
-    `    ${P.weOrder} = lv_we_order`,
-    `    ${P.weTask} = lv_we_task`,
-    "  TABLES",
-    `    ${P.objects} = lt_ko200`,
-    `    ${P.keys}    = lt_e071k`,
-    "  EXCEPTIONS",
-    `    ${X.cancelEditOtherError} = 1`,
-    `    ${X.showOnlyOtherError}   = 2`,
-    "    OTHERS = 3.",
-    ...errorLines(CTS_INSERT_FM.insertFm),
+    // TRY/CATCH added so a TABLES-formal/actual mismatch — measured live 2026-09-06 on this very
+    // pair of calls — surfaces as its own tagged IMGW> ERROR line instead of only the generic,
+    // unattributed ZMCP-DDIC-ERR> line the outer CATCH cx_root in ddicBridgeSource already prints.
+    "TRY.",
+    `    CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`,
+    "      EXPORTING",
+    `        ${P.noStandardEditor} = 'X'`,
+    `        ${P.noShowOption}     = 'X'`,
+    "      TABLES",
+    `        ${P.objects} = lt_ko200`,
+    `        ${P.keys}    = lt_e071k`,
+    "      EXCEPTIONS",
+    `        ${X.cancelEditOtherError} = 1`,
+    `        ${X.showOnlyOtherError}   = 2`,
+    "        OTHERS = 3.",
+    ...errorLines(CTS_INSERT_FM.checkFm).map((l) => "  " + l),
+    `    CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`,
+    "      EXPORTING",
+    `        ${P.order}            = ${corrLit}`,
+    `        ${P.noStandardEditor} = 'X'`,
+    `        ${P.noShowOption}     = 'X'`,
+    "      IMPORTING",
+    `        ${P.weOrder} = lv_we_order`,
+    `        ${P.weTask} = lv_we_task`,
+    "      TABLES",
+    `        ${P.objects} = lt_ko200`,
+    `        ${P.keys}    = lt_e071k`,
+    "      EXCEPTIONS",
+    `        ${X.cancelEditOtherError} = 1`,
+    `        ${X.showOnlyOtherError}   = 2`,
+    "        OTHERS = 3.",
+    ...errorLines(CTS_INSERT_FM.insertFm).map((l) => "  " + l),
+    "  CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts.",
+    ...dynCallErrorLines("mismatch"),
+    "  CATCH cx_root INTO lx_cts.",
+    ...dynCallErrorLines("generic"),
+    "ENDTRY.",
     `out->write( |${IMGW_LINE_PREFIX}TRKEY row=[${rowNo}] trkorr=[${corrNr}] | &&`,
     `  |order_len=[{ strlen( lv_we_order ) }] order=[{ lv_we_order }] | &&`,
     `  |task_len=[{ strlen( lv_we_task ) }] task=[{ lv_we_task }] | &&`,
@@ -114586,11 +114603,29 @@ function imgApplySource(p) {
     "END OF ls_key.",
     "FIELD-SYMBOLS <key_c> TYPE c.",
     "DATA ls_ko200 TYPE ko200.",
-    "DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH EMPTY KEY.",
+    // wt_ko200/wt_e071k (CTS_INSERT_FM.params.objects/keys) are TABLES formal parameters on
+    // TR_OBJECTS_CHECK/TR_OBJECTS_INSERT — a classic TABLES formal is a standard table with the
+    // DEFAULT key, and passing a WITH EMPTY KEY actual there is a runtime type conflict
+    // (CALL_FUNCTION_CONFLICT_TAB_TYP, catchable as CX_SY_DYN_CALL_ILLEGAL_TYPE) that ADT's
+    // activation syntax check does not catch. Measured live 2026-09-06: ZCL_ZMCP_IMG_WAPPLY
+    // activated and ran, then threw exactly this exception ("not handled locally or declared in
+    // a RAISING clause") at the TR_OBJECTS_CHECK call, before any row was written. WITH DEFAULT
+    // KEY is the standard fix for a TABLES actual; not itself re-verified live as of this change.
+    "DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.",
     "DATA ls_e071k TYPE e071k.",
-    "DATA lt_e071k TYPE STANDARD TABLE OF e071k WITH EMPTY KEY.",
+    "DATA lt_e071k TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.",
     "DATA lv_we_order TYPE trkorr.",
     "DATA lv_we_task TYPE trkorr.",
+    // Declared once here, not inside ctsRecordFragment: that fragment is emitted once per row, so
+    // an inline DATA(lx)-style CATCH declaration would be a duplicate-declaration syntax error on
+    // any plan with more than one row. describe_by_object_ref/get_relative_name (not
+    // cl_abap_classdescr=>get_class_name) is used to name the caught exception at runtime — the
+    // oldest, most-certain RTTI path, chosen because this branch has already lost two live rounds
+    // to unverified SAP API names.
+    "DATA lx_cts TYPE REF TO cx_root.",
+    "DATA lo_exc_type TYPE REF TO cl_abap_typedescr.",
+    "DATA lv_exc_class TYPE string.",
+    "DATA lv_exc_text TYPE string.",
     "",
     ...clientCheckFragment(),
     "",
@@ -114635,7 +114670,10 @@ function imgApplySource(p) {
         "IF sy-subrc <> 0.",
         `  out->write( |${DDIC_ERR_PREFIX} MODIFY failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc }| ).`,
         "  RETURN.",
-        "ENDIF."
+        "ENDIF.",
+        // Marks this row's own MODIFY as done (sy-subrc 0) — not that the batch committed.
+        // COMMIT WORK AND WAIT runs only after every row in the plan reaches here.
+        `out->write( |${IMGW_LINE_PREFIX}WROTE row=[${rowNo}]| ).`
       );
     } else {
       body.push(
@@ -114656,6 +114694,9 @@ function imgApplySource(p) {
         `    out->write( |${DDIC_ERR_PREFIX} DELETE failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc }| ).`,
         "    RETURN.",
         "  ENDIF.",
+        // Same marker as the upsert side, same caveat: this row's own DELETE returned sy-subrc 0;
+        // COMMIT WORK AND WAIT (below, after all rows) is what actually commits it.
+        `  out->write( |${IMGW_LINE_PREFIX}WROTE row=[${rowNo}]| ).`,
         "ENDIF."
       );
     }
@@ -114703,6 +114744,7 @@ var TRKEY_ORDER_RE = /^order_len=\[(\d+)\] order=\[/;
 var TRKEY_TASK_RE = /^task_len=\[(\d+)\] task=\[/;
 var TRKEY_VALUE_RE = /^len=\[(\d+)\] value=\[/;
 var ABSENT_RE = /^row=\[(\d+)\]$/;
+var ERROR_RE = /^class=\[([A-Za-z0-9_/]{1,60})\] len=\[(\d+)\] value=\[/;
 function parseImgWriteTranscript(text3) {
   const result = {
     client: null,
@@ -114715,6 +114757,7 @@ function parseImgWriteTranscript(text3) {
     afterAbsent: [],
     notes: [],
     errors: [],
+    wrote: [],
     droppedLines: 0,
     probed: false,
     applied: null,
@@ -114784,6 +114827,25 @@ function parseImgWriteTranscript(text3) {
           }
           const entry = { row: Number(m[1]) };
           (head === "BABSENT" ? result.beforeAbsent : result.afterAbsent).push(entry);
+          break;
+        }
+        case "WROTE": {
+          const m = ABSENT_RE.exec(remainder);
+          if (!m) {
+            result.droppedLines++;
+            break;
+          }
+          result.wrote.push(Number(m[1]));
+          break;
+        }
+        case "ERROR": {
+          const parsed = extractLenPrefixedValue(remainder, ERROR_RE);
+          if (!parsed) {
+            result.droppedLines++;
+            break;
+          }
+          const [exClass] = parsed.fields;
+          result.errors.push(`${exClass}: ${parsed.value}`);
           break;
         }
         case "TRKEY": {
@@ -115811,6 +115873,45 @@ function rowChangeSummaries(rows, t) {
     return { changed: "unknown", description: "before/after image combination not recognised" };
   });
 }
+function applyFailure(mode, rows, apply) {
+  const t = apply.transcript;
+  const reasons = [...t.errors];
+  if (t.applied === null) {
+    reasons.push("the bridge never reported APPLIED \u2014 the commit was never observed");
+  }
+  const afterPresent = groupByRow(t.after);
+  const afterAbsentSet = new Set(t.afterAbsent.map((a) => a.row));
+  const upsertSummaries = mode === "upsert" ? rowChangeSummaries(rows, t) : void 0;
+  rows.forEach((_, i) => {
+    const rowNo = i + 1;
+    const hasAfterImage = afterPresent.has(rowNo) || afterAbsentSet.has(rowNo);
+    if (!hasAfterImage) {
+      reasons.push(`row ${i}: no after-image reported for this row (transcript row ${rowNo})`);
+      return;
+    }
+    if (mode === "upsert") {
+      const summary = upsertSummaries[i];
+      if (summary.changed === "unknown") reasons.push(`row ${i}: ${summary.description}`);
+    } else if (afterPresent.has(rowNo)) {
+      reasons.push(`row ${i}: still present in the table after a delete (transcript row ${rowNo})`);
+    }
+  });
+  if (reasons.length === 0) return void 0;
+  const mayHaveExecuted = t.wrote.length > 0 || t.applied !== null || t.after.length > 0 || t.afterAbsent.length > 0;
+  return { reasons, mayHaveExecuted };
+}
+function applyFailureMessage(mode, args, apply, failure, journalNote) {
+  const t = apply.transcript;
+  const parts = [`The ${mode} on table ${args.table} could not be confirmed.`];
+  if (t.errors.length) parts.push(`The bridge reported: ${t.errors.join("; ")}.`);
+  const otherReasons = failure.reasons.filter((r) => !t.errors.includes(r));
+  if (otherReasons.length) parts.push(`${otherReasons.join("; ")}.`);
+  if (journalNote) parts.push(journalNote);
+  parts.push(
+    failure.mayHaveExecuted ? "The write may already have executed and committed \u2014 re-read the rows with abap_data_preview before retrying." : "No transcript marker shows that any row write started, but the rows should still be re-read with abap_data_preview before a retry."
+  );
+  return parts.join(" ");
+}
 function armedUpsertRowsTable(args, apply) {
   const summaries = rowChangeSummaries(args.rows, apply.transcript);
   const rows = args.rows.map((r, i) => ({
@@ -115919,7 +116020,7 @@ function afterSourceFor(apply) {
   const afterAbsent = t.afterAbsent.map((a) => a.row);
   return JSON.stringify({ after: Object.fromEntries(after), afterAbsent, trkeys: t.trkeys });
 }
-async function recordRowMutation(deps, mode, args, probe3, apply) {
+async function recordRowMutation(deps, mode, args, probe3, apply, failure) {
   const warn = deps.warn ?? ((m) => void process.stderr.write(`${m}
 `));
   const before = beforeImageFor(args, probe3);
@@ -115954,12 +116055,11 @@ async function recordRowMutation(deps, mode, args, probe3, apply) {
     return void 0;
   }
   if (!entry) return void 0;
-  const t = apply.transcript;
-  const outcome = t.errors.length === 0 ? "succeeded" : "failed";
+  const outcome = failure ? "failed" : "succeeded";
   try {
     const settled = await deps.journal.settle(entry.id, {
       outcome,
-      ...outcome === "failed" ? { error: t.errors.join("; ") } : {},
+      ...failure ? { error: failure.reasons.join("; ") } : {},
       afterSource: afterSourceFor(apply)
     });
     if (!settled.settled) {
@@ -116026,7 +116126,18 @@ async function runProbeAndApply(deps, mode, args, opts) {
     IMGW_BRIDGE_CLASS.apply,
     (conn) => runImgApply(conn, deps.safety, applyPlan)
   );
-  const journalNote = await recordRowMutation(deps, mode, args, probe3, apply);
+  const failure = applyFailure(mode, args.rows, apply);
+  const journalNote = await recordRowMutation(deps, mode, args, probe3, apply, failure);
+  if (failure) {
+    throw new AbapError("CHECK_FAILED", applyFailureMessage(mode, args, apply, failure, journalNote), {
+      table: args.table,
+      mode,
+      bridgeClass: apply.bridgeClass,
+      mayHaveExecuted: failure.mayHaveExecuted,
+      errors: apply.transcript.errors,
+      reasons: failure.reasons
+    });
+  }
   return ok14(renderArmed(mode, args, apply, verdict.notes, journalNote, deps.cfg.maxResponseChars));
 }
 async function runRowEditMode(deps, mode, input) {
