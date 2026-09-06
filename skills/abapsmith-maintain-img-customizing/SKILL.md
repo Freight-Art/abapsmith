@@ -102,9 +102,9 @@ cross-client table by hand (SM30/SM34) instead.
 
 Some customizing tables have no required columns beyond the key — every
 other column is optional, so the SM30 equivalent of "add this entry" is
-typing in just the key and leaving the rest blank. `TB004` (field status
-groups, key `BPKIND`) is like this: its only non-key columns are seven
-optional field-status-list fields.
+typing in just the key and leaving the rest blank. `TB004` (Business
+Partner types, key `BPKIND`) is like this: its only non-key columns are
+seven optional field-status-list fields.
 
 For a table like that, an `upsert` row can name `key` alone and omit
 `values` entirely. If the row doesn't already exist, it's inserted with
@@ -116,10 +116,11 @@ that as success: the row was already there, and there was nothing this
 call was asked to set on it.
 
 This only makes sense on a table where every non-key column really is
-optional — check with `abap_img show`/`objects` (or SM30 itself) first. A
-table with a required non-key column still needs `values` supplying it;
-a key-only row there fails the same validation whether you send it to
-`preview` or to `upsert`.
+optional — check with `abap_img show`/`objects` (or SM30 itself) first.
+The tool has no notion of a "required" non-key column and will not stop
+you from sending a key-only row to a table that genuinely needs a value
+set — that judgement is the consultant's to make, not something this
+validation catches.
 
 ## Never touch a SAP-delivered entry
 
