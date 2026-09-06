@@ -738,11 +738,13 @@ function policyTableFromProbe(args: RowEditArgs, probe: ImgProbeResult): PolicyT
     .filter((f) => f.field.toUpperCase() !== args.clientField.toUpperCase())
     .map((f) => ({ field: f.field, dataType: f.dataType, key: f.key }));
   return {
-    // The bridge's TABLE transcript line echoes the table name exactly as its own DDIC read
-    // returned it, which is not guaranteed to be upper case (SAP itself is case-insensitive about
-    // it, but ABAP string literals compared/displayed here are not) — normalise it the same way
-    // SAP itself would show it, so preview/armed headers and the descriptive transport-entry line
-    // never display a table name in whatever case a caller happened to type it.
+    // The bridge's TABLE transcript line does NOT come from a DDIC read: img-write-bridge.ts emits
+    // `TABLE table=[${tableLower}] ...` where tableLower is the generation-time TypeScript constant
+    // we built the bridge source with — it is always our own lower-cased spelling of args.table, never
+    // whatever case DD02L happens to hold (only delclass/clidep on that line are server-read values).
+    // Upper-case it here at the render boundary purely to match how SAP itself spells table names in
+    // DD02L, so preview/armed headers and the descriptive transport-entry line show that spelling
+    // regardless of what case the caller happened to type — this is cosmetic, not a correctness fix.
     table: (t?.table ?? args.table).trim().toUpperCase(),
     clientDependent: t?.clientDependent ?? false,
     deliveryClass: t?.deliveryClass ?? "",
@@ -791,46 +793,56 @@ function groupByRow(values: readonly ImgWriteValueRow[]): Map<number, Record<str
   return out;
 }
 
-function currentRowsTable(probe: ImgProbeResult): string {
+function currentRowsTable(args: RowEditArgs, probe: ImgProbeResult): string {
   const t = probe.transcript;
   const present = groupByRow(t.before);
   const absent = new Set(t.beforeAbsent.map((a) => a.row));
-  const rowNumbers = new Set<number>([...present.keys(), ...absent]);
-  const rows = [...rowNumbers]
-    .sort((a, b) => a - b)
-    .map((row) => {
-      if (absent.has(row)) return { row: String(row), status: "does not exist yet", fields: "" };
-      const fields = present.get(row) ?? {};
-      return {
-        row: String(row),
-        status: "exists",
-        fields: Object.entries(fields)
-          .map(([k, v]) => `${k}=${v}`)
-          .join(", "),
-      };
-    });
+  // Transcript row numbers are 1-based (`rowNo = i + 1` in img-write-bridge.ts); displayed here
+  // 0-based to match the caller's own rows[] index — the same index PROSPECTIVE CHANGE labels the
+  // row with, so a preview never shows the same row under two different numbers in one response.
+  const rows = args.rows.map((_, i) => {
+    const rowNo = i + 1;
+    if (absent.has(rowNo)) return { row: String(i), status: "does not exist yet", fields: "" };
+    const fields = present.get(rowNo);
+    if (!fields) return { row: String(i), status: "unknown (no probe data for this row)", fields: "" };
+    return {
+      row: String(i),
+      status: "exists",
+      fields: Object.entries(fields)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(", "),
+    };
+  });
   return rows.length ? textTable(rows, ["row", "status", "fields"]) : "(no rows probed)";
 }
 
+/**
+ * The requested-change text for one row — factored out so preview's own table and the armed
+ * upsert echo (`armedUpsertRowsTable`) can never drift apart on how a key-only row is worded.
+ */
+function requestedChangeCell(mode: "upsert" | "delete", r: RowEditArgs["rows"][number]): string {
+  if (mode === "delete") return "DELETE this row";
+  const values = Object.entries(r.values ?? {});
+  // A row naming zero value fields is a legal upsert (see validateApplyPlan,
+  // img-write-bridge.ts) — say what it actually does rather than rendering a dangling
+  // empty "SET ".
+  return values.length
+    ? `SET ${values.map(([k, v]) => `${k}=${v}`).join(", ")}`
+    : "key-only row (no value fields); insert if absent, otherwise no change";
+}
+
+function rowKeyCell(r: RowEditArgs["rows"][number]): string {
+  return Object.entries(r.key)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(", ");
+}
+
 function prospectiveRowsTable(mode: "upsert" | "delete", args: RowEditArgs): string {
-  const rows = args.rows.map((r, i) => {
-    const key = Object.entries(r.key)
-      .map(([k, v]) => `${k}=${v}`)
-      .join(", ");
-    let change: string;
-    if (mode === "delete") {
-      change = "DELETE this row";
-    } else {
-      const values = Object.entries(r.values ?? {});
-      // A row naming zero value fields is a legal upsert (see validateApplyPlan,
-      // img-write-bridge.ts) — say what it actually does rather than rendering a dangling
-      // empty "SET ".
-      change = values.length
-        ? `SET ${values.map(([k, v]) => `${k}=${v}`).join(", ")}`
-        : "key-only row (no value fields); insert if absent, otherwise no change";
-    }
-    return { row: String(i), key, change };
-  });
+  const rows = args.rows.map((r, i) => ({
+    row: String(i),
+    key: rowKeyCell(r),
+    change: requestedChangeCell(mode, r),
+  }));
   return textTable(rows, ["row", "key", "change"]);
 }
 
@@ -864,7 +876,7 @@ function renderPreview(args: RowEditArgs, probe: ImgProbeResult, notes: readonly
   if (t.droppedLines) filteredNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
 
   const sections = [
-    { title: "CURRENT ROWS", content: currentRowsTable(probe) },
+    { title: "CURRENT ROWS", content: currentRowsTable(args, probe) },
     { title: "TRANSPORT ENTRY (DESCRIPTIVE ONLY)", content: transportEntryPreview(args, table) },
   ];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
@@ -947,13 +959,15 @@ function armedUpsertRowsTable(args: RowEditArgs, apply: ImgApplyResult): string 
   const summaries = rowChangeSummaries(args.rows, apply.transcript);
   const rows = args.rows.map((r, i) => ({
     row: String(i),
-    key: Object.entries(r.key)
-      .map(([k, v]) => `${k}=${v}`)
-      .join(", "),
+    key: rowKeyCell(r),
+    // What was requested — the same wording prospectiveRowsTable would have shown in preview for
+    // this row (key-only wording included), so the armed response never just says what happened
+    // without also saying what was asked for.
+    change: requestedChangeCell("upsert", r),
     changed: summaries[i]!.changed,
-    description: summaries[i]!.description,
+    result: summaries[i]!.description,
   }));
-  return textTable(rows, ["row", "key", "changed", "description"]);
+  return textTable(rows, ["row", "key", "change", "changed", "result"]);
 }
 
 function renderArmed(
@@ -1098,9 +1112,14 @@ function beforeImageFor(args: RowEditArgs, probe: ImgProbeResult): RowBeforeImag
     // The probe transcript said nothing about any row — a scaffold-level gap, not proof of absence.
     return { existedBefore: false, beforeCapture: "unknown" };
   }
-  const snapshot = Array.from({ length: totalRows }, (_, row) =>
-    absent.has(row) ? { row, existed: false } : { row, existed: true, values: present.get(row) ?? {} },
-  );
+  // Transcript row numbers are 1-based (`rowNo = i + 1` in img-write-bridge.ts); the journal's own
+  // `row` field stays 0-based to match the caller's rows[] index — the same convention BAD_INPUT's
+  // `details.row` uses. Only the lookup into the transcript's before-image maps is renumbered; what
+  // is written to the journal is not.
+  const snapshot = Array.from({ length: totalRows }, (_, row) => {
+    const rowNo = row + 1;
+    return absent.has(rowNo) ? { row, existed: false } : { row, existed: true, values: present.get(rowNo) ?? {} };
+  });
   return { existedBefore: true, beforeCapture: "captured", beforeSource: JSON.stringify({ table: args.table, rows: snapshot }) };
 }
 

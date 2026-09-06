@@ -350,24 +350,24 @@ const PROBE_TRANSCRIPT_EXISTING =
   `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
   `IMGW> FLD table=[ztest_imgw] field=[ZKEY] key=[X] type=[CHAR] len=[10] rollname=[ZKEY]\n` +
   `IMGW> FLD table=[ztest_imgw] field=[ZDESC] key=[] type=[CHAR] len=[40] rollname=[ZDESC]\n` +
-  `IMGW> BVAL row=[0] field=[ZKEY] len=[1] value=[A]\n` +
-  `IMGW> BVAL row=[0] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> BVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
   `IMGW> PROBED rows=[1]\n`;
 
 const APPLY_TRANSCRIPT_UPSERT =
   `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
   `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
-  `IMGW> BVAL row=[0] field=[ZDESC] len=[3] value=[Old]\n` +
-  `IMGW> TRKEY row=[0] trkorr=[A4HK900001] len=[10] value=[A4HK900001]\n` +
-  `IMGW> AVAL row=[0] field=[ZDESC] len=[3] value=[New]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[10] value=[A4HK900001]\n` +
+  `IMGW> AVAL row=[1] field=[ZDESC] len=[3] value=[New]\n` +
   `IMGW> APPLIED rows=[1]\n`;
 
 const APPLY_TRANSCRIPT_DELETE =
   `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
   `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
-  `IMGW> BVAL row=[0] field=[ZDESC] len=[3] value=[Old]\n` +
-  `IMGW> TRKEY row=[0] trkorr=[A4HK900001] len=[10] value=[A4HK900001]\n` +
-  `IMGW> AABSENT row=[0]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[10] value=[A4HK900001]\n` +
+  `IMGW> AABSENT row=[1]\n` +
   `IMGW> APPLIED rows=[1]\n`;
 
 const CREATE_REQUEST_TRANSCRIPT = `CTSW> REQUEST len=[10] value=[A4HK900002]\nCTSW> TASK len=[10] value=[A4HK900003]\n`;
@@ -436,13 +436,45 @@ describe("abap_img_edit — mode: preview", () => {
     expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
   });
 
+  it("a single-row preview labels the same row 0 in CURRENT ROWS and PROSPECTIVE CHANGE, even though the transcript's own row numbers are 1-based", async () => {
+    // PROBE_TRANSCRIPT_EXISTING carries transcript row 1 (`BVAL row=[1] ...`), matching the real
+    // bridge's `rowNo = i + 1` (img-write-bridge.ts). Both tables must still label args.rows[0] as
+    // row 0 — the caller's own array index — never the raw transcript number, and never two
+    // different numbers for the same row in the same response.
+    const { conn } = await connected(
+      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      ...BASE_ARGS,
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+    const text = okText(result);
+    const lines = text.split("\n");
+
+    const currentRowsTitle = lines.findIndex((l) => l.includes("--- CURRENT ROWS ---"));
+    const prospectiveTitle = lines.findIndex((l) => l.includes("--- PROSPECTIVE CHANGE ---"));
+    expect(currentRowsTitle).toBeGreaterThanOrEqual(0);
+    expect(prospectiveTitle).toBeGreaterThanOrEqual(0);
+
+    // title, header, separator, then the first (only) data row.
+    const currentDataRow = lines[currentRowsTitle + 3]!;
+    const prospectiveDataRow = lines[prospectiveTitle + 3]!;
+    expect(currentDataRow.trim().split(/\s+/)[0]).toBe("0");
+    expect(prospectiveDataRow.trim().split(/\s+/)[0]).toBe("0");
+    expect(currentDataRow).toContain("ZDESC=Old");
+    expect(prospectiveDataRow).toContain("SET ZDESC=New");
+  });
+
   it("a row that does not exist yet is shown as such, not conflated with an existing one", async () => {
     const TRANSCRIPT =
       `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
       `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
       `IMGW> FLD table=[ztest_imgw] field=[ZKEY] key=[X] type=[CHAR] len=[10] rollname=[ZKEY]\n` +
       `IMGW> FLD table=[ztest_imgw] field=[ZDESC] key=[] type=[CHAR] len=[40] rollname=[ZDESC]\n` +
-      `IMGW> BABSENT row=[0]\n` +
+      `IMGW> BABSENT row=[1]\n` +
       `IMGW> PROBED rows=[1]\n`;
     const { conn } = await connected(multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, TRANSCRIPT) }));
     const { tools } = await registered(conn);
@@ -664,23 +696,101 @@ describe("abap_img_edit — key-only upsert rows (zero value fields is a legal u
     });
     const text = okText(result);
 
+    // OLD (prior-round) assertions this replaces, before the armed table was widened to also carry
+    // the requested change:
+    //   expect(text).toContain("changed");
+    //   expect(text).toContain("description");
+    //   ... row0/row1 checks only asserted "yes"/"inserted" and "no"/"row exists..." — never the
+    //   requested-change text itself, so the armed response could say what happened without also
+    //   saying what was asked for.
     expect(text).toContain("ROWS WRITTEN");
     expect(text).toContain("changed");
-    expect(text).toContain("description");
+    expect(text).toContain("result");
     expect(text).toContain("inserted");
     expect(text).toContain("row exists, no value fields to write");
+    // Both rows are key-only upserts — the requested-change column must carry the same wording
+    // prospectiveRowsTable would show in preview (via the shared requestedChangeCell), not just
+    // the measured outcome.
+    const keyOnlyWording = "key-only row (no value fields); insert if absent, otherwise no change";
+    expect(text).toContain(keyOnlyWording);
 
-    // Row 0 (absent before, present after): changed yes / inserted.
+    // Row 0 (absent before, present after): requested change + changed yes / inserted, together.
     const row0 = text.split("\n").find((l) => l.trim().startsWith("0 "));
     expect(row0).toBeDefined();
+    expect(row0).toContain(keyOnlyWording);
     expect(row0).toContain("yes");
     expect(row0).toContain("inserted");
 
-    // Row 1 (present before and after, identical, key-only): changed no / row exists text.
+    // Row 1 (present before and after, identical, key-only): requested change + changed no / row
+    // exists text, together.
     const row1 = text.split("\n").find((l) => l.trim().startsWith("1 "));
     expect(row1).toBeDefined();
+    expect(row1).toContain(keyOnlyWording);
     expect(row1).toContain("no");
     expect(row1).toContain("row exists, no value fields to write");
+  });
+});
+
+describe("abap_img_edit — before-image row numbering (transcript is 1-based; the journal's row field is not)", () => {
+  it("a mixed probe (row 1 present with values, row 2 absent) journals row 0 as existing with those values and row 1 as absent", async () => {
+    // img-write-bridge.ts numbers transcript rows 1-based (`rowNo = i + 1`) on both the probe and
+    // apply paths. beforeImageFor must look rows up by that 1-based number but still write 0-based
+    // `row` values into the journal, matching args.rows[]'s own index (the same convention
+    // BAD_INPUT's details.row uses). This pins that against the off-by-one this replaced, which
+    // looked BABSENT/BVAL up by the 0-based array index instead and so mis-recorded row 1 (absent)
+    // as if it were row 0 (present).
+    const MIXED_PROBE_TRANSCRIPT =
+      `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+      `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+      `IMGW> FLD table=[ztest_imgw] field=[ZKEY] key=[X] type=[CHAR] len=[10] rollname=[ZKEY]\n` +
+      `IMGW> FLD table=[ztest_imgw] field=[ZDESC] key=[] type=[CHAR] len=[40] rollname=[ZDESC]\n` +
+      `IMGW> BVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
+      `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+      `IMGW> BABSENT row=[2]\n` +
+      `IMGW> PROBED rows=[2]\n`;
+    const MIXED_APPLY_TRANSCRIPT =
+      `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+      `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+      `IMGW> AVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
+      `IMGW> AVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+      `IMGW> AVAL row=[2] field=[ZKEY] len=[1] value=[B]\n` +
+      `IMGW> AVAL row=[2] field=[ZDESC] len=[3] value=[New]\n` +
+      `IMGW> APPLIED rows=[2]\n`;
+
+    await withJournal(async (journal) => {
+      const { conn } = await connected(
+        multiBridgeHappyPath({
+          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, MIXED_PROBE_TRANSCRIPT),
+          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, MIXED_APPLY_TRANSCRIPT),
+        }),
+      );
+      const { tools } = await registered(conn, { journal });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "upsert",
+        ...BASE_ARGS,
+        confirm: "ZTEST_IMGW",
+        rows: [
+          { key: { ZKEY: "A" }, values: { ZDESC: "Old" } },
+          { key: { ZKEY: "B" }, values: { ZDESC: "New" } },
+        ],
+      });
+      okText(result);
+
+      const entries = await journal.list({});
+      expect(entries).toHaveLength(1);
+      const e = entries[0]!;
+      expect(e.existedBefore).toBe(true);
+      expect(e.beforeCapture).toBe("captured");
+
+      const before = await journal.beforeImage(e);
+      expect(before).toBeDefined();
+      const parsed = JSON.parse(before ?? "{}") as { table: string; rows: Array<Record<string, unknown>> };
+      expect(parsed.rows).toEqual([
+        { row: 0, existed: true, values: { ZKEY: "A", ZDESC: "Old" } },
+        { row: 1, existed: false },
+      ]);
+    });
   });
 });
 
@@ -1139,8 +1249,8 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       `IMGW> TABLE table=[TB004] delclass=[C] clidep=[X]\n` +
       `IMGW> FLD table=[TB004] field=[SEQNR] key=[X] type=[NUMC] len=[3] rollname=[TB004_SEQNR]\n` +
       `IMGW> FLD table=[TB004] field=[TEXT1] key=[] type=[CHAR] len=[40] rollname=[TEXT40]\n` +
-      `IMGW> BVAL row=[0] field=[SEQNR] len=[3] value=[001]\n` +
-      `IMGW> BVAL row=[0] field=[TEXT1] len=[3] value=[Old]\n` +
+      `IMGW> BVAL row=[1] field=[SEQNR] len=[3] value=[001]\n` +
+      `IMGW> BVAL row=[1] field=[TEXT1] len=[3] value=[Old]\n` +
       `IMGW> PROBED rows=[1]\n`;
 
     it("resolves `object` + `kind: table` to TB004, derives CLIENT (not MANDT) as the client field, and renders a RESOLVED section naming the base table", async () => {
@@ -1308,16 +1418,16 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       `IMGW> TABLE table=[ZTAB1] delclass=[C] clidep=[X]\n` +
       `IMGW> FLD table=[ZTAB1] field=[ZFLD] key=[X] type=[CHAR] len=[10] rollname=[ZFLD]\n` +
       `IMGW> FLD table=[ZTAB1] field=[ZVAL] key=[] type=[CHAR] len=[40] rollname=[ZVAL]\n` +
-      `IMGW> BVAL row=[0] field=[ZFLD] len=[1] value=[A]\n` +
-      `IMGW> BVAL row=[0] field=[ZVAL] len=[3] value=[Old]\n` +
+      `IMGW> BVAL row=[1] field=[ZFLD] len=[1] value=[A]\n` +
+      `IMGW> BVAL row=[1] field=[ZVAL] len=[3] value=[Old]\n` +
       `IMGW> PROBED rows=[1]\n`;
 
     const APPLY_TRANSCRIPT_ZTAB1 =
       `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
       `IMGW> TABLE table=[ZTAB1] delclass=[C] clidep=[X]\n` +
-      `IMGW> BVAL row=[0] field=[ZVAL] len=[3] value=[Old]\n` +
-      `IMGW> TRKEY row=[0] trkorr=[A4HK900010] len=[10] value=[A4HK900010]\n` +
-      `IMGW> AVAL row=[0] field=[ZVAL] len=[3] value=[New]\n` +
+      `IMGW> BVAL row=[1] field=[ZVAL] len=[3] value=[Old]\n` +
+      `IMGW> TRKEY row=[1] trkorr=[A4HK900010] len=[10] value=[A4HK900010]\n` +
+      `IMGW> AVAL row=[1] field=[ZVAL] len=[3] value=[New]\n` +
       `IMGW> APPLIED rows=[1]\n`;
 
     it("resolves `activity` to its linked table, and an armed upsert renders RESOLVED (with the activity title) ahead of the write", async () => {
