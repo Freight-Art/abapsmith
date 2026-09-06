@@ -15,6 +15,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import { AbapError } from "../adt/errors.js";
+import { IMG_DEFAULT_LANGUAGE, IMG_LANGUAGE_RE, assertImgLanguage } from "../adt/img-query.js";
 import {
   IMG_PAGE_DEFAULT,
   IMG_PAGE_MAX,
@@ -85,9 +86,12 @@ export const imgReadInputSchema = {
     .describe("objects only: a hint for the object's kind, used when the name is ambiguous."),
   language: z
     .string()
-    .regex(/^[A-Za-z]{1,2}$/, "1-2 letters")
+    .regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code")
     .optional()
-    .describe("1-2 letter language code. Defaults to the server's configured language, else \"E\"."),
+    .describe(
+      "single-character SAP language key (SPRAS), e.g. \"E\" for English, \"D\" for German — not a " +
+        "2-letter ISO code. Defaults to the server's configured language, else \"E\".",
+    ),
   after: z
     .string()
     .optional()
@@ -131,7 +135,7 @@ function requireField(mode: ImgMode, field: string, value: string | undefined): 
 }
 
 function buildQuery(input: ImgReadInput, cfg: Pick<Config, "language">): ImgQuery {
-  const language = input.language ?? (cfg.language || "E");
+  const language = assertImgLanguage(input.language ?? (cfg.language || IMG_DEFAULT_LANGUAGE));
 
   if (input.mode === "search") {
     rejectForMode("search", "activity", input.activity);

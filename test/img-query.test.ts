@@ -11,8 +11,11 @@ import { describe, expect, it } from "vitest";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
 import { IMG_CATALOG } from "../src/adt/img-catalog.js";
 import {
+  IMG_DEFAULT_LANGUAGE,
+  IMG_LANGUAGE_RE,
   IMG_SQL_LINE_MAX,
   MAX_IN_LIST,
+  assertImgLanguage,
   assertInList,
   assertSqlValue,
   buildActivityHeaderQuery,
@@ -86,14 +89,14 @@ describe("SQL builders — exact strings", () => {
   });
 
   it("buildActivityTitleSearchQuery: no after", () => {
-    expect(buildActivityTitleSearchQuery("batch", "EN")).toBe(
-      "SELECT ACTIVITY, TEXT\nFROM CUS_IMGACT\nWHERE SPRAS = 'EN'\n  AND TEXT LIKE '%batch%' ESCAPE '#'\nORDER BY ACTIVITY",
+    expect(buildActivityTitleSearchQuery("batch", "E")).toBe(
+      "SELECT ACTIVITY, TEXT\nFROM CUS_IMGACT\nWHERE SPRAS = 'E'\n  AND TEXT LIKE '%batch%' ESCAPE '#'\nORDER BY ACTIVITY",
     );
   });
 
   it("buildActivityTitleSearchQuery: language is upper-cased, after is appended last", () => {
-    expect(buildActivityTitleSearchQuery("batch", "en", "AAA")).toBe(
-      "SELECT ACTIVITY, TEXT\nFROM CUS_IMGACT\nWHERE SPRAS = 'EN'\n  AND TEXT LIKE '%batch%' ESCAPE '#'\n  AND ACTIVITY > 'AAA'\nORDER BY ACTIVITY",
+    expect(buildActivityTitleSearchQuery("batch", "e", "AAA")).toBe(
+      "SELECT ACTIVITY, TEXT\nFROM CUS_IMGACT\nWHERE SPRAS = 'E'\n  AND TEXT LIKE '%batch%' ESCAPE '#'\n  AND ACTIVITY > 'AAA'\nORDER BY ACTIVITY",
     );
   });
 
@@ -104,8 +107,8 @@ describe("SQL builders — exact strings", () => {
   });
 
   it("buildActivityTitlesQuery", () => {
-    expect(buildActivityTitlesQuery(["A1", "A2"], "EN")).toBe(
-      "SELECT ACTIVITY, TEXT\nFROM CUS_IMGACT\nWHERE SPRAS = 'EN'\n  AND ACTIVITY IN ('A1', 'A2')",
+    expect(buildActivityTitlesQuery(["A1", "A2"], "E")).toBe(
+      "SELECT ACTIVITY, TEXT\nFROM CUS_IMGACT\nWHERE SPRAS = 'E'\n  AND ACTIVITY IN ('A1', 'A2')",
     );
   });
 
@@ -132,8 +135,8 @@ describe("SQL builders — exact strings", () => {
   });
 
   it("buildObjectTextsQuery", () => {
-    expect(buildObjectTextsQuery(["/IWBEP/C_CCMS"], "EN")).toBe(
-      "SELECT OBJECTNAME, OBJECTTYPE, DDTEXT\nFROM OBJT\nWHERE LANGUAGE = 'EN'\n  AND OBJECTNAME IN ('/IWBEP/C_CCMS')",
+    expect(buildObjectTextsQuery(["/IWBEP/C_CCMS"], "E")).toBe(
+      "SELECT OBJECTNAME, OBJECTTYPE, DDTEXT\nFROM OBJT\nWHERE LANGUAGE = 'E'\n  AND OBJECTNAME IN ('/IWBEP/C_CCMS')",
     );
   });
 
@@ -154,8 +157,8 @@ describe("SQL builders — exact strings", () => {
   });
 
   it("buildViewClusterTextQuery", () => {
-    expect(buildViewClusterTextQuery(["VC_TEST"], "EN")).toBe(
-      "SELECT VCLNAME, TEXT\nFROM VCLDIRT\nWHERE SPRAS = 'EN'\n  AND VCLNAME IN ('VC_TEST')",
+    expect(buildViewClusterTextQuery(["VC_TEST"], "E")).toBe(
+      "SELECT VCLNAME, TEXT\nFROM VCLDIRT\nWHERE SPRAS = 'E'\n  AND VCLNAME IN ('VC_TEST')",
     );
   });
 
@@ -173,8 +176,8 @@ describe("SQL builders — exact strings", () => {
   });
 
   it("buildTableTextsQuery", () => {
-    expect(buildTableTextsQuery(["DD02L", "CUS_IMGACH"], "EN")).toBe(
-      "SELECT TABNAME, DDTEXT\nFROM DD02T\nWHERE AS4LOCAL = 'A'\n  AND DDLANGUAGE = 'EN'\n  AND TABNAME IN ('DD02L', 'CUS_IMGACH')",
+    expect(buildTableTextsQuery(["DD02L", "CUS_IMGACH"], "E")).toBe(
+      "SELECT TABNAME, DDTEXT\nFROM DD02T\nWHERE AS4LOCAL = 'A'\n  AND DDLANGUAGE = 'E'\n  AND TABNAME IN ('DD02L', 'CUS_IMGACH')",
     );
   });
 
@@ -185,8 +188,8 @@ describe("SQL builders — exact strings", () => {
   });
 
   it("buildViewTextQuery", () => {
-    expect(buildViewTextQuery(["V_T001"], "EN")).toBe(
-      "SELECT VIEWNAME, DDTEXT\nFROM DD25T\nWHERE AS4LOCAL = 'A'\n  AND DDLANGUAGE = 'EN'\n  AND VIEWNAME IN ('V_T001')",
+    expect(buildViewTextQuery(["V_T001"], "E")).toBe(
+      "SELECT VIEWNAME, DDTEXT\nFROM DD25T\nWHERE AS4LOCAL = 'A'\n  AND DDLANGUAGE = 'E'\n  AND VIEWNAME IN ('V_T001')",
     );
   });
 
@@ -208,15 +211,15 @@ describe("SQL builders — exact strings", () => {
   });
 
   it("buildTransactionTextsQuery", () => {
-    expect(buildTransactionTextsQuery(["SE38", "SM30"], "EN")).toBe(
-      "SELECT TCODE, TTEXT\nFROM TSTCT\nWHERE SPRSL = 'EN'\n  AND TCODE IN ('SE38', 'SM30')",
+    expect(buildTransactionTextsQuery(["SE38", "SM30"], "E")).toBe(
+      "SELECT TCODE, TTEXT\nFROM TSTCT\nWHERE SPRSL = 'E'\n  AND TCODE IN ('SE38', 'SM30')",
     );
   });
 
   it("a long IN (…) list wraps across lines, comma-terminated except the last", () => {
-    const sql = buildActivityTitlesQuery(["A1", "A2", "A3", "A4", "A5", "A6"], "EN");
+    const sql = buildActivityTitlesQuery(["A1", "A2", "A3", "A4", "A5", "A6"], "E");
     expect(sql).toBe(
-      "SELECT ACTIVITY, TEXT\nFROM CUS_IMGACT\nWHERE SPRAS = 'EN'\n  AND ACTIVITY IN (\n" +
+      "SELECT ACTIVITY, TEXT\nFROM CUS_IMGACT\nWHERE SPRAS = 'E'\n  AND ACTIVITY IN (\n" +
         "  'A1', 'A2', 'A3', 'A4', 'A5',\n" +
         "  'A6'\n)",
     );
@@ -327,27 +330,27 @@ const ALL_TABLES = new Set(Object.values(IMG_CATALOG).map((t) => t.table.toUpper
 function noJoinBuilderOutputs(): { name: string; sql: string }[] {
   return [
     { name: "buildActivityIdSearchQuery", sql: buildActivityIdSearchQuery("IWBEP", "AAA") },
-    { name: "buildActivityTitleSearchQuery", sql: buildActivityTitleSearchQuery("batch", "EN", "AAA") },
+    { name: "buildActivityTitleSearchQuery", sql: buildActivityTitleSearchQuery("batch", "E", "AAA") },
     { name: "buildActivityHeaderQuery", sql: buildActivityHeaderQuery("/IWBEP/BATCH_CONFIG") },
-    { name: "buildActivityTitlesQuery", sql: buildActivityTitlesQuery(["A1", "A2"], "EN") },
+    { name: "buildActivityTitlesQuery", sql: buildActivityTitlesQuery(["A1", "A2"], "E") },
     { name: "buildActivityHeadersByIdQuery", sql: buildActivityHeadersByIdQuery(["X1", "X2"]) },
     { name: "buildActivityObjectsQuery", sql: buildActivityObjectsQuery(["X1", "X2"]) },
     { name: "buildObjectHeadersQuery", sql: buildObjectHeadersQuery(["/IWBEP/C_CCMS", "IMGDUMMY"]) },
     { name: "buildObjectTablesQuery", sql: buildObjectTablesQuery(["/IWBEP/C_CCMS"]) },
-    { name: "buildObjectTextsQuery", sql: buildObjectTextsQuery(["/IWBEP/C_CCMS"], "EN") },
+    { name: "buildObjectTextsQuery", sql: buildObjectTextsQuery(["/IWBEP/C_CCMS"], "E") },
     { name: "buildTableDeliveryClassQuery", sql: buildTableDeliveryClassQuery(["DD02L", "CUS_IMGACH"]) },
     { name: "buildViewDirectoryQuery", sql: buildViewDirectoryQuery(["V_T001"]) },
     { name: "buildViewClusterQuery", sql: buildViewClusterQuery(["VC_TEST"]) },
-    { name: "buildViewClusterTextQuery", sql: buildViewClusterTextQuery(["VC_TEST"], "EN") },
+    { name: "buildViewClusterTextQuery", sql: buildViewClusterTextQuery(["VC_TEST"], "E") },
     { name: "buildViewClusterMembersQuery", sql: buildViewClusterMembersQuery(["VC_TEST"]) },
     { name: "buildTableFieldsQuery", sql: buildTableFieldsQuery(["DD02L", "CUS_IMGACH"]) },
-    { name: "buildTableTextsQuery", sql: buildTableTextsQuery(["DD02L", "CUS_IMGACH"], "EN") },
+    { name: "buildTableTextsQuery", sql: buildTableTextsQuery(["DD02L", "CUS_IMGACH"], "E") },
     { name: "buildViewHeaderQuery", sql: buildViewHeaderQuery(["V_T001"]) },
-    { name: "buildViewTextQuery", sql: buildViewTextQuery(["V_T001"], "EN") },
+    { name: "buildViewTextQuery", sql: buildViewTextQuery(["V_T001"], "E") },
     { name: "buildViewBaseTablesQuery", sql: buildViewBaseTablesQuery(["V_T001"]) },
     { name: "buildViewFieldsQuery", sql: buildViewFieldsQuery(["V_T001"]) },
     { name: "buildTransactionsQuery", sql: buildTransactionsQuery(["SE38", "SM30"]) },
-    { name: "buildTransactionTextsQuery", sql: buildTransactionTextsQuery(["SE38", "SM30"], "EN") },
+    { name: "buildTransactionTextsQuery", sql: buildTransactionTextsQuery(["SE38", "SM30"], "E") },
     // Worst case for line-length: the 50-value cap, at the longest permitted entity name (30 chars).
     {
       name: "buildObjectHeadersQuery (max IN list, max-length names)",
@@ -483,6 +486,43 @@ describe("sqlLiteral / assertSqlValue", () => {
 
   it("assertSqlValue accepts a value at exactly maxLen", () => {
     expect(assertSqlValue("A".repeat(60), "x", 60)).toBe("A".repeat(60));
+  });
+});
+
+// Measured live 2026-09-06: `abap_img_edit` defaulted the language to the ISO code "EN" and
+// SAP answered HTTP 400 `'EN' is not a valid value for C(1,0)` on the catalog query — every
+// catalog language column this file selects on (SPRAS/DDLANGUAGE/SPRSL/LANGUAGE) is a
+// one-character DDIC LANG field. `SELECT DISTINCT SPRAS FROM CUS_IMGACT` on that system
+// returned exactly: D E F I N P S — single SAP keys, never ISO codes.
+describe("IMG_DEFAULT_LANGUAGE / IMG_LANGUAGE_RE", () => {
+  it("IMG_DEFAULT_LANGUAGE is exactly one character", () => {
+    expect(IMG_DEFAULT_LANGUAGE).toBe("E");
+    expect(IMG_DEFAULT_LANGUAGE).toHaveLength(1);
+  });
+
+  it("IMG_DEFAULT_LANGUAGE matches IMG_LANGUAGE_RE", () => {
+    expect(IMG_LANGUAGE_RE.test(IMG_DEFAULT_LANGUAGE)).toBe(true);
+  });
+});
+
+describe("assertImgLanguage", () => {
+  it('throws BAD_INPUT for the ISO code "EN", naming the single-character requirement', () => {
+    const e = expectBadInput(() => assertImgLanguage("EN"));
+    expect(e.message).toContain("single-character SAP language key");
+    expect(e.message).toContain("EN");
+  });
+
+  it('lower-cases "e" up to "E"', () => {
+    expect(assertImgLanguage("e")).toBe("E");
+  });
+
+  it('trims and upper-cases " d " to "D"', () => {
+    expect(assertImgLanguage(" d ")).toBe("D");
+  });
+
+  it('throws the single-character BAD_INPUT message for "eng" (3 letters), not a generic length error', () => {
+    const e = expectBadInput(() => assertImgLanguage("eng"));
+    expect(e.message).toContain("single-character SAP language key");
   });
 });
 

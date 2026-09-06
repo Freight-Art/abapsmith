@@ -133,12 +133,40 @@ function assertEntityName(value: string, what = "name"): string {
   return v;
 }
 
-function assertLanguage(value: string): string {
-  const v = assertSqlValue(value, "language", 2).trim();
-  if (!/^[A-Za-z]{1,2}$/.test(v)) {
-    throw new AbapError("BAD_INPUT", `language "${value}" must be exactly 1 or 2 letters.`, { value });
+/**
+ * Every catalog language column this file selects on (SPRAS/DDLANGUAGE/SPRSL/LANGUAGE —
+ * see `src/adt/img-catalog.ts` lines 42, 76, 117, 146, 198, 230, 239, 291) is a DDIC
+ * `LANG`/`SPRAS` field, `DATATYPE LANG`, one character wide — measured live on
+ * `CUS_IMGACT-SPRAS` (`ROLLNAME SPRAS`). `SELECT DISTINCT SPRAS FROM CUS_IMGACT` on that
+ * same system returned exactly: D E F I N P S — single SAP language keys, never ISO
+ * two-letter codes.
+ *
+ * A caller (or an `ABAP_LANGUAGE` config value) that passes the ISO code "EN" instead of
+ * the SAP key "E" used to be accepted here (the old check allowed 1-2 letters) and reached
+ * the server, which answered `HTTP 400 'EN' is not a valid value for C(1,0)`
+ * (`ExceptionDataPreviewGeneral`) — measured live against this catalog query.
+ *
+ * This does not map ISO codes to SAP keys: that correspondence is table T002/T002C,
+ * installation-specific customizing, not a fixed table — a hardcoded map here would
+ * silently query the wrong language on a system where it doesn't hold, instead of
+ * erroring. So a value that isn't already a single SAP language letter is refused, and
+ * the refusal names the two obvious corrections (E/D) so a caller can fix the call itself.
+ */
+export const IMG_DEFAULT_LANGUAGE = "E";
+export const IMG_LANGUAGE_RE = /^[A-Za-z]$/;
+
+export function assertImgLanguage(value: string): string {
+  const v = value.trim();
+  if (!IMG_LANGUAGE_RE.test(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `language "${value}" must be a single-character SAP language key (SPRAS), not an ISO code — ` +
+        `use "E" for English, "D" for German. SAP rejects a two-character value on these catalog ` +
+        `columns with 'EN' is not a valid value for C(1,0).`,
+      { value },
+    );
   }
-  return v.toUpperCase();
+  return assertSqlValue(v.toUpperCase(), "language", 1);
 }
 
 /** TCODE is not a DDIC entity name (no PLAIN_NAME_RE/NAMESPACED_NAME_RE shape guarantee) but is stored upper-case. */
@@ -326,7 +354,7 @@ export function buildActivityTitleSearchQuery(pattern: string, language: string,
   const lang = fld("imgActivityText", "language");
   const text = fld("imgActivityText", "text");
   const { literal, escapeChar } = imgLikePattern(pattern);
-  const where = [`${lang} = ${sqlLiteral(assertLanguage(language))}`, `${text} LIKE '${literal}' ESCAPE '${escapeChar}'`];
+  const where = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text} LIKE '${literal}' ESCAPE '${escapeChar}'`];
   const afterPred = afterPredicate(activity, after, assertActivityId);
   if (afterPred !== undefined) where.push(afterPred);
   return buildSelect(`${activity}, ${text}`, tbl("imgActivityText"), where, activity);
@@ -345,7 +373,7 @@ export function buildActivityTitlesQuery(activities: readonly string[], language
   const lang = fld("imgActivityText", "language");
   const text = fld("imgActivityText", "text");
   const where = [
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(activity, activities, "activities", assertActivityId),
   ];
   return buildSelect(`${activity}, ${text}`, tbl("imgActivityText"), where);
@@ -394,7 +422,7 @@ export function buildObjectTextsQuery(objectNames: readonly string[], language: 
   const lang = fld("cusObjectText", "language");
   const text = fld("cusObjectText", "text");
   const where = [
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(object, objectNames, "objectNames", assertEntityName),
   ];
   return buildSelect(`${object}, ${objectType}, ${text}`, tbl("cusObjectText"), where);
@@ -429,7 +457,7 @@ export function buildViewClusterTextQuery(clusterNames: readonly string[], langu
   const lang = fld("viewClusterText", "language");
   const text = fld("viewClusterText", "text");
   const where = [
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(cluster, clusterNames, "clusterNames", assertEntityName),
   ];
   return buildSelect(`${cluster}, ${text}`, tbl("viewClusterText"), where);
@@ -469,7 +497,7 @@ export function buildTableTextsQuery(tableNames: readonly string[], language: st
   const text = fld("ddicTableText", "text");
   const where = [
     `${activeState} = ${sqlLiteral("A")}`,
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(table, tableNames, "tableNames", assertEntityName),
   ];
   return buildSelect(`${table}, ${text}`, tbl("ddicTableText"), where);
@@ -492,7 +520,7 @@ export function buildViewTextQuery(viewNames: readonly string[], language: strin
   const text = fld("viewText", "text");
   const where = [
     `${activeState} = ${sqlLiteral("A")}`,
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(view, viewNames, "viewNames", assertEntityName),
   ];
   return buildSelect(`${view}, ${text}`, tbl("viewText"), where);
@@ -530,7 +558,7 @@ export function buildTransactionTextsQuery(tcodes: readonly string[], language: 
   const lang = fld("transactionText", "language");
   const text = fld("transactionText", "text");
   const where = [
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(tcode, tcodes, "tcodes", assertTransactionCode),
   ];
   return buildSelect(`${tcode}, ${text}`, tbl("transactionText"), where);
@@ -554,7 +582,7 @@ export function buildTreeRootProbeQuery(language: string): string {
   const lang = fld("imgTreeNodeText", "language");
   const text = fld("imgTreeNodeText", "text");
   const { literal, escapeChar } = imgLikePattern(`${IMG_TREE_TEXT_PROBE}*`);
-  const where = [`${lang} = ${sqlLiteral(assertLanguage(language))}`, `${text} LIKE '${literal}' ESCAPE '${escapeChar}'`];
+  const where = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text} LIKE '${literal}' ESCAPE '${escapeChar}'`];
   return buildSelect(`${treeId}, ${nodeId}, ${lang}, ${text}`, tbl("imgTreeNodeText"), where);
 }
 
@@ -606,7 +634,7 @@ export function buildTreeChildrenQuery(treeId: string, parentId: string, languag
   const from =
     `${node} AS n\n` +
     `LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}\n` +
-    `  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertLanguage(language))}`;
+    `  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
   const where = [
     `n~${treeIdF} = ${sqlLiteral(assertTreeKeyValue(treeId, "treeId"))}`,
     `n~${parentIdF} = ${sqlLiteral(assertTreeKeyValue(parentId, "parentId"))}`,
@@ -643,7 +671,7 @@ export function buildTreeNodeQuery(treeId: string, nodeId: string, language: str
   const from =
     `${node} AS n\n` +
     `LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}\n` +
-    `  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertLanguage(language))}`;
+    `  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
   const where = [
     `n~${treeIdF} = ${sqlLiteral(assertTreeKeyValue(treeId, "treeId"))}`,
     `n~${nodeIdF} = ${sqlLiteral(assertTreeKeyValue(nodeId, "nodeId"))}`,
@@ -734,7 +762,7 @@ export function buildTreeNodeByIdQuery(nodeId: string, language: string): string
   const from =
     `${node} AS n\n` +
     `LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}\n` +
-    `  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertLanguage(language))}`;
+    `  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
   const where = [`n~${nodeIdF} = ${sqlLiteral(assertTreeKeyValue(nodeId, "nodeId"))}`];
   return buildSelect(select, from, where, `n~${treeIdF}`);
 }

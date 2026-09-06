@@ -23,6 +23,7 @@ import type { SessionPool } from "../src/adt/pool.js";
 import { errorResult } from "../src/server.js";
 import type { ImgReadConnection } from "../src/adt/img-read.js";
 import { IMG_CATALOG_VERIFIED, lowConfidenceTables } from "../src/adt/img-catalog.js";
+import { IMG_DEFAULT_LANGUAGE } from "../src/adt/img-query.js";
 import { registerImgTools, type ImgToolDeps } from "../src/tools/img.js";
 
 // ----------------------------------------------------------------------- fake wire ---
@@ -154,19 +155,22 @@ function okText(result: CallToolResult): string {
   return text.text;
 }
 
-function depsFor(conn: ImgReadConnection, opts: { safety?: SafetyGate; maxResponseChars?: number } = {}): ImgToolDeps {
+function depsFor(
+  conn: ImgReadConnection,
+  opts: { safety?: SafetyGate; maxResponseChars?: number; language?: string } = {},
+): ImgToolDeps {
   return {
     pool: fakePool(conn),
     safety: opts.safety ?? openGate(),
     ensureConnected: async () => {},
     errorResult,
-    cfg: { maxResponseChars: opts.maxResponseChars ?? 30_000, language: "EN" },
+    cfg: { maxResponseChars: opts.maxResponseChars ?? 30_000, language: opts.language ?? "E" },
   };
 }
 
 async function registered(
   conn: ImgReadConnection,
-  opts: { safety?: SafetyGate; maxResponseChars?: number } = {},
+  opts: { safety?: SafetyGate; maxResponseChars?: number; language?: string } = {},
 ): Promise<{
   tools: Map<string, { config: Record<string, unknown>; handler: (args: unknown) => Promise<CallToolResult> }>;
   deps: ImgToolDeps;
@@ -211,7 +215,7 @@ describe("abap_img — mode: search", () => {
 
     expect(text).toContain("mode: search");
     expect(text).toContain("query: config");
-    expect(text).toContain("language: EN");
+    expect(text).toContain("language: E");
     expect(text).toContain("matches: 2");
     expect(tableHeader(text, "ACTIVITIES")).toEqual(["activity", "title", "objects", "nodes"]);
     expect(text).toContain("SIMG_A");
@@ -607,6 +611,44 @@ describe("abap_img — safety gate", () => {
     const { conn, calls } = queueConn([]);
     const { tools } = await registered(conn, { safety: closedGate() });
     const payload = errorPayload(await invoke(tools, "abap_img", { mode: "show" }));
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(calls).toHaveLength(0);
+  });
+});
+
+// Measured live 2026-09-06: `abap_img_edit` defaulted the language to the ISO code "EN"
+// and SAP answered HTTP 400 `'EN' is not a valid value for C(1,0)` on the catalog query —
+// every catalog language column this tool selects on (SPRAS/DDLANGUAGE/SPRSL/LANGUAGE) is
+// one character. These tests pin the fix at the tool layer: the SQL actually sent, not an
+// internal variable, and both the caller-input and the config-default paths into it.
+describe("abap_img — language", () => {
+  it(`with no language input and no cfg.language, sends "${IMG_DEFAULT_LANGUAGE}" (not "E " or "EN") into the SQL`, async () => {
+    const idBody = body({ ACTIVITY: ["SIMG_A"] });
+    const titleBody = body({ ACTIVITY: ["SIMG_A"], TEXT: ["A"] });
+    const { conn, calls } = queueConn([idBody, titleBody]);
+    const { tools } = await registered(conn, { language: "" });
+
+    const result = await invoke(tools, "abap_img", { mode: "search", query: "a" });
+    expect(result.isError).toBeFalsy();
+    // buildActivityIdSearchQuery (calls[0]) carries no language filter; buildActivityTitleSearchQuery
+    // (calls[1]) does — see src/adt/img-read.ts's readImgSearch.
+    expect(calls[1]!.sql).toContain(`= '${IMG_DEFAULT_LANGUAGE}'`);
+    expect(calls[1]!.sql).not.toContain("'EN'");
+    expect(calls[1]!.sql).not.toContain(`'${IMG_DEFAULT_LANGUAGE} '`);
+  });
+
+  it('refuses a caller-supplied "EN" with BAD_INPUT, before any network call', async () => {
+    const { conn, calls } = queueConn([]);
+    const { tools } = await registered(conn);
+    const payload = errorPayload(await invoke(tools, "abap_img", { mode: "search", query: "a", language: "EN" }));
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses a config-supplied cfg.language = "EN" with BAD_INPUT, before any network call', async () => {
+    const { conn, calls } = queueConn([]);
+    const { tools } = await registered(conn, { language: "EN" });
+    const payload = errorPayload(await invoke(tools, "abap_img", { mode: "search", query: "a" }));
     expect(payload.error).toBe("BAD_INPUT");
     expect(calls).toHaveLength(0);
   });
