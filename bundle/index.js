@@ -114884,14 +114884,15 @@ var CUSTOMIZING_REQUEST_FM = Object.freeze({
     text: "iv_text",
     owner: "iv_owner",
     requestHeader: "es_request_header",
-    taskHeaders: "et_task_headers"
+    taskHeaders: "et_task_headers",
+    users: "it_users"
   }),
   exceptions: Object.freeze({
     insertFailed: "insert_failed",
     enqueueFailed: "enqueue_failed"
   }),
   confidence: "high",
-  note: `UNPROVEN FROM HERE: TR_INSERT_REQUEST_WITH_TASKS is an ordinary, heavily-used standard SAP function module \u2014 SM30 and the rest of CTS call it constantly \u2014 but this server has never itself called it, on this or any system. What was read live on 2026-09-05 is FUPARAREF (parameter lists) and TFDIR (function group) \u2014 not a successful or failed call from here. The parameter names and types here are read from the system's own dictionaries, not confirmed by a call this server has made; the first time this generated code actually runs is also the first time this server learns whether its own call is accepted. Measured shape: IV_TYPE (TRFUNCTION) and IV_TEXT (AS4TEXT) are mandatory; IV_OWNER (AS4USER) is optional and defaults to SY-UNAME, so omitting it means "the logon user", not "no owner"; ES_REQUEST_HEADER/ET_TASK_HEADERS are exporting parameters 1 and 2, typed TRWBO_REQUEST_HEADER/TRWBO_REQUEST_HEADERS; the remaining seven importing parameters (IV_TARGET, IV_TARDEVCL, IV_DEVCLASS, IV_TARLAYER, IV_WITH_BADI_CHECK, IT_ATTRIBUTES, IT_USERS) are optional and deliberately left unset \u2014 IV_TARGET above all: no transport target is the right default for something this tool creates and a verification run deletes again; INSERT_FAILED and ENQUEUE_FAILED are the only two exceptions raised.`
+  note: 'PROVEN FROM HERE: this FM has been called once, from this server, on 2026-09-05, with no IT_USERS row \u2014 sy-subrc came back 0 and a type-W request WAS created, later confirmed visible via abap_transport list. ET_TASK_HEADERS came back empty on that call, which is why IT_USERS is now populated. STILL UNPROVEN FROM HERE: the IT_USERS variant itself, and every failure path this FM can take (INSERT_FAILED, ENQUEUE_FAILED, and any authority or lock refusal). What was read live on 2026-09-05 is FUPARAREF (parameter lists) and TFDIR (function group). Measured shape: IV_TYPE (TRFUNCTION) and IV_TEXT (AS4TEXT) are mandatory; IV_OWNER (AS4USER) is optional and defaults to SY-UNAME, so omitting it means "the logon user", not "no owner"; ES_REQUEST_HEADER/ET_TASK_HEADERS are exporting parameters 1 and 2, typed TRWBO_REQUEST_HEADER/TRWBO_REQUEST_HEADERS; importing parameter 6, IT_USERS, is typed SCTS_USERS and is now passed with exactly one row, SY-UNAME, because the live call above created a request with no task when it was omitted. The remaining six importing parameters (IV_TARGET, IV_TARDEVCL, IV_DEVCLASS, IV_TARLAYER, IV_WITH_BADI_CHECK, IT_ATTRIBUTES) are optional and deliberately left unset \u2014 IV_TARGET above all: no transport target is the right default for something this tool creates and a verification run deletes again; INSERT_FAILED and ENQUEUE_FAILED are the only two exceptions raised.'
 });
 var CUSTREQ_OWNER_RE = /^[A-Z0-9_]{1,12}$/;
 function assertCustomizingOwner(value) {
@@ -114921,12 +114922,16 @@ function customizingRequestBody(p) {
   if (p.owner !== void 0) {
     exportingLines.push(`    ${P.owner} = ${abapLiteral(p.owner)}`);
   }
+  exportingLines.push(`    ${P.users} = lt_users`);
   return [
     "DATA ls_request_header TYPE trwbo_request_header.",
     "DATA lt_task_headers TYPE trwbo_request_headers.",
     "DATA ls_task_header TYPE trwbo_request_header.",
+    "DATA lt_users TYPE scts_users.",
     "DATA lv_msg TYPE string.",
     "DATA lv_exc TYPE string.",
+    "",
+    "INSERT sy-uname INTO TABLE lt_users.",
     "",
     `CALL FUNCTION '${CUSTOMIZING_REQUEST_FM.fm}'`,
     "  EXPORTING",
@@ -114955,14 +114960,27 @@ function customizingRequestBody(p) {
     "  RETURN.",
     "ENDIF.",
     "",
-    "READ TABLE lt_task_headers INTO ls_task_header INDEX 1.",
-    "IF sy-subrc <> 0.",
-    `  out->write( |${CUSTREQ_LINE_PREFIX}ERROR exception=[NO_TASK] len=[0] value=[]| ).`,
+    "IF ls_request_header-trkorr IS INITIAL.",
+    `  out->write( |${CUSTREQ_LINE_PREFIX}ERROR exception=[NO_REQUEST] len=[0] value=[]| ).`,
     "  RETURN.",
     "ENDIF.",
     "",
     `out->write( |${CUSTREQ_LINE_PREFIX}REQUEST len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
-    `out->write( |${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]| ).`
+    "",
+    "READ TABLE lt_task_headers INTO ls_task_header INDEX 1.",
+    "IF sy-subrc <> 0.",
+    // Row-recording decision: corr_nr is still passed straight through to
+    // TR_OBJECTS_CHECK/TR_OBJECTS_INSERT unchanged by the row-recording path; that path
+    // itself performs no task-less check. Whether CTS accepts rows recorded against a
+    // request with no task under it is unknown from here — a further reason the
+    // task-less condition is instead reported loudly here, carrying the request number,
+    // so the caller can add a task or delete the request. Refusing at row-recording time
+    // would mean recognising "this number names a task-less request", which requires
+    // reading CTS state that path does not read.
+    `  out->write( |${CUSTREQ_LINE_PREFIX}WARN code=[NO_TASK] len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
+    "ELSE.",
+    `  out->write( |${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]| ).`,
+    "ENDIF."
   ];
 }
 function customizingRequestSource(p) {
@@ -114987,8 +115005,9 @@ function extractCustReqValue(afterHead, fieldsRe) {
 }
 var CUSTREQ_VAL_RE = /^len=\[(\d+)\] value=\[/;
 var CUSTREQ_ERR_RE = /^exception=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
+var CUSTREQ_WARN_RE = /^code=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
 function parseCustomizingRequestTranscript(text3) {
-  const result = { errors: [] };
+  const result = { errors: [], warnings: [] };
   for (const line of text3.replace(/\r\n/g, "\n").split("\n")) {
     if (line.startsWith(CUSTREQ_LINE_PREFIX)) {
       const rest = line.slice(CUSTREQ_LINE_PREFIX.length);
@@ -115011,6 +115030,14 @@ function parseCustomizingRequestTranscript(text3) {
           if (parsed) {
             const [exception] = parsed.fields;
             result.errors.push(`${exception}: ${parsed.value}`);
+          }
+          break;
+        }
+        case "WARN": {
+          const parsed = extractCustReqValue(remainder, CUSTREQ_WARN_RE);
+          if (parsed) {
+            const [code] = parsed.fields;
+            result.warnings.push(`${code}: ${parsed.value}`);
           }
           break;
         }
@@ -115746,11 +115773,24 @@ function renderArmed(mode, args, apply, notes, journalNote, maxChars) {
     maxChars
   }).text;
 }
+function createRequestFailureMessage(t, description) {
+  const bridgeLines = t.errors.length ? t.errors.join("; ") : "no request number was parsed from the bridge transcript, and no error line was reported either";
+  return `The customizing request could not be confirmed \u2014 the bridge reported: ${bridgeLines}. A customizing request may nonetheless have been created in the system: TR_INSERT_REQUEST_WITH_TASKS creates the request before this code can observe the failure. Check for it with \`abap_transport list\` (customizing section), matched on the description ${JSON.stringify(description)}. If one is found and is not wanted, delete it.`;
+}
 function renderCreateRequest(plan, result, maxChars) {
   const t = result.transcript;
   const notes = [];
   if (t.errors.length) notes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (!t.request) notes.push("No request number was parsed from the transcript \u2014 see errors above, if any.");
+  const warnings = t.warnings;
+  if (warnings.length) {
+    notes.push(`The bridge reported ${warnings.length} warning(s): ${warnings.join("; ")}.`);
+    if (warnings.some((w) => w.startsWith("NO_TASK"))) {
+      notes.push(
+        `NO_TASK: request ${t.request ?? "(unknown)"} was created with no task under it; its number is what would be passed as corr_nr. Whether a task-less request accepts recorded rows has not been established from here. Add a task to it yourself, or delete the request.`
+      );
+    }
+  }
   return buildResponse({
     header: {
       mode: "create_request",
@@ -115761,7 +115801,7 @@ function renderCreateRequest(plan, result, maxChars) {
       bridgeClass: result.bridgeClass,
       bridgeRefreshed: result.bridgeRefreshed
     },
-    body: t.request ? `Request ${t.request}${t.task ? ` (task ${t.task})` : ""} created.` : "(no request created)",
+    body: t.request ? `Request ${t.request}${t.task ? ` (task ${t.task})` : ""} created.` : "Request could not be confirmed \u2014 see notes.",
     bodyLabel: "RESULT",
     notes,
     maxChars
@@ -115990,33 +116030,67 @@ async function runCreateRequestMode(deps, input) {
     CUSTOMIZING_REQUEST_CLASS,
     (conn) => runCreateCustomizingRequest(conn, deps.safety, plan)
   );
-  if (result.transcript.request) {
-    const warn = deps.warn ?? ((m) => void process.stderr.write(`${m}
+  const t = result.transcript;
+  const warn = deps.warn ?? ((m) => void process.stderr.write(`${m}
 `));
+  const sysKey = systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client });
+  if (t.request) {
     try {
       const entry = await deps.journal.begin({
         operation: "transport-create",
         object: {
-          name: result.transcript.request,
+          name: t.request,
           type: "CTS/TR",
-          uri: `/sap/bc/adt/cts/transportrequests/${result.transcript.request}`,
+          uri: `/sap/bc/adt/cts/transportrequests/${t.request}`,
           package: "",
           description
         },
         existedBefore: false,
         beforeCapture: "confirmed-absent",
-        systemKey: systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client }),
-        corrNr: result.transcript.request,
+        systemKey: sysKey,
+        corrNr: t.request,
         trSource: "caller",
         tool: "abap_img_edit"
       });
       if (entry) {
         const settled = await deps.journal.settle(entry.id, { outcome: "succeeded" });
-        if (!settled.settled) warn(`[abapsmith] WARNING: ${result.transcript.request} \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`);
+        if (!settled.settled) warn(`[abapsmith] WARNING: ${t.request} \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`);
       }
     } catch (e) {
-      warn(`[abapsmith] WARNING: ${result.transcript.request} \u2014 created but NOT journalled: ${e.message}.`);
+      warn(`[abapsmith] WARNING: ${t.request} \u2014 created but NOT journalled: ${e.message}.`);
     }
+  } else {
+    const reason = t.errors.length ? t.errors.join("; ") : "no request number was parsed from the bridge transcript";
+    try {
+      const entry = await deps.journal.begin({
+        operation: "transport-create",
+        object: {
+          name: "(unknown)",
+          type: "CTS/TR",
+          uri: "",
+          package: "",
+          description
+        },
+        existedBefore: false,
+        beforeCapture: "confirmed-absent",
+        systemKey: sysKey,
+        trSource: "caller",
+        tool: "abap_img_edit"
+      });
+      if (entry) {
+        const settled = await deps.journal.settle(entry.id, { outcome: "failed", error: reason });
+        if (!settled.settled) warn(`[abapsmith] WARNING: suspected orphan customizing request \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`);
+      }
+    } catch (e) {
+      warn(`[abapsmith] WARNING: suspected orphan customizing request \u2014 NOT journalled: ${e.message}.`);
+    }
+  }
+  if (t.errors.length || !t.request) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      createRequestFailureMessage(t, description),
+      { description, errors: t.errors, warnings: t.warnings }
+    );
   }
   return ok14(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
 }
