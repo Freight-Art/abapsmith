@@ -50,7 +50,11 @@ import {
   type ImgWriteRow,
   type ImgWriteValueRow,
 } from "../adt/img-write-bridge.js";
-import { CUSTOMIZING_REQUEST_CLASS, type CustomizingRequestPlan } from "../adt/customizing-request.js";
+import {
+  CUSTOMIZING_REQUEST_CLASS,
+  type CustomizingRequestPlan,
+  type CustomizingRequestTranscript,
+} from "../adt/customizing-request.js";
 import {
   runImgProbe,
   runImgApply,
@@ -885,11 +889,49 @@ function renderArmed(
   }).text;
 }
 
+/**
+ * The message for the `CHECK_FAILED` thrown when a `create_request` call
+ * cannot be confirmed: the FM this bridge calls creates the request before
+ * this code can observe any failure, so a bad transcript does NOT mean
+ * nothing happened — it means this server cannot say what happened, which
+ * is worse.
+ */
+function createRequestFailureMessage(t: CustomizingRequestTranscript, description: string): string {
+  const bridgeLines = t.errors.length
+    ? t.errors.join("; ")
+    : "no request number was parsed from the bridge transcript, and no error line was reported either";
+  return (
+    `The customizing request could not be confirmed — the bridge reported: ${bridgeLines}. ` +
+    "A customizing request may nonetheless have been created in the system: " +
+    "TR_INSERT_REQUEST_WITH_TASKS creates the request before this code can observe the failure. " +
+    "Check for it with `abap_transport list` (customizing section), matched on the description " +
+    `${JSON.stringify(description)}. If one is found and is not wanted, delete it.`
+  );
+}
+
+/**
+ * Reached only when `runCreateRequestMode` did NOT throw — i.e. a request
+ * number was parsed and the transcript carried no error line. The
+ * `!t.request` note and body below, and the `t.request ?? "(unknown)"`
+ * fallback in the `NO_TASK` note, are defensive only and not exercised on
+ * that path.
+ */
 function renderCreateRequest(plan: CustomizingRequestPlan, result: Awaited<ReturnType<typeof runCreateCustomizingRequest>>, maxChars: number): string {
   const t = result.transcript;
   const notes: string[] = [];
   if (t.errors.length) notes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (!t.request) notes.push("No request number was parsed from the transcript — see errors above, if any.");
+  const warnings = t.warnings;
+  if (warnings.length) {
+    notes.push(`The bridge reported ${warnings.length} warning(s): ${warnings.join("; ")}.`);
+    if (warnings.some((w) => w.startsWith("NO_TASK"))) {
+      notes.push(
+        `NO_TASK: request ${t.request ?? "(unknown)"} was created with no task under it; its number is what ` +
+          "would be passed as corr_nr. Whether a task-less request accepts recorded rows has not been " +
+          "established from here. Add a task to it yourself, or delete the request.",
+      );
+    }
+  }
   return buildResponse({
     header: {
       mode: "create_request",
@@ -900,7 +942,7 @@ function renderCreateRequest(plan: CustomizingRequestPlan, result: Awaited<Retur
       bridgeClass: result.bridgeClass,
       bridgeRefreshed: result.bridgeRefreshed,
     },
-    body: t.request ? `Request ${t.request}${t.task ? ` (task ${t.task})` : ""} created.` : "(no request created)",
+    body: t.request ? `Request ${t.request}${t.task ? ` (task ${t.task})` : ""} created.` : "Request could not be confirmed — see notes.",
     bodyLabel: "RESULT",
     notes,
     maxChars,
@@ -1225,32 +1267,81 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
   // Addition beyond the strict minimum: journal the created request the same way
   // src/tools/transport.ts's own trCreate path does, so a customizing request minted here is not the
   // one CTS mutation this server makes and forgets.
-  if (result.transcript.request) {
-    const warn = deps.warn ?? ((m: string) => void process.stderr.write(`${m}\n`));
+  //
+  // Split on whether a request NUMBER was parsed, not on whether the transcript is otherwise
+  // clean: TR_INSERT_REQUEST_WITH_TASKS creates the request before this code can observe any
+  // later failure (a missing task, a scaffold error line), so a parsed number always means a
+  // real request exists and is journalled as such — the "NO_TASK" warning path (request set,
+  // task not) takes this branch too. Only the absence of a number means this server cannot even
+  // name what it may have created; that is the suspected-orphan branch below. Either way the
+  // journal write happens BEFORE the throw below, never after — a thrown error must not race an
+  // unwritten journal entry.
+  const t = result.transcript;
+  const warn = deps.warn ?? ((m: string) => void process.stderr.write(`${m}\n`));
+  const sysKey = systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client });
+
+  if (t.request) {
     try {
       const entry = await deps.journal.begin({
         operation: "transport-create",
         object: {
-          name: result.transcript.request,
+          name: t.request,
           type: "CTS/TR",
-          uri: `/sap/bc/adt/cts/transportrequests/${result.transcript.request}`,
+          uri: `/sap/bc/adt/cts/transportrequests/${t.request}`,
           package: "",
           description,
         },
         existedBefore: false,
         beforeCapture: "confirmed-absent",
-        systemKey: systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client }),
-        corrNr: result.transcript.request,
+        systemKey: sysKey,
+        corrNr: t.request,
         trSource: "caller",
         tool: "abap_img_edit",
       });
       if (entry) {
         const settled = await deps.journal.settle(entry.id, { outcome: "succeeded" });
-        if (!settled.settled) warn(`[abapsmith] WARNING: ${result.transcript.request} — journal entry ${entry.id} could not be settled (${settled.reason}).`);
+        if (!settled.settled) warn(`[abapsmith] WARNING: ${t.request} — journal entry ${entry.id} could not be settled (${settled.reason}).`);
       }
     } catch (e) {
-      warn(`[abapsmith] WARNING: ${result.transcript.request} — created but NOT journalled: ${(e as Error).message}.`);
+      warn(`[abapsmith] WARNING: ${t.request} — created but NOT journalled: ${(e as Error).message}.`);
     }
+  } else {
+    // No number parsed — this server cannot say a request was NOT created (the FM creates it
+    // before this code can observe the failure), so it journals a suspected orphan on the only
+    // handle it has: the description. Placeholder object name is deliberately non-numeric so it
+    // can never be mistaken for a real transport number by anything reading the journal back.
+    const reason = t.errors.length ? t.errors.join("; ") : "no request number was parsed from the bridge transcript";
+    try {
+      const entry = await deps.journal.begin({
+        operation: "transport-create",
+        object: {
+          name: "(unknown)",
+          type: "CTS/TR",
+          uri: "",
+          package: "",
+          description,
+        },
+        existedBefore: false,
+        beforeCapture: "confirmed-absent",
+        systemKey: sysKey,
+        trSource: "caller",
+        tool: "abap_img_edit",
+      });
+      if (entry) {
+        const settled = await deps.journal.settle(entry.id, { outcome: "failed", error: reason });
+        if (!settled.settled) warn(`[abapsmith] WARNING: suspected orphan customizing request — journal entry ${entry.id} could not be settled (${settled.reason}).`);
+      }
+    } catch (e) {
+      warn(`[abapsmith] WARNING: suspected orphan customizing request — NOT journalled: ${(e as Error).message}.`);
+    }
+  }
+
+  if (t.errors.length || !t.request) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      createRequestFailureMessage(t, description),
+      { description, errors: t.errors, warnings: t.warnings },
+    );
   }
 
   return ok(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));

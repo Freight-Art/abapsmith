@@ -365,6 +365,15 @@ const APPLY_TRANSCRIPT_DELETE =
 
 const CREATE_REQUEST_TRANSCRIPT = `CTSW> REQUEST len=[10] value=[A4HK900002]\nCTSW> TASK len=[10] value=[A4HK900003]\n`;
 
+/** `NO_TASK` reported as an `ERROR` line with no `REQUEST` line at all — the bridge reported failure and no number came back. */
+const NO_TASK_ERROR_NO_NUMBER_TRANSCRIPT = `CTSW> ERROR exception=[NO_TASK] len=[0] value=[]\n`;
+
+/** A `REQUEST` line followed by a scaffold-level failure (`ERR_LINE_PREFIX`, not `CTSW> `) — a number came back, but the bridge run was not otherwise clean. */
+const REQUEST_PLUS_SCAFFOLD_ERROR_TRANSCRIPT = `CTSW> REQUEST len=[10] value=[A4HK900002]\nZMCP-ERR> unexpected exception CX_ROOT during bridge execution\n`;
+
+/** The `NO_TASK` *warning* path (current `customizing-request.ts` behaviour): a number always comes back, and a missing task is reported as a `WARN` line rather than aborting the transcript. */
+const REQUEST_PLUS_NO_TASK_WARNING_TRANSCRIPT = `CTSW> REQUEST len=[10] value=[A4HK900002]\nCTSW> WARN code=[NO_TASK] len=[10] value=[A4HK900002]\n`;
+
 const BASE_ARGS = {
   table: "ZTEST_IMGW",
   key_fields: ["ZKEY"],
@@ -618,6 +627,7 @@ describe("abap_img_edit — mode: create_request", () => {
       expect(entries[0]!.object.name).toBe("A4HK900002");
       expect(entries[0]!.existedBefore).toBe(false);
       expect(entries[0]!.beforeCapture).toBe("confirmed-absent");
+      expect(entries[0]!.outcome).toBe("succeeded");
     });
   });
 
@@ -635,6 +645,88 @@ describe("abap_img_edit — mode: create_request", () => {
 
     expect(errorPayload(result).error).toBe("BAD_INPUT");
     expect(inner.calls).toHaveLength(0);
+  });
+
+  it("a transcript with no request number is CHECK_FAILED, names the description, and points at abap_transport list", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, NO_TASK_ERROR_NO_NUMBER_TRANSCRIPT) }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "create_request",
+      description: "Orphan-check description",
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("CHECK_FAILED");
+    const message = String(err.message);
+    expect(message).toContain("Orphan-check description");
+    expect(message).toContain("may nonetheless have been created");
+    expect(message).toContain("abap_transport list");
+    expect((err.details as Record<string, unknown> | undefined)?.description).toBe("Orphan-check description");
+  });
+
+  it("journals a suspected-orphan entry (failed, non-numeric placeholder name) when no request number came back", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connected(
+        multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, NO_TASK_ERROR_NO_NUMBER_TRANSCRIPT) }),
+      );
+      const { tools } = await registered(conn, { journal });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "create_request",
+        description: "Orphan-journal description",
+      });
+      expect(errorPayload(result).error).toBe("CHECK_FAILED");
+
+      const entries = await journal.list({});
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.operation).toBe("transport-create");
+      expect(entries[0]!.outcome).toBe("failed");
+      expect(entries[0]!.object.description).toBe("Orphan-journal description");
+      // Deliberately non-numeric/non-transport-shaped: never mistakable for a real trkorr.
+      expect(entries[0]!.object.name).toBe("(unknown)");
+      expect(entries[0]!.object.name).not.toMatch(/^[A-Z0-9]{3}K?\d{6}$/);
+    });
+  });
+
+  it("any bridge error line is CHECK_FAILED even alongside a parsed request number", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, REQUEST_PLUS_SCAFFOLD_ERROR_TRANSCRIPT) }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "create_request",
+      description: "Scaffold-error description",
+    });
+
+    expect(errorPayload(result).error).toBe("CHECK_FAILED");
+  });
+
+  it("the NO_TASK *warning* path succeeds, surfaces the request number, and journals it as succeeded", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connected(
+        multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, REQUEST_PLUS_NO_TASK_WARNING_TRANSCRIPT) }),
+      );
+      const { tools } = await registered(conn, { journal });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "create_request",
+        description: "Warning-path description",
+      });
+      const text = okText(result);
+
+      expect(text).toContain("A4HK900002");
+      expect(text.toLowerCase()).toContain("task");
+
+      const entries = await journal.list({});
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.operation).toBe("transport-create");
+      expect(entries[0]!.outcome).toBe("succeeded");
+      expect(entries[0]!.object.name).toBe("A4HK900002");
+    });
   });
 });
 
