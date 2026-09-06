@@ -307,24 +307,31 @@ async function withJournal(fn: (j: Journal) => Promise<void>): Promise<void> {
   }
 }
 
+/**
+ * `language: ""` (not "EN"): an empty config language is what "operator did not set ABAP_LANGUAGE"
+ * looks like on the real `Config` — `assertImgLanguage` then falls back to `IMG_DEFAULT_LANGUAGE`
+ * ("E"), same as every other test in this file that never passes `language` at all. Individual tests
+ * that need to pin `cfg.language` to something else (e.g. the rejected "EN" case) pass
+ * `opts.language` explicitly.
+ */
 function depsFor(
   conn: AbapConnection,
-  opts: { safety?: SafetyGate; maxResponseChars?: number; journal?: Journal } = {},
+  opts: { safety?: SafetyGate; maxResponseChars?: number; journal?: Journal; language?: string; ensureConnected?: () => Promise<void> } = {},
 ): ImgEditToolDeps {
   const c = cfg();
   return {
     pool: fakePool(conn),
     safety: opts.safety ?? openGate(),
-    ensureConnected: async () => {},
+    ensureConnected: opts.ensureConnected ?? (async () => {}),
     errorResult,
-    cfg: { maxResponseChars: opts.maxResponseChars ?? 30_000, language: "EN", sid: c.sid, url: c.url, client: c.client },
+    cfg: { maxResponseChars: opts.maxResponseChars ?? 30_000, language: opts.language ?? "", sid: c.sid, url: c.url, client: c.client },
     journal: opts.journal ?? disabledJournal,
   };
 }
 
 async function registered(
   conn: AbapConnection,
-  opts: { safety?: SafetyGate; maxResponseChars?: number; journal?: Journal } = {},
+  opts: { safety?: SafetyGate; maxResponseChars?: number; journal?: Journal; language?: string; ensureConnected?: () => Promise<void> } = {},
 ): Promise<{
   tools: Map<string, { config: Record<string, unknown>; handler: (args: unknown) => Promise<CallToolResult> }>;
   deps: ImgEditToolDeps;
@@ -364,6 +371,10 @@ const APPLY_TRANSCRIPT_DELETE =
   `IMGW> APPLIED rows=[1]\n`;
 
 const CREATE_REQUEST_TRANSCRIPT = `CTSW> REQUEST len=[10] value=[A4HK900002]\nCTSW> TASK len=[10] value=[A4HK900003]\n`;
+
+/** Same request/task as `CREATE_REQUEST_TRANSCRIPT`, plus the task's `TASKTYPE` (`ls_task_header-trfunction`) bridge line. */
+const CREATE_REQUEST_TRANSCRIPT_WITH_TASKTYPE =
+  `CTSW> REQUEST len=[10] value=[A4HK900002]\nCTSW> TASK len=[10] value=[A4HK900003]\nCTSW> TASKTYPE len=[1] value=[K]\n`;
 
 /** `NO_TASK` reported as an `ERROR` line with no `REQUEST` line at all — the bridge reported failure and no number came back. */
 const NO_TASK_ERROR_NO_NUMBER_TRANSCRIPT = `CTSW> ERROR exception=[NO_TASK] len=[0] value=[]\n`;
@@ -631,6 +642,40 @@ describe("abap_img_edit — mode: create_request", () => {
     });
   });
 
+  it("renders the created task's type (A3) when the transcript carries a TASKTYPE line", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, CREATE_REQUEST_TRANSCRIPT_WITH_TASKTYPE) }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "create_request",
+      description: "Task-type description",
+    });
+    const text = okText(result);
+
+    expect(text).toContain("A4HK900003");
+    expect(text).toContain("taskType: K");
+    expect(text).toContain("(task A4HK900003, type K)");
+  });
+
+  it("omits the task type cleanly (A3) when the transcript carries no TASKTYPE line", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, CREATE_REQUEST_TRANSCRIPT) }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "create_request",
+      description: "No-task-type description",
+    });
+    const text = okText(result);
+
+    expect(text).toContain("(task A4HK900003)");
+    expect(text).not.toContain("taskType:");
+    expect(text).not.toContain(", type");
+  });
+
   it("rejects a row-edit-only field (table) with BAD_INPUT before any network call", async () => {
     const { conn, inner } = await connected(
       multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, CREATE_REQUEST_TRANSCRIPT) }),
@@ -727,6 +772,125 @@ describe("abap_img_edit — mode: create_request", () => {
       expect(entries[0]!.outcome).toBe("succeeded");
       expect(entries[0]!.object.name).toBe("A4HK900002");
     });
+  });
+});
+
+// ===========================================================================
+// Language default/validation (A1): the catalog SPRAS columns this tool
+// eventually reads through are one character wide — a 2-letter ISO code
+// like "EN" is rejected by `assertImgLanguage`, not silently accepted or
+// mapped. `runImgEditTool` casts its raw args without ever running the zod
+// schema (see registerImgEditTools's own handler), so a schema-only fix
+// would not actually protect a real call — these tests pin the
+// `assertImgLanguage` call inside `parseRowEditArgs` itself.
+// ===========================================================================
+
+describe("abap_img_edit — language default and validation", () => {
+  it('rejects `language: "EN"` with BAD_INPUT, before any network call — pins assertImgLanguage, not just the zod schema', async () => {
+    const { conn, inner } = await connected(multiBridgeHappyPath({}));
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      ...BASE_ARGS,
+      language: "EN",
+      rows: [{ key: { ZKEY: "A" } }],
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("BAD_INPUT");
+    expect(String(err.message)).toContain("EN");
+    expect(String(err.message)).toContain("SPRAS");
+    expect(inner.calls).toHaveLength(0);
+  });
+
+  it('rejects `cfg.language = "EN"` (e.g. an operator-set ABAP_LANGUAGE=EN) with BAD_INPUT even with no `language` input at all', async () => {
+    const { conn, inner } = await connected(multiBridgeHappyPath({}));
+    const { tools } = await registered(conn, { language: "EN" });
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      ...BASE_ARGS,
+      rows: [{ key: { ZKEY: "A" } }],
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("BAD_INPUT");
+    expect(String(err.message)).toContain("EN");
+    expect(inner.calls).toHaveLength(0);
+  });
+});
+
+// ===========================================================================
+// Cold-process role verdict before the gate (A2): `ensureRoleVerdict` mirrors
+// `abap_write`'s ordering (preflight() then ensureConnected()) so a fresh
+// process's first call is not refused by the fail-closed `undefined` state
+// of `writesLockedOut` — see `ensureRoleVerdict`'s own doc comment in
+// src/tools/img-edit.ts.
+// ===========================================================================
+
+describe("abap_img_edit — cold-process role verdict runs before the write-lockout gate", () => {
+  it("writesLockedOut UNSET: a preview calls ensureConnected BEFORE the policy verdict is taken, and is not refused", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+    );
+    // Deliberately omits `writesLockedOut` — the exact state a fresh process's SafetyGate starts in
+    // before any call has ever connected.
+    const gate = new SafetyGate({ readOnly: false, allowPackages: ["*"], allowNamePrefixes: ["*"] });
+    expect(gate.config.writesLockedOut).toBeUndefined();
+
+    let ensureConnectedCalls = 0;
+    const { tools } = await registered(conn, {
+      safety: gate,
+      ensureConnected: async () => {
+        ensureConnectedCalls += 1;
+        // Stand-in for server.ts's real ensureConnected: transcribes a T000 role-probe verdict
+        // proving the system non-productive.
+        gate.update({ writesLockedOut: false, productive: false, systemRole: "development" });
+      },
+    });
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      ...BASE_ARGS,
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+
+    expect(ensureConnectedCalls).toBeGreaterThan(0);
+    const text = okText(result);
+    expect(text).toContain("mode: preview");
+  });
+
+  it("writesLockedOut already TRUE: ensureConnected is NOT called, and the refusal still happens with rule write-lockout", async () => {
+    const { conn, inner } = await connected(multiBridgeHappyPath({}));
+    const gate = new SafetyGate({
+      readOnly: false,
+      allowPackages: ["*"],
+      allowNamePrefixes: ["*"],
+      writesLockedOut: true,
+      lockoutReason: "test: this system was already proven productive",
+    });
+
+    let ensureConnectedCalls = 0;
+    const { tools } = await registered(conn, {
+      safety: gate,
+      ensureConnected: async () => {
+        ensureConnectedCalls += 1;
+      },
+    });
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      ...BASE_ARGS,
+      rows: [{ key: { ZKEY: "A" } }],
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("SAFETY_DENIED");
+    expect((err.details as Record<string, unknown>).rule).toBe("write-lockout");
+    expect(ensureConnectedCalls).toBe(0);
+    // Refused before the probe bridge was ever deployed.
+    expect(inner.calls).toHaveLength(0);
   });
 });
 
@@ -875,6 +1039,31 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
 
       expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
       expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
+    });
+
+    it('with no `language` input and `cfg.language` = "", the DD02T text read embeds the default SAP key "E" (never the rejected ISO code "EN"), and the rendered header echoes it', async () => {
+      const route = resolutionRoute(TB004_IMG_BODIES, { [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_TB004) });
+      const { conn, inner } = await connected(route);
+      const { tools } = await registered(conn, { language: "" });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        object: "TB004",
+        kind: "table",
+        rows: [{ key: { SEQNR: "001" }, values: { TEXT1: "New" } }],
+      });
+      const text = okText(result);
+
+      // What the tool actually rendered, not an internal variable.
+      expect(text).toContain("language: E");
+
+      // What actually went out on the wire: the DD02T table-text read (buildTableTextsQuery)
+      // embeds DDLANGUAGE as a SQL literal — this is the query that answered `HTTP 400 'EN' is
+      // not a valid value for C(1,0)` live when the caller/default was "EN".
+      const textQuery = inner.calls.find((c) => typeof c.body === "string" && c.body.includes("FROM DD02T"));
+      expect(textQuery).toBeDefined();
+      expect(String(textQuery!.body)).toContain("DDLANGUAGE = 'E'");
+      expect(String(textQuery!.body)).not.toContain("DDLANGUAGE = 'EN'");
     });
 
     it("an object/kind combination that does not resolve at all throws NOT_FOUND pointing at abap_img search/objects", async () => {

@@ -42,6 +42,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import { AbapError } from "../adt/errors.js";
 import { HELPER_PACKAGE } from "../adt/helper-package.js";
+import { IMG_DEFAULT_LANGUAGE, IMG_LANGUAGE_RE, assertImgLanguage } from "../adt/img-query.js";
 import {
   IMGW_BRIDGE_CLASS,
   type ImgProbePlan,
@@ -178,9 +179,12 @@ export const imgEditInputSchema = {
     ),
   language: z
     .string()
-    .regex(/^[A-Za-z]{1,2}$/, "1-2 letters")
+    .regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code")
     .optional()
-    .describe('1-2 letter language code the probe reads DD02L/DD03L texts in. Default "EN".'),
+    .describe(
+      'Single-character SAP language key (SPRAS) the probe reads DD02L/DD03L texts in, e.g. "E" for ' +
+        `English, "D" for German — not a 2-letter ISO code like EN/DE. Defaults to ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`,
+    ),
   corr_nr: z
     .string()
     .optional()
@@ -294,7 +298,7 @@ function parseRowEditArgs(mode: "preview" | "upsert" | "delete", input: ImgEditI
     rows,
     view: (input.view ?? table).trim(),
     masterType: input.master_type ?? "VDAT",
-    language: (input.language ?? (cfg.language || "EN")).trim(),
+    language: assertImgLanguage(input.language ?? (cfg.language || IMG_DEFAULT_LANGUAGE)),
     corrNr: input.corr_nr,
     confirm: input.confirm,
     allowCrossClient: input.allow_cross_client ?? false,
@@ -623,6 +627,29 @@ function policyTableFromResolved(table: ResolvedTable, clientField: string): Pol
 // ---------------------------------------------------------------------------
 
 /**
+ * Measured live 2026-09-06: with the startup probe suppressed (`ABAP_STARTUP_PROBE` off), the first
+ * call of a fresh process being an `abap_img_edit` preview was refused with `SAFETY_DENIED` rule
+ * `write-lockout`, even though writes were live on that system; a read call first cleared it.
+ *
+ * The mechanism: `ensureConnected()` (src/server.ts) is what transcribes the T000 role-probe verdict
+ * into the gate via `safety.update({ writesLockedOut, ... })` — until some call has connected,
+ * `safety.config.writesLockedOut` is `undefined`. `evaluateImgWrite` (img-write-policy.ts) refuses on
+ * `writesLockedOut === true || === undefined` — fail-closed by design, and correct; this helper does
+ * not change that. `abap_write` (src/tools/write.ts) already runs its zero-network `preflight()` and
+ * only then `await deps.ensureConnected()`, so by the time it consults the gate the verdict exists.
+ * `abap_img_edit`'s row-edit and create_request paths used to do the opposite: consult the gate before
+ * ever connecting, so a cold process could never get past its very first call. This mirrors
+ * `abap_write`'s ordering instead.
+ *
+ * Conditional, not unconditional: a process whose verdict is already known must still refuse without
+ * paying for a logon it does not need. Called after input parsing/validation so a BAD_INPUT call still
+ * costs no logon either.
+ */
+async function ensureRoleVerdict(deps: ImgEditToolDeps): Promise<void> {
+  if (deps.safety.config.writesLockedOut === undefined) await deps.ensureConnected();
+}
+
+/**
  * Rules that never consult `probe.table`/`probe.cccoractiv` — see
  * `evaluateImgWrite`'s own rule ordering (img-write-policy.ts). Only a
  * refusal carrying one of these names is trustworthy from a table-less stub;
@@ -829,6 +856,7 @@ function renderPreview(args: RowEditArgs, probe: ImgProbeResult, notes: readonly
     header: {
       mode: "preview",
       table: table.table,
+      language: args.language,
       view: args.view,
       masterType: args.masterType,
       deliveryClass: table.deliveryClass,
@@ -874,6 +902,7 @@ function renderArmed(
     header: {
       mode,
       table: args.table,
+      language: args.language,
       view: args.view,
       masterType: args.masterType,
       corrNr: args.corrNr,
@@ -939,10 +968,13 @@ function renderCreateRequest(plan: CustomizingRequestPlan, result: Awaited<Retur
       owner: plan.owner,
       request: t.request,
       task: t.task,
+      taskType: t.taskType,
       bridgeClass: result.bridgeClass,
       bridgeRefreshed: result.bridgeRefreshed,
     },
-    body: t.request ? `Request ${t.request}${t.task ? ` (task ${t.task})` : ""} created.` : "Request could not be confirmed — see notes.",
+    body: t.request
+      ? `Request ${t.request}${t.task ? ` (task ${t.task}${t.taskType ? `, type ${t.taskType}` : ""})` : ""} created.`
+      : "Request could not be confirmed — see notes.",
     bodyLabel: "RESULT",
     notes,
     maxChars,
@@ -1149,6 +1181,9 @@ async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" 
 
   if (selector.kind === "table") {
     const args = parseRowEditArgs(mode, input, deps.cfg);
+    // A cold process's write-lockout verdict must exist before the gate below is ever consulted —
+    // see ensureRoleVerdict's own doc comment.
+    await ensureRoleVerdict(deps);
     // Cheap, I/O-free short-circuit: a config-level refusal (productive/lockout/read-only) refuses
     // before the probe bridge is ever deployed. Anything else the stub might (mis)report is discarded —
     // see preflightPolicyCheck's own doc comment and SAFE_PRECHECK_RULES.
@@ -1163,14 +1198,19 @@ async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" 
     throw new AbapError("BAD_INPUT", `mode "${mode}" requires at least one row.`, { mode });
   }
   const masterType = input.master_type ?? "VDAT";
-  const language = (input.language ?? (deps.cfg.language || "EN")).trim();
+  const language = assertImgLanguage(input.language ?? (deps.cfg.language || IMG_DEFAULT_LANGUAGE));
   const corrNr = input.corr_nr;
   const confirm = input.confirm;
   const allowCrossClient = input.allow_cross_client ?? false;
   const identifier = selector.kind === "activity" ? selector.activity : selector.object;
 
+  // A cold process's write-lockout verdict must exist before the gate below is ever consulted —
+  // see ensureRoleVerdict's own doc comment.
+  await ensureRoleVerdict(deps);
   // Config-level refusals must be checked BEFORE the resolution read is issued, not just before the
-  // probe bridge — see preflightConfigOnly's own doc comment.
+  // probe bridge — see preflightConfigOnly's own doc comment. Connecting is not a resolution read:
+  // ensureRoleVerdict above (when it runs at all) only transcribes the role-probe verdict already
+  // implied by this call reaching here, it never reads IMG catalog data.
   preflightConfigOnly(mode, deps.safety);
 
   deps.safety.assert("read");
@@ -1251,6 +1291,9 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
   const description = requireString("create_request", "description", input.description);
   const plan: CustomizingRequestPlan = { description, owner: input.owner };
 
+  // A cold process's write-lockout verdict must exist before the gate below is ever consulted —
+  // see ensureRoleVerdict's own doc comment.
+  await ensureRoleVerdict(deps);
   deps.safety.assert("read");
   deps.safety.assert(
     "write",
@@ -1340,7 +1383,7 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
     throw new AbapError(
       "CHECK_FAILED",
       createRequestFailureMessage(t, description),
-      { description, errors: t.errors, warnings: t.warnings },
+      { description, task: t.task, taskType: t.taskType, errors: t.errors, warnings: t.warnings },
     );
   }
 
