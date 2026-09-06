@@ -54,7 +54,7 @@ rather than only in prose.
 | `node` | string | `tree` only | reference-IMG root | Reference-IMG node to list children of; omit for the root. |
 | `object` | string | required for `objects` | — | A view, view cluster, table, or customizing-object name (not an activity id). |
 | `kind` | enum `view` \| `cluster` \| `transaction` \| `table` \| `report` \| `customizing_object` \| `unknown` | `objects` only, optional | — | Hint for what kind `object` is, used when the name is ambiguous. |
-| `language` | string, regex `^[A-Za-z]{1,2}$` | no | the server's configured language (`ABAP_LANGUAGE`/`cfg.language`) if set, else `"E"` | Language code for description/text lookups. |
+| `language` | string, regex `^[A-Za-z]$` | no | the server's configured language (`ABAP_LANGUAGE`/`cfg.language`) if set, else `"E"` | Single-character SAP language key (SPRAS) for description/text lookups — e.g. `"E"` for English, `"D"` for German, never a two-letter ISO code. A two-character value such as `EN`/`DE` is refused (`BAD_INPUT`) naming the one-character form; this tool does not map ISO codes to SAP keys (that correspondence is installation-specific `T002`/`T002C`, not a fixed table). The same check applies to a config-supplied `ABAP_LANGUAGE`, which never reaches this schema. |
 | `after` | string | `search`/`tree` only | unset (first page) | Opaque keyset cursor from a previous response's paging note. The freestyle endpoint has no `OFFSET`, so paging is forward-only by key, not by position. |
 | `limit` | integer, `.int().min(1)` | `search`/`tree` only | `IMG_PAGE_DEFAULT`, clamped to `IMG_PAGE_MAX` | Max rows to return. |
 

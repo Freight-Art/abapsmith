@@ -805,11 +805,45 @@ was last set to `0.3.0`.
   blocks them (an explicit deny-all still does), and the delete response
   now flags any transport-request entry the object's create left behind
   for `abap_transport removeObject` to clean up.
-- `abap_img_edit`'s `create_request` now passes `IT_USERS` (`sy-uname`) so the
-  request gets a task, and reports the number before checking for one — a first
-  live run had lost a task-less request's number here. A call with no confirmed
-  number is now `CHECK_FAILED`, not success, naming `abap_transport list` to
+- `abap_img_edit` defaulted an unset `language` to the two-character `EN`
+  while `abap_img` defaulted to the one-character `E`; a second live run
+  hit SAP's `HTTP 400 'EN' is not a valid value for C(1,0)` on the catalog
+  query as a result. `CUS_IMGACT-SPRAS` (`ROLLNAME SPRAS`,
+  `DATATYPE LANG`) is one character wide, and `SELECT DISTINCT SPRAS FROM
+  CUS_IMGACT` on that system returns only `D E F I N P S`. Both tools now
+  default from one shared constant, `IMG_DEFAULT_LANGUAGE = "E"`
+  (`src/adt/img-query.ts`), and both schemas accept only a single letter
+  (`^[A-Za-z]$`); a two-character ISO code like `EN`/`DE` is refused with
+  `BAD_INPUT` naming the one-character form rather than mapped, since the
+  ISO-to-SAP correspondence is installation-specific (`T002`/`T002C`) and
+  a hardcoded map would risk silently querying the wrong language instead
+  of erroring. The check applies wherever a language value reaches these
+  tools, including a config-supplied `ABAP_LANGUAGE=EN`. `abap_img_edit`'s
+  `preview` response header now prints the resolved language.
+- `abap_img_edit`'s `create_request` failed to activate on that same live
+  run: `"SY-UNAME" and the row type of "LT_USERS" are incompatible`.
+  `IT_USERS`' row type, `SCTS_USER`, is a structure with exactly two
+  fields — `USER` (`TR_AS4USER`) and `TYPE` (`TRFUNCTION`), measured from
+  DD40L/DD03L — not the plain user-name insert an earlier entry here
+  described. `IT_USERS` now fills that structure (`USER` = `sy-uname`,
+  `TYPE` = `'Q'`, the customizing task type) so the request gets a task,
+  and reports the number before checking for one — a first live run had
+  lost a task-less request's number here. The response now also carries
+  the task's type (`taskType`) alongside its number. Whether the function
+  module honours `'Q'` or derives its own task type is unproven from
+  here — only a live read-back settles it. A call with no confirmed
+  number is `CHECK_FAILED`, not success, naming `abap_transport list` to
   recover it; both outcomes are journalled.
+- The same live run's very first call, an `abap_img_edit` preview, was
+  refused with `SAFETY_DENIED` rule `write-lockout` even though writes
+  were live on that system: with the startup role probe suppressed, the
+  T000 role verdict is only transcribed into the safety gate once some
+  call has connected, and `abap_img_edit` consulted the gate before ever
+  connecting, so a cold process could never get past its first call.
+  It now connects first when the verdict is unknown, the same way
+  `abap_write` already does — a process whose verdict is already settled
+  still refuses without paying for a logon it doesn't need. The
+  `write-lockout` rule itself is unchanged and intentionally fail-closed.
 
 ### Security
 

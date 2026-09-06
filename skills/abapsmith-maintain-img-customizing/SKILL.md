@@ -53,13 +53,13 @@ on `abap_transport create`, because that path is for package-based
 development objects and a customizing request has no package.
 
 A successful `create_request` gives you back both a request number and a
-task number under it — `corr_nr` uses the request number either way. If
-the response instead warns that the request has no task, that number is
-still what you'd pass as `corr_nr`, but whether a request with no task
-actually accepts recorded rows is not established from here. Treat it as
-untrustworthy: add a task to the request, or delete it and create
-another, before relying on it for anything beyond your own immediate
-write.
+task number (plus the task's type, `taskType`) under it — `corr_nr` uses
+the request number either way. If the response instead warns that the
+request has no task, that number is still what you'd pass as `corr_nr`,
+but whether a request with no task actually accepts recorded rows is not
+established from here. Treat it as untrustworthy: add a task to the
+request, or delete it and create another, before relying on it for
+anything beyond your own immediate write.
 
 If `create_request` itself comes back as an error, don't just retry it —
 a request may already have been created before the error happened. Look
@@ -70,6 +70,17 @@ before creating another.
 If the client's setting blocks customizing changes outright, the write is
 refused before it gets anywhere near `confirm` — no request number fixes
 that.
+
+## Language
+
+If you pass `language` (on `preview`/`upsert`/`delete`, to control what
+language DD02L/DD03L texts come back in), use the one-character SAP
+language key — `E` for English, `D` for German — not the two-letter ISO
+code (`EN`, `DE`) you'd type into most other systems. A two-letter value
+is refused outright rather than guessed at, because mapping ISO codes to
+SAP keys is installation-specific customizing, not something this tool
+can assume. Leave `language` unset unless you have a reason to change
+it — the default is already the single-letter SAP key.
 
 ## Client-dependent vs. cross-client
 
@@ -190,6 +201,15 @@ call above — see `doc/TOOLS/abap-img-edit.md` for that expert path.
 is absent from `tools/list` under `read`, unlike `abap_img` itself. It is
 v1-only — as of this build it has no v2 (`abap_do`) action. Check
 `tools/list` before assuming it exists under `ABAP_TOOL_SURFACE=v2`.
+
+A call can also be refused with `write-lockout` ("No system-role probe
+has confirmed this system is non-productive yet") if nothing has yet
+confirmed the system is non-productive — this is the safety gate working
+as intended on a genuinely unconfirmed or productive system, not a bug to
+work around. In the ordinary case it clears itself: any earlier call that
+connects (a read, or an earlier `abap_img_edit` call) settles the
+verdict, so seeing it persist across multiple calls on a system you
+believe is non-productive is worth raising rather than retrying blindly.
 
 ## Where this fits
 

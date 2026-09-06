@@ -38,9 +38,13 @@ on that deployment, the same way any other bridge-backed tool is.
    request came back with no task, and the generated code printed its
    error and returned before printing the request number — the number was
    lost and the request left orphaned. That defect is why `create_request`
-   now has the shape described below. Still unproven from here: the
-   `IT_USERS` variant that assigns a task, and every failure path
-   (`INSERT_FAILED`, `ENQUEUE_FAILED`, an authority or lock refusal).
+   now has the shape described below. A second live call did pass
+   `IT_USERS`, as a bare `sy-uname` row, and failed to activate outright —
+   see the `create_request` bullet under "Mechanism" for the `SCTS_USER`
+   structure that call was missing and how it is filled now. Still
+   unproven from here: whether the function module honours the `TYPE`
+   value passed, and every failure path (`INSERT_FAILED`,
+   `ENQUEUE_FAILED`, an authority or lock refusal).
 3. **Every generated helper class goes into `$ZMCP_HELPERS`, never
    `$TMP`.** This is a dedicated, non-transportable local package created
    on first use (super-package `$TMP`, but `$TMP` itself is never a
@@ -84,8 +88,18 @@ name the object or table explicitly rather than the activity.
   then re-read the after-image.
 - **`create_request`** — generates `ZCL_ZMCP_CTS_WREQ`, which calls
   `TR_INSERT_REQUEST_WITH_TASKS` to create a type-`W` (customizing)
-  request, passing `IT_USERS` with one row (`sy-uname`) so the request
-  gets a task. The request number is reported as soon as it is known,
+  request, passing `IT_USERS` with one row so the request gets a task.
+  `IT_USERS`' row type, `SCTS_USER`, is a structure with exactly two
+  fields — `USER` (`TR_AS4USER`) and `TYPE` (`TRFUNCTION`), measured from
+  DD40L/DD03L — not a plain user-name table; a second live run that
+  passed a bare `sy-uname` failed to activate the bridge (`"SY-UNAME" and
+  the row type of "LT_USERS" are incompatible`). The row now fills that
+  structure (`USER` = `sy-uname`, `TYPE` = `'Q'`, the customizing task
+  type), and the response carries the created task's number and its type
+  (`taskType`) alongside the request number. Whether the function module
+  honours `'Q'` or derives its own task type is not yet proven from
+  here — only a live read-back settles it. The request number is reported
+  as soon as it is known,
   before the task check runs; a request that comes back with no task is a
   loud warning carrying the number, not a silent loss. A call whose
   transcript carries an error line, or from which no request number can
@@ -119,7 +133,7 @@ written, snake_case included.
 | `rows` | array of `{ key: {...}, values: {...} }` | required for `preview`/`upsert`/`delete` | — | Row key fields and, for `upsert`, the non-key values to write. `delete` needs only `key`. 1–50 rows per call. |
 | `view` | string | optional, for `upsert`/`delete` | resolved view/cluster name (or table, if the resolved target is a table); with `table`, defaults to `table` | The maintenance view or view cluster name recorded on the transport entry. |
 | `master_type` | enum `VDAT` \| `CDAT` | optional, for `upsert`/`delete` | `VDAT` | The transport entry's object type — `VDAT` for a maintenance view, `CDAT` for a customizing object recorded directly. |
-| `language` | string, regex `^[A-Za-z]{1,2}$` | optional | `EN` | Language the probe reads DD02L/DD03L texts in. |
+| `language` | string, regex `^[A-Za-z]$` | optional | the server's configured language (`ABAP_LANGUAGE`/`cfg.language`) if set, else `"E"` | Single-character SAP language key (SPRAS) the probe reads DD02L/DD03L texts in — e.g. `"E"` for English, `"D"` for German. A two-character ISO code such as `EN`/`DE` is refused (`BAD_INPUT`) naming the one-character form, not silently mapped — see `doc/TOOLS/abap-img.md`'s `language` row for why. The `preview` response header prints the resolved value. |
 | `corr_nr` | string | required when the client's change setting demands a recorded change | — | Customizing request or task to record the write on. Get one via `create_request`, or reuse an existing one. |
 | `confirm` | string | required to actually apply `upsert`/`delete` | — | Must exactly equal the resolved base table name (case-insensitive) to arm the write. Omitted (or on `preview`) means nothing changes. |
 | `allow_cross_client` | boolean | no | `false` | Clears the policy refusal for a client-independent table; without it, a cross-client target is refused outright. Does not make the write possible — see "What this does not do". |
@@ -219,3 +233,28 @@ this system use.
   clears the policy refusal; it does not make the write possible. Maintain
   a client-independent table by hand (SM30/SM34) instead.
 - Row-write behavior is not live-proven — see point 2 above.
+
+## Known limitations
+
+- **Resolved: a cold process's very first call used to refuse outright even
+  on a writable system.** With the startup role probe suppressed
+  (`ABAP_STARTUP_PROBE=false`), a fresh process's system-role verdict
+  starts out unknown, and the `write-lockout` rule refuses any write while
+  it is unknown (`SAFETY_DENIED`, "No system-role probe has confirmed this
+  system is non-productive yet"). The verdict is only settled — transcribed
+  into the safety gate — once some call has connected, and this tool used
+  to consult the verdict *before* ever connecting, so a fresh process's
+  very first call, even a `preview`, was refused regardless of whether
+  writes were actually live. It now connects first when the verdict is
+  still unknown, the same way `abap_write` always has, so the first call
+  of a fresh process no longer refuses for this reason alone. The
+  `write-lockout` rule itself is unchanged and is fail-closed by design —
+  this was never a bug in the rule, only in when this tool consulted it.
+  If `write-lockout` is seen again, two things are worth knowing: a system
+  whose verdict is already settled (e.g. genuinely reports itself
+  productive) still refuses without needing another logon — that is the
+  rule working as intended, not a regression of this defect; and any one
+  connecting read call (from any tool) has always been enough to settle an
+  unknown verdict for every write tool afterward, so a repeat of this
+  specific failure on a call that is not a process's first is unexpected
+  and worth investigating rather than assuming.

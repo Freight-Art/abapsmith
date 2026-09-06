@@ -130,11 +130,17 @@
   called from here once, on 2026-09-05, and succeeded, creating a real
   request. That first call omitted `IT_USERS`, so the request came back
   with no task and its number was lost before being printed — the reason
-  `create_request` now reports the number before checking for a task.
-  Still unproven from here: the `IT_USERS` variant, and every failure
-  path. Generated helper classes go into the dedicated, non-transportable
-  `$ZMCP_HELPERS` package, never `$TMP`, created on first use with no
-  silent fallback if that fails.
+  `create_request` now reports the number before checking for a task. A
+  second live call, on 2026-09-06, passed `IT_USERS` as a bare `sy-uname`
+  row and failed to activate outright: the row type, `SCTS_USER`, is a
+  two-field structure (`USER`/`TR_AS4USER`, `TYPE`/`TRFUNCTION`, measured
+  from DD40L/DD03L), not a plain user-name table. `IT_USERS` now fills
+  that structure, and the response carries the created task's number and
+  its type (`taskType`) alongside the request number. Still unproven from
+  here: whether the function module honours the `TYPE` value passed, and
+  every failure path. Generated helper classes go into the dedicated,
+  non-transportable `$ZMCP_HELPERS` package, never `$TMP`, created on
+  first use with no silent fallback if that fails.
 - **Search.** Every request goes out untyped and is filtered client side,
   because the server's own type filter drops fields and half-ignores the
   subtype; the fetch window is deliberately wider than the display cap and
