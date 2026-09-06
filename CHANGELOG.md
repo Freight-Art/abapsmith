@@ -805,6 +805,11 @@ was last set to `0.3.0`.
   blocks them (an explicit deny-all still does), and the delete response
   now flags any transport-request entry the object's create left behind
   for `abap_transport removeObject` to clean up.
+- `abap_img_edit`'s `create_request` now passes `IT_USERS` (`sy-uname`) so the
+  request gets a task, and reports the number before checking for one — a first
+  live run had lost a task-less request's number here. A call with no confirmed
+  number is now `CHECK_FAILED`, not success, naming `abap_transport list` to
+  recover it; both outcomes are journalled.
 
 ### Security
 

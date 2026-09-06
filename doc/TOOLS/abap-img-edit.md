@@ -29,14 +29,18 @@ on that deployment, the same way any other bridge-backed tool is.
    same CTS pair (`TR_OBJECTS_CHECK` then `TR_OBJECTS_INSERT`, function
    group `SAPLSTRD`) records `R3TR VDAT` for the view and `R3TR TABU` for
    each row's base-table key.
-2. **This server has never itself called any of the function modules this
-   tool relies on.** `TR_OBJECTS_CHECK`, `TR_OBJECTS_INSERT`, and
-   `TR_INSERT_REQUEST_WITH_TASKS` (used by `create_request`) are ordinary,
-   heavily-used SAP function modules — SM30 and the CTS call them
-   routinely — but abapsmith has only ever read their interfaces from the
-   system's own function-module catalogue, never proven them by a run from
-   here. Every response says "not proven" rather than implying otherwise
-   anywhere this matters.
+2. **`TR_OBJECTS_CHECK` and `TR_OBJECTS_INSERT` are still interface-only
+   knowledge here — read from the system's own function-module catalogue,
+   never called from this server.** `TR_INSERT_REQUEST_WITH_TASKS` (used
+   by `create_request`) is different: it was called from here once, on
+   2026-09-05, and returned `sy-subrc = 0`, creating a real type-`W`
+   customizing request. That first call did not pass `IT_USERS`, so the
+   request came back with no task, and the generated code printed its
+   error and returned before printing the request number — the number was
+   lost and the request left orphaned. That defect is why `create_request`
+   now has the shape described below. Still unproven from here: the
+   `IT_USERS` variant that assigns a task, and every failure path
+   (`INSERT_FAILED`, `ENQUEUE_FAILED`, an authority or lock refusal).
 3. **Every generated helper class goes into `$ZMCP_HELPERS`, never
    `$TMP`.** This is a dedicated, non-transportable local package created
    on first use (super-package `$TMP`, but `$TMP` itself is never a
@@ -80,11 +84,23 @@ name the object or table explicitly rather than the activity.
   then re-read the after-image.
 - **`create_request`** — generates `ZCL_ZMCP_CTS_WREQ`, which calls
   `TR_INSERT_REQUEST_WITH_TASKS` to create a type-`W` (customizing)
-  request. This lives here rather than on `abap_transport create` because
-  that tool's create is package-driven — it requires a package, refuses a
-  local (`$`) one, and checks the package allowlist — and none of that is
-  meaningful for a customizing request, which has no development class at
-  all.
+  request, passing `IT_USERS` with one row (`sy-uname`) so the request
+  gets a task. The request number is reported as soon as it is known,
+  before the task check runs; a request that comes back with no task is a
+  loud warning carrying the number, not a silent loss. A call whose
+  transcript carries an error line, or from which no request number can
+  be parsed, is reported as an error (`CHECK_FAILED`) rather than a
+  success — the response says a request may nonetheless have been
+  created, and how to find it: `abap_transport list` in the customizing
+  section, matched on the description passed in, then reuse or delete it.
+  A confirmed request is journalled as `transport-create` as soon as its
+  number is known, including the task-less warning path; when no number
+  can be parsed, a suspected-orphan entry carrying the description is
+  journalled instead. This lives here rather than on `abap_transport
+  create` because that tool's create is package-driven — it requires a
+  package, refuses a local (`$`) one, and checks the package allowlist —
+  and none of that is meaningful for a customizing request, which has no
+  development class at all.
 
 ## Parameters
 

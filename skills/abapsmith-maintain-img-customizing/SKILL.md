@@ -52,6 +52,21 @@ request, transportable to QA/production the normal way — it does not live
 on `abap_transport create`, because that path is for package-based
 development objects and a customizing request has no package.
 
+A successful `create_request` gives you back both a request number and a
+task number under it — `corr_nr` uses the request number either way. If
+the response instead warns that the request has no task, that number is
+still what you'd pass as `corr_nr`, but whether a request with no task
+actually accepts recorded rows is not established from here. Treat it as
+untrustworthy: add a task to the request, or delete it and create
+another, before relying on it for anything beyond your own immediate
+write.
+
+If `create_request` itself comes back as an error, don't just retry it —
+a request may already have been created before the error happened. Look
+for it first with `abap_transport list` in the customizing section,
+matching the description you passed, and reuse or delete what you find
+before creating another.
+
 If the client's setting blocks customizing changes outright, the write is
 refused before it gets anywhere near `confirm` — no request number fixes
 that.
@@ -91,15 +106,20 @@ certain the value is valid on its own terms, check with SM30 (or ask
 someone who owns that customizing area) before relying on a write made
 this way — especially the first few times.
 
-It is also **not proven by a live run — from this server**. The transport
-bookkeeping this tool performs (recording the change on a request, the same
-way SM30 does) calls ordinary, heavily-used standard SAP function modules
-that SM30 and the rest of CTS call constantly — but this server has never
-itself called them, on this or any system; their call shape here is read
-from the system's own catalogue, not confirmed by a call made from here.
-Treat a clean-looking response as "the call completed without an error",
-not as independent confirmation the request now holds what you expect;
-check the request's contents (or ask whoever manages transports) before
+It is also only partly proven by a live run from this server. Creating a
+customizing request (`create_request`) has been tried live here once, and
+succeeded — but a first-run defect meant a task-less request's number
+nearly went unreported, which is why the guidance above tells you to
+watch for a task-less warning and to check `abap_transport list` after an
+error rather than just retrying. Recording a change onto that request
+(the transport bookkeeping behind `upsert`/`delete`) has not been tried
+live from here: it calls ordinary, heavily-used standard SAP function
+modules that SM30 and the rest of CTS call constantly, but this server
+has only ever read their interfaces from the system's own catalogue, not
+confirmed them by a call made from here. Treat a clean-looking
+`upsert`/`delete` response as "the call completed without an error", not
+as independent confirmation the request now holds what you expect; check
+the request's contents (or ask whoever manages transports) before
 relying on it moving anything to QA correctly.
 
 ## Worked example
@@ -126,8 +146,14 @@ if a request is called for:
 { "mode": "create_request", "description": "Adjust document type default" }
 ```
 
-then arm it, with `confirm` set to the base table name `preview` named
-(`ZTAB1` here, not the activity id):
+Check the response for a task number alongside the request number before
+using it — a task-less warning means that number is what you'd pass as
+`corr_nr`, but whether a request with no task actually accepts recorded
+rows isn't established from here, so add a task first (or delete the
+request and create another); an error means look for the request with
+`abap_transport list` before creating another. Then arm the write, with
+`confirm` set to the base table name `preview` named (`ZTAB1` here, not
+the activity id):
 
 ```json
 {
