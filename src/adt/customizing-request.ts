@@ -54,17 +54,24 @@ export const CUSTREQ_DESCRIPTION_MAX = 60;
  * the live system without re-deriving it, the same reason `img-write-bridge.ts`
  * keeps `CTS_INSERT_FM`, whose `confidence`/`note` shape this mirrors.
  *
- * PROVEN FROM HERE: this FM has now been called once, from this server, on
- * 2026-09-05, with no `IT_USERS` row — `sy-subrc` came back 0 and a type-`W`
- * request WAS created (later confirmed visible via `abap_transport list`),
- * so the call is accepted at all and does create a type-`W` request.
- * `ET_TASK_HEADERS` came back empty on that call, which is why `IT_USERS`
- * is now populated — see the comment at its call site in
- * `customizingRequestBody` for the full finding.
+ * PROVEN FROM HERE: this FM has now been called twice, from this server.
+ * The first call, on 2026-09-05, passed no `IT_USERS` row — `sy-subrc` came
+ * back 0 and a type-`W` request WAS created (later confirmed visible via
+ * `abap_transport list`), so the call is accepted at all and does create a
+ * type-`W` request. `ET_TASK_HEADERS` came back empty on that call, which
+ * is why `IT_USERS` is now populated — see the comment at its call site in
+ * `customizingRequestBody` for the full finding. The second call, on
+ * 2026-09-06, ran the current code, passing `IT_USERS` with exactly one
+ * `SY-UNAME` row, and also succeeded: `sy-subrc` came back 0, and a
+ * type-`W` request was created together with a type-`Q` task. That
+ * establishes the `IT_USERS` variant is accepted and does create a request
+ * with a task — it does NOT establish that `IT_USERS` is what produced the
+ * task: a type-`W` request gets a `'Q'` task by default regardless of
+ * `IT_USERS`, so this one call cannot distinguish "the task came from
+ * `IT_USERS`" from "the task came from the request type alone".
  *
- * STILL UNPROVEN FROM HERE: the `IT_USERS` variant itself (this server has
- * not yet made a call passing it), and every failure path this FM can take
- * — `INSERT_FAILED`, `ENQUEUE_FAILED`, and any authority or lock refusal —
+ * STILL UNPROVEN FROM HERE: every failure path this FM can take —
+ * `INSERT_FAILED`, `ENQUEUE_FAILED`, and any authority or lock refusal —
  * none of which this server has triggered (which is exactly why
  * `EXCEPTIONS` and the `MESSAGE ... INTO lv_msg` capture below still
  * exist).
@@ -111,19 +118,25 @@ export const CUSTOMIZING_REQUEST_FM = Object.freeze({
   }),
   confidence: "high",
   note:
-    "PROVEN FROM HERE: this FM has been called once, from this server, on 2026-09-05, with no " +
-    "IT_USERS row — sy-subrc came back 0 and a type-W request WAS created, later confirmed " +
-    "visible via abap_transport list. ET_TASK_HEADERS came back empty on that call, which is " +
-    "why IT_USERS is now populated. STILL UNPROVEN FROM HERE: the IT_USERS variant itself, and " +
-    "every failure path this FM can take (INSERT_FAILED, ENQUEUE_FAILED, and any authority or " +
-    "lock refusal). What was read live on 2026-09-05 is FUPARAREF (parameter lists) and TFDIR " +
-    "(function group). Measured shape: IV_TYPE (TRFUNCTION) and IV_TEXT (AS4TEXT) are " +
-    "mandatory; IV_OWNER (AS4USER) is optional and defaults to SY-UNAME, so omitting it means " +
-    "\"the logon user\", not \"no owner\"; ES_REQUEST_HEADER/ET_TASK_HEADERS are exporting " +
-    "parameters 1 and 2, typed TRWBO_REQUEST_HEADER/TRWBO_REQUEST_HEADERS; importing parameter " +
-    "6, IT_USERS, is typed SCTS_USERS and is now passed with exactly one row, SY-UNAME, because " +
-    "the live call above created a request with no task when it was omitted. The remaining six " +
-    "importing parameters (IV_TARGET, IV_TARDEVCL, IV_DEVCLASS, IV_TARLAYER, IV_WITH_BADI_CHECK, " +
+    "PROVEN FROM HERE: this FM has now been called twice, from this server. The first call, on " +
+    "2026-09-05, passed no IT_USERS row — sy-subrc came back 0 and a type-W request WAS " +
+    "created, later confirmed visible via abap_transport list. ET_TASK_HEADERS came back empty " +
+    "on that call, which is why IT_USERS is now populated. The second call, on 2026-09-06, ran " +
+    "the current code, passing IT_USERS with exactly one SY-UNAME row, and also succeeded: " +
+    "sy-subrc came back 0, and a type-W request was created together with a type-Q task. That " +
+    "establishes the IT_USERS variant is accepted and does create a request with a task; it " +
+    "does not establish that IT_USERS is what produced the task, because a type-W request gets " +
+    "a 'Q' task by default regardless of IT_USERS, so this call cannot distinguish the two. " +
+    "STILL UNPROVEN FROM HERE: every failure path this FM can take (INSERT_FAILED, " +
+    "ENQUEUE_FAILED, and any authority or lock refusal). What was read live on 2026-09-05 is " +
+    "FUPARAREF (parameter lists) and TFDIR (function group). Measured shape: IV_TYPE " +
+    "(TRFUNCTION) and IV_TEXT (AS4TEXT) are mandatory; IV_OWNER (AS4USER) is optional and " +
+    "defaults to SY-UNAME, so omitting it means \"the logon user\", not \"no owner\"; " +
+    "ES_REQUEST_HEADER/ET_TASK_HEADERS are exporting parameters 1 and 2, typed " +
+    "TRWBO_REQUEST_HEADER/TRWBO_REQUEST_HEADERS; importing parameter 6, IT_USERS, is typed " +
+    "SCTS_USERS and is now passed with exactly one row, SY-UNAME, because the live call above " +
+    "created a request with no task when it was omitted. The remaining six importing " +
+    "parameters (IV_TARGET, IV_TARDEVCL, IV_DEVCLASS, IV_TARLAYER, IV_WITH_BADI_CHECK, " +
     "IT_ATTRIBUTES) are optional and deliberately left unset — IV_TARGET above all: no transport " +
     "target is the right default for something this tool creates and a verification run deletes " +
     "again; INSERT_FAILED and ENQUEUE_FAILED are the only two exceptions raised.",

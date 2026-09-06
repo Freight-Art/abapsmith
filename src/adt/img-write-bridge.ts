@@ -95,17 +95,22 @@ export const CTS_INSERT_FM = Object.freeze({
   }),
   confidence: "high",
   note:
-    "UNPROVEN FROM HERE: TR_OBJECTS_CHECK and TR_OBJECTS_INSERT are ordinary, heavily-used standard " +
-    "SAP function modules — SM30 and the rest of CTS call them constantly — but this server has never " +
-    "itself called either one, on this or any system. What was read live on 2026-09-05 is FUPARAREF " +
-    "(parameter lists), DOKTL (long texts), the FMs' own source, and real E071/E071K rows — not a " +
-    "successful or failed call from here. The parameter names, types and the check-then-insert " +
-    "ordering here are read from the system's own dictionaries, not confirmed by a call this server " +
-    "has made; the first time this generated code actually runs is also the first time this server " +
-    "learns whether its own call is accepted — a runtime refusal on authority, lock, or request type " +
-    "is unproven territory from this server's side, which is exactly why the exception names and " +
-    "sy-msg* capture below exist. Measured shape: objects table is WT_KO200 (type KO200), not " +
-    "WT_E071/E071; TR_OBJECTS_CHECK must run before TR_OBJECTS_INSERT; IV_NO_STANDARD_EDITOR and " +
+    "PROVEN FROM HERE: TR_OBJECTS_CHECK and TR_OBJECTS_INSERT were both called from this server, " +
+    "on 2026-09-06, and both succeeded — on an upsert into TB004 and again on the delete of that " +
+    "same row. What landed: an E071 header R3TR VDAT V_TB004 with OBJFUNC K, LOCKFLAG blank, " +
+    "AS4POS 000001; and exactly one E071K row, R3TR TABU TB004 000001 VDAT V_TB004, with TABKEY " +
+    "001ZTMD (3-char client followed by the key, no padding beyond the field), SORTFLAG blank, " +
+    "LANG blank, OBJFUNC/FLAG/ACTIVITY blank. That E071K row sits on the request TRKORR, not on " +
+    "the task. The delete leg added no second E071K row — the same single row was still there " +
+    "unchanged afterwards. So the parameter names, types and the check-then-insert ordering are " +
+    "now confirmed by a successful call, not merely read from the dictionaries. STILL UNPROVEN " +
+    "FROM HERE: every failure path either FM can take — authority, lock, or request-type refusal, " +
+    "and both CANCEL_EDIT_OTHER_ERROR and SHOW_ONLY_OTHER_ERROR — none of which has been " +
+    "triggered from this server, which is exactly why the exception names and the sy-msg* " +
+    "capture still exist; and any table with more than one non-client key field — round 6 never " +
+    "got a multi-key probe past activation, so no multi-field TABKEY has ever been recorded from " +
+    "here. Measured shape: objects table is WT_KO200 (type KO200), not WT_E071/E071; " +
+    "TR_OBJECTS_CHECK must run before TR_OBJECTS_INSERT; IV_NO_STANDARD_EDITOR and " +
     "IV_NO_SHOW_OPTION must both be 'X' on both calls to suppress the dialog; both raise " +
     "CANCEL_EDIT_OTHER_ERROR and SHOW_ONLY_OTHER_ERROR, the latter carrying the real reason in " +
     "sy-msg*. TR_APPEND_TO_COMM_OBJS_KEYS also exists but its own long text calls it obsolete — " +

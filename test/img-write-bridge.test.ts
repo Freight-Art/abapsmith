@@ -92,10 +92,14 @@ describe("static exports", () => {
     expect(CTS_INSERT_FM.exceptions.cancelEditOtherError).not.toBe(CTS_INSERT_FM.exceptions.showOnlyOtherError);
   });
 
-  it("CTS_INSERT_FM's note says plainly, near the front, that this server has never itself called either FM", () => {
+  it("CTS_INSERT_FM's note says plainly, near the front, that both FMs have been called successfully from here, and still names what's unproven", () => {
     const upfront = CTS_INSERT_FM.note.slice(0, 80).toUpperCase();
-    expect(upfront).toContain("UNPROVEN");
-    expect(CTS_INSERT_FM.note).toContain("this server has never itself called either one");
+    expect(upfront).toContain("PROVEN");
+    expect(upfront).not.toContain("UNPROVEN");
+    expect(CTS_INSERT_FM.note).toContain(
+      "TR_OBJECTS_CHECK and TR_OBJECTS_INSERT were both called from this server",
+    );
+    expect(CTS_INSERT_FM.note).toContain("STILL UNPROVEN FROM HERE");
     expect(CTS_INSERT_FM.params.weOrder).toBe("we_order");
     expect(CTS_INSERT_FM.params.weTask).toBe("we_task");
   });
