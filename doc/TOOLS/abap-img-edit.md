@@ -101,6 +101,14 @@ nothing about arming a write changes with this.
   number) is required too. Once armed, `ZCL_ZMCP_IMG_WAPPLY` runs: per
   row, read the before-image, record the CTS entry (if `corr_nr` given),
   `MODIFY`/`DELETE`, `COMMIT WORK AND WAIT`, then re-read the after-image.
+  If the generated class fails to activate, none of that runs: the call
+  returns `CHECK_FAILED` with the activation errors, the class name in
+  `details.bridgeClass`, and `details.bridgeLeftBehind: true`. The class
+  stays in `$ZMCP_HELPERS`, inactive — harmless, and safe to delete, but
+  not cleaned up automatically. No journal entry is written for a failed
+  activation, since the journal only records an apply that actually ran on
+  the wire, so there is no before-image and nothing to reconcile: nothing
+  was written to the target table and no transport entry was filed.
 - **`create_request`** — generates `ZCL_ZMCP_CTS_WREQ`, which calls
   `TR_INSERT_REQUEST_WITH_TASKS` to create a type-`W` (customizing)
   request, passing `IT_USERS` with one row so the request gets a task.

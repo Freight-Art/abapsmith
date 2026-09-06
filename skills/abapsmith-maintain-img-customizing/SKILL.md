@@ -39,7 +39,13 @@ you want the affected row(s) to have.
    target and rows, the new `values`, a `corr_nr` if one was called for, and
    `confirm` set to exactly the base table name the preview named — not
    the activity id, not the view name. Without a matching `confirm`,
-   nothing is written.
+   nothing is written. If this step fails and the error says the generated
+   class was left behind and is safe to delete, nothing was written and no
+   transport entry was filed — fix whatever the error describes and retry.
+   If instead the error warns that the request may already have executed
+   and the response was lost, do not retry blindly: re-run `preview` (or
+   check the rows directly) to see whether the change already went through
+   before doing anything else.
 5. **Verify.** Re-run `preview` (or `abap_data_preview` against the
    resolved table) and check the after-image matches what you intended.
    Don't take a success response as the last word — see "What this is
