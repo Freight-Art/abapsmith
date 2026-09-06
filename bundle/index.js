@@ -114384,13 +114384,6 @@ function validateApplyPlan(p) {
   }
   p.rows.forEach((row2, i) => {
     const valueNames = Object.keys(row2.values);
-    if (p.op === "upsert" && valueNames.length < 1) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `row ${i} has no value fields to write \u2014 upsert needs at least one non-key field.`,
-        { row: i }
-      );
-    }
     for (const name of valueNames) {
       const upper = name.toUpperCase();
       if (upper === clientField) {
@@ -115664,7 +115657,14 @@ function policyTableFromProbe(args, probe3) {
   const t = probe3.transcript.table;
   const fields = probe3.transcript.fields.filter((f) => f.field.toUpperCase() !== args.clientField.toUpperCase()).map((f) => ({ field: f.field, dataType: f.dataType, key: f.key }));
   return {
-    table: t?.table ?? args.table,
+    // The bridge's TABLE transcript line does NOT come from a DDIC read: img-write-bridge.ts emits
+    // `TABLE table=[${tableLower}] ...` where tableLower is the generation-time TypeScript constant
+    // we built the bridge source with — it is always our own lower-cased spelling of args.table, never
+    // whatever case DD02L happens to hold (only delclass/clidep on that line are server-read values).
+    // Upper-case it here at the render boundary purely to match how SAP itself spells table names in
+    // DD02L, so preview/armed headers and the descriptive transport-entry line show that spelling
+    // regardless of what case the caller happened to type — this is cosmetic, not a correctness fix.
+    table: (t?.table ?? args.table).trim().toUpperCase(),
     clientDependent: t?.clientDependent ?? false,
     deliveryClass: t?.deliveryClass ?? "",
     fields
@@ -115700,27 +115700,36 @@ function groupByRow(values) {
   }
   return out;
 }
-function currentRowsTable(probe3) {
+function currentRowsTable(args, probe3) {
   const t = probe3.transcript;
   const present = groupByRow(t.before);
   const absent = new Set(t.beforeAbsent.map((a) => a.row));
-  const rowNumbers = /* @__PURE__ */ new Set([...present.keys(), ...absent]);
-  const rows = [...rowNumbers].sort((a, b) => a - b).map((row2) => {
-    if (absent.has(row2)) return { row: String(row2), status: "does not exist yet", fields: "" };
-    const fields = present.get(row2) ?? {};
+  const rows = args.rows.map((_, i) => {
+    const rowNo = i + 1;
+    if (absent.has(rowNo)) return { row: String(i), status: "does not exist yet", fields: "" };
+    const fields = present.get(rowNo);
+    if (!fields) return { row: String(i), status: "unknown (no probe data for this row)", fields: "" };
     return {
-      row: String(row2),
+      row: String(i),
       status: "exists",
       fields: Object.entries(fields).map(([k, v]) => `${k}=${v}`).join(", ")
     };
   });
   return rows.length ? textTable(rows, ["row", "status", "fields"]) : "(no rows probed)";
 }
+function requestedChangeCell(mode, r) {
+  if (mode === "delete") return "DELETE this row";
+  const values = Object.entries(r.values ?? {});
+  return values.length ? `SET ${values.map(([k, v]) => `${k}=${v}`).join(", ")}` : "key-only row (no value fields); insert if absent, otherwise no change";
+}
+function rowKeyCell(r) {
+  return Object.entries(r.key).map(([k, v]) => `${k}=${v}`).join(", ");
+}
 function prospectiveRowsTable(mode, args) {
   const rows = args.rows.map((r, i) => ({
     row: String(i),
-    key: Object.entries(r.key).map(([k, v]) => `${k}=${v}`).join(", "),
-    change: mode === "delete" ? "DELETE this row" : `SET ${Object.entries(r.values ?? {}).map(([k, v]) => `${k}=${v}`).join(", ")}`
+    key: rowKeyCell(r),
+    change: requestedChangeCell(mode, r)
   }));
   return textTable(rows, ["row", "key", "change"]);
 }
@@ -115744,7 +115753,7 @@ function renderPreview(args, probe3, notes, maxChars) {
   if (t.errors.length) filteredNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) filteredNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
   const sections = [
-    { title: "CURRENT ROWS", content: currentRowsTable(probe3) },
+    { title: "CURRENT ROWS", content: currentRowsTable(args, probe3) },
     { title: "TRANSPORT ENTRY (DESCRIPTIVE ONLY)", content: transportEntryPreview(args, table) }
   ];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
@@ -115766,6 +115775,55 @@ function renderPreview(args, probe3, notes, maxChars) {
     notes: filteredNotes,
     maxChars
   }).text;
+}
+function sameFieldMap(a, b) {
+  const keys = /* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+function rowChangeSummaries(rows, t) {
+  const beforePresent = groupByRow(t.before);
+  const beforeAbsent = new Set(t.beforeAbsent.map((a) => a.row));
+  const afterPresent = groupByRow(t.after);
+  const afterAbsent = new Set(t.afterAbsent.map((a) => a.row));
+  return rows.map((r, i) => {
+    const rowNo = i + 1;
+    const wasAbsent = beforeAbsent.has(rowNo);
+    const wasPresent = beforePresent.has(rowNo);
+    const isAbsentAfter = afterAbsent.has(rowNo);
+    const isPresentAfter = afterPresent.has(rowNo);
+    if (!isAbsentAfter && !isPresentAfter) {
+      return { changed: "unknown", description: "no after-image reported for this row" };
+    }
+    if (wasAbsent && isPresentAfter) {
+      return { changed: "yes", description: "inserted" };
+    }
+    if (wasPresent && isPresentAfter) {
+      const same = sameFieldMap(beforePresent.get(rowNo) ?? {}, afterPresent.get(rowNo) ?? {});
+      if (same) {
+        const keyOnly = Object.keys(r.values ?? {}).length === 0;
+        return { changed: "no", description: keyOnly ? "row exists, no value fields to write" : "no change" };
+      }
+      return { changed: "yes", description: "updated" };
+    }
+    return { changed: "unknown", description: "before/after image combination not recognised" };
+  });
+}
+function armedUpsertRowsTable(args, apply) {
+  const summaries = rowChangeSummaries(args.rows, apply.transcript);
+  const rows = args.rows.map((r, i) => ({
+    row: String(i),
+    key: rowKeyCell(r),
+    // What was requested — the same wording prospectiveRowsTable would have shown in preview for
+    // this row (key-only wording included), so the armed response never just says what happened
+    // without also saying what was asked for.
+    change: requestedChangeCell("upsert", r),
+    changed: summaries[i].changed,
+    result: summaries[i].description
+  }));
+  return textTable(rows, ["row", "key", "change", "changed", "result"]);
 }
 function renderArmed(mode, args, apply, notes, journalNote, maxChars) {
   const t = apply.transcript;
@@ -115794,7 +115852,7 @@ function renderArmed(mode, args, apply, notes, journalNote, maxChars) {
       bridgeRefreshed: apply.bridgeRefreshed
     },
     sections: sections.length ? sections : void 0,
-    body: prospectiveRowsTable(mode, args),
+    body: mode === "delete" ? prospectiveRowsTable(mode, args) : armedUpsertRowsTable(args, apply),
     bodyLabel: mode === "delete" ? "ROWS DELETED" : "ROWS WRITTEN",
     notes: finalNotes,
     maxChars
@@ -115849,10 +115907,10 @@ function beforeImageFor(args, probe3) {
   if (present.size === 0 && absent.size === 0) {
     return { existedBefore: false, beforeCapture: "unknown" };
   }
-  const snapshot = Array.from(
-    { length: totalRows },
-    (_, row2) => absent.has(row2) ? { row: row2, existed: false } : { row: row2, existed: true, values: present.get(row2) ?? {} }
-  );
+  const snapshot = Array.from({ length: totalRows }, (_, row2) => {
+    const rowNo = row2 + 1;
+    return absent.has(rowNo) ? { row: row2, existed: false } : { row: row2, existed: true, values: present.get(rowNo) ?? {} };
+  });
   return { existedBefore: true, beforeCapture: "captured", beforeSource: JSON.stringify({ table: args.table, rows: snapshot }) };
 }
 function afterSourceFor(apply) {
@@ -115913,6 +115971,23 @@ async function recordRowMutation(deps, mode, args, probe3, apply) {
     return `Journal entry ${entry.id} could not be settled \u2014 see server log.`;
   }
 }
+function buildApplyPlan(args, op, table) {
+  const fields = table.fields.map((f) => ({ ...f }));
+  return {
+    table: args.table,
+    clientField: args.clientField,
+    keyFields: args.keyFields,
+    rows: bridgeRows(args.rows),
+    language: args.language,
+    op,
+    fields,
+    corrNr: args.corrNr,
+    expectedDeliveryClass: table.deliveryClass,
+    expectedClientDependent: table.clientDependent,
+    view: args.view,
+    masterType: args.masterType
+  };
+}
 async function runProbeAndApply(deps, mode, args, opts) {
   if (opts.needsReadAndConnect) deps.safety.assert("read");
   deps.safety.assert(
@@ -115934,30 +116009,18 @@ async function runProbeAndApply(deps, mode, args, opts) {
     (conn) => runImgProbe(conn, deps.safety, probePlan)
   );
   const verdict = evaluateReal(args, mode, probe3, deps.safety);
+  const table = policyTableFromProbe(args, probe3);
+  const planOp = mode === "preview" ? "upsert" : mode;
+  const applyPlan = buildApplyPlan(args, planOp, table);
+  validateApplyPlan(applyPlan);
   if (mode === "preview") {
     return ok14(renderPreview(args, probe3, verdict.notes, deps.cfg.maxResponseChars));
   }
-  const table = policyTableFromProbe(args, probe3);
   deps.safety.assert(
     "write",
     { name: IMGW_BRIDGE_CLASS.apply, packageName: HELPER_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" }
   );
-  const fields = table.fields.map((f) => ({ ...f }));
-  const applyPlan = {
-    table: args.table,
-    clientField: args.clientField,
-    keyFields: args.keyFields,
-    rows: bridgeRows(args.rows),
-    language: args.language,
-    op: mode,
-    fields,
-    corrNr: args.corrNr,
-    expectedDeliveryClass: table.deliveryClass,
-    expectedClientDependent: table.clientDependent,
-    view: args.view,
-    masterType: args.masterType
-  };
   const apply = await deps.pool.withWrite(
     "abap_img_edit",
     IMGW_BRIDGE_CLASS.apply,
