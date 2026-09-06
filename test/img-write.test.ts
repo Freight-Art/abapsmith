@@ -181,7 +181,7 @@ const PROBE_PLAN: ImgProbePlan = {
   clientField: "MANDT",
   keyFields: ["ZKEY"],
   rows: [{ key: { ZKEY: "A" }, values: {} }],
-  language: "EN",
+  language: "E",
 };
 
 const APPLY_PLAN: ImgApplyPlan = {
