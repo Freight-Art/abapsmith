@@ -202,17 +202,57 @@ describe("customizingRequestSource", () => {
     expect(src).toContain(`${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]`);
   });
 
+  it("emits a TASKTYPE line reading TRFUNCTION off the task header, right after TASK, inside the same ELSE branch", () => {
+    const src = customizingRequestSource(basePlan());
+    expect(src).toContain(
+      `${CUSTREQ_LINE_PREFIX}TASKTYPE len=[{ strlen( ls_task_header-trfunction ) }] value=[{ ls_task_header-trfunction }]`,
+    );
+    const lines = src.split("\n");
+    const taskIdx = lines.findIndex((l) => l.includes(`${CUSTREQ_LINE_PREFIX}TASK len=[`));
+    const taskTypeIdx = lines.findIndex((l) => l.includes(`${CUSTREQ_LINE_PREFIX}TASKTYPE len=[`));
+    expect(taskIdx).toBeGreaterThan(-1);
+    expect(taskTypeIdx).toBeGreaterThan(taskIdx);
+  });
+
   it("stays within ABAP_SOURCE_LINE_MAX at the longest legal description, full of quotes to double, plus an owner", () => {
     const description = "'".repeat(CUSTREQ_DESCRIPTION_MAX);
     const src = customizingRequestSource({ description, owner: "A".repeat(12) });
     expect(maxLineLength(src)).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
   });
 
-  it("declares lt_users, builds it with INSERT sy-uname, and passes it_users = lt_users in EXPORTING", () => {
+  it("declares lt_users/ls_user, builds the row field-by-field, and passes it_users = lt_users in EXPORTING", () => {
     const src = customizingRequestSource(basePlan());
     expect(src).toContain("DATA lt_users TYPE scts_users.");
-    expect(src).toContain("INSERT sy-uname INTO TABLE lt_users.");
     expect(src).toContain(`${CUSTOMIZING_REQUEST_FM.params.users} = lt_users`);
+  });
+
+  it("pins the exact IT_USERS declaration/build lines, in order, and never assigns SY-UNAME straight into the table", () => {
+    const src = customizingRequestSource(basePlan());
+    const lines = src.split("\n").map((l) => l.trim());
+
+    const expected = [
+      "DATA lt_users TYPE scts_users.",
+      "DATA ls_user TYPE scts_user.",
+      "ls_user-user = sy-uname.",
+      "ls_user-type = 'Q'.",
+      "INSERT ls_user INTO TABLE lt_users.",
+    ];
+    // Each expected line must be present, and in this relative order — not just present
+    // anywhere, since e.g. a DATA declaration after the build lines would still compile
+    // to garbage semantics even though every string individually "appears".
+    let searchFrom = 0;
+    for (const line of expected) {
+      const idx = lines.indexOf(line, searchFrom);
+      expect(idx, `expected to find ${JSON.stringify(line)} at or after index ${searchFrom}`).toBeGreaterThanOrEqual(
+        searchFrom,
+      );
+      searchFrom = idx + 1;
+    }
+
+    // The old defect-B shape (INSERT sy-uname INTO TABLE ...) is gone entirely — that is
+    // exactly the line SY-UNAME/LT_USERS type incompatibility that failed activation live
+    // on 2026-09-06.
+    expect(src).not.toMatch(/INSERT sy-uname INTO TABLE/);
   });
 
   it("writes CTSW> REQUEST before reading lt_task_headers", () => {
@@ -370,5 +410,44 @@ describe("parseCustomizingRequestTranscript", () => {
     const t = parseCustomizingRequestTranscript(text);
     expect(t.task).toBe("AAAK900051");
     expect(t.warnings).toEqual([]);
+  });
+
+  it("parses REQUEST + TASK + TASKTYPE into request/task/taskType all set", () => {
+    const text = [
+      `${CUSTREQ_LINE_PREFIX}REQUEST len=[10] value=[AAAK900050]`,
+      `${CUSTREQ_LINE_PREFIX}TASK len=[10] value=[AAAK900051]`,
+      `${CUSTREQ_LINE_PREFIX}TASKTYPE len=[1] value=[Q]`,
+    ].join("\n");
+    const t = parseCustomizingRequestTranscript(text);
+    expect(t.request).toBe("AAAK900050");
+    expect(t.task).toBe("AAAK900051");
+    expect(t.taskType).toBe("Q");
+    expect(t.errors).toEqual([]);
+  });
+
+  it("leaves taskType undefined when a transcript carries TASK but no TASKTYPE line", () => {
+    const text = [
+      `${CUSTREQ_LINE_PREFIX}REQUEST len=[10] value=[AAAK900050]`,
+      `${CUSTREQ_LINE_PREFIX}TASK len=[10] value=[AAAK900051]`,
+    ].join("\n");
+    const t = parseCustomizingRequestTranscript(text);
+    expect(t.task).toBe("AAAK900051");
+    expect(t.taskType).toBeUndefined();
+  });
+
+  it("recovers a TASKTYPE value's significant trailing blanks stripped before the closing bracket, same as TASK's recovery path", () => {
+    const text = `${CUSTREQ_LINE_PREFIX}TASKTYPE len=[3] value=[Q]`;
+    const t = parseCustomizingRequestTranscript(text);
+    // len=[3] but the bracketed value is only "Q" (1 char) — the parser pads to len,
+    // exactly the same recovery `extractCustReqValue` performs for TASK/REQUEST when
+    // trailing blanks were stripped before the closing bracket reached this parser.
+    expect(t.taskType).toBe("Q  ");
+  });
+
+  it("does not throw and drops a malformed TASKTYPE line missing its value bracket", () => {
+    const text = `${CUSTREQ_LINE_PREFIX}TASKTYPE len=[1]`;
+    expect(() => parseCustomizingRequestTranscript(text)).not.toThrow();
+    const t = parseCustomizingRequestTranscript(text);
+    expect(t.taskType).toBeUndefined();
   });
 });

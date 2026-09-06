@@ -197,14 +197,27 @@ function customizingRequestBody(p: CustomizingRequestPlan): string[] {
   // all, sy-subrc came back 0 and a type-W request WAS created, but ET_TASK_HEADERS came
   // back empty — the generated code as it existed then read no task and RETURNed before
   // ever printing the request number, so the request was created and its number thrown
-  // away, orphaned. IT_USERS is measured live from this system's own FUPARAREF on
-  // 2026-09-05 to be typed SCTS_USERS; the line type and table kind of SCTS_USERS were
-  // NOT measured. `INSERT ... INTO TABLE` (below) is used rather than `APPEND`
-  // deliberately: it is valid for standard, sorted and hashed tables alike, so the
-  // unmeasured table kind cannot matter. The one remaining assumption is that sy-uname is
-  // assignable to SCTS_USERS' line type — if it is not, the generated class fails to
-  // *activate*, before the FM is ever called, so a wrong guess here can never create an
-  // orphaned request.
+  // away, orphaned. The fix tried next — a single `INSERT sy-uname INTO TABLE lt_users.`
+  // — failed to *activate* on 2026-09-06 with:
+  //   E line 26 col 31  "SY-UNAME" and the row type of "LT_USERS" are incompatible.
+  // which falsifies the earlier "line type and table kind of SCTS_USERS were not
+  // measured" note on both counts. Now measured live from this system's own DD40L/DD03L:
+  // SCTS_USERS (TTYP/DA, package SCTS_REQ) is DD40L ROWTYPE SCTS_USER, ROWKIND S
+  // (structured row type), ACCESSMODE T (standard table), KEYDEF D / KEYKIND N
+  // (non-unique default key); SCTS_USER's DD03L rows are exactly two fields — USER
+  // (position 0001, rollname TR_AS4USER, CHAR) and TYPE (position 0002, rollname
+  // TRFUNCTION, CHAR). So the row is built field-by-field below (`ls_user-user` /
+  // `ls_user-type`) instead of assigning SY-UNAME straight into the table line.
+  // `INSERT ... INTO TABLE` (below) is still used rather than `APPEND`: valid for
+  // standard, sorted and hashed tables alike, so the table kind was never what broke —
+  // it was always the row's structure. `ls_user-type = 'Q'` assumes 'Q' (customizing
+  // task, TRFUNCTION's value for a task under a type-W request) is the task type this FM
+  // wants for IT_USERS-TYPE; that is still UNPROVEN from here — DD40L/DD03L say what the
+  // field is called and typed, not what value the FM expects there. A wrong guess on the
+  // field names above still fails at *activation*, before the FM is ever called, so it
+  // still can never create an orphaned request; a wrong guess on 'Q' itself would only
+  // surface on a live call, which is exactly what a round-3 read-back of TASKTYPE (see
+  // the out->write below) is for.
   exportingLines.push(`    ${P.users} = lt_users`);
 
   return [
@@ -212,10 +225,13 @@ function customizingRequestBody(p: CustomizingRequestPlan): string[] {
     "DATA lt_task_headers TYPE trwbo_request_headers.",
     "DATA ls_task_header TYPE trwbo_request_header.",
     "DATA lt_users TYPE scts_users.",
+    "DATA ls_user TYPE scts_user.",
     "DATA lv_msg TYPE string.",
     "DATA lv_exc TYPE string.",
     "",
-    "INSERT sy-uname INTO TABLE lt_users.",
+    "ls_user-user = sy-uname.",
+    "ls_user-type = 'Q'.",
+    "INSERT ls_user INTO TABLE lt_users.",
     "",
     `CALL FUNCTION '${CUSTOMIZING_REQUEST_FM.fm}'`,
     "  EXPORTING",
@@ -264,6 +280,17 @@ function customizingRequestBody(p: CustomizingRequestPlan): string[] {
     `  out->write( |${CUSTREQ_LINE_PREFIX}WARN code=[NO_TASK] len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
     "ELSE.",
     `  out->write( |${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]| ).`,
+    // TRWBO_REQUEST_HEADER-TRFUNCTION is NOT measured from this system — only SCTS_USER's
+    // USER/TYPE fields were (see the IT_USERS comment above). Emitted so a live round-3
+    // read-back can prove or disprove the 'Q' guess passed as IT_USERS-TYPE above; a wrong
+    // field name here fails activation before the FM ever runs, the same cheap failure
+    // mode as a wrong SCTS_USER field name. Its own `out->write`/`CTSW>` line, not extra
+    // fields tacked onto the TASK line above: every other line here (REQUEST, TASK, WARN,
+    // ERROR) is `head len=[n] value=[v]`, and `extractCustReqValue`/the CUSTREQ_*_RE
+    // patterns are all built on exactly one `len=[n] value=[v]` pair per line — a combined
+    // `TASK <number> TYPE <x>` line would need its own bespoke two-value regex instead of
+    // reusing that shape, for one field that is genuinely a second, independent value.
+    `  out->write( |${CUSTREQ_LINE_PREFIX}TASKTYPE len=[{ strlen( ls_task_header-trfunction ) }] value=[{ ls_task_header-trfunction }]| ).`,
     "ENDIF.",
   ];
 }
@@ -292,6 +319,7 @@ export function customizingRequestSource(p: CustomizingRequestPlan): string {
 export interface CustomizingRequestTranscript {
   request?: string;
   task?: string;
+  taskType?: string;
   errors: string[];
   warnings: string[];
 }
@@ -338,9 +366,12 @@ const CUSTREQ_WARN_RE = /^code=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
  * exclusive by construction in {@link customizingRequestBody} (every path
  * either returns after writing exactly one `ERROR` line, or falls through
  * to write `REQUEST`). What follows a `REQUEST` line is no longer fixed,
- * though: it is followed by *either* a `TASK` line (a task was found) or a
+ * though: it is followed by *either* a `TASK` line immediately followed by
+ * a `TASKTYPE` line (a task was found — `TASKTYPE` carries
+ * `TRWBO_REQUEST_HEADER-TRFUNCTION` for that same task) *or* a
  * `WARN code=[NO_TASK]` line (the request was created with no task) — never
- * both, and never neither.
+ * both, and never neither. `taskType` without `task` is not a shape this
+ * bridge produces.
  *
  * A line missing the `CTSW> ` prefix is not automatically ignored, though:
  * a failure inside the `TRY`/`CATCH` scaffold `ddicBridgeSource` wraps every
@@ -374,6 +405,11 @@ export function parseCustomizingRequestTranscript(text: string): CustomizingRequ
         case "TASK": {
           const parsed = extractCustReqValue(remainder, CUSTREQ_VAL_RE);
           if (parsed) result.task = parsed.value;
+          break;
+        }
+        case "TASKTYPE": {
+          const parsed = extractCustReqValue(remainder, CUSTREQ_VAL_RE);
+          if (parsed) result.taskType = parsed.value;
           break;
         }
         case "ERROR": {
