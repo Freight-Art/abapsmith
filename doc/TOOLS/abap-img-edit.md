@@ -84,7 +84,8 @@ nothing about arming a write changes with this.
 
 - **`preview`** — resolves the target and runs `ZCL_ZMCP_IMG_WPROBE`, a
   generated helper that reads the table's client-dependence (`T000`), its
-  DD02L/DD03L shape (delivery class, key fields), and the current values
+  delivery class and every column of the table — key and non-key alike, in
+  one `DD03L` select ordered by position — and the current values
   of the requested rows. Makes no change. It now runs the same plan
   validation `upsert`/`delete` enforce for real, so a row `preview`
   accepts is a row the armed call will accept too, and vice versa — the
@@ -112,7 +113,13 @@ nothing about arming a write changes with this.
   `changed: no` with the text `row exists, no value fields to write` — a
   success, not a refusal. `preview`'s prospective-change table shows such a
   row as `key-only row (no value fields); insert if absent, otherwise no
-  change` rather than an empty set of fields. `confirm` must then exactly
+  change` rather than an empty set of fields. An armed `delete` reports the same
+  shape of result: `changed: yes` with the result `deleted` for a row that
+  existed, and `changed: no` with the result `absent (nothing to delete)` for
+  one that didn't. When any row was absent, a note names those rows, states
+  nothing was deleted for them and no transport entry was recorded for them, and
+  points out that the header's `applied` count is the number of rows the bridge
+  processed, not the number actually changed. `confirm` must then exactly
   equal the resolved base table name — not the activity id, not the view
   name — to arm the call; without it, nothing is written. If the client
   requires a recorded change, `corr_nr` (a customizing request or task

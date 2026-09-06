@@ -935,6 +935,41 @@ was last set to `0.3.0`.
   removing the view's entry takes its `E071K` key sub-entry with it. Not
   a behavior change — `removeObject` already worked this way — only the
   guidance describing it was missing.
+- A seventh live verification run (2026-09-06) found `abap_img_edit`'s
+  `upsert` refusing every value-column write, on every table: an armed row
+  on `TB004T` (keys `SPRAS`/`BPKIND`, one value column `TEXT40`) was
+  refused before any wire call with `BAD_INPUT: row 0 names value field
+  TEXT40, which is not declared in this plan's fields.` The generated
+  probe class `ZCL_ZMCP_IMG_WPROBE` read `DD03L` once per key field only,
+  so the apply plan's field list was key-only and no value column could
+  ever be written on any table — earlier live rounds all happened to use
+  `TB004`, whose test rows name only key fields, which masked this
+  completely. The probe now reads every column of the base table in one
+  `DD03L` select (by table name, active version, ordered by position,
+  skipping `.INCLUDE`/`.APPEND` marker rows) and emits one field line per
+  column with its key flag, data type, length and data element; the
+  caller's value names are validated against that full column list, and an
+  unknown name is still refused `BAD_INPUT`, now naming the columns the
+  plan can actually write. Value length and type checking are unchanged,
+  as is the one policy rule that walks the field list, which still skips
+  non-key fields. No table has ever had a value column written from this
+  server until this fix, and the fix itself is not yet live-verified.
+- That same seventh run found an armed `delete` of a nonexistent row
+  answering `[ok] applied: 1` with a body labelled `ROWS DELETED` whose
+  columns were only row / key / requested change (`DELETE this row`) — no
+  `changed` column and no result column, so the response read as a
+  successful deletion. The write journal already recorded this correctly
+  (`existed no`, `confirmed-absent`), and no transport entry was recorded
+  or claimed for the row — the generated ABAP already skips both the CTS
+  call and the `DELETE` itself when the before-image finds nothing — only
+  the rendered response was wrong. An armed `delete` now renders the same
+  `changed`/`result` columns the `upsert` side already renders: a row that
+  did not exist reports `changed: no` with the result `absent (nothing to
+  delete)`; a row that did exist reports `changed: yes`/`deleted`. When any
+  row was absent, a note names those rows, states nothing was deleted for
+  them and no transport entry was recorded for them, and points out that
+  the header's `applied` count is the number of rows the bridge processed,
+  not the number changed.
 
 ### Security
 
