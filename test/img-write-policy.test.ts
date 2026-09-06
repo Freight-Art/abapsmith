@@ -427,7 +427,7 @@ describe("evaluateImgWrite: happy path", () => {
     const v = evaluateImgWrite(probe(), req(), cfg());
     expect(v.allowed).toBe(true);
     if (v.allowed) {
-      expect(v.notes.some((n) => /table-maintenance event modules/.test(n))).toBe(true);
+      expect(v.notes.some((n) => /table-maintenance-generator events/.test(n))).toBe(true);
     }
   });
 

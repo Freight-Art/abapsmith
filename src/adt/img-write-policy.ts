@@ -20,6 +20,18 @@ import { isPreviewTableDenied } from "../safety.js";
 
 export const IMG_MAX_ROWS = 50;
 
+/**
+ * Seeded verbatim as the first note on every ALLOWED verdict below, preview
+ * included. Exported so `src/tools/img-edit.ts` can filter this exact
+ * sentence out of `preview`'s own notes (nothing has been written yet for a
+ * preview to disclose a bypass of) and never needs its own copy — a single
+ * definition here is the only way the two can't drift apart on wording.
+ */
+export const SM30_BYPASS_NOTE =
+  "This write does not run the target view's own foreign-key checks, fixed-value checks, or " +
+  "table-maintenance-generator events — only the row data is written, so validation the SM30 " +
+  "dialog would have performed did not happen here.";
+
 export interface PolicyField {
   readonly field: string;
   readonly dataType: string;
@@ -205,7 +217,7 @@ export function evaluateImgWrite(
     return refuse(
       "cross-client",
       `Table ${table.table} is client-independent: this change would affect every client on the ` +
-        "system, not just the one you are logged into. Pass allowCrossClient: true once you have " +
+        "system, not just the one you are logged into. Pass allow_cross_client: true once you have " +
         "confirmed that is intended.",
     );
   }
@@ -263,11 +275,7 @@ export function evaluateImgWrite(
 
   // ---- Rules 12-14: corr_nr and confirm. Enforced for upsert/delete; for preview, turned into
   // advisory notes since nothing is actually being written yet. ----
-  const notes: string[] = [
-    "This write does not run the target view's own table-maintenance event modules (PBO/PAI, F4 " +
-      "checks, consistency checks) — only the row data is written, so validation the SM30 dialog " +
-      "would have performed did not happen here.",
-  ];
+  const notes: string[] = [SM30_BYPASS_NOTE];
 
   const recordingProvenOff = cccoractiv === "off";
   const corrRequired = !(table.clientDependent === true && recordingProvenOff);
