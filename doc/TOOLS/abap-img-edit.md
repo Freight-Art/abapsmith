@@ -28,23 +28,41 @@ on that deployment, the same way any other bridge-backed tool is.
    *does* still happen is the transport bookkeeping SM30 also does: the
    same CTS pair (`TR_OBJECTS_CHECK` then `TR_OBJECTS_INSERT`, function
    group `SAPLSTRD`) records `R3TR VDAT` for the view and `R3TR TABU` for
-   each row's base-table key.
-2. **`TR_OBJECTS_CHECK` and `TR_OBJECTS_INSERT` are still interface-only
-   knowledge here — read from the system's own function-module catalogue,
-   never called from this server.** `TR_INSERT_REQUEST_WITH_TASKS` (used
-   by `create_request`) is different: it was called from here once, on
-   2026-09-05, and returned `sy-subrc = 0`, creating a real type-`W`
-   customizing request. That first call did not pass `IT_USERS`, so the
-   request came back with no task, and the generated code printed its
-   error and returned before printing the request number — the number was
-   lost and the request left orphaned. That defect is why `create_request`
-   now has the shape described below. A second live call did pass
-   `IT_USERS`, as a bare `sy-uname` row, and failed to activate outright —
-   see the `create_request` bullet under "Mechanism" for the `SCTS_USER`
-   structure that call was missing and how it is filled now. Still
-   unproven from here: whether the function module honours the `TYPE`
-   value passed, and every failure path (`INSERT_FAILED`,
-   `ENQUEUE_FAILED`, an authority or lock refusal).
+   each row's base-table key. Measured on the sixth live run (2026-09-06):
+   this actually files two rows, not one — an `E071` header for the
+   maintenance view (`R3TR VDAT <view>`, `OBJFUNC` `K`) and, beneath it,
+   an `E071K` key sub-entry for the base table (`PGMID` `R3TR`, `OBJECT`
+   `TABU`, `OBJNAME` = the table, `MASTERTYPE` = the resolved master type,
+   `MASTERNAME` = the view, `TABKEY` = the client followed by the key,
+   e.g. `001ZTMD`). `SORTFLAG` and `LANG` on that `E071K` row were both
+   left initial (blank) by the function modules; `AS4POS` was `000001`.
+   The row lands on the request itself, not on a task beneath it.
+2. **`TR_OBJECTS_CHECK`, `TR_OBJECTS_INSERT`, and
+   `TR_INSERT_REQUEST_WITH_TASKS` are now all live-proven from this
+   server**, as of a sixth verification run on 2026-09-06.
+   `TR_INSERT_REQUEST_WITH_TASKS` (used by `create_request`) was called
+   from here first on 2026-09-05, and returned `sy-subrc = 0`, creating a
+   real type-`W` customizing request. That first call did not pass
+   `IT_USERS`, so the request came back with no task, and the generated
+   code printed its error and returned before printing the request
+   number — the number was lost and the request left orphaned. That
+   defect is why `create_request` now has the shape described below. A
+   second live call did pass `IT_USERS`, as a bare `sy-uname` row, and
+   failed to activate outright — see the `create_request` bullet under
+   "Mechanism" for the `SCTS_USER` structure that call was missing. With
+   that structure filled in, the sixth run's call succeeded: it passed
+   `TYPE = 'Q'` and the request came back carrying a task with
+   `TASKTYPE = 'Q'`. That is consistent with the function module
+   honouring the value passed, but not proof of it — a type-`W`
+   request's task defaults to `'Q'` regardless of what `TYPE` asks for,
+   so this call cannot distinguish the two; only passing a different
+   `TYPE` and reading it back would settle it. `TR_OBJECTS_CHECK`
+   and `TR_OBJECTS_INSERT` were proven the same run: an armed key-only
+   `upsert` on `TB004` (view `V_TB004`, master type `VDAT`) called both
+   successfully and filed a real transport entry, and a later `delete` of
+   the same row also succeeded and added no second key row. Still
+   unproven from here: every failure path on either CTS FM
+   (`INSERT_FAILED`, `ENQUEUE_FAILED`, an authority or lock refusal).
 3. **Every generated helper class goes into `$ZMCP_HELPERS`, never
    `$TMP`.** This is a dedicated, non-transportable local package created
    on first use (super-package `$TMP`, but `$TMP` itself is never a
@@ -101,6 +119,16 @@ nothing about arming a write changes with this.
   number) is required too. Once armed, `ZCL_ZMCP_IMG_WAPPLY` runs: per
   row, read the before-image, record the CTS entry (if `corr_nr` given),
   `MODIFY`/`DELETE`, `COMMIT WORK AND WAIT`, then re-read the after-image.
+  A successful armed call discloses that CTS entry directly, under a
+  `TRANSPORT ENTRY RECORDED` section, instead of leaving a caller to look
+  up `E071K` separately — there is no tool in this server that reads
+  `E071K` directly; `abap_data_preview` takes a bare `{table, object,
+  max_rows}`, no WHERE clause or SQL of any kind. The section prints an
+  identity line of the form `R3TR TABU <TABLE> (master <MASTERTYPE>
+  <VIEW>)`, above a per-row table whose `tabkey` column carries the
+  client and key together (e.g. `001ZTMD`). If the bridge transcript
+  carried no `IMGW> CLIENT` line, `tabkey` renders unprefixed (the key
+  portion alone) and a note says so, rather than fabricating a client.
   If the generated class fails to activate, none of that runs: the call
   returns `CHECK_FAILED` with the activation errors, the class name in
   `details.bridgeClass`, and `details.bridgeLeftBehind: true`. The class
@@ -128,8 +156,9 @@ nothing about arming a write changes with this.
   tables were declared `WITH EMPTY KEY` but passed to `TABLES` formal
   parameters on the CTS function modules, which take the DEFAULT key — a
   runtime type conflict ADT's activation check does not catch. They are
-  now declared `WITH DEFAULT KEY`, not itself re-verified live as of this
-  change.
+  now declared `WITH DEFAULT KEY` — the sixth live verification run
+  (2026-09-06) confirms the fix: the same armed `upsert` that filed a
+  real transport entry through both CTS calls hit no such conflict.
 - **`create_request`** — generates `ZCL_ZMCP_CTS_WREQ`, which calls
   `TR_INSERT_REQUEST_WITH_TASKS` to create a type-`W` (customizing)
   request, passing `IT_USERS` with one row so the request gets a task.
@@ -140,10 +169,13 @@ nothing about arming a write changes with this.
   the row type of "LT_USERS" are incompatible`). The row now fills that
   structure (`USER` = `sy-uname`, `TYPE` = `'Q'`, the customizing task
   type), and the response carries the created task's number and its type
-  (`taskType`) alongside the request number. Whether the function module
-  honours `'Q'` or derives its own task type is not yet proven from
-  here — only a live read-back settles it. The request number is reported
-  as soon as it is known,
+  (`taskType`) alongside the request number. The sixth live verification
+  run (2026-09-06) passed `TYPE = 'Q'` and read back a task typed `'Q'`
+  — consistent with the function module honouring the value passed, but
+  not decisive: a type-`W` request's task is `'Q'` by default regardless
+  of what `TYPE` asks for, so this single observation cannot tell the
+  two apart. Only passing a different `TYPE` and reading it back would
+  settle it. The request number is reported as soon as it is known,
   before the task check runs; a request that comes back with no task is a
   loud warning carrying the number, not a silent loss. A call whose
   transcript carries an error line, or from which no request number can
@@ -276,7 +308,6 @@ this system use.
   for it to set — the class fails to activate. `allow_cross_client` only
   clears the policy refusal; it does not make the write possible. Maintain
   a client-independent table by hand (SM30/SM34) instead.
-- Row-write behavior is not live-proven — see point 2 above.
 
 ## Known limitations
 

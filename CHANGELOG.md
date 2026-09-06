@@ -898,6 +898,43 @@ was last set to `0.3.0`.
   `details` carrying the table, mode, bridge class, a conservative
   `mayHaveExecuted` flag, and the errors/reasons found, and journals the
   mutation as `failed` rather than `succeeded`.
+- A sixth live verification run (2026-09-06) confirms the `WITH DEFAULT
+  KEY` fix above, and settles what was previously read only from the
+  catalogue: an armed `upsert` on `TB004` called `TR_OBJECTS_CHECK` then
+  `TR_OBJECTS_INSERT` successfully, filing a real `E071`/`E071K`
+  transport entry, and a later `delete` of the same row also succeeded,
+  adding no second key row. `TR_INSERT_REQUEST_WITH_TASKS` was proven the
+  same run too: it created a real type-`W` customizing request, passed
+  `TYPE = 'Q'`, and read back a task typed `'Q'` — consistent with the
+  function module honouring the value passed, but not proof: a type-`W`
+  request's task defaults to `'Q'` regardless of what `TYPE` asks for,
+  so this observation alone cannot distinguish the two; only passing a
+  different `TYPE` and reading it back would settle it. `TR_OBJECTS_CHECK`/
+  `TR_OBJECTS_INSERT` are no longer interface-only knowledge read from
+  FUPARAREF/DOKTL — docs describing them that way are corrected.
+- That same run measured the exact shape of what a customizing write
+  files: an `E071` header row for the maintenance view (`R3TR VDAT
+  <view>`, `OBJFUNC` `K`), and an `E071K` key sub-entry beneath it for
+  the base table (`PGMID R3TR`, `OBJECT TABU`, `OBJNAME` = the table,
+  `MASTERTYPE`/`MASTERNAME` = the resolved master type and view, `TABKEY`
+  = the client followed by the key, e.g. `001ZTMD`), with `SORTFLAG`/
+  `LANG` both left blank and `AS4POS` `000001`, landing on the request
+  itself rather than a task under it. `abap_img_edit`'s armed success
+  response now discloses this directly, under a `TRANSPORT ENTRY
+  RECORDED` section: an identity line (`R3TR TABU <TABLE> (master
+  <MASTERTYPE> <VIEW>)`) above the per-row table, whose `tabkey` column
+  now carries the client and key together; a transcript with no client
+  line renders `tabkey` unprefixed and says so in a note, rather than
+  fabricating one. There is still no tool that reads `E071K` directly —
+  this disclosure is the only view into it short of SE01/SE09.
+- Documented that `abap_transport` `removeObject` resolves the object it
+  is given against a request's `E071` header rows only, which a
+  customizing write files for the maintenance **view**, not the base
+  table — asking to remove the table name (or a text-table variant)
+  answers `NOT_FOUND` correctly, since only the view has a header entry;
+  removing the view's entry takes its `E071K` key sub-entry with it. Not
+  a behavior change — `removeObject` already worked this way — only the
+  guidance describing it was missing.
 
 ### Security
 

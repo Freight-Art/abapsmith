@@ -86,6 +86,23 @@ If the client's setting blocks customizing changes outright, the write is
 refused before it gets anywhere near `confirm` — no request number fixes
 that.
 
+## Removing a recorded entry from the request
+
+A customizing write files two rows on the request: an `E071` header for
+the **maintenance view**, and an `E071K` key sub-entry beneath it for the
+base table you actually wrote. `abap_transport`'s `removeObject`
+operation resolves the object you name against a request's `E071` header
+rows only — so if you need to back a row out of the request (say the
+`upsert` that filed it was a mistake), pass the **view name**, not the
+base table name: `abap_transport {"operation": "removeObject", "transport":
+"<request>", "object": "V_TB004", "confirm": "<request>"}`, not
+`"object": "TB004"`. Naming the table (or a text-table variant like
+`TB004T`) answers `NOT_FOUND` — correctly: there is no `E071` header
+entry for the table itself, only the `E071K` sub-entry beneath the
+view's. Removing the view's header entry takes that `E071K` sub-entry
+with it. The view name to pass is the same one `abap_img_edit` resolved
+and reported — `view` in your call, or the name `show`/`preview` named.
+
 ## Language
 
 If you pass `language` (on `preview`/`upsert`/`delete`, to control what
@@ -156,21 +173,26 @@ certain the value is valid on its own terms, check with SM30 (or ask
 someone who owns that customizing area) before relying on a write made
 this way — especially the first few times.
 
-It is also only partly proven by a live run from this server. Creating a
-customizing request (`create_request`) has been tried live here once, and
-succeeded — but a first-run defect meant a task-less request's number
+This is now proven by live runs from this server, not just partly.
+Creating a customizing request (`create_request`) has been tried live
+here twice: a first run's defect meant a task-less request's number
 nearly went unreported, which is why the guidance above tells you to
 watch for a task-less warning and to check `abap_transport list` after an
-error rather than just retrying. Recording a change onto that request
-(the transport bookkeeping behind `upsert`/`delete`) has not been tried
-live from here: it calls ordinary, heavily-used standard SAP function
-modules that SM30 and the rest of CTS call constantly, but this server
-has only ever read their interfaces from the system's own catalogue, not
-confirmed them by a call made from here. Treat a clean-looking
-`upsert`/`delete` response as "the call completed without an error", not
-as independent confirmation the request now holds what you expect; check
-the request's contents (or ask whoever manages transports) before
-relying on it moving anything to QA correctly.
+error rather than just retrying; a sixth verification run, on
+2026-09-06, created a real type-`W` request carrying a type-`Q` task,
+with no such defect. Recording a change onto that request (the transport
+bookkeeping behind `upsert`/`delete`) has now been tried live too: that
+same run's armed `upsert` on `TB004` called the same two CTS function
+modules SM30 and the rest of CTS call constantly, filed a real transport
+entry, and a later `delete` of the same row succeeded as well, adding no
+second key row. A clean-looking `upsert`/`delete` response is no longer
+just "the call completed without an error" — the response itself now
+discloses the transport entry it filed (see
+`doc/TOOLS/abap-img-edit.md` for the exact shape). It's still worth
+checking the request's contents yourself (or asking whoever manages
+transports) before relying on it moving anything to QA correctly — this
+server's disclosure is not a QA-side review, just no longer the only
+source of truth about what was recorded.
 
 ## Worked example
 
