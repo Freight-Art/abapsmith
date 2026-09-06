@@ -424,6 +424,15 @@ export function imgProbeSource(p: ImgProbePlan): string {
     "FIELD-SYMBOLS <fs_val> TYPE any.",
     "DATA lv_fval TYPE string.",
     `DATA ls_wa TYPE ${tableLower}.`,
+    // Declared once here, not inline in the per-key-field loop below: that loop runs once per
+    // key field, so an inline @DATA(...) declaration on the SELECT would be a duplicate
+    // declaration for any table with more than one key field (every text table, e.g. TB004T).
+    // Measured live 2026-09-06: activation of the generated probe failed with
+    // `"LV_KEY_FLAG" was already declared.` on exactly this shape.
+    "DATA lv_key_flag TYPE dd03l-keyflag.",
+    "DATA lv_key_type TYPE dd03l-datatype.",
+    "DATA lv_key_len TYPE dd03l-leng.",
+    "DATA lv_key_roll TYPE dd03l-rollname.",
     "",
     ...clientCheckFragment(),
     "",
@@ -434,8 +443,12 @@ export function imgProbeSource(p: ImgProbePlan): string {
   for (const kf of p.keyFields) {
     const kfLit = kf.toUpperCase();
     body.push(
+      // CLEARed before every SELECT so a key field not found in DD03L (sy-subrc <> 0, which
+      // the IF below already guards) cannot leave a previous field's values behind to be
+      // printed under this field's name — defensive, since the guard already prevents it.
+      "CLEAR: lv_key_flag, lv_key_type, lv_key_len, lv_key_roll.",
       `SELECT SINGLE keyflag, datatype, leng, rollname FROM dd03l`,
-      `  INTO (@DATA(lv_key_flag), @DATA(lv_key_type), @DATA(lv_key_len), @DATA(lv_key_roll))`,
+      `  INTO (@lv_key_flag, @lv_key_type, @lv_key_len, @lv_key_roll)`,
       `  WHERE tabname = '${tableLit}' AND fieldname = '${kfLit}' AND as4local = 'A'.`,
       "IF sy-subrc = 0.",
       `  out->write( |${IMGW_LINE_PREFIX}FLD table=[${tableLower}] field=[${kf.toLowerCase()}] key=[{ lv_key_flag }] | &&`,

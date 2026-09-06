@@ -303,6 +303,51 @@ describe("imgProbeSource", () => {
     const src = imgProbeSource({ table, clientField: CLIENT_FIELD, keyFields: [keyField], rows, language: "E" });
     expect(maxLineLength(src)).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
   });
+
+  // Regression for the live round-6 TB004T failure: activation of ZCL_ZMCP_IMG_WPROBE failed with
+  // `"LV_KEY_FLAG" was already declared` because the per-key-field DD03L lookup declared its four
+  // result variables inline (@DATA(...)) once per key field. TB004 has one non-client key field
+  // and so never exposed this; any text table (SPRAS + something) has at least two and always did.
+  it("hoists the four DD03L lookup variables exactly once for a two-key table, and never re-declares them inline", () => {
+    const src = imgProbeSource(
+      baseProbe({ keyFields: [KEY_FIELD, "ZKEY2"], rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} }] }),
+    );
+    expect(src).not.toContain("@DATA(lv_key_flag)");
+    expect(src).not.toContain("@DATA(lv_key_type)");
+    expect(src).not.toContain("@DATA(lv_key_len)");
+    expect(src).not.toContain("@DATA(lv_key_roll)");
+    for (const decl of [
+      "DATA lv_key_flag TYPE dd03l-keyflag.",
+      "DATA lv_key_type TYPE dd03l-datatype.",
+      "DATA lv_key_len TYPE dd03l-leng.",
+      "DATA lv_key_roll TYPE dd03l-rollname.",
+    ]) {
+      expect(src.split(decl).length - 1).toBe(1);
+    }
+    expect(src.split("INTO (@lv_key_flag, @lv_key_type, @lv_key_len, @lv_key_roll)").length - 1).toBe(2);
+  });
+
+  it("hoists the four DD03L lookup variables exactly once for a three-key table, and emits one SELECT per key field", () => {
+    const src = imgProbeSource(
+      baseProbe({
+        keyFields: [KEY_FIELD, "ZKEY2", "ZKEY3"],
+        rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2", ZKEY3: "C3" }, values: {} }],
+      }),
+    );
+    expect(src).not.toContain("@DATA(lv_key_flag)");
+    for (const decl of [
+      "DATA lv_key_flag TYPE dd03l-keyflag.",
+      "DATA lv_key_type TYPE dd03l-datatype.",
+      "DATA lv_key_len TYPE dd03l-leng.",
+      "DATA lv_key_roll TYPE dd03l-rollname.",
+    ]) {
+      expect(src.split(decl).length - 1).toBe(1);
+    }
+    expect(src.split("INTO (@lv_key_flag, @lv_key_type, @lv_key_len, @lv_key_roll)").length - 1).toBe(3);
+    // Each SELECT is preceded by a defensive CLEAR of the four so a not-found field can never
+    // print a previous field's stale values.
+    expect(src.split("CLEAR: lv_key_flag, lv_key_type, lv_key_len, lv_key_roll.").length - 1).toBe(3);
+  });
 });
 
 describe("imgApplySource: field preservation (upsert)", () => {
@@ -708,6 +753,73 @@ describe("imgApplySource: line length", () => {
       masterType: "CDAT",
     };
     expect(maxLineLength(imgApplySource(plan))).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
+  });
+});
+
+describe("no generated source declares the same inline @DATA(name) twice", () => {
+  // Collects every @DATA(name) occurrence (with repeats) so a name appearing more than once is
+  // visible, not just a yes/no verdict — an inline @DATA(...) is only legal the first time a name
+  // is bound in a scope; a second occurrence anywhere in the same generated method is the exact
+  // "already declared" activation failure measured live against TB004T (round 6).
+  function collectInlineDataNames(source: string): string[] {
+    const names: string[] = [];
+    const re = /@DATA\(([a-zA-Z_][a-zA-Z0-9_]*)\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(source)) !== null) {
+      names.push(m[1]!);
+    }
+    return names;
+  }
+
+  function assertNoDuplicateInlineData(label: string, source: string): void {
+    const names = collectInlineDataNames(source);
+    const counts = new Map<string, number>();
+    for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
+    const dupes = [...counts.entries()].filter(([, c]) => c > 1);
+    expect(dupes, `${label}: duplicate inline @DATA(...) declaration(s): ${dupes
+      .map(([n, c]) => `${n} (x${c})`)
+      .join(", ")}`).toEqual([]);
+  }
+
+  it("holds across a representative set: one-key probe, two-key probe, three-key probe, multi-row multi-key apply upsert, apply delete", () => {
+    const oneKeyProbe = imgProbeSource(baseProbe());
+    const twoKeyProbe = imgProbeSource(
+      baseProbe({ keyFields: [KEY_FIELD, "ZKEY2"], rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} }] }),
+    );
+    const threeKeyProbe = imgProbeSource(
+      baseProbe({
+        keyFields: [KEY_FIELD, "ZKEY2", "ZKEY3"],
+        rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2", ZKEY3: "C3" }, values: {} }],
+      }),
+    );
+    const multiRowMultiKeyUpsert = imgApplySource(
+      baseApply({
+        keyFields: [KEY_FIELD, "ZKEY2", "ZKEY3"],
+        fields: [...baseFields(), { field: "ZKEY2", key: true, dataType: "CHAR" }, { field: "ZKEY3", key: true, dataType: "CHAR" }],
+        rows: [
+          { key: { [KEY_FIELD]: "A1", ZKEY2: "B2", ZKEY3: "C3" }, values: { [VAL_FIELD]: "Hello" } },
+          { key: { [KEY_FIELD]: "A2", ZKEY2: "B3", ZKEY3: "C4" }, values: { [VAL_FIELD]: "World" } },
+          { key: { [KEY_FIELD]: "A3", ZKEY2: "B4", ZKEY3: "C5" }, values: {} },
+        ],
+      }),
+    );
+    const applyDelete = imgApplySource(
+      baseApply({
+        op: "delete",
+        keyFields: [KEY_FIELD, "ZKEY2"],
+        fields: [...baseFields(), { field: "ZKEY2", key: true, dataType: "CHAR" }],
+        rows: [
+          { key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} },
+          { key: { [KEY_FIELD]: "A2", ZKEY2: "B3" }, values: {} },
+        ],
+      }),
+    );
+
+    assertNoDuplicateInlineData("one-key probe", oneKeyProbe);
+    assertNoDuplicateInlineData("two-key probe", twoKeyProbe);
+    assertNoDuplicateInlineData("three-key probe", threeKeyProbe);
+    assertNoDuplicateInlineData("multi-row multi-key apply upsert", multiRowMultiKeyUpsert);
+    assertNoDuplicateInlineData("apply delete", applyDelete);
   });
 });
 
