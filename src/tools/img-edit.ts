@@ -955,6 +955,93 @@ function rowChangeSummaries(rows: RowEditArgs["rows"], t: ImgApplyResult["transc
   });
 }
 
+/** What {@link applyFailure} found wrong with an apply, and how sure it can be that nothing ran. */
+interface ApplyFailure {
+  reasons: string[];
+  mayHaveExecuted: boolean;
+}
+
+/**
+ * Whether an armed apply is fully accounted for — every row's after-image is present, every
+ * upsert row's change is classified (never `"unknown"`), every delete row is actually gone, the
+ * bridge raised no runtime exception, and the commit was observed. Returns `undefined` when all
+ * of that holds; otherwise every applicable reason (not just the first) plus a conservative
+ * `mayHaveExecuted`.
+ *
+ * `rowChangeSummaries` is written for upsert: a normal, SUCCESSFUL delete row (present before,
+ * absent after) is exactly the "before/after image combination not recognised" fallback it
+ * reports as `"unknown"`, because that combination never legitimately arises on an upsert. Calling
+ * it for delete rows would therefore make every successful delete throw — so it is only called
+ * here for `mode === "upsert"`; delete rows are checked directly against `transcript.after`
+ * instead (still present after a delete is the only delete-specific failure).
+ */
+function applyFailure(mode: "upsert" | "delete", rows: RowEditArgs["rows"], apply: ImgApplyResult): ApplyFailure | undefined {
+  const t = apply.transcript;
+  const reasons: string[] = [...t.errors];
+
+  if (t.applied === null) {
+    reasons.push("the bridge never reported APPLIED — the commit was never observed");
+  }
+
+  const afterPresent = groupByRow(t.after);
+  const afterAbsentSet = new Set(t.afterAbsent.map((a) => a.row));
+  // Only valid for upsert — see the doc comment above.
+  const upsertSummaries = mode === "upsert" ? rowChangeSummaries(rows, t) : undefined;
+
+  rows.forEach((_, i) => {
+    const rowNo = i + 1;
+    const hasAfterImage = afterPresent.has(rowNo) || afterAbsentSet.has(rowNo);
+    if (!hasAfterImage) {
+      reasons.push(`row ${i}: no after-image reported for this row (transcript row ${rowNo})`);
+      return;
+    }
+    if (mode === "upsert") {
+      const summary = upsertSummaries![i]!;
+      if (summary.changed === "unknown") reasons.push(`row ${i}: ${summary.description}`);
+    } else if (afterPresent.has(rowNo)) {
+      reasons.push(`row ${i}: still present in the table after a delete (transcript row ${rowNo})`);
+    }
+  });
+
+  if (reasons.length === 0) return undefined;
+
+  // Conservative, decided only from transcript markers, never from the request: a WROTE marker
+  // means that row's MODIFY/DELETE returned sy-subrc 0, and an after-image or APPLIED marker is
+  // only reached after COMMIT WORK AND WAIT — but the ABAP method can also end without an
+  // explicit commit, and the dialog step's own implicit commit may still persist a write that
+  // already ran. `false` therefore means no transcript marker shows that any row write even
+  // started — it is NOT proof that the system is unchanged.
+  const mayHaveExecuted = t.wrote.length > 0 || t.applied !== null || t.after.length > 0 || t.afterAbsent.length > 0;
+
+  return { reasons, mayHaveExecuted };
+}
+
+/**
+ * The message for the `CHECK_FAILED` thrown when an armed upsert/delete apply cannot be fully
+ * accounted for (see `applyFailure`). Never claims the system is unchanged — only what transcript
+ * markers do or do not show.
+ */
+function applyFailureMessage(
+  mode: "upsert" | "delete",
+  args: RowEditArgs,
+  apply: ImgApplyResult,
+  failure: ApplyFailure,
+  journalNote: string | undefined,
+): string {
+  const t = apply.transcript;
+  const parts: string[] = [`The ${mode} on table ${args.table} could not be confirmed.`];
+  if (t.errors.length) parts.push(`The bridge reported: ${t.errors.join("; ")}.`);
+  const otherReasons = failure.reasons.filter((r) => !t.errors.includes(r));
+  if (otherReasons.length) parts.push(`${otherReasons.join("; ")}.`);
+  if (journalNote) parts.push(journalNote);
+  parts.push(
+    failure.mayHaveExecuted
+      ? "The write may already have executed and committed — re-read the rows with abap_data_preview before retrying."
+      : "No transcript marker shows that any row write started, but the rows should still be re-read with abap_data_preview before a retry.",
+  );
+  return parts.join(" ");
+}
+
 function armedUpsertRowsTable(args: RowEditArgs, apply: ImgApplyResult): string {
   const summaries = rowChangeSummaries(args.rows, apply.transcript);
   const rows = args.rows.map((r, i) => ({
@@ -1143,6 +1230,7 @@ async function recordRowMutation(
   args: RowEditArgs,
   probe: ImgProbeResult,
   apply: ImgApplyResult,
+  failure: ApplyFailure | undefined,
 ): Promise<string | undefined> {
   const warn = deps.warn ?? ((m: string) => void process.stderr.write(`${m}\n`));
   const before = beforeImageFor(args, probe);
@@ -1179,12 +1267,14 @@ async function recordRowMutation(
   }
   if (!entry) return undefined; // journal disabled — nothing was ever going to be written
 
-  const t = apply.transcript;
-  const outcome: "succeeded" | "failed" = t.errors.length === 0 ? "succeeded" : "failed";
+  // Failed whenever applyFailure found anything unaccounted for, not only when the bridge itself
+  // raised an error line — failure.reasons always includes transcript.errors verbatim (see
+  // applyFailure), so this subsumes the old "t.errors.length === 0" check.
+  const outcome: "succeeded" | "failed" = failure ? "failed" : "succeeded";
   try {
     const settled = await deps.journal.settle(entry.id, {
       outcome,
-      ...(outcome === "failed" ? { error: t.errors.join("; ") } : {}),
+      ...(failure ? { error: failure.reasons.join("; ") } : {}),
       afterSource: afterSourceFor(apply),
     });
     if (!settled.settled) {
@@ -1284,7 +1374,19 @@ async function runProbeAndApply(
     runImgApply(conn, deps.safety, applyPlan),
   );
 
-  const journalNote = await recordRowMutation(deps, mode, args, probe, apply);
+  const failure = applyFailure(mode, args.rows, apply);
+  const journalNote = await recordRowMutation(deps, mode, args, probe, apply, failure);
+
+  if (failure) {
+    throw new AbapError("CHECK_FAILED", applyFailureMessage(mode, args, apply, failure, journalNote), {
+      table: args.table,
+      mode,
+      bridgeClass: apply.bridgeClass,
+      mayHaveExecuted: failure.mayHaveExecuted,
+      errors: apply.transcript.errors,
+      reasons: failure.reasons,
+    });
+  }
 
   return ok(renderArmed(mode, args, apply, verdict.notes, journalNote, deps.cfg.maxResponseChars));
 }

@@ -599,6 +599,178 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
 });
 
 // ===========================================================================
+// Defect G: a live round on 2026-09-05 hit a runtime exception in the apply
+// bridge; it printed error lines and wrote nothing, but `abap_img_edit`
+// nevertheless answered `ok` with a rows table saying `changed: unknown`, no
+// error code, no `mayHaveExecuted`. These pin the fix: no path may answer
+// `ok` with an unaccounted-for row, and any apply transcript carrying error
+// lines (or missing after-images) must make the tool throw `CHECK_FAILED`.
+// ===========================================================================
+
+/** The real apply bridge always emits a runtime exception as an `ERROR` line (see img-write-bridge.ts's `parseImgWriteTranscript`); this one interrupts before any row write is even attempted. */
+const APPLY_TRANSCRIPT_ERROR_BEFORE_WRITE =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> ERROR class=[CX_SY_DYN_CALL_ILLEGAL_TYPE] len=[19] value=[bad table type here]\n`;
+
+/** Same exception, but a `WROTE` marker for row 1 is already on the wire — the row's own MODIFY/DELETE returned `sy-subrc 0` before the bridge blew up (e.g. on a later row, or before COMMIT). */
+const APPLY_TRANSCRIPT_ERROR_AFTER_WRITE =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> WROTE row=[1]\n` +
+  `IMGW> ERROR class=[CX_SY_DYN_CALL_ILLEGAL_TYPE] len=[19] value=[bad table type here]\n`;
+
+/** No `ERROR` line at all, and `APPLIED` is reported — but row 1 never got an `AVAL`/`AABSENT` after-image line, so it cannot be classified. Not something the real bridge should ever produce (it dumps an after-image for every row before `APPLIED`), but exactly the shape a truncated/lost response would have. */
+const APPLY_TRANSCRIPT_MISSING_AFTER_IMAGE =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> WROTE row=[1]\n` +
+  `IMGW> APPLIED rows=[1]\n`;
+
+/** Bridge class write succeeds, but the APPLY class's own activation POST reports a real compile error — same fixture shape as `test/img-write.test.ts`'s `bridgeActivationRefused`, generalised to a two-class (`probe` + `apply`) session where the probe runs cleanly and only the apply class's activation is refused. Discriminates which class's activation POST is being answered by checking the request body for the class name — `abap-adt-api`'s `activate()` embeds it as `adtcore:name="<class>"`. */
+function probeOkApplyActivationRefused(): (o: HttpClientOptions) => HttpClientResponse {
+  const probeClass = IMGW_BRIDGE_CLASS.probe;
+  const applyClass = IMGW_BRIDGE_CLASS.apply;
+  const applyClassUri = `/sap/bc/adt/oo/classes/${applyClass.toLowerCase()}`;
+  const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
+<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
+  <msg objDescr="Class ${applyClass}" type="E" line="1"
+       href="${applyClassUri}/source/main#start=12,4" forceSupported="true">
+    <shortText><txt>Field "LV_UNDEFINED" is unknown. It is neither in one of the specified tables nor defined by a "DATA" statement.</txt></shortText>
+  </msg>
+</chkl:messages>`;
+  return (o: HttpClientOptions) => {
+    const base = baseRoute(o);
+    if (base) return base;
+    const qs = (o.qs ?? {}) as Record<string, string>;
+    const method = (o.method ?? "GET").toUpperCase();
+
+    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
+      const name = o.url.slice("/sap/bc/adt/oo/classrun/".length);
+      if (name === probeClass) return resp(200, PROBE_TRANSCRIPT_EXISTING);
+      throw new Error(`unrouted classrun call for ${name} — the apply class's activation should have refused first`);
+    }
+    for (const name of [probeClass, applyClass]) {
+      const classUri = `/sap/bc/adt/oo/classes/${name.toLowerCase()}`;
+      if (o.url === classUri && method === "GET" && !qs._action) {
+        const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+      }
+      if (o.url === `${classUri}/source/main` && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
+    }
+    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
+    if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
+    if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url.includes("/sap/bc/adt/activation")) {
+      const activatingApply = typeof o.body === "string" && o.body.includes(applyClass);
+      return activatingApply
+        ? resp(200, ACTIVATION_ERROR, { "content-type": "application/xml" })
+        : resp(200, "", { "content-length": "0" });
+    }
+    return resp(200, "<ok/>", { "content-type": "application/xml" });
+  };
+}
+
+describe("abap_img_edit — armed apply cannot be silently unaccounted-for (Defect G)", () => {
+  it("the apply bridge's own activation refusal propagates unchanged — CHECK_FAILED, bridgeLeftBehind visible, not swallowed or reworded by the tool layer", async () => {
+    const { conn, inner } = await connected(probeOkApplyActivationRefused());
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "upsert",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+
+    const err = errorPayload(result);
+    expect(err.error).toBe("CHECK_FAILED");
+    expect((err.details as Record<string, unknown> | undefined)?.bridgeLeftBehind).toBe(true);
+    expect((err.details as Record<string, unknown> | undefined)?.bridgeClass).toBe(IMGW_BRIDGE_CLASS.apply);
+    expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+  });
+
+  it("a runtime exception before any row write throws CHECK_FAILED with mayHaveExecuted false, and journals the mutation as failed", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connected(
+        multiBridgeHappyPath({
+          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_ERROR_BEFORE_WRITE),
+        }),
+      );
+      const { tools } = await registered(conn, { journal });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "upsert",
+        ...BASE_ARGS,
+        confirm: "ZTEST_IMGW",
+        rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+      });
+
+      const err = errorPayload(result);
+      expect(err.error).toBe("CHECK_FAILED");
+      expect((err.details as Record<string, unknown>).mayHaveExecuted).toBe(false);
+      expect((err.details as Record<string, unknown>).errors).toEqual(["CX_SY_DYN_CALL_ILLEGAL_TYPE: bad table type here"]);
+
+      const entries = await journal.list({});
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.outcome).toBe("failed");
+    });
+  });
+
+  it("a runtime exception after a row write throws CHECK_FAILED with mayHaveExecuted true (a WROTE marker is on the wire)", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_ERROR_AFTER_WRITE),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "upsert",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+
+    const err = errorPayload(result);
+    expect(err.error).toBe("CHECK_FAILED");
+    expect((err.details as Record<string, unknown>).mayHaveExecuted).toBe(true);
+  });
+
+  it("no bridge error line, but a row missing its after-image, still throws CHECK_FAILED rather than answering ok with an unaccounted-for row", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_MISSING_AFTER_IMAGE),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "upsert",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+
+    expect(result.isError).toBe(true);
+    const err = errorPayload(result);
+    expect(err.error).toBe("CHECK_FAILED");
+    expect((err.details as Record<string, unknown>).errors).toEqual([]);
+  });
+
+  // A normal, fully-accounted-for upsert and delete must still answer `ok` and never throw under
+  // this stricter logic — already exercised by "mode: upsert (armed)"'s "happy path" and "delete"
+  // tests above (APPLY_TRANSCRIPT_UPSERT / APPLY_TRANSCRIPT_DELETE), which both assert `okText`
+  // (implying `isError` is falsy) and remain green under `applyFailure`. Not duplicated here.
+});
+
+// ===========================================================================
 // Key-only rows (zero value fields): SM30 itself accepts a row on a table
 // whose every non-key column is optional (e.g. TB004, key BPKIND, seven
 // optional FELDSTLSTn field-status lists) — a live bug once had preview
@@ -751,6 +923,12 @@ describe("abap_img_edit — before-image row numbering (transcript is 1-based; t
     const MIXED_APPLY_TRANSCRIPT =
       `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
       `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+      // The real apply bridge (imgApplySource) always dumps a before-image (BVAL/BABSENT) for
+      // each row before its MODIFY/DELETE — matching the probe's before-state here (row 1
+      // present, row 2 absent), since nothing else wrote between the probe and the apply.
+      `IMGW> BVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
+      `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+      `IMGW> BABSENT row=[2]\n` +
       `IMGW> AVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
       `IMGW> AVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
       `IMGW> AVAL row=[2] field=[ZKEY] len=[1] value=[B]\n` +
