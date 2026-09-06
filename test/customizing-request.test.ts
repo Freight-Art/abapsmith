@@ -63,6 +63,14 @@ describe("static exports", () => {
   it("CUSTREQ_DESCRIPTION_MAX is 60 (AS4TEXT CHAR60)", () => {
     expect(CUSTREQ_DESCRIPTION_MAX).toBe(60);
   });
+
+  it("CUSTOMIZING_REQUEST_FM passes IT_USERS, and the note documents the task-less finding rather than calling IT_USERS unset", () => {
+    expect(CUSTOMIZING_REQUEST_FM.params.users).toBe("it_users");
+    expect(CUSTOMIZING_REQUEST_FM.note).not.toMatch(/IT_USERS[^.]*(left unset|deliberately left unset)/);
+    expect(CUSTOMIZING_REQUEST_FM.note).toContain(
+      "created a request with no task when it was omitted",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -199,6 +207,48 @@ describe("customizingRequestSource", () => {
     const src = customizingRequestSource({ description, owner: "A".repeat(12) });
     expect(maxLineLength(src)).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
   });
+
+  it("declares lt_users, builds it with INSERT sy-uname, and passes it_users = lt_users in EXPORTING", () => {
+    const src = customizingRequestSource(basePlan());
+    expect(src).toContain("DATA lt_users TYPE scts_users.");
+    expect(src).toContain("INSERT sy-uname INTO TABLE lt_users.");
+    expect(src).toContain(`${CUSTOMIZING_REQUEST_FM.params.users} = lt_users`);
+  });
+
+  it("writes CTSW> REQUEST before reading lt_task_headers", () => {
+    const src = customizingRequestSource(basePlan());
+    const requestIdx = src.indexOf(`${CUSTREQ_LINE_PREFIX}REQUEST len=[`);
+    const readTaskIdx = src.indexOf("READ TABLE lt_task_headers INTO ls_task_header INDEX 1.");
+    expect(requestIdx).toBeGreaterThan(-1);
+    expect(readTaskIdx).toBeGreaterThan(-1);
+    expect(requestIdx).toBeLessThan(readTaskIdx);
+  });
+
+  it("reports a missing task as a WARN carrying the request number, not a RETURNing ERROR", () => {
+    const src = customizingRequestSource(basePlan());
+    expect(src).not.toContain("exception=[NO_TASK]");
+    expect(src).toContain(
+      `${CUSTREQ_LINE_PREFIX}WARN code=[NO_TASK] len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]`,
+    );
+    const lines = src.split("\n");
+    const warnIdx = lines.findIndex((l) => l.includes("WARN code=[NO_TASK]"));
+    expect(warnIdx).toBeGreaterThan(-1);
+    const elseIdx = lines.findIndex((l, i) => i > warnIdx && l.trim() === "ELSE.");
+    expect(elseIdx).toBeGreaterThan(warnIdx);
+    const between = lines.slice(warnIdx + 1, elseIdx);
+    expect(between.some((l) => l.trim() === "RETURN.")).toBe(false);
+  });
+
+  it("guards on ls_request_header-trkorr IS INITIAL, reporting NO_REQUEST, before the REQUEST write", () => {
+    const src = customizingRequestSource(basePlan());
+    expect(src).toContain("IF ls_request_header-trkorr IS INITIAL.");
+    expect(src).toContain(`${CUSTREQ_LINE_PREFIX}ERROR exception=[NO_REQUEST] len=[0] value=[]`);
+    const guardIdx = src.indexOf("IF ls_request_header-trkorr IS INITIAL.");
+    const requestIdx = src.indexOf(`${CUSTREQ_LINE_PREFIX}REQUEST len=[`);
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(requestIdx).toBeGreaterThan(-1);
+    expect(guardIdx).toBeLessThan(requestIdx);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -256,7 +306,7 @@ describe("parseCustomizingRequestTranscript", () => {
   it("ignores a line without the CTSW> prefix without throwing", () => {
     const text = "this is not a transcript line";
     expect(() => parseCustomizingRequestTranscript(text)).not.toThrow();
-    expect(parseCustomizingRequestTranscript(text)).toEqual({ errors: [] });
+    expect(parseCustomizingRequestTranscript(text)).toEqual({ errors: [], warnings: [] });
   });
 
   it("returns empty results for garbage input without throwing", () => {
@@ -298,5 +348,27 @@ describe("parseCustomizingRequestTranscript", () => {
     const t = parseCustomizingRequestTranscript(text);
     expect(t.request).toBeUndefined();
     expect(t.errors).toEqual(["something failed before the FM call", "INSERT_FAILED: locked"]);
+  });
+
+  it("parses a REQUEST followed by a WARN NO_TASK line into request set, task undefined, and warnings populated", () => {
+    const text = [
+      `${CUSTREQ_LINE_PREFIX}REQUEST len=[10] value=[A4HK900002]`,
+      `${CUSTREQ_LINE_PREFIX}WARN code=[NO_TASK] len=[10] value=[A4HK900002]`,
+    ].join("\n");
+    const t = parseCustomizingRequestTranscript(text);
+    expect(t.request).toBe("A4HK900002");
+    expect(t.task).toBeUndefined();
+    expect(t.warnings).toEqual(["NO_TASK: A4HK900002"]);
+    expect(t.errors).toEqual([]);
+  });
+
+  it("parses a REQUEST followed by a TASK line with an empty warnings array", () => {
+    const text = [
+      `${CUSTREQ_LINE_PREFIX}REQUEST len=[10] value=[AAAK900050]`,
+      `${CUSTREQ_LINE_PREFIX}TASK len=[10] value=[AAAK900051]`,
+    ].join("\n");
+    const t = parseCustomizingRequestTranscript(text);
+    expect(t.task).toBe("AAAK900051");
+    expect(t.warnings).toEqual([]);
   });
 });

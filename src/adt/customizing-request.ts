@@ -54,14 +54,20 @@ export const CUSTREQ_DESCRIPTION_MAX = 60;
  * the live system without re-deriving it, the same reason `img-write-bridge.ts`
  * keeps `CTS_INSERT_FM`, whose `confidence`/`note` shape this mirrors.
  *
- * UNPROVEN FROM HERE: `TR_INSERT_REQUEST_WITH_TASKS` is an ordinary,
- * heavily-used standard SAP function module — SM30 and the rest of CTS call it
- * constantly — but this server has never itself called it, on this or any
- * system. The first real run of the generated class from here is also the
- * first evidence that this server's call is accepted at all (authority,
- * lock, or request-type refusals are all unproven territory from this
- * server's side, which is exactly why `EXCEPTIONS` and the
- * `MESSAGE ... INTO lv_msg` capture below exist).
+ * PROVEN FROM HERE: this FM has now been called once, from this server, on
+ * 2026-09-05, with no `IT_USERS` row — `sy-subrc` came back 0 and a type-`W`
+ * request WAS created (later confirmed visible via `abap_transport list`),
+ * so the call is accepted at all and does create a type-`W` request.
+ * `ET_TASK_HEADERS` came back empty on that call, which is why `IT_USERS`
+ * is now populated — see the comment at its call site in
+ * `customizingRequestBody` for the full finding.
+ *
+ * STILL UNPROVEN FROM HERE: the `IT_USERS` variant itself (this server has
+ * not yet made a call passing it), and every failure path this FM can take
+ * — `INSERT_FAILED`, `ENQUEUE_FAILED`, and any authority or lock refusal —
+ * none of which this server has triggered (which is exactly why
+ * `EXCEPTIONS` and the `MESSAGE ... INTO lv_msg` capture below still
+ * exist).
  *
  * What IS measured, read live from this system's own `FUPARAREF`/`TFDIR` on
  * 2026-09-05 (not from this repo — this codebase had, and still has, no
@@ -71,19 +77,22 @@ export const CUSTREQ_DESCRIPTION_MAX = 60;
  * optional and defaults to `SY-UNAME` — so omitting it below is not "no
  * owner", it is "the logon user", which is the wanted behavior, not an
  * oversight; `ES_REQUEST_HEADER`/`ET_TASK_HEADERS` are exporting parameters
- * 1 and 2, typed `TRWBO_REQUEST_HEADER`/`TRWBO_REQUEST_HEADERS`; the
- * remaining seven importing parameters (`IV_TARGET`, `IV_TARDEVCL`,
- * `IV_DEVCLASS`, `IV_TARLAYER`, `IV_WITH_BADI_CHECK`, `IT_ATTRIBUTES`,
- * `IT_USERS`) are all optional and left unset — `IV_TARGET` in particular is
- * a deliberate choice, not an oversight: a request created with no
- * transport target is the right default for something this tool creates and
- * a verification run deletes again, and guessing a target from an unproven
- * optional parameter would be worse; `INSERT_FAILED`/`ENQUEUE_FAILED` are
- * the only two exceptions this FM raises.
+ * 1 and 2, typed `TRWBO_REQUEST_HEADER`/`TRWBO_REQUEST_HEADERS`; importing
+ * parameter 6, `IT_USERS`, is typed `SCTS_USERS` (its line type and table
+ * kind were not measured) and is now passed with exactly one row,
+ * `SY-UNAME`; the remaining six importing parameters (`IV_TARGET`,
+ * `IV_TARDEVCL`, `IV_DEVCLASS`, `IV_TARLAYER`, `IV_WITH_BADI_CHECK`,
+ * `IT_ATTRIBUTES`) are all optional and left unset — `IV_TARGET` in
+ * particular is a deliberate choice, not an oversight: a request created
+ * with no transport target is the right default for something this tool
+ * creates and a verification run deletes again, and guessing a target from
+ * an unproven optional parameter would be worse; `INSERT_FAILED`/
+ * `ENQUEUE_FAILED` are the only two exceptions this FM raises.
  *
  * Only `AS4TEXT` = CHAR60 is independently corroborated by this repo (see
  * `CUSTREQ_DESCRIPTION_MAX` below) — everything else above is taken on the
- * strength of the live dictionary read alone.
+ * strength of the live dictionary read plus the one live call recorded
+ * above, not a fully-tested contract.
  */
 export const CUSTOMIZING_REQUEST_FM = Object.freeze({
   fm: "TR_INSERT_REQUEST_WITH_TASKS",
@@ -94,6 +103,7 @@ export const CUSTOMIZING_REQUEST_FM = Object.freeze({
     owner: "iv_owner",
     requestHeader: "es_request_header",
     taskHeaders: "et_task_headers",
+    users: "it_users",
   }),
   exceptions: Object.freeze({
     insertFailed: "insert_failed",
@@ -101,22 +111,22 @@ export const CUSTOMIZING_REQUEST_FM = Object.freeze({
   }),
   confidence: "high",
   note:
-    "UNPROVEN FROM HERE: TR_INSERT_REQUEST_WITH_TASKS is an ordinary, heavily-used standard SAP " +
-    "function module — SM30 and the rest of CTS call it constantly — but this server has never " +
-    "itself called it, on this or any system. What was read live on 2026-09-05 is FUPARAREF " +
-    "(parameter lists) and TFDIR (function group) — not a successful or failed call from here. The " +
-    "parameter names and types here are read from the system's own dictionaries, not confirmed by a " +
-    "call this server has made; the first time this generated code actually runs is also the first " +
-    "time this server learns whether its own call is accepted. Measured shape: IV_TYPE " +
-    "(TRFUNCTION) and IV_TEXT (AS4TEXT) " +
-    "are mandatory; IV_OWNER (AS4USER) is optional and defaults to SY-UNAME, so omitting it " +
-    "means \"the logon user\", not \"no owner\"; ES_REQUEST_HEADER/ET_TASK_HEADERS are " +
-    "exporting parameters 1 and 2, typed TRWBO_REQUEST_HEADER/TRWBO_REQUEST_HEADERS; the " +
-    "remaining seven importing parameters (IV_TARGET, IV_TARDEVCL, IV_DEVCLASS, IV_TARLAYER, " +
-    "IV_WITH_BADI_CHECK, IT_ATTRIBUTES, IT_USERS) are optional and deliberately left unset — " +
-    "IV_TARGET above all: no transport target is the right default for something this tool " +
-    "creates and a verification run deletes again; INSERT_FAILED and ENQUEUE_FAILED are the " +
-    "only two exceptions raised.",
+    "PROVEN FROM HERE: this FM has been called once, from this server, on 2026-09-05, with no " +
+    "IT_USERS row — sy-subrc came back 0 and a type-W request WAS created, later confirmed " +
+    "visible via abap_transport list. ET_TASK_HEADERS came back empty on that call, which is " +
+    "why IT_USERS is now populated. STILL UNPROVEN FROM HERE: the IT_USERS variant itself, and " +
+    "every failure path this FM can take (INSERT_FAILED, ENQUEUE_FAILED, and any authority or " +
+    "lock refusal). What was read live on 2026-09-05 is FUPARAREF (parameter lists) and TFDIR " +
+    "(function group). Measured shape: IV_TYPE (TRFUNCTION) and IV_TEXT (AS4TEXT) are " +
+    "mandatory; IV_OWNER (AS4USER) is optional and defaults to SY-UNAME, so omitting it means " +
+    "\"the logon user\", not \"no owner\"; ES_REQUEST_HEADER/ET_TASK_HEADERS are exporting " +
+    "parameters 1 and 2, typed TRWBO_REQUEST_HEADER/TRWBO_REQUEST_HEADERS; importing parameter " +
+    "6, IT_USERS, is typed SCTS_USERS and is now passed with exactly one row, SY-UNAME, because " +
+    "the live call above created a request with no task when it was omitted. The remaining six " +
+    "importing parameters (IV_TARGET, IV_TARDEVCL, IV_DEVCLASS, IV_TARLAYER, IV_WITH_BADI_CHECK, " +
+    "IT_ATTRIBUTES) are optional and deliberately left unset — IV_TARGET above all: no transport " +
+    "target is the right default for something this tool creates and a verification run deletes " +
+    "again; INSERT_FAILED and ENQUEUE_FAILED are the only two exceptions raised.",
 } as const);
 
 // ---------------------------------------------------------------------------
@@ -183,13 +193,29 @@ function customizingRequestBody(p: CustomizingRequestPlan): string[] {
   if (p.owner !== undefined) {
     exportingLines.push(`    ${P.owner} = ${abapLiteral(p.owner)}`);
   }
+  // IT_USERS: live on 2026-09-05, calling this FM from this server with no user row at
+  // all, sy-subrc came back 0 and a type-W request WAS created, but ET_TASK_HEADERS came
+  // back empty — the generated code as it existed then read no task and RETURNed before
+  // ever printing the request number, so the request was created and its number thrown
+  // away, orphaned. IT_USERS is measured live from this system's own FUPARAREF on
+  // 2026-09-05 to be typed SCTS_USERS; the line type and table kind of SCTS_USERS were
+  // NOT measured. `INSERT ... INTO TABLE` (below) is used rather than `APPEND`
+  // deliberately: it is valid for standard, sorted and hashed tables alike, so the
+  // unmeasured table kind cannot matter. The one remaining assumption is that sy-uname is
+  // assignable to SCTS_USERS' line type — if it is not, the generated class fails to
+  // *activate*, before the FM is ever called, so a wrong guess here can never create an
+  // orphaned request.
+  exportingLines.push(`    ${P.users} = lt_users`);
 
   return [
     "DATA ls_request_header TYPE trwbo_request_header.",
     "DATA lt_task_headers TYPE trwbo_request_headers.",
     "DATA ls_task_header TYPE trwbo_request_header.",
+    "DATA lt_users TYPE scts_users.",
     "DATA lv_msg TYPE string.",
     "DATA lv_exc TYPE string.",
+    "",
+    "INSERT sy-uname INTO TABLE lt_users.",
     "",
     `CALL FUNCTION '${CUSTOMIZING_REQUEST_FM.fm}'`,
     "  EXPORTING",
@@ -218,14 +244,27 @@ function customizingRequestBody(p: CustomizingRequestPlan): string[] {
     "  RETURN.",
     "ENDIF.",
     "",
-    "READ TABLE lt_task_headers INTO ls_task_header INDEX 1.",
-    "IF sy-subrc <> 0.",
-    `  out->write( |${CUSTREQ_LINE_PREFIX}ERROR exception=[NO_TASK] len=[0] value=[]| ).`,
+    "IF ls_request_header-trkorr IS INITIAL.",
+    `  out->write( |${CUSTREQ_LINE_PREFIX}ERROR exception=[NO_REQUEST] len=[0] value=[]| ).`,
     "  RETURN.",
     "ENDIF.",
     "",
     `out->write( |${CUSTREQ_LINE_PREFIX}REQUEST len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
-    `out->write( |${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]| ).`,
+    "",
+    "READ TABLE lt_task_headers INTO ls_task_header INDEX 1.",
+    "IF sy-subrc <> 0.",
+    // Row-recording decision: corr_nr is still passed straight through to
+    // TR_OBJECTS_CHECK/TR_OBJECTS_INSERT unchanged by the row-recording path; that path
+    // itself performs no task-less check. Whether CTS accepts rows recorded against a
+    // request with no task under it is unknown from here — a further reason the
+    // task-less condition is instead reported loudly here, carrying the request number,
+    // so the caller can add a task or delete the request. Refusing at row-recording time
+    // would mean recognising "this number names a task-less request", which requires
+    // reading CTS state that path does not read.
+    `  out->write( |${CUSTREQ_LINE_PREFIX}WARN code=[NO_TASK] len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
+    "ELSE.",
+    `  out->write( |${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]| ).`,
+    "ENDIF.",
   ];
 }
 
@@ -254,6 +293,7 @@ export interface CustomizingRequestTranscript {
   request?: string;
   task?: string;
   errors: string[];
+  warnings: string[];
 }
 
 /**
@@ -287,16 +327,20 @@ function extractCustReqValue(
 
 const CUSTREQ_VAL_RE = /^len=\[(\d+)\] value=\[/;
 const CUSTREQ_ERR_RE = /^exception=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
+const CUSTREQ_WARN_RE = /^code=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
 
 /**
  * Tolerant by design, same as `parseImgWriteTranscript` (`./img-write-bridge.ts`):
  * an unrecognized `CTSW> ` head, or a `CTSW> ` line whose fields don't match
  * the expected shape, is silently skipped — never thrown. Never routes a
  * `REQUEST`/`TASK` value into `errors`, and never reads a `trkorr`-shaped
- * value out of an `ERROR` line — the two tags are mutually exclusive by
- * construction in {@link customizingRequestBody} (every path either returns
- * after writing exactly one `ERROR` line, or falls through to write exactly
- * `REQUEST` then `TASK`, never both kinds).
+ * value out of an `ERROR` line — `ERROR` and `REQUEST` are still mutually
+ * exclusive by construction in {@link customizingRequestBody} (every path
+ * either returns after writing exactly one `ERROR` line, or falls through
+ * to write `REQUEST`). What follows a `REQUEST` line is no longer fixed,
+ * though: it is followed by *either* a `TASK` line (a task was found) or a
+ * `WARN code=[NO_TASK]` line (the request was created with no task) — never
+ * both, and never neither.
  *
  * A line missing the `CTSW> ` prefix is not automatically ignored, though:
  * a failure inside the `TRY`/`CATCH` scaffold `ddicBridgeSource` wraps every
@@ -312,7 +356,7 @@ const CUSTREQ_ERR_RE = /^exception=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=
  * too; every other non-`CTSW> ` line is still ignored.
  */
 export function parseCustomizingRequestTranscript(text: string): CustomizingRequestTranscript {
-  const result: CustomizingRequestTranscript = { errors: [] };
+  const result: CustomizingRequestTranscript = { errors: [], warnings: [] };
 
   for (const line of text.replace(/\r\n/g, "\n").split("\n")) {
     if (line.startsWith(CUSTREQ_LINE_PREFIX)) {
@@ -337,6 +381,14 @@ export function parseCustomizingRequestTranscript(text: string): CustomizingRequ
           if (parsed) {
             const [exception] = parsed.fields;
             result.errors.push(`${exception}: ${parsed.value}`);
+          }
+          break;
+        }
+        case "WARN": {
+          const parsed = extractCustReqValue(remainder, CUSTREQ_WARN_RE);
+          if (parsed) {
+            const [code] = parsed.fields;
+            result.warnings.push(`${code}: ${parsed.value}`);
           }
           break;
         }
