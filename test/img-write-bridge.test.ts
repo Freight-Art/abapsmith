@@ -218,8 +218,16 @@ describe("validateApplyPlan", () => {
     );
   });
 
-  it("rejects zero value fields on an upsert row", () => {
-    expectBadInput(() => validateApplyPlan(baseApply({ rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] })));
+  // OLD (wrong) behavior this replaces: "rejects zero value fields on an upsert row" —
+  //   expectBadInput(() => validateApplyPlan(baseApply({ rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] })));
+  // A key-only row IS a legal upsert: SM30 itself accepts a row on a table (e.g. TB004, key
+  // BPKIND) whose every non-key column is optional — inserted with just the key/client set if
+  // absent, a no-op if already present. Preview already rendered this row with an empty SET
+  // and no error; only the apply-side validator disagreed. They must not disagree.
+  it("accepts zero value fields on an upsert row (a key-only row is a legal upsert)", () => {
+    expect(() =>
+      validateApplyPlan(baseApply({ rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] })),
+    ).not.toThrow();
   });
 
   it("allows zero value fields on a delete row", () => {
@@ -332,6 +340,33 @@ describe("imgApplySource: field preservation (upsert)", () => {
     expect(modifyIdx).toBeGreaterThan(endifIdx);
     const segment = src.slice(endifIdx, modifyIdx);
     expect(segment).not.toContain("CLEAR ls_wa");
+  });
+});
+
+describe("imgApplySource: key-only upsert row", () => {
+  it("generates a CLEAR/key/client/MODIFY sequence with no ls_wa field assignment, all lines under the line cap", () => {
+    const plan = baseApply({ rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] });
+    const src = imgApplySource(plan);
+    const lower = TABLE.toLowerCase();
+    const key = KEY_FIELD.toLowerCase();
+    const client = CLIENT_FIELD.toLowerCase();
+
+    expect(src).toContain("CLEAR ls_key.");
+    expect(src).toContain(`ls_key-${key} = 'A1'.`);
+    expect(src).toContain("CLEAR ls_wa.");
+    expect(src).toContain(`SELECT SINGLE * FROM ${lower} INTO @ls_wa WHERE ${key} = 'A1'.`);
+    expect(src).toContain(`  out->write( |${IMGW_LINE_PREFIX}BABSENT row=[1]| ).`);
+    expect(src).toContain(`  ls_wa-${key} = ls_key-${key}.`);
+    expect(src).toContain(`ls_wa-${client} = sy-mandt.`);
+    expect(src).toContain(`MODIFY ${lower} FROM ls_wa.`);
+
+    // No value field the row didn't name is ever assigned — this is exactly what makes a
+    // key-only row a no-op MODIFY when the row already exists (before-image preserved) and a
+    // key+client-only insert when it does not.
+    expect(src).not.toContain(`ls_wa-${VAL_FIELD.toLowerCase()} =`);
+    expect(src).not.toContain(`ls_wa-${VAL_FIELD2.toLowerCase()} =`);
+
+    expect(maxLineLength(src)).toBeLessThan(255);
   });
 });
 

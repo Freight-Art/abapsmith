@@ -307,13 +307,11 @@ export function validateApplyPlan(p: ImgApplyPlan): void {
 
   p.rows.forEach((row, i) => {
     const valueNames = Object.keys(row.values);
-    if (p.op === "upsert" && valueNames.length < 1) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `row ${i} has no value fields to write — upsert needs at least one non-key field.`,
-        { row: i },
-      );
-    }
+    // A zero-value-field upsert row is legal: SM30 itself accepts a key-only row on a table whose
+    // every non-key column is optional (e.g. TB004, key BPKIND, seven optional FELDSTLSTn lists) —
+    // if the row is absent it is inserted with just the key (and client) set and everything else
+    // left initial; if it is already present, upserting it with no values is a no-op. There is
+    // nothing here for this validator to reject.
     for (const name of valueNames) {
       const upper = name.toUpperCase();
       if (upper === clientField) {
