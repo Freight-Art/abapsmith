@@ -62,7 +62,7 @@ const BRIDGE_NOTE = {
     "package refuses a corr_nr and registers with korrnum = space instead. There is no " +
     "read-back: abapsmith cannot read a classic view " +
     "through ADT, so success is proven only by transcript markers. Proven live on A4H: " +
-    "2026-09-04 into the transportable package ZBOPF_Q1PKG with a corr_nr; 2026-09-05, " +
+    "2026-09-04 into a transportable package with a corr_nr; 2026-09-05, " +
     "RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR " +
     "row), then removed by the delete bridge. Change is not supported either.",
   "TRAN/T":

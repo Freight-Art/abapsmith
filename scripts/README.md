@@ -6,6 +6,7 @@ depend on. Nothing here talks to a real ABAP system.
 | Script | What it does | Live? | Destructive? |
 |---|---|---|---|
 | `bundle.mjs` | Behind `npm run bundle`: rebuilds the committed `bundle/` plugin build — two esbuild single-file outputs with every runtime dependency inlined, because Claude Code plugin installation runs no build step | No | No — writes only `bundle/` |
+| `changelog-section.mjs` | Behind the release workflow (`.github/workflows/release.yml`): extracts one version's `## [version]` section body from `CHANGELOG.md` for the GitHub release notes | No | No — reads `CHANGELOG.md` and prints |
 | `check-no-leaks.mjs` | Pre-publication guard: fails if any tracked file names a routable host | No | No |
 | `gen-capability-table.mjs` | Generates the writable-type table `abapsmith-orient/SKILL.md` carries, straight from `src/adt/capabilities.ts`'s REGISTRY (via `dist/`); `--check` diffs the regenerated table against the skill file's BEGIN/END block and exits 1 if stale | No — reads only local `REGISTRY`/`dist/` and the skill file | No — prints or checks; never writes the skill file |
 | `lint-hint-params.mjs` | Static lint over `src/tools/**/*.ts` via the TypeScript compiler API: flags caller-facing hint/error strings that name a tool parameter in camelCase when the real zod schema field is snake_case | No — pure source-file static analysis, no network, no `dist/` build required | No — read-only, reports only |

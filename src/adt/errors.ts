@@ -94,6 +94,17 @@ export type AbapErrorCode =
    */
   | "TRANSPORT_GONE"
   /**
+   * `abap_transport operation=removeObject` cannot drop the entry because the
+   * request's object list holds two or more E071 rows for the same
+   * PGMID+OBJECT+OBJ_NAME. E071's key is TRKORR+AS4POS, not object identity,
+   * so duplicates are legal; `TRINT_DELETE_COMM_OBJECT_KEYS` counts them and
+   * raises `w_duplicate_entry` (`MESSAGE e292(tr)`) at two or more, and
+   * `TR_DELETE_COMM_OBJECT_KEYS` has no parameter naming which AS4POS to drop.
+   * Terminal: no argument to `removeObject` changes the row count, and the
+   * remedy is outside abapsmith. Message names the count and the AS4POS values.
+   */
+  | "CTS_DUPLICATE_ENTRY"
+  /**
    * `GuardedHttpClient` refused a URL or method by policy, checked before any
    * network activity. Should be unreachable in normal operation — seeing it
    * means either a dependency changed its URLs or something tried to reach
@@ -311,6 +322,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   JOURNAL_IO: "conditional",
   TRANSPORT_LOCKED: "conditional",
   TRANSPORT_GONE: "conditional",
+  CTS_DUPLICATE_ENTRY: "terminal", // the duplicate E071 rows persist until a human edits the object list
   HTTP_PATH_DENIED: "terminal", // policy denial checked before any network activity
   BOPF_DANGLING_REF: "conditional",
   BOPF_CREATE_UNUSABLE: "terminal", // the object exists and its interface is already invalid; delete it first

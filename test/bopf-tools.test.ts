@@ -515,6 +515,7 @@ describe("abap_bopf_edit — add_alternative_key gate", () => {
         dataTypeRef: { name: "ZSORDER_ID", type: "TABL/DS" },
         dataTableTypeRef: { name: "ZTORDER_ID", type: "TTYP/DA" },
         keyElements: ["FIELD1"],
+        noCheck: true,
       },
       i_know_this_may_not_activate: true,
       // allow_dangling_ref only keeps this spec off alternativeKeyPreflight's path (FIELD1 isn't

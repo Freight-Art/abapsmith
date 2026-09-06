@@ -162,7 +162,7 @@ The `Object` column values are the registry `label` fields, unreworded.
   refuses a `corr_nr` and registers with `korrnum = space` instead.
   The created view lands in TADIR either way, so the delete
   bridge can remove it afterwards — proven live on A4H, 2026-09-04
-  (transportable package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a
+  (a transportable package, with `corr_nr`) and 2026-09-05 (a
   `$`-prefixed package: view registered with `korrnum = space`, then deleted,
   VIEW-DELETED / VIEW-GONE). For `TRAN/T`, only `RPY_TRANSACTION_INSERT`'s
   signature was read live on A4H 2026-09-05 — `transport_number` is optional

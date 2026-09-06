@@ -9,7 +9,6 @@ dist/
 # Write journal. Contains BEFORE-IMAGES of customer ABAP source — never commit
 # it. Override the location with ABAP_JOURNAL_DIR; see doc/JOURNAL/journal-format.md.
 .abapsmith/
-.abap-mcp/
 
 # Live-capture working material (raw ADT responses, driver scripts).
 # Curated, redacted captures belong in test/fixtures/live-captured/ instead.

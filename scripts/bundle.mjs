@@ -104,6 +104,7 @@ function build() {
         "--format=esm",
         "--target=node20",
         "--legal-comments=none",
+        "--preserve-symlinks",
         `--banner:js=${BANNER}`,
         `--outfile=${join(repoRoot, out)}`,
       ],

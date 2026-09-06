@@ -2269,14 +2269,14 @@ export function bopfStore(seed: Record<string, string> = {}): BopfStore {
 }
 
 /**
- * A {@link FakeRoute} for a single DDIC existence-probe path: answers
- * `200` (empty-ish body — only existence is checked by the caller) when the
- * request's `Accept` header is the literal `*\/*` bopf.ts always sends for
- * these probes, and is deliberately silent (`undefined`, "not mine") for any
- * OTHER Accept — the same "wrong header ⇒ unrouted, not a wrong verdict"
- * discipline as {@link bopfStore}. `exists: false` answers `404` instead,
- * still only for a `*\/*` Accept, so a wrong-Accept request against a
- * genuinely-missing object is equally distinguishable from a real 404.
+ * A {@link FakeRoute} for a single DDIC existence-probe path. Only two
+ * `Accept` values are ever real here — `*\/*`, the existence probe bopf.ts
+ * sends, and `application/*`, the package-owner read `resolveIndexOwner`
+ * (and now bopf.ts) sends — and each answers only its own existence state
+ * machine; any other Accept, or a mismatched path, is deliberately silent
+ * (`undefined`, "not mine"), the same "wrong header ⇒ unrouted, not a wrong
+ * verdict" discipline as {@link bopfStore}. `exists: false` answers `404`
+ * for either Accept.
  *
  * Stateful, same discipline as {@link bopfStore}: `opts.exists` is only the
  * STARTING state. A successful `DELETE` flips it to absent, so a subsequent
@@ -2285,11 +2285,24 @@ export function bopfStore(seed: Record<string, string> = {}): BopfStore {
  * succeeded but the object still reads back" hazard must build its own
  * custom {@link FakeRoute} rather than weaken this one back to stateless.
  */
-export function ddicProbeRoute(opts: { uri: string; exists: boolean }): FakeRoute {
+export function ddicProbeRoute(opts: { uri: string; exists: boolean; packageName?: string }): FakeRoute {
   let exists = opts.exists;
   return (r) => {
     if (r.path !== opts.uri) return undefined;
     const accept = String(r.headers["accept"] ?? "");
+    if (r.method === "GET" && accept === "application/*") {
+      if (!exists) {
+        return fakeResponse(404, `<exc:exception><type id="ExceptionResourceNotFound"/></exc:exception>`, { "content-type": "application/xml" });
+      }
+      const packageRef = opts.packageName
+        ? `<adtcore:packageRef adtcore:name="${opts.packageName}"/>`
+        : "";
+      return fakeResponse(
+        200,
+        `<tabl:table xmlns:tabl="http://www.sap.com/wbobj/tables" xmlns:adtcore="http://www.sap.com/adt/core">${packageRef}</tabl:table>`,
+        { "content-type": "application/xml" },
+      );
+    }
     if (accept !== "*/*") return undefined;
     if (r.method === "GET") {
       return exists

@@ -128,15 +128,11 @@ export interface UiToolDeps {
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
   /**
-   * Not a real `Config` field yet (no `ABAP_ALLOW_UI_PRESS` in
-   * src/config.ts) — declared on this tool's own deps type because this
-   * file must not touch src/config.ts. Orchestrator TODO: add the env var
-   * via `boolFromEnv`, mode-orthogonal like `allowDumpVariables`, and wire
-   * it through when `registerUiTools` is called from server.ts.
+   * `allowUiPress` is `ABAP_ALLOW_UI_PRESS` from src/config.ts: a separate,
+   * mode-orthogonal opt-in like `allowDumpVariables`, so `press` needs both
+   * `ABAP_MODE=admin` and this flag before it will submit anything.
    */
-  readonly cfg: Pick<Config, "maxResponseChars" | "abapMode" | "sid" | "url" | "client"> & {
-    readonly allowUiPress: boolean;
-  };
+  readonly cfg: Pick<Config, "maxResponseChars" | "abapMode" | "sid" | "url" | "client" | "allowUiPress">;
 }
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });

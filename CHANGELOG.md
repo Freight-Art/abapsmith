@@ -5,14 +5,246 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/). It is
 pre-1.0, so the usual semver caveat applies: minor versions may still contain
-breaking changes to configuration or tool schemas. No version has been
-tagged or published yet; everything below has landed since `package.json`
-was last set to `0.3.0`.
+breaking changes to configuration or tool schemas. `0.3.0` was set in both
+manifests but never tagged, so `v0.3.1` is the first tagged release. The
+`0.3.1` section below therefore carries everything that landed since the
+version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-06
+
 ### Added
 
+- `abap_img` — read-only navigation of the IMG (SPRO) customizing structure,
+  in four modes (`search`, `show`, `tree`, `objects`). ADT has no IMG REST
+  route, so it sends fixed, catalog-driven SELECTs (`src/adt/img-catalog.ts`)
+  to the ADT freestyle data-preview endpoint — no ABAP is generated or
+  deployed, so it registers under `ABAP_MODE=read`. Every table it actually
+  queries is measured against a live system.
+
+- `abap_img_edit` — writes IMG customizing rows: `preview`, `upsert`,
+  `delete`, and `create_request` (a type-`W` customizing request). Writes go
+  straight to the resolved base table with a guarded `MODIFY`/`DELETE`, not
+  through the maintenance view's own SM30-generated function module, and
+  are restricted to customizing delivery classes `C`/`G`/`E`. Transport
+  bookkeeping reuses the same CTS calls SM30 itself uses
+  (`TR_OBJECTS_CHECK`/`TR_OBJECTS_INSERT`/`TR_INSERT_REQUEST_WITH_TASKS`).
+  Generated helper classes go into the new dedicated `$ZMCP_HELPERS`
+  package, never `$TMP`.
+
+### Fixed
+
+- `abap_img_edit` defaulted an unset `language` to the two-character `EN`
+  while `abap_img` defaulted to the one-character `E`; a second live run
+  hit SAP's `HTTP 400 'EN' is not a valid value for C(1,0)` on the catalog
+  query as a result. `CUS_IMGACT-SPRAS` (`ROLLNAME SPRAS`,
+  `DATATYPE LANG`) is one character wide, and `SELECT DISTINCT SPRAS FROM
+  CUS_IMGACT` on that system returns only `D E F I N P S`. Both tools now
+  default from one shared constant, `IMG_DEFAULT_LANGUAGE = "E"`
+  (`src/adt/img-query.ts`), and both schemas accept only a single letter
+  (`^[A-Za-z]$`); a two-character ISO code like `EN`/`DE` is refused with
+  `BAD_INPUT` naming the one-character form rather than mapped, since the
+  ISO-to-SAP correspondence is installation-specific (`T002`/`T002C`) and
+  a hardcoded map would risk silently querying the wrong language instead
+  of erroring. The check applies wherever a language value reaches these
+  tools, including a config-supplied `ABAP_LANGUAGE=EN`. `abap_img_edit`'s
+  `preview` response header now prints the resolved language.
+
+- `abap_img_edit`'s `create_request` failed to activate on that same live
+  run: `"SY-UNAME" and the row type of "LT_USERS" are incompatible`.
+  `IT_USERS`' row type, `SCTS_USER`, is a structure with exactly two
+  fields — `USER` (`TR_AS4USER`) and `TYPE` (`TRFUNCTION`), measured from
+  DD40L/DD03L — not the plain user-name insert an earlier entry here
+  described. `IT_USERS` now fills that structure (`USER` = `sy-uname`,
+  `TYPE` = `'Q'`, the customizing task type) so the request gets a task,
+  and reports the number before checking for one — a first live run had
+  lost a task-less request's number here. The response now also carries
+  the task's type (`taskType`) alongside its number. Whether the function
+  module honours `'Q'` or derives its own task type is unproven from
+  here — only a live read-back settles it. A call with no confirmed
+  number is `CHECK_FAILED`, not success, naming `abap_transport list` to
+  recover it; both outcomes are journalled.
+
+- The same live run's very first call, an `abap_img_edit` preview, was
+  refused with `SAFETY_DENIED` rule `write-lockout` even though writes
+  were live on that system: with the startup role probe suppressed, the
+  T000 role verdict is only transcribed into the safety gate once some
+  call has connected, and `abap_img_edit` consulted the gate before ever
+  connecting, so a cold process could never get past its first call.
+  It now connects first when the verdict is unknown, the same way
+  `abap_write` already does — a process whose verdict is already settled
+  still refuses without paying for a logon it doesn't need. The
+  `write-lockout` rule itself is unchanged and intentionally fail-closed.
+
+- `abap_img_edit`'s `upsert` refused a row that named only key fields with
+  `BAD_INPUT: row 0 has no value fields to write` — a live run hit this
+  arming a row on `TB004` (key `BPKIND`), whose only non-key columns are
+  seven optional `FELDSTLSTn` field-status lists, a row SM30 itself
+  accepts. A key-only `upsert` row is now legal: if it doesn't already
+  exist it is inserted with the key fields and the client field set and
+  every other column left initial; if it already exists nothing is
+  written, and the per-row result reports `changed: no` with `row exists,
+  no value fields to write` — a success, not a refusal. Unverified live as
+  of this change.
+
+- `preview` now runs the same plan validation `upsert`/`delete` enforce
+  for real, instead of a looser check of its own — a row `preview`
+  accepted (the key-only case above being one instance) could previously
+  be refused once armed. The `corr_nr`/`confirm` requirements are still
+  only reported as advisory notes on `preview`, never as a refusal, since
+  `preview` never arms anything; every other check now matches exactly,
+  so `preview` can also refuse a row it used to merely display, e.g. one
+  naming a value field the table doesn't have.
+
+- `abap_img_edit`'s resolved base table name is now printed upper-cased as
+  SAP spells it, in the `confirm` token, the `preview` response header,
+  and the transport-entry line — previously all three showed the
+  lower-cased spelling the generated bridge happened to echo. The
+  `confirm` comparison was already case-insensitive, so arming a write is
+  unaffected.
+
+- `abap_img_edit`'s generated apply bridge assigned `OBJ_NAME` on the
+  `E071K` keys-table row it builds; that table has no such component —
+  `E071K`'s object-name field is `OBJNAME` (`E071`/`KO200`'s own
+  `OBJ_NAME` is unchanged and correct). The generated class failed to
+  activate, so an armed `upsert` or `delete` could never write a
+  customizing row. Now fixed, and documented: when the generated class
+  fails to activate, the inactive class is left behind in the helper
+  package, no journal entry is written, nothing is written to the target
+  table, and no transport entry is filed.
+
+- `abap_img_edit`'s generated apply bridge declared `lt_ko200`/`lt_e071k`
+  `WITH EMPTY KEY` but passed them to `TABLES` formal parameters on the
+  CTS function modules, which take a standard table with the DEFAULT key
+  — a runtime type conflict that ADT's activation syntax check cannot
+  catch. The generated class activated and ran, then threw
+  `CX_SY_DYN_CALL_ILLEGAL_TYPE` at the first CTS call, so an armed
+  `upsert`/`delete` still could not write a row and no transport entry was
+  filed. Now declared `WITH DEFAULT KEY`; not re-verified live as of this
+  change. The two CTS calls are now also wrapped so a runtime exception
+  here becomes its own attributed transcript line naming the exception
+  class, instead of surfacing only as a generic, unattributed error line,
+  and a per-row write marker is now printed once a row's own
+  `MODIFY`/`DELETE` returns successfully.
+
+- An armed `upsert`/`delete` whose transcript could not be fully accounted
+  for — a bridge error line, a missing `APPLIED` marker, a row with no
+  after-image, or a delete row still present afterward — used to answer
+  `ok` with that row's `changed` reported as `unknown`, with the failure
+  visible only in the notes. It now throws `CHECK_FAILED` instead, with
+  `details` carrying the table, mode, bridge class, a conservative
+  `mayHaveExecuted` flag, and the errors/reasons found, and journals the
+  mutation as `failed` rather than `succeeded`.
+
+- A sixth live verification run (2026-09-06) confirms the `WITH DEFAULT
+  KEY` fix above, and settles what was previously read only from the
+  catalogue: an armed `upsert` on `TB004` called `TR_OBJECTS_CHECK` then
+  `TR_OBJECTS_INSERT` successfully, filing a real `E071`/`E071K`
+  transport entry, and a later `delete` of the same row also succeeded,
+  adding no second key row. `TR_INSERT_REQUEST_WITH_TASKS` was proven the
+  same run too: it created a real type-`W` customizing request, passed
+  `TYPE = 'Q'`, and read back a task typed `'Q'` — consistent with the
+  function module honouring the value passed, but not proof: a type-`W`
+  request's task defaults to `'Q'` regardless of what `TYPE` asks for,
+  so this observation alone cannot distinguish the two; only passing a
+  different `TYPE` and reading it back would settle it. `TR_OBJECTS_CHECK`/
+  `TR_OBJECTS_INSERT` are no longer interface-only knowledge read from
+  FUPARAREF/DOKTL — docs describing them that way are corrected.
+
+- That same run measured the exact shape of what a customizing write
+  files: an `E071` header row for the maintenance view (`R3TR VDAT
+  <view>`, `OBJFUNC` `K`), and an `E071K` key sub-entry beneath it for
+  the base table (`PGMID R3TR`, `OBJECT TABU`, `OBJNAME` = the table,
+  `MASTERTYPE`/`MASTERNAME` = the resolved master type and view, `TABKEY`
+  = the client followed by the key, e.g. `001ZTMD`), with `SORTFLAG`/
+  `LANG` both left blank and `AS4POS` `000001`, landing on the request
+  itself rather than a task under it. `abap_img_edit`'s armed success
+  response now discloses this directly, under a `TRANSPORT ENTRY
+  RECORDED` section: an identity line (`R3TR TABU <TABLE> (master
+  <MASTERTYPE> <VIEW>)`) above the per-row table, whose `tabkey` column
+  now carries the client and key together; a transcript with no client
+  line renders `tabkey` unprefixed and says so in a note, rather than
+  fabricating one. There is still no tool that reads `E071K` directly —
+  this disclosure is the only view into it short of SE01/SE09.
+
+- Documented that `abap_transport` `removeObject` resolves the object it
+  is given against a request's `E071` header rows only, which a
+  customizing write files for the maintenance **view**, not the base
+  table — asking to remove the table name (or a text-table variant)
+  answers `NOT_FOUND` correctly, since only the view has a header entry;
+  removing the view's entry takes its `E071K` key sub-entry with it. Not
+  a behavior change — `removeObject` already worked this way — only the
+  guidance describing it was missing.
+
+- A seventh live verification run (2026-09-06) found `abap_img_edit`'s
+  `upsert` refusing every value-column write, on every table: an armed row
+  on `TB004T` (keys `SPRAS`/`BPKIND`, one value column `TEXT40`) was
+  refused before any wire call with `BAD_INPUT: row 0 names value field
+  TEXT40, which is not declared in this plan's fields.` The generated
+  probe class `ZCL_ZMCP_IMG_WPROBE` read `DD03L` once per key field only,
+  so the apply plan's field list was key-only and no value column could
+  ever be written on any table — earlier live rounds all happened to use
+  `TB004`, whose test rows name only key fields, which masked this
+  completely. The probe now reads every column of the base table in one
+  `DD03L` select (by table name, active version, ordered by position,
+  skipping `.INCLUDE`/`.APPEND` marker rows) and emits one field line per
+  column with its key flag, data type, length and data element; the
+  caller's value names are validated against that full column list, and an
+  unknown name is still refused `BAD_INPUT`, now naming the columns the
+  plan can actually write. Value length and type checking are unchanged,
+  as is the one policy rule that walks the field list, which still skips
+  non-key fields. No table has ever had a value column written from this
+  server until this fix, and the fix itself is not yet live-verified.
+
+- That same seventh run found an armed `delete` of a nonexistent row
+  answering `[ok] applied: 1` with a body labelled `ROWS DELETED` whose
+  columns were only row / key / requested change (`DELETE this row`) — no
+  `changed` column and no result column, so the response read as a
+  successful deletion. The write journal already recorded this correctly
+  (`existed no`, `confirmed-absent`), and no transport entry was recorded
+  or claimed for the row — the generated ABAP already skips both the CTS
+  call and the `DELETE` itself when the before-image finds nothing — only
+  the rendered response was wrong. An armed `delete` now renders the same
+  `changed`/`result` columns the `upsert` side already renders: a row that
+  did not exist reports `changed: no` with the result `absent (nothing to
+  delete)`; a row that did exist reports `changed: yes`/`deleted`. When any
+  row was absent, a note names those rows, states nothing was deleted for
+  them and no transport entry was recorded for them, and points out that
+  the header's `applied` count is the number of rows the bridge processed,
+  not the number changed.
+
+## [0.3.2] - 2026-09-05
+
+### Changed
+
+- `abap_transport operation=removeObject` now detects up front when the
+  request already holds two or more E071 rows for the object's
+  PGMID+OBJECT+OBJ_NAME — legal under E071's TRKORR+AS4POS key, and typically
+  the result of creating an object and then deleting it under the same
+  request — and refuses with a new terminal error code, `CTS_DUPLICATE_ENTRY`,
+  naming the object, the holder, the row count and the AS4POS values, instead
+  of letting a partial removal run into `TR_DELETE_COMM_OBJECT_KEYS`'s own
+  `w_duplicate_entry` refusal (`MESSAGE e292(tr)`) mid-batch; a late `TR 292`
+  from the function module itself maps to the same code. Any other refusal in
+  this family still surfaces the CTS `sy-subrc` and, when CTS set one, the
+  `sy-msg*` T100 message as a `msg=` fragment on the `CHECK_FAILED` error,
+  instead of swallowing them. The response also reports `objectOnSystem`
+  (`present`/`absent`/`unknown`) for the entry's object, since removing the
+  entry drops CTS's lock unconditionally and a `present` result means a
+  still-live object just lost the lock protecting it. Read live on A4H,
+  2026-09-05: both stuck fixture tasks held exactly two E071 rows apiece for
+  their object, and no supported function-module call removes just one of
+  them — the remedy is outside abapsmith (edit the request's object list in
+  SE09/SE10, or release the request) — see
+  `doc/LIMITATIONS/not-implemented-and-unproven.md`.
+
+## [0.3.1] - 2026-09-05
+
+### Added
+
+- A GitHub Actions workflow (`.github/workflows/release.yml`) that tags every push to `main` as `vX.Y.Z` and publishes a GitHub release whose notes are that version's CHANGELOG section, extracted by `scripts/changelog-section.mjs`; every merged PR now carries a version bump, since the plugin marketplace only detects an update when the manifest version changes.
+- Release procedure in CONTRIBUTING.md (version bump in both manifests, CHANGELOG section, bundle rebuild) and a README note on pinning the marketplace to a release tag for rollbacks.
 - Core MCP server over ADT (`/sap/bc/adt/*`): connect, read source and DDIC
   (rendered as pseudo-DDL), fuzzy object resolution, and repository search.
 - Write path: create, change, delete, activate, and run ABAP objects and
@@ -47,6 +279,10 @@ was last set to `0.3.0`.
   `abap_bopf_test`): business objects, nodes, associations, and
   determinations, including dangling-reference checks and cascading DDIC
   delete.
+- `abap_bopf_delete`'s `cascade_persistent` — an explicit, validated,
+  name-by-name opt-out from sparing a BO's `persistentTableRef`/
+  `persistentStructureRef` objects, deleted last and reported under their
+  own `DDIC DELETED ON REQUEST` section.
 - Enhancement framework support (`abap_enh`): BAdI definitions and
   implementations, enhancement spots, filter values, and ENHO/XHH
   source-code plug-ins, gated by customer- vs. SAP-owned target rules.
@@ -272,24 +508,11 @@ was last set to `0.3.0`.
   write pipeline as `abap_write` and undoable. `mode: "list"` is itself
   gated as a write because it posts the whole object source; v1 accepts
   deterministic proposals only, refusing a parameterized one `BAD_INPUT`.
-- `abap_img` — read-only navigation of the IMG (SPRO) customizing structure,
-  in four modes (`search`, `show`, `tree`, `objects`). ADT has no IMG REST
-  route, so it sends fixed, catalog-driven SELECTs (`src/adt/img-catalog.ts`)
-  to the ADT freestyle data-preview endpoint — no ABAP is generated or
-  deployed, so it registers under `ABAP_MODE=read`. Every table it actually
-  queries is measured against a live system.
-- `abap_img_edit` — writes IMG customizing rows: `preview`, `upsert`,
-  `delete`, and `create_request` (a type-`W` customizing request). Writes go
-  straight to the resolved base table with a guarded `MODIFY`/`DELETE`, not
-  through the maintenance view's own SM30-generated function module, and
-  are restricted to customizing delivery classes `C`/`G`/`E`. Transport
-  bookkeeping reuses the same CTS calls SM30 itself uses
-  (`TR_OBJECTS_CHECK`/`TR_OBJECTS_INSERT`/`TR_INSERT_REQUEST_WITH_TASKS`).
-  Generated helper classes go into the new dedicated `$ZMCP_HELPERS`
-  package, never `$TMP`.
 
 ### Changed
 
+- Two source comments caught up with the code: `abap_ui`'s deps type now takes `allowUiPress` straight from `Config` instead of describing the `ABAP_ALLOW_UI_PRESS` flag as not yet implemented, and the `BDEF/BDO` skeleton-create note no longer refers to the development process that captured it.
+- The committed plugin bundle labels its modules with paths inside the repository (`node_modules/...`) instead of the build machine's real dependency directory; a test now fails if a label escapes the repository again. The ignore list no longer carries the project's former working-directory name.
 - `VIEW/DV` create into a transportable package resolves a transport
   request the same way a `DEVC/K` create does — `preflightPackageCorr`
   honours the caller's `corr_nr` when given, or else picks or creates one
@@ -468,6 +691,7 @@ was last set to `0.3.0`.
   remedy: `abap_bopf_delete` then recreate), and no activation request is
   sent even with `activate: true`. A differently-named, non-empty root is
   still only a discrepancy note. See `test/bopf-create-recovery.test.ts`.
+- Documentation, code comments and registry notes no longer name the appliance's transportable test package; they say "a transportable package" instead.
 
 ### Fixed
 
@@ -805,171 +1029,10 @@ was last set to `0.3.0`.
   blocks them (an explicit deny-all still does), and the delete response
   now flags any transport-request entry the object's create left behind
   for `abap_transport removeObject` to clean up.
-- `abap_img_edit` defaulted an unset `language` to the two-character `EN`
-  while `abap_img` defaulted to the one-character `E`; a second live run
-  hit SAP's `HTTP 400 'EN' is not a valid value for C(1,0)` on the catalog
-  query as a result. `CUS_IMGACT-SPRAS` (`ROLLNAME SPRAS`,
-  `DATATYPE LANG`) is one character wide, and `SELECT DISTINCT SPRAS FROM
-  CUS_IMGACT` on that system returns only `D E F I N P S`. Both tools now
-  default from one shared constant, `IMG_DEFAULT_LANGUAGE = "E"`
-  (`src/adt/img-query.ts`), and both schemas accept only a single letter
-  (`^[A-Za-z]$`); a two-character ISO code like `EN`/`DE` is refused with
-  `BAD_INPUT` naming the one-character form rather than mapped, since the
-  ISO-to-SAP correspondence is installation-specific (`T002`/`T002C`) and
-  a hardcoded map would risk silently querying the wrong language instead
-  of erroring. The check applies wherever a language value reaches these
-  tools, including a config-supplied `ABAP_LANGUAGE=EN`. `abap_img_edit`'s
-  `preview` response header now prints the resolved language.
-- `abap_img_edit`'s `create_request` failed to activate on that same live
-  run: `"SY-UNAME" and the row type of "LT_USERS" are incompatible`.
-  `IT_USERS`' row type, `SCTS_USER`, is a structure with exactly two
-  fields — `USER` (`TR_AS4USER`) and `TYPE` (`TRFUNCTION`), measured from
-  DD40L/DD03L — not the plain user-name insert an earlier entry here
-  described. `IT_USERS` now fills that structure (`USER` = `sy-uname`,
-  `TYPE` = `'Q'`, the customizing task type) so the request gets a task,
-  and reports the number before checking for one — a first live run had
-  lost a task-less request's number here. The response now also carries
-  the task's type (`taskType`) alongside its number. Whether the function
-  module honours `'Q'` or derives its own task type is unproven from
-  here — only a live read-back settles it. A call with no confirmed
-  number is `CHECK_FAILED`, not success, naming `abap_transport list` to
-  recover it; both outcomes are journalled.
-- The same live run's very first call, an `abap_img_edit` preview, was
-  refused with `SAFETY_DENIED` rule `write-lockout` even though writes
-  were live on that system: with the startup role probe suppressed, the
-  T000 role verdict is only transcribed into the safety gate once some
-  call has connected, and `abap_img_edit` consulted the gate before ever
-  connecting, so a cold process could never get past its first call.
-  It now connects first when the verdict is unknown, the same way
-  `abap_write` already does — a process whose verdict is already settled
-  still refuses without paying for a logon it doesn't need. The
-  `write-lockout` rule itself is unchanged and intentionally fail-closed.
-- `abap_img_edit`'s `upsert` refused a row that named only key fields with
-  `BAD_INPUT: row 0 has no value fields to write` — a live run hit this
-  arming a row on `TB004` (key `BPKIND`), whose only non-key columns are
-  seven optional `FELDSTLSTn` field-status lists, a row SM30 itself
-  accepts. A key-only `upsert` row is now legal: if it doesn't already
-  exist it is inserted with the key fields and the client field set and
-  every other column left initial; if it already exists nothing is
-  written, and the per-row result reports `changed: no` with `row exists,
-  no value fields to write` — a success, not a refusal. Unverified live as
-  of this change.
-- `preview` now runs the same plan validation `upsert`/`delete` enforce
-  for real, instead of a looser check of its own — a row `preview`
-  accepted (the key-only case above being one instance) could previously
-  be refused once armed. The `corr_nr`/`confirm` requirements are still
-  only reported as advisory notes on `preview`, never as a refusal, since
-  `preview` never arms anything; every other check now matches exactly,
-  so `preview` can also refuse a row it used to merely display, e.g. one
-  naming a value field the table doesn't have.
-- `abap_img_edit`'s resolved base table name is now printed upper-cased as
-  SAP spells it, in the `confirm` token, the `preview` response header,
-  and the transport-entry line — previously all three showed the
-  lower-cased spelling the generated bridge happened to echo. The
-  `confirm` comparison was already case-insensitive, so arming a write is
-  unaffected.
-- `abap_img_edit`'s generated apply bridge assigned `OBJ_NAME` on the
-  `E071K` keys-table row it builds; that table has no such component —
-  `E071K`'s object-name field is `OBJNAME` (`E071`/`KO200`'s own
-  `OBJ_NAME` is unchanged and correct). The generated class failed to
-  activate, so an armed `upsert` or `delete` could never write a
-  customizing row. Now fixed, and documented: when the generated class
-  fails to activate, the inactive class is left behind in the helper
-  package, no journal entry is written, nothing is written to the target
-  table, and no transport entry is filed.
-- `abap_img_edit`'s generated apply bridge declared `lt_ko200`/`lt_e071k`
-  `WITH EMPTY KEY` but passed them to `TABLES` formal parameters on the
-  CTS function modules, which take a standard table with the DEFAULT key
-  — a runtime type conflict that ADT's activation syntax check cannot
-  catch. The generated class activated and ran, then threw
-  `CX_SY_DYN_CALL_ILLEGAL_TYPE` at the first CTS call, so an armed
-  `upsert`/`delete` still could not write a row and no transport entry was
-  filed. Now declared `WITH DEFAULT KEY`; not re-verified live as of this
-  change. The two CTS calls are now also wrapped so a runtime exception
-  here becomes its own attributed transcript line naming the exception
-  class, instead of surfacing only as a generic, unattributed error line,
-  and a per-row write marker is now printed once a row's own
-  `MODIFY`/`DELETE` returns successfully.
-- An armed `upsert`/`delete` whose transcript could not be fully accounted
-  for — a bridge error line, a missing `APPLIED` marker, a row with no
-  after-image, or a delete row still present afterward — used to answer
-  `ok` with that row's `changed` reported as `unknown`, with the failure
-  visible only in the notes. It now throws `CHECK_FAILED` instead, with
-  `details` carrying the table, mode, bridge class, a conservative
-  `mayHaveExecuted` flag, and the errors/reasons found, and journals the
-  mutation as `failed` rather than `succeeded`.
-- A sixth live verification run (2026-09-06) confirms the `WITH DEFAULT
-  KEY` fix above, and settles what was previously read only from the
-  catalogue: an armed `upsert` on `TB004` called `TR_OBJECTS_CHECK` then
-  `TR_OBJECTS_INSERT` successfully, filing a real `E071`/`E071K`
-  transport entry, and a later `delete` of the same row also succeeded,
-  adding no second key row. `TR_INSERT_REQUEST_WITH_TASKS` was proven the
-  same run too: it created a real type-`W` customizing request, passed
-  `TYPE = 'Q'`, and read back a task typed `'Q'` — consistent with the
-  function module honouring the value passed, but not proof: a type-`W`
-  request's task defaults to `'Q'` regardless of what `TYPE` asks for,
-  so this observation alone cannot distinguish the two; only passing a
-  different `TYPE` and reading it back would settle it. `TR_OBJECTS_CHECK`/
-  `TR_OBJECTS_INSERT` are no longer interface-only knowledge read from
-  FUPARAREF/DOKTL — docs describing them that way are corrected.
-- That same run measured the exact shape of what a customizing write
-  files: an `E071` header row for the maintenance view (`R3TR VDAT
-  <view>`, `OBJFUNC` `K`), and an `E071K` key sub-entry beneath it for
-  the base table (`PGMID R3TR`, `OBJECT TABU`, `OBJNAME` = the table,
-  `MASTERTYPE`/`MASTERNAME` = the resolved master type and view, `TABKEY`
-  = the client followed by the key, e.g. `001ZTMD`), with `SORTFLAG`/
-  `LANG` both left blank and `AS4POS` `000001`, landing on the request
-  itself rather than a task under it. `abap_img_edit`'s armed success
-  response now discloses this directly, under a `TRANSPORT ENTRY
-  RECORDED` section: an identity line (`R3TR TABU <TABLE> (master
-  <MASTERTYPE> <VIEW>)`) above the per-row table, whose `tabkey` column
-  now carries the client and key together; a transcript with no client
-  line renders `tabkey` unprefixed and says so in a note, rather than
-  fabricating one. There is still no tool that reads `E071K` directly —
-  this disclosure is the only view into it short of SE01/SE09.
-- Documented that `abap_transport` `removeObject` resolves the object it
-  is given against a request's `E071` header rows only, which a
-  customizing write files for the maintenance **view**, not the base
-  table — asking to remove the table name (or a text-table variant)
-  answers `NOT_FOUND` correctly, since only the view has a header entry;
-  removing the view's entry takes its `E071K` key sub-entry with it. Not
-  a behavior change — `removeObject` already worked this way — only the
-  guidance describing it was missing.
-- A seventh live verification run (2026-09-06) found `abap_img_edit`'s
-  `upsert` refusing every value-column write, on every table: an armed row
-  on `TB004T` (keys `SPRAS`/`BPKIND`, one value column `TEXT40`) was
-  refused before any wire call with `BAD_INPUT: row 0 names value field
-  TEXT40, which is not declared in this plan's fields.` The generated
-  probe class `ZCL_ZMCP_IMG_WPROBE` read `DD03L` once per key field only,
-  so the apply plan's field list was key-only and no value column could
-  ever be written on any table — earlier live rounds all happened to use
-  `TB004`, whose test rows name only key fields, which masked this
-  completely. The probe now reads every column of the base table in one
-  `DD03L` select (by table name, active version, ordered by position,
-  skipping `.INCLUDE`/`.APPEND` marker rows) and emits one field line per
-  column with its key flag, data type, length and data element; the
-  caller's value names are validated against that full column list, and an
-  unknown name is still refused `BAD_INPUT`, now naming the columns the
-  plan can actually write. Value length and type checking are unchanged,
-  as is the one policy rule that walks the field list, which still skips
-  non-key fields. No table has ever had a value column written from this
-  server until this fix, and the fix itself is not yet live-verified.
-- That same seventh run found an armed `delete` of a nonexistent row
-  answering `[ok] applied: 1` with a body labelled `ROWS DELETED` whose
-  columns were only row / key / requested change (`DELETE this row`) — no
-  `changed` column and no result column, so the response read as a
-  successful deletion. The write journal already recorded this correctly
-  (`existed no`, `confirmed-absent`), and no transport entry was recorded
-  or claimed for the row — the generated ABAP already skips both the CTS
-  call and the `DELETE` itself when the before-image finds nothing — only
-  the rendered response was wrong. An armed `delete` now renders the same
-  `changed`/`result` columns the `upsert` side already renders: a row that
-  did not exist reports `changed: no` with the result `absent (nothing to
-  delete)`; a row that did exist reports `changed: yes`/`deleted`. When any
-  row was absent, a note names those rows, states nothing was deleted for
-  them and no transport entry was recorded for them, and points out that
-  the header's `applied` count is the number of rows the bridge processed,
-  not the number changed.
+- `abap_bopf_edit operation:"add_alternative_key"`/`"set_alternative_key_fields"`
+  now refuse the `checkAfterModify`/`checkBeforeSave`/`noCheck` combinations
+  that made BOPF's model mapper assert and take down the ADT session; `unique`/
+  `uniqueIfNotInitial` now require exactly one of `noCheck`/`checkAfterModify`.
 
 ### Security
 

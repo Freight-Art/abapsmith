@@ -57,4 +57,18 @@ describe("the committed plugin bundle matches the source it was built from", () 
         "something now imports it directly.",
     ).toBe(false);
   });
+  it("module path comments stay inside the repository", () => {
+    // esbuild labels every bundled module with its path relative to the build
+    // directory. Without --preserve-symlinks a symlinked node_modules resolves
+    // to its real location, so the label escapes the repository and names
+    // whatever directory the build machine keeps its dependencies in.
+    for (const { out } of ENTRY_POINTS) {
+      const text = readFileSync(join(repoRoot, out), "utf8");
+      const escaping = text.split("\n").filter((line) => /^\/\/ \.\.\//.test(line) || /^\s*"\.\.\//.test(line));
+      expect(
+        escaping.slice(0, 3),
+        `${out} labels ${escaping.length} module(s) with a path outside the repository`,
+      ).toEqual([]);
+    }
+  });
 });

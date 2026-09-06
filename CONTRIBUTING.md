@@ -153,3 +153,34 @@ There's no linter config, so match what's already there:
   that changes what reaches the wire — that's the part of this project
   that has to stay correct even when a caller (human or model) gets it
   wrong.
+
+## Releases
+
+Every merged PR is a release: the Claude Code plugin marketplace only picks up an update when
+the manifest version changes, so a PR that lands without a bump is invisible to `/plugin update`.
+The bump happens as the last commit on the PR branch, done by whoever merges it (not the PR's
+author), so it lands against what is actually about to hit `main`:
+
+1. Merge `main` into the branch first, so the version bump is computed against what is actually
+   about to land and two PRs in flight can't collide on `package.json`,
+   `.claude-plugin/plugin.json`, `CHANGELOG.md`, and the bundle manifest.
+2. Set the new version in both `package.json` and `.claude-plugin/plugin.json`;
+   `test/plugin-manifest.test.ts` fails when the two disagree. Pre-1.0, so no major bumps: a fix,
+   docs change, or housekeeping bumps the patch, and a new tool, tool mode, or capability bumps
+   the minor.
+3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and open a fresh,
+   empty `## [Unreleased]` above it.
+4. Run `npm run bundle`: `bundle/BUILD-MANIFEST.json` digests the package version, so
+   `test/plugin-bundle.test.ts` fails until the bundle is regenerated.
+5. Commit as `Release X.Y.Z`, run the full gate, and merge to `main`.
+
+From there, `.github/workflows/release.yml` does the rest: on every push to `main` it checks that
+`package.json` and `.claude-plugin/plugin.json` agree, fails if `vX.Y.Z` already exists,
+extracts that version's section from `CHANGELOG.md` with `scripts/changelog-section.mjs`, and
+runs `gh release create`, which cuts the `vX.Y.Z` tag and the GitHub release together. Nobody
+tags by hand.
+
+Tags are never moved or deleted: a user who pinned one must keep getting the bytes it named. A bad
+release gets a new version, not a re-tag. A red **Release tag** run on `main` means a PR merged
+without a version bump and the tag already exists — fix it with a follow-up bump PR, not a re-tag
+or a deleted tag.

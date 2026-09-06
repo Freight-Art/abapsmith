@@ -44,8 +44,8 @@ recipe below.
 | `name` | string | required except for `create_bo`/`remove_node`/`set_node_flags`/`activate` | — | Name of the new node/association/action/etc. being added, or removed. |
 | `spec` | object (free-form) | no | — | Operation-specific fields. `add_node` requires `spec.parent` or `spec.parentNodeId`. `add_alternative_key` requires `spec.uniqueness`, `spec.dataTypeRef`, `spec.dataTableTypeRef`, and `spec.keyElements`. |
 | `activate` | boolean | no | — | Also activate after the edit succeeds. |
-| `allow_dangling_ref` | boolean | no | — | Proceed even if `spec.class` or a trigger's action doesn't exist yet, or, for `add_alternative_key`, a `spec.keyElements` entry isn't a property of the target node or the node has no `persistentStructureRef`. |
-| `i_know_this_may_not_activate` | boolean | required (`true`) for `add_alternative_key`/`set_alternative_key_fields` | — | Explicit acknowledgment — the operation is not confirmed to succeed on any node. |
+| `allow_dangling_ref` | boolean | no | — | Proceed even if `spec.class` or a trigger's action doesn't exist yet, or, for `add_alternative_key`, a `spec.keyElements` entry isn't a property of the target node or the node has no `persistentStructureRef`. Does not bypass the `checkAfterModify`/`checkBeforeSave`/`noCheck` refusals below — those are refused unconditionally. |
+| `i_know_this_may_not_activate` | boolean | required (`true`) for `add_alternative_key`/`set_alternative_key_fields` | — | Explicit acknowledgment — the key element writes, but a business object carrying one has not been observed to activate. |
 | `package` | string | required for `create_bo` | — | Must be a local (`$TMP`-style) package. |
 | `description` | string | `create_bo` only | — | Description of the new BO. |
 | `rootNodeName` | string | `create_bo` only | `"ROOT"` | Name for the root node. |
@@ -131,9 +131,22 @@ unchanged `nodeCount`.
 partial one made `/BOBF/CL_CONF_MODEL_API_MAP` fail an assertion that took
 down the whole ADT session. `spec.uniqueness` is a closed enum —
 `"unique"`, `"uniqueIfNotInitial"`, `"notUnique"` — refused client-side like
-`category` on determinations/validations/queries. It re-reads after the write
-and fails with `CHECK_FAILED` if the key count on that node didn't go up,
-rather than reporting success the server discarded.
+`category` on determinations/validations/queries. `spec.checkAfterModify`,
+`spec.checkBeforeSave` and `spec.noCheck` all map onto the one server-side
+`uniqueness_check` field BOPF's model mapper switches on, so at most one may
+be `true`; `checkBeforeSave: true` is refused outright, on any uniqueness,
+because the mapper's own arm for it is `ASSERT 1 = 0. " currently not
+supported`. With `uniqueness: "unique"` or `"uniqueIfNotInitial"`, exactly
+one of `noCheck: true` or `checkAfterModify: true` is required — the
+mapper's arms for those two uniqueness values have no case for an initial
+`uniqueness_check` and fall into `WHEN OTHERS. ASSERT 1 = 0.`, which is the
+short dump. With `uniqueness: "notUnique"`, `checkAfterModify: true` is
+refused (that arm has no case for it either); `noCheck: true` or no check
+flag at all is accepted, since that arm's case list includes the blank
+value. All of this is refused client-side, before any HTTP request, as
+`BAD_INPUT`, and none of it is overridable with `allow_dangling_ref`. It
+re-reads after the write and fails with `CHECK_FAILED` if the key count on
+that node didn't go up, rather than reporting success the server discarded.
 
 Before that PUT, `add_alternative_key` also preflights against the
 freshly-read model and refuses `BOPF_DANGLING_REF` if either holds: a
@@ -145,12 +158,16 @@ of). Both are overridable with `allow_dangling_ref: true`, the same flag
 missing implementation class. Both refusals are live-confirmed in both
 directions — a bogus spec refused, a genuine one allowed through — and
 `allow_dangling_ref: true` is confirmed to disable the check, not a blanket
-bypass. That confirmation does not extend to the operation itself:
-`add_alternative_key` is not known to succeed on any node. The most recent
-live attempt, with a complete, enum-valid spec that clears both checks, still
-short-dumped the ADT session in `/BOBF/CL_CONF_MODEL_API_MAP` — on inactive
-and active business objects alike. This preflight rules out two known-bad
-shapes; it does not demonstrate the operation works.
+bypass. The write itself is now live-confirmed to succeed: with a check flag
+that clears the rules above, the key lands on the node, on a business object
+in `$TMP` with a real structure reference, on both a DDIC structure borrowed
+from an SAP demo object and a purpose-built one. Without a check flag, or
+with an incompatible one, the same session-killing short dump in
+`/BOBF/CL_CONF_MODEL_API_MAP` was reproduced, which is what the refusals
+above now stop before the PUT is even sent. What remains open is
+activation, not the write: no business object carrying a key added this way
+has been observed to activate — see `i_know_this_may_not_activate` above and
+the alternative-key row in `doc/CAPABILITIES/bopf.md`.
 
 Example (remove a determination):
 
@@ -216,8 +233,17 @@ has no implementation class, so neither shorthand applies there — and, like
 `add_alternative_key`, it requires `i_know_this_may_not_activate: true`: a
 patch's attributes go through the same BOPF model mapper
 (`/BOBF/CL_CONF_MODEL_API_MAP`) that has short-dumped the ADT session on an
-invalid alternative-key payload, and the operation is not confirmed to
-succeed on any node. Patchable per kind: association
+invalid alternative-key payload. The same check-mode rule as
+`add_alternative_key` applies — `checkBeforeSave: true` refused, at most one
+of `checkAfterModify`/`checkBeforeSave`/`noCheck`, and a required flag
+matching `uniqueness` — but it is checked against the EFFECTIVE post-patch
+state: the attributes already on the element as read from the server, with
+this patch applied on top. Patching `uniqueness` to `"unique"` on a key that
+already carries `noCheck="true"` is fine; clearing the last check flag on
+such a key (`noCheck: null` with nothing else set) is refused the same as
+creating that shape from scratch would be. The write is live-confirmed to
+succeed once the effective state clears those rules; the operation is not
+confirmed to leave the business object able to activate. Patchable per kind: association
 — `xmlName`, `multiplicity`, `implementationType`, `doEmbeddingName`,
 `objectModelGenerated`, `targetNodeRef`, `parameterStructureRef`,
 `implementationClassRef`; action — `xmlName`, `category`,
@@ -306,8 +332,9 @@ Delete a BOPF business object, optionally cascading into its DDIC objects.
 |---|---|---|---|---|
 | `bo` | string | yes | — | Business object to delete. |
 | `confirm` | string | required when `dry_run:false` | — | Echo `bo` exactly (case-insensitive) to arm the delete. |
-| `cascade_ddic` | boolean | no | — | Also delete the DDIC objects this BO generated (its combined table type, combined structure, constants interface). Never deletes `persistentTableRef`/`persistentStructureRef` tables/structures — those are always spared and reported separately. |
+| `cascade_ddic` | boolean | no | — | Also delete the DDIC objects this BO generated (its combined table type, combined structure, constants interface). By default never deletes `persistentTableRef`/`persistentStructureRef` tables/structures — those are spared and reported separately unless named in `cascade_persistent`. |
 | `confirm_cascade` | string | required in addition to `confirm` when `cascade_ddic:true` | — | Echo `bo` exactly again. |
+| `cascade_persistent` | array of string | no | — | Exact DDIC names (case-insensitive) to delete despite being `persistentTableRef`/`persistentStructureRef`. Requires `cascade_ddic:true` (extends the cascade, doesn't replace it) and, on an armed delete, `confirm_cascade`. |
 | `dry_run` | boolean | no | `true` | Report what would be deleted without deleting anything. |
 
 Dry run (the default) lists DDIC candidates found in the model without
@@ -317,6 +344,62 @@ does the same on its DDIC LEFT BEHIND list: it names the generated objects
 from the model, not from a read-back, so a listed name (e.g. a BO's
 combined table/structure before the BO was ever activated) is not
 necessarily an object that exists.
+
+`cascade_persistent` is the explicit, name-by-name opt-out from sparing
+`persistentTableRef`/`persistentStructureRef` — it extends `cascade_ddic`,
+it does not replace it. Every name is validated before anything is deleted;
+any single failure refuses the whole call, having deleted nothing: the name
+must be a `persistentTableRef` or `persistentStructureRef` this BO's model
+actually references (an unreferenced name is refused, and the refusal lists
+the names that are referenced); a name referenced from more than one site is
+refused, counting each node separately so the same name on two different
+nodes is refused even under the same ref slot, since deleting it would
+break the other reference; the
+object's package is read from its own ADT document and must equal the
+business object's package, so a `/BOBF/*` demo structure shared by other
+BOs, or anything else living elsewhere, is refused; a document with no
+`<adtcore:packageRef adtcore:name>` is refused rather than guessed at.
+Each resolved name is then asserted against the safety gate at `phase:
+"preflight"`, before the business object's own authorization, the write
+session, and the journal entry; a name in a reserved SAP namespace
+(anything starting with `/`) is refused there regardless of the package
+allowlist, and identically on a dry run, so a preview can never promise a
+delete the armed call could not perform. Most of these refusals throw
+`BAD_INPUT`; the safety-gate refusal throws its own code instead
+(`SAFETY_DENIED`). Names are compared upper-cased.
+
+Requested objects are deleted last — after the business object itself and
+after the generated cascade candidates, tables before structures — and
+reported under their own `DDIC DELETED ON REQUEST` section, using the same
+per-object `existed=`/`deleted=`/`reason=` shape as `DDIC CASCADE RESULTS`
+(`deleted` is `true` only once a read-back confirms the object is gone,
+`unverified` when the read-back couldn't confirm it). Every name in
+`cascade_persistent` is also filtered out of the `DDIC SPARED (provenance
+unknown — never deleted)` section and out of the `ddicSparedCount` header
+key, on both the dry run and the armed response, so an object never appears
+simultaneously as spared and as deleted on request. A `dry_run` previews
+the same section with `would delete`. Unlike the auto-enumerated
+candidates, which a dry run deliberately does not existence-probe (a round
+trip per candidate is not worth paying on a preview), the names in
+`cascade_persistent` ARE probed on a dry run — the same probe is what
+establishes the package, and a preview that hides a refusal the armed call
+would hit is worse than the round trip. The write-journal entry for the
+delete records each requested object as an entry `part`, with a
+before-image captured from that probe, so `abap_journal show` lists them
+under `ALSO TOUCHED` (the entry is still `irreversible: true` — a BOPF
+delete can never be undone).
+
+This is the fix for the throwaway-BO case: `abap_bopf_edit create_bo`
+assigns a root node's `persistentTableRef` by defaulting (e.g.
+`ZTMD_D_ROOT` for a root node named `ROOT`), and before `cascade_persistent`
+that table needed a second, manual `abap_write mode: delete` once the BO
+itself was gone.
+
+```json
+{ "bo": "ZTMD_DEMO", "confirm": "ZTMD_DEMO", "cascade_ddic": true,
+  "confirm_cascade": "ZTMD_DEMO", "cascade_persistent": ["ZTMD_D_ROOT"],
+  "dry_run": false }
+```
 
 ## abap_bopf_test
 

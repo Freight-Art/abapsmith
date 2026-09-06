@@ -1012,7 +1012,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "DDIF_VIEW_PUT would behave as an upsert against a view that already exists is " +
         "inferred, not live-verified: no create-over-an-existing-view call has ever been " +
         "attempted here. The create is proven live on A4H: 2026-09-04, into the TRANSPORTABLE " +
-        "package ZBOPF_Q1PKG with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / " +
+        "a transportable package with a corr_nr, produced VIEW-REGISTERED / VIEW-PUT / " +
         "VIEW-ACTIVATED, the view read back with its fields (not through abap_read — that path " +
         "stays closed, see adtRest above), and a TADIR row; 2026-09-05, RS_CORR_INSERT " +
         "called for a LOCAL (`$`-prefixed) package with korrnum = space and the 44-character " +
@@ -1049,9 +1049,14 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "alternative, opens a CTS dialog and short-dumps headless, so it is deliberately not " +
         "used. The TADIR row is removed by a SEPARATE call from the DD25L delete: under an " +
         "open transport-request lock on the object, TR_TADIR_INTERFACE's TADIR delete fails " +
-        "sy-subrc=1 / TR022, and abapsmith does NOT clear that lock (TRINT_READ_REQUEST / " +
-        "TR_DELETE_COMM_OBJECT_KEYS is out of scope, deliberately unimplemented) — so a locked " +
-        "view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted " +
+        "sy-subrc=1 / TR022, and this delete path itself does not attempt to clear that lock. " +
+        "The separate route, abap_transport operation=removeObject, does call " +
+        "TRINT_READ_REQUEST / TR_DELETE_COMM_OBJECT_KEYS to clear it: it clears the entry when " +
+        "the request holds exactly one E071 row for the object, and CTS refuses when two or " +
+        "more rows share PGMID+OBJECT+OBJ_NAME (typically a create and a delete of the same " +
+        "object recorded under one request), which leaves the entry, its lock, and this view's " +
+        "TADIR row in place, and the holding request undeletable through abapsmith — so a " +
+        "locked view loses its DD25L rows but keeps its TADIR row. No corrNr is accepted " +
         "(src/tools/write.ts refuses one outright), so this path cannot fully remove a view " +
         "sitting on an open transport request. abapsmith's own create now registers every view " +
         "in TADIR, including one in a `$` package, so the delete path acts on views abapsmith " +

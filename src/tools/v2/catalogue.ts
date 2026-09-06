@@ -377,7 +377,7 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     minMode: "admin",
     v1: "abap_bopf_delete()",
     summary: "Delete a BO; cascade DDIC is admin-only.",
-    args: "cascade_ddic, confirm_cascade (top-level confirm/dry_run also apply; dry_run defaults true)",
+    args: "cascade_ddic, cascade_persistent, confirm_cascade (top-level confirm/dry_run also apply; dry_run defaults true)",
   },
 
   // enhancements

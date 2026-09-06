@@ -216,7 +216,7 @@ describe("abap_bopf_edit add_node — auto-assigned DDIC ref note", () => {
       const text = okText(result);
       expect(text).toContain('spec didn\'t set persistentTableRef ZBOPF_D_ITEM on node "ITEM"');
       expect(text).toContain("came from BOPF's own defaulting, not from this call");
-      expect(text).toContain("cascade_ddic never deletes a persistentTableRef or persistentStructureRef");
+      expect(text).toContain('cascade_persistent: ["ZBOPF_D_ITEM"]');
     });
   });
 

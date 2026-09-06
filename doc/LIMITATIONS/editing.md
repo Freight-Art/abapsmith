@@ -28,7 +28,7 @@
   given, or else one picked or created under `ABAP_ALLOW_TRANSPORTS`; a
   `$` package (`$TMP` included) still refuses a `corr_nr` and registers
   with `korrnum = space` instead — proven live on A4H, 2026-09-04
-  (transportable package ZBOPF_Q1PKG, with `corr_nr`) and 2026-09-05 (a
+  (a transportable package, with `corr_nr`) and 2026-09-05 (a
   `$`-prefixed package: `RS_CORR_INSERT` registered the view with
   `korrnum = space`, then the delete bridge removed it). `TRAN/T`'s create
   still requires an explicit `corr_nr` for a transportable package:
@@ -54,7 +54,11 @@
   nothing in CTS: whatever entry the object already had on a request
   (typically from its create) survives the delete and must be removed
   separately with `abap_transport` operation `"removeObject"`, which needs
-  ABAP_MODE=admin. That is also why the safety gate judges these two
+  ABAP_MODE=admin — and which CTS refuses outright when the request already
+  holds two or more E071 rows for the object (see
+  `doc/LIMITATIONS/not-implemented-and-unproven.md`), leaving the entry, its
+  lock, and (for `VIEW/DV`) its TADIR row in place. That is also why the
+  safety gate judges these two
   deletes as local mutations rather than against `ABAP_ALLOW_TRANSPORTS` —
   see `doc/SAFETY/safety-gate.md`.
   `DEVC/K` (package) is different:
