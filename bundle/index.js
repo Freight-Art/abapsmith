@@ -114524,7 +114524,7 @@ function ctsRecordFragment(tableLower, tableLit, corrNr, rowNo, view, masterType
     "CLEAR ls_e071k.",
     "ls_e071k-pgmid = 'R3TR'.",
     "ls_e071k-object = 'TABU'.",
-    `ls_e071k-obj_name = '${tableLit}'.`,
+    `ls_e071k-objname = '${tableLit}'.`,
     `ls_e071k-mastertype = '${masterType}'.`,
     `ls_e071k-mastername = '${viewLit}'.`,
     `ls_e071k-viewname = '${viewLit}'.`,
