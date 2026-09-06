@@ -868,6 +868,15 @@ was last set to `0.3.0`.
   lower-cased spelling the generated bridge happened to echo. The
   `confirm` comparison was already case-insensitive, so arming a write is
   unaffected.
+- `abap_img_edit`'s generated apply bridge assigned `OBJ_NAME` on the
+  `E071K` keys-table row it builds; that table has no such component —
+  `E071K`'s object-name field is `OBJNAME` (`E071`/`KO200`'s own
+  `OBJ_NAME` is unchanged and correct). The generated class failed to
+  activate, so an armed `upsert` or `delete` could never write a
+  customizing row. Now fixed, and documented: when the generated class
+  fails to activate, the inactive class is left behind in the helper
+  package, no journal entry is written, nothing is written to the target
+  table, and no transport entry is filed.
 
 ### Security
 
