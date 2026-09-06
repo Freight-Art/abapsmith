@@ -390,6 +390,60 @@ const APPLY_TRANSCRIPT_DELETE =
   `IMGW> APPLIED rows=[1]\n`;
 
 /**
+ * A probe that confirms the single row is absent — the fixture the live 2026-09-06 defect actually
+ * hit before the apply ever ran (see `beforeImageFor`, src/tools/img-edit.ts: this is what makes
+ * the journal say `existedBefore: false`/`confirmed-absent`).
+ */
+const PROBE_TRANSCRIPT_ABSENT =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> FLD table=[ztest_imgw] field=[ZKEY] key=[X] type=[CHAR] len=[10] rollname=[ZKEY]\n` +
+  `IMGW> FLD table=[ztest_imgw] field=[ZDESC] key=[] type=[CHAR] len=[40] rollname=[ZDESC]\n` +
+  `IMGW> BABSENT row=[1]\n` +
+  `IMGW> PROBED rows=[1]\n`;
+
+/**
+ * Defect fixture — a `delete` apply transcript for a row that never existed: `BABSENT`/`AABSENT`
+ * on both sides, no `TRKEY` line and no `WROTE` line (both sit inside the before-image `SELECT`'s
+ * `ELSE` in `imgApplySource`'s delete branch, src/adt/img-write-bridge.ts, so an absent row emits
+ * neither). Live symptom this reproduces: an armed delete of a nonexistent row answered
+ * `[ok] applied: 1` with a `ROWS DELETED` body carrying no `changed`/`result` column at all — a
+ * caller reading that response could only conclude the row was deleted, which was false.
+ */
+const APPLY_TRANSCRIPT_DELETE_ABSENT =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> BABSENT row=[1]\n` +
+  `IMGW> AABSENT row=[1]\n` +
+  `IMGW> APPLIED rows=[1]\n`;
+
+/** Probe confirming two rows: `ZKEY=A` present, `ZKEY=B` absent — feeds the mixed delete test below. */
+const PROBE_TRANSCRIPT_MIXED =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> FLD table=[ztest_imgw] field=[ZKEY] key=[X] type=[CHAR] len=[10] rollname=[ZKEY]\n` +
+  `IMGW> FLD table=[ztest_imgw] field=[ZDESC] key=[] type=[CHAR] len=[40] rollname=[ZDESC]\n` +
+  `IMGW> BVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> BABSENT row=[2]\n` +
+  `IMGW> PROBED rows=[2]\n`;
+
+/**
+ * Mixed apply transcript: row 1 (`ZKEY=A`) existed and is deleted (carries `TRKEY`), row 2
+ * (`ZKEY=B`) never existed (no `TRKEY`, `BABSENT`/`AABSENT` only) — each row must be classified
+ * independently by `rowDeleteSummaries`.
+ */
+const APPLY_TRANSCRIPT_DELETE_MIXED =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[10] value=[A4HK900001]\n` +
+  `IMGW> AABSENT row=[1]\n` +
+  `IMGW> BABSENT row=[2]\n` +
+  `IMGW> AABSENT row=[2]\n` +
+  `IMGW> APPLIED rows=[2]\n`;
+
+/**
  * Same shape as `APPLY_TRANSCRIPT_UPSERT`, but with a `TRKEY` value that is
  * deliberately NOT the trkorr text (`ZTMD`, 4 chars) — the real generated
  * ABAP's `IMGW> TRKEY ... value=[{ <key_c> }]` is the table key cast to a
@@ -648,6 +702,137 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
 
     expect(errorPayload(result).error).toBe("BAD_INPUT");
     expect(inner.calls).toHaveLength(0);
+  });
+});
+
+// ===========================================================================
+// Live symptom, 2026-09-06: an armed `delete` of a row that does NOT exist
+// answered `[ok] applied: 1` with a `ROWS DELETED` body carrying only
+// row/key/change (the PROSPECTIVE echo of what was requested) — no `changed`
+// column, no `result` column. The journal correctly recorded
+// existedBefore/confirmed-absent; the rendered response did not say so, so a
+// caller reading only the response text would conclude the row was deleted.
+// These pin the fix: `ROWS DELETED` now carries `changed`/`result` per row
+// (via `rowDeleteSummaries`/`armedDeleteRowsTable`, mirroring the upsert
+// side), and an absent row gets an explicit note.
+// ===========================================================================
+
+describe("abap_img_edit — armed delete: per-row changed/result disclosure", () => {
+  it("a row that does not exist is reported as changed: no / absent, not as a claimed deletion", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connected(
+        multiBridgeHappyPath({
+          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_ABSENT),
+          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_DELETE_ABSENT),
+        }),
+      );
+      const { tools } = await registered(conn, { journal });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "delete",
+        ...BASE_ARGS,
+        confirm: "ZTEST_IMGW",
+        rows: [{ key: { ZKEY: "A" } }],
+      });
+      const text = okText(result);
+
+      expect(text).toContain("ROWS DELETED");
+      const lines = text.split("\n");
+      const bodyTitle = lines.findIndex((l) => l.includes("--- ROWS DELETED ---"));
+      expect(bodyTitle).toBeGreaterThanOrEqual(0);
+      const header = lines[bodyTitle + 1]!;
+      const dataRow = lines[bodyTitle + 3]!;
+      expect(header).toContain("changed");
+      expect(header).toContain("result");
+      const cells = dataRow.trim().split(/\s+/);
+      expect(cells[0]).toBe("0");
+      expect(dataRow).toContain("no");
+      expect(dataRow).toContain("absent");
+
+      // No transport entry was recorded for this row (no IMGW> TRKEY line at all in the transcript).
+      expect(text).not.toContain("TRANSPORT ENTRY RECORDED");
+
+      // The note must say the row did not exist, nothing was deleted, and no transport entry was
+      // recorded — plainly enough that a caller cannot mistake it for a confirmed deletion.
+      expect(text).toMatch(/row\(s\) 0\b/i);
+      expect(text).toMatch(/did not exist|absent/i);
+      expect(text).toMatch(/nothing was deleted|no transport entry/i);
+
+      const entries = await journal.list({});
+      expect(entries[0]!.existedBefore).toBe(false);
+      expect(entries[0]!.beforeCapture).toBe("confirmed-absent");
+    });
+  });
+
+  it("a row that DID exist is still reported as changed: yes / deleted, with the transport entry disclosure intact", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_DELETE),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "delete",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" } }],
+    });
+    const text = okText(result);
+
+    expect(text).toContain("ROWS DELETED");
+    const lines = text.split("\n");
+    const bodyTitle = lines.findIndex((l) => l.includes("--- ROWS DELETED ---"));
+    const dataRow = lines[bodyTitle + 3]!;
+    expect(dataRow).toContain("yes");
+    expect(dataRow).toContain("deleted");
+
+    expect(text).toContain("--- TRANSPORT ENTRY RECORDED ---");
+    expect(text).toContain("A4HK900001");
+  });
+
+  it("a mixed delete (one existing row, one absent row) classifies each row independently and names only the absent one in the note", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_MIXED),
+        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_DELETE_MIXED),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "delete",
+      ...BASE_ARGS,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" } }, { key: { ZKEY: "B" } }],
+    });
+    const text = okText(result);
+
+    const lines = text.split("\n");
+    const bodyTitle = lines.findIndex((l) => l.includes("--- ROWS DELETED ---"));
+    const row0 = lines[bodyTitle + 3]!;
+    const row1 = lines[bodyTitle + 4]!;
+    expect(row0).toContain("yes");
+    expect(row0).toContain("deleted");
+    expect(row1).toContain("no");
+    expect(row1).toContain("absent");
+
+    // The transport entry section carries exactly one row (the one that existed) — no entry is
+    // fabricated for the absent row, which emitted no IMGW> TRKEY line at all.
+    const section = transportSection(text);
+    expect(section).toContain("A4HK900001");
+    const sectionRowCells = section
+      .split("\n")
+      .filter((l) => /^\s*\d/.test(l))
+      .map((l) => l.trim().split(/\s+/)[0]);
+    expect(sectionRowCells).toHaveLength(1);
+
+    // The note names only row 1 (0-based, args.rows index) as absent, never row 0.
+    const noteLine = lines.find((l) => /did not exist|absent/i.test(l) && !l.includes("---"));
+    expect(noteLine).toBeDefined();
+    expect(noteLine).toMatch(/row\(s\) 1\b/i);
+    expect(noteLine).not.toMatch(/row\(s\) 0\b/i);
   });
 });
 

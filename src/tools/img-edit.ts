@@ -1057,6 +1057,67 @@ function armedUpsertRowsTable(args: RowEditArgs, apply: ImgApplyResult): string 
   return textTable(rows, ["row", "key", "change", "changed", "result"]);
 }
 
+/**
+ * Delete-side counterpart of `rowChangeSummaries`, measuring what an armed delete actually did to
+ * each row from the apply transcript's before/after images. Kept separate from
+ * `rowChangeSummaries` rather than folding delete in as another mode: `applyFailure`'s own doc
+ * comment establishes that a normal, SUCCESSFUL delete row (present before, absent after) is
+ * exactly the combination `rowChangeSummaries` classifies as `"unknown"` (its "before/after image
+ * combination not recognised" fallback, legitimate only for delete) — re-parameterising that
+ * function to also accept delete rows would make every successful delete throw. Transcript row
+ * numbers are 1-based, `args.rows`/the rendered table are 0-based — same convention as
+ * `rowChangeSummaries`/`armedUpsertRowsTable`.
+ *
+ * Fixes the live defect where an armed delete of a row that does not exist rendered a
+ * `ROWS DELETED` body with no `changed`/`result` column at all (just the row/key/change echo of
+ * what was requested), which a caller could only read as "the row was deleted".
+ */
+function rowDeleteSummaries(rows: RowEditArgs["rows"], t: ImgApplyResult["transcript"]): RowChangeSummary[] {
+  const beforePresent = groupByRow(t.before);
+  const afterPresent = groupByRow(t.after);
+  const afterAbsent = new Set(t.afterAbsent.map((a) => a.row));
+
+  return rows.map((_, i) => {
+    const rowNo = i + 1;
+    const isPresentAfter = afterPresent.has(rowNo);
+    const isAbsentAfter = afterAbsent.has(rowNo);
+
+    if (isPresentAfter) {
+      // Unreachable in a successful response: `applyFailure` (mode === "delete") treats a row
+      // still present after a delete as a failure reason and throws CHECK_FAILED before
+      // `renderArmed` is ever called. Kept so this renderer itself can never silently misreport
+      // the row as deleted when the transcript says otherwise.
+      return { changed: "unknown", description: "still present in the table after the delete" };
+    }
+    if (!isAbsentAfter) {
+      // Also unreachable in a successful response, for the same reason: `applyFailure` treats a
+      // missing after-image as a failure reason (checked before the mode split, so it applies to
+      // delete too) and throws before rendering.
+      return { changed: "unknown", description: "no after-image reported for this row" };
+    }
+    // From here the row is confirmed absent after the delete — the only question is whether it was
+    // ever there to begin with. The generator's before-image SELECT (see `imgApplySource`'s delete
+    // branch, img-write-bridge.ts) always emits exactly one of BVAL/BABSENT for a row it reaches
+    // this far for, so `beforePresent` is the only marker checked; anything not confirmed present
+    // is reported as the "nothing to delete" case rather than guessed as a deletion.
+    if (beforePresent.has(rowNo)) return { changed: "yes", description: "deleted" };
+    return { changed: "no", description: "absent (nothing to delete)" };
+  });
+}
+
+function armedDeleteRowsTable(args: RowEditArgs, apply: ImgApplyResult): string {
+  const summaries = rowDeleteSummaries(args.rows, apply.transcript);
+  const rows = args.rows.map((r, i) => ({
+    row: String(i),
+    key: rowKeyCell(r),
+    // Same reasoning as armedUpsertRowsTable: what was requested is shown alongside what happened.
+    change: requestedChangeCell("delete", r),
+    changed: summaries[i]!.changed,
+    result: summaries[i]!.description,
+  }));
+  return textTable(rows, ["row", "key", "change", "changed", "result"]);
+}
+
 function renderArmed(
   mode: "upsert" | "delete",
   args: RowEditArgs,
@@ -1070,6 +1131,25 @@ function renderArmed(
   if (journalNote) finalNotes.push(journalNote);
   if (t.errors.length) finalNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) finalNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
+
+  // Live defect fixed here: an armed delete of a row that does not exist used to render
+  // `[ok] applied: N` with nothing telling the caller that nothing was actually deleted — the
+  // header's `applied` only ever means "the bridge processed N rows", not "N rows changed". Name
+  // every absent row explicitly so a caller cannot read `applied: N` as a changed-row count.
+  if (mode === "delete") {
+    const deleteSummaries = rowDeleteSummaries(args.rows, t);
+    const absentRows = deleteSummaries.reduce<number[]>((acc, s, i) => {
+      if (s.changed === "no") acc.push(i);
+      return acc;
+    }, []);
+    if (absentRows.length) {
+      finalNotes.push(
+        `Row(s) ${absentRows.join(", ")} did not exist before this call — nothing was deleted for ` +
+          "them and no transport entry was recorded for them. The header's `applied` count above " +
+          "is the number of rows the bridge processed, not the number of rows actually changed.",
+      );
+    }
+  }
 
   // The CTS identity fields (pgmid/object/objname/mastertype/mastername) are NOT carried by the
   // IMGW> TRKEY transcript line — they are the generator's own inputs (see ctsRecordFragment in
@@ -1127,7 +1207,7 @@ function renderArmed(
       bridgeRefreshed: apply.bridgeRefreshed,
     },
     sections: sections.length ? sections : undefined,
-    body: mode === "delete" ? prospectiveRowsTable(mode, args) : armedUpsertRowsTable(args, apply),
+    body: mode === "delete" ? armedDeleteRowsTable(args, apply) : armedUpsertRowsTable(args, apply),
     bodyLabel: mode === "delete" ? "ROWS DELETED" : "ROWS WRITTEN",
     notes: finalNotes,
     maxChars,
