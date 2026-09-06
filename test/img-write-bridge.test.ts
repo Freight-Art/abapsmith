@@ -456,12 +456,51 @@ describe("imgApplySource: CTS record shape", () => {
     const src = imgApplySource(baseApply());
     expect(src).toContain("ls_e071k-pgmid = 'R3TR'.");
     expect(src).toContain("ls_e071k-object = 'TABU'.");
-    expect(src).toContain(`ls_e071k-obj_name = '${TABLE}'.`);
+    expect(src).toContain(`ls_e071k-objname = '${TABLE}'.`);
     expect(src).toContain(`ls_e071k-mastertype = 'VDAT'.`);
     expect(src).toContain(`ls_e071k-mastername = '${VIEW}'.`);
     expect(src).toContain(`ls_e071k-viewname = '${VIEW}'.`);
     expect(src).toContain("ls_e071k-objfunc = ' '.");
     expect(src).toContain("ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|.");
+  });
+
+  it("spells the E071K object-name component OBJNAME, not the KO200/E071 OBJ_NAME spelling", () => {
+    // Live DD03L read of E071K (active version) returned OBJNAME (no underscore),
+    // 14 fields in position order. SAP rejected the generated ABAP when this
+    // fragment used the underscored OBJ_NAME spelling instead.
+    const src = imgApplySource(baseApply());
+    expect(src).toContain(`ls_e071k-objname = '${TABLE}'.`);
+    expect(src).not.toContain("ls_e071k-obj_name");
+  });
+
+  it("emits exactly these eight E071K components, spelled as the live DD03L listing spells them", () => {
+    // The order below is the generator's own assignment order and carries no
+    // meaning by itself — ABAP does not care what order structure components
+    // are assigned in. Only the set of names and their spelling matter here.
+    // If the fragment is ever reordered, this expectation should simply be
+    // reordered to match; that is a free change, not a regression.
+    //
+    // Checked by eye against a live DD03L read of E071K (active version),
+    // all 14 fields in position order:
+    //   TRKORR PGMID OBJECT OBJNAME AS4POS MASTERTYPE MASTERNAME VIEWNAME
+    //   OBJFUNC TABKEY SORTFLAG FLAG LANG ACTIVITY
+    // TRKORR and AS4POS are deliberately not assigned here, on the
+    // assumption that TR_OBJECTS_INSERT fills them itself — that assumption
+    // is unverified. The remaining six fields not in the eight below
+    // (TRKORR, AS4POS, SORTFLAG, FLAG, LANG, ACTIVITY) are not claimed to be
+    // irrelevant; they simply aren't assigned by this fragment.
+    const src = imgApplySource(baseApply());
+    const components = [...src.matchAll(/ls_e071k-(\w+) =/g)].map((m) => m[1]);
+    expect(components).toEqual([
+      "pgmid",
+      "object",
+      "objname",
+      "mastertype",
+      "mastername",
+      "viewname",
+      "objfunc",
+      "tabkey",
+    ]);
   });
 
   it("passes both suppressor flags as 'X' on both TR_OBJECTS_CHECK and TR_OBJECTS_INSERT", () => {

@@ -477,7 +477,7 @@ export function imgProbeSource(p: ImgProbePlan): string {
  *
  * `KO200` header (one row: `PGMID R3TR`, `OBJECT` = `masterType`, `OBJ_NAME`
  * = `view`, `OBJFUNC K`) plus one `E071K` row per row written (`PGMID
- * R3TR`, `OBJECT TABU`, `OBJ_NAME` = base table, `MASTERTYPE` = `masterType`,
+ * R3TR`, `OBJECT TABU`, `OBJNAME` = base table, `MASTERTYPE` = `masterType`,
  * `MASTERNAME`/`VIEWNAME` = `view`, `OBJFUNC` blank) — the shape SM30 itself
  * records for view-maintained customizing, per the measured evidence in
  * {@link CTS_INSERT_FM}.
@@ -543,7 +543,7 @@ function ctsRecordFragment(
     "CLEAR ls_e071k.",
     "ls_e071k-pgmid = 'R3TR'.",
     "ls_e071k-object = 'TABU'.",
-    `ls_e071k-obj_name = '${tableLit}'.`,
+    `ls_e071k-objname = '${tableLit}'.`,
     `ls_e071k-mastertype = '${masterType}'.`,
     `ls_e071k-mastername = '${viewLit}'.`,
     `ls_e071k-viewname = '${viewLit}'.`,
