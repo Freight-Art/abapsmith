@@ -152,6 +152,18 @@ delivery class `C`, `G`, or `E` are writable at all through `abap_img_edit`
 regardless of what this mode shows. When exactly one table resolves, the
 notes carry the same `next` hint naming `abap_data_preview` as `show`.
 
+The FIELDS section is only real per-field data when the object resolves as
+`kind: table`: that path reads the field catalog itself, so `key`, `type`,
+`length`, and `data_element` reflect the actual DDIC definition. A `kind:
+view` resolution instead lists the view's own field list, which carries no
+key flag or data type of its own, so `key` comes back `false` and `type`,
+`length`, and `data_element` come back empty for every field; `kind:
+cluster` and `kind: transaction` resolutions return no tables or fields at
+all, and a `kind: customizing_object` resolution returns tables but no
+fields. To get a real key flag or data type for a view or customizing
+object's field — for example, to find which field is the client field —
+resolve the underlying base table itself with `kind: table`.
+
 ## What it does not do
 
 - Does not read or write a single customizing entry — every mode stops at
