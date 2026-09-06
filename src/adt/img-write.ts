@@ -92,20 +92,25 @@ const PROBE_HINT =
  * so their parameter names/types here were read from FUPARAREF/DOKTL, not
  * confirmed by a successful call — and the ADT syntax check cannot catch a
  * wrong FM interface (a class calling a nonexistent FM with bogus
- * parameters still checks clean). A syntax error here most likely means
- * either the field list the probe returned no longer matches the table's
- * real structure (the table changed between probe and apply), or one of
- * those two FMs' parameter names is wrong — not a bad row value, for the
- * same quoted-literal reason as the probe.
+ * parameters still checks clean). It DOES catch an ordinary ABAP type error
+ * in the generated body, though — customizing-request.ts's 2026-09-06
+ * activation failure (`"SY-UNAME" and the row type of "LT_USERS" are
+ * incompatible`) is a live example of that check working, not failing. So a
+ * syntax error here can equally mean either the field list the probe
+ * returned no longer matches the table's real structure (the table changed
+ * between probe and apply), or one of those two FMs' parameter names is
+ * wrong — not a bad row value, for the same quoted-literal reason as the
+ * probe.
  */
 const APPLY_HINT =
   "The apply bridge MODIFYs/DELETEs the target table directly and then calls TR_OBJECTS_CHECK/" +
   "TR_OBJECTS_INSERT (see CTS_INSERT_FM) — ordinary standard SAP function modules, but this server " +
   "has never called them, so their parameter names/types here were read from FUPARAREF rather than " +
-  "confirmed by a successful call, and the ADT syntax check cannot validate an FM interface — a " +
-  "syntax error here most likely means the table's real structure has drifted from the field list " +
-  "the probe returned, or one of those two FMs' parameter names is wrong. It is never a symptom of " +
-  "a bad row value, for the same quoted-literal reason as the probe bridge.";
+  "confirmed by a successful call, and the ADT syntax check cannot validate an FM interface. It DOES " +
+  "validate ordinary ABAP statements in the generated body, though — a syntax error here can equally " +
+  "mean the table's real structure has drifted from the field list the probe returned, or one of " +
+  "those two FMs' parameter names is wrong. It is never a symptom of a bad row value, for the same " +
+  "quoted-literal reason as the probe bridge.";
 
 /**
  * This bridge only calls `TR_INSERT_REQUEST_WITH_TASKS` (`CUSTOMIZING_REQUEST_FM`,
@@ -114,17 +119,30 @@ const APPLY_HINT =
  * description/owner as quoted literals. What's UNPROVEN is that this server
  * has never called it: its parameter names were read from FUPARAREF rather
  * than confirmed by a successful call, and the ADT syntax check cannot
- * catch a wrong FM interface. A syntax error here most likely means that
- * FM's parameter names are wrong, not anything about the description or
- * owner text itself.
+ * catch a wrong FM interface. But that same check DOES validate ordinary
+ * ABAP statements in the generated body: on 2026-09-06 it caught
+ * `"SY-UNAME" and the row type of "LT_USERS" are incompatible` in this very
+ * bridge, before the FM was ever called — see the fix in
+ * `customizingRequestBody` (customizing-request.ts). So a syntax error here
+ * can be either cause, and it is the quoted activation message — not a
+ * guess — that tells them apart; `assertNoErrors` (`./activate.ts`) puts
+ * that message into the thrown error's own `message`/`details.messages`,
+ * confirmed by reading `checkFailedError` there. Either way the generated
+ * class is left behind in the helper package, written but never activated
+ * (`discloseBridgeResidue` in `./run.ts` marks this `bridgeLeftBehind: true`
+ * and already says it is safe to delete); the exact way to do that is
+ * `abap_write {"object":"class ZCL_ZMCP_CTS_WREQ","mode":"delete"}`.
  */
 const REQUEST_HINT =
   "This bridge only calls TR_INSERT_REQUEST_WITH_TASKS (see CUSTOMIZING_REQUEST_FM) — an ordinary " +
   "standard SAP function module — with request type 'W' and the caller's description/owner as " +
   "quoted literals. This server has never called it, so its parameter names here were read from " +
   "FUPARAREF rather than confirmed by a successful call, and the ADT syntax check cannot validate " +
-  "an FM interface — a syntax error here most likely means that FM's parameter names are wrong, not " +
-  "the description/owner text itself.";
+  "an FM interface. But that same check DOES validate ordinary ABAP statements in the generated " +
+  "body — on 2026-09-06 it caught \"SY-UNAME\" and the row type of \"LT_USERS\" are incompatible in " +
+  "this bridge before the FM was ever called — so a syntax error here can be either cause, and the " +
+  "quoted activation message is what tells them apart, not a guess. Delete the left-behind bridge " +
+  `class with abap_write {"object":"class ${CUSTOMIZING_REQUEST_CLASS}","mode":"delete"}.`;
 
 /** Deploy/run the read-only IMG write probe and return its parsed transcript. */
 export async function runImgProbe(

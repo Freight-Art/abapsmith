@@ -309,6 +309,10 @@ describe("runImgApply", () => {
     expect(hint).toContain("MODIFYs/DELETEs the target table directly");
     expect(hint).toContain("TR_OBJECTS_CHECK/TR_OBJECTS_INSERT");
     expect(hint).not.toContain("SELECTs the target table plus"); // not the probe's hint
+    // Defect B correction: the ADT syntax check does catch an ordinary ABAP type error in
+    // the generated body (proven live 2026-09-06 in the sibling request bridge) — this
+    // hint must no longer imply an FM-interface guess is the only explanation.
+    expect(hint).toMatch(/DOES validate ordinary ABAP statements/);
     expect(inner.calls.some((c) => c.url.includes("/oo/classrun/"))).toBe(false);
   });
 
@@ -365,6 +369,29 @@ describe("runCreateCustomizingRequest", () => {
     expect(hint).not.toContain("SELECTs the target table plus");
     expect(hint).not.toContain("MODIFYs/DELETEs the target table directly");
     expect(inner.calls.some((c) => c.url.includes("/oo/classrun/"))).toBe(false);
+  });
+
+  it("the request bridge's hint gives the exact delete command for the left-behind class, and no longer blames the FM's parameter names as the leading explanation", async () => {
+    const { conn } = await connected(bridgeActivationRefused(CUSTOMIZING_REQUEST_CLASS));
+
+    const err = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN).catch((e: unknown) => e);
+
+    expect(isAbapError(err)).toBe(true);
+    const hint = (err as { hint?: string }).hint ?? "";
+    // Defect B, live 2026-09-06: the false claim this replaces said a syntax error here
+    // "most likely means that FM's parameter names are wrong" — falsified by an ordinary
+    // ABAP type error inside the generated body, nothing to do with the FM interface.
+    expect(hint).not.toContain("most likely means that FM's parameter names are wrong");
+    // Substance that must now be present: the check does validate ordinary ABAP
+    // statements in the generated body, and the exact command to clean up the
+    // left-behind, never-activated bridge class.
+    expect(hint).toMatch(/DOES validate ordinary ABAP statements/);
+    expect(hint).toContain(`abap_write {"object":"class ${CUSTOMIZING_REQUEST_CLASS}","mode":"delete"}`);
+    // discloseBridgeResidue (./run.ts) already appends its own generic "safe to delete"
+    // sentence naming the class and package — the bespoke hint must not repeat that
+    // sentence verbatim, only add the delete command it doesn't give.
+    expect(hint).toContain(`Bridge class ${CUSTOMIZING_REQUEST_CLASS}`);
+    expect((hint.match(/safe to delete/g) ?? []).length).toBe(1);
   });
 
   it("a scaffold-level failure below activation (classrun itself 500s) surfaces as an error, not a silent empty result", async () => {
