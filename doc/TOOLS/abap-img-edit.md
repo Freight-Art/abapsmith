@@ -109,6 +109,27 @@ nothing about arming a write changes with this.
   activation, since the journal only records an apply that actually ran on
   the wire, so there is no before-image and nothing to reconcile: nothing
   was written to the target table and no transport entry was filed.
+  There is a second failure shape, for when the class does activate and
+  run: the apply is judged failed whenever its transcript cannot be fully
+  accounted for — a bridge error line (including a caught ABAP runtime
+  exception, reported as an `IMGW> ERROR` line naming the exception
+  class), no `APPLIED` marker, a row with no after-image, or a delete row
+  still present afterward. That answers `CHECK_FAILED` as well, never an
+  `ok` with a row's `changed` reported as `unknown`. `details` carries
+  `table`, `mode`, `bridgeClass`, `mayHaveExecuted`, `errors`, and
+  `reasons`. `mayHaveExecuted` is decided only from transcript markers
+  (`WROTE`/`APPLIED`/any after-image line): `true` means some row's own
+  `MODIFY`/`DELETE` plausibly went through even though the overall apply
+  failed; `false` means no marker shows that any row write even
+  started — it is not proof the system is unchanged. Unlike the
+  activation-failure case, a journal entry is written here (outcome
+  `failed`), because the apply did reach the wire. This failure shape is
+  what a live run hit on 2026-09-05: the generated `lt_ko200`/`lt_e071k`
+  tables were declared `WITH EMPTY KEY` but passed to `TABLES` formal
+  parameters on the CTS function modules, which take the DEFAULT key — a
+  runtime type conflict ADT's activation check does not catch. They are
+  now declared `WITH DEFAULT KEY`, not itself re-verified live as of this
+  change.
 - **`create_request`** — generates `ZCL_ZMCP_CTS_WREQ`, which calls
   `TR_INSERT_REQUEST_WITH_TASKS` to create a type-`W` (customizing)
   request, passing `IT_USERS` with one row so the request gets a task.

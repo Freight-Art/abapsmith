@@ -877,6 +877,27 @@ was last set to `0.3.0`.
   fails to activate, the inactive class is left behind in the helper
   package, no journal entry is written, nothing is written to the target
   table, and no transport entry is filed.
+- `abap_img_edit`'s generated apply bridge declared `lt_ko200`/`lt_e071k`
+  `WITH EMPTY KEY` but passed them to `TABLES` formal parameters on the
+  CTS function modules, which take a standard table with the DEFAULT key
+  — a runtime type conflict that ADT's activation syntax check cannot
+  catch. The generated class activated and ran, then threw
+  `CX_SY_DYN_CALL_ILLEGAL_TYPE` at the first CTS call, so an armed
+  `upsert`/`delete` still could not write a row and no transport entry was
+  filed. Now declared `WITH DEFAULT KEY`; not re-verified live as of this
+  change. The two CTS calls are now also wrapped so a runtime exception
+  here becomes its own attributed transcript line naming the exception
+  class, instead of surfacing only as a generic, unattributed error line,
+  and a per-row write marker is now printed once a row's own
+  `MODIFY`/`DELETE` returns successfully.
+- An armed `upsert`/`delete` whose transcript could not be fully accounted
+  for — a bridge error line, a missing `APPLIED` marker, a row with no
+  after-image, or a delete row still present afterward — used to answer
+  `ok` with that row's `changed` reported as `unknown`, with the failure
+  visible only in the notes. It now throws `CHECK_FAILED` instead, with
+  `details` carrying the table, mode, bridge class, a conservative
+  `mayHaveExecuted` flag, and the errors/reasons found, and journals the
+  mutation as `failed` rather than `succeeded`.
 
 ### Security
 

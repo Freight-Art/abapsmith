@@ -45,7 +45,12 @@ you want the affected row(s) to have.
    If instead the error warns that the request may already have executed
    and the response was lost, do not retry blindly: re-run `preview` (or
    check the rows directly) to see whether the change already went through
-   before doing anything else.
+   before doing anything else. A third shape: if the error says the write
+   could not be confirmed, check `mayHaveExecuted` in the error's
+   details — `true` means re-read the rows before touching anything
+   further; `false` means no marker showed a write even starting, but
+   re-read the rows anyway rather than trusting that. Either way, the tool
+   itself now refuses to report an unconfirmed write as a success.
 5. **Verify.** Re-run `preview` (or `abap_data_preview` against the
    resolved table) and check the after-image matches what you intended.
    Don't take a success response as the last word — see "What this is
