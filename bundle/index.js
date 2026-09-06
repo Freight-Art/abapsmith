@@ -112155,136 +112155,6 @@ function registerFpmTools(mcp, deps) {
   );
 }
 
-// src/adt/datapreview.ts
-var PLAIN_NAME_RE = /^[A-Z][A-Z0-9_]{0,29}$/;
-var NAMESPACED_NAME_RE = /^\/[A-Z0-9_]{1,10}\/[A-Z0-9_]{1,30}$/;
-var MAX_ENTITY_NAME_LENGTH = 30;
-function isValidDdicEntityName(name) {
-  if (name.length > MAX_ENTITY_NAME_LENGTH) return false;
-  return PLAIN_NAME_RE.test(name) || NAMESPACED_NAME_RE.test(name);
-}
-function normaliseEntityName(name) {
-  return String(name ?? "").trim().toUpperCase();
-}
-var previewXml = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: true,
-  isArray: (_name, jpath) => jpath === "tableData.columns" || jpath === "tableData.columns.dataSet.data" || jpath === "tableData.message"
-});
-var attrString = (meta3, key) => {
-  const v = meta3?.[`@_${key}`];
-  return typeof v === "string" && v !== "" ? v : void 0;
-};
-function parsePreviewBody(body) {
-  const doc = previewXml.parse(body);
-  const table = doc.tableData ?? {};
-  const raw = Array.isArray(table.columns) ? table.columns : [];
-  const messages = [];
-  for (const m of Array.isArray(table.message) ? table.message : []) {
-    const meta3 = m;
-    const text3 = attrString(meta3, "text");
-    const severity = attrString(meta3, "severity");
-    if (text3 === void 0 && severity === void 0) continue;
-    messages.push({ text: text3 ?? "", severity: severity ?? "" });
-  }
-  const columns = [];
-  const values = [];
-  for (const col of raw) {
-    const meta3 = col.metadata;
-    const name = attrString(meta3, "name") ?? "";
-    const length = attrString(meta3, "length");
-    const description = attrString(meta3, "description");
-    const parsedLength = length === void 0 ? Number.NaN : Number.parseInt(length, 10);
-    columns.push({
-      name,
-      type: attrString(meta3, "type") ?? "",
-      ...Number.isFinite(parsedLength) ? { length: parsedLength } : {},
-      ...description === void 0 ? {} : { description },
-      key: isAbapTrue(attrString(meta3, "keyAttribute"))
-    });
-    const ds = col.dataSet;
-    const cells = typeof ds === "object" && ds !== null && Array.isArray(ds.data) ? ds.data : [];
-    values.push(cells.map((c) => c === void 0 || c === null ? "" : String(c)));
-  }
-  const rowCount = values.reduce((n, v) => Math.max(n, v.length), 0);
-  const rows = [];
-  for (let r = 0; r < rowCount; r++) {
-    rows.push(values.map((v) => v[r] ?? ""));
-  }
-  let totalRows;
-  const totalRowsRaw = table.totalRows;
-  if (typeof totalRowsRaw === "string" && totalRowsRaw.trim() !== "") {
-    const parsed = Number.parseInt(totalRowsRaw, 10);
-    if (Number.isFinite(parsed)) totalRows = parsed;
-  }
-  return { columns, rows, messages, ...totalRows === void 0 ? {} : { totalRows } };
-}
-function classifyPreviewFailure(e, ctx) {
-  const err = translateAdtError(e, ctx);
-  if (err.code !== "ADT_ERROR") return err;
-  const status = typeof err.details.status === "number" ? err.details.status : void 0;
-  const target = ctx.name ?? ctx.uri ?? "the entity";
-  if (status === 401 || status === 403) {
-    return new AbapError(
-      "AUTH_FAILED",
-      `Not authorised (HTTP ${status}) to read data from ${target}. The logon succeeded; the user lacks table-display authorisation for it.`,
-      { ...err.details, status },
-      "The user is authenticated but not authorised (typically S_TABU_DIS / S_TABU_NAM). The name is not in question \u2014 do not retry with a different name."
-    );
-  }
-  if (status === 400 && /not found|does not exist|unknown|not exist/i.test(err.message)) {
-    return new AbapError(
-      "NOT_FOUND",
-      `No DDIC table or view named ${target} exists on this system.`,
-      { ...err.details, status },
-      "Check the spelling, or look the object up first \u2014 this endpoint reports a missing entity as HTTP 400, not 404."
-    );
-  }
-  return err;
-}
-async function previewDdicEntity(conn, input) {
-  const table = normaliseEntityName(input.table);
-  if (!isValidDdicEntityName(table)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `'${String(input.table)}' is not a valid DDIC table or view name.`,
-      { table: String(input.table) },
-      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity \u2014 it has no WHERE clause and accepts no SQL."
-    );
-  }
-  const { maxRows } = input;
-  if (!Number.isInteger(maxRows) || maxRows < 1) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `max_rows must be a positive integer, got ${String(maxRows)}.`,
-      { maxRows },
-      "Ask for at least one row. 0 is not 'no rows' on this endpoint \u2014 it means unlimited, and is refused rather than sent."
-    );
-  }
-  const ctx = { operation: "read", name: table, type: "TABL/DT" };
-  let body;
-  try {
-    const resp = await conn.dataPreviewDdic(table, maxRows);
-    body = resp.body;
-  } catch (e) {
-    throw classifyPreviewFailure(e, ctx);
-  }
-  const { columns, rows, messages } = parsePreviewBody(body);
-  const moreRowsExist = rows.length > maxRows;
-  return {
-    table,
-    columns,
-    rows: moreRowsExist ? rows.slice(0, maxRows) : rows,
-    rowsRequested: maxRows,
-    moreRowsExist,
-    messages
-  };
-}
-
 // src/adt/img-catalog.ts
 var MEASURED_NOTE = "measured 2026-09-05";
 var IMG_CATALOG = Object.freeze({
@@ -112577,6 +112447,136 @@ var IMG_ACTIVITY_REF_TYPE = "COBJ";
 var IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
 var IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"]);
 
+// src/adt/datapreview.ts
+var PLAIN_NAME_RE = /^[A-Z][A-Z0-9_]{0,29}$/;
+var NAMESPACED_NAME_RE = /^\/[A-Z0-9_]{1,10}\/[A-Z0-9_]{1,30}$/;
+var MAX_ENTITY_NAME_LENGTH = 30;
+function isValidDdicEntityName(name) {
+  if (name.length > MAX_ENTITY_NAME_LENGTH) return false;
+  return PLAIN_NAME_RE.test(name) || NAMESPACED_NAME_RE.test(name);
+}
+function normaliseEntityName(name) {
+  return String(name ?? "").trim().toUpperCase();
+}
+var previewXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true,
+  isArray: (_name, jpath) => jpath === "tableData.columns" || jpath === "tableData.columns.dataSet.data" || jpath === "tableData.message"
+});
+var attrString = (meta3, key) => {
+  const v = meta3?.[`@_${key}`];
+  return typeof v === "string" && v !== "" ? v : void 0;
+};
+function parsePreviewBody(body) {
+  const doc = previewXml.parse(body);
+  const table = doc.tableData ?? {};
+  const raw = Array.isArray(table.columns) ? table.columns : [];
+  const messages = [];
+  for (const m of Array.isArray(table.message) ? table.message : []) {
+    const meta3 = m;
+    const text3 = attrString(meta3, "text");
+    const severity = attrString(meta3, "severity");
+    if (text3 === void 0 && severity === void 0) continue;
+    messages.push({ text: text3 ?? "", severity: severity ?? "" });
+  }
+  const columns = [];
+  const values = [];
+  for (const col of raw) {
+    const meta3 = col.metadata;
+    const name = attrString(meta3, "name") ?? "";
+    const length = attrString(meta3, "length");
+    const description = attrString(meta3, "description");
+    const parsedLength = length === void 0 ? Number.NaN : Number.parseInt(length, 10);
+    columns.push({
+      name,
+      type: attrString(meta3, "type") ?? "",
+      ...Number.isFinite(parsedLength) ? { length: parsedLength } : {},
+      ...description === void 0 ? {} : { description },
+      key: isAbapTrue(attrString(meta3, "keyAttribute"))
+    });
+    const ds = col.dataSet;
+    const cells = typeof ds === "object" && ds !== null && Array.isArray(ds.data) ? ds.data : [];
+    values.push(cells.map((c) => c === void 0 || c === null ? "" : String(c)));
+  }
+  const rowCount = values.reduce((n, v) => Math.max(n, v.length), 0);
+  const rows = [];
+  for (let r = 0; r < rowCount; r++) {
+    rows.push(values.map((v) => v[r] ?? ""));
+  }
+  let totalRows;
+  const totalRowsRaw = table.totalRows;
+  if (typeof totalRowsRaw === "string" && totalRowsRaw.trim() !== "") {
+    const parsed = Number.parseInt(totalRowsRaw, 10);
+    if (Number.isFinite(parsed)) totalRows = parsed;
+  }
+  return { columns, rows, messages, ...totalRows === void 0 ? {} : { totalRows } };
+}
+function classifyPreviewFailure(e, ctx) {
+  const err = translateAdtError(e, ctx);
+  if (err.code !== "ADT_ERROR") return err;
+  const status = typeof err.details.status === "number" ? err.details.status : void 0;
+  const target = ctx.name ?? ctx.uri ?? "the entity";
+  if (status === 401 || status === 403) {
+    return new AbapError(
+      "AUTH_FAILED",
+      `Not authorised (HTTP ${status}) to read data from ${target}. The logon succeeded; the user lacks table-display authorisation for it.`,
+      { ...err.details, status },
+      "The user is authenticated but not authorised (typically S_TABU_DIS / S_TABU_NAM). The name is not in question \u2014 do not retry with a different name."
+    );
+  }
+  if (status === 400 && /not found|does not exist|unknown|not exist/i.test(err.message)) {
+    return new AbapError(
+      "NOT_FOUND",
+      `No DDIC table or view named ${target} exists on this system.`,
+      { ...err.details, status },
+      "Check the spelling, or look the object up first \u2014 this endpoint reports a missing entity as HTTP 400, not 404."
+    );
+  }
+  return err;
+}
+async function previewDdicEntity(conn, input) {
+  const table = normaliseEntityName(input.table);
+  if (!isValidDdicEntityName(table)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'${String(input.table)}' is not a valid DDIC table or view name.`,
+      { table: String(input.table) },
+      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity \u2014 it has no WHERE clause and accepts no SQL."
+    );
+  }
+  const { maxRows } = input;
+  if (!Number.isInteger(maxRows) || maxRows < 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `max_rows must be a positive integer, got ${String(maxRows)}.`,
+      { maxRows },
+      "Ask for at least one row. 0 is not 'no rows' on this endpoint \u2014 it means unlimited, and is refused rather than sent."
+    );
+  }
+  const ctx = { operation: "read", name: table, type: "TABL/DT" };
+  let body;
+  try {
+    const resp = await conn.dataPreviewDdic(table, maxRows);
+    body = resp.body;
+  } catch (e) {
+    throw classifyPreviewFailure(e, ctx);
+  }
+  const { columns, rows, messages } = parsePreviewBody(body);
+  const moreRowsExist = rows.length > maxRows;
+  return {
+    table,
+    columns,
+    rows: moreRowsExist ? rows.slice(0, maxRows) : rows,
+    rowsRequested: maxRows,
+    moreRowsExist,
+    messages
+  };
+}
+
 // src/adt/img-query.ts
 function sqlLiteral(value) {
   return abapLiteral(value);
@@ -112622,12 +112622,18 @@ function assertEntityName(value, what = "name") {
   }
   return v;
 }
-function assertLanguage(value) {
-  const v = assertSqlValue(value, "language", 2).trim();
-  if (!/^[A-Za-z]{1,2}$/.test(v)) {
-    throw new AbapError("BAD_INPUT", `language "${value}" must be exactly 1 or 2 letters.`, { value });
+var IMG_DEFAULT_LANGUAGE = "E";
+var IMG_LANGUAGE_RE = /^[A-Za-z]$/;
+function assertImgLanguage(value) {
+  const v = value.trim();
+  if (!IMG_LANGUAGE_RE.test(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `language "${value}" must be a single-character SAP language key (SPRAS), not an ISO code \u2014 use "E" for English, "D" for German. SAP rejects a two-character value on these catalog columns with 'EN' is not a valid value for C(1,0).`,
+      { value }
+    );
   }
-  return v.toUpperCase();
+  return assertSqlValue(v.toUpperCase(), "language", 1);
 }
 function assertTransactionCode2(value, what = "tcode") {
   const v = assertSqlValue(value, what, 20).trim().toUpperCase();
@@ -112728,7 +112734,7 @@ function buildActivityTitleSearchQuery(pattern, language, after) {
   const lang = fld("imgActivityText", "language");
   const text3 = fld("imgActivityText", "text");
   const { literal: literal2, escapeChar } = imgLikePattern(pattern);
-  const where2 = [`${lang} = ${sqlLiteral(assertLanguage(language))}`, `${text3} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
+  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text3} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
   const afterPred = afterPredicate(activity, after, assertActivityId);
   if (afterPred !== void 0) where2.push(afterPred);
   return buildSelect(`${activity}, ${text3}`, tbl("imgActivityText"), where2, activity);
@@ -112743,7 +112749,7 @@ function buildActivityTitlesQuery(activities, language) {
   const lang = fld("imgActivityText", "language");
   const text3 = fld("imgActivityText", "text");
   const where2 = [
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(activity, activities, "activities", assertActivityId)
   ];
   return buildSelect(`${activity}, ${text3}`, tbl("imgActivityText"), where2);
@@ -112778,7 +112784,7 @@ function buildObjectTextsQuery(objectNames, language) {
   const lang = fld("cusObjectText", "language");
   const text3 = fld("cusObjectText", "text");
   const where2 = [
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(object3, objectNames, "objectNames", assertEntityName)
   ];
   return buildSelect(`${object3}, ${objectType2}, ${text3}`, tbl("cusObjectText"), where2);
@@ -112800,7 +112806,7 @@ function buildViewClusterTextQuery(clusterNames, language) {
   const lang = fld("viewClusterText", "language");
   const text3 = fld("viewClusterText", "text");
   const where2 = [
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(cluster, clusterNames, "clusterNames", assertEntityName)
   ];
   return buildSelect(`${cluster}, ${text3}`, tbl("viewClusterText"), where2);
@@ -112829,7 +112835,7 @@ function buildTableTextsQuery(tableNames, language) {
   const text3 = fld("ddicTableText", "text");
   const where2 = [
     `${activeState} = ${sqlLiteral("A")}`,
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(table, tableNames, "tableNames", assertEntityName)
   ];
   return buildSelect(`${table}, ${text3}`, tbl("ddicTableText"), where2);
@@ -112848,7 +112854,7 @@ function buildViewTextQuery(viewNames, language) {
   const text3 = fld("viewText", "text");
   const where2 = [
     `${activeState} = ${sqlLiteral("A")}`,
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(view, viewNames, "viewNames", assertEntityName)
   ];
   return buildSelect(`${view}, ${text3}`, tbl("viewText"), where2);
@@ -112878,7 +112884,7 @@ function buildTransactionTextsQuery(tcodes, language) {
   const lang = fld("transactionText", "language");
   const text3 = fld("transactionText", "text");
   const where2 = [
-    `${lang} = ${sqlLiteral(assertLanguage(language))}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
     inClause(tcode, tcodes, "tcodes", assertTransactionCode2)
   ];
   return buildSelect(`${tcode}, ${text3}`, tbl("transactionText"), where2);
@@ -112889,7 +112895,7 @@ function buildTreeRootProbeQuery(language) {
   const lang = fld("imgTreeNodeText", "language");
   const text3 = fld("imgTreeNodeText", "text");
   const { literal: literal2, escapeChar } = imgLikePattern(`${IMG_TREE_TEXT_PROBE}*`);
-  const where2 = [`${lang} = ${sqlLiteral(assertLanguage(language))}`, `${text3} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
+  const where2 = [`${lang} = ${sqlLiteral(assertImgLanguage(language))}`, `${text3} LIKE '${literal2}' ESCAPE '${escapeChar}'`];
   return buildSelect(`${treeId}, ${nodeId}, ${lang}, ${text3}`, tbl("imgTreeNodeText"), where2);
 }
 function buildTreeChildrenQuery(treeId, parentId, language, after) {
@@ -112917,7 +112923,7 @@ function buildTreeChildrenQuery(treeId, parentId, language, after) {
   ].join(", ");
   const from = `${node2} AS n
 LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
-  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertLanguage(language))}`;
+  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
   const where2 = [
     `n~${treeIdF} = ${sqlLiteral(assertTreeKeyValue(treeId, "treeId"))}`,
     `n~${parentIdF} = ${sqlLiteral(assertTreeKeyValue(parentId, "parentId"))}`
@@ -112951,7 +112957,7 @@ function buildTreeNodeQuery(treeId, nodeId, language) {
   ].join(", ");
   const from = `${node2} AS n
 LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
-  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertLanguage(language))}`;
+  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
   const where2 = [
     `n~${treeIdF} = ${sqlLiteral(assertTreeKeyValue(treeId, "treeId"))}`,
     `n~${nodeIdF} = ${sqlLiteral(assertTreeKeyValue(nodeId, "nodeId"))}`
@@ -113005,7 +113011,7 @@ function buildTreeNodeByIdQuery(nodeId, language) {
   ].join(", ");
   const from = `${node2} AS n
 LEFT OUTER JOIN ${nodeText} AS t ON t~${textTreeIdF} = n~${treeIdF}
-  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertLanguage(language))}`;
+  AND t~${textNodeIdF} = n~${nodeIdF} AND t~${textLangF} = ${sqlLiteral(assertImgLanguage(language))}`;
   const where2 = [`n~${nodeIdF} = ${sqlLiteral(assertTreeKeyValue(nodeId, "nodeId"))}`];
   return buildSelect(select, from, where2, `n~${treeIdF}`);
 }
@@ -113877,7 +113883,9 @@ var imgReadInputSchema = {
   ),
   object: external_exports.string().optional().describe("objects only: a view, view cluster, table, or customizing object name."),
   kind: external_exports.enum(IMG_OBJECT_KINDS).optional().describe("objects only: a hint for the object's kind, used when the name is ambiguous."),
-  language: external_exports.string().regex(/^[A-Za-z]{1,2}$/, "1-2 letters").optional().describe(`1-2 letter language code. Defaults to the server's configured language, else "E".`),
+  language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe(
+    `single-character SAP language key (SPRAS), e.g. "E" for English, "D" for German \u2014 not a 2-letter ISO code. Defaults to the server's configured language, else "E".`
+  ),
   after: external_exports.string().optional().describe(
     "search/tree only: opaque keyset cursor copied from a previous response's paging note. Omit for the first page."
   ),
@@ -113898,7 +113906,7 @@ function requireField(mode, field, value) {
   return v;
 }
 function buildQuery3(input, cfg) {
-  const language = input.language ?? (cfg.language || "E");
+  const language = assertImgLanguage(input.language ?? (cfg.language || IMG_DEFAULT_LANGUAGE));
   if (input.mode === "search") {
     rejectForMode("search", "activity", input.activity);
     rejectForMode("search", "node", input.node);
@@ -114275,13 +114283,6 @@ function assertDdicIdentifier(value, what) {
   }
   return value;
 }
-function assertWriteLanguage(value) {
-  const v = value.trim();
-  if (!/^[A-Za-z]{1,2}$/.test(v)) {
-    throw new AbapError("BAD_INPUT", `language "${value}" must be exactly 1 or 2 letters.`, { value });
-  }
-  return v.toUpperCase();
-}
 function assertRowValue(value, what) {
   return assertAbapText(value, what, 200);
 }
@@ -114295,7 +114296,7 @@ function assertSingleCharCode(value, what) {
 function validateProbePlan(p) {
   assertDdicIdentifier(p.table, "table");
   const clientField = assertDdicIdentifier(p.clientField, "clientField").toUpperCase();
-  assertWriteLanguage(p.language);
+  assertImgLanguage(p.language);
   if (p.keyFields.length < 1) {
     throw new AbapError("BAD_INPUT", `${p.table} needs at least one key field.`, { table: p.table });
   }
@@ -114928,10 +114929,13 @@ function customizingRequestBody(p) {
     "DATA lt_task_headers TYPE trwbo_request_headers.",
     "DATA ls_task_header TYPE trwbo_request_header.",
     "DATA lt_users TYPE scts_users.",
+    "DATA ls_user TYPE scts_user.",
     "DATA lv_msg TYPE string.",
     "DATA lv_exc TYPE string.",
     "",
-    "INSERT sy-uname INTO TABLE lt_users.",
+    "ls_user-user = sy-uname.",
+    "ls_user-type = 'Q'.",
+    "INSERT ls_user INTO TABLE lt_users.",
     "",
     `CALL FUNCTION '${CUSTOMIZING_REQUEST_FM.fm}'`,
     "  EXPORTING",
@@ -114980,6 +114984,17 @@ function customizingRequestBody(p) {
     `  out->write( |${CUSTREQ_LINE_PREFIX}WARN code=[NO_TASK] len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
     "ELSE.",
     `  out->write( |${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]| ).`,
+    // TRWBO_REQUEST_HEADER-TRFUNCTION is NOT measured from this system — only SCTS_USER's
+    // USER/TYPE fields were (see the IT_USERS comment above). Emitted so a live round-3
+    // read-back can prove or disprove the 'Q' guess passed as IT_USERS-TYPE above; a wrong
+    // field name here fails activation before the FM ever runs, the same cheap failure
+    // mode as a wrong SCTS_USER field name. Its own `out->write`/`CTSW>` line, not extra
+    // fields tacked onto the TASK line above: every other line here (REQUEST, TASK, WARN,
+    // ERROR) is `head len=[n] value=[v]`, and `extractCustReqValue`/the CUSTREQ_*_RE
+    // patterns are all built on exactly one `len=[n] value=[v]` pair per line — a combined
+    // `TASK <number> TYPE <x>` line would need its own bespoke two-value regex instead of
+    // reusing that shape, for one field that is genuinely a second, independent value.
+    `  out->write( |${CUSTREQ_LINE_PREFIX}TASKTYPE len=[{ strlen( ls_task_header-trfunction ) }] value=[{ ls_task_header-trfunction }]| ).`,
     "ENDIF."
   ];
 }
@@ -115025,6 +115040,11 @@ function parseCustomizingRequestTranscript(text3) {
           if (parsed) result.task = parsed.value;
           break;
         }
+        case "TASKTYPE": {
+          const parsed = extractCustReqValue(remainder, CUSTREQ_VAL_RE);
+          if (parsed) result.taskType = parsed.value;
+          break;
+        }
         case "ERROR": {
           const parsed = extractCustReqValue(remainder, CUSTREQ_ERR_RE);
           if (parsed) {
@@ -115055,8 +115075,8 @@ function parseCustomizingRequestTranscript(text3) {
 
 // src/adt/img-write.ts
 var PROBE_HINT = "The probe only SELECTs the target table plus DD02L/DD03L, all named from the caller's own plan (table, keyFields) \u2014 a syntax error here most likely means the table does not exist or one of keyFields is not really a field on it, as spelled. It is never a symptom of a bad ROW VALUE: those reach this bridge only as quoted literals, never as identifiers.";
-var APPLY_HINT = "The apply bridge MODIFYs/DELETEs the target table directly and then calls TR_OBJECTS_CHECK/TR_OBJECTS_INSERT (see CTS_INSERT_FM) \u2014 ordinary standard SAP function modules, but this server has never called them, so their parameter names/types here were read from FUPARAREF rather than confirmed by a successful call, and the ADT syntax check cannot validate an FM interface \u2014 a syntax error here most likely means the table's real structure has drifted from the field list the probe returned, or one of those two FMs' parameter names is wrong. It is never a symptom of a bad row value, for the same quoted-literal reason as the probe bridge.";
-var REQUEST_HINT = "This bridge only calls TR_INSERT_REQUEST_WITH_TASKS (see CUSTOMIZING_REQUEST_FM) \u2014 an ordinary standard SAP function module \u2014 with request type 'W' and the caller's description/owner as quoted literals. This server has never called it, so its parameter names here were read from FUPARAREF rather than confirmed by a successful call, and the ADT syntax check cannot validate an FM interface \u2014 a syntax error here most likely means that FM's parameter names are wrong, not the description/owner text itself.";
+var APPLY_HINT = "The apply bridge MODIFYs/DELETEs the target table directly and then calls TR_OBJECTS_CHECK/TR_OBJECTS_INSERT (see CTS_INSERT_FM) \u2014 ordinary standard SAP function modules, but this server has never called them, so their parameter names/types here were read from FUPARAREF rather than confirmed by a successful call, and the ADT syntax check cannot validate an FM interface. It DOES validate ordinary ABAP statements in the generated body, though \u2014 a syntax error here can equally mean the table's real structure has drifted from the field list the probe returned, or one of those two FMs' parameter names is wrong. It is never a symptom of a bad row value, for the same quoted-literal reason as the probe bridge.";
+var REQUEST_HINT = `This bridge only calls TR_INSERT_REQUEST_WITH_TASKS (see CUSTOMIZING_REQUEST_FM) \u2014 an ordinary standard SAP function module \u2014 with request type 'W' and the caller's description/owner as quoted literals. This server has never called it, so its parameter names here were read from FUPARAREF rather than confirmed by a successful call, and the ADT syntax check cannot validate an FM interface. But that same check DOES validate ordinary ABAP statements in the generated body \u2014 on 2026-09-06 it caught "SY-UNAME" and the row type of "LT_USERS" are incompatible in this bridge before the FM was ever called \u2014 so a syntax error here can be either cause, and the quoted activation message is what tells them apart, not a guess. Delete the left-behind bridge class with abap_write {"object":"class ${CUSTOMIZING_REQUEST_CLASS}","mode":"delete"}.`;
 async function runImgProbe(conn, gate, plan) {
   const started = Date.now();
   validateProbePlan(plan);
@@ -115341,7 +115361,9 @@ var imgEditInputSchema = {
   master_type: external_exports.enum(["VDAT", "CDAT"]).optional().describe(
     `upsert/delete: the transport entry's object type. "VDAT" for a maintenance view (default), "CDAT" for a customizing object recorded directly.`
   ),
-  language: external_exports.string().regex(/^[A-Za-z]{1,2}$/, "1-2 letters").optional().describe('1-2 letter language code the probe reads DD02L/DD03L texts in. Default "EN".'),
+  language: external_exports.string().regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code").optional().describe(
+    `Single-character SAP language key (SPRAS) the probe reads DD02L/DD03L texts in, e.g. "E" for English, "D" for German \u2014 not a 2-letter ISO code like EN/DE. Defaults to ${JSON.stringify(IMG_DEFAULT_LANGUAGE)}.`
+  ),
   corr_nr: external_exports.string().optional().describe(
     "upsert/delete: transport request to record the write on. Required unless the client is proven not to auto-record client-dependent changes."
   ),
@@ -115383,7 +115405,7 @@ function parseRowEditArgs(mode, input, cfg) {
     rows,
     view: (input.view ?? table).trim(),
     masterType: input.master_type ?? "VDAT",
-    language: (input.language ?? (cfg.language || "EN")).trim(),
+    language: assertImgLanguage(input.language ?? (cfg.language || IMG_DEFAULT_LANGUAGE)),
     corrNr: input.corr_nr,
     confirm: input.confirm,
     allowCrossClient: input.allow_cross_client ?? false
@@ -115598,6 +115620,9 @@ function policyTableFromResolved(table, clientField) {
     fields
   };
 }
+async function ensureRoleVerdict(deps) {
+  if (deps.safety.config.writesLockedOut === void 0) await deps.ensureConnected();
+}
 var SAFE_PRECHECK_RULES = /* @__PURE__ */ new Set([
   "productive-system",
   "write-lockout",
@@ -115727,6 +115752,7 @@ function renderPreview(args, probe3, notes, maxChars) {
     header: {
       mode: "preview",
       table: table.table,
+      language: args.language,
       view: args.view,
       masterType: args.masterType,
       deliveryClass: table.deliveryClass,
@@ -115759,6 +115785,7 @@ function renderArmed(mode, args, apply, notes, journalNote, maxChars) {
     header: {
       mode,
       table: args.table,
+      language: args.language,
       view: args.view,
       masterType: args.masterType,
       corrNr: args.corrNr,
@@ -115798,10 +115825,11 @@ function renderCreateRequest(plan, result, maxChars) {
       owner: plan.owner,
       request: t.request,
       task: t.task,
+      taskType: t.taskType,
       bridgeClass: result.bridgeClass,
       bridgeRefreshed: result.bridgeRefreshed
     },
-    body: t.request ? `Request ${t.request}${t.task ? ` (task ${t.task})` : ""} created.` : "Request could not be confirmed \u2014 see notes.",
+    body: t.request ? `Request ${t.request}${t.task ? ` (task ${t.task}${t.taskType ? `, type ${t.taskType}` : ""})` : ""} created.` : "Request could not be confirmed \u2014 see notes.",
     bodyLabel: "RESULT",
     notes,
     maxChars
@@ -115944,6 +115972,7 @@ async function runRowEditMode(deps, mode, input) {
   const selector = selectTarget(mode, input);
   if (selector.kind === "table") {
     const args2 = parseRowEditArgs(mode, input, deps.cfg);
+    await ensureRoleVerdict(deps);
     preflightPolicyCheck(args2, mode, deps.safety);
     return runProbeAndApply(deps, mode, args2, { needsReadAndConnect: true });
   }
@@ -115953,11 +115982,12 @@ async function runRowEditMode(deps, mode, input) {
     throw new AbapError("BAD_INPUT", `mode "${mode}" requires at least one row.`, { mode });
   }
   const masterType = input.master_type ?? "VDAT";
-  const language = (input.language ?? (deps.cfg.language || "EN")).trim();
+  const language = assertImgLanguage(input.language ?? (deps.cfg.language || IMG_DEFAULT_LANGUAGE));
   const corrNr = input.corr_nr;
   const confirm = input.confirm;
   const allowCrossClient = input.allow_cross_client ?? false;
   const identifier = selector.kind === "activity" ? selector.activity : selector.object;
+  await ensureRoleVerdict(deps);
   preflightConfigOnly(mode, deps.safety);
   deps.safety.assert("read");
   await deps.ensureConnected();
@@ -116018,6 +116048,7 @@ async function runCreateRequestMode(deps, input) {
   rejectForMode2("create_request", "confirm", input.confirm);
   const description = requireString("create_request", "description", input.description);
   const plan = { description, owner: input.owner };
+  await ensureRoleVerdict(deps);
   deps.safety.assert("read");
   deps.safety.assert(
     "write",
@@ -116089,7 +116120,7 @@ async function runCreateRequestMode(deps, input) {
     throw new AbapError(
       "CHECK_FAILED",
       createRequestFailureMessage(t, description),
-      { description, errors: t.errors, warnings: t.warnings }
+      { description, task: t.task, taskType: t.taskType, errors: t.errors, warnings: t.warnings }
     );
   }
   return ok14(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
