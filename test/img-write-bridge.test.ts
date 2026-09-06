@@ -528,8 +528,13 @@ describe("imgApplySource: CTS record shape", () => {
   });
 
   it("types the CTS objects table KO200, not a STANDARD TABLE OF e071", () => {
+    // Was pinned as "... WITH EMPTY KEY." before the live round-5 finding: a TABLES formal
+    // (wt_ko200/wt_e071k) is a standard table with the DEFAULT key, and an EMPTY KEY actual is a
+    // runtime CX_SY_DYN_CALL_ILLEGAL_TYPE the ADT activation syntax check never catches. Updated
+    // to WITH DEFAULT KEY — see "declares lt_ko200/lt_e071k WITH DEFAULT KEY" below for the
+    // blanket regression guard.
     const src = imgApplySource(baseApply());
-    expect(src).toContain("DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH EMPTY KEY.");
+    expect(src).toContain("DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.");
     expect(src).not.toMatch(/TYPE STANDARD TABLE OF e071\b/);
   });
 
@@ -546,6 +551,99 @@ describe("imgApplySource: CTS record shape", () => {
     expect(src).toContain("trkorr=[XXXK900001]");
     expect(src).toContain("order_len=[{ strlen( lv_we_order ) }] order=[{ lv_we_order }]");
     expect(src).toContain("task_len=[{ strlen( lv_we_task ) }] task=[{ lv_we_task }]");
+  });
+});
+
+describe("imgApplySource: TABLES actual key type", () => {
+  it("declares lt_ko200/lt_e071k WITH DEFAULT KEY, and never emits WITH EMPTY KEY anywhere", () => {
+    // Blanket negative assertion, not just a check on these two names: it is the one that would
+    // catch a future regression anywhere in this generator, the way the old, narrower
+    // "types the CTS objects table KO200" test above did not — that test pinned the exact bug.
+    const src = imgApplySource(baseApply());
+    expect(src).toContain("DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.");
+    expect(src).toContain("DATA lt_e071k TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.");
+    expect(src).not.toContain("WITH EMPTY KEY");
+  });
+});
+
+describe("imgApplySource: CTS runtime failure handling", () => {
+  it("wraps the CTS calls in TRY / CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing / CATCH cx_root / ENDTRY, declares lx_cts exactly once across a 2-row plan, and emits the IMGW> ERROR line in both handlers", () => {
+    const plan = baseApply({
+      rows: [
+        { key: { [KEY_FIELD]: "A1" }, values: { [VAL_FIELD]: "Hello" } },
+        { key: { [KEY_FIELD]: "A2" }, values: { [VAL_FIELD]: "World" } },
+      ],
+    });
+    const src = imgApplySource(plan);
+
+    expect(src).toContain("TRY.");
+    expect(src).toContain("CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts.");
+    expect(src).toContain("CATCH cx_root INTO lx_cts.");
+    expect(src).toContain("ENDTRY.");
+
+    // Declared once in the body's DATA block, even though the plan has two rows (two
+    // ctsRecordFragment emissions) — an inline CATCH ... INTO DATA(lx) would duplicate-declare.
+    const declCount = (src.match(/DATA lx_cts TYPE REF TO cx_root\./g) ?? []).length;
+    expect(declCount).toBe(1);
+
+    // But the CATCH block itself, and the ERROR write inside it, are emitted once per row.
+    const catchCount = (
+      src.match(/CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts\./g) ?? []
+    ).length;
+    expect(catchCount).toBe(2);
+    const errorWriteCount = (src.match(/ERROR class=\[\{ lv_exc_class \}\]/g) ?? []).length;
+    expect(errorWriteCount).toBe(4); // 2 rows x 2 CATCH branches each
+
+    expect(src).toContain(
+      `out->write( |${IMGW_LINE_PREFIX}ERROR class=[{ lv_exc_class }] len=[{ strlen( lv_exc_text ) }] | &&`,
+    );
+    expect(src).toContain("|value=[{ lv_exc_text }]| ).");
+  });
+
+  it("keeps the CALL FUNCTION statements and their sy-subrc checks textually inside the inner (CTS-specific) TRY, ending at its own ENDTRY — not merely ddicBridgeSource's outer TRY/ENDTRY", () => {
+    // ddicBridgeSource already wraps the whole method body in its own outer TRY ... ENDTRY, so a
+    // plain src.indexOf("TRY.") / src.indexOf("ENDTRY.") would find that outer wrap and pass even
+    // if the inner CTS-specific TRY/CATCH were missing entirely. To actually prove the inner TRY
+    // exists, anchor on the CTS-specific CATCH line and require an inner TRY strictly after the
+    // outer one, and an ENDTRY between the CATCH and the rest of the method.
+    const src = imgApplySource(baseApply());
+    const outerTryIdx = src.indexOf("TRY.");
+    const checkIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
+    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
+    const catchIdx = src.indexOf(
+      "CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts.",
+    );
+    const innerTryIdx = src.lastIndexOf("TRY.", checkIdx);
+    const innerEndtryIdx = src.indexOf("ENDTRY.", catchIdx);
+
+    expect(outerTryIdx).toBeGreaterThan(-1);
+    expect(innerTryIdx).toBeGreaterThan(outerTryIdx);
+    expect(checkIdx).toBeGreaterThan(innerTryIdx);
+    expect(insertIdx).toBeGreaterThan(checkIdx);
+    expect(catchIdx).toBeGreaterThan(insertIdx);
+    expect(innerEndtryIdx).toBeGreaterThan(catchIdx);
+    // The existing sy-subrc/sy-msg* error blocks must still be present, unchanged, inside the TRY.
+    expect(src).toContain(`${CTS_INSERT_FM.checkFm} failed for row`);
+    expect(src).toContain(`${CTS_INSERT_FM.insertFm} failed for row`);
+  });
+});
+
+describe("imgApplySource: WROTE marker", () => {
+  it("emits IMGW> WROTE row=[1] immediately after a successful MODIFY on upsert", () => {
+    const src = imgApplySource(baseApply());
+    const modifyIdx = src.indexOf(`MODIFY ${TABLE.toLowerCase()} FROM ls_wa.`);
+    const wroteIdx = src.indexOf(`out->write( |${IMGW_LINE_PREFIX}WROTE row=[1]| ).`);
+    expect(modifyIdx).toBeGreaterThan(-1);
+    expect(wroteIdx).toBeGreaterThan(modifyIdx);
+  });
+
+  it("emits IMGW> WROTE row=[1] immediately after a successful DELETE on delete", () => {
+    const plan = baseApply({ op: "delete", rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] });
+    const src = imgApplySource(plan);
+    const deleteIdx = src.indexOf(`DELETE ${TABLE.toLowerCase()} FROM ls_wa.`);
+    const wroteIdx = src.indexOf(`out->write( |${IMGW_LINE_PREFIX}WROTE row=[1]| ).`);
+    expect(deleteIdx).toBeGreaterThan(-1);
+    expect(wroteIdx).toBeGreaterThan(deleteIdx);
   });
 });
 
@@ -728,5 +826,43 @@ describe("parseImgWriteTranscript", () => {
     const text = `${ERR_LINE_PREFIX}unhandled exception text`;
     const t = parseImgWriteTranscript(text);
     expect(t.errors).toEqual(["unhandled exception text"]);
+  });
+
+  it("maps an IMGW> ERROR line into errors with the exception class name visible", () => {
+    const text = `${IMGW_LINE_PREFIX}ERROR class=[CX_SY_DYN_CALL_ILLEGAL_TYPE] len=[19] value=[bad table type here]`;
+    const t = parseImgWriteTranscript(text);
+    expect(t.droppedLines).toBe(0);
+    expect(t.errors).toHaveLength(1);
+    expect(t.errors[0]).toContain("CX_SY_DYN_CALL_ILLEGAL_TYPE");
+    expect(t.errors[0]).toContain("bad table type here");
+  });
+
+  it("recovers an ERROR value that itself contains a closing bracket", () => {
+    // get_text( ) is free text and can contain "]" — same rationale as BVAL/AVAL/TRKEY.
+    const text = `${IMGW_LINE_PREFIX}ERROR class=[CX_SY_DYN_CALL_ILLEGAL_TYPE] len=[3] value=[A]B]`;
+    const t = parseImgWriteTranscript(text);
+    expect(t.droppedLines).toBe(0);
+    expect(t.errors).toEqual([`CX_SY_DYN_CALL_ILLEGAL_TYPE: A]B`]);
+  });
+
+  it("counts a malformed ERROR line (missing len/value) as dropped, never silently ignored", () => {
+    const text = `${IMGW_LINE_PREFIX}ERROR class=[CX_SY_DYN_CALL_ILLEGAL_TYPE]`;
+    const t = parseImgWriteTranscript(text);
+    expect(t.droppedLines).toBe(1);
+    expect(t.errors).toEqual([]);
+  });
+
+  it("fills wrote with the row numbers seen on IMGW> WROTE lines", () => {
+    const text = [`${IMGW_LINE_PREFIX}WROTE row=[1]`, `${IMGW_LINE_PREFIX}WROTE row=[2]`].join("\n");
+    const t = parseImgWriteTranscript(text);
+    expect(t.wrote).toEqual([1, 2]);
+    expect(t.droppedLines).toBe(0);
+  });
+
+  it("counts a malformed WROTE line as dropped, never silently ignored", () => {
+    const text = `${IMGW_LINE_PREFIX}WROTE rowX=[1]`;
+    const t = parseImgWriteTranscript(text);
+    expect(t.droppedLines).toBe(1);
+    expect(t.wrote).toEqual([]);
   });
 });

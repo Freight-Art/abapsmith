@@ -509,6 +509,19 @@ export function imgProbeSource(p: ImgProbePlan): string {
  * discipline the line's existing `value=[...]` already uses — so a
  * divergence between requested and recorded is visible to a caller
  * re-reading the request afterward, rather than assumed away.
+ *
+ * Both `CALL FUNCTION`s are wrapped in one `TRY`/`ENDTRY`, catching
+ * `cx_sy_dyn_call_illegal_type`/`cx_sy_dyn_call_param_missing` (a
+ * `TABLES`-formal-vs-actual mismatch — measured live 2026-09-06 against
+ * `wt_ko200`/`wt_e071k` declared `WITH EMPTY KEY`, see the `lt_ko200`/
+ * `lt_e071k` declarations in `imgApplySource`) ahead of a generic `cx_root`
+ * catch, so a runtime failure here becomes its own attributed `IMGW> ERROR`
+ * transcript line instead of only the unattributed `ZMCP-DDIC-ERR>` line
+ * `ddicBridgeSource`'s outer `CATCH cx_root` already prints for anything
+ * uncaught. `lx_cts`/`lo_exc_type`/`lv_exc_class`/`lv_exc_text` are declared
+ * once in `imgApplySource`'s `body`, not here — this fragment runs once per
+ * row, and an inline `CATCH ... INTO DATA(lx)` would be a duplicate
+ * declaration on a second row.
  */
 function ctsRecordFragment(
   tableLower: string,
@@ -532,6 +545,24 @@ function ctsRecordFragment(
     "ENDIF.",
   ];
 
+  // Sets lv_exc_class/lv_exc_text and writes one IMGW> ERROR line, using the len=[n] value=[...]
+  // discipline every row-carrying tag in this module already uses (a get_text() can itself
+  // contain "]"). `mismatch` prefixes a wording that names this as a function-module interface
+  // problem — true of both caught classes: CX_SY_DYN_CALL_ILLEGAL_TYPE and
+  // CX_SY_DYN_CALL_PARAM_MISSING are both raised by CALL FUNCTION for a caller/callee interface
+  // disagreement, which is exactly what a WITH EMPTY KEY vs. TABLES-formal conflict is. The
+  // cx_root catch below gets no such claim — it may be nothing to do with the interface at all.
+  const dynCallErrorLines = (wording: "mismatch" | "generic"): string[] => [
+    "  lo_exc_type = cl_abap_typedescr=>describe_by_object_ref( lx_cts ).",
+    "  lv_exc_class = lo_exc_type->get_relative_name( ).",
+    wording === "mismatch"
+      ? "  lv_exc_text = |function-module interface mismatch: { lx_cts->get_text( ) }|."
+      : "  lv_exc_text = lx_cts->get_text( ).",
+    `  out->write( |${IMGW_LINE_PREFIX}ERROR class=[{ lv_exc_class }] len=[{ strlen( lv_exc_text ) }] | &&`,
+    "    |value=[{ lv_exc_text }]| ).",
+    "  RETURN.",
+  ];
+
   return [
     "CLEAR ls_ko200.",
     "ls_ko200-pgmid = 'R3TR'.",
@@ -552,34 +583,43 @@ function ctsRecordFragment(
     "ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|.",
     "REFRESH lt_e071k.",
     "APPEND ls_e071k TO lt_e071k.",
-    `CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`,
-    "  EXPORTING",
-    `    ${P.noStandardEditor} = 'X'`,
-    `    ${P.noShowOption}     = 'X'`,
-    "  TABLES",
-    `    ${P.objects} = lt_ko200`,
-    `    ${P.keys}    = lt_e071k`,
-    "  EXCEPTIONS",
-    `    ${X.cancelEditOtherError} = 1`,
-    `    ${X.showOnlyOtherError}   = 2`,
-    "    OTHERS = 3.",
-    ...errorLines(CTS_INSERT_FM.checkFm),
-    `CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`,
-    "  EXPORTING",
-    `    ${P.order}            = ${corrLit}`,
-    `    ${P.noStandardEditor} = 'X'`,
-    `    ${P.noShowOption}     = 'X'`,
-    "  IMPORTING",
-    `    ${P.weOrder} = lv_we_order`,
-    `    ${P.weTask} = lv_we_task`,
-    "  TABLES",
-    `    ${P.objects} = lt_ko200`,
-    `    ${P.keys}    = lt_e071k`,
-    "  EXCEPTIONS",
-    `    ${X.cancelEditOtherError} = 1`,
-    `    ${X.showOnlyOtherError}   = 2`,
-    "    OTHERS = 3.",
-    ...errorLines(CTS_INSERT_FM.insertFm),
+    // TRY/CATCH added so a TABLES-formal/actual mismatch — measured live 2026-09-06 on this very
+    // pair of calls — surfaces as its own tagged IMGW> ERROR line instead of only the generic,
+    // unattributed ZMCP-DDIC-ERR> line the outer CATCH cx_root in ddicBridgeSource already prints.
+    "TRY.",
+    `    CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`,
+    "      EXPORTING",
+    `        ${P.noStandardEditor} = 'X'`,
+    `        ${P.noShowOption}     = 'X'`,
+    "      TABLES",
+    `        ${P.objects} = lt_ko200`,
+    `        ${P.keys}    = lt_e071k`,
+    "      EXCEPTIONS",
+    `        ${X.cancelEditOtherError} = 1`,
+    `        ${X.showOnlyOtherError}   = 2`,
+    "        OTHERS = 3.",
+    ...errorLines(CTS_INSERT_FM.checkFm).map((l) => "  " + l),
+    `    CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`,
+    "      EXPORTING",
+    `        ${P.order}            = ${corrLit}`,
+    `        ${P.noStandardEditor} = 'X'`,
+    `        ${P.noShowOption}     = 'X'`,
+    "      IMPORTING",
+    `        ${P.weOrder} = lv_we_order`,
+    `        ${P.weTask} = lv_we_task`,
+    "      TABLES",
+    `        ${P.objects} = lt_ko200`,
+    `        ${P.keys}    = lt_e071k`,
+    "      EXCEPTIONS",
+    `        ${X.cancelEditOtherError} = 1`,
+    `        ${X.showOnlyOtherError}   = 2`,
+    "        OTHERS = 3.",
+    ...errorLines(CTS_INSERT_FM.insertFm).map((l) => "  " + l),
+    "  CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts.",
+    ...dynCallErrorLines("mismatch"),
+    "  CATCH cx_root INTO lx_cts.",
+    ...dynCallErrorLines("generic"),
+    "ENDTRY.",
     `out->write( |${IMGW_LINE_PREFIX}TRKEY row=[${rowNo}] trkorr=[${corrNr}] | &&`,
     `  |order_len=[{ strlen( lv_we_order ) }] order=[{ lv_we_order }] | &&`,
     `  |task_len=[{ strlen( lv_we_task ) }] task=[{ lv_we_task }] | &&`,
@@ -608,11 +648,29 @@ export function imgApplySource(p: ImgApplyPlan): string {
     "END OF ls_key.",
     "FIELD-SYMBOLS <key_c> TYPE c.",
     "DATA ls_ko200 TYPE ko200.",
-    "DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH EMPTY KEY.",
+    // wt_ko200/wt_e071k (CTS_INSERT_FM.params.objects/keys) are TABLES formal parameters on
+    // TR_OBJECTS_CHECK/TR_OBJECTS_INSERT — a classic TABLES formal is a standard table with the
+    // DEFAULT key, and passing a WITH EMPTY KEY actual there is a runtime type conflict
+    // (CALL_FUNCTION_CONFLICT_TAB_TYP, catchable as CX_SY_DYN_CALL_ILLEGAL_TYPE) that ADT's
+    // activation syntax check does not catch. Measured live 2026-09-06: ZCL_ZMCP_IMG_WAPPLY
+    // activated and ran, then threw exactly this exception ("not handled locally or declared in
+    // a RAISING clause") at the TR_OBJECTS_CHECK call, before any row was written. WITH DEFAULT
+    // KEY is the standard fix for a TABLES actual; not itself re-verified live as of this change.
+    "DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.",
     "DATA ls_e071k TYPE e071k.",
-    "DATA lt_e071k TYPE STANDARD TABLE OF e071k WITH EMPTY KEY.",
+    "DATA lt_e071k TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.",
     "DATA lv_we_order TYPE trkorr.",
     "DATA lv_we_task TYPE trkorr.",
+    // Declared once here, not inside ctsRecordFragment: that fragment is emitted once per row, so
+    // an inline DATA(lx)-style CATCH declaration would be a duplicate-declaration syntax error on
+    // any plan with more than one row. describe_by_object_ref/get_relative_name (not
+    // cl_abap_classdescr=>get_class_name) is used to name the caught exception at runtime — the
+    // oldest, most-certain RTTI path, chosen because this branch has already lost two live rounds
+    // to unverified SAP API names.
+    "DATA lx_cts TYPE REF TO cx_root.",
+    "DATA lo_exc_type TYPE REF TO cl_abap_typedescr.",
+    "DATA lv_exc_class TYPE string.",
+    "DATA lv_exc_text TYPE string.",
     "",
     ...clientCheckFragment(),
     "",
@@ -665,6 +723,9 @@ export function imgApplySource(p: ImgApplyPlan): string {
         `  out->write( |${DDIC_ERR_PREFIX} MODIFY failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc }| ).`,
         "  RETURN.",
         "ENDIF.",
+        // Marks this row's own MODIFY as done (sy-subrc 0) — not that the batch committed.
+        // COMMIT WORK AND WAIT runs only after every row in the plan reaches here.
+        `out->write( |${IMGW_LINE_PREFIX}WROTE row=[${rowNo}]| ).`,
       );
     } else {
       body.push(
@@ -685,6 +746,9 @@ export function imgApplySource(p: ImgApplyPlan): string {
         `    out->write( |${DDIC_ERR_PREFIX} DELETE failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc }| ).`,
         "    RETURN.",
         "  ENDIF.",
+        // Same marker as the upsert side, same caveat: this row's own DELETE returned sy-subrc 0;
+        // COMMIT WORK AND WAIT (below, after all rows) is what actually commits it.
+        `  out->write( |${IMGW_LINE_PREFIX}WROTE row=[${rowNo}]| ).`,
         "ENDIF.",
       );
     }
@@ -778,6 +842,19 @@ export interface ImgWriteTranscript {
   afterAbsent: ImgWriteAbsentRow[];
   notes: string[];
   errors: string[];
+  /**
+   * Row numbers (1-based, same convention as every other row number in this
+   * file) for which the generated ABAP's own `MODIFY`/`DELETE` returned
+   * `sy-subrc 0` — i.e. an `IMGW> WROTE row=[n]` line was seen. This is NOT
+   * proof the batch committed: `COMMIT WORK AND WAIT` runs only after every
+   * row in the plan reaches its own `WROTE`, and the `APPLIED` marker is
+   * emitted only after that commit. A caller that sees `wrote` entries but
+   * no `applied` knows some row's write plausibly went through — via a
+   * `sy-subrc 0` MODIFY/DELETE — even though the overall apply failed
+   * somewhere after that (a later row, the commit, or the after-image read);
+   * it does not know whether that write survived the commit or a rollback.
+   */
+  wrote: number[];
   droppedLines: number;
   probed: boolean;
   applied: number | null;
@@ -785,11 +862,12 @@ export interface ImgWriteTranscript {
 }
 
 /**
- * `len=[N]` before `value=[...]` on every row-carrying tag (BVAL/AVAL/TRKEY):
- * a customizing field value can itself contain `]`, which would otherwise
- * confuse the lazy `parseBracketFields` bracket match, and can carry
- * significant trailing blanks that a transport layer between the ABAP
- * `out->write` and this parser might strip.
+ * `len=[N]` before `value=[...]` on every row-carrying tag (BVAL/AVAL/TRKEY/
+ * ERROR): a customizing field value — or an ABAP exception's `get_text( )` —
+ * can itself contain `]`, which would otherwise confuse the lazy
+ * `parseBracketFields` bracket match, and can carry significant trailing
+ * blanks that a transport layer between the ABAP `out->write` and this
+ * parser might strip.
  *
  * Deviation from a literal "slice exactly N characters after `value=[`": if
  * trailing blanks were in fact stripped upstream, that naive slice would
@@ -836,6 +914,8 @@ const TRKEY_ORDER_RE = /^order_len=\[(\d+)\] order=\[/;
 const TRKEY_TASK_RE = /^task_len=\[(\d+)\] task=\[/;
 const TRKEY_VALUE_RE = /^len=\[(\d+)\] value=\[/;
 const ABSENT_RE = /^row=\[(\d+)\]$/;
+/** `get_relative_name( )`'s own charset: ABAP class/interface names, letters/digits/underscore/slash (a namespace) up to 60 chars — deliberately wider than this file's 30-char DDIC_IDENTIFIER_RE cap, since a standard exception class name is not a DDIC identifier this module generated. */
+const ERROR_RE = /^class=\[([A-Za-z0-9_/]{1,60})\] len=\[(\d+)\] value=\[/;
 
 export function parseImgWriteTranscript(text: string): ImgWriteTranscript {
   const result: ImgWriteTranscript = {
@@ -849,6 +929,7 @@ export function parseImgWriteTranscript(text: string): ImgWriteTranscript {
     afterAbsent: [],
     notes: [],
     errors: [],
+    wrote: [],
     droppedLines: 0,
     probed: false,
     applied: null,
@@ -927,6 +1008,25 @@ export function parseImgWriteTranscript(text: string): ImgWriteTranscript {
           }
           const entry: ImgWriteAbsentRow = { row: Number(m[1]) };
           (head === "BABSENT" ? result.beforeAbsent : result.afterAbsent).push(entry);
+          break;
+        }
+        case "WROTE": {
+          const m = ABSENT_RE.exec(remainder);
+          if (!m) {
+            result.droppedLines++;
+            break;
+          }
+          result.wrote.push(Number(m[1]));
+          break;
+        }
+        case "ERROR": {
+          const parsed = extractLenPrefixedValue(remainder, ERROR_RE);
+          if (!parsed) {
+            result.droppedLines++;
+            break;
+          }
+          const [exClass] = parsed.fields;
+          result.errors.push(`${exClass}: ${parsed.value}`);
           break;
         }
         case "TRKEY": {
