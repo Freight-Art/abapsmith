@@ -48,6 +48,11 @@ const LIVE_INTEGRATION_TESTS = [
   // a throwaway $TMP transaction. Same independent-gate convention as the
   // other fluid live suites above.
   "test/integration-fluid-classic.test.ts",
+  // The builtin `ui` fluid tool: deploys/activates ZCL_ZMCP_FLUID_UI into
+  // $ABAPSMITH_FLUID_API and round-trips a live SE16 screen read (tcode form,
+  // then program+dynpro form) plus an honest failure on a nonexistent tcode.
+  // Same independent-gate convention as the other fluid live suites above.
+  "test/integration-fluid-ui.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";
