@@ -10,6 +10,10 @@ const LIVE_INTEGRATION_TESTS = [
   "test/integration-debug.test.ts",
   "test/integration-undo.test.ts",
   "test/integration-fpm-lock.test.ts",
+  // Proves the fluid API's bridge package (BRIDGE_PACKAGE = FLUID_PACKAGE =
+  // $ABAPSMITH_FLUID_API) against a real appliance: a report bridge runs from
+  // its new package, and a bridge stranded in $TMP is relocated into it.
+  "test/integration-fluid-run.test.ts",
   // Acceptance case: writes an ABAP Unit test class into a real class's
   // CCAU include, activates, reads back, runs it, cleans up. Listed here so
   // `VITEST_LIVE=1` COLLECTS it — the suite carries its own independent gate

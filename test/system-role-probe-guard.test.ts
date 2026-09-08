@@ -112,6 +112,28 @@
  * **13**. This entry must be deleted (and the ceiling dropped) if the suite ever
  * stops connecting for real.
  *
+ * ### Ceiling bump: the fluid-package deployment/relocation live suite
+ *
+ * `integration-fluid-run.test.ts` joined as a FOURTEENTH entry, under the same
+ * clause as the five entries above: a genuine SEVENTH permanent member, same
+ * category as `integration.test.ts` / `integration-undo.test.ts` /
+ * `integration-fpm-lock.test.ts` / `integration-class-includes.test.ts` /
+ * `integration-lock-handle.test.ts`. It is a live suite (self-gated on
+ * `ABAP_URL` plus write access via `liveSuiteSkipReason({ write: true })` from
+ * `test/live-appliance-state.ts`, and named in vitest.config.ts's
+ * `LIVE_INTEGRATION_TESTS`) that proves, live, that the `abap_run` bridge
+ * class is deployed into and runs from the fluid API's own package
+ * `$ABAPSMITH_FLUID_API` (created on first use) rather than the legacy
+ * `$TMP`, and that a bridge found stranded in `$TMP` is relocated
+ * (delete-then-recreate, since ABAP objects cannot change package) into that
+ * package on next use — both confirmed by an independent ADT read-back of
+ * the class's package, not by trusting the deploy path's own return value.
+ * There is no fake in the file to route a probe through, and the real system
+ * answers the T000 probe itself. `ALLOWLIST_SIZE_AT_LANDING` still stays
+ * **8** — the historical fact does not move — and `ALLOWLIST_CEILING` is now
+ * **14**. This entry must be deleted (and the ceiling dropped) if the suite
+ * ever stops connecting for real.
+ *
  * ## The config-only exemption (separate from the allow-list)
  *
  * A suite whose SUBJECT is config resolution — env string in, resolved value
@@ -149,7 +171,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 5; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 6; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-run
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -422,6 +444,22 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "out and every PUT assertion in the file would go RED, loudly. There is no fake to route, " +
       "and faking one would replace the server behaviour — real lock/unlock semantics on the " +
       "wire — the suite exists to observe.",
+  },
+  {
+    file: "integration-fluid-run.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts. Gated on ABAP_URL plus write access " +
+      "(ABAP_MODE=edit/admin, or legacy ABAP_ALLOW_WRITE) via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It proves, live, " +
+      "that the abap_run bridge class deploys into and runs from the fluid API's own package " +
+      "$ABAPSMITH_FLUID_API rather than the legacy $TMP, and that a bridge found stranded in " +
+      "$TMP is relocated into that package on next use — both confirmed by an independent ADT " +
+      "read-back of the class's package, not by trusting the deploy path's own return value. " +
+      "There is no fake to route.",
   },
 ];
 
