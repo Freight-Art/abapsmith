@@ -117,51 +117,92 @@ const SOURCE = `  METHOD create_view.
     lv_view = s( 'view_name' ).
 
     DATA ls_dd25l TYPE dd25l.
+    DATA lv_dd25l_exists TYPE abap_bool.
     DATA lv_dd25l_count TYPE i.
     DATA lv_tadir_count TYPE i.
 
-    " Step 1: confirm the view exists.
+    " Step 1: confirm there is something left to delete. A DD25L row is the
+    " normal case; also tolerate DD25L already gone but a TADIR row still
+    " present - a previous delete that crashed after DD_OBJ_DEL durably
+    " committed but before TR_TADIR_INTERFACE ran - so a retry can finish
+    " the job instead of being refused forever as "does not exist".
     SELECT SINGLE * FROM dd25l INTO @ls_dd25l WHERE viewname = @lv_view.
-    IF sy-subrc <> 0.
-      fail( |view { lv_view } does not exist| ).
-      RETURN.
+    lv_dd25l_exists = xsdbool( sy-subrc = 0 ).
+    IF lv_dd25l_exists = abap_false.
+      SELECT COUNT( * ) FROM tadir INTO @lv_tadir_count
+        WHERE pgmid = 'R3TR' AND object = 'VIEW' AND obj_name = @lv_view.
+      IF lv_tadir_count = 0.
+        fail( |view { lv_view } does not exist| ).
+        RETURN.
+      ENDIF.
+      line( |ZMCP-DDIC-NOTE> resuming a partial delete of { lv_view }: DD25L is already gone, | &&
+        |TADIR row remains - finishing the TADIR cleanup only, not repeating DD_OBJ_DEL| ).
     ENDIF.
 
-    " Step 2: delete the active version.
-    CALL FUNCTION 'DD_OBJ_DEL'
-      EXPORTING
-        object_name = lv_view
-        object_type = 'VIEW'
-        del_state   = 'A'
-        prid        = -1
-      EXCEPTIONS
-        OTHERS      = 1.
-    IF sy-subrc <> 0.
-      fail( |DD_OBJ_DEL failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
-      RETURN.
+    " Steps 2-3 (skipped when DD25L is already gone - resuming a half-
+    " finished delete): delete the active version, then any inactive one
+    " (no inactive row is normal). Each CALL FUNCTION is wrapped in its own
+    " TRY/CATCH cx_root: an uncaught class-based exception from inside a
+    " statically-named CALL FUNCTION can only originate from the callee's
+    " own implementation, and previously propagated all the way to run's
+    " generic catch-all, reporting only the exception's generic text with
+    " no indication of which step raised it - each CATCH here labels the
+    " step with a distinct, greppable delete_view/... string.
+    " del_state = 'A' with prid = -1 is the proven-live path (2026-09-04)
+    " - left untouched. del_state = 'N' has never been observed to
+    " succeed; its prid is changed to 0, DD_OBJ_DEL's own documented
+    " default (-1 is not a documented value for either call, but only the
+    " unproven call is changed here, to keep this a one-variable experiment).
+    IF lv_dd25l_exists = abap_true.
+      TRY.
+          CALL FUNCTION 'DD_OBJ_DEL'
+            EXPORTING
+              object_name = lv_view
+              object_type = 'VIEW'
+              del_state   = 'A'
+              prid        = -1
+            EXCEPTIONS
+              OTHERS      = 1.
+        CATCH cx_root INTO DATA(lx_del_a).
+          fail( |delete_view/dd_obj_del_A raised { lx_del_a->get_text( ) }| ).
+          RETURN.
+      ENDTRY.
+      IF sy-subrc <> 0.
+        fail( |DD_OBJ_DEL failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+        RETURN.
+      ENDIF.
+
+      TRY.
+          CALL FUNCTION 'DD_OBJ_DEL'
+            EXPORTING
+              object_name = lv_view
+              object_type = 'VIEW'
+              del_state   = 'N'
+              prid        = 0
+            EXCEPTIONS
+              OTHERS      = 1.
+        CATCH cx_root INTO DATA(lx_del_n).
+          fail( |delete_view/dd_obj_del_N raised { lx_del_n->get_text( ) }| ).
+          RETURN.
+      ENDTRY.
     ENDIF.
     line( 'VIEW-DELETED' ).
 
-    " Step 3: delete any inactive version (no inactive row is normal).
-    CALL FUNCTION 'DD_OBJ_DEL'
-      EXPORTING
-        object_name = lv_view
-        object_type = 'VIEW'
-        del_state   = 'N'
-        prid        = -1
-      EXCEPTIONS
-        OTHERS      = 1.
-
     " Step 4: remove the TADIR row (wi_test_modus = space, or this no-ops).
-    CALL FUNCTION 'TR_TADIR_INTERFACE'
-      EXPORTING
-        wi_test_modus         = space
-        wi_tadir_pgmid        = 'R3TR'
-        wi_tadir_object       = 'VIEW'
-        wi_tadir_obj_name     = lv_view
-        wi_delete_tadir_entry = 'X'
-      EXCEPTIONS
-        OTHERS                = 1.
+    TRY.
+        CALL FUNCTION 'TR_TADIR_INTERFACE'
+          EXPORTING
+            wi_test_modus         = space
+            wi_tadir_pgmid        = 'R3TR'
+            wi_tadir_object       = 'VIEW'
+            wi_tadir_obj_name     = lv_view
+            wi_delete_tadir_entry = 'X'
+          EXCEPTIONS
+            OTHERS                = 1.
+      CATCH cx_root INTO DATA(lx_tadir).
+        fail( |delete_view/tr_tadir_interface raised { lx_tadir->get_text( ) }| ).
+        RETURN.
+    ENDTRY.
 
     " Step 5: commit.
     COMMIT WORK.
