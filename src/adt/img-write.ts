@@ -22,6 +22,7 @@ import type { Config } from "../config.js";
 import type { SafetyGate } from "../safety.js";
 import { deployBridge, executeBridge, verifyBridgeActivation } from "./run.js";
 import { AbapError, isAbapError } from "./errors.js";
+import { FLUID_PACKAGE } from "./fluid/package.js";
 import { imgManifest, imgSources } from "./fluid/builtin/img.js";
 import { manifestVersion, type LoadedFluidTool } from "./fluid/manifest.js";
 import { dispatch } from "./fluid/dispatch.js";
@@ -273,6 +274,8 @@ export async function runImgApply(
     className,
     source,
     description: "abapsmith IMG customizing write apply",
+    // Explicit: deployBridge's BRIDGE_PACKAGE default is unreliable under the run.ts/write.ts import cycle.
+    packageName: FLUID_PACKAGE,
     what: "Activation of the generated IMG write-apply bridge",
     hint: APPLY_HINT,
     verify: (activation) =>
@@ -312,6 +315,7 @@ export async function runCreateCustomizingRequest(
     className,
     source,
     description: "abapsmith customizing request creation",
+    packageName: FLUID_PACKAGE,
     what: "Activation of the generated customizing-request-creation bridge",
     hint: REQUEST_HINT,
     verify: (activation) => verifyBridgeActivation(activation, className, "customizing-request bridge", {}),
