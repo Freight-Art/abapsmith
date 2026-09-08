@@ -1,9 +1,12 @@
 /**
  * `abap_fluid` — the MCP tool registrar in `src/tools/fluid.ts`.
  *
- * Zero-network ops (bare call, list, describe, status) are exercised
- * against a booby-trapped `pool`/`ensureConnected` that throw if touched,
- * proving they never leave the process. `run` is exercised end-to-end
+ * Zero-network ops (bare call, list, describe) are exercised against a
+ * booby-trapped `pool`/`ensureConnected` that throw if touched, proving they
+ * never leave the process. `status` now runs a best-effort read probe for
+ * retired bridge classes (`probeRetiredBridges`, via `renderStatus` in
+ * `src/tools/fluid.ts`), so it is a genuine network op and is not exercised
+ * against that booby-trapped pool here. `run` is exercised end-to-end
  * against a real (fake) `AbapConnection`, reusing
  * `test/fluid-dispatch.test.ts`'s dynamic, content-hash-agnostic class store
  * (the invoker class name is derived from the args hash and cannot be known
