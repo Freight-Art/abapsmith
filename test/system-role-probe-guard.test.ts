@@ -210,7 +210,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 12; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-ui, +1 integration-fluid-fpm
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 13; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-ui, +1 integration-fluid-fpm, +1 integration-fluid-enh
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -602,6 +602,24 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "real FPM/FBI config, so this deliberately does not assert non-empty rows), and asserts " +
       "outline/app given a config_id that cannot exist are each reported as genuine " +
       "FLUID_ACTION_FAILED failures, not silent success. There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-enh.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts / integration-fluid-ui.test.ts / " +
+      "integration-fluid-fpm.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It deploys and " +
+      "activates the builtin enh fluid tool's body class, ZCL_ZMCP_FLUID_ENH, into " +
+      "$ABAPSMITH_FLUID_API, creates a throwaway marker interface directly in " +
+      "$ABAPSMITH_FLUID_API, dispatches create_spot and add_badi_def to create a real BAdI " +
+      "enhancement spot and definition, independently reads both back over ADT, and asserts an " +
+      "honest FLUID_ACTION_FAILED for add_badi_def against a spot that was never created. " +
+      "There is no fake to route.",
   },
 ];
 

@@ -59,6 +59,13 @@ const LIVE_INTEGRATION_TESTS = [
   // nonexistent config_id for outline and app. Same independent-gate
   // convention as the other fluid live suites above.
   "test/integration-fluid-fpm.test.ts",
+  // The builtin `enh` fluid tool: deploys/activates ZCL_ZMCP_FLUID_ENH into
+  // $ABAPSMITH_FLUID_API, creates and independently reads back a real BAdI
+  // enhancement spot (create_spot) plus a BAdI definition on it
+  // (add_badi_def), and asserts an honest FLUID_ACTION_FAILED against a
+  // nonexistent spot. Same independent-gate convention as the other fluid
+  // live suites above.
+  "test/integration-fluid-enh.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";
