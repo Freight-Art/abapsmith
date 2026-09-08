@@ -31,6 +31,13 @@ const LIVE_INTEGRATION_TESTS = [
   // suite carries its own independent gate, same convention as the two
   // suites above.
   "test/integration-fluid-runtime.test.ts",
+  // Drives the abap_fluid MCP TOOL HANDLER (registerFluidTool) against a
+  // real appliance — list/describe/status/verify/run/repair/remove all
+  // through the same registered handler an MCP client would call, not
+  // dispatch()/ensureFluidTool() directly (see integration-fluid-runtime.test.ts
+  // above for that). Listed here so VITEST_LIVE=1 COLLECTS it — the suite
+  // carries its own independent gate, same convention as the suites above.
+  "test/integration-fluid-tool.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";
