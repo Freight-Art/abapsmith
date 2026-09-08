@@ -1,0 +1,496 @@
+/**
+ * Built-in "enh" fluid tool: ports five of the six SAP classic-enhancement
+ * operations from `src/adt/enhancement-bridge.ts` / `enhancement-templates.ts`
+ * onto a single static body class driven by JSON args, instead of legacy's
+ * six per-call generated bridge classes with baked-in literals.
+ *
+ * `exercise` is declared and dispatched but always reports an ERR: legacy's
+ * exerciseFragment declares `DATA lo_badi TYPE REF TO <badi_name>.`, a
+ * compile-time type binding to a runtime string, which a body class deployed
+ * once cannot express — and the only dynamic-dispatch escape hatch
+ * (`->(...)`/`=>(...)`) is exactly what `reviewFluidAbap`'s
+ * "dynamic-call-method" rule forbids. See the S5b report for detail.
+ *
+ * Package/transport handling, the marker-interface precondition (H21) and
+ * the joint spot+implementation reactivation (H23) stay in TypeScript, as
+ * does every ADT REST call — this file only carries the ABAP-side steps
+ * that legacy's bridge classes ran through `cl_enh_factory`/`cl_enh_tool_*`.
+ */
+import type { FluidManifest } from "../manifest.js";
+import { FLUID_CONTRACT } from "../manifest.js";
+import { FLUID_RUNTIME_CLASS, fluidRuntimeManifest, fluidRuntimeSources } from "../abap/runtime.js";
+
+const RUNTIME_SOURCE = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE === undefined) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+
+const RUNTIME_OBJECT = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT === undefined) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+
+const ENH_SOURCE = `CLASS zcl_zmcp_fluid_enh DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
+
+  METHOD run.
+    DATA: lv_pkg     TYPE devclass VALUE '$TMP',
+          lv_trkorr  TYPE trkorr,
+          lo_spot    TYPE REF TO if_enh_spot_tool,
+          lo_def     TYPE REF TO cl_enh_tool_badi_def,
+          ls_badi    TYPE enh_badi_data,
+          ls_filter  TYPE enh_badi_filter,
+          lo_enh     TYPE REF TO if_enh_tool,
+          lo_impl    TYPE REF TO cl_enh_tool_badi_impl,
+          ls_impl    TYPE enh_badi_impl_data,
+          lo_tool    TYPE REF TO if_enh_tool,
+          lo_obj     TYPE REF TO if_enh_object,
+          ls_val     TYPE enh_badiimpl_filter_value,
+          ls_root    TYPE enh_badiimpl_filter_root,
+          ls_id      TYPE LINE OF enh_badiimpl_filter_id_it,
+          lv_filter_check TYPE string.
+
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'enh' iv_action = iv_action ).
+    zcl_zmcp_fluid_rt=>scan( iv_json ).
+
+    TRY.
+        CASE iv_action.
+          WHEN 'create_spot'.
+            DATA(lv_spot_name) = zcl_zmcp_fluid_rt=>s( 'spot_name' ).
+            DATA(lv_description) = zcl_zmcp_fluid_rt=>s( 'description' ).
+            IF lv_spot_name IS INITIAL OR lv_description IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'spot_name and description are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            cl_enh_factory=>create_enhancement_spot(
+              EXPORTING spot_name = CONV #( lv_spot_name )
+                        tooltype  = cl_enh_tool_badi_def=>tooltype
+                        dark      = abap_true
+              IMPORTING spot      = lo_spot
+              CHANGING  trkorr    = lv_trkorr
+                        devclass  = lv_pkg ).
+            lo_def ?= lo_spot.
+            lo_spot->if_enh_object_docu~set_shorttext( CONV #( lv_description ) ).
+            lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~unlock( ).
+            zcl_zmcp_fluid_rt=>out( '{"created":true}' ).
+
+          WHEN 'add_badi_def'.
+            lv_spot_name = zcl_zmcp_fluid_rt=>s( 'spot_name' ).
+            DATA(lv_badi_name) = zcl_zmcp_fluid_rt=>s( 'badi_name' ).
+            DATA(lv_interface_name) = zcl_zmcp_fluid_rt=>s( 'interface_name' ).
+            DATA(lv_short_text) = zcl_zmcp_fluid_rt=>s( 'short_text' ).
+            IF lv_spot_name IS INITIAL OR lv_badi_name IS INITIAL
+                OR lv_interface_name IS INITIAL OR lv_short_text IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'spot_name, badi_name, interface_name and short_text are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            lo_spot = cl_enh_factory=>get_enhancement_spot(
+              spot_name = CONV #( lv_spot_name ) lock = 'X' run_dark = abap_true ).
+            lo_def ?= lo_spot.
+            CLEAR ls_badi.
+            ls_badi-badi_name = lv_badi_name.
+            ls_badi-interface_name = lv_interface_name.
+            ls_badi-single_use = zcl_zmcp_fluid_rt=>b( 'single_use' ).
+            ls_badi-badi_shorttext = lv_short_text.
+            ls_badi-context_mode = 'N'.
+            lo_def->add_badi_def( im_badi_def = ls_badi ).
+            lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~unlock( ).
+            zcl_zmcp_fluid_rt=>out( '{"added":true}' ).
+
+          WHEN 'add_filter_def'.
+            lv_spot_name = zcl_zmcp_fluid_rt=>s( 'spot_name' ).
+            lv_badi_name = zcl_zmcp_fluid_rt=>s( 'badi_name' ).
+            DATA(lv_filter_name) = zcl_zmcp_fluid_rt=>s( 'filter_name' ).
+            DATA(lv_filter_type) = zcl_zmcp_fluid_rt=>s( 'filter_type' ).
+            DATA(lv_filter_text) = zcl_zmcp_fluid_rt=>s( 'filter_text' ).
+            IF lv_spot_name IS INITIAL OR lv_badi_name IS INITIAL
+                OR lv_filter_name IS INITIAL OR lv_filter_type IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'spot_name, badi_name, filter_name and filter_type are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            lo_spot = cl_enh_factory=>get_enhancement_spot(
+              spot_name = CONV #( lv_spot_name ) lock = 'X' run_dark = abap_true ).
+            lo_def ?= lo_spot.
+            ls_badi = lo_def->get_badi_def( badi_name = CONV #( lv_badi_name ) ).
+            lo_def->delete_badi_def( badi_name = CONV #( lv_badi_name ) ).
+            CLEAR ls_filter.
+            ls_filter-filter_name = lv_filter_name.
+            ls_filter-filter_type = lv_filter_type.
+            ls_filter-filtertext = lv_filter_text.
+            APPEND ls_filter TO ls_badi-filters.
+            lo_def->add_badi_def( im_badi_def = ls_badi ).
+            lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~unlock( ).
+            zcl_zmcp_fluid_rt=>out( '{"added":true}' ).
+
+          WHEN 'create_impl'.
+            DATA(lv_enh_name) = zcl_zmcp_fluid_rt=>s( 'enh_name' ).
+            lv_spot_name = zcl_zmcp_fluid_rt=>s( 'spot_name' ).
+            lv_badi_name = zcl_zmcp_fluid_rt=>s( 'badi_name' ).
+            DATA(lv_impl_name) = zcl_zmcp_fluid_rt=>s( 'impl_name' ).
+            DATA(lv_impl_class) = zcl_zmcp_fluid_rt=>s( 'impl_class' ).
+            lv_description = zcl_zmcp_fluid_rt=>s( 'description' ).
+            DATA(lv_active) = zcl_zmcp_fluid_rt=>b( 'active' ).
+            IF lv_enh_name IS INITIAL OR lv_spot_name IS INITIAL OR lv_badi_name IS INITIAL
+                OR lv_impl_name IS INITIAL OR lv_impl_class IS INITIAL OR lv_description IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'enh_name, spot_name, badi_name, impl_name, impl_class and description are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            cl_enh_factory=>create_enhancement(
+              EXPORTING enhname     = CONV #( lv_enh_name )
+                        enhtype     = 'IMPL'
+                        enhtooltype = cl_enh_tool_badi_impl=>tooltype
+                        dark        = abap_true
+              IMPORTING enhancement = lo_enh
+              CHANGING  trkorr      = lv_trkorr
+                        devclass    = lv_pkg ).
+            lo_impl ?= lo_enh.
+            lo_impl->set_spot_name( CONV #( lv_spot_name ) ).
+            lo_impl->if_enh_object_docu~set_shorttext( CONV #( lv_description ) ).
+            CLEAR ls_impl.
+            ls_impl-spot_name = lv_spot_name.
+            ls_impl-badi_name = lv_badi_name.
+            ls_impl-impl_name = lv_impl_name.
+            ls_impl-impl_class = lv_impl_class.
+            ls_impl-active = lv_active.
+            lo_impl->add_implementation( im_implementation = ls_impl ).
+            lo_enh->if_enh_object~save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_enh->if_enh_object~activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_enh->if_enh_object~unlock( ).
+
+            " Diagnostic only, mirrors legacy badiFilterCheckFragment: never fails create_impl.
+            CLEAR: lv_filter_check, lo_spot, lo_def, ls_badi.
+            TRY.
+                lo_spot = cl_enh_factory=>get_enhancement_spot(
+                  spot_name = CONV #( lv_spot_name ) lock = 'X' run_dark = abap_true ).
+                lo_def ?= lo_spot.
+                ls_badi = lo_def->get_badi_def( badi_name = CONV #( lv_badi_name ) ).
+                IF ls_badi-filters IS NOT INITIAL.
+                  lv_filter_check = 'has_filters'.
+                ELSE.
+                  lv_filter_check = 'no_filters'.
+                ENDIF.
+              CATCH cx_root.
+                lv_filter_check = 'inconclusive'.
+            ENDTRY.
+            IF lo_spot IS BOUND.
+              TRY.
+                  lo_spot->if_enh_object~unlock( ).
+                CATCH cx_root.
+              ENDTRY.
+            ENDIF.
+
+            DATA(lv_impl_json) = |\\{"created":true,"impl_added":true,"filter_check":"| &&
+              zcl_zmcp_fluid_rt=>esc( lv_filter_check ) && |"\\}|.
+            zcl_zmcp_fluid_rt=>out( lv_impl_json ).
+
+          WHEN 'set_filter_values'.
+            lv_enh_name = zcl_zmcp_fluid_rt=>s( 'enh_name' ).
+            lv_impl_name = zcl_zmcp_fluid_rt=>s( 'impl_name' ).
+            lv_filter_name = zcl_zmcp_fluid_rt=>s( 'filter_name' ).
+            lv_filter_type = zcl_zmcp_fluid_rt=>s( 'filter_type' ).
+            DATA(lv_compare_raw) = zcl_zmcp_fluid_rt=>s( 'compare' ).
+            DATA(lv_value) = zcl_zmcp_fluid_rt=>s( 'value' ).
+            IF lv_enh_name IS INITIAL OR lv_impl_name IS INITIAL OR lv_filter_name IS INITIAL
+                OR lv_filter_type IS INITIAL OR lv_compare_raw IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'enh_name, impl_name, filter_name, filter_type, compare and value are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            DATA(lv_compare) = lv_compare_raw.
+            CASE lv_compare_raw.
+              WHEN 'EQ'. lv_compare = '='.
+              WHEN 'NE'. lv_compare = '<>'.
+              WHEN 'LT'. lv_compare = '<'.
+              WHEN 'LE'. lv_compare = '<='.
+              WHEN 'GT'. lv_compare = '>'.
+              WHEN 'GE'. lv_compare = '>='.
+            ENDCASE.
+            IF lv_compare <> '=' AND lv_compare <> '<>' AND lv_compare <> '<'
+                AND lv_compare <> '<=' AND lv_compare <> '>' AND lv_compare <> '>='.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'compare must be one of = <> < <= > >= or EQ/NE/LT/LE/GT/GE' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            lo_tool = cl_enh_factory=>get_enhancement(
+              enhancement_id = CONV #( lv_enh_name ) lock = 'X' run_dark = abap_true ).
+            lo_impl ?= lo_tool.
+            lo_obj ?= lo_tool.
+            ls_impl = lo_impl->get_implementation( impl_name = CONV #( lv_impl_name ) ).
+            lo_impl->delete_implementation( impl_name = CONV #( lv_impl_name ) ).
+            CLEAR: ls_impl-filters, ls_impl-filter_values, ls_impl-filter_root, ls_impl-filter_tree.
+            CLEAR ls_val.
+            ls_val-id = 1.
+            ls_val-filter_name = lv_filter_name.
+            ls_val-filter_type = lv_filter_type.
+            ls_val-compare = lv_compare.
+            ls_val-filter_char_value1 = lv_value.
+            APPEND ls_val TO ls_impl-filter_values.
+            CLEAR ls_id.
+            ls_id-id = 1.
+            CLEAR ls_root.
+            ls_root-root = 1.
+            APPEND ls_id TO ls_root-filters.
+            APPEND ls_root TO ls_impl-filter_root.
+            lo_impl->add_implementation( im_implementation = ls_impl ).
+            lo_obj->save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_obj->activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_obj->unlock( ).
+            zcl_zmcp_fluid_rt=>out( '{"replaced":true}' ).
+
+          WHEN 'exercise'.
+            DATA(lv_msg) = \`exercise cannot run on this shared, once-deployed body class: legacy \` &&
+              \`GET BADI needs 'DATA lo_badi TYPE REF TO <badi_name>', a compile-time type bound to \` &&
+              \`a runtime string, and the only dynamic-dispatch escape ( ->( ) / =>( ) ) is blocked by \` &&
+              \`static review. Use the legacy abap_enh tool for this operation.\`.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch' iv_text = lv_msg ).
+            zcl_zmcp_fluid_rt=>end( 1 ).
+            RETURN.
+
+          WHEN OTHERS.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+              iv_text = |unknown action "{ iv_action }"| ).
+            zcl_zmcp_fluid_rt=>end( 1 ).
+            RETURN.
+        ENDCASE.
+
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = iv_action iv_text = lx_err->get_text( ) ).
+        zcl_zmcp_fluid_rt=>end( 1 ).
+        RETURN.
+    ENDTRY.
+
+    zcl_zmcp_fluid_rt=>end( 0 ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+
+const FLAT_STRING = { type: "string" } as const;
+
+export const enhManifest: FluidManifest = {
+  contract: FLUID_CONTRACT,
+  id: "enh",
+  title: "Enhancement spots",
+  description: "Creates and edits classic BAdI enhancement spots and implementations.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT.description,
+      source: { text: RUNTIME_SOURCE },
+    },
+    {
+      name: "ZCL_ZMCP_FLUID_ENH",
+      type: "CLAS/OC",
+      description: "fluid: BAdI enhancement spot/implementation operations",
+      source: { text: ENH_SOURCE },
+    },
+  ],
+  entry: "ZCL_ZMCP_FLUID_ENH",
+  actions: [
+    {
+      name: "create_spot",
+      category: "mutate",
+      description: "Creates, saves, activates and unlocks a new BAdI enhancement spot.",
+      targets: { object: "/spot_name" },
+      input: {
+        type: "object",
+        required: ["spot_name", "description"],
+        properties: {
+          spot_name: { type: "string", maxLength: 30, description: "New spot's ENHNAME." },
+          description: { type: "string", maxLength: 60, description: "Root object short text." },
+        },
+      },
+      output: {
+        type: "object",
+        required: ["created"],
+        properties: { created: { type: "boolean" } },
+      },
+    },
+    {
+      name: "add_badi_def",
+      category: "mutate",
+      description:
+        "Adds a BAdI definition to an existing spot. Assumes the marker interface named by " +
+        "interface_name already exists (INTERFACES if_badi_interface) - callers must create it first.",
+      targets: { object: "/spot_name" },
+      input: {
+        type: "object",
+        required: ["spot_name", "badi_name", "interface_name", "single_use", "short_text"],
+        properties: {
+          spot_name: { type: "string", maxLength: 30 },
+          badi_name: { type: "string", maxLength: 30 },
+          interface_name: { type: "string", maxLength: 30, description: "Pre-existing marker interface." },
+          single_use: { type: "boolean" },
+          short_text: { type: "string", maxLength: 60 },
+        },
+      },
+      output: {
+        type: "object",
+        required: ["added"],
+        properties: { added: { type: "boolean" } },
+      },
+    },
+    {
+      name: "add_filter_def",
+      category: "mutate",
+      description: "Adds a filter definition to an existing BAdI definition on a spot.",
+      targets: { object: "/spot_name" },
+      input: {
+        type: "object",
+        required: ["spot_name", "badi_name", "filter_name", "filter_type"],
+        properties: {
+          spot_name: { type: "string", maxLength: 30 },
+          badi_name: { type: "string", maxLength: 30 },
+          filter_name: { type: "string", maxLength: 30 },
+          filter_type: { type: "string", maxLength: 1, description: "Single-letter domain filter type code." },
+          filter_text: { type: "string", maxLength: 60 },
+        },
+      },
+      output: {
+        type: "object",
+        required: ["added"],
+        properties: { added: { type: "boolean" } },
+      },
+    },
+    {
+      name: "create_impl",
+      category: "mutate",
+      description:
+        "Creates a BAdI implementation object bound to a spot, saves/activates/unlocks it, then " +
+        "reports (best-effort, never fails the create) whether the target BAdI has filters defined.",
+      targets: { object: "/enh_name" },
+      input: {
+        type: "object",
+        required: ["enh_name", "spot_name", "badi_name", "impl_name", "impl_class", "active", "description"],
+        properties: {
+          enh_name: { type: "string", maxLength: 30, description: "New implementation's ENHNAME." },
+          spot_name: { type: "string", maxLength: 30 },
+          badi_name: { type: "string", maxLength: 30 },
+          impl_name: { type: "string", maxLength: 30 },
+          impl_class: { type: "string", maxLength: 30, description: "Implementing class, e.g. a BAdI handler." },
+          active: { type: "boolean" },
+          description: { type: "string", maxLength: 60 },
+        },
+      },
+      output: {
+        type: "object",
+        required: ["created", "impl_added", "filter_check"],
+        properties: {
+          created: { type: "boolean" },
+          impl_added: { type: "boolean" },
+          filter_check: { type: "string", enum: ["has_filters", "no_filters", "inconclusive"] },
+        },
+      },
+    },
+    {
+      name: "set_filter_values",
+      category: "mutate",
+      description:
+        "Replaces a BAdI implementation's filter value with a single row (id 1) matching one " +
+        "filter_name, then saves/activates/unlocks via the implementation's if_enh_object handle. " +
+        "Does not perform legacy's joint spot+implementation ADT reactivation - callers that need " +
+        "that stronger guarantee must still request it over ADT REST afterward.",
+      targets: { object: "/enh_name" },
+      input: {
+        type: "object",
+        required: ["enh_name", "impl_name", "filter_name", "filter_type", "compare", "value"],
+        properties: {
+          enh_name: { type: "string", maxLength: 30, description: "Implementation's ENHNAME." },
+          impl_name: { type: "string", maxLength: 30 },
+          filter_name: { type: "string", maxLength: 30 },
+          filter_type: { type: "string", maxLength: 1 },
+          compare: { type: "string", maxLength: 2, description: "= <> < <= > >= or EQ/NE/LT/LE/GT/GE." },
+          value: { type: "string", maxLength: 255 },
+        },
+      },
+      output: {
+        type: "object",
+        required: ["replaced"],
+        properties: { replaced: { type: "boolean" } },
+      },
+    },
+    {
+      name: "exercise",
+      category: "execute",
+      description:
+        "Not implemented on this shared body class: GET BADI needs a compile-time-known handle " +
+        "type named after badi_name, which a JSON-argument-driven static class cannot express, and " +
+        "the dynamic-dispatch workaround is blocked by static review. Always returns an error.",
+      targets: { object: "/badi_name" },
+      input: {
+        type: "object",
+        required: ["badi_name", "method_name"],
+        properties: {
+          badi_name: { type: "string", maxLength: 30 },
+          method_name: { type: "string", maxLength: 30 },
+          filter_name: FLAT_STRING,
+          filter_value: FLAT_STRING,
+          param_names: { type: "array", items: { type: "string" } },
+          param_kinds: { type: "array", items: { type: "string" } },
+          param_values: { type: "array", items: { type: "string" } },
+          param_types: { type: "array", items: { type: "string" } },
+        },
+      },
+      output: {
+        type: "object",
+        required: ["bound"],
+        properties: {
+          bound: { type: "boolean" },
+          results: { type: "array", items: { type: "string" } },
+        },
+      },
+    },
+  ],
+};
+
+export const enhSources: ReadonlyMap<string, string> = new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE],
+  ["ZCL_ZMCP_FLUID_ENH", ENH_SOURCE],
+]);
