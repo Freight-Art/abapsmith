@@ -669,3 +669,182 @@ describe("D23 — the fluid API refuses before issuing any request", () => {
     expect(adt.calls).toEqual([]);
   });
 });
+
+// --- P2: one-shot session revive after the delete-then-write choreography --
+
+/**
+ * Live capture shape (also used by fluid-bridge-package.test.ts's
+ * `ICMENOSESSION_RESPONSE`, same header pair): a 400 whose body fails to
+ * parse as ADT XML, which is the one shape `classifySessionFailure` — and
+ * the connection's own wire-level death detector — can see.
+ */
+const ICMENOSESSION_RESPONSE = (): HttpClientResponse =>
+  resp(400, "Session Timed Out — ICM: no session (not XML)", {
+    "content-type": "text/html",
+    "x-sap-icm-err-id": "ICMENOSESSION",
+    "sap-err-id": "ICMENOSESSION",
+  });
+
+const LOGIN_URL = "compatibility/graph";
+
+/**
+ * `fluidRoute`, but the class-path GET (the existence/package check inside
+ * `resolveWriteTarget`) dies with the session-death shape `diesTimes` times
+ * in a row once a DELETE for that same class has been seen — modelling the
+ * live A4H finding that deleting a class tears the session down, so the very
+ * next request on those cookies gets `SESSION_DEAD`. The DELETE's own
+ * read-back (a GET on the *source* URI, done inside `deleteObject` itself,
+ * with its own independent one-shot revive in `probeObjectPresence`) is
+ * deliberately left alone — only the class-path GET dies, matching
+ * `respondStrandedInTmpSessionDies` in fluid-bridge-package.test.ts. A hit on
+ * the login endpoint (`conn.connect()`'s revive) does not by itself clear
+ * the count: `diesTimes: 2` keeps the class GET dying even across a
+ * reconnect, for the not-a-loop test.
+ */
+function fluidRouteSessionDies(store: Record<string, ObjState>, className: string, diesTimes: number): Route {
+  const inner = fluidRoute(store);
+  const uri = classUri(className);
+  let deleted = false;
+  let deathsLeft = diesTimes;
+  return (r) => {
+    if (r.method === "DELETE" && r.url === uri) {
+      deleted = true;
+      return inner(r);
+    }
+    if (deleted && r.url === uri && r.method === "GET" && !r.qs._action && deathsLeft > 0) {
+      deathsLeft -= 1;
+      return ICMENOSESSION_RESPONSE();
+    }
+    return inner(r);
+  };
+}
+
+describe("ensureFluidTool — legacy relocation survives the delete killing the session", () => {
+  it("a legacy object relocated out of $TMP survives the delete killing the session: one revive, then the recreate succeeds", async () => {
+    const NAME = "ZCL_ZMCP_REVIVE1";
+    const tool = makeTool([{ name: NAME, source: SOURCE_A }]);
+    const store = makeStore({
+      [NAME]: { exists: true, packageName: "$TMP", source: SOURCE_A, active: true },
+    });
+    const { conn, adt } = await connected(fluidRouteSessionDies(store, NAME, 1));
+
+    const result = await ensureFluidTool(conn, gate(), cfg(), tool, CTX);
+
+    expect(result.deployed).toBe(true);
+    expect(result.objects).toEqual([{ name: NAME, type: "CLAS/OC", state: "present" }]);
+    expect(store[NAME]?.packageName).toBe(FLUID_PACKAGE);
+
+    const delIdx = adt.calls.findIndex((c) => c.method === "DELETE" && c.url === classUri(NAME));
+    expect(delIdx).toBeGreaterThanOrEqual(0);
+
+    // Exactly one revive: one login strictly between the post-delete class
+    // GET that died and the one that succeeded.
+    const after = adt.calls.slice(delIdx + 1);
+    const classGets = after.filter((c) => c.url === classUri(NAME) && c.method === "GET" && !c.qs._action);
+    expect(classGets.length).toBe(2);
+    const logins = after.filter((c) => c.url.includes(LOGIN_URL));
+    expect(logins.length).toBe(1);
+
+    const idxFirstGet = after.indexOf(classGets[0]!);
+    const idxLogin = after.findIndex((c) => c.url.includes(LOGIN_URL));
+    const idxSecondGet = after.lastIndexOf(classGets[1]!);
+    expect(idxFirstGet).toBeGreaterThanOrEqual(0);
+    expect(idxFirstGet).toBeLessThan(idxLogin);
+    expect(idxLogin).toBeLessThan(idxSecondGet);
+  });
+
+  it("a second consecutive session death on the retry is not swallowed by a second reconnect", async () => {
+    const NAME = "ZCL_ZMCP_REVIVE2";
+    const tool = makeTool([{ name: NAME, source: SOURCE_A }]);
+    const store = makeStore({
+      [NAME]: { exists: true, packageName: "$TMP", source: SOURCE_A, active: true },
+    });
+    const { conn, adt } = await connected(fluidRouteSessionDies(store, NAME, 2));
+
+    const err = await catchErr(ensureFluidTool(conn, gate(), cfg(), tool, CTX));
+    expect(err.code).toBe("SESSION_DEAD");
+
+    // Exactly one reconnect attempted — the second death is not itself retried.
+    const delIdx = adt.calls.findIndex((c) => c.method === "DELETE" && c.url === classUri(NAME));
+    expect(delIdx).toBeGreaterThanOrEqual(0);
+    const after = adt.calls.slice(delIdx + 1);
+    const classGets = after.filter((c) => c.url === classUri(NAME) && c.method === "GET" && !c.qs._action);
+    expect(classGets.length).toBe(2);
+    const logins = after.filter((c) => c.url.includes(LOGIN_URL));
+    expect(logins.length).toBe(1);
+  });
+});
+
+// --- P2: the "broken" repair path (delete-then-recreate, not a no-op rewrite) --
+
+/**
+ * `fluidRoute`, but the `checkruns` POST answers with each response in
+ * `results` in turn (holding the last one for any call past the end) —
+ * lets a test make `classifyOne`'s check dirty, then a later `checkSource`
+ * call (after the broken object has been repaired) clean, or keep it dirty
+ * throughout to prove a still-broken object is reported honestly.
+ */
+function fluidRouteCheckrunSequence(store: Record<string, ObjState>, results: readonly HttpClientResponse[]): Route {
+  const inner = fluidRoute(store);
+  let i = 0;
+  return (r) => {
+    if (r.url.startsWith("/sap/bc/adt/checkruns") && r.method === "POST") {
+      const result = results[Math.min(i, results.length - 1)]!;
+      i += 1;
+      return result;
+    }
+    return inner(r);
+  };
+}
+
+describe("ensureFluidTool — broken repair", () => {
+  it("a broken object is repaired by delete-then-recreate, not by a no-op rewrite", async () => {
+    const NAME = "ZCL_BROKEN_FIX";
+    const tool = makeTool([{ name: NAME, source: SOURCE_A }]);
+    const store = makeStore({
+      [NAME]: { exists: true, packageName: FLUID_PACKAGE, source: SOURCE_A, active: true },
+    });
+    const { conn, adt } = await connected(
+      fluidRouteCheckrunSequence(store, [
+        resp(200, checkrunDirty(NAME), OK_XML), // classifyOne's check: broken
+        resp(200, CHECKRUN_CLEAN, OK_XML), // recheck after the repair: clean
+      ]),
+    );
+
+    const result = await ensureFluidTool(conn, gate(), cfg(), tool, CTX);
+
+    expect(result.deployed).toBe(true);
+    expect(result.objects).toEqual([{ name: NAME, type: "CLAS/OC", state: "present" }]);
+
+    // The key assertion: repairing "broken" must actually delete the class,
+    // not silently no-op because a rewrite of identical content short-circuits.
+    expect(adt.calls.filter((c) => c.method === "DELETE" && c.url === classUri(NAME))).toHaveLength(1);
+
+    const registry = await readFluidRegistry(cfg(), systemKey(conn.cfg));
+    expect(registry.get(tool.manifest.id)?.version).toBe(tool.version);
+  });
+
+  it("a still-broken object after one repair is reported broken and not cached", async () => {
+    const NAME = "ZCL_BROKEN_STILL";
+    const tool = makeTool([{ name: NAME, source: SOURCE_A }]);
+    const store = makeStore({
+      [NAME]: { exists: true, packageName: FLUID_PACKAGE, source: SOURCE_A, active: true },
+    });
+    const { conn, adt } = await connected(
+      // Every checkruns call answers dirty — the repair does not fix it.
+      fluidRouteCheckrunSequence(store, [resp(200, checkrunDirty(NAME), OK_XML)]),
+    );
+
+    const result = await ensureFluidTool(conn, gate(), cfg(), tool, CTX);
+
+    expect(result.objects).toEqual([{ name: NAME, type: "CLAS/OC", state: "broken" }]);
+    expect(result.deployed).toBe(true);
+    expect(adt.calls.filter((c) => c.method === "DELETE" && c.url === classUri(NAME))).toHaveLength(1);
+
+    // Still broken after the one repair attempt must not be cached: no
+    // registry entry for this tool, and the manifest stays un-recorded so
+    // the next call classifies from scratch instead of trusting a lie.
+    const registry = await readFluidRegistry(cfg(), systemKey(conn.cfg));
+    expect(registry.get(tool.manifest.id)).toBeUndefined();
+  });
+});

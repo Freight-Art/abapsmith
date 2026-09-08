@@ -22,6 +22,7 @@ import {
   type WriteResult,
 } from "../write.js";
 import { activateObject, assertNoErrors, checkSource } from "../activate.js";
+import { isSessionDeadFailure } from "../write-verify.js";
 import { FLUID_PACKAGE, LEGACY_FLUID_PACKAGES, isReservedFluidName, ensureFluidPackage } from "./package.js";
 import { readFluidRegistry, recordManifest } from "./registry.js";
 import type { FluidObjectSpec, FluidObjectType, LoadedFluidTool } from "./manifest.js";
@@ -220,13 +221,37 @@ async function writeAndActivateOnce(
   gate: SafetyGate,
   obj: FluidObjectSpec,
   expectedSource: string,
+  // Set only by a caller whose immediately preceding request was a DELETE:
+  // live-verified on A4H, deleting an ABAP class tears the session down
+  // server-side, and the very next request on those cookies (this
+  // re-authorize GET) is the one that surfaces `SESSION_DEAD`. Defaulting to
+  // false keeps every other caller (redeploy, plain stale/absent writes)
+  // from paying for a revive it will never need — a proactive reconnect on
+  // every write would burn a logon against AbapConnection's lifetime ceiling
+  // for nothing.
+  reviveOnDeadSession = false,
 ): Promise<WriteResult> {
-  const authorized = await authorizeMutation(conn, gate, "write", {
+  const spec = {
     type: obj.type,
     name: obj.name,
     packageName: FLUID_PACKAGE,
     description: obj.description,
-  });
+  };
+  const authorized = reviveOnDeadSession
+    ? await (async () => {
+        // Same one-shot revive-and-retry idiom as `authorizeBridgeTarget`
+        // (run.ts) and `probeObjectPresence` (write-verify.ts): one
+        // reconnect-and-re-issue, never a loop. A second consecutive
+        // session death is a real failure and must propagate.
+        try {
+          return await authorizeMutation(conn, gate, "write", spec);
+        } catch (e) {
+          if (!isSessionDeadFailure(e)) throw e;
+          await conn.connect();
+          return await authorizeMutation(conn, gate, "write", spec);
+        }
+      })()
+    : await authorizeMutation(conn, gate, "write", spec);
 
   const write = await writeObject(conn, authorized, { source: expectedSource, onBeforeImage: NO_JOURNAL });
 
@@ -282,8 +307,13 @@ async function deployAndVerify(
   tool: LoadedFluidTool,
   obj: FluidObjectSpec,
   expectedSource: string,
+  // Forwarded to the FIRST writeAndActivateOnce only — see that function's
+  // doc. The redeploy attempt below always follows a completed request
+  // sequence (the first write, plus a confirmation read), never a DELETE, so
+  // it must not get a free revive.
+  reviveOnDeadSession = false,
 ): Promise<WriteResult> {
-  let write = await writeAndActivateOnce(conn, gate, obj, expectedSource);
+  let write = await writeAndActivateOnce(conn, gate, obj, expectedSource, reviveOnDeadSession);
   if (await contentConfirmed(conn, write.target, expectedSource)) return write;
 
   if (redeployed.has(ledgerKey)) {
@@ -341,7 +371,10 @@ async function ensureOneObject(
           "Delete it manually, or find out why the delete did not take effect, before retrying.",
         );
       }
-      await deployAndVerify(conn, gate, ledgerKey, tool, obj, expectedSource);
+      // This write is the first request after the DELETE, exactly where the
+      // dead-session corpse (see writeAndActivateOnce's doc) surfaces — give
+      // it the one-shot revive.
+      await deployAndVerify(conn, gate, ledgerKey, tool, obj, expectedSource, true);
       return { status: { name: obj.name, type: obj.type, state: "present" }, wrote: true };
     }
 
@@ -360,12 +393,40 @@ async function ensureOneObject(
     }
 
     case "broken": {
-      const write = await writeAndActivateOnce(conn, gate, obj, expectedSource);
+      // `classifyOne` only reaches "broken" once the etag already matches
+      // the manifest and the object is active-is-current — the object is
+      // broken in the sense that `checkSource` reports errors on content
+      // that, byte for byte, is what we would write anyway. A plain rewrite
+      // therefore cannot fix it: `writeObject` short-circuits on equal
+      // content (nothing changed, so nothing is sent), so a rewrite here
+      // would be a guaranteed no-op that reports "broken" again forever. The
+      // only way to actually repair it is what the "legacy" branch above
+      // already does to relocate an object — delete it and recreate it from
+      // scratch — structurally identical here, just without a package move.
+      const authorizedDelete = await authorizeMutation(conn, gate, "delete", {
+        type: obj.type,
+        name: obj.name,
+      });
+      const del = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
+      if (del.deleted === false) {
+        throw new AbapError(
+          "FLUID_OBJECT_CONFLICT",
+          `${obj.type} ${obj.name} could not be repaired: the delete was sent, but a read-back ` +
+            `confirmed the object is still there.`,
+          { name: obj.name, type: obj.type, tool: tool.manifest.id },
+          "Delete it manually, or find out why the delete did not take effect, before retrying.",
+        );
+      }
+      // First request after the DELETE — same one-shot revive as "legacy".
+      const write = await deployAndVerify(conn, gate, ledgerKey, tool, obj, expectedSource, true);
       const recheck = await checkSource(conn, write.target, expectedSource);
-      const fixed = recheck.ok;
+      // Still broken after one repair must not loop and must not be cached:
+      // ensureFluidTool already declines to recordManifest unless every
+      // status is "present", so reporting "broken" again here is enough —
+      // no retry loop needed or wanted.
       return {
-        status: { name: obj.name, type: obj.type, state: fixed ? "present" : "broken" },
-        wrote: Boolean(write.created || write.changed),
+        status: { name: obj.name, type: obj.type, state: recheck.ok ? "present" : "broken" },
+        wrote: true,
       };
     }
   }
