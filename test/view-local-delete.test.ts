@@ -30,6 +30,7 @@ import { planUndo, performUndo, type UndoOptions } from "../src/adt/undo.js";
 import { SafetyGate } from "../src/safety.js";
 import { DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
+import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 
 const MAX = 20_000;
@@ -125,6 +126,14 @@ const VIT_URI = vitBridgeUri("viewdv", VIEW);
 const BRIDGE_COLLECTION = "/sap/bc/adt/oo/classes";
 const BRIDGE_OBJ_URI = `${BRIDGE_COLLECTION}/${VIEW_BRIDGE.toLowerCase()}`;
 const BRIDGE_SRC_URI = `${BRIDGE_OBJ_URI}/source/main`;
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
 
 /**
  * `pkg === null` renders `<adtcore:packageRef />` — a space before the
@@ -140,16 +149,19 @@ const vitXml = (pkg: string | null): string =>
   `</vit:properties>`;
 
 /**
- * The allowlist names only `$TMP` — both the view's own package and
- * (`BRIDGE_PACKAGE`, src/adt/run.ts:231) the package the generated bridge
- * class is deployed into. `allowNamePrefixes` is left at the strict default
- * (`["Z","Y"]`, src/safety.ts) — ZTMD_V_LOCAL starts with Z, so it still
- * passes. The point is that this is not a wildcard admitting everything.
+ * The allowlist names only `$TMP` (the view's own package) and
+ * `FLUID_PACKAGE` (`$ABAPSMITH_FLUID_API`, src/adt/fluid/package.ts) — the
+ * package the generated bridge class is deployed into (`BRIDGE_PACKAGE`,
+ * src/adt/run.ts). `allowNamePrefixes` is widened to `["*"]` because
+ * `ensureFluidPackage`'s own write names `$ABAPSMITH_FLUID_API` itself as the
+ * target, which is `$`-prefixed rather than Z/Y. The point is that this is
+ * not a wildcard admitting every package.
  */
 const localGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: ["$TMP"],
+    allowPackages: ["$TMP", FLUID_PACKAGE],
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
@@ -168,6 +180,7 @@ const bridgeServer = (pkg: string | null, classrunLines: string[]) => {
     if (r.url === BRIDGE_OBJ_URI && r.qs._action === "LOCK") return resp(200, LOCK_XML, OK_XML);
     if (r.url === BRIDGE_OBJ_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
     if (r.url === BRIDGE_SRC_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
+    if (r.url === FLUID_PKG_URI && r.method === "GET") return resp(200, FLUID_PACKAGE_XML, OK_XML);
     if (r.url.includes("/activation")) return resp(200, "", OK_TEXT);
     if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) {
       state.exists = false;

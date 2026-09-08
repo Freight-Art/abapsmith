@@ -228,6 +228,13 @@ const OBJECT_XML = (name: string, type: string, packageName = "$TMP"): string =>
   `<adtcore:packageRef adtcore:name="${packageName}"/>` +
   `</adtcore:objectMetadata>`;
 
+/** The probe `ensureFluidPackage` makes for DDIC_BRIDGE_PACKAGE on a cold bridge deploy. */
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const FLUID_PKG_ROUTE: Route = (r) =>
+  r.url === FLUID_PKG_URI && r.method === "GET"
+    ? resp(200, OBJECT_XML(DDIC_BRIDGE_PACKAGE, "DEVC/K"), OK_XML)
+    : undefined;
+
 /** A route may decline; the composition below decides what an unrouted call means. */
 type Route = (r: Recorded) => HttpClientResponse | undefined;
 
@@ -6014,6 +6021,7 @@ describe("abap_write → bridge creation: DEFECT 1 closed for VIEW/DV (create ru
   const gate = new SafetyGate({
     readOnly: false,
     allowPackages: ["*"],
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
@@ -6076,7 +6084,7 @@ describe("abap_write → bridge creation: DEFECT 1 closed for VIEW/DV (create ru
   const happyRoute = (vitMode: "confirmed" | "absent" | "indeterminate"): Route => {
     const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
     const vit = vitRoute(vitMode, VIEW);
-    return (r) => bridgeDeployRoute(r) ?? classrun(r) ?? vit(r);
+    return (r) => bridgeDeployRoute(r) ?? classrun(r) ?? vit(r) ?? FLUID_PKG_ROUTE(r);
   };
 
   const validInput = {
@@ -6196,6 +6204,7 @@ describe("abap_write → bridge creation: DEFECT 2 closed for TRAN/T (program ex
   const gate = new SafetyGate({
     readOnly: false,
     allowPackages: ["*"],
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
@@ -6255,7 +6264,7 @@ describe("abap_write → bridge creation: DEFECT 2 closed for TRAN/T (program ex
   const happyRoute = (vitMode: "confirmed" | "absent" | "indeterminate"): Route => {
     const classrun = classrunRoute(["TRAN-CREATED"]);
     const vit = vitRoute(vitMode, TCODE);
-    return (r) => bridgeDeployRoute(r) ?? classrun(r) ?? vit(r);
+    return (r) => bridgeDeployRoute(r) ?? classrun(r) ?? vit(r) ?? FLUID_PKG_ROUTE(r);
   };
 
   const validInput = {

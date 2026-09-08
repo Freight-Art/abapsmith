@@ -23,6 +23,7 @@ import { ConfigSchema, type Config } from "../src/config.js";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import {
   BRIDGE_CLASS,
+  ENH_BRIDGE_PACKAGE,
   ENH_CREATE_PACKAGE,
   bridgeSource,
   parseEnhancementTranscript,
@@ -118,6 +119,16 @@ function objectHappyPath(collectionUrl: string, name: string): (o: HttpClientOpt
 const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
 const INTF_COLLECTION = "/sap/bc/adt/oo/interfaces";
 
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
 /** Session/discovery/activation/classrun plumbing shared by every test below. */
 function sharedRoute(
   classrun: (o: HttpClientOptions) => HttpClientResponse | undefined,
@@ -129,6 +140,13 @@ function sharedRoute(
     }
     if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
+    // ensureFluidPackage's package-existence probe (run.ts's deployBridge,
+    // cold path only): already exists, so this is the whole round trip —
+    // no create POST follows. Memoized per process per system, so only the
+    // first cold bridge deploy in this file actually reaches it.
+    if (o.url === FLUID_PKG_URI && (o.method ?? "GET").toUpperCase() === "GET") {
+      return resp(200, FLUID_PACKAGE_XML, { "content-type": "application/xml" });
+    }
     // Both the ordinary single-object activate (bridge class, marker
     // interface) and activateSpotAndImplementation's array-form joint
     // activate land here — an empty 200 body means "clean, no messages" for
@@ -174,7 +192,12 @@ async function connected(
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: [ENH_CREATE_PACKAGE],
+    allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE],
+    // $ is outside the default Z/Y customer namespace, same as
+    // ensureHelperPackage's ALLOW_GATE (test/helper-package.test.ts) and
+    // test/fluid-package.test.ts's own gate() — ensureFluidPackage's own
+    // create call names the package itself, $ABAPSMITH_FLUID_API.
+    allowNamePrefixes: ["*"],
     writesLockedOut: false,
     allowEnhancements: true,
     enhanceTargets: "customer",
@@ -230,7 +253,8 @@ class ExecuteDenyingGate extends SafetyGate {
 const executeDenyingGate = (): SafetyGate =>
   new ExecuteDenyingGate({
     readOnly: false,
-    allowPackages: [ENH_CREATE_PACKAGE],
+    allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE],
+    allowNamePrefixes: ["*"],
     writesLockedOut: false,
     allowEnhancements: true,
     enhanceTargets: "customer",

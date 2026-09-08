@@ -21,6 +21,7 @@ import { AbapError, isAbapError } from "../src/adt/errors.js";
 import { abapWrite } from "../src/tools/write.js";
 import { SafetyGate } from "../src/safety.js";
 import { DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
+import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 
@@ -83,11 +84,21 @@ const cfg = (): Config =>
     readOnly: false,
   });
 
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
   if (r.url.includes("/compatibility/graph")) return resp(200, "<graph/>", LOGIN_HEADERS);
   if (r.url.endsWith("/discovery")) return resp(200, "<service/>", OK_XML);
   if (r.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
   if (r.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+  if (r.url === FLUID_PKG_URI && r.method === "GET") return resp(200, FLUID_PACKAGE_XML, OK_XML);
   return undefined;
 }
 
@@ -116,6 +127,9 @@ const gate = () =>
   new SafetyGate({
     readOnly: false,
     allowPackages: ["*"],
+    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
+    // (test/helper-package.test.ts) — needed for the cold-path create of FLUID_PACKAGE.
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });

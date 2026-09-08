@@ -106,6 +106,16 @@ function objectHappyPath(collectionUrl: string, name: string): (o: HttpClientOpt
   };
 }
 
+const FLUID_PACKAGE_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
 /** Session/discovery/activation/classrun plumbing shared by every test below. */
 function sharedRoute(
   classrun: (o: HttpClientOptions) => HttpClientResponse | undefined,
@@ -118,6 +128,9 @@ function sharedRoute(
     if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
     if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+    if (o.url === FLUID_PACKAGE_URI && (o.method ?? "GET").toUpperCase() === "GET") {
+      return resp(200, FLUID_PACKAGE_XML, { "content-type": "application/xml" });
+    }
     return undefined;
   };
 }
@@ -171,21 +184,24 @@ const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
 // Gates
 // ---------------------------------------------------------------------------
 
-/** Allows BOTH the bridge class ($TMP) and the transaction's own package (ZTM). */
+/** Allows BOTH the bridge class ($ABAPSMITH_FLUID_API) and the transaction's own package (ZTM). */
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
     allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE.
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
 
 /**
- * Allows the bridge class in `$TMP` and NOTHING else. This is the gate that
- * isolates the SECOND gate (`assertBridgeMutation`): `deployBridge`'s own
- * checks pass under it — `ZCL_ZMCP_DDIC_CTRAN` really is a `$TMP` class — so
- * the only thing that can refuse a `TRAN/T` in package `ZTM` is the domain
- * gate `createTransaction` runs itself, before generating any ABAP.
+ * Allows the bridge class in `$ABAPSMITH_FLUID_API` and NOTHING else. This is
+ * the gate that isolates the SECOND gate (`assertBridgeMutation`):
+ * `deployBridge`'s own checks pass under it — `ZCL_ZMCP_DDIC_CTRAN` really is
+ * a class in that package — so the only thing that can refuse a `TRAN/T` in
+ * package `ZTM` is the domain gate `createTransaction` runs itself, before
+ * generating any ABAP.
  */
 const bridgeOnlyGate = (): SafetyGate =>
   new SafetyGate({
@@ -384,6 +400,7 @@ describe("the second gate — the domain object, before any ABAP is generated", 
     const gate = new RecordingGate({
       readOnly: false,
       allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
       allowTransports: ["*"],
       writesLockedOut: false,
     });
@@ -650,6 +667,7 @@ describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
     const gate = new RecordingGate({
       readOnly: false,
       allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
       allowTransports: ["*"],
       writesLockedOut: false,
     });
@@ -670,6 +688,7 @@ describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
     const gate = new RecordingGate({
       readOnly: false,
       allowPackages: [DDIC_BRIDGE_PACKAGE, "$TMP"],
+      allowNamePrefixes: ["*"],
       writesLockedOut: false,
     });
     const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));

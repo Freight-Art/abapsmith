@@ -145,7 +145,14 @@ async function connected(
 }
 
 const openGate = (): SafetyGate =>
-  new SafetyGate({ readOnly: false, allowPackages: ["$TMP"], writesLockedOut: false });
+  new SafetyGate({
+    readOnly: false,
+    allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
+    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
+    // (test/helper-package.test.ts) — ensureFluidPackage's own DEVC/K create needs this too.
+    allowNamePrefixes: ["*"],
+    writesLockedOut: false,
+  });
 const closedGate = (): SafetyGate => new SafetyGate({ readOnly: true, allowPackages: [] });
 
 /** A `SessionPool` that just forwards straight onto one wired connection — this repo has no reusable fake pool. */

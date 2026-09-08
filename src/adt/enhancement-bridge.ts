@@ -14,8 +14,9 @@
  * performs allowed". `exerciseBadi` gates with `op: "execute"` (`CALL BADI`
  * is execution, not a read).
  *
- * All creates land in `$TMP` (`ENH_CREATE_PACKAGE` = `run.ts`'s
- * `BRIDGE_PACKAGE`) — fixtures 339/350.
+ * The user's ENHS/ENHO objects land in `$TMP` (`ENH_CREATE_PACKAGE`) —
+ * fixtures 339/350; abapsmith's own generated bridge classes land in the
+ * fluid API's package (`ENH_BRIDGE_PACKAGE`).
  *
  * Known deviations/defect history, full evidence in
  * the git history:
@@ -68,12 +69,12 @@ import {
 } from "./activate.js";
 import {
   assertPlainName,
-  BRIDGE_PACKAGE,
   deployBridge,
   executeBridge,
   verifyBridgeActivation,
   type RunResult,
 } from "./run.js";
+import { FLUID_PACKAGE } from "./fluid/package.js";
 import { buildEnhancementUri, ENHOXH_COLLECTION, ENHSXS_COLLECTION } from "./enhancement.js";
 import {
   assertEnhIdentifier,
@@ -92,8 +93,15 @@ import {
   type ExerciseParams,
 } from "./enhancement-templates.js";
 
-/** Where every create operation lands — same value as `run.ts`'s `BRIDGE_PACKAGE`, re-exported under this module's own name. */
-export const ENH_CREATE_PACKAGE = BRIDGE_PACKAGE;
+/** abapsmith's own generated bridge classes — the fluid API owns them, so they live in its package. */
+export const ENH_BRIDGE_PACKAGE = FLUID_PACKAGE;
+
+/**
+ * The user's own ENHS/ENHO objects and the H21 marker interface, whose names the caller
+ * supplies. Stays `$TMP`: these are the caller's content, not abapsmith's scaffolding, and
+ * must not land in the fluid API's private package.
+ */
+export const ENH_CREATE_PACKAGE = "$TMP";
 
 // ---------------------------------------------------------------------------
 // Fixed bridge-class names — one per operation, not per target object
@@ -338,8 +346,8 @@ export function assertEnhTranscript(result: EnhTranscriptResult, expectTags: rea
  * intent gate runs, including an execute gate immediately before
  * `executeBridge` (F8 fix — a fresh authorization token is required to
  * reach execution). `deployBridge`/`executeBridge` (`run.ts`) hold the
- * shared halves; this wraps them with the `$TMP` alias and enhancement-
- * specific wording.
+ * shared halves; this wraps them with the `ENH_BRIDGE_PACKAGE` alias and
+ * enhancement-specific wording.
  */
 async function writeActivateRunBridge(
   conn: AbapConnection,
@@ -347,12 +355,14 @@ async function writeActivateRunBridge(
   className: string,
   source: string,
   description: string,
+  action: string,
 ): Promise<RunResult> {
   const deployed = await deployBridge(conn, gate, {
     className,
     source,
     description,
-    packageName: ENH_CREATE_PACKAGE,
+    packageName: ENH_BRIDGE_PACKAGE,
+    caller: { tool: "abap_enh", action },
     what: `Activation of the generated enhancement bridge ${className}`,
     verify: (activation) => verifyBridgeActivation(activation, className, "enhancement bridge"),
   });
@@ -523,6 +533,7 @@ export async function createEnhancementSpot(
     BRIDGE_CLASS.createSpot,
     source,
     `abapsmith T15 create-enhancement-spot bridge (${spotName})`,
+    "create_spot",
   );
   const transcript = parseEnhancementTranscript(run.output);
   assertEnhTranscript(transcript, ["SPOT-OBJECT-CREATED"], `Creating enhancement spot ${spotName}`);
@@ -576,6 +587,7 @@ export async function addBadiDefinition(
     BRIDGE_CLASS.addBadiDef,
     source,
     `abapsmith T15 add-badi-def bridge (${badiName} on ${spotName})`,
+    "add_badi_def",
   );
   const transcript = parseEnhancementTranscript(run.output);
   assertEnhTranscript(transcript, ["BADI-DEF-ADDED"], `Adding BAdI definition ${badiName} to spot ${spotName}`);
@@ -625,6 +637,7 @@ export async function addFilterDefinition(
     BRIDGE_CLASS.addFilterDef,
     source,
     `abapsmith T15 add-filter-def bridge (${params.filterName} on ${badiName})`,
+    "add_filter_def",
   );
   const transcript = parseEnhancementTranscript(run.output);
   assertEnhTranscript(transcript, ["FILTER-DEF-ADDED"], `Adding filter definition ${params.filterName} to ${badiName}`);
@@ -703,6 +716,7 @@ export async function createBadiImplementation(
     BRIDGE_CLASS.createImpl,
     source,
     `abapsmith T15 create-badi-impl bridge (${enhName})`,
+    "create_impl",
   );
   const transcript = parseEnhancementTranscript(run.output);
   assertEnhTranscript(transcript, ["ENHO-OBJECT-CREATED", "IMPL-ADDED"], `Creating BAdI implementation ${enhName}`);
@@ -763,6 +777,7 @@ export async function setFilterValues(
     BRIDGE_CLASS.setFilterValues,
     source,
     `abapsmith T15 set-filter-values bridge (${enhName})`,
+    "set_filter_values",
   );
   const transcript = parseEnhancementTranscript(run.output);
   assertEnhTranscript(transcript, ["IMPL-REPLACED"], `Setting filter values on implementation ${enhName}`);
@@ -823,6 +838,7 @@ export async function exerciseBadi(
     BRIDGE_CLASS.exercise,
     source,
     `abapsmith T15 exercise-badi bridge (${badiName})`,
+    "exercise",
   );
   const transcript = parseEnhancementTranscript(run.output);
   // H2/H7: NOT-BOUND means GET BADI produced an unbound handle — CALL BADI

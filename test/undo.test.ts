@@ -44,7 +44,7 @@ import {
 import { abapJournal, undoPreflightTarget } from "../src/tools/journal.js";
 import { abapWrite } from "../src/tools/write.js";
 import { SafetyGate } from "../src/safety.js";
-import { DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
+import { DDIC_BRIDGE_CLASS, DDIC_BRIDGE_PACKAGE } from "../src/adt/ddic-bridge.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
 import { PKG_CONTENT_PREFIX } from "../src/adt/package-delete.js";
 import { searchResultsXml, type FakeObjectRef } from "./helpers/fake-adt.js";
@@ -3030,7 +3030,11 @@ describe("undo of a DEVC/K package create now performs the delete", () => {
    * as `src/tools/journal.ts`'s real undo handler does — not a weaker gate,
    * a correctly-scoped one.
    */
-  const packageGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", PKG_NAME] });
+  const packageGate = new SafetyGate({
+    readOnly: false,
+    allowPackages: ["$TMP", PKG_NAME, DDIC_BRIDGE_PACKAGE],
+    allowNamePrefixes: ["*"],
+  });
   const PKG_ALLOW: UndoOptions = {
     assertAllowed: (action, target) => packageGate.authorize(action === "delete" ? "delete" : "write", target),
     gate: packageGate,
@@ -3344,7 +3348,7 @@ describe("undo of a VIEW/DV bridge create now performs the delete via the DDIC b
    */
   const REAL_PKG = "ZTM";
   const STALE_JOURNAL_PKG = "WRONG_PKG";
-  const viewGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", REAL_PKG] });
+  const viewGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", REAL_PKG, DDIC_BRIDGE_PACKAGE] });
   const VIEW_ALLOW: UndoOptions = {
     assertAllowed: (action, target) => viewGate.authorize(action === "delete" ? "delete" : "write", target),
     gate: viewGate,
@@ -3459,7 +3463,7 @@ describe("undo of a TRAN/T bridge create now performs the delete via the DDIC br
     `<vit:properties xmlns:vit="http://www.sap.com/adt/vit" xmlns:adtcore="http://www.sap.com/adt/core" ` +
     `adtcore:type="TRAN/T" adtcore:name="${TCODE}"><adtcore:packageRef adtcore:name="${pkg}"/></vit:properties>`;
 
-  const tranGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", REAL_PKG] });
+  const tranGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", REAL_PKG, DDIC_BRIDGE_PACKAGE] });
   const TRAN_ALLOW: UndoOptions = {
     assertAllowed: (action, target) => tranGate.authorize(action === "delete" ? "delete" : "write", target),
     gate: tranGate,

@@ -62,7 +62,7 @@ import {
   ENH_ACTIVATION_OPERATIONS,
 } from "../src/tools/enh.js";
 import { Journal } from "../src/journal.js";
-import { BRIDGE_CLASS, ENH_CREATE_PACKAGE } from "../src/adt/enhancement-bridge.js";
+import { BRIDGE_CLASS, ENH_BRIDGE_PACKAGE, ENH_CREATE_PACKAGE } from "../src/adt/enhancement-bridge.js";
 import { patchBadiImplementationActive, patchEnhancementRootAttribute } from "../src/adt/enhancement-xml.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 
@@ -134,12 +134,28 @@ const cfg = (): Config =>
  *  ever get a chance to run. */
 const DISCOVERY_ENHANCEMENTS_XML = fixture("discovery-enhancements.xml");
 
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
   if (r.url.includes("/compatibility/graph")) return resp(200, "<graph/>", LOGIN_HEADERS);
   if (r.url.endsWith("/discovery")) return resp(200, DISCOVERY_ENHANCEMENTS_XML, OK_XML);
   if (r.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
   if (r.url.includes("/datapreview/freestyle"))
     return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+  // ensureFluidPackage's package-existence probe (run.ts's deployBridge, cold
+  // path only): already exists, so this is the whole round trip — no create
+  // POST follows. Memoized per process per system, so only the first cold
+  // bridge deploy in this file actually reaches it.
+  if (r.url === FLUID_PKG_URI && r.method === "GET" && !r.qs._action)
+    return resp(200, FLUID_PACKAGE_XML, OK_XML);
   return undefined;
 }
 
@@ -230,7 +246,12 @@ const ACTIVATION_ERRORS = `<?xml version="1.0" encoding="utf-8"?>
 const gate = (extra: Partial<ConstructorParameters<typeof SafetyGate>[0]> = {}): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: ["$TMP"],
+    allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE],
+    // $ is outside the default Z/Y customer namespace, same as
+    // ensureHelperPackage's ALLOW_GATE (test/helper-package.test.ts) and
+    // test/fluid-package.test.ts's own gate() — ensureFluidPackage's own
+    // create call names the package itself, $ABAPSMITH_FLUID_API.
+    allowNamePrefixes: ["*"],
     allowEnhancements: true,
     enhanceTargets: "customer",
     originSystems: ["A4H"],

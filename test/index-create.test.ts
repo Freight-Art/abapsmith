@@ -153,7 +153,7 @@ const offline = null as unknown as AbapConnection;
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: ["$TMP", "ZTM"],
+    allowPackages: ["$TMP", "ZTM", DDIC_BRIDGE_PACKAGE],
     allowTransports: ["auto", CORR_NR],
     writesLockedOut: false,
   });

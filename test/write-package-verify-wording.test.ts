@@ -155,11 +155,12 @@ const pinnedTo = (trkorr: string): SessionTransport =>
     } as never,
   });
 
-/** Allows the bridge class's home ($TMP) and the new package's superpackage. */
+/** Allows the bridge class's home (DDIC_BRIDGE_PACKAGE) and the new package's superpackage. */
 const gate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
     allowPackages: [DDIC_BRIDGE_PACKAGE, PARENT],
+    allowNamePrefixes: ["*"],
     allowTransports: [TRKORR],
     writesLockedOut: false,
   });
@@ -174,6 +175,15 @@ const BRIDGE_LOCK_XML =
 const packageMissingRoute: Route = (r) =>
   r.url === PKG_URI && r.method === "GET" ? resp(404, NOT_FOUND_XML, OK_XML) : undefined;
 
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
 /** GET-404 -> POST-create -> LOCK -> PUT -> UNLOCK -> activate for the CREATE bridge class itself. */
 const bridgeDeployRoute: Route = (r) => {
   if (r.url === CREATE_BRIDGE_URI && r.method === "GET" && !r.qs._action)
@@ -183,6 +193,7 @@ const bridgeDeployRoute: Route = (r) => {
   if (r.url === CREATE_BRIDGE_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
   if (r.url === CREATE_BRIDGE_SOURCE_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
   if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+  if (r.url === FLUID_PKG_URI && r.method === "GET") return resp(200, FLUID_PACKAGE_XML, OK_XML);
   return undefined;
 };
 
