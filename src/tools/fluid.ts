@@ -129,7 +129,7 @@ export interface FluidToolDeps {
   readonly errorResult: (e: unknown) => CallToolResult;
   /** Loaded once at startup by `loadFluidTools`; never changes mid-session. */
   readonly toolSet: FluidToolSet;
-  readonly journal?: Journal;
+  readonly journal: Journal;
   readonly warn?: (message: string) => void;
 }
 
@@ -411,7 +411,7 @@ async function runRun(deps: FluidToolDeps, a: FluidInput): Promise<string> {
         cfg: deps.cfg,
         gate: deps.safety,
         tools: deps.toolSet.tools,
-        ...(deps.journal ? { journal: deps.journal } : {}),
+        journal: deps.journal,
         ...(deps.warn ? { warn: deps.warn } : {}),
       },
       {

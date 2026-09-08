@@ -1882,6 +1882,7 @@ describe("tool surface", () => {
       "abap_debug_vars",
       "abap_dumps",
       "abap_enh",
+      "abap_fluid",
       "abap_fpm_read",
       "abap_img",
       "abap_img_edit",

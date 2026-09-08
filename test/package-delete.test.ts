@@ -435,10 +435,15 @@ describe("safety gate — asserted as a delete on the domain object, and runs FI
     );
     const { conn } = await connected(route);
     await deletePackageViaBridge(conn, gate, TRANSPORT_PARAMS);
-    expect(seen).toEqual([
-      { op: "delete", type: "DEVC/K", name: PKG },
-      { op: "write", type: "DEVC/K", name: DDIC_BRIDGE_PACKAGE },
-    ]);
+    // No `write`/DEVC/K entry for DDIC_BRIDGE_PACKAGE (== FLUID_PACKAGE) here: this fake's
+    // FLUID_PACKAGE_URI route answers the bridge class's GET-404 happy path (the class itself
+    // doesn't exist yet), which makes `deployBridge` call `ensureFluidPackage` — but that route
+    // ALSO answers the package's own GET with a 200/existing package body (FLUID_PACKAGE_XML), so
+    // `createFluidPackage`'s existence probe (src/adt/fluid/package.ts) sees `exists: true` and
+    // returns before ever asking the gate: it only gates an actual CREATE now, not a confirmation
+    // that the already-there package exists. See test/fluid-package.test.ts for both the
+    // exists-already and the create-needed cases of that probe.
+    expect(seen).toEqual([{ op: "delete", type: "DEVC/K", name: PKG }]);
   });
 
   it("a gate that refuses the package name refuses the whole call with ZERO HTTP requests — the refusal is the gate's own", async () => {

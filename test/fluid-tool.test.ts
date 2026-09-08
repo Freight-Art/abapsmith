@@ -26,6 +26,7 @@ import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
+import { Journal } from "../src/journal.js";
 import type { SessionPool } from "../src/adt/pool.js";
 import { createServer, errorResult, type AbapsmithServer } from "../src/server.js";
 import { registerFluidTool, type FluidToolDeps } from "../src/tools/fluid.js";
@@ -332,6 +333,13 @@ const boobyEnsureConnected = async (): Promise<void> => {
   throw new Error("NETWORK LEAKED: ensureConnected was called by a supposedly zero-network op");
 };
 
+/** `journal` is required on `FluidToolDeps` (see test/journal-contract.test.ts); this default is
+ * disabled so it never touches disk unless a test opts in with its own `journal`. */
+const disabledJournal = new Journal(
+  { dir: path.join(os.tmpdir(), "abapsmith-fluid-tool-unused"), enabled: false, maxEntries: 1, maxAgeDays: 1 },
+  "TST",
+);
+
 function registered(deps: Partial<FluidToolDeps> & Pick<FluidToolDeps, "toolSet">): Map<string, { handler: (args: unknown) => Promise<CallToolResult> }> {
   const { mcp, tools } = fakeMcp();
   const full: FluidToolDeps = {
@@ -341,7 +349,7 @@ function registered(deps: Partial<FluidToolDeps> & Pick<FluidToolDeps, "toolSet"
     ensureConnected: deps.ensureConnected ?? boobyEnsureConnected,
     errorResult,
     toolSet: deps.toolSet,
-    ...(deps.journal ? { journal: deps.journal } : {}),
+    journal: deps.journal ?? disabledJournal,
     ...(deps.warn ? { warn: deps.warn } : {}),
   };
   registerFluidTool(mcp, full);
