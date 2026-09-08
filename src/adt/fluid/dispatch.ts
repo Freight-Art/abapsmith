@@ -15,7 +15,7 @@ import { AbapError } from "../errors.js";
 import { deployBridge, executeBridge, verifyBridgeActivation } from "../run.js";
 import { fluidDisabledReason } from "./enabled.js";
 import { ensureFluidPackage, FLUID_PACKAGE } from "./package.js";
-import { ensureFluidTool } from "./ensure.js";
+import { ensureFluidTool, isFluidObjectMissingFailure, recoverMissingFluidObject } from "./ensure.js";
 import { guardCoreAction } from "./builtin/core.js";
 import { forgetManifest } from "./registry.js";
 import { parseFluidConsole } from "./protocol.js";
@@ -292,35 +292,80 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
 
   await ensureFluidPackage(deps.conn, deps.gate);
   const sysKey = systemKey(deps.conn.cfg);
-  const ensureResult = await ensureFluidTool(deps.conn, deps.gate, deps.cfg, tool, {
-    tool: req.tool,
-    action: req.action,
-    op: "run",
-  });
 
-  const contract = tool.manifest.contract;
-  const name = invokerName(req.tool, req.action, req.args, contract);
-  const argsJson = canonicalArgsJson(req.args);
-  const source = invokerSource({
-    name,
-    entry: tool.manifest.entry,
-    toolId: req.tool,
-    action: req.action,
-    argsJson,
-    version: tool.version,
-    contract,
-    commit: action.category === "mutate",
-  });
+  // Everything the on-disk registry's cached "deployed: true" answer can lie
+  // about lives inside this one function: `ensureFluidTool`'s fast path can
+  // report every manifest object `"present"` for a tool the server no longer
+  // has (see ensure.ts's doc comment on that short-circuit), and the invoker
+  // this then builds statically calls the tool's entry class by name — a
+  // deploy or an execute against either a vanished body class or a vanished
+  // invoker surfaces as ADT's `NOT_FOUND` from one of the three awaits below.
+  // Deliberately NOT included: `guardCoreAction` and schema validation above
+  // (already run, and a `NOT_FOUND` there is about the CALL's own shape, not
+  // a deployment fact) and the transcript/output parsing below (local,
+  // synchronous, no server round trip — a `NOT_FOUND`-shaped answer from the
+  // ABAP body's own application logic, e.g. "no such user-supplied object
+  // name", is caught by the invoker's TRY/CATCH and comes back as an ERR
+  // frame in `transcript`, not as a thrown `AbapError`, so it can never reach
+  // this catch in the first place).
+  const runDeployAndExecute = async () => {
+    const ensureResult = await ensureFluidTool(deps.conn, deps.gate, deps.cfg, tool, {
+      tool: req.tool,
+      action: req.action,
+      op: "run",
+    });
 
-  const deployedBridge = await deployBridge(deps.conn, deps.gate, {
-    className: name,
-    source,
-    description: `fluid invoker for ${req.tool}.${req.action}`,
-    packageName: FLUID_PACKAGE,
-    what: `Activation of the generated fluid invoker ${name}`,
-    verify: (activation) => verifyBridgeActivation(activation, name, "fluid invoker"),
-  });
-  const run = await executeBridge(deps.conn, deps.gate, deployedBridge);
+    const contract = tool.manifest.contract;
+    const name = invokerName(req.tool, req.action, req.args, contract);
+    const argsJson = canonicalArgsJson(req.args);
+    const source = invokerSource({
+      name,
+      entry: tool.manifest.entry,
+      toolId: req.tool,
+      action: req.action,
+      argsJson,
+      version: tool.version,
+      contract,
+      commit: action.category === "mutate",
+    });
+
+    const deployedBridge = await deployBridge(deps.conn, deps.gate, {
+      className: name,
+      source,
+      description: `fluid invoker for ${req.tool}.${req.action}`,
+      packageName: FLUID_PACKAGE,
+      what: `Activation of the generated fluid invoker ${name}`,
+      verify: (activation) => verifyBridgeActivation(activation, name, "fluid invoker"),
+    });
+    const run = await executeBridge(deps.conn, deps.gate, deployedBridge);
+
+    return { ensureResult, deployedBridge, run };
+  };
+
+  let ensureResult: Awaited<ReturnType<typeof runDeployAndExecute>>["ensureResult"];
+  let deployedBridge: Awaited<ReturnType<typeof runDeployAndExecute>>["deployedBridge"];
+  let run: Awaited<ReturnType<typeof runDeployAndExecute>>["run"];
+  try {
+    ({ ensureResult, deployedBridge, run } = await runDeployAndExecute());
+  } catch (e) {
+    if (!isFluidObjectMissingFailure(e)) throw e;
+    // No commit can have happened yet: a `NOT_FOUND` out of `ensureFluidTool`
+    // or `deployBridge` never reaches `executeBridge` at all, and a
+    // `NOT_FOUND` out of `executeBridge` itself means the classrun POST was
+    // refused before the ABAP side ran — the invoker's own COMMIT WORK (see
+    // the note above `journalFluidMutate` below) cannot have executed. So
+    // recovering and re-running the whole range here can never double-commit
+    // or double-journal a mutation that already went through.
+    await recoverMissingFluidObject(deps.conn, deps.gate, deps.cfg, tool, {
+      tool: req.tool,
+      action: req.action,
+      op: "run",
+    });
+    // Exactly one retry: this second call sits outside any try/catch of its
+    // own, so a `NOT_FOUND` here — the object is still missing even after
+    // recovery — propagates to the caller unchanged rather than looping.
+    ({ ensureResult, deployedBridge, run } = await runDeployAndExecute());
+  }
 
   const transcript = parseFluidConsole(run.output);
   if (transcript.errors.length > 0) {

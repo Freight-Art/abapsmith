@@ -37,12 +37,20 @@
  * computing their deterministic names, best-effort. This file also declares
  * a third, fixture-only tool (`s11_fix2`, body class `ZCL_ZMCP_S11_FIX2`,
  * "S11" tagged to avoid colliding with any other slice's objects on a shared
- * appliance) used solely to prove the invoker's `CATCH cx_root` wrapper and
- * dispatch's silent-END check end to end; its two invokers and its body
- * class are all deleted in the same `afterAll`, best-effort. Rough count on
- * a cold system: package create/confirm (~3), runtime class
- * deploy+activate+verify (~6), fixture class deploy+activate+verify (~6),
- * four invoker deploy+run cycles (~20), five object deletes (~15). On a warm
+ * appliance) used to prove the invoker's `CATCH cx_root` wrapper and
+ * dispatch's silent-END check end to end, and now also a third action, `ok`
+ * — a genuine no-frills success round trip used to pin `dispatch()`'s
+ * self-heal after an out-of-band delete (see the self-heal `it` below): the
+ * fixture's own body class is deleted directly (bypassing abapsmith
+ * entirely, on a fresh connection, same one-delete rule as everywhere else
+ * in this file), then dispatched again, proving the stale-registry-vs-
+ * missing-object gap actually closes on a real system, not just against the
+ * fake ADT in fluid-dispatch.test.ts. Its three invokers and its body class
+ * are all deleted in the same `afterAll`, best-effort. Rough count on a cold
+ * system: package create/confirm (~3), runtime class deploy+activate+verify
+ * (~6), fixture class deploy+activate+verify (~6), five invoker deploy+run
+ * cycles (~25, the self-heal test deploys/runs `ok` twice), one extra
+ * out-of-band delete (~3), six object deletes in `afterAll` (~18). On a warm
  * system (runtime and fixture classes left in place from a prior run) most
  * of that collapses to reads, well under half.
  */
@@ -94,7 +102,11 @@ const TOOLS: ReadonlyMap<string, LoadedFluidTool> = new Map([[fluidRuntimeManife
  * error — which must propagate through the generated invoker's own
  * `TRY. ... CATCH cx_root INTO DATA(lx_err).` wrapper and come back as a
  * parsed ERR frame (FLUID_ACTION_FAILED with the exception text), not a
- * short dump. "S11" in every object name keeps this fixture from colliding
+ * short dump; (3) `ok` returns `{ ok: true }` via a normal OUT frame — a
+ * plain, uneventful success, used only as the before/after probe for the
+ * out-of-band-deletion self-heal test below (neither `silent` nor `boom`
+ * can serve that role: one never reaches a successful OUT, the other always
+ * throws). "S11" in every object name keeps this fixture from colliding
  * with any other slice's objects on a shared appliance.
  */
 const FIXTURE_CLASS = "ZCL_ZMCP_S11_FIX2";
@@ -125,6 +137,8 @@ CLASS zcl_zmcp_s11_fix2 IMPLEMENTATION.
 * raises FLUID_PROTOCOL_ERROR for a non-void action whose body goes silent.
       WHEN 'boom'.
         RAISE EXCEPTION TYPE cx_sy_zerodivide.
+      WHEN 'ok'.
+        zcl_zmcp_fluid_rt=>out( '{"ok":true}' ).
       WHEN OTHERS.
         zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
           iv_text = |unknown action "{ iv_action }"| ).
@@ -163,6 +177,14 @@ const fixtureManifest: FluidManifest = {
       description: "Raises CX_SY_ZERODIVIDE, declared and explicit, to exercise the invoker's CATCH cx_root wrapper.",
       input: { type: "object", properties: {} },
       output: { type: "object", properties: {} },
+    },
+    {
+      name: "ok",
+      category: "read",
+      description:
+        "Returns { ok: true } via a normal OUT frame — a plain success, used as the before/after probe for the out-of-band-deletion self-heal test.",
+      input: { type: "object", properties: {} },
+      output: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] },
     },
   ],
 };
@@ -237,6 +259,7 @@ dWrite("live: the fluid API runtime deploys, dispatches, and reports failures on
       await deleteInvokerIfPresent(cfg, fluidRuntimeManifest.id, fluidRuntimeManifest.contract, "fail");
       await deleteInvokerIfPresent(cfg, fixtureManifest.id, fixtureManifest.contract, "silent");
       await deleteInvokerIfPresent(cfg, fixtureManifest.id, fixtureManifest.contract, "boom");
+      await deleteInvokerIfPresent(cfg, fixtureManifest.id, fixtureManifest.contract, "ok");
       await deleteObjectIfPresent(cfg, FIXTURE_CLASS);
     } finally {
       await conn.shutdown("test-end");
@@ -328,6 +351,48 @@ dWrite("live: the fluid API runtime deploys, dispatches, and reports failures on
     const message = caught instanceof Error ? caught.message : String(caught);
     expect(message.length).toBeGreaterThan(0);
   }, 120_000);
+
+  it("dispatch() self-heals when the fixture body class is deleted out-of-band: redeploys it and the retry succeeds", async () => {
+    assertUsable();
+    const deps: FluidDeps = { conn, cfg, gate: GATE, tools: FIXTURE_TOOLS };
+
+    // Baseline: a clean, successful round trip first, so the on-disk registry
+    // records FIXTURE_CLASS as deployed at this exact contract/version before
+    // anything is deleted — matching the real-world shape of this bug (the
+    // registry is telling the truth right up until something deletes the
+    // object out from under it).
+    const before = await underApplianceStateWatch("dispatch s11_fix2.ok (baseline)", () =>
+      dispatch(deps, { tool: fixtureManifest.id, action: "ok", args: {} }),
+    );
+    expect(before.result).toEqual({ ok: true });
+
+    // Delete the body class directly via ADT — NOT through abapsmith/dispatch,
+    // and NOT through the shared `conn` every other test in this block reuses:
+    // this file's own afterAll notes a stateful session here survives only one
+    // object delete, so deleteObjectIfPresent (used the same way afterAll uses
+    // it on this very class) opens its own fresh connection for the delete.
+    await deleteObjectIfPresent(cfg, FIXTURE_CLASS);
+
+    // Confirm it is actually gone before asking dispatch to recover it —
+    // otherwise this test would not be pinning anything real.
+    const goneCheck = await resolveWriteTarget(conn, { type: "CLAS/OC", name: FIXTURE_CLASS }, "write");
+    expect(goneCheck.exists, `${FIXTURE_CLASS} was not actually deleted — test setup is broken`).toBe(false);
+
+    // The registry still says FIXTURE_CLASS is deployed (nothing told it
+    // otherwise) — exactly the stale-registry-vs-server-reality gap that
+    // dispatch()'s self-heal (ensure.ts's isFluidObjectMissingFailure /
+    // recoverMissingFluidObject, wired into dispatch.ts's runDeployAndExecute
+    // retry) exists to close. A single dispatch() call, with no special
+    // handling from the caller, must both succeed and leave the class back in
+    // place.
+    const after = await underApplianceStateWatch("dispatch s11_fix2.ok (self-heal)", () =>
+      dispatch(deps, { tool: fixtureManifest.id, action: "ok", args: {} }),
+    );
+    expect(after.result).toEqual({ ok: true });
+
+    const restored = await resolveWriteTarget(conn, { type: "CLAS/OC", name: FIXTURE_CLASS }, "write");
+    expect(restored.exists, `${FIXTURE_CLASS} was not redeployed by self-heal`).toBe(true);
+  }, 180_000);
 });
 
 dRead("live: with ABAP_MODE=read, dispatch refuses the fluid API before any request", () => {
