@@ -113,7 +113,7 @@ const gate = (): SafetyGate =>
 
 /** Blocks `activate` specifically — everything else passes through the real gate. */
 class GateBlocksActivate extends SafetyGate {
-  assert(op: Operation, obj?: SafetyTarget, opts?: EvaluateOptions): void {
+  override assert(op: Operation, obj?: SafetyTarget, opts?: EvaluateOptions): void {
     if (op === "activate") {
       throw new AbapError(
         "SAFETY_DENIED",

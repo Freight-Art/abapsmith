@@ -17,6 +17,17 @@
  */
 import type { FluidManifest } from "../manifest.js";
 import { FLUID_CONTRACT } from "../manifest.js";
+import { FLUID_RUNTIME_CLASS, fluidRuntimeManifest, fluidRuntimeSources } from "../abap/runtime.js";
+
+const RUNTIME_SOURCE = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE === undefined) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+
+const RUNTIME_OBJECT = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT === undefined) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
 
 const IMG_SOURCE = `CLASS zcl_zmcp_fluid_img DEFINITION
   PUBLIC
@@ -454,6 +465,13 @@ export const imgManifest: FluidManifest = {
   description: "Read-only preview of an IMG (SPRO customizing) table's DDIC shape and named rows.",
   objects: [
     {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT.description,
+      source: { text: RUNTIME_SOURCE },
+    },
+    {
       name: "ZCL_ZMCP_FLUID_IMG",
       type: "CLAS/OC",
       description: "fluid: previews an IMG table's DDIC shape and rows",
@@ -495,4 +513,7 @@ export const imgManifest: FluidManifest = {
   ],
 };
 
-export const imgSources: ReadonlyMap<string, string> = new Map([["ZCL_ZMCP_FLUID_IMG", IMG_SOURCE]]);
+export const imgSources: ReadonlyMap<string, string> = new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE],
+  ["ZCL_ZMCP_FLUID_IMG", IMG_SOURCE],
+]);

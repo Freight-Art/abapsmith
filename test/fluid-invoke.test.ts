@@ -313,6 +313,34 @@ describe("invokerSource — commit", () => {
   });
 });
 
+describe("invokerSource — exception wrapper", () => {
+  it("wraps the body call in TRY/CATCH cx_root INTO DATA(lx_err), in that order", () => {
+    const source = invokerSource(baseArgs());
+    const tryIndex = source.indexOf("TRY.");
+    const bodyCallIndex = source.indexOf("=>run( iv_action = ");
+    const catchIndex = source.indexOf("CATCH cx_root INTO DATA(lx_err).");
+    expect(tryIndex).toBeGreaterThan(-1);
+    expect(bodyCallIndex).toBeGreaterThan(-1);
+    expect(catchIndex).toBeGreaterThan(-1);
+    expect(tryIndex).toBeLessThan(bodyCallIndex);
+    expect(bodyCallIndex).toBeLessThan(catchIndex);
+  });
+
+  it("the CATCH arm emits an err( ) frame carrying lx_err->get_text( ) before end( 8 )", () => {
+    const source = invokerSource(baseArgs({ action: "run_it" }));
+    const catchIndex = source.indexOf("CATCH cx_root INTO DATA(lx_err).");
+    const errIndex = source.indexOf(
+      "zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'run_it' iv_text = lx_err->get_text( ) ).",
+    );
+    const end8Index = source.indexOf("zcl_zmcp_fluid_rt=>end( 8 ).");
+    expect(catchIndex).toBeGreaterThan(-1);
+    expect(errIndex).toBeGreaterThan(-1);
+    expect(end8Index).toBeGreaterThan(-1);
+    expect(catchIndex).toBeLessThan(errIndex);
+    expect(errIndex).toBeLessThan(end8Index);
+  });
+});
+
 describe("invokerSource — success-path END safety net", () => {
   it("emits a final end( 0 ) after the commit lines for a mutate action", () => {
     const source = invokerSource(baseArgs({ commit: true }));

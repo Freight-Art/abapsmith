@@ -142,8 +142,8 @@ function makeNode(over: Partial<BoNode> & { name: string; rootNode: boolean }): 
     actions: [],
     determinations: [],
     validations: [],
-    associations: [],
     ...over,
+    associations: (over.associations ?? []) as Mut<BoAssociation>[],
   };
 }
 

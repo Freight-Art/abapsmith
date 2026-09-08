@@ -338,6 +338,14 @@ const MUTATE_ACTION: FluidActionSpec = {
   output: { type: "object" },
 };
 
+const VOID_ACTION: FluidActionSpec = {
+  name: "run",
+  category: "execute",
+  description: "run, declaring no output at all",
+  input: { type: "object" },
+  output: {},
+};
+
 const MUTATE_STRICT_OUTPUT_ACTION: FluidActionSpec = {
   name: "commit",
   category: "mutate",
@@ -553,6 +561,49 @@ describe("dispatch — transcript protocol", () => {
     expect(err.code).toBe("FLUID_PROTOCOL_ERROR");
     expect(err.details["beginAction"]).toBe("other");
     expect(err.details["action"]).toBe("run");
+  });
+});
+
+describe("dispatch — END with neither OUT nor ERR", () => {
+  it("a non-void output schema raises FLUID_PROTOCOL_ERROR when END carries no OUT frames", async () => {
+    const tool = makeManifestTool({ id: "silentend", className: "ZCL_SILENTEND", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run" }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const err = await catchErr(dispatch(d, { tool: tool.manifest.id, action: "run", args: {} }));
+
+    expect(err.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(err.details["count"]).toBe(0);
+  });
+
+  it("a void (typeless) output schema succeeds when END carries no OUT frames", async () => {
+    const tool = makeManifestTool({ id: "voidend", className: "ZCL_VOIDEND", actions: [VOID_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run" }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const result = await dispatch(d, { tool: tool.manifest.id, action: "run", args: {} });
+
+    expect(result.result).toBeUndefined();
+  });
+
+  it("a void (typeless) output schema still raises FLUID_PROTOCOL_ERROR if the body emits an OUT anyway", async () => {
+    const tool = makeManifestTool({ id: "voidout", className: "ZCL_VOIDOUT", actions: [VOID_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const err = await catchErr(dispatch(d, { tool: tool.manifest.id, action: "run", args: {} }));
+
+    expect(err.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(err.details["count"]).toBe(1);
   });
 });
 
@@ -841,5 +892,106 @@ describe("dispatch — journal", () => {
     expect(err.code).toBe("FLUID_ACTION_FAILED");
     const entries = await journal.list({ object: `${tool.manifest.id}.commit` });
     expect(entries).toHaveLength(0);
+  });
+});
+
+describe("dispatch — self-heal after out-of-band deletion", () => {
+  // The on-disk registry claims NAME is already deployed at this tool's exact
+  // contract/version — but the fake server's store has never heard of it: a
+  // matching on-disk lie, exactly what ensureFluidTool's cache-trusting fast
+  // path (ensure.ts) accepts without ever touching the wire. The very first
+  // classrun POST (the execute step) is made to 404 once, standing in for the
+  // real-world failure this self-heal targets — the invoker's dispatch to a
+  // deleted entry class.
+  it("recovers from a stale-registry / missing-object NOT_FOUND on the execute step: redeploys once and the retry succeeds", async () => {
+    const NAME = "ZCL_BODYGONE";
+    const tool = makeManifestTool({ id: "bodygone", className: NAME, actions: [READ_ACTION] });
+    let classrunCalls = 0;
+    const { route: dynamicRoute } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const route: Route = (r) => {
+      if (r.url.startsWith(CLASSRUN_BASE) && r.method === "POST") {
+        classrunCalls++;
+        if (classrunCalls === 1) return resp(404, notFoundXml(NAME), OK_XML);
+      }
+      return dynamicRoute(r);
+    };
+    const { conn, adt } = await connected(route);
+    const sysKey = systemKey(conn.cfg);
+    await recordManifest(cfg(), sysKey, {
+      toolId: tool.manifest.id,
+      contract: tool.manifest.contract,
+      version: tool.version,
+      objects: [NAME],
+      deployedAt: new Date().toISOString(),
+    });
+    const d = depsFor(conn, gate(), tool);
+
+    const result = await dispatch(d, { tool: tool.manifest.id, action: "run", args: {} });
+
+    expect(result.result).toEqual({});
+    const bodyPuts = adt.calls.filter((c) => c.method === "PUT" && c.url === `${classUri(NAME)}/source/main`);
+    expect(bodyPuts).toHaveLength(1);
+    expect(classrunCalls).toBe(2);
+  });
+
+  it("propagates NOT_FOUND unchanged when the object is still missing after one recovery, having recovered exactly once", async () => {
+    const NAME = "ZCL_STILLGONE";
+    const tool = makeManifestTool({ id: "stillgone", className: NAME, actions: [READ_ACTION] });
+    let classrunCalls = 0;
+    const { route: dynamicRoute } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const route: Route = (r) => {
+      if (r.url.startsWith(CLASSRUN_BASE) && r.method === "POST") {
+        classrunCalls++;
+        return resp(404, notFoundXml(NAME), OK_XML);
+      }
+      return dynamicRoute(r);
+    };
+    const { conn, adt } = await connected(route);
+    const sysKey = systemKey(conn.cfg);
+    await recordManifest(cfg(), sysKey, {
+      toolId: tool.manifest.id,
+      contract: tool.manifest.contract,
+      version: tool.version,
+      objects: [NAME],
+      deployedAt: new Date().toISOString(),
+    });
+    const d = depsFor(conn, gate(), tool);
+
+    const err = await catchErr(dispatch(d, { tool: tool.manifest.id, action: "run", args: {} }));
+
+    expect(err.code).toBe("NOT_FOUND");
+    // Exactly one retry, never a loop: first attempt + one re-run after recovery, not more.
+    expect(classrunCalls).toBe(2);
+    // Exactly one recovery: the redeploy of NAME (forgetManifest + ensureFluidTool) fires once,
+    // not once per failed classrun.
+    const bodyPuts = adt.calls.filter((c) => c.method === "PUT" && c.url === `${classUri(NAME)}/source/main`);
+    expect(bodyPuts).toHaveLength(1);
+  });
+
+  it("does not attempt recovery for a non-NOT_FOUND failure", async () => {
+    const NAME = "ZCL_FOREIGNCONFLICT";
+    const tool = makeManifestTool({ id: "foreignconflict", className: NAME, actions: [READ_ACTION] });
+    const { route, store } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run", outs: [{}] }),
+    });
+    // No registry entry recorded — ensureFluidTool takes its full classify path and finds NAME
+    // sitting in a package abapsmith does not own: a legitimate, non-deployment NOT_FOUND-free
+    // refusal (FLUID_OBJECT_CONFLICT), not an out-of-band deletion.
+    store.set(NAME, { exists: true, packageName: "$SOME_OTHER_PACKAGE", active: true, source: "irrelevant" });
+    const { conn, adt } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const err = await catchErr(dispatch(d, { tool: tool.manifest.id, action: "run", args: {} }));
+
+    expect(err.code).toBe("FLUID_OBJECT_CONFLICT");
+    // No recovery attempted: the classify GET for NAME ran exactly once, and execute was never
+    // reached at all.
+    const nameGets = adt.calls.filter((c) => c.method === "GET" && c.url === classUri(NAME));
+    expect(nameGets).toHaveLength(1);
+    expect(adt.calls.filter((c) => c.url.startsWith(CLASSRUN_BASE))).toEqual([]);
   });
 });

@@ -11,11 +11,13 @@ import type { Operation, SafetyGate } from "../../safety.js";
 import { safetyTarget } from "../../safety.js";
 import type { Journal, JournalBeginInput, JournalObjectRef } from "../../journal.js";
 import { systemKey } from "../../journal.js";
-import { AbapError } from "../errors.js";
+import { AbapError, isAbapError } from "../errors.js";
 import { deployBridge, executeBridge, verifyBridgeActivation } from "../run.js";
+import { activateObject, assertNoErrors } from "../activate.js";
+import { authorizeMutation } from "../write.js";
 import { fluidDisabledReason } from "./enabled.js";
 import { ensureFluidPackage, FLUID_PACKAGE } from "./package.js";
-import { ensureFluidTool } from "./ensure.js";
+import { anyFluidObjectMissing, ensureFluidTool, recoverMissingFluidObject } from "./ensure.js";
 import { guardCoreAction } from "./builtin/core.js";
 import { forgetManifest } from "./registry.js";
 import { parseFluidConsole } from "./protocol.js";
@@ -223,6 +225,46 @@ async function journalFluidMutate(
   }
 }
 
+/**
+ * Force the generated fluid invoker `invokerClassName` to actually
+ * (re)activate — bypassing `deployBridge`'s own "nothing to do" shortcut —
+ * so a stale generated program gets regenerated before it is run again.
+ *
+ * Only called from `dispatch`'s recovery path, once, right after
+ * `recoverMissingFluidObject` has redeployed whatever fluid body class the
+ * invoker depends on. Plain reactivation, the same primitive ensure.ts's own
+ * `"inactive"` classification branch uses (`authorizeMutation` +
+ * `activateObject` + `assertNoErrors`) — not a rewrite: the invoker's source
+ * is unchanged (still the correct, deterministic program for this
+ * tool/action/args), only its compiled program was left invalid by the
+ * dependency that just came back.
+ *
+ * A `NOT_FOUND` here means the invoker itself doesn't exist (yet, or ever)
+ * on this connection — nothing to force, and no bug: the retry's own
+ * `deployBridge` creates it fresh in that case, which activates
+ * unconditionally (F6's shortcut only ever applies to an object that already
+ * existed unchanged). Anything else propagates: an activation that still
+ * fails here is a real, distinct problem (e.g. the dependency `ensureFluidTool`
+ * "recovered" is itself still broken), not one this function papers over.
+ */
+async function forceInvokerRegeneration(deps: FluidDeps, invokerClassName: string): Promise<void> {
+  let authorized;
+  try {
+    authorized = await authorizeMutation(deps.conn, deps.gate, "activate", {
+      type: "CLAS/OC",
+      name: invokerClassName,
+    });
+  } catch (e) {
+    if (isAbapError(e) && e.code === "NOT_FOUND") return;
+    throw e;
+  }
+  const activation = await activateObject(deps.conn, authorized.target);
+  assertNoErrors(activation, {
+    what: `Force-regenerate the fluid invoker ${invokerClassName} after recovering its dependency`,
+    name: invokerClassName,
+  });
+}
+
 export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<FluidRunResult> {
   const disabled = fluidDisabledReason(deps.cfg, deps.gate);
   if (disabled) throw dispatchDisabledError(disabled, deps.cfg, req);
@@ -292,35 +334,171 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
 
   await ensureFluidPackage(deps.conn, deps.gate);
   const sysKey = systemKey(deps.conn.cfg);
-  const ensureResult = await ensureFluidTool(deps.conn, deps.gate, deps.cfg, tool, {
-    tool: req.tool,
-    action: req.action,
-    op: "run",
-  });
 
+  // Pure and stable for the whole call, including across the one retry below:
+  // no input it depends on (req.tool/action/args, the manifest's contract,
+  // entry, version) changes between the first attempt and the recovery
+  // retry, so both `runDeployAndExecute` and `forceInvokerRegeneration`
+  // (below) must name the exact same generated class.
   const contract = tool.manifest.contract;
-  const name = invokerName(req.tool, req.action, req.args, contract);
-  const argsJson = canonicalArgsJson(req.args);
-  const source = invokerSource({
-    name,
-    entry: tool.manifest.entry,
-    toolId: req.tool,
-    action: req.action,
-    argsJson,
-    version: tool.version,
-    contract,
-    commit: action.category === "mutate",
-  });
+  const invokerClassName = invokerName(req.tool, req.action, req.args, contract);
 
-  const deployedBridge = await deployBridge(deps.conn, deps.gate, {
-    className: name,
-    source,
-    description: `fluid invoker for ${req.tool}.${req.action}`,
-    packageName: FLUID_PACKAGE,
-    what: `Activation of the generated fluid invoker ${name}`,
-    verify: (activation) => verifyBridgeActivation(activation, name, "fluid invoker"),
-  });
-  const run = await executeBridge(deps.conn, deps.gate, deployedBridge);
+  // Everything the on-disk registry's cached "deployed: true" answer can lie
+  // about lives inside this one function: `ensureFluidTool`'s fast path can
+  // report every manifest object `"present"` for a tool the server no longer
+  // has (see ensure.ts's doc comment on that short-circuit), and the invoker
+  // this then builds statically calls the tool's entry class by name — a
+  // deploy or an execute against either a vanished body class or a vanished
+  // invoker can surface as `NOT_FOUND`, `RUNTIME_DUMP` (a stale, unchanged
+  // invoker's compiled program dumps at execution), or `CHECK_FAILED` (a
+  // freshly written/reactivated invoker fails its own activation check
+  // against the now-dangling reference) depending on `deployBridge`'s F6
+  // shortcut — see `anyFluidObjectMissing`'s doc in ensure.ts for the full
+  // shape-by-shape breakdown and why the catch below decides on a live
+  // existence probe rather than on which of those codes it caught.
+  // Deliberately NOT included: `guardCoreAction` and schema validation above
+  // (already run, and a `NOT_FOUND` there is about the CALL's own shape, not
+  // a deployment fact) and the transcript/output parsing below (local,
+  // synchronous, no server round trip — a `NOT_FOUND`-shaped answer from the
+  // ABAP body's own application logic, e.g. "no such user-supplied object
+  // name", is caught by the invoker's TRY/CATCH and comes back as an ERR
+  // frame in `transcript`, not as a thrown `AbapError`, so it can never reach
+  // this catch in the first place).
+  const runDeployAndExecute = async () => {
+    const ensureResult = await ensureFluidTool(deps.conn, deps.gate, deps.cfg, tool, {
+      tool: req.tool,
+      action: req.action,
+      op: "run",
+    });
+
+    const name = invokerClassName;
+    const argsJson = canonicalArgsJson(req.args);
+    const source = invokerSource({
+      name,
+      entry: tool.manifest.entry,
+      toolId: req.tool,
+      action: req.action,
+      argsJson,
+      version: tool.version,
+      contract,
+      commit: action.category === "mutate",
+    });
+
+    const deployedBridge = await deployBridge(deps.conn, deps.gate, {
+      className: name,
+      source,
+      description: `fluid invoker for ${req.tool}.${req.action}`,
+      packageName: FLUID_PACKAGE,
+      what: `Activation of the generated fluid invoker ${name}`,
+      verify: (activation) => verifyBridgeActivation(activation, name, "fluid invoker"),
+    });
+    const run = await executeBridge(deps.conn, deps.gate, deployedBridge);
+
+    return { ensureResult, deployedBridge, run };
+  };
+
+  let ensureResult: Awaited<ReturnType<typeof runDeployAndExecute>>["ensureResult"];
+  let deployedBridge: Awaited<ReturnType<typeof runDeployAndExecute>>["deployedBridge"];
+  let run: Awaited<ReturnType<typeof runDeployAndExecute>>["run"];
+  try {
+    ({ ensureResult, deployedBridge, run } = await runDeployAndExecute());
+  } catch (e) {
+    // Not an `AbapError` at all (a programming defect, a thrown string,
+    // whatever) — nothing below can classify it, and paying for a
+    // reconnect-plus-probe on something that isn't even a server response
+    // would be pure cost for no benefit. Propagate immediately.
+    //
+    // Also gate on the error's own `code` — a discrete, structured value the
+    // error-mapping layer already assigns, not free text prose — before
+    // paying for a probe at all. This is deliberately narrower than "any
+    // AbapError": `ensureFluidTool`'s own policy checks throw plenty of
+    // AbapErrors that have nothing to do with a missing manifest object and
+    // must never even be probed, let alone recovered — e.g.
+    // `FLUID_OBJECT_CONFLICT` (the object exists, just in a package
+    // abapsmith doesn't own: a legitimate, non-retryable refusal) or
+    // `FLUID_API_DISABLED` (a feature flag, not a server fact about any
+    // object at all). Probing those would be wasted GETs at best and could
+    // in principle race a policy refusal against a same-named object
+    // appearing/disappearing elsewhere. `NOT_FOUND`, `RUNTIME_DUMP`, and
+    // `CHECK_FAILED` are the three shapes `deployBridge`/`executeBridge`
+    // actually produce for a genuinely missing dependency (see
+    // `anyFluidObjectMissing`'s doc in ensure.ts for the shape-by-shape
+    // breakdown) — anything else is either a non-deployment refusal like the
+    // two above, or a defect this mechanism has no business papering over.
+    if (!isAbapError(e)) throw e;
+    if (e.code !== "NOT_FOUND" && e.code !== "RUNTIME_DUMP" && e.code !== "CHECK_FAILED") throw e;
+
+    // A dump-classified response doesn't just kill the local ABAP session
+    // the way `run.ts`'s own `invalidateSession` (a same-file, same-request
+    // reset of `csrfToken`) suggests — `connection.ts`'s `noteWireResponse`
+    // classifies that exact 500-with-dump-markers response ITSELF,
+    // independently, and calls `markDead()` on the whole `AbapConnection`:
+    // every request on it (`conn.get`, `conn.adt.*`, everything
+    // `authorizeMutation`/`writeObject`/`activateObject`/`ensureFluidTool`
+    // issue) throws `SESSION_DEAD` from `assertUsable()` until something
+    // calls `connect()` again — live-verified by this file's own offline
+    // retry-mechanics test, which failed with exactly that `SESSION_DEAD`
+    // before this line was added. Every other failure shape below
+    // (`NOT_FOUND`, `CHECK_FAILED`) never marks the connection dead, so for
+    // those this is a no-op: `connect()`'s `connectUnderLock()` returns
+    // immediately, no network call, whenever `this.connected` is still
+    // `true`. Must run BEFORE the existence probe below, which needs a live
+    // connection to do anything at all.
+    await deps.conn.connect();
+
+    // The decision point: was anything the tool's manifest declares actually
+    // proven missing on the server just now? This replaces an earlier
+    // approach that matched on the failing `AbapError`'s own code and
+    // message text — see `anyFluidObjectMissing`'s doc in ensure.ts for why
+    // that missed the dominant real-world shape (a fresh/reactivating
+    // invoker fails its OWN activation check with `CHECK_FAILED`, not a
+    // `RUNTIME_DUMP`, whenever `deployBridge`'s F6 shortcut does not engage —
+    // e.g. args never dispatched before on this connection). A `CHECK_FAILED`
+    // (or anything else) with every manifest object present is a genuine
+    // codegen defect, not a dependency drift, and must propagate unchanged —
+    // `anyFluidObjectMissing` answers `false` for exactly that case.
+    const missing = await anyFluidObjectMissing(deps.conn, tool);
+    if (!missing) throw e;
+
+    // No commit can have happened yet: a failure out of `ensureFluidTool` or
+    // `deployBridge` never reaches `executeBridge` at all, and either out of
+    // `executeBridge` itself means the classrun POST was refused, or the
+    // class dumped, before the ABAP side could commit anything — the
+    // invoker's own COMMIT WORK (see the note above `journalFluidMutate`
+    // below) cannot have executed. So recovering and re-running the whole
+    // range here can never double-commit or double-journal a mutation that
+    // already went through.
+    await recoverMissingFluidObject(deps.conn, deps.gate, deps.cfg, tool, {
+      tool: req.tool,
+      action: req.action,
+      op: "run",
+    });
+    // `recoverMissingFluidObject` only redeploys the fluid BODY classes
+    // tracked in the manifest — it has no idea the generated invoker even
+    // exists. When the invoker itself was left referencing the now-redeployed
+    // dependency (the `RUNTIME_DUMP`-via-F6-shortcut shape above), it is
+    // untouched by that redeploy: `deployBridge`'s own F6 shortcut (see its
+    // doc, src/adt/run.ts) skips the activation POST whenever the invoker's
+    // source hash is unchanged AND its `adtcore:version` metadata already
+    // says "active" — both true here, since nothing about the invoker's OWN
+    // row changed when its referenced body class was deleted and restored.
+    // Left alone, the retry below would call `deployBridge` again, hit that
+    // exact same shortcut, skip activation again, and `executeBridge` would
+    // re-run the still unregenerated invoker and dump identically a second
+    // time. Forcing a real activation here — outside `deployBridge`, after
+    // the dependency it needs is back — is what actually gets the invoker's
+    // program regenerated against the now-valid body class before the retry
+    // runs it. (When the failure was instead the `CHECK_FAILED`-without-F6
+    // shape, the retry's own `deployBridge` already activates unconditionally
+    // — `write.created || write.changed` is true precisely because F6 did not
+    // engage — so this call is a harmless, already-active no-op for that
+    // shape; see `forceInvokerRegeneration`'s own doc.)
+    await forceInvokerRegeneration(deps, invokerClassName);
+    // Exactly one retry: this second call sits outside any try/catch of its
+    // own, so a failure here — the object is still broken even after
+    // recovery — propagates to the caller unchanged rather than looping.
+    ({ ensureResult, deployedBridge, run } = await runDeployAndExecute());
+  }
 
   const transcript = parseFluidConsole(run.output);
   if (transcript.errors.length > 0) {
@@ -366,6 +544,17 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
   let result: unknown;
   if (action.output.type === "array") {
     result = transcript.values;
+  } else if (action.output.type === undefined) {
+    // No declared output shape — the action legitimately emits nothing. An END with zero OUT and
+    // zero ERR (both already ruled out as failure above) is success, not a silently-swallowed body.
+    if (transcript.values.length !== 0) {
+      throw new AbapError(
+        "FLUID_PROTOCOL_ERROR",
+        `${req.tool}.${req.action}: expected no output value (void), got ${transcript.values.length}.`,
+        { tool: req.tool, action: req.action, count: transcript.values.length },
+      );
+    }
+    result = undefined;
   } else {
     if (transcript.values.length !== 1) {
       throw new AbapError(

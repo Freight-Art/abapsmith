@@ -25,9 +25,9 @@ import {
 import { activateObject, assertNoErrors, checkSource } from "../activate.js";
 import { isSessionDeadFailure } from "../write-verify.js";
 import { FLUID_PACKAGE, LEGACY_FLUID_PACKAGES, isReservedFluidName, ensureFluidPackage } from "./package.js";
-import { readFluidRegistry, recordManifest } from "./registry.js";
+import { forgetManifest, readFluidRegistry, recordManifest } from "./registry.js";
 import type { FluidObjectSpec, FluidObjectType, LoadedFluidTool } from "./manifest.js";
-import { fluidDisabledReason } from "./enabled.js";
+import { fluidDisabledReason, type FluidConfigFields } from "./enabled.js";
 
 export type FluidObjectState =
   | "absent" | "present" | "stale" | "inactive" | "broken" | "foreign" | "legacy";
@@ -119,9 +119,21 @@ function objectStatus(obj: FluidObjectSpec, c: Classification): FluidObjectStatu
   };
 }
 
+/**
+ * Read-only, always-live classification: every status here comes from at
+ * least one server round trip made in this call (`classifyOne` always starts
+ * with `resolveWriteTarget`, and only reaches `"present"` after also reading
+ * current source and running `checkSource`). It never reads the on-disk
+ * registry (`readFluidRegistry`/`registry.ts`) and never reads the
+ * `redeployed` in-memory ledger below — those are only touched by the
+ * mutating path (`ensureFluidTool` / `deployAndVerify`). A `"present"` here
+ * always means the server was actually asked, unlike `ensureFluidTool`'s
+ * cache-trusting fast path, which can report every object `"present"` for a
+ * tool the server no longer has, straight from a matching registry entry.
+ */
 export async function classifyFluidTool(
   conn: AbapConnection,
-  cfg: Config,
+  cfg: FluidConfigFields,
   tool: LoadedFluidTool,
 ): Promise<readonly FluidObjectStatus[]> {
   const disabled = fluidDisabledReason(cfg);
@@ -151,7 +163,7 @@ function requireSource(tool: LoadedFluidTool, obj: FluidObjectSpec): string {
 
 function fluidDisabledError(
   reason: NonNullable<ReturnType<typeof fluidDisabledReason>>,
-  cfg: Config,
+  cfg: FluidConfigFields,
   tool: LoadedFluidTool,
   ctx?: FluidCallContext,
 ): AbapError {
@@ -494,4 +506,125 @@ export async function ensureFluidTool(
   }
 
   return { toolId: tool.manifest.id, version: tool.version, deployed, objects: statuses };
+}
+
+/**
+ * One object's live existence, as a provable server fact — nothing else.
+ * Deliberately narrower than {@link FluidObjectStatus}: no source comparison,
+ * no activation check, just "did `resolveWriteTarget` find it." That is the
+ * one thing cheap enough to run unconditionally on every deploy/execute
+ * failure (see `anyFluidObjectMissing`'s doc) and the one thing narrow enough
+ * that S9's own "is this tool's deployment still real" question can build on
+ * it without paying for a full `classifyFluidTool` pass.
+ */
+export interface FluidObjectPresence {
+  readonly name: string;
+  readonly type: FluidObjectType;
+  readonly exists: boolean;
+}
+
+/**
+ * Cheap, read-only existence probe over every object `tool`'s manifest
+ * declares — one `resolveWriteTarget` GET per object, the exact same call
+ * `classifyOne` above and the retired-bridge reaper's `probeRetiredBridges`
+ * (src/adt/fluid/retired.ts:73) already use to answer "does the server have
+ * this?" as a provable fact rather than a guess. Never throws: a single
+ * unreadable name must not blind the whole probe, so a `resolveWriteTarget`
+ * failure on one object is worth surfacing, not swallowing — this
+ * deliberately does NOT copy `probeRetiredBridges`'s catch-and-report-"unknown"
+ * behavior, because a probe result `anyFluidObjectMissing` cannot tell apart
+ * from "definitely missing" is worse than letting the caller's own retry
+ * bound handle a genuine second failure.
+ */
+export async function probeFluidObjectsExist(
+  conn: AbapConnection,
+  tool: LoadedFluidTool,
+): Promise<readonly FluidObjectPresence[]> {
+  const results: FluidObjectPresence[] = [];
+  for (const obj of tool.manifest.objects) {
+    const resolved = await resolveWriteTarget(conn, { type: obj.type, name: obj.name }, "write");
+    results.push({ name: obj.name, type: obj.type, exists: resolved.exists });
+  }
+  return results;
+}
+
+/**
+ * True when at least one of `tool`'s manifest objects is provably absent from
+ * the server right now. This is what `dispatch.ts`'s catch block runs on
+ * ANY failure out of its deploy/execute range to decide whether a redeploy
+ * can plausibly help — replacing an earlier, narrower approach
+ * (`isFluidRedeployableFailure`, matched on the failing `AbapError`'s own
+ * code and message text) that turned out to miss the dominant real-world
+ * shape entirely.
+ *
+ * Deleting a fluid body class out-of-band was live-verified to surface as
+ * BOTH of two different `AbapError` codes, depending on one thing:
+ * `deployBridge`'s own F6 shortcut (src/adt/run.ts, `alreadyActive`), which
+ * skips reactivating the generated invoker whenever its source hash is
+ * unchanged AND its `adtcore:version` metadata already says active.
+ *
+ *   - F6 engages (the invoker already existed, unchanged, still marked
+ *     active — true right after the SAME args are dispatched a second time):
+ *     the stale compiled program executes anyway, and `runClass` surfaces a
+ *     `RUNTIME_DUMP` short dump (`SYNTAX_ERROR`, "Syntax error in program …").
+ *   - F6 does NOT engage (the invoker needs writing or (re)activating at
+ *     all — new args, a class name never deployed on this connection before,
+ *     or any other reason `write.created || write.changed` is true, or the
+ *     server's own `adtcore:version` was not already "active-is-current"):
+ *     the activation check itself catches the dangling reference to the
+ *     deleted body class BEFORE `runClass` ever runs, and `assertNoErrors`
+ *     throws `CHECK_FAILED` — live-verified as the actual failure on a fresh
+ *     invoker built for previously-undeployed args.
+ *
+ * Matching free text for the second shape (a second regex over
+ * `checkFailedError`'s rendered checklist) would repeat the first shape's
+ * mistake — brittle, English-only prose — and worse: `CHECK_FAILED` also
+ * means "the fluid layer generated ABAP that genuinely does not compile," an
+ * outcome that must keep surfacing as a real error, never trigger a silent
+ * redeploy. An existence probe sidesteps the whole distinction: it does not
+ * look at what the failure says, only at whether the server can currently
+ * prove the dependency is there. `NOT_FOUND` (a referenced object entirely
+ * gone) and both of the shapes above all resolve to the same provable fact —
+ * something in the manifest is missing — while a `CHECK_FAILED` (or anything
+ * else) with every manifest object present is a genuine codegen defect and
+ * must not be papered over: `anyFluidObjectMissing` answers `false`, and the
+ * caller rethrows the original failure unchanged.
+ */
+export async function anyFluidObjectMissing(conn: AbapConnection, tool: LoadedFluidTool): Promise<boolean> {
+  const presence = await probeFluidObjectsExist(conn, tool);
+  return presence.some((p) => !p.exists);
+}
+
+/**
+ * Forgets the registry's cached entry for `tool` and redeploys once per call:
+ * this function's own body invokes `ensureFluidTool` exactly one time and
+ * returns its result, so a single call cannot loop internally.
+ *
+ * Plainly: that is the only bound this function provides. Nothing in its
+ * signature, return value, or body stops a caller from invoking
+ * `recoverMissingFluidObject` itself repeatedly — the "call this once per
+ * failure" contract is a caller-side convention, not something enforced or
+ * even observable from here. A dispatch call site relying on "once" must
+ * enforce it itself (e.g. a boolean already spent before this is called).
+ *
+ * The one real backstop is incidental, not designed as this function's loop
+ * guard: `ensureFluidTool`'s own per-object `redeployed` ledger (module-level
+ * `Set`, cleared only by `resetFluidEnsureState`) permits at most one extra
+ * redeploy cycle per (system, tool, object) per process. So repeated calls
+ * that keep hitting an unrecoverable object will eventually throw
+ * `redeployExhaustedError` instead of writing to the ABAP side forever — but
+ * that only engages once a write attempt has actually run; a caller looping
+ * on an object that keeps classifying as merely "present" or "absent"
+ * without ever reaching `deployAndVerify` gets no protection from it at all.
+ */
+export async function recoverMissingFluidObject(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  cfg: Config,
+  tool: LoadedFluidTool,
+  ctx: FluidCallContext,
+): Promise<EnsureFluidToolResult> {
+  const sysKey = systemKey(conn.cfg);
+  await forgetManifest(cfg, sysKey, tool.manifest.id);
+  return ensureFluidTool(conn, gate, cfg, tool, ctx);
 }

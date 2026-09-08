@@ -36,6 +36,7 @@
     "test:watch": "vitest",
     "test:live": "VITEST_LIVE=1 vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "typecheck:cassettes": "tsc -p test/cassettes/tsconfig.json --noEmit",
     "check:cassettes": "npm run typecheck:cassettes && vitest run test/cassettes",
     "check:leaks": "node scripts/check-no-leaks.mjs",
