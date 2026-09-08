@@ -32,6 +32,7 @@ import { SafetyGate } from "../src/safety.js";
 import { Journal } from "../src/journal.js";
 import type { SessionPool } from "../src/adt/pool.js";
 import { createServer, errorResult, type AbapsmithServer } from "../src/server.js";
+import { AbapError } from "../src/adt/errors.js";
 import { registerFluidTool, type FluidToolDeps } from "../src/tools/fluid.js";
 import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
 import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
@@ -304,13 +305,37 @@ function toolSetOf(...tools: readonly LoadedFluidTool[]): FluidToolSet {
   };
 }
 
+/** Like `makeTool`, but with N manifest objects instead of one — for proving
+ * `runRemove` leases per object rather than per call. */
+function makeManyObjectTool(id: string, objectNames: readonly string[]): LoadedFluidTool {
+  const sources = new Map<string, string>();
+  const objects = objectNames.map((name) => {
+    const cls = name.toLowerCase();
+    const source = `CLASS ${cls} DEFINITION PUBLIC.\nENDCLASS.\nCLASS ${cls} IMPLEMENTATION.\nENDCLASS.`;
+    sources.set(name, source);
+    return { name, type: "CLAS/OC" as const, description: `member of ${id}`, source: { text: source } };
+  });
+  const manifest: FluidManifest = {
+    contract: "1.0",
+    id,
+    title: `${id} tool`,
+    description: `test fixture for ${id}`,
+    objects,
+    entry: (objectNames[0] ?? "") as string,
+    actions: [RUN_ACTION],
+  };
+  return { manifest, origin: "builtin", sources, version: manifestVersion(manifest, sources) };
+}
+
 // --- fakeMcp()/registered()/invoke() triad (test/bopf-show-partial-view-caveat.test.ts) ---
 
-function fakeMcp(): { mcp: McpServer; tools: Map<string, { handler: (args: unknown) => Promise<CallToolResult> }> } {
-  const tools = new Map<string, { handler: (args: unknown) => Promise<CallToolResult> }>();
+type RegisteredTool = { handler: (args: unknown) => Promise<CallToolResult>; config: unknown };
+
+function fakeMcp(): { mcp: McpServer; tools: Map<string, RegisteredTool> } {
+  const tools = new Map<string, RegisteredTool>();
   const mcp = {
-    registerTool: (name: string, _config: unknown, handler: (args: unknown) => Promise<CallToolResult>) => {
-      tools.set(name, { handler });
+    registerTool: (name: string, config: unknown, handler: (args: unknown) => Promise<CallToolResult>) => {
+      tools.set(name, { handler, config });
       return {} as unknown;
     },
   } as unknown as McpServer;
@@ -343,7 +368,7 @@ const disabledJournal = new Journal(
   "TST",
 );
 
-function registered(deps: Partial<FluidToolDeps> & Pick<FluidToolDeps, "toolSet">): Map<string, { handler: (args: unknown) => Promise<CallToolResult> }> {
+function registered(deps: Partial<FluidToolDeps> & Pick<FluidToolDeps, "toolSet">): Map<string, RegisteredTool> {
   const { mcp, tools } = fakeMcp();
   const full: FluidToolDeps = {
     pool: deps.pool ?? boobyPool(),
@@ -359,10 +384,7 @@ function registered(deps: Partial<FluidToolDeps> & Pick<FluidToolDeps, "toolSet"
   return tools;
 }
 
-async function invoke(
-  tools: Map<string, { handler: (args: unknown) => Promise<CallToolResult> }>,
-  args: unknown,
-): Promise<CallToolResult> {
+async function invoke(tools: Map<string, RegisteredTool>, args: unknown): Promise<CallToolResult> {
   const entry = tools.get("abap_fluid");
   if (!entry) throw new Error('"abap_fluid" was never registered');
   return entry.handler(args);
@@ -405,6 +427,70 @@ describe("abap_fluid — bare call (no op/tool/action)", () => {
     const payload = errorPayload(await invoke(tools, {}));
     expect(payload.error).toBe("FLUID_API_DISABLED");
   });
+
+  it("reports flag, package, abap mode, read-only, system role, and every loaded tool's id/version/actions, touching no network", async () => {
+    const toolA = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO", actions: [{ ...RUN_ACTION, name: "spin_a" }] });
+    const toolB = makeTool({ id: "alpha", className: "ZCL_ZMCP_ALPHA", actions: [{ ...RUN_ACTION, name: "spin_b" }] });
+    const safety = new SafetyGate({
+      readOnly: false,
+      allowPackages: ["*"],
+      allowNamePrefixes: ["*"],
+      systemRole: "development",
+    });
+    const tools = registered({ toolSet: toolSetOf(toolA, toolB), safety });
+
+    const text = okText(await invoke(tools, {}));
+
+    expect(text).toContain("flag_ABAP_FLUID_API: true");
+    expect(text).toContain(FLUID_PACKAGE);
+    expect(text).toContain("abapMode: (unset)");
+    expect(text).toContain("readOnly: false");
+    expect(text).toContain("systemRole: development");
+    expect(text).toContain(toolA.manifest.id);
+    expect(text).toContain(toolA.version);
+    expect(text).toContain("spin_a");
+    expect(text).toContain(toolB.manifest.id);
+    expect(text).toContain(toolB.version);
+    expect(text).toContain("spin_b");
+  });
+
+  it("surfaces a refused plugin's path, id, code, and reason, touching no network", async () => {
+    const toolSet: FluidToolSet = {
+      tools: new Map(),
+      refused: [
+        {
+          path: "/plugins/broken-widget",
+          id: "brokenwidget",
+          code: "FLUID_MANIFEST_INVALID",
+          reason: "manifest.json is missing the required `actions` array",
+        },
+      ],
+      warnings: [],
+    };
+    const tools = registered({ toolSet });
+
+    const text = okText(await invoke(tools, {}));
+
+    expect(text).toContain("REFUSED PLUGINS");
+    expect(text).toContain("/plugins/broken-widget");
+    expect(text).toContain("brokenwidget");
+    expect(text).toContain("FLUID_MANIFEST_INVALID");
+    expect(text).toContain("manifest.json is missing the required `actions` array");
+  });
+
+  it("with the fluid API disabled, refuses before the info block is ever built, touching no network", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "sentinel", className: "ZCL_ZMCP_SENTINEL" }));
+    const tools = registered({ toolSet, cfg: cfg({ fluidApi: false }) });
+
+    const result = await invoke(tools, {});
+    const payload = errorPayload(result);
+
+    expect(payload.error).toBe("FLUID_API_DISABLED");
+    const raw = JSON.stringify(result);
+    expect(raw).not.toContain("CATALOGUE");
+    expect(raw).not.toContain("tools_loaded");
+    expect(raw).not.toContain("sentinel");
+  });
 });
 
 // ============================================================================
@@ -421,6 +507,15 @@ describe("abap_fluid — op: list", () => {
     expect(text).toContain("demo");
     expect(text).toContain("builtin");
     expect(text).toContain("run:execute");
+  });
+
+  it("issues zero HTTP requests, proven by a pool that throws on any lease attempt", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" }));
+    const tools = registered({ toolSet, pool: boobyPool() });
+
+    const text = okText(await invoke(tools, { op: "list" }));
+
+    expect(text).toContain("demo");
   });
 });
 
@@ -441,13 +536,28 @@ describe("abap_fluid — op: describe", () => {
     expect(text).toContain('"note"');
   });
 
-  it("without `tool`: refuses, naming `tool` as the missing field, touching no network", async () => {
-    const tools = registered({ toolSet: toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" })) });
+  it("without `tool`: describes every loaded tool, carrying schemas, touching no network", async () => {
+    const toolA = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" });
+    const toolB = makeTool({ id: "alpha", className: "ZCL_ZMCP_ALPHA" });
+    const tools = registered({ toolSet: toolSetOf(toolA, toolB) });
 
-    const payload = errorPayload(await invoke(tools, { op: "describe" }));
+    const text = okText(await invoke(tools, { op: "describe" }));
 
-    expect(payload.error).toBe("BAD_INPUT");
-    expect(String(payload.message)).toContain("tool");
+    expect(text).toContain(toolA.manifest.id);
+    expect(text).toContain(toolA.version);
+    expect(text).toContain(toolB.manifest.id);
+    expect(text).toContain(toolB.version);
+    expect(text).toContain("OBJECTS:");
+    expect(text).toContain(JSON.stringify(RUN_ACTION.input));
+  });
+
+  it("issues zero HTTP requests, proven by a pool that throws on any lease attempt", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" }));
+    const tools = registered({ toolSet, pool: boobyPool() });
+
+    const text = okText(await invoke(tools, { op: "describe" }));
+
+    expect(text).toContain("demo");
   });
 });
 
@@ -487,6 +597,31 @@ describe("abap_fluid — op: run (default)", () => {
     expect(ensureConnectedCalls).toBe(1);
     expect(withWriteCalls).toContain("abap_fluid.run");
     expect(text).toContain('"note": "hi"');
+  });
+
+  it("`op` omitted with `tool`+`action` present takes the run path's own write lease, not verify/repair/remove's", async () => {
+    const writeOps: string[] = [];
+    const pool: SessionPool = {
+      withRead: () => {
+        throw new Error("unexpected withRead for a tool+action call with no `op`");
+      },
+      withWrite: (op: string) => {
+        writeOps.push(op);
+        return Promise.reject(new Error(`STOP: write lease taken for ${op}`));
+      },
+      reserveDebug: () => {
+        throw new Error("reserveDebug: not used here");
+      },
+    } as unknown as SessionPool;
+    const tools = registered({
+      toolSet: toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" })),
+      pool,
+      ensureConnected: async () => {},
+    });
+
+    await invoke(tools, { tool: "demo", action: "run", args: {} });
+
+    expect(writeOps).toEqual(["abap_fluid.run"]);
   });
 });
 
@@ -630,4 +765,139 @@ describe("abap_fluid — response budget clamping", () => {
     expect(text.length).toBeLessThanOrEqual(400 + 600); // notice itself costs some room; not an unbounded blob
     expect(text).toMatch(/capped at 400 chars/);
   });
+});
+
+// ============================================================================
+// 9. registered MCP description — built from the tool set, not a static string
+// ============================================================================
+
+describe("abap_fluid — registered tool description", () => {
+  it("names a loaded tool's id and its action names, not a static description", async () => {
+    const tool = makeTool({
+      id: "widgetmaker",
+      className: "ZCL_ZMCP_WIDGETMAKER",
+      actions: [{ ...RUN_ACTION, name: "spin_up" }],
+    });
+    const tools = registered({ toolSet: toolSetOf(tool) });
+
+    const entry = tools.get("abap_fluid");
+    if (!entry) throw new Error('"abap_fluid" was never registered');
+    const description = (entry.config as { description?: string }).description ?? "";
+
+    expect(description).toContain("widgetmaker");
+    expect(description).toContain("spin_up");
+  });
+});
+
+// ============================================================================
+// 10. remove — one connection lease per deleted object, not one for the batch
+// ============================================================================
+
+describe("abap_fluid — op: remove lease discipline", () => {
+  it("takes one write lease per deleted object, exceeding LOGON_ENDPOINT_LIFETIME_CEILING (5)", async () => {
+    const names = Array.from({ length: 7 }, (_, i) => `ZCL_ZMCP_MANY${i}`);
+    const tool = makeManyObjectTool("many", names);
+    const writeOps: string[] = [];
+    const pool: SessionPool = {
+      withRead: (_op: string, fn: (c: AbapConnection) => Promise<unknown>) => fn(undefined as unknown as AbapConnection),
+      withWrite: (op: string) => {
+        writeOps.push(op);
+        return Promise.reject(new AbapError("NOT_FOUND", "fixture: withWrite stub, no real delete attempted", {}));
+      },
+      reserveDebug: () => {
+        throw new Error("reserveDebug: not used by abap_fluid remove");
+      },
+    } as unknown as SessionPool;
+    const tools = registered({
+      toolSet: toolSetOf(tool),
+      pool,
+      ensureConnected: async () => {},
+    });
+
+    okText(await invoke(tools, { op: "remove", tool: "many", confirm: "remove" }));
+
+    expect(writeOps.length).toBe(7);
+    expect(writeOps.every((op) => op === "abap_fluid.remove")).toBe(true);
+  });
+});
+
+// ============================================================================
+// 11. repair with `tool` — the invoker probe degrades instead of discarding
+// the already-committed ensure/redeploy work (src/tools/fluid.ts, runRepair)
+// ============================================================================
+
+describe("abap_fluid — op: repair with `tool`, invoker probe degradation", () => {
+  it(
+    "does not throw when the abap_fluid.repair.probe-invokers read lease rejects, still reports the " +
+      "successful ensure/redeploy work, names the STALE INVOKERS probe as unavailable with the error " +
+      "text, and takes no prune write lease",
+    async () => {
+      const tool = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" });
+      const { conn } = await connected(dynamicFluidRoute({ transcript: () => "" }));
+      const probeErr = new Error("boom: invoker probe connection lost");
+      const withWriteOps: string[] = [];
+      const withReadOps: string[] = [];
+      const pool: SessionPool = {
+        withRead: (op: string, _fn: (c: AbapConnection) => Promise<unknown>) => {
+          withReadOps.push(op);
+          if (op === "abap_fluid.repair.probe-invokers") return Promise.reject(probeErr);
+          return Promise.reject(new Error(`unexpected withRead op: ${op}`));
+        },
+        withWrite: (op: string, _uri: string | undefined, fn: (c: AbapConnection) => Promise<unknown>) => {
+          withWriteOps.push(op);
+          if (op === "abap_fluid.repair") return fn(conn);
+          return Promise.reject(new Error(`unexpected withWrite op: ${op}`));
+        },
+        reserveDebug: () => {
+          throw new Error("reserveDebug: not used by abap_fluid repair");
+        },
+      } as unknown as SessionPool;
+      const tools = registered({
+        toolSet: toolSetOf(tool),
+        pool,
+        ensureConnected: async () => {},
+      });
+
+      const result = await invoke(tools, { op: "repair", tool: "demo" });
+
+      expect(result.isError).toBeFalsy();
+      const text = okText(result);
+      expect(text).toContain(`--- ${tool.manifest.id} ---`);
+      expect(text).toContain("deployed: true");
+      expect(text).toContain("--- STALE INVOKERS ---");
+      expect(text).toContain(`(probe unavailable: ${probeErr.message})`);
+      expect(withReadOps).toContain("abap_fluid.repair.probe-invokers");
+      expect(withWriteOps).not.toContain("abap_fluid.repair.prune-invoker");
+    },
+  );
+
+  it(
+    "still returns an error result when the ensure/redeploy write lease itself fails, proving the " +
+      "probe degradation is scoped to the probe and does not swallow a real write failure",
+    async () => {
+      const tool = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" });
+      const writeErr = new AbapError("SESSION_DEAD", "boom: ensure write lease rejected", {});
+      const pool: SessionPool = {
+        withRead: () => {
+          throw new Error("unexpected withRead: the ensure write lease must fail before any probe is attempted");
+        },
+        withWrite: (op: string) => {
+          if (op === "abap_fluid.repair") return Promise.reject(writeErr);
+          return Promise.reject(new Error(`unexpected withWrite op: ${op}`));
+        },
+        reserveDebug: () => {
+          throw new Error("reserveDebug: not used by abap_fluid repair");
+        },
+      } as unknown as SessionPool;
+      const tools = registered({
+        toolSet: toolSetOf(tool),
+        pool,
+        ensureConnected: async () => {},
+      });
+
+      const payload = errorPayload(await invoke(tools, { op: "repair", tool: "demo" }));
+
+      expect(String(payload.message)).toContain("boom: ensure write lease rejected");
+    },
+  );
 });
