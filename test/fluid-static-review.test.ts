@@ -7,6 +7,7 @@ import {
   FLUID_ABAP_LINE_MAX,
   FLUID_SHIPPED_PROHIBITIONS,
 } from "../src/adt/fluid/static-review.js";
+import { ECHO_LINE_MAX, isTruncated } from "../src/truncate.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "fluid-plugins");
 const OBJ = "ZCL_ZMCP_X_TEST";
@@ -163,8 +164,32 @@ describe("line-length", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]?.rule).toBe("line-length");
     expect(findings[0]?.line).toBe(1);
-    expect(findings[0]?.text).toHaveLength(121);
-    expect(findings[0]?.text.endsWith("…")).toBe(true);
+    // The line (256 chars) exceeds ECHO_LINE_MAX (160), so the excerpt
+    // itself is truncated by the shared, disclosed helper.
+    expect(isTruncated(findings[0]?.text ?? "")).toBe(true);
+    expect(findings[0]?.text.startsWith("A".repeat(ECHO_LINE_MAX))).toBe(true);
+    expect(findings[0]?.text).toContain(`${ECHO_LINE_MAX} of ${line.length} chars shown`);
+  });
+});
+
+describe("excerpt truncation (src/truncate.ts)", () => {
+  it("an excerpt under ECHO_LINE_MAX comes back untruncated and unmarked", () => {
+    const findings = reviewFluidAbap(OBJ, "EXEC SQL.");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.text).toBe("EXEC SQL");
+    expect(isTruncated(findings[0]?.text ?? "")).toBe(false);
+  });
+
+  it("an excerpt over ECHO_LINE_MAX is truncated with a disclosed marker naming the real total length", () => {
+    const tail = "A".repeat(ECHO_LINE_MAX + 50);
+    const statement = `DATA(lv_x) = 'exec sql ${tail}'`;
+    const findings = reviewFluidAbap(OBJ, `${statement}.`);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.rule).toBe("exec-sql");
+    const normalized = statement.replace(/\s+/g, " ").trim();
+    expect(findings[0]?.text.startsWith(normalized.slice(0, ECHO_LINE_MAX))).toBe(true);
+    expect(isTruncated(findings[0]?.text ?? "")).toBe(true);
+    expect(findings[0]?.text).toContain(`${ECHO_LINE_MAX} of ${normalized.length} chars shown`);
   });
 });
 

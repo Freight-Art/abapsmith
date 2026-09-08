@@ -8,6 +8,8 @@
  * See doc/FLUID-API/safety.md ("Static review is a lint, not a sandbox").
  */
 
+import { ECHO_LINE_MAX, truncateText } from "../../truncate.js";
+
 export interface StaticReviewFinding {
   readonly object: string;
   readonly line: number;
@@ -70,11 +72,6 @@ function buildPhraseRule(phrase: string): ShippedRule {
   const trailing = /\w$/.test(phrase) ? "\\b" : "";
   const re = new RegExp(leading + pattern + trailing, "i");
   return { name: `extra:${phrase}`, test: (s) => re.test(s) };
-}
-
-function truncateText(raw: string): string {
-  const t = raw.trim();
-  return t.length > 120 ? `${t.slice(0, 120)}…` : t;
 }
 
 function blankCommentLine(line: string): string {
@@ -201,7 +198,7 @@ export function reviewFluidAbap(
         object: objectName,
         line: idx + 1,
         rule: "line-length",
-        text: truncateText(line),
+        text: truncateText(line.trim(), ECHO_LINE_MAX),
       });
     }
   });
@@ -220,7 +217,7 @@ export function reviewFluidAbap(
           object: objectName,
           line: stmt.startLine,
           rule: rule.name,
-          text: truncateText(stmt.normalized),
+          text: truncateText(stmt.normalized, ECHO_LINE_MAX),
         });
       }
     }
