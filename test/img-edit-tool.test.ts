@@ -4,13 +4,20 @@
  * `src/adt/img-write-policy.ts`'s pure `evaluateImgWrite`.
  *
  * Same harness shape as `test/img-write.test.ts` (a `RecordingClient`
- * implementing `HttpClient` directly, `$ZMCP_HELPERS` already existing so no
+ * implementing `HttpClient` directly, `FLUID_PACKAGE` already existing so no
  * package-create POST is ever needed, `bridgeHappyPath`-style routing), with
- * one addition: an armed `upsert`/`delete` call deploys and executes TWO
- * bridge classes in one connected session (the probe, then the apply) — see
- * `multiBridgeHappyPath` below, a generalisation of `img-write.test.ts`'s
- * own single-class `bridgeHappyPath` keyed by class name instead of closed
- * over one.
+ * one addition: an armed `upsert`/`delete` call deploys and executes bridges
+ * from TWO different mechanisms in one connected session — the preview
+ * (probe) now runs as the fluid `img` tool's `preview` action
+ * (`fluid/dispatch.ts`, deploying `imgManifest.entry` plus a content-hash
+ * invoker, never `IMGW_BRIDGE_CLASS.probe` itself), while the armed apply
+ * (and `create_request`) still deploy their own generated classic bridge
+ * class directly. See `multiBridgeHappyPath` below, a generalisation of
+ * `img-write.test.ts`'s own single-class `bridgeHappyPath`, keyed by class
+ * name for the classic bridges and routed separately for the fluid probe.
+ * `test/helpers/fluid-img-fake.ts` carries the fluid transcript-framing and
+ * class-lifecycle fake shared with `img-write.test.ts` — see that file's
+ * header for the frame grammar.
  *
  * Plan validation, ABAP fragment generation, transcript parsing and the
  * deploy/activate/execute wiring itself are already covered in
@@ -21,7 +28,7 @@
  * rendering (including the SM30-bypass disclosure appearing on armed output
  * and nowhere in `preview`), and post-hoc journalling of the before-image.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,16 +47,31 @@ import { ConfigSchema, type Config } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
 import type { SessionPool } from "../src/adt/pool.js";
 import { errorResult } from "../src/server.js";
-import { HELPER_PACKAGE } from "../src/adt/helper-package.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { imgManifest } from "../src/adt/fluid/builtin/img.js";
 import { IMGW_BRIDGE_CLASS } from "../src/adt/img-write-bridge.js";
 import { CUSTOMIZING_REQUEST_CLASS } from "../src/adt/customizing-request.js";
 import { Journal } from "../src/journal.js";
 import { registerImgEditTools, type ImgEditToolDeps } from "../src/tools/img-edit.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { dynamicImgFluidRoute, imgProbeConsole, isImgFluidClass } from "./helpers/fluid-img-fake.js";
 
 // ----------------------------------------------------------------------- harness ---
 
-const cfg = (): Config =>
+let tmp: string;
+
+beforeEach(async () => {
+  tmp = await mkdtemp(join(tmpdir(), "abapsmith-img-edit-"));
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
+afterEach(async () => {
+  await rm(tmp, { recursive: true, force: true });
+});
+
+const cfg = (opts: { maxResponseChars?: number; language?: string } = {}): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
     user: "TESTUSER",
@@ -57,6 +79,10 @@ const cfg = (): Config =>
     sid: "TST",
     client: "001",
     readOnly: false,
+    fluidApi: true,
+    stateDir: tmp,
+    maxResponseChars: opts.maxResponseChars ?? 30_000,
+    language: opts.language ?? "",
   });
 
 const resp = (
@@ -74,8 +100,13 @@ class RecordingClient implements HttpClient {
   }
 }
 
+/** "Did the probe run?" now means "did the fluid img body class (imgManifest.entry) get deployed through" — the probe no longer deploys IMGW_BRIDGE_CLASS.probe at all, and an armed session's own apply bridge (which DOES still use IMGW_BRIDGE_CLASS.apply) runs in the very same session, so checking for the old class name would either never match or false-positive off the apply call. */
+function probeRan(inner: RecordingClient): boolean {
+  return inner.calls.some((c) => c.url.toLowerCase().includes(imgManifest.entry.toLowerCase()));
+}
+
 const SESSION_URL = "/sap/bc/adt/compatibility/graph";
-const PKG_URI = "/sap/bc/adt/packages/%24zmcp_helpers";
+const PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
 
 const LOCK_XML = (handle = "H1") =>
   `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
@@ -86,7 +117,7 @@ const LOCK_XML = (handle = "H1") =>
 const PACKAGE_XML = (name: string): string =>
   `<?xml version="1.0" encoding="utf-8"?>` +
   `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
-  `xmlns:adtcore:name="${name}" adtcore:type="DEVC/K">` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${name}" adtcore:type="DEVC/K">` +
   `<adtcore:packageRef adtcore:name="${name}" adtcore:type="DEVC/K"/>` +
   `<pak:superPackage adtcore:name="$TMP"/>` +
   `</pak:package>`;
@@ -119,7 +150,7 @@ function emptyBody(): string {
   return '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview"></dataPreview:tableData>';
 }
 
-/** Base routes every test needs regardless of which bridge class(es) are being deployed: login, the $ZMCP_HELPERS existence GET (already there — no create needed), and the connect-time probes `AbapConnection.connect()` itself makes. */
+/** Base routes every test needs regardless of which bridge class(es) are being deployed: login, the FLUID_PACKAGE existence GET (already there — no create needed), and the connect-time probes `AbapConnection.connect()` itself makes. */
 function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
   if (o.url.includes(SESSION_URL)) {
     return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
@@ -127,7 +158,7 @@ function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
   if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
   if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
   if (o.url === PKG_URI && (o.method ?? "GET").toUpperCase() === "GET") {
-    return resp(200, PACKAGE_XML(HELPER_PACKAGE), { "content-type": "application/xml" });
+    return resp(200, PACKAGE_XML(FLUID_PACKAGE), { "content-type": "application/xml" });
   }
   return undefined;
 }
@@ -136,15 +167,33 @@ function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
  * Full write -> activate -> classrun happy path, generalised over as many
  * bridge classes as `classRuns` names — unlike `img-write.test.ts`'s own
  * single-class `bridgeHappyPath`, an armed `upsert`/`delete` call here
- * deploys and executes BOTH `IMGW_BRIDGE_CLASS.probe` and `.apply` within
- * one connected session, so the routing has to know both class names at
- * once. A classrun POST for a class name not present in `classRuns` throws
+ * deploys and executes bridges from TWO different mechanisms within one
+ * connected session: the probe (keyed here by `IMGW_BRIDGE_CLASS.probe`,
+ * same as every call site already writes) actually runs through the fluid
+ * `img` tool now, deploying `imgManifest.entry` plus a content-hash invoker
+ * instead — never `IMGW_BRIDGE_CLASS.probe` itself — while `.apply` (and
+ * `CUSTOMIZING_REQUEST_CLASS`) still deploy their own classic bridge class
+ * directly. The `IMGW_BRIDGE_CLASS.probe` entry is pulled out of `classRuns`
+ * and used to answer the fluid classrun instead of a classic one, so every
+ * existing call-site shape keeps working unchanged. A classrun POST for a
+ * class name not present in `classRuns` (and not a fluid img class) throws
  * loudly rather than falling through to a generic 200 — the whole point of
  * several tests below is that a bridge is or is NOT reached.
  */
 function multiBridgeHappyPath(
   classRuns: Record<string, (o: HttpClientOptions) => HttpClientResponse>,
 ): (o: HttpClientOptions) => HttpClientResponse {
+  const { [IMGW_BRIDGE_CLASS.probe]: probeHandler, ...classicClassRuns } = classRuns;
+  const fluidRoute = dynamicImgFluidRoute({
+    // Classrun for a fluid img class is routed manually below (never through this branch), since
+    // an armed session's classic apply classrun must not be accidentally swallowed by
+    // dynamicImgFluidRoute's own unconditional (name-unfiltered) classrun interception.
+    transcript: () => {
+      throw new Error("unreachable: fluid classrun is intercepted before dynamicImgFluidRoute sees it");
+    },
+    packageName: FLUID_PACKAGE,
+  });
+
   return (o: HttpClientOptions) => {
     const base = baseRoute(o);
     if (base) return base;
@@ -153,13 +202,25 @@ function multiBridgeHappyPath(
 
     if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
       const name = o.url.slice("/sap/bc/adt/oo/classrun/".length);
-      const handler = classRuns[name];
+      if (isImgFluidClass(name)) {
+        if (!probeHandler) {
+          throw new Error(`unrouted classrun call for ${name} — this test did not expect the probe to run`);
+        }
+        const r = probeHandler(o);
+        if (r.status !== 200) return r;
+        return resp(200, imgProbeConsole(String(r.body)), { "content-type": "text/plain" });
+      }
+      const handler = classicClassRuns[name];
       if (!handler) {
         throw new Error(`unrouted classrun call for ${name} — this test did not expect it to be reached`);
       }
       return handler(o);
     }
-    for (const name of Object.keys(classRuns)) {
+
+    const fluid = fluidRoute(o);
+    if (fluid) return fluid;
+
+    for (const name of Object.keys(classicClassRuns)) {
       const classUri = `/sap/bc/adt/oo/classes/${name.toLowerCase()}`;
       if (o.url === classUri && method === "GET" && !qs._action) {
         const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
@@ -337,13 +398,12 @@ function depsFor(
   conn: AbapConnection,
   opts: { safety?: SafetyGate; maxResponseChars?: number; journal?: Journal; language?: string; ensureConnected?: () => Promise<void> } = {},
 ): ImgEditToolDeps {
-  const c = cfg();
   return {
     pool: fakePool(conn),
     safety: opts.safety ?? openGate(),
     ensureConnected: opts.ensureConnected ?? (async () => {}),
     errorResult,
-    cfg: { maxResponseChars: opts.maxResponseChars ?? 30_000, language: opts.language ?? "", sid: c.sid, url: c.url, client: c.client },
+    cfg: cfg({ maxResponseChars: opts.maxResponseChars, language: opts.language }),
     journal: opts.journal ?? disabledJournal,
   };
 }
@@ -539,7 +599,7 @@ describe("abap_img_edit — mode: preview", () => {
     // been written yet, so this module deliberately filters it out of preview's own rendering.
     expect(text).not.toContain("table-maintenance-generator events");
 
-    expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+    expect(probeRan(inner)).toBe(true);
     expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
   });
 
@@ -625,7 +685,7 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
       expect(text).toContain("table-maintenance-generator events");
       expect(text).toMatch(/Journalled as entry/);
 
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+      expect(probeRan(inner)).toBe(true);
       expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(true);
 
       const entries = await journal.list({});
@@ -683,7 +743,7 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
     });
 
     expect(errorPayload(result).error).toBe("SAFETY_DENIED");
-    expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+    expect(probeRan(inner)).toBe(true);
     expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
   });
 
@@ -977,9 +1037,8 @@ const APPLY_TRANSCRIPT_MISSING_AFTER_IMAGE =
   `IMGW> WROTE row=[1]\n` +
   `IMGW> APPLIED rows=[1]\n`;
 
-/** Bridge class write succeeds, but the APPLY class's own activation POST reports a real compile error — same fixture shape as `test/img-write.test.ts`'s `bridgeActivationRefused`, generalised to a two-class (`probe` + `apply`) session where the probe runs cleanly and only the apply class's activation is refused. Discriminates which class's activation POST is being answered by checking the request body for the class name — `abap-adt-api`'s `activate()` embeds it as `adtcore:name="<class>"`. */
+/** Bridge class write succeeds, but the APPLY class's own activation POST reports a real compile error — same fixture shape as `test/img-write.test.ts`'s `bridgeActivationRefused`, generalised to a session where the (fluid) probe runs cleanly and only the classic apply class's activation is refused. Discriminates which class's activation POST is being answered by checking the request body for the class name — `abap-adt-api`'s `activate()` embeds it as `adtcore:name="<class>"`. */
 function probeOkApplyActivationRefused(): (o: HttpClientOptions) => HttpClientResponse {
-  const probeClass = IMGW_BRIDGE_CLASS.probe;
   const applyClass = IMGW_BRIDGE_CLASS.apply;
   const applyClassUri = `/sap/bc/adt/oo/classes/${applyClass.toLowerCase()}`;
   const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
@@ -989,6 +1048,14 @@ function probeOkApplyActivationRefused(): (o: HttpClientOptions) => HttpClientRe
     <shortText><txt>Field "LV_UNDEFINED" is unknown. It is neither in one of the specified tables nor defined by a "DATA" statement.</txt></shortText>
   </msg>
 </chkl:messages>`;
+  const fluidRoute = dynamicImgFluidRoute({
+    // Classrun for the fluid probe class is intercepted manually below, same reasoning as
+    // multiBridgeHappyPath.
+    transcript: () => {
+      throw new Error("unreachable: fluid classrun is intercepted before dynamicImgFluidRoute sees it");
+    },
+    packageName: FLUID_PACKAGE,
+  });
   return (o: HttpClientOptions) => {
     const base = baseRoute(o);
     if (base) return base;
@@ -997,17 +1064,18 @@ function probeOkApplyActivationRefused(): (o: HttpClientOptions) => HttpClientRe
 
     if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
       const name = o.url.slice("/sap/bc/adt/oo/classrun/".length);
-      if (name === probeClass) return resp(200, PROBE_TRANSCRIPT_EXISTING);
+      if (isImgFluidClass(name)) return resp(200, imgProbeConsole(PROBE_TRANSCRIPT_EXISTING), { "content-type": "text/plain" });
       throw new Error(`unrouted classrun call for ${name} — the apply class's activation should have refused first`);
     }
-    for (const name of [probeClass, applyClass]) {
-      const classUri = `/sap/bc/adt/oo/classes/${name.toLowerCase()}`;
-      if (o.url === classUri && method === "GET" && !qs._action) {
-        const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-      }
-      if (o.url === `${classUri}/source/main` && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
+
+    const fluid = fluidRoute(o);
+    if (fluid) return fluid;
+
+    if (o.url === applyClassUri && method === "GET" && !qs._action) {
+      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
+      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
     }
+    if (o.url === `${applyClassUri}/source/main` && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
     if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
     if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
     if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
@@ -1037,7 +1105,7 @@ describe("abap_img_edit — armed apply cannot be silently unaccounted-for (Defe
     expect(err.error).toBe("CHECK_FAILED");
     expect((err.details as Record<string, unknown> | undefined)?.bridgeLeftBehind).toBe(true);
     expect((err.details as Record<string, unknown> | undefined)?.bridgeClass).toBe(IMGW_BRIDGE_CLASS.apply);
-    expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+    expect(probeRan(inner)).toBe(true);
   });
 
   it("a runtime exception before any row write throws CHECK_FAILED with mayHaveExecuted false, and journals the mutation as failed", async () => {
@@ -1800,7 +1868,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       // Preview's arming line plainly names the resolved base table.
       expect(text).toContain("TABU TB004");
 
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+      expect(probeRan(inner)).toBe(true);
       expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
     });
 
@@ -1845,7 +1913,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
 
       expect(err.error).toBe("NOT_FOUND");
       expect(String(err.message)).toContain("abap_img search");
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+      expect(probeRan(inner)).toBe(false);
     });
 
     it("an object resolving to zero base tables (an empty view cluster) reaches evaluateImgWrite rule 4 as ambiguous-target", async () => {
@@ -1867,7 +1935,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       expect(err.error).toBe("SAFETY_DENIED");
       expect((err.details as Record<string, unknown>).rule).toBe("ambiguous-target");
       expect(String(err.message)).toContain("no known base table");
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+      expect(probeRan(inner)).toBe(false);
     });
 
     it("an object resolving to more than one base table reaches evaluateImgWrite rule 4 as ambiguous-target", async () => {
@@ -1893,7 +1961,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       expect(String(err.message)).toContain("spans 2 base tables");
       expect(String(err.message)).toMatch(/ZTABA/);
       expect(String(err.message)).toMatch(/ZTABB/);
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+      expect(probeRan(inner)).toBe(false);
     });
   });
 
@@ -1984,7 +2052,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
         expect(text).toContain("ROWS WRITTEN");
         expect(text).toContain("table-maintenance-generator events");
 
-        expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+        expect(probeRan(inner)).toBe(true);
         expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(true);
 
         const entries = await journal.list({});
@@ -2063,7 +2131,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       expect((err.details as Record<string, unknown>).rule).toBe("ambiguous-target");
       expect(String(err.message)).toMatch(/ZOBJA/);
       expect(String(err.message)).toMatch(/ZOBJB/);
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+      expect(probeRan(inner)).toBe(false);
     });
   });
 });
