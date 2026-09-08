@@ -150,6 +150,7 @@ export const fmPart: CoreAbapPart = {
     DATA lv_json  TYPE string.
     DATA lv_kind  TYPE string.
     DATA lv_pname TYPE string.
+    DATA lv_tname TYPE string.
     FIELD-SYMBOLS <lv_any> TYPE any.
 
     lv_name = to_upper( s( 'name' ) ).
@@ -178,7 +179,8 @@ export const fmPart: CoreAbapPart = {
         fail( |parameter { lv_key } of { lv_name } is untyped; core.call_fm cannot bind it| ).
         RETURN.
       ENDIF.
-      lv_type = ls_par-typename.
+      lv_tname = ls_par-typename.
+      lv_type = concrete_type( lv_tname ).
       TRY.
           CREATE DATA lr_data TYPE (lv_type).
         CATCH cx_root.
@@ -215,7 +217,8 @@ export const fmPart: CoreAbapPart = {
       IF sy-subrc = 0.
         CONTINUE.
       ENDIF.
-      lv_type = ls_par-typename.
+      lv_tname = ls_par-typename.
+      lv_type = concrete_type( lv_tname ).
       TRY.
           IF ls_par-ptype = 'T'.
             CREATE DATA lr_data TYPE STANDARD TABLE OF (lv_type).

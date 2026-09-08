@@ -356,6 +356,24 @@ const CORE_METHODS = `  METHOD run.
     zcl_zmcp_fluid_rt=>err( iv_kind = 'action'
                             iv_step = gv_step
                             iv_text = iv_text ).
+  ENDMETHOD.
+
+  METHOD concrete_type.
+    " CREATE DATA TYPE (...) cannot instantiate a generic ABAP type
+    " (FUPARAREF sometimes gives one, e.g. CLIKE for a generically typed FM
+    " parameter) - only a concrete type works. Substitute a concrete
+    " character/byte stand-in for the well-known generic names; anything
+    " else is a real (non-generic) type name and passes through untouched.
+    DATA lv_upper TYPE string.
+    lv_upper = to_upper( iv_type ).
+    CASE lv_upper.
+      WHEN 'ANY' OR 'DATA' OR 'SIMPLE' OR 'CLIKE' OR 'CSEQUENCE' OR 'C'.
+        rv_type = 'string'.
+      WHEN 'XSEQUENCE' OR 'X'.
+        rv_type = 'xstring'.
+      WHEN OTHERS.
+        rv_type = iv_type.
+    ENDCASE.
   ENDMETHOD.`;
 
 export function coreBodySource(parts: readonly CoreAbapPart[]): string {
@@ -448,6 +466,11 @@ export function coreBodySource(parts: readonly CoreAbapPart[]): string {
     CLASS-METHODS fail
       IMPORTING
         iv_text TYPE string.
+    CLASS-METHODS concrete_type
+      IMPORTING
+        iv_type TYPE string
+      RETURNING
+        VALUE(rv_type) TYPE string.
 ${methodDecls}
 ENDCLASS.
 

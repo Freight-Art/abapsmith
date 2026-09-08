@@ -440,11 +440,14 @@ dw("live A4H fluid core tool (select/describe_fm/call_fm) + retired-bridge reape
     const output = items.find((i) => i.name.toUpperCase() === "OUTPUT");
     expect(output).toBeDefined();
     expect(typeof output?.value).toBe("string");
-    // Loose (contains, not equals): CONVERSION_EXIT_ALPHA_INPUT's generic
-    // CLIKE OUTPUT parameter means the alpha padding width is not determined
-    // when bound through PARAMETER-TABLE, so the exact padded form is not
-    // something this suite should pin.
-    expect((output?.value as string).includes("42")).toBe(true);
+    // CONVERSION_EXIT_ALPHA_INPUT's generic CLIKE OUTPUT parameter binds as
+    // a plain `string` (see `concrete_type` in abap-core.ts), and ALPHA's
+    // zero-padding width depends on the target field length — so the value
+    // may come back as '42' or zero-padded (e.g. '0000000042') depending on
+    // the kernel. Strip leading zeros before comparing so this suite does
+    // not pin an exact padded width.
+    const stripped = (output?.value as string).replace(/^0+(?=\d)/, "");
+    expect(stripped).toBe("42");
   }, 180_000);
 
   // Spec test 8.
