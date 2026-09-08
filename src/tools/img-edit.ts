@@ -41,7 +41,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import { AbapError } from "../adt/errors.js";
-import { HELPER_PACKAGE } from "../adt/helper-package.js";
+import { FLUID_PACKAGE } from "../adt/fluid/package.js";
+import { imgManifest } from "../adt/fluid/builtin/img.js";
 import { IMG_DEFAULT_LANGUAGE, IMG_LANGUAGE_RE, assertImgLanguage } from "../adt/img-query.js";
 import {
   IMGW_BRIDGE_CLASS,
@@ -217,8 +218,8 @@ export interface ImgEditToolDeps {
   readonly safety: SafetyGate;
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
-  /** `sid`/`url`/`client` are for `systemKey()` on journal entries, same as `TransportToolDeps`. */
-  readonly cfg: Pick<Config, "maxResponseChars" | "language" | "sid" | "url" | "client">;
+  /** Full `Config`: the preview mode now dispatches through the fluid `img` tool, which needs it whole. */
+  readonly cfg: Config;
   /**
    * REQUIRED, same stance as `TransportToolDeps.journal` (src/tools/transport.ts): a row write here
    * is exactly as irreversible as a transport mutation, and "journalling switched off" is already
@@ -1441,7 +1442,7 @@ async function runProbeAndApply(
   if (opts.needsReadAndConnect) deps.safety.assert("read");
   deps.safety.assert(
     "write",
-    { name: IMGW_BRIDGE_CLASS.probe, packageName: HELPER_PACKAGE, type: "CLAS/OC" },
+    { name: imgManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
 
@@ -1454,8 +1455,8 @@ async function runProbeAndApply(
     rows: bridgeRows(args.rows),
     language: args.language,
   };
-  const probe = await deps.pool.withWrite("abap_img_edit", IMGW_BRIDGE_CLASS.probe, (conn) =>
-    runImgProbe(conn, deps.safety, probePlan),
+  const probe = await deps.pool.withWrite("abap_img_edit", imgManifest.entry, (conn) =>
+    runImgProbe(conn, deps.safety, probePlan, deps.cfg),
   );
 
   const verdict = evaluateReal(args, mode, probe, deps.safety);
@@ -1477,7 +1478,7 @@ async function runProbeAndApply(
 
   deps.safety.assert(
     "write",
-    { name: IMGW_BRIDGE_CLASS.apply, packageName: HELPER_PACKAGE, type: "CLAS/OC" },
+    { name: IMGW_BRIDGE_CLASS.apply, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
 
@@ -1631,7 +1632,7 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
   deps.safety.assert("read");
   deps.safety.assert(
     "write",
-    { name: CUSTOMIZING_REQUEST_CLASS, packageName: HELPER_PACKAGE, type: "CLAS/OC" },
+    { name: CUSTOMIZING_REQUEST_CLASS, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
 
@@ -1734,7 +1735,7 @@ const IMG_EDIT_TOOL_DESCRIPTION =
   "equal table (case-insensitive) and corr_nr is usually required. view/master_type name the " +
   "transport entry recorded for upsert/delete (default: table/VDAT). create_request (description, " +
   "owner) mints a new customizing (type W) transport request. First call per mode deploys and " +
-  "activates a $ZMCP_HELPERS bridge class.";
+  "activates a bridge class in $ABAPSMITH_FLUID_API.";
 
 export async function runImgEditTool(deps: ImgEditToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as ImgEditInput;

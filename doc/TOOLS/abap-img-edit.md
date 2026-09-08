@@ -63,11 +63,16 @@ on that deployment, the same way any other bridge-backed tool is.
    the same row also succeeded and added no second key row. Still
    unproven from here: every failure path on either CTS FM
    (`INSERT_FAILED`, `ENQUEUE_FAILED`, an authority or lock refusal).
-3. **Every generated helper class goes into `$ZMCP_HELPERS`, never
-   `$TMP`.** This is a dedicated, non-transportable local package created
-   on first use (super-package `$TMP`, but `$TMP` itself is never a
-   landing spot). If it cannot be created, the call is refused with a
-   clear error — there is no silent fallback to `$TMP`.
+3. **Every generated helper class goes into `$ABAPSMITH_FLUID_API`, never
+   `$TMP`.** This is the fluid API's own local package, created on first
+   use (super-package `$TMP`, but `$TMP` itself is never a landing spot).
+   If it cannot be created, the call is refused with a clear error —
+   there is no silent fallback to `$TMP`. `upsert`, `delete`, and
+   `create_request` still generate their own statically typed bridge
+   classes; `preview` no longer generates a bespoke probe of its own — it
+   deploys the shared fluid `img` body class plus a small, content-addressed
+   invoker that a repeat call with the same arguments reuses rather than
+   regenerating — see "Mechanism" below.
 
 ## Mechanism
 
@@ -82,11 +87,12 @@ table name is printed upper-cased, the way SAP itself spells it, in the
 line alike — the `confirm` comparison is case-insensitive regardless, so
 nothing about arming a write changes with this.
 
-- **`preview`** — resolves the target and runs `ZCL_ZMCP_IMG_WPROBE`, a
-  generated helper that reads the table's client-dependence (`T000`), its
-  delivery class and every column of the table — key and non-key alike, in
-  one `DD03L` select ordered by position — and the current values
-  of the requested rows. Makes no change. It now runs the same plan
+- **`preview`** — resolves the target and runs the built-in fluid tool
+  `img`, action `preview` (body class `ZCL_ZMCP_FLUID_IMG`, deployed into
+  `$ABAPSMITH_FLUID_API`), which reads the table's client-dependence
+  (`T000`), its delivery class and every column of the table — key and
+  non-key alike, in one `DD03L` select ordered by position — and the
+  current values of the requested rows. Makes no change. It now runs the same plan
   validation `upsert`/`delete` enforce for real, so a row `preview`
   accepts is a row the armed call will accept too, and vice versa — the
   one exception is `corr_nr`/`confirm`, which `preview` still only reports
@@ -139,7 +145,7 @@ nothing about arming a write changes with this.
   If the generated class fails to activate, none of that runs: the call
   returns `CHECK_FAILED` with the activation errors, the class name in
   `details.bridgeClass`, and `details.bridgeLeftBehind: true`. The class
-  stays in `$ZMCP_HELPERS`, inactive — harmless, and safe to delete, but
+  stays in `$ABAPSMITH_FLUID_API`, inactive — harmless, and safe to delete, but
   not cleaned up automatically. No journal entry is written for a failed
   activation, since the journal only records an apply that actually ran on
   the wire, so there is no before-image and nothing to reconcile: nothing

@@ -395,8 +395,8 @@ const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
     allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE],
-    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
-    // (test/helper-package.test.ts) — needed for the bridge class's own deploy into ENH_BRIDGE_PACKAGE.
+    // $ is outside the default Z/Y customer namespace, same as
+    // test/fluid-package.test.ts's own gate() — needed for the bridge class's own deploy into ENH_BRIDGE_PACKAGE.
     allowNamePrefixes: ["*"],
     writesLockedOut: false,
     allowEnhancements: true,

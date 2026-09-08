@@ -645,7 +645,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
       // `journal` for the before-image, `transport` for the CTS assignment.
       registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-      // `abap_img_edit` writes IMG customizing rows via a generated $ZMCP_HELPERS bridge
+      // `abap_img_edit` writes IMG customizing rows via a generated $ABAPSMITH_FLUID_API bridge
       // (src/adt/img-write-bridge.ts) — an irreversible business-data write, gated here like
       // every other mutating tool. `journal` records the before-image; the wider `cfg` slice
       // (`sid`/`url`/`client`) is for `systemKey()` on those journal entries.

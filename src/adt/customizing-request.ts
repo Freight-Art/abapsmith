@@ -24,8 +24,8 @@
  * former.
  *
  * Same delivery mechanism as `./img-write-bridge.ts`: a generated
- * `IF_OO_ADT_CLASSRUN` class, deployed into `HELPER_PACKAGE`
- * (`./helper-package.ts`), never `$TMP`. This module only generates the
+ * `IF_OO_ADT_CLASSRUN` class, deployed into `FLUID_PACKAGE`
+ * (`./fluid/package.ts`), never `$TMP`. This module only generates the
  * class source and parses its transcript — deploying and executing it is a
  * caller concern, same division of labor as the IMG write bridge.
  */

@@ -5,7 +5,7 @@
  * REST route, only classic function-module plumbing — so this module keeps
  * the generated `IF_OO_ADT_CLASSRUN` class delivery mechanism, touching a
  * base customizing table's own data rather than a catalog table. Deployed
- * into `HELPER_PACKAGE` (`src/adt/helper-package.ts`), not `$TMP` — the
+ * into `FLUID_PACKAGE` (`src/adt/fluid/package.ts`), not `$TMP` — the
  * owner rule for bridge/helper classes going forward.
  *
  * Two fixed classes: `ZCL_ZMCP_IMG_WPROBE` (read-only: T000 flags, the base

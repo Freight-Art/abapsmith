@@ -12,19 +12,24 @@
  * nothing here duplicates any of them — each function below calls straight
  * through to the one place that logic is allowed to exist.
  *
- * All three bridges land in `HELPER_PACKAGE` (`$ZMCP_HELPERS`), never `$TMP`
- * — see `helper-package.ts`.
+ * The probe now runs as the fluid `img` tool's `preview` action
+ * (`fluid/dispatch.ts`); the apply and customizing-request bridges still
+ * deploy generated classes, landing in `FLUID_PACKAGE` via `deployBridge`'s
+ * default.
  */
 import type { AbapConnection } from "./connection.js";
+import type { Config } from "../config.js";
 import type { SafetyGate } from "../safety.js";
 import { deployBridge, executeBridge, verifyBridgeActivation } from "./run.js";
 import { AbapError, isAbapError } from "./errors.js";
-import { ensureHelperPackage, HELPER_PACKAGE } from "./helper-package.js";
+import { FLUID_PACKAGE } from "./fluid/package.js";
+import { imgManifest, imgSources } from "./fluid/builtin/img.js";
+import { manifestVersion, type LoadedFluidTool } from "./fluid/manifest.js";
+import { dispatch } from "./fluid/dispatch.js";
 import {
   IMGW_BRIDGE_CLASS,
   validateProbePlan,
   validateApplyPlan,
-  imgProbeSource,
   imgApplySource,
   parseImgWriteTranscript,
   type ImgProbePlan,
@@ -39,6 +44,18 @@ import {
   type CustomizingRequestPlan,
   type CustomizingRequestTranscript,
 } from "./customizing-request.js";
+
+const IMG_TOOLS: ReadonlyMap<string, LoadedFluidTool> = new Map([
+  [
+    "img",
+    {
+      manifest: imgManifest,
+      origin: "builtin",
+      sources: imgSources,
+      version: manifestVersion(imgManifest, imgSources),
+    } as const,
+  ],
+]);
 
 export interface ImgProbeResult {
   plan: ImgProbePlan;
@@ -69,21 +86,6 @@ export interface CustomizingRequestResult {
   outputComplete: boolean;
   bodyBytes: number;
 }
-
-/**
- * The probe bridge only SELECTs: the target table's rows, `DD02L` (delivery
- * class / client-dependence) and `DD03L` (field catalog) — all named
- * directly from the caller's own plan, nothing derived or guessed. A row
- * VALUE is never a syntax-error suspect here: every value the caller
- * supplies reaches this bridge only as a quoted ABAP literal
- * (`imgProbeSource`/`abapLiteral`), never concatenated into an identifier
- * position.
- */
-const PROBE_HINT =
-  "The probe only SELECTs the target table plus DD02L/DD03L, all named from the caller's own plan " +
-  "(table, keyFields) — a syntax error here most likely means the table does not exist or one of " +
-  "keyFields is not really a field on it, as spelled. It is never a symptom of a bad ROW VALUE: those " +
-  "reach this bridge only as quoted literals, never as identifiers.";
 
 /**
  * The apply bridge does a direct `MODIFY`/`DELETE` on the target table and
@@ -148,14 +150,16 @@ const REQUEST_HINT =
   `class with abap_write {"object":"class ${CUSTOMIZING_REQUEST_CLASS}","mode":"delete"}.`;
 
 /**
- * What every one of this module's three bespoke hints (PROBE_HINT,
- * APPLY_HINT, REQUEST_HINT) says an activation syntax error most likely
- * means is a claim about the CALLER's input (a misspelled table/keyFields,
- * a drifted structure, an FM interface) — never that the GENERATED source
- * itself is wrong. But when the activation message says a name "was
- * already declared", the generator emitted a duplicate declaration: that is
- * a defect in abapsmith's own code, and every one of those bespoke hints
- * would misreport it as the caller's mistake. This says so plainly instead.
+ * What every one of this module's two remaining bespoke hints (APPLY_HINT,
+ * REQUEST_HINT — the probe's own PROBE_HINT is gone now that the probe runs
+ * as the fluid `img` tool's `preview` action, not a generated bridge) says
+ * an activation syntax error most likely means is a claim about the
+ * CALLER's input (a misspelled table/keyFields, a drifted structure, an FM
+ * interface) — never that the GENERATED source itself is wrong. But when
+ * the activation message says a name "was already declared", the generator
+ * emitted a duplicate declaration: that is a defect in abapsmith's own
+ * code, and either of those bespoke hints would misreport it as the
+ * caller's mistake. This says so plainly instead.
  */
 const DUPLICATE_DECLARATION_HINT =
   "The activation error says a name was already declared, which means the GENERATED ABAP source " +
@@ -212,44 +216,45 @@ function withDuplicateDeclarationHintFix(e: unknown, originalHint: string): unkn
   );
 }
 
-/** Deploy/run the read-only IMG write probe and return its parsed transcript. */
+/** Run the read-only IMG write probe through the fluid `img` tool's `preview` action and return its parsed transcript. */
 export async function runImgProbe(
   conn: AbapConnection,
   gate: SafetyGate,
   plan: ImgProbePlan,
+  cfg: Config,
 ): Promise<ImgProbeResult> {
   const started = Date.now();
   validateProbePlan(plan);
-  await ensureHelperPackage(conn, gate);
 
-  const className = IMGW_BRIDGE_CLASS.probe;
-  const source = imgProbeSource(plan);
+  const res = await dispatch(
+    { conn, cfg, gate, tools: IMG_TOOLS },
+    {
+      tool: "img",
+      action: "preview",
+      args: { table: plan.table, keyFields: plan.keyFields, rows: plan.rows.map((row) => row.key) },
+    },
+  );
 
-  const deployed = await deployBridge(conn, gate, {
-    className,
-    source,
-    description: "abapsmith IMG customizing write probe",
-    packageName: HELPER_PACKAGE,
-    what: "Activation of the generated IMG write-probe bridge",
-    hint: PROBE_HINT,
-    verify: (activation) =>
-      verifyBridgeActivation(activation, className, "IMG write-probe bridge", { table: plan.table }),
-  }).catch((e) => {
-    throw withDuplicateDeclarationHintFix(e, PROBE_HINT);
-  });
-  const { bridgeRefreshed } = deployed;
-
-  const run = await executeBridge(conn, gate, deployed);
-  const transcript = parseImgWriteTranscript(run.output);
+  // dispatch() already validates res.result against imgManifest's declared output schema (array of
+  // string) — this is type narrowing, not a real recovery path, but stays a hard refusal, not a cast.
+  if (!Array.isArray(res.result) || res.result.some((line) => typeof line !== "string")) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      "img.preview returned a result that is not an array of strings.",
+      { tool: "img", action: "preview", result: res.result },
+    );
+  }
+  const raw = res.result.join("\n");
+  const transcript = parseImgWriteTranscript(raw);
 
   return {
     plan,
-    bridgeClass: className,
-    bridgeRefreshed,
+    bridgeClass: imgManifest.entry,
+    bridgeRefreshed: res.deployed,
     durationMs: Date.now() - started,
     transcript,
-    outputComplete: run.outputComplete,
-    bodyBytes: run.bodyBytes,
+    outputComplete: !res.truncated,
+    bodyBytes: Buffer.byteLength(raw, "utf8"),
   };
 }
 
@@ -261,7 +266,6 @@ export async function runImgApply(
 ): Promise<ImgApplyResult> {
   const started = Date.now();
   validateApplyPlan(plan);
-  await ensureHelperPackage(conn, gate);
 
   const className = IMGW_BRIDGE_CLASS.apply;
   const source = imgApplySource(plan);
@@ -270,7 +274,8 @@ export async function runImgApply(
     className,
     source,
     description: "abapsmith IMG customizing write apply",
-    packageName: HELPER_PACKAGE,
+    // Explicit: deployBridge's BRIDGE_PACKAGE default is unreliable under the run.ts/write.ts import cycle.
+    packageName: FLUID_PACKAGE,
     what: "Activation of the generated IMG write-apply bridge",
     hint: APPLY_HINT,
     verify: (activation) =>
@@ -302,7 +307,6 @@ export async function runCreateCustomizingRequest(
 ): Promise<CustomizingRequestResult> {
   const started = Date.now();
   validateCustomizingRequestPlan(plan);
-  await ensureHelperPackage(conn, gate);
 
   const className = CUSTOMIZING_REQUEST_CLASS;
   const source = customizingRequestSource(plan);
@@ -311,7 +315,7 @@ export async function runCreateCustomizingRequest(
     className,
     source,
     description: "abapsmith customizing request creation",
-    packageName: HELPER_PACKAGE,
+    packageName: FLUID_PACKAGE,
     what: "Activation of the generated customizing-request-creation bridge",
     hint: REQUEST_HINT,
     verify: (activation) => verifyBridgeActivation(activation, className, "customizing-request bridge", {}),

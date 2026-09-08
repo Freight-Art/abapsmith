@@ -633,8 +633,8 @@ describe("runReport safety gate (F7)", () => {
     new SafetyGate({
       readOnly: false,
       allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
-      // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
-      // (test/helper-package.test.ts) — needed for the cold-path create of $ABAPSMITH_FLUID_API.
+      // $ is outside the default Z/Y customer namespace, same as
+      // test/fluid-package.test.ts's own gate() — needed for the cold-path create of $ABAPSMITH_FLUID_API.
       allowNamePrefixes: ["*"],
       writesLockedOut: false,
     });
@@ -755,8 +755,8 @@ describe("runReport — activation refusal", () => {
     new SafetyGate({
       readOnly: false,
       allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
-      // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
-      // (test/helper-package.test.ts) — needed for the cold-path create of $ABAPSMITH_FLUID_API.
+      // $ is outside the default Z/Y customer namespace, same as
+      // test/fluid-package.test.ts's own gate() — needed for the cold-path create of $ABAPSMITH_FLUID_API.
       allowNamePrefixes: ["*"],
       writesLockedOut: false,
     });
