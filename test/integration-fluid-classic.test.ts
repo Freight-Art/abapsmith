@@ -20,13 +20,16 @@
  *     classic tool, and `exists` is asked before, between and after —
  *     ABSENT -> EXISTS -> ABSENT — with the create/delete transcript tags
  *     asserted at each step too.
- *  3. `create_view`'s `RS_CORR_INSERT` DICT-key construction is exercised at
- *     its widest case: a throwaway `$TMP` view named with the full
- *     30-character `DD25L-VIEWNAME` ceiling — a name of 27+ chars is exactly
- *     what a CHAR30 `ddobjname` key would truncate, surfacing as SAP message
- *     TK103 — is created, proven EXISTS, then deleted, ABSENT again. The
- *     view's own delete runs on a fresh connection (see afterAll's comment on
- *     why).
+ *  3. `create_view`'s `RS_CORR_INSERT` CTS registration is exercised at the
+ *     widest view name the server actually accepts, not at the CHAR30
+ *     `DD25L-VIEWNAME` field ceiling: a live run at a full 30-char name was
+ *     refused by `DDIF_VIEW_PUT` (sy-subrc=5, AD102) — AFTER `RS_CORR_INSERT`
+ *     had already registered the name in TADIR, a partial write this test's
+ *     cleanup and `viewCreated` arming account for. The true server-side
+ *     ceiling is unproven below 30, so this pins 16 chars, the conventional
+ *     classic-view name limit. A throwaway `$TMP` view at that length is
+ *     created, proven EXISTS, then deleted, ABSENT again. The view's own
+ *     delete runs on a fresh connection (see afterAll's comment on why).
  *
  * Concurrency note: another slice may be deploying its own fluid tool onto
  * the same appliance at the same time, so `$ABAPSMITH_FLUID_API` already
@@ -77,17 +80,17 @@ const TCODE = `ZMCP_S3_${randomSuffix}`;
  */
 const PROGRAM = "DEMO_LIST_SYSTEM_FIELDS";
 
-// Exactly 30 chars (DD25L-VIEWNAME's ceiling — see VIEW_NAME_MAX in
-// src/adt/view-create.ts) so this pins the RS_CORR_INSERT DICT-key width
-// fix: a CHAR30 ddobjname key would truncate a name this long and SAP would
-// answer TK103. "S11" plus a random tail keeps it from colliding with
-// another slice's live suite, or a rerun of this one, on the same appliance.
-const viewRandomSuffix = (Math.random().toString(36) + Math.random().toString(36) + Math.random().toString(36))
+// 16 chars, not VIEW_NAME_MAX's CHAR30 ceiling: a live 30-char name was
+// refused server-side by DDIF_VIEW_PUT (sy-subrc=5, AD102), so this pins the
+// widest view name actually reachable rather than the DD25L-VIEWNAME field
+// width. A random tail keeps it from colliding with another slice's live
+// suite, or a rerun of this one, on the same appliance.
+const viewRandomSuffix = (Math.random().toString(36) + Math.random().toString(36))
   .replace(/[^a-z0-9]/g, "")
-  .slice(0, 19)
-  .padEnd(19, "0")
+  .slice(0, 11)
+  .padEnd(11, "0")
   .toUpperCase();
-const VIEW_NAME = `ZMCP_S11_V_${viewRandomSuffix}`;
+const VIEW_NAME = `ZS11V${viewRandomSuffix}`;
 
 /** SFLIGHT: confirmed present on this A4H appliance (see test/integration.test.ts). */
 const VIEW_BASE_TABLE = "SFLIGHT";
@@ -246,12 +249,16 @@ dw("live A4H classic fluid tool ($ABAPSMITH_FLUID_API + $TMP)", () => {
     expect(await classicExists("transaction", TCODE)).toBe("ABSENT");
   }, 180_000);
 
-  it("exists flips ABSENT -> EXISTS -> ABSENT across a create/delete round trip on a full-30-char $TMP view (TK103 pin)", async () => {
+  it("exists flips ABSENT -> EXISTS -> ABSENT across a create/delete round trip on a widest-reachable-length $TMP view", async () => {
     assertUsable();
-    expect(VIEW_NAME.length).toBe(30);
+    expect(VIEW_NAME.length).toBe(16);
 
     expect(await classicExists("view", VIEW_NAME)).toBe("ABSENT");
 
+    // armed before the call, not after it returns: create_view is a multi-step
+    // operation and RS_CORR_INSERT can register TADIR before DDIF_VIEW_PUT
+    // refuses and the call rejects — cleanup must still run for that case.
+    viewCreated = true;
     const created = await createClassicView(conn, GATE, {
       viewName: VIEW_NAME,
       baseTable: VIEW_BASE_TABLE,
@@ -259,8 +266,6 @@ dw("live A4H classic fluid tool ($ABAPSMITH_FLUID_API + $TMP)", () => {
       description: "S11 classic live round trip",
       packageName: "$TMP",
     });
-    // arm cleanup before asserting: the view may already exist server-side once the call returns
-    viewCreated = true;
     expect(created.transcript.tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
 
     expect(await classicExists("view", VIEW_NAME)).toBe("EXISTS");
