@@ -27,7 +27,11 @@ function createViewMethodBody(source: string): string {
 function corrInsertObjectVar(methodBody: string): string {
   const m = /CALL FUNCTION 'RS_CORR_INSERT'[\s\S]{0,200}?\bobject\s*=\s*(\w+)/.exec(methodBody);
   if (!m) throw new Error("RS_CORR_INSERT with an `object =` argument not found in create_view");
-  return m[1];
+  const objectVar = m[1];
+  if (objectVar === undefined) {
+    throw new Error("RS_CORR_INSERT's `object = ...` capture group did not match in create_view");
+  }
+  return objectVar;
 }
 
 function declarationClause(methodBody: string, varName: string): string | undefined {
@@ -70,12 +74,20 @@ describe("classic body — RS_CORR_INSERT DICT key width (TK103 guard)", () => {
   it("the constructed key is at least 44 characters wide for a maximum-length (30-char) view name", () => {
     const line = assignmentLine(methodBody, varName);
     const widthMatch = /WIDTH\s*=\s*(\d+)/.exec(line);
-    expect(widthMatch, `no WIDTH clause found in: ${line}`).not.toBeNull();
-    const width = Number(widthMatch![1]);
+    if (!widthMatch) throw new Error(`no WIDTH clause found in: ${line}`);
+    const widthStr = widthMatch[1];
+    if (widthStr === undefined) {
+      throw new Error(`WIDTH clause capture group did not match in: ${line}`);
+    }
+    const width = Number(widthStr);
     const prefixMatch = /\|([A-Za-z0-9_]*)\{/.exec(line);
-    expect(prefixMatch, `no literal-prefix template segment found in: ${line}`).not.toBeNull();
-    const prefixLen = prefixMatch![1].length;
-    expect(prefixLen + width, `prefix "${prefixMatch![1]}" (${prefixLen}) + WIDTH ${width} in: ${line}`).toBeGreaterThanOrEqual(44);
+    if (!prefixMatch) throw new Error(`no literal-prefix template segment found in: ${line}`);
+    const prefix = prefixMatch[1];
+    if (prefix === undefined) {
+      throw new Error(`literal-prefix capture group did not match in: ${line}`);
+    }
+    const prefixLen = prefix.length;
+    expect(prefixLen + width, `prefix "${prefix}" (${prefixLen}) + WIDTH ${width} in: ${line}`).toBeGreaterThanOrEqual(44);
   });
 });
 
@@ -84,12 +96,14 @@ describe("classic body — RS_CORR_INSERT DICT key width (TK103 guard)", () => {
  * classic view delete raised an uncaught `CX_SY_DYN_CALL_ILLEGAL_TYPE`
  * after `DD_OBJ_DEL(del_state='A')` had already durably removed the DD25L
  * row, leaving the view stuck (DD25L gone, TADIR present) with no way to
- * finish the delete. Three things must hold:
+ * finish the delete. The 2026-09-08 live run, with the instrumentation
+ * from item 3 below in place, proved the failure was in `TR_TADIR_INTERFACE`
+ * only — both `DD_OBJ_DEL` calls completed. Three things must hold:
  *   1. `DD_OBJ_DEL(del_state='A')`'s `prid` stays `-1` — the proven-live
- *      call (2026-09-04) must not be perturbed by an unverified change.
- *   2. `DD_OBJ_DEL(del_state='N')`'s `prid` is `0` — DD_OBJ_DEL's own
- *      documented default, replacing the undocumented `-1` on the one call
- *      that has never been observed to succeed live.
+ *      call (2026-09-04, reconfirmed 2026-09-08) must not be perturbed.
+ *   2. `DD_OBJ_DEL(del_state='N')`'s `prid` is also `-1` — the live run
+ *      disproved the earlier prid=0 hypothesis; both calls now agree,
+ *      matching the base commit and the path proven live.
  *   3. Each of the three post-existence-check `CALL FUNCTION`s
  *      (`DD_OBJ_DEL` x2, `TR_TADIR_INTERFACE`) is wrapped in its own
  *      `TRY...CATCH cx_root`, reporting a distinct, greppable
@@ -112,7 +126,11 @@ function ddObjDelPrid(methodBody: string, delState: "A" | "N"): string {
   if (!m) {
     throw new Error(`DD_OBJ_DEL(del_state='${delState}') with a prid = ... argument not found in delete_view`);
   }
-  return m[1];
+  const prid = m[1];
+  if (prid === undefined) {
+    throw new Error(`DD_OBJ_DEL(del_state='${delState}')'s prid = ... capture group did not match in delete_view`);
+  }
+  return prid;
 }
 
 const DELETE_VIEW_STEP_LABELS = ["delete_view/dd_obj_del_A", "delete_view/dd_obj_del_N", "delete_view/tr_tadir_interface"];
@@ -126,8 +144,8 @@ describe("classic body — delete_view partial-delete recovery (CX_SY_DYN_CALL_I
     expect(ddObjDelPrid(methodBody, "A")).toBe("-1");
   });
 
-  it("DD_OBJ_DEL(del_state='N') uses prid = 0, not the undocumented -1", () => {
-    expect(ddObjDelPrid(methodBody, "N")).toBe("0");
+  it("DD_OBJ_DEL(del_state='N') keeps prid = -1 — the disproven prid=0 experiment was reverted", () => {
+    expect(ddObjDelPrid(methodBody, "N")).toBe("-1");
   });
 
   it("each risky CALL FUNCTION (2x DD_OBJ_DEL, TR_TADIR_INTERFACE) is wrapped in its own TRY...CATCH cx_root", () => {
@@ -148,5 +166,60 @@ describe("classic body — delete_view partial-delete recovery (CX_SY_DYN_CALL_I
     expect(deletedIdx, "VIEW-DELETED tag not found in delete_view").toBeGreaterThanOrEqual(0);
     expect(goneIdx, "VIEW-GONE tag not found in delete_view").toBeGreaterThanOrEqual(0);
     expect(deletedIdx, "VIEW-DELETED must still fire before VIEW-GONE").toBeLessThan(goneIdx);
+  });
+});
+
+/**
+ * Guard: pins the fix for the 2026-09-08 live `TR_TADIR_INTERFACE` failure.
+ * Live, passing `lv_view` (declared `TYPE dd25l-viewname` — not a `string`;
+ * an earlier round of this fix mistakenly assumed it was inferred `string`,
+ * confusing it with `create_view`'s unrelated `lv_object`) directly as
+ * `WI_TADIR_OBJ_NAME` raised `CX_SY_DYN_CALL_ILLEGAL_TYPE`, even though the
+ * same value passed fine to `DD_OBJ_DEL`. Why `TR_TADIR_INTERFACE` rejected
+ * it — a width mismatch between `dd25l-viewname` and `tadir-obj_name`, or
+ * something else about how the parameter is typed — is not established
+ * from this repo alone; there is no DDIC catalogue here to check either
+ * field's real width against. Four things must hold regardless:
+ *   1. `lv_view` keeps its own declared type (`DD25L-VIEWNAME`) —
+ *      untouched, since `create_view` depends on it staying that way.
+ *   2. A separate local, typed to a real DDIC field (`TADIR-OBJ_NAME`), is
+ *      declared for the TADIR call.
+ *   3. `TR_TADIR_INTERFACE`'s `wi_tadir_obj_name` argument is that typed
+ *      local, not `lv_view` directly.
+ *   4. Before the call, the typed local is checked back against `lv_view`
+ *      so any mismatch between the two (truncation or otherwise) fails
+ *      loudly instead of silently deleting the wrong TADIR row — this
+ *      guard is what makes the fix safe without needing to know the
+ *      unresolved width question above.
+ */
+describe("classic body — delete_view TR_TADIR_INTERFACE typed argument (CX_SY_DYN_CALL_ILLEGAL_TYPE fix)", () => {
+  const bodySource = classicSources.get(CLASSIC_BODY_CLASS);
+  if (bodySource === undefined) throw new Error(`classicSources has no entry for ${CLASSIC_BODY_CLASS}`);
+  const methodBody = deleteViewMethodBody(bodySource);
+
+  it("lv_view keeps its own DD25L-VIEWNAME declaration, unperturbed by the TADIR fix", () => {
+    expect(methodBody).toMatch(/\bDATA\s+lv_view\s+TYPE\s+dd25l-viewname\s*\./i);
+  });
+
+  it("a separate local is declared with a real DDIC field type for the TADIR call, not lv_view's own type", () => {
+    const m = /\bDATA\s+(\w+)\s+TYPE\s+tadir-obj_name\s*\./i.exec(methodBody);
+    expect(m, "no `DATA <var> TYPE tadir-obj_name.` declaration found in delete_view").not.toBeNull();
+  });
+
+  it("TR_TADIR_INTERFACE's wi_tadir_obj_name argument is the typed local, not lv_view directly", () => {
+    const callMatch = /CALL FUNCTION 'TR_TADIR_INTERFACE'[\s\S]{0,400}?wi_tadir_obj_name\s*=\s*(\w+)/.exec(methodBody);
+    expect(callMatch, "wi_tadir_obj_name = ... argument not found on TR_TADIR_INTERFACE").not.toBeNull();
+    const argVar = callMatch![1];
+    expect(argVar, "wi_tadir_obj_name must not be bound directly to lv_view").not.toBe("lv_view");
+    const declMatch = new RegExp(`\\bDATA\\s+${argVar}\\s+TYPE\\s+tadir-obj_name\\s*\\.`, "i");
+    expect(declMatch.test(methodBody), `${argVar} passed to wi_tadir_obj_name is not declared TYPE tadir-obj_name`).toBe(true);
+  });
+
+  it("the typed local is checked back against lv_view (a truncation guard) before the TADIR call", () => {
+    const callIdx = methodBody.search(/CALL FUNCTION 'TR_TADIR_INTERFACE'/);
+    expect(callIdx, "TR_TADIR_INTERFACE call not found").toBeGreaterThanOrEqual(0);
+    const preamble = methodBody.slice(0, callIdx);
+    const guardMatch = /IF\s+(\w+)\s*<>\s*lv_view\s*\.\s*[\s\S]{0,200}?RETURN\s*\./i.exec(preamble);
+    expect(guardMatch, "no `IF <var> <> lv_view. ... RETURN.` truncation guard found before the TADIR call").not.toBeNull();
   });
 });

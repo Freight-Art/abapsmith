@@ -148,11 +148,12 @@ const SOURCE = `  METHOD create_view.
     " generic catch-all, reporting only the exception's generic text with
     " no indication of which step raised it - each CATCH here labels the
     " step with a distinct, greppable delete_view/... string.
-    " del_state = 'A' with prid = -1 is the proven-live path (2026-09-04)
-    " - left untouched. del_state = 'N' has never been observed to
-    " succeed; its prid is changed to 0, DD_OBJ_DEL's own documented
-    " default (-1 is not a documented value for either call, but only the
-    " unproven call is changed here, to keep this a one-variable experiment).
+    " del_state = 'A' and del_state = 'N' both use prid = -1 - proven live
+    " on 2026-09-04 and again on 2026-09-08, when instrumentation added
+    " here turned an unattributable CX_SY_DYN_CALL_ILLEGAL_TYPE into a
+    " precise diagnosis: both DD_OBJ_DEL calls completed, and the failure
+    " was entirely in the next step, TR_TADIR_INTERFACE (see Step 4) - not
+    " in DD_OBJ_DEL as a since-disproven prid=0 experiment had assumed.
     IF lv_dd25l_exists = abap_true.
       TRY.
           CALL FUNCTION 'DD_OBJ_DEL'
@@ -178,7 +179,7 @@ const SOURCE = `  METHOD create_view.
               object_name = lv_view
               object_type = 'VIEW'
               del_state   = 'N'
-              prid        = 0
+              prid        = -1
             EXCEPTIONS
               OTHERS      = 1.
         CATCH cx_root INTO DATA(lx_del_n).
@@ -189,13 +190,39 @@ const SOURCE = `  METHOD create_view.
     line( 'VIEW-DELETED' ).
 
     " Step 4: remove the TADIR row (wi_test_modus = space, or this no-ops).
+    " Live on 2026-09-08, passing lv_view (TYPE dd25l-viewname) directly as
+    " WI_TADIR_OBJ_NAME raised: "The function call of TR_TADIR_INTERFACE
+    " failed; a field may have been assigned to the parameter
+    " WI_TADIR_OBJ_NAME whose type is not compatible with this parameter."
+    " The fix is to pass a local typed from the parameter's own field
+    " (tadir-obj_name) instead of lv_view's unrelated dd25l-viewname type.
+    " What is NOT established offline: whether the two fields differ in
+    " width, or the rejection came from something else about how the
+    " parameter is typed (e.g. a generic/structure-bound interface that
+    " checks the actual type at the call boundary even though the FM name
+    " here is static) - this repo has no DDIC catalogue to check either
+    " field against, and an earlier draft of this comment asserted both
+    " fields were CHAR30 and the same width - that claim was unfounded and
+    " has been withdrawn. The IF below does not depend on knowing the
+    " answer: it compares the typed local back against
+    " lv_view and fails loudly on any mismatch, so if truncation (or any
+    " other silent corruption of the value) does occur, the tool refuses
+    " instead of deleting the wrong TADIR row.
+    DATA lv_tadir_obj TYPE tadir-obj_name.
+    lv_tadir_obj = lv_view.
+    IF lv_tadir_obj <> lv_view.
+      fail( |delete_view/tadir_obj_name_guard: { lv_view } does not fit tadir-obj_name without truncation - | &&
+        |refusing to risk deleting the wrong TADIR row| ).
+      RETURN.
+    ENDIF.
+
     TRY.
         CALL FUNCTION 'TR_TADIR_INTERFACE'
           EXPORTING
             wi_test_modus         = space
             wi_tadir_pgmid        = 'R3TR'
             wi_tadir_object       = 'VIEW'
-            wi_tadir_obj_name     = lv_view
+            wi_tadir_obj_name     = lv_tadir_obj
             wi_delete_tadir_entry = 'X'
           EXCEPTIONS
             OTHERS                = 1.

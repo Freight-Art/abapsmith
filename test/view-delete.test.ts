@@ -379,14 +379,34 @@ describe("delete_view's static source (closed template — regression guard)", (
     expect(deleteTrim.slice(secondIdx, secondIdx + 11)).not.toContain("IF sy-subrc <> 0.");
   });
 
-  it("TR_TADIR_INTERFACE is generated with wi_test_modus = space AND wi_delete_tadir_entry = 'X' (the silent-no-op trap), wi_tadir_obj_name = lv_view — never a per-call baked view-name literal", () => {
+  // wi_tadir_obj_name now binds lv_tadir_obj, not lv_view directly.
+  // lv_view is DATA lv_view TYPE dd25l-viewname — not a string. Live on
+  // 2026-09-08, CALL FUNCTION 'TR_TADIR_INTERFACE' (a static call, literal
+  // FM name — nothing dynamic about the call site) with wi_tadir_obj_name
+  // = lv_view raised CX_SY_DYN_CALL_ILLEGAL_TYPE naming WI_TADIR_OBJ_NAME.
+  // WHY that typed parameter rejected lv_view is not established from this
+  // repo (no DDIC catalogue here to check field widths against) — the
+  // truncation guard exists to make the fix safe without needing that
+  // answer. lv_tadir_obj is the typed (TYPE tadir-obj_name) local
+  // introduced to fix that, assigned from lv_view and truncation-guarded
+  // before use. Pin the declaration, the assignment, and the guard
+  // ordering ahead of the call — not just the call's own binding — so a
+  // future edit can't quietly drop the fix while still passing this test.
+  it("TR_TADIR_INTERFACE is generated with wi_test_modus = space AND wi_delete_tadir_entry = 'X' (the silent-no-op trap), wi_tadir_obj_name = lv_tadir_obj — a typed local (TYPE tadir-obj_name) assigned from lv_view and truncation-guarded, never lv_view directly and never a per-call baked view-name literal", () => {
+    const declIdx = deleteTrim.indexOf("DATA lv_tadir_obj TYPE tadir-obj_name.");
+    const assignIdx = deleteTrim.indexOf("lv_tadir_obj = lv_view.");
+    const guardIdx = deleteTrim.indexOf("IF lv_tadir_obj <> lv_view.");
     const start = deleteTrim.indexOf("CALL FUNCTION 'TR_TADIR_INTERFACE'");
-    expect(start).toBeGreaterThanOrEqual(0);
+    expect(declIdx).toBeGreaterThanOrEqual(0);
+    expect(assignIdx).toBeGreaterThan(declIdx);
+    expect(guardIdx).toBeGreaterThan(assignIdx);
+    expect(start).toBeGreaterThan(guardIdx);
+
     const stmt = deleteTrim.slice(start, start + 8);
     expect(stmt).toContain("wi_test_modus         = space");
     expect(stmt).toContain("wi_tadir_pgmid        = 'R3TR'");
     expect(stmt).toContain("wi_tadir_object       = 'VIEW'");
-    expect(stmt).toContain("wi_tadir_obj_name     = lv_view");
+    expect(stmt).toContain("wi_tadir_obj_name     = lv_tadir_obj");
     expect(stmt).toContain("wi_delete_tadir_entry = 'X'");
   });
 
@@ -511,7 +531,14 @@ describe("deleteClassicViewViaBridge happy path", () => {
     const tadirCallIdx = body.indexOf("CALL FUNCTION 'TR_TADIR_INTERFACE'");
     const commitIdx = body.indexOf("COMMIT WORK.");
     const reselectIdx = body.indexOf("SELECT COUNT( * ) FROM dd25l INTO @lv_dd25l_count");
-    const tadirReselectIdx = body.indexOf("SELECT COUNT( * ) FROM tadir");
+    // "SELECT COUNT( * ) FROM tadir" also appears earlier, verbatim, in the
+    // existence-check fallback that resumes a partial delete (DD25L already
+    // gone but a TADIR row remains) — that occurrence sits before the calls
+    // entirely and is not the post-commit verification re-read this test
+    // means to order. Search from reselectIdx (the post-commit DD25L
+    // re-read, which is unambiguous) so only the later, post-commit TADIR
+    // re-read can match.
+    const tadirReselectIdx = body.indexOf("SELECT COUNT( * ) FROM tadir", reselectIdx);
     expect(deleteCallIdx).toBeGreaterThanOrEqual(0);
     expect(tadirCallIdx).toBeGreaterThan(deleteCallIdx);
     expect(commitIdx).toBeGreaterThan(tadirCallIdx);
