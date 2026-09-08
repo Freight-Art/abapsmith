@@ -60,7 +60,7 @@ export const fluidInputSchema = {
     .enum(FLUID_OPS)
     .optional()
     .describe(
-      'What to do. Defaults to "run" whenever tool/action/args/confirm/corrNr/scope is given; a ' +
+      'What to do. Defaults to "run" whenever tool/action/args/confirm/corr_nr/scope is given; a ' +
         "call with none of those returns the catalogue instead. list/describe/status touch no " +
         "network. verify asks the system what is actually deployed. run (the default) executes " +
         "one action, deploying or repairing first if needed. repair forces a redeploy. remove " +
@@ -89,7 +89,7 @@ export const fluidInputSchema = {
         'plugin action in the "mutate" category may require its own confirm string (the ' +
         "catalogue/describe output for that action says so).",
     ),
-  corrNr: z
+  corr_nr: z
     .string()
     .optional()
     .describe("Transport request number, forwarded to run for a mutating action that targets a transportable object."),
@@ -419,7 +419,7 @@ async function runRun(deps: FluidToolDeps, a: FluidInput): Promise<string> {
         action: actionName,
         args: a.args ?? {},
         ...(a.confirm !== undefined ? { confirm: a.confirm } : {}),
-        ...(a.corrNr !== undefined ? { corrNr: a.corrNr } : {}),
+        ...(a.corr_nr !== undefined ? { corrNr: a.corr_nr } : {}),
       },
     ),
   );

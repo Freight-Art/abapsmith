@@ -37,7 +37,7 @@ naming a `tool`.
 | `action` | string | `run` only: yes | — | Action name within `tool`. |
 | `args` | object | `run` only | `{}` | The action's arguments, validated against that action's declared input schema. |
 | `confirm` | string | `remove`: yes (must be exactly `"remove"`) | — | Also passed through to `run` for actions that themselves declare a confirmation requirement. |
-| `corrNr` | string | no | unset | Transport request for the deployment. `$ABAPSMITH_FLUID_API` is a local (`$`) package, so this is normally left unset. |
+| `corr_nr` | string | no | unset | Transport request for the deployment. `$ABAPSMITH_FLUID_API` is a local (`$`) package, so this is normally left unset. |
 | `scope` | enum `tool` \| `invokers` \| `all` | `remove` only | `tool` | `tool`: delete the named tool's own manifest objects. `invokers`: delete only the generated per-call `ZCL_ZMCP_I_*` invoker classes. `all`: delete every abapsmith-owned object in `$ABAPSMITH_FLUID_API`. |
 
 ## Ops
