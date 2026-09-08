@@ -53,12 +53,12 @@ wins in either direction — an operator can grant `ABAP_ALLOW_ENHANCEMENT_DELET
 under `edit` or withhold `ABAP_ALLOW_TRANSPORT_RELEASE` under `admin`. See
 [CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md) for the per-variable defaults.
 
-## The three out-of-band flags
+## Out-of-band flags
 
-These sit outside the mode ladder and are off in every mode, including `admin`,
-until named explicitly. Each one puts business or personal data into an agent
-transcript, which is a different kind of risk from "this call changes an
-object":
+Three flags sit outside the mode ladder and are off in every mode, including
+`admin`, until named explicitly, because each puts business or personal data
+into an agent transcript — a different kind of risk from "this call changes
+an object":
 
 | Flag | Grants |
 |---|---|
@@ -76,6 +76,68 @@ it has no capability field at all, so the one boolean is the whole story.
 skips statements outright, including the authorisation and validation checks
 they would have run. The flag only raises the ceiling — each individual jump
 additionally needs a matching per-call `confirm` echo.
+
+Three more flags, `ABAP_ALLOW_FLUID_PLUGINS`, `ABAP_ALLOW_FLUID_PLUGIN_MUTATE`
+and `ABAP_ALLOW_FLUID_CALL_FM`, are out-of-band for yet another reason: they
+gate the fluid API surface (`abap_fluid`) rather than disclosure or execution
+order. All three default off (`src/config.ts:743-747`), none is implied by
+another, and none widens `ABAP_MODE` — setting one cannot make a productive
+or write-locked-out system writable. See
+[CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md)
+for what each permits.
+
+## The fluid API and read-only
+
+A read-only session disables the fluid API completely: every `abap_fluid` op
+— including `list` and `describe` — is refused with no HTTP request of any
+kind. "Read-only" is several distinct conditions here, not one, and
+`fluidDisabledReason(cfg, gate?)` (`src/adt/fluid/enabled.ts:21-37`) reports
+exactly which one fired. Checked in order:
+
+1. `cfg.fluidApi === false` — `kind: "flag"`, field `ABAP_FLUID_API`
+2. `cfg.abapMode === "read"` — `kind: "read-only"`, field `cfg.abapMode`
+3. `cfg.readOnly === true` — `kind: "read-only"`, field `cfg.readOnly` (under
+   `ABAP_MODE`, this is the mode's own `allowWrite` capability — only `read`
+   sets it false, and `ABAP_ALLOW_WRITE` is ignored; only in legacy config
+   with no `ABAP_MODE` does `ABAP_ALLOW_WRITE` not being truthy drive it,
+   `src/config.ts:1082`)
+4. `gate.config.productive === true` — field `gate.config.productive`
+5. `gate.config.systemRole === "productive"` — field `gate.config.systemRole`
+6. `gate.config.roleProbeFailure !== undefined` — field
+   `gate.config.roleProbeFailure`
+7. `gate.config.writesLockedOut === true` — field `gate.config.writesLockedOut`
+
+`fluidDisabledReason`'s return type distinguishes the single `kind: "flag"`
+reason above from the six `kind: "read-only"` field names (2-7) — six, not
+five, is easy to undercount if `roleProbeFailure` and `writesLockedOut` are
+mistaken for the same condition; they are checked and reported separately.
+
+The first three checks are static and known before `connect()` runs:
+`canUseFluidApi = cfg.fluidApi && !cfg.readOnly && cfg.abapMode !== "read"`
+(`src/config.ts:1632`), and `src/server.ts:708-719` registers `abap_fluid`
+only when that holds — with `ABAP_FLUID_API=false`, under `ABAP_MODE=read`,
+or (in legacy config with no `ABAP_MODE`) with `ABAP_ALLOW_WRITE` not
+truthy, the tool does not appear in `tools/list` at all. The remaining four
+are `SafetyConfig` fields on the gate and stay `undefined` until `connect()`
+has run the T000 probe (`src/server.ts:519-524` transcribes the verdict onto
+the gate), so that refusal can arrive at first use of `abap_fluid` rather
+than at startup.
+
+`ABAP_FLUID_API=false` also refuses the bridge-backed operations of several
+already-shipped tools, not only `abap_fluid` — see
+[CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md)
+for the full list.
+
+`writesLockedOut` is a one-way latch on the safety gate (`src/safety.ts:174`,
+latched at `:1154-1172`), cleared only by an explicit
+`resetWriteLockout(reason)`. There is no `ABAP_READ_ONLY` environment
+variable and no `writesLockedOut` field on `Config` — both live on the gate,
+not on `Config`.
+
+None of this can be talked around: setting `ABAP_FLUID_API=true` on a
+productive system, or on one whose write lockout has already latched, still
+refuses. The flag decides whether abapsmith is willing to try; it does not
+move the ceiling.
 
 ## Authorisation is carried in the type system
 

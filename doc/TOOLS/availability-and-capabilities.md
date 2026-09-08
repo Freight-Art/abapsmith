@@ -10,7 +10,12 @@ exactly one of three cases:
    present-and-refusing. `abap_write`, `abap_run`, `abap_test`,
    `abap_fpm_read`, `abap_bopf_test`, `abap_ui`, `abap_atc`, `abap_bopf_edit`
    and `abap_bopf_delete` need `canWrite`; `abap_transport_release` additionally
-   needs `canReleaseTransport`; `abap_data_preview` needs `canPreviewData`.
+   needs `canReleaseTransport`; `abap_data_preview` needs `canPreviewData`;
+   `abap_fluid` needs `cfg.fluidApi && !cfg.readOnly && cfg.abapMode !== "read"`
+   (`cfg.canUseFluidApi`, `src/config.ts:1632`, registered at
+   `src/server.ts:708-719`) — narrower than `canWrite` alone, since a
+   read-only or `ABAP_MODE=read` session leaves `abap_fluid` unregistered even
+   if `ABAP_FLUID_API` is on.
 2. **Always registered, gated per call.** The tool is always in
    `tools/list`; some or all of its operations are refused at call time
    depending on capability. `abap_read`, `abap_search`, `abap_open_url`,
@@ -46,8 +51,26 @@ layer on top:
 | `variables` field on `abap_dumps` | `ABAP_ALLOW_DUMP_VARIABLES=true` — independent of mode, allowed even under `read` |
 | `abap_ui` `mode=press` | `ABAP_MODE=admin` **and** `ABAP_ALLOW_UI_PRESS=true`, checked at call time, not at registration |
 | `step="jumpToLine"` on `abap_debug` | `ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true` **and** a per-call `confirm:"jumpToLine"` |
+| `abap_fluid` registered at all | `ABAP_FLUID_API=true` (default) **and** `cfg.readOnly === false` **and** `ABAP_MODE !== "read"` — all three checked at registration, and re-checked at call time by `fluidDisabledReason` (`src/adt/fluid/enabled.ts:18-39`) |
 
 Every mutating call is additionally checked against `ABAP_ALLOW_PACKAGES`
 and `ABAP_ALLOW_NAME_PREFIXES` (which packages/object names a write may
 touch), and against a productive-system lockout that no flag overrides.
+
+`ABAP_FLUID_API=false` reaches past `abap_fluid`'s own registration: it also
+refuses the bridge-backed operations of several already-shipped tools at
+call time — see
+[CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md)
+for the full list.
+
+Once registered, every `abap_fluid` op re-checks four further ceilings that
+are only knowable after `connect()` has run its role probe (a productive
+system, its system role, a failed role probe, and the write-lockout latch) —
+see [SAFETY/permission-model.md](../SAFETY/permission-model.md) for the
+exact fields and their order. The per-op ceilings `ABAP_ALLOW_FLUID_PLUGINS`,
+`ABAP_ALLOW_FLUID_PLUGIN_MUTATE` and `ABAP_ALLOW_FLUID_CALL_FM` are
+documented in
+[CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md).
+`abap_fluid` is additive: no existing tool's availability changed, no tool
+was hidden, renamed or unregistered, and `ABAP_TOOL_SURFACE` is unchanged.
 
