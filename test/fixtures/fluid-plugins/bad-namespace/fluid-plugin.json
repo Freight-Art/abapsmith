@@ -1,0 +1,17 @@
+{
+  "contract": "1.0",
+  "id": "badns",
+  "title": "Bad namespace fixture",
+  "description": "Refusal fixture: object name outside the plugin's own namespace.",
+  "objects": [
+    { "name": "ZCL_BADNS_BODY", "type": "CLAS/OC", "description": "outside ZCL_ZMCP_X_BADNS",
+      "source": { "file": "abap/zcl_badns_body.abap" } }
+  ],
+  "entry": "ZCL_BADNS_BODY",
+  "actions": [
+    { "name": "ping", "category": "read", "description": "Replies with a fixed string.",
+      "input": { "type": "object" },
+      "output": { "type": "object", "required": ["reply"],
+                  "properties": { "reply": { "type": "string" } } } }
+  ]
+}
