@@ -22,6 +22,9 @@ decision from opposite directions.
 | `ABAP_ALLOW_DATA_PREVIEW` | `false` | Registers `abap_data_preview` at all. Off means the tool does not exist in `tools/list`. Not governed by `ABAP_MODE` — on in every mode when set, including `read`. |
 | `ABAP_ALLOW_DUMP_VARIABLES` | `false` | Lets `abap_dumps` return the variable-contents chapter of a runtime-error dump. Not governed by `ABAP_MODE`. |
 | `ABAP_ALLOW_UI_PRESS` | `false` | Lets `abap_ui` submit a batch-input script that commits immediately. Requires `ABAP_MODE=admin` as well — neither alone is sufficient. |
+| `ABAP_ALLOW_FLUID_PLUGINS` | `false` | Ceiling for loading any `ABAP_FLUID_PLUGINS` entry at all. Out-of-band: does not widen `ABAP_MODE`, and setting it cannot make a productive or write-locked-out system writable. |
+| `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` | `false` | Allows a loaded fluid plugin action whose category is `mutate`. Not implied by `ABAP_ALLOW_FLUID_PLUGINS`. Same out-of-band ceiling — does not widen `ABAP_MODE`, and cannot make a productive or write-locked-out system writable. |
+| `ABAP_ALLOW_FLUID_CALL_FM` | `false` | Allows the built-in `core.call_fm` fluid action, which calls an arbitrary function module under the connected technical user's own SAP authorisations. Same out-of-band ceiling as the two rows above. |
 
 Only one legacy variable goes fully dead once `ABAP_MODE` is set:
 `ABAP_ALLOW_WRITE`. It is then ignored with a startup warning — `ABAP_MODE`
@@ -73,16 +76,58 @@ intended restriction or grant just never applied. Startup now checks every
 `ABAP_ALLOW_*` name against the real set and warns on anything unrecognised,
 regardless of `ABAP_MODE` or the value given.
 
-**The three out-of-band flags** (`ABAP_ALLOW_DATA_PREVIEW`,
+**Three of the booleans in the table above** (`ABAP_ALLOW_DATA_PREVIEW`,
 `ABAP_ALLOW_DUMP_VARIABLES`, `ABAP_ALLOW_UI_PRESS`) sit outside the mode
-ladder on purpose, not by oversight. Each is a read, not a mutation, so
-gating it behind write capability would be backwards: `ABAP_MODE=read` would
-have to imply the *widest* access to production data, and a write-enabled
-sandbox the narrowest. Each one also puts something durable and often
-sensitive into the calling model's transcript — table rows, the live
-contents of local variables at a crash, or a screen capture from a
-transaction — so none of the three is implied by any mode, including
-`admin`, and each has to be named explicitly regardless of mode.
+ladder for a disclosure reason, not by oversight. Each is a read, not a
+mutation, so gating it behind write capability would be backwards:
+`ABAP_MODE=read` would have to imply the *widest* access to production
+data, and a write-enabled sandbox the narrowest. Each one also puts
+something durable and often sensitive into the calling model's transcript —
+table rows, the live contents of local variables at a crash, or a screen
+capture from a transaction — so none of the three is implied by any mode,
+including `admin`, and each has to be named explicitly regardless of mode.
+
+`ABAP_ALLOW_FLUID_PLUGINS`, `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` and
+`ABAP_ALLOW_FLUID_CALL_FM` are out-of-band for a different reason: they gate
+the fluid API surface (`abap_fluid`), not a disclosure risk, and none of the
+three is implied by another. Unlike `ABAP_ALLOW_WRITE`, `ABAP_ALLOW_ENHANCEMENTS`
+and `ABAP_ALLOW_UI_PRESS`, none of the fluid settings emits a startup warning
+when enabled — `loadConfig` has no warn block for any of them.
+
+`ABAP_FLUID_API` (default **true**) and `ABAP_FLUID_PLUGINS` (default `[]`)
+are not `ABAP_ALLOW_*` variables and do not belong in the tables above.
+`ABAP_FLUID_API` is a feature flag, not a ceiling: it is deliberately not
+named `ABAP_ALLOW_FLUID_API`, because an `ALLOW` name that defaults to on is
+a contradiction (`src/config.ts:728-734`) — it only ever narrows. Off, it
+disables `abap_fluid`'s registration entirely (`src/server.ts:708-719`).
+Its reach does not stop there: with `ABAP_FLUID_API=false` and an otherwise
+write-capable session —
+
+- `abap_fluid` is not registered at all;
+- these stay registered but refuse at call time with `FLUID_API_DISABLED`:
+  `abap_fpm_read`, `abap_ui` (`mode=screen` and `mode=press`),
+  `abap_bopf_test`, `abap_run` report/class execution, `abap_img_edit` apply
+  and its CTS create-request path, `abap_enh`'s six create_* operations
+  (create_spot, add_badi_def, add_filter_def, create_impl,
+  set_filter_values, exercise), and the classic-call family —
+  `abap_transport` `removeObject`, view-delete, tran-delete, package-create
+  and package-delete;
+- the one-time creation of `$ABAPSMITH_FLUID_API` never happens on any of
+  those paths;
+- everything else is gated by `canWrite`/`!cfg.readOnly`, not by this flag,
+  and is unaffected: `abap_write`, `abap_activate`,
+  `abap_bopf`/`abap_bopf_edit`/`abap_bopf_delete`, the transport tools,
+  `abap_enh`'s write_description, delete, set_impl_active, create_hook and
+  discover_hook_anchors, and the read-only `abap_img`.
+
+Every bridge deploy goes through `deployBridge` (`src/adt/run.ts:1088-1101`)
+or `dispatch` (`src/adt/fluid/dispatch.ts:227-228`), both of which check
+`fluidDisabledReason` before any I/O — that is the chokepoint behind all of
+the above.
+
+`ABAP_FLUID_PLUGINS` is a path list (which plugin files to load), not a
+permission — `ABAP_ALLOW_FLUID_PLUGINS` above is the permission that governs
+whether any of those paths may load at all.
 
 ## Allowlists
 
@@ -129,6 +174,29 @@ the object already had on a transport request (typically from its create)
 survives the delete; remove it separately with `abap_transport` operation
 `"removeObject"` — but that operation is itself gated by the admin-only
 transport-delete ceiling, so it needs `ABAP_MODE=admin`.
+
+**The fluid API package.** Fluid calls install their generated ABAP into
+`$ABAPSMITH_FLUID_API`, created on first use under superpackage `$TMP`
+(`src/adt/fluid/package.ts:14-70`). A narrow `ABAP_ALLOW_PACKAGES` must
+include **both** names, because the create and every write after it are
+judged against different values: the one-time package create is judged
+against its superpackage, `$TMP`, and every ordinary object write afterwards
+is judged against the package's own name, `$ABAPSMITH_FLUID_API`. Missing
+either one refuses fluid calls at the package gate.
+
+A narrow `ABAP_ALLOW_NAME_PREFIXES` such as `Z,Y` refuses the **cold**
+creation of `$ABAPSMITH_FLUID_API`: the object-name allowlist judges the new
+package's own name, and `$ABAPSMITH_FLUID_API` starts with neither `Z` nor
+`Y`. This is deliberate and test-pinned (`test/fluid-package.test.ts:237-275`).
+The fix is a one-time widening of the prefix list, or creating the package
+another way; once the package exists, the prefix rule is never consulted for
+it again.
+
+The retired class `ZCL_ZMCP_IMG_WPROBE` sits in the legacy helper package
+(`$ZMCP_HELPERS`), so `abap_fluid(op="repair")` can only delete it if that
+package is also in `ABAP_ALLOW_PACKAGES`. Otherwise the reap reports it as
+`failed`, carrying whatever error the delete returned — there is no bespoke
+message naming the allowlist as the cause.
 
 **These allowlists govern writes this server makes, not ABAP it executes.**
 ABAP run via `abap_run`, `abap_test` or `abap_bopf_test` executes under the
