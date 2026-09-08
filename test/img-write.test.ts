@@ -47,6 +47,7 @@ import { isAbapError } from "../src/adt/errors.js";
 import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
 import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
 import { imgManifest } from "../src/adt/fluid/builtin/img.js";
+import { FLUID_RUNTIME_CLASS } from "../src/adt/fluid/abap/runtime.js";
 import { IMGW_BRIDGE_CLASS, type ImgApplyPlan, type ImgProbePlan } from "../src/adt/img-write-bridge.js";
 import { CUSTOMIZING_REQUEST_CLASS, type CustomizingRequestPlan } from "../src/adt/customizing-request.js";
 import { runImgProbe, runImgApply, runCreateCustomizingRequest } from "../src/adt/img-write.js";
@@ -122,6 +123,96 @@ function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
     return resp(200, PACKAGE_XML(FLUID_PACKAGE), { "content-type": "application/xml" });
   }
   return undefined;
+}
+
+/**
+ * `dynamicImgFluidRoute` (test/helpers/fluid-img-fake.ts) only recognizes the
+ * fluid img body class (`imgManifest.entry`) and its content-hash invoker —
+ * it predates `img.ts` declaring the shared runtime class
+ * (`FLUID_RUNTIME_CLASS`) as a manifest object of its own, deployed FIRST,
+ * ahead of the body class (see `src/adt/fluid/ensure.ts`'s in-order deploy).
+ * Left unhandled, every request for the runtime class's own lifecycle
+ * (existence GET, create, LOCK/PUT/UNLOCK, activation) falls through
+ * `dynamicImgFluidRoute` to whatever catch-all a route composes it with —
+ * here a bare `resp(200, "<ok/>", ...)`, which lacks an
+ * `<adtcore:packageRef>`, so `resolveWriteTarget` (src/adt/write.ts) throws
+ * `packageUnknown` on the very first classify pass, before the body class
+ * deploy is ever reached. This is the same auto-vivifying per-name state-
+ * store idiom `test/helpers/fluid-classic-fake.ts`'s (ungated) `classicFake`
+ * already uses successfully for the identical runtime-class-first shape in
+ * the `classic` builtin's manifest — scoped here to just the one class name,
+ * duplicated locally since `fluid-img-fake.ts` itself is out of scope to
+ * change.
+ */
+function runtimeClassRoute(packageName: string): (o: HttpClientOptions) => HttpClientResponse | undefined {
+  const classUri = `/sap/bc/adt/oo/classes/${FLUID_RUNTIME_CLASS.toLowerCase()}`;
+  const srcUri = `${classUri}/source/main`;
+  const st: { exists: boolean; source?: string; active: boolean } = { exists: false, active: false };
+
+  const notFoundXml = () =>
+    `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">` +
+    `<namespace id="com.sap.adt"/><type id="ExceptionResourceNotFound"/>` +
+    `<message lang="EN">${FLUID_RUNTIME_CLASS} does not exist</message><properties/></exc:exception>`;
+
+  const classDocXml = () => {
+    const main = st.active ? "active" : "inactive";
+    const inc = (type: string, version: string) =>
+      `<class:include class:includeType="${type}" ` +
+      `abapsource:sourceUri="${type === "main" ? "source/main" : `includes/${type}`}" ` +
+      `adtcore:name="" adtcore:type="CLAS/I" adtcore:version="${version}"/>`;
+    return (
+      `<?xml version="1.0" encoding="utf-8"?>` +
+      `<class:abapClass adtcore:name="${FLUID_RUNTIME_CLASS}" adtcore:type="CLAS/OC" adtcore:version="active" ` +
+      `xmlns:class="http://www.sap.com/adt/oo/classes" xmlns:adtcore="http://www.sap.com/adt/core" ` +
+      `xmlns:abapsource="http://www.sap.com/adt/abapsource">` +
+      `<adtcore:packageRef adtcore:name="${packageName}"/>` +
+      inc("definitions", "active") +
+      inc("implementations", "active") +
+      inc("macros", "active") +
+      inc("main", main) +
+      `</class:abapClass>`
+    );
+  };
+
+  return (o: HttpClientOptions) => {
+    const method = (o.method ?? "GET").toUpperCase();
+    const qs = (o.qs ?? {}) as Record<string, string>;
+
+    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") {
+      if (!(o.body ?? "").includes(`adtcore:name="${FLUID_RUNTIME_CLASS}"`)) return undefined;
+      st.exists = true;
+      st.active = false;
+      return resp(200, "", { "content-type": "text/plain" });
+    }
+    if (o.url === "/sap/bc/adt/activation" && method === "POST") {
+      if (!(typeof o.body === "string" && o.body.includes(FLUID_RUNTIME_CLASS))) return undefined;
+      st.active = true;
+      return resp(200, "", { "content-length": "0" });
+    }
+    if (o.url === classUri && method === "GET" && !qs._action) {
+      if (!st.exists) {
+        const r = resp(404, notFoundXml(), { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+      }
+      return resp(200, classDocXml(), { "content-type": "application/xml" });
+    }
+    if (o.url === srcUri && method === "GET") {
+      if (!st.exists || st.source === undefined) {
+        const r = resp(404, notFoundXml(), { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+      }
+      return resp(200, st.source, { "content-type": "text/plain" });
+    }
+    if (o.url === classUri && qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
+    if (o.url === classUri && qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url === srcUri && method === "PUT") {
+      st.source = o.body ?? "";
+      st.exists = true;
+      st.active = false;
+      return resp(200, "", { "content-type": "text/plain" });
+    }
+    return undefined;
+  };
 }
 
 /** Full write -> activate -> classrun happy path for `className`, landing in `FLUID_PACKAGE`. */
@@ -291,7 +382,9 @@ describe("runImgProbe", () => {
       transcript: () => imgProbeConsole(rawTranscript),
       packageName: FLUID_PACKAGE,
     });
-    return (o) => baseRoute(o) ?? fluidRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    return (o) =>
+      baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
   }
 
   function probeActivationRefused(): (o: HttpClientOptions) => HttpClientResponse {
@@ -309,7 +402,9 @@ describe("runImgProbe", () => {
       packageName: FLUID_PACKAGE,
       activationError: { matches: (name) => name === imgManifest.entry, xml: () => ACTIVATION_ERROR },
     });
-    return (o) => baseRoute(o) ?? fluidRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    return (o) =>
+      baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
   }
 
   function probeClassrunBlowsUp(): (o: HttpClientOptions) => HttpClientResponse {
@@ -321,7 +416,9 @@ describe("runImgProbe", () => {
         throw new HttpClientException("Request failed with status code 500", "500", 500, undefined, o, r);
       },
     });
-    return (o) => baseRoute(o) ?? fluidRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    return (o) =>
+      baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
   }
 
   it("deploys the fluid img body class and returns the parsed transcript", async () => {
@@ -336,7 +433,16 @@ describe("runImgProbe", () => {
     expect(result.transcript.before).toEqual([{ row: 0, field: "ZKEY", len: 1, value: "A" }]);
     expect(probeRan(inner)).toBe(true);
 
-    const create = inner.calls.find((c) => c.url === "/sap/bc/adt/oo/classes" && (c.method ?? "GET").toUpperCase() === "POST");
+    // Located by identity (the create call whose body names the img body class), not position —
+    // the fluid manifest now deploys the shared runtime class (FLUID_RUNTIME_CLASS) FIRST, so the
+    // body class's own create POST is no longer necessarily the first "/oo/classes" POST on the wire.
+    const create = inner.calls.find(
+      (c) =>
+        c.url === "/sap/bc/adt/oo/classes" &&
+        (c.method ?? "GET").toUpperCase() === "POST" &&
+        typeof c.body === "string" &&
+        c.body.includes(`adtcore:name="${imgManifest.entry}"`),
+    );
     expect(create?.body).toContain(`adtcore:name="${imgManifest.entry}"`);
   });
 

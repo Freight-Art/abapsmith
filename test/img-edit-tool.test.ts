@@ -50,6 +50,7 @@ import { errorResult } from "../src/server.js";
 import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
 import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
 import { imgManifest } from "../src/adt/fluid/builtin/img.js";
+import { FLUID_RUNTIME_CLASS } from "../src/adt/fluid/abap/runtime.js";
 import { IMGW_BRIDGE_CLASS } from "../src/adt/img-write-bridge.js";
 import { CUSTOMIZING_REQUEST_CLASS } from "../src/adt/customizing-request.js";
 import { Journal } from "../src/journal.js";
@@ -164,6 +165,96 @@ function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
 }
 
 /**
+ * `dynamicImgFluidRoute` (test/helpers/fluid-img-fake.ts) only recognizes the
+ * fluid img body class (`imgManifest.entry`) and its content-hash invoker —
+ * it predates `img.ts` declaring the shared runtime class
+ * (`FLUID_RUNTIME_CLASS`) as a manifest object of its own, deployed FIRST,
+ * ahead of the body class (see `src/adt/fluid/ensure.ts`'s in-order deploy).
+ * Left unhandled, every request for the runtime class's own lifecycle
+ * (existence GET, create, LOCK/PUT/UNLOCK, activation) falls through
+ * `dynamicImgFluidRoute` to whatever catch-all a route composes it with —
+ * here a bare `resp(200, "<ok/>", ...)`, which lacks an
+ * `<adtcore:packageRef>`, so `resolveWriteTarget` (src/adt/write.ts) throws
+ * `packageUnknown` on the very first classify pass, before the body class
+ * deploy is ever reached. This is the same auto-vivifying per-name state-
+ * store idiom `test/helpers/fluid-classic-fake.ts`'s (ungated) `classicFake`
+ * already uses successfully for the identical runtime-class-first shape in
+ * the `classic` builtin's manifest — scoped here to just the one class name,
+ * duplicated locally (and duplicated again in `test/img-write.test.ts`)
+ * since `fluid-img-fake.ts` itself is out of scope to change.
+ */
+function runtimeClassRoute(packageName: string): (o: HttpClientOptions) => HttpClientResponse | undefined {
+  const classUri = `/sap/bc/adt/oo/classes/${FLUID_RUNTIME_CLASS.toLowerCase()}`;
+  const srcUri = `${classUri}/source/main`;
+  const st: { exists: boolean; source?: string; active: boolean } = { exists: false, active: false };
+
+  const notFoundXml = () =>
+    `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">` +
+    `<namespace id="com.sap.adt"/><type id="ExceptionResourceNotFound"/>` +
+    `<message lang="EN">${FLUID_RUNTIME_CLASS} does not exist</message><properties/></exc:exception>`;
+
+  const classDocXml = () => {
+    const main = st.active ? "active" : "inactive";
+    const inc = (type: string, version: string) =>
+      `<class:include class:includeType="${type}" ` +
+      `abapsource:sourceUri="${type === "main" ? "source/main" : `includes/${type}`}" ` +
+      `adtcore:name="" adtcore:type="CLAS/I" adtcore:version="${version}"/>`;
+    return (
+      `<?xml version="1.0" encoding="utf-8"?>` +
+      `<class:abapClass adtcore:name="${FLUID_RUNTIME_CLASS}" adtcore:type="CLAS/OC" adtcore:version="active" ` +
+      `xmlns:class="http://www.sap.com/adt/oo/classes" xmlns:adtcore="http://www.sap.com/adt/core" ` +
+      `xmlns:abapsource="http://www.sap.com/adt/abapsource">` +
+      `<adtcore:packageRef adtcore:name="${packageName}"/>` +
+      inc("definitions", "active") +
+      inc("implementations", "active") +
+      inc("macros", "active") +
+      inc("main", main) +
+      `</class:abapClass>`
+    );
+  };
+
+  return (o: HttpClientOptions) => {
+    const method = (o.method ?? "GET").toUpperCase();
+    const qs = (o.qs ?? {}) as Record<string, string>;
+
+    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") {
+      if (!(o.body ?? "").includes(`adtcore:name="${FLUID_RUNTIME_CLASS}"`)) return undefined;
+      st.exists = true;
+      st.active = false;
+      return resp(200, "", { "content-type": "text/plain" });
+    }
+    if (o.url === "/sap/bc/adt/activation" && method === "POST") {
+      if (!(typeof o.body === "string" && o.body.includes(FLUID_RUNTIME_CLASS))) return undefined;
+      st.active = true;
+      return resp(200, "", { "content-length": "0" });
+    }
+    if (o.url === classUri && method === "GET" && !qs._action) {
+      if (!st.exists) {
+        const r = resp(404, notFoundXml(), { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+      }
+      return resp(200, classDocXml(), { "content-type": "application/xml" });
+    }
+    if (o.url === srcUri && method === "GET") {
+      if (!st.exists || st.source === undefined) {
+        const r = resp(404, notFoundXml(), { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+      }
+      return resp(200, st.source, { "content-type": "text/plain" });
+    }
+    if (o.url === classUri && qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
+    if (o.url === classUri && qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url === srcUri && method === "PUT") {
+      st.source = o.body ?? "";
+      st.exists = true;
+      st.active = false;
+      return resp(200, "", { "content-type": "text/plain" });
+    }
+    return undefined;
+  };
+}
+
+/**
  * Full write -> activate -> classrun happy path, generalised over as many
  * bridge classes as `classRuns` names — unlike `img-write.test.ts`'s own
  * single-class `bridgeHappyPath`, an armed `upsert`/`delete` call here
@@ -193,6 +284,7 @@ function multiBridgeHappyPath(
     },
     packageName: FLUID_PACKAGE,
   });
+  const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
 
   return (o: HttpClientOptions) => {
     const base = baseRoute(o);
@@ -219,6 +311,9 @@ function multiBridgeHappyPath(
 
     const fluid = fluidRoute(o);
     if (fluid) return fluid;
+
+    const runtime = runtimeRoute(o);
+    if (runtime) return runtime;
 
     for (const name of Object.keys(classicClassRuns)) {
       const classUri = `/sap/bc/adt/oo/classes/${name.toLowerCase()}`;
@@ -1056,6 +1151,7 @@ function probeOkApplyActivationRefused(): (o: HttpClientOptions) => HttpClientRe
     },
     packageName: FLUID_PACKAGE,
   });
+  const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
   return (o: HttpClientOptions) => {
     const base = baseRoute(o);
     if (base) return base;
@@ -1070,6 +1166,9 @@ function probeOkApplyActivationRefused(): (o: HttpClientOptions) => HttpClientRe
 
     const fluid = fluidRoute(o);
     if (fluid) return fluid;
+
+    const runtime = runtimeRoute(o);
+    if (runtime) return runtime;
 
     if (o.url === applyClassUri && method === "GET" && !qs._action) {
       const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
