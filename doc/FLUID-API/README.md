@@ -7,6 +7,10 @@ runtime. Each of those used to hand-roll a throwaway class with a private
 console dialect. The fluid API replaces that with one framework: one
 package, one manifest format, one wire protocol, one registry.
 
+The framework is reached through exactly one MCP tool, `abap_fluid` — see
+`tool.md` for how it sits on top of `dispatch()`, `ensureFluidTool` and
+`loadFluidTools`, and `doc/TOOLS/abap-fluid.md` for its wire contract.
+
 ## Parts
 
 | File | Covers |

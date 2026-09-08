@@ -28,3 +28,4 @@ requiredness and defaults are taken from the schema, not from prose.
 | [enhancements.md](enhancements.md) | `abap_enh` — creating and driving BAdI spots, implementations, filters and hooks. |
 | [ui-and-fpm.md](ui-and-fpm.md) | `abap_fpm_read`, `abap_ui` — reading FPM/FBI configuration and driving classic dynpro screens via batch input. |
 | [system-resource.md](system-resource.md) | The `abap://{SID}/system` MCP resource. |
+| [abap-fluid.md](abap-fluid.md) | `abap_fluid` — the single entry point to the fluid API: deploying and running generated ABAP tools that install into `$ABAPSMITH_FLUID_API`. |

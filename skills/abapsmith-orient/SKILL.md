@@ -100,7 +100,14 @@ because its first call deploys a `$TMP` bridge class, which is itself a
 write. `abap_img` is different: it generates no ABAP and deploys nothing, so
 it is genuinely present under `read`. `abap_img_edit` is a real write (it
 modifies customizing rows directly) and is absent under `read` like any
-other write tool.
+other write tool. `abap_fluid` is the extreme case: it is abapsmith's
+single entry point to the fluid API — functions that only work by
+installing generated ABAP into `$ABAPSMITH_FLUID_API` — and even its
+read-shaped ops (`list`, `describe`, `status`, `verify`) need write access
+to exist at all, so it is unavailable on a read-only or productive system:
+absent from `tools/list` under `read` mode, and refusing
+`FLUID_API_DISABLED` again if a system that started writable later proves
+productive or trips the write lockout. See `doc/TOOLS/abap-fluid.md`.
 
 `ABAP_MODE` is the current way to set this. A legacy `ABAP_ALLOW_WRITE=true`
 flag grants ordinary write access too, but only when `ABAP_MODE` itself is
