@@ -4,12 +4,25 @@
  * onto a single static body class driven by JSON args, instead of legacy's
  * six per-call generated bridge classes with baked-in literals.
  *
- * `exercise` is declared and dispatched but always reports an ERR: legacy's
- * exerciseFragment declares `DATA lo_badi TYPE REF TO <badi_name>.`, a
- * compile-time type binding to a runtime string, which a body class deployed
- * once cannot express — and the only dynamic-dispatch escape hatch
+ * The sixth legacy operation, `exercise` (binding a BAdI handle and calling
+ * one of its methods), is NOT ported here and has no action in this
+ * manifest — see the comment above `WHEN OTHERS` in `ENH_SOURCE` below for
+ * the full explanation. In short: legacy's exerciseFragment needs
+ * `DATA lo_badi TYPE REF TO <badi_name>.`, a compile-time type built from a
+ * runtime string, which a body class deployed once (this file's whole
+ * design) cannot express, and the only dynamic-dispatch escape hatch
  * (`->(...)`/`=>(...)`) is exactly what `reviewFluidAbap`'s
- * "dynamic-call-method" rule forbids. See the S5b report for detail.
+ * "dynamic-call-method" rule forbids. Shipping an action that can never
+ * succeed would be a footgun for any MCP client reading this manifest, so
+ * the limitation lives here as documentation instead. The legacy
+ * (non-fluid) `abap_enh` tool remains the way to exercise a BAdI.
+ *
+ * package_name and corr_nr are REQUIRED (not optional) on every mutating
+ * action here, matching `classic.ts`'s convention exactly. Declaring
+ * `targets.transport` while leaving `corr_nr` optional in the input schema
+ * was a lie the dispatch gate caught at runtime: `resolveTargetString`
+ * throws BAD_INPUT the instant a caller omits it, so the field was never
+ * actually optional in practice.
  *
  * Package/transport handling, the marker-interface precondition (H21) and
  * the joint spot+implementation reactivation (H23) stay in TypeScript, as
@@ -47,7 +60,7 @@ ENDCLASS.
 CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
 
   METHOD run.
-    DATA: lv_pkg     TYPE devclass VALUE '$TMP',
+    DATA: lv_pkg     TYPE devclass,
           lv_trkorr  TYPE trkorr,
           lo_spot    TYPE REF TO if_enh_spot_tool,
           lo_def     TYPE REF TO cl_enh_tool_badi_def,
@@ -65,6 +78,23 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
 
     zcl_zmcp_fluid_rt=>begin( iv_id = 'enh' iv_action = iv_action ).
     zcl_zmcp_fluid_rt=>scan( iv_json ).
+
+    " package_name/corr_nr are required on every mutating action (see the
+    " enh manifest's input schema), so there is no $TMP/space fallback here:
+    " dispatch's own schema check (BAD_INPUT) and the target-resolution gate
+    " both already refuse the call before this ABAP body ever runs if either
+    " is absent. A silent local-package fallback here would only mask that
+    " class of bug instead of surfacing it - callers that want $TMP must
+    " pass package_name: "$TMP" explicitly, same as classic.ts. TRANSLATE
+    " guards against a lowercase devclass slipping past the gate's allowlist
+    " check unnoticed. corr_nr legitimately IS an empty string for a $
+    " (local) package, so it is only copied into lv_trkorr when non-initial.
+    lv_pkg = zcl_zmcp_fluid_rt=>s( 'package_name' ).
+    TRANSLATE lv_pkg TO UPPER CASE.
+    DATA(lv_corr_arg) = zcl_zmcp_fluid_rt=>s( 'corr_nr' ).
+    IF lv_corr_arg IS NOT INITIAL.
+      lv_trkorr = lv_corr_arg.
+    ENDIF.
 
     TRY.
         CASE iv_action.
@@ -282,14 +312,27 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_obj->unlock( ).
             zcl_zmcp_fluid_rt=>out( '{"replaced":true}' ).
 
-          WHEN 'exercise'.
-            DATA(lv_msg) = \`exercise cannot run on this shared, once-deployed body class: legacy \` &&
-              \`GET BADI needs 'DATA lo_badi TYPE REF TO <badi_name>', a compile-time type bound to \` &&
-              \`a runtime string, and the only dynamic-dispatch escape ( ->( ) / =>( ) ) is blocked by \` &&
-              \`static review. Use the legacy abap_enh tool for this operation.\`.
-            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch' iv_text = lv_msg ).
-            zcl_zmcp_fluid_rt=>end( 1 ).
-            RETURN.
+          " There is deliberately no WHEN 'exercise'. arm here. Legacy's
+          " exerciseFragment (see enhancement-templates.ts) binds a BAdI
+          " handle by declaring DATA lo_badi TYPE REF TO <badi_name> - a
+          " compile-time type built from a runtime string. That works for
+          " legacy because it generates one fresh, per-call bridge class per
+          " badi_name and compiles the literal type name straight into it.
+          " This class is deployed once and shared by every call, so it has
+          " no badi_name to compile in; the only ways to bind and call a
+          " handle whose type is known only at runtime - an instance
+          " reference immediately followed by a parenthesized, computed
+          " method name, the same via a class reference, or a CALL METHOD
+          " whose method name is itself a parenthesized variable - are all
+          " dynamic dispatch, and reviewFluidAbap's "dynamic-call-method"
+          " rule forbids every one of them from ever being deployed through
+          " this tool. So "exercise a BAdI handle from a static fluid body"
+          " is not a missing feature to add later: it is provably
+          " unimplementable under this tool's own static-review contract.
+          " Exercising a BAdI implementation remains a job for the legacy
+          " (non-fluid) abap_enh tool, whose generated bridge class can
+          " still write that TYPE REF TO literally because it is
+          " regenerated per call.
 
           WHEN OTHERS.
             zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
@@ -309,8 +352,6 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
 
 ENDCLASS.
 `;
-
-const FLAT_STRING = { type: "string" } as const;
 
 export const enhManifest: FluidManifest = {
   contract: FLUID_CONTRACT,
@@ -338,13 +379,19 @@ export const enhManifest: FluidManifest = {
       name: "create_spot",
       category: "mutate",
       description: "Creates, saves, activates and unlocks a new BAdI enhancement spot.",
-      targets: { object: "/spot_name" },
+      targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["spot_name", "description"],
+        required: ["spot_name", "description", "package_name", "corr_nr"],
         properties: {
           spot_name: { type: "string", maxLength: 30, description: "New spot's ENHNAME." },
           description: { type: "string", maxLength: 60, description: "Root object short text." },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package.",
+          },
         },
       },
       output: {
@@ -359,16 +406,22 @@ export const enhManifest: FluidManifest = {
       description:
         "Adds a BAdI definition to an existing spot. Assumes the marker interface named by " +
         "interface_name already exists (INTERFACES if_badi_interface) - callers must create it first.",
-      targets: { object: "/spot_name" },
+      targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["spot_name", "badi_name", "interface_name", "single_use", "short_text"],
+        required: ["spot_name", "badi_name", "interface_name", "single_use", "short_text", "package_name", "corr_nr"],
         properties: {
           spot_name: { type: "string", maxLength: 30 },
           badi_name: { type: "string", maxLength: 30 },
           interface_name: { type: "string", maxLength: 30, description: "Pre-existing marker interface." },
           single_use: { type: "boolean" },
           short_text: { type: "string", maxLength: 60 },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package.",
+          },
         },
       },
       output: {
@@ -381,16 +434,22 @@ export const enhManifest: FluidManifest = {
       name: "add_filter_def",
       category: "mutate",
       description: "Adds a filter definition to an existing BAdI definition on a spot.",
-      targets: { object: "/spot_name" },
+      targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["spot_name", "badi_name", "filter_name", "filter_type"],
+        required: ["spot_name", "badi_name", "filter_name", "filter_type", "package_name", "corr_nr"],
         properties: {
           spot_name: { type: "string", maxLength: 30 },
           badi_name: { type: "string", maxLength: 30 },
           filter_name: { type: "string", maxLength: 30 },
           filter_type: { type: "string", maxLength: 1, description: "Single-letter domain filter type code." },
           filter_text: { type: "string", maxLength: 60 },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package.",
+          },
         },
       },
       output: {
@@ -405,10 +464,20 @@ export const enhManifest: FluidManifest = {
       description:
         "Creates a BAdI implementation object bound to a spot, saves/activates/unlocks it, then " +
         "reports (best-effort, never fails the create) whether the target BAdI has filters defined.",
-      targets: { object: "/enh_name" },
+      targets: { object: "/enh_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["enh_name", "spot_name", "badi_name", "impl_name", "impl_class", "active", "description"],
+        required: [
+          "enh_name",
+          "spot_name",
+          "badi_name",
+          "impl_name",
+          "impl_class",
+          "active",
+          "description",
+          "package_name",
+          "corr_nr",
+        ],
         properties: {
           enh_name: { type: "string", maxLength: 30, description: "New implementation's ENHNAME." },
           spot_name: { type: "string", maxLength: 30 },
@@ -417,6 +486,12 @@ export const enhManifest: FluidManifest = {
           impl_class: { type: "string", maxLength: 30, description: "Implementing class, e.g. a BAdI handler." },
           active: { type: "boolean" },
           description: { type: "string", maxLength: 60 },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package.",
+          },
         },
       },
       output: {
@@ -437,10 +512,19 @@ export const enhManifest: FluidManifest = {
         "filter_name, then saves/activates/unlocks via the implementation's if_enh_object handle. " +
         "Does not perform legacy's joint spot+implementation ADT reactivation - callers that need " +
         "that stronger guarantee must still request it over ADT REST afterward.",
-      targets: { object: "/enh_name" },
+      targets: { object: "/enh_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["enh_name", "impl_name", "filter_name", "filter_type", "compare", "value"],
+        required: [
+          "enh_name",
+          "impl_name",
+          "filter_name",
+          "filter_type",
+          "compare",
+          "value",
+          "package_name",
+          "corr_nr",
+        ],
         properties: {
           enh_name: { type: "string", maxLength: 30, description: "Implementation's ENHNAME." },
           impl_name: { type: "string", maxLength: 30 },
@@ -448,43 +532,18 @@ export const enhManifest: FluidManifest = {
           filter_type: { type: "string", maxLength: 1 },
           compare: { type: "string", maxLength: 2, description: "= <> < <= > >= or EQ/NE/LT/LE/GT/GE." },
           value: { type: "string", maxLength: 255 },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package.",
+          },
         },
       },
       output: {
         type: "object",
         required: ["replaced"],
         properties: { replaced: { type: "boolean" } },
-      },
-    },
-    {
-      name: "exercise",
-      category: "execute",
-      description:
-        "Not implemented on this shared body class: GET BADI needs a compile-time-known handle " +
-        "type named after badi_name, which a JSON-argument-driven static class cannot express, and " +
-        "the dynamic-dispatch workaround is blocked by static review. Always returns an error.",
-      targets: { object: "/badi_name" },
-      input: {
-        type: "object",
-        required: ["badi_name", "method_name"],
-        properties: {
-          badi_name: { type: "string", maxLength: 30 },
-          method_name: { type: "string", maxLength: 30 },
-          filter_name: FLAT_STRING,
-          filter_value: FLAT_STRING,
-          param_names: { type: "array", items: { type: "string" } },
-          param_kinds: { type: "array", items: { type: "string" } },
-          param_values: { type: "array", items: { type: "string" } },
-          param_types: { type: "array", items: { type: "string" } },
-        },
-      },
-      output: {
-        type: "object",
-        required: ["bound"],
-        properties: {
-          bound: { type: "boolean" },
-          results: { type: "array", items: { type: "string" } },
-        },
       },
     },
   ],

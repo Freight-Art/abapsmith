@@ -54,13 +54,88 @@ describe("enh manifest baseline", () => {
   });
 });
 
+const MUTATING_ACTIONS = ["create_spot", "add_badi_def", "add_filter_def", "create_impl", "set_filter_values"];
+
+describe("enh mutating actions declare package/transport targets and inputs", () => {
+  it.each(MUTATING_ACTIONS)("%s: targets carry package and transport pointers", (name) => {
+    const action = enhManifest.actions.find((a) => a.name === name);
+    expect(action, `no action spec for "${name}"`).toBeDefined();
+    expect(action!.targets?.package).toBe("/package_name");
+    expect(action!.targets?.transport).toBe("/corr_nr");
+  });
+
+  it.each(MUTATING_ACTIONS)("%s: input schema declares REQUIRED package_name and corr_nr", (name) => {
+    const action = enhManifest.actions.find((a) => a.name === name);
+    expect(action, `no action spec for "${name}"`).toBeDefined();
+    const props = action!.input.properties as Record<string, { type?: string; maxLength?: number }>;
+    expect(props.package_name).toMatchObject({ type: "string", maxLength: 30 });
+    expect(props.corr_nr).toMatchObject({ type: "string", maxLength: 10 });
+    // A declared `targets.transport` pointer is not actually optional — the
+    // dispatch gate's resolveTargetString throws BAD_INPUT the moment a
+    // caller omits it — so classic.ts's convention (both fields required)
+    // is what enh.ts must match too. See the S5b defect report.
+    const required = (action!.input.required ?? []) as string[];
+    expect(required).toContain("package_name");
+    expect(required).toContain("corr_nr");
+  });
+
+  it.each(MUTATING_ACTIONS)("%s: package_name/corr_nr descriptions match classic.ts verbatim", (name) => {
+    const action = enhManifest.actions.find((a) => a.name === name);
+    expect(action, `no action spec for "${name}"`).toBeDefined();
+    const props = action!.input.properties as Record<string, { description?: string }>;
+    expect(props.package_name?.description).toBe("Target package (devclass).");
+    expect(props.corr_nr?.description).toBe("Transport request. Empty string for a $ (local) package.");
+  });
+
+  it("does NOT advertise an exercise action — see enh.ts's header/WHEN OTHERS comment for why", () => {
+    const action = enhManifest.actions.find((a) => a.name === "exercise");
+    expect(action).toBeUndefined();
+  });
+});
+
+describe("enh ABAP reads package_name/corr_nr via RT input helpers, not regex", () => {
+  it("reads package_name and corr_nr with zcl_zmcp_fluid_rt=>s(), once, before the CASE dispatch", () => {
+    expect(ENH_SOURCE).toContain("zcl_zmcp_fluid_rt=>s( 'package_name' )");
+    expect(ENH_SOURCE).toContain("zcl_zmcp_fluid_rt=>s( 'corr_nr' )");
+    // Only one read of each — shared across every mutating arm, not duplicated per WHEN.
+    expect(ENH_SOURCE.match(/zcl_zmcp_fluid_rt=>s\( 'package_name' \)/g) ?? []).toHaveLength(1);
+    expect(ENH_SOURCE.match(/zcl_zmcp_fluid_rt=>s\( 'corr_nr' \)/g) ?? []).toHaveLength(1);
+  });
+
+  it("declares lv_pkg TYPE devclass with NO $TMP/space fallback value — package_name is required now", () => {
+    expect(ENH_SOURCE).toMatch(/lv_pkg\s+TYPE devclass,/);
+    expect(ENH_SOURCE).not.toContain("VALUE '$TMP'");
+  });
+
+  it("uppercases the package argument before it is used", () => {
+    expect(ENH_SOURCE).toContain("TRANSLATE lv_pkg TO UPPER CASE");
+  });
+
+  it("assigns corr_nr into the existing lv_trkorr, not a new transport variable", () => {
+    expect(ENH_SOURCE).toMatch(/lv_trkorr\s*=\s*lv_corr_arg\./);
+  });
+
+  it("never extracts package_name/corr_nr via a regex-style FIND", () => {
+    expect(/FIND\s+REGEX/i.test(ENH_SOURCE)).toBe(false);
+  });
+});
+
 describe("enh action names track BRIDGE_CLASS", () => {
-  it("has exactly one action per BRIDGE_CLASS key, camelCase to snake_case", () => {
+  it("has exactly one action per BRIDGE_CLASS key EXCEPT exercise, camelCase to snake_case", () => {
+    // exercise is deliberately not ported (see enh.ts's header/WHEN OTHERS
+    // comment: a statically-deployed body class cannot bind a BAdI handle
+    // whose type is only known at runtime), so it is excluded here on
+    // purpose — not a gap this test failed to notice.
     const expected = Object.keys(BRIDGE_CLASS)
+      .filter((k) => k !== "exercise")
       .map((k) => k.replace(/([A-Z])/g, "_$1").toLowerCase())
       .sort();
     const actual = enhManifest.actions.map((a) => a.name).sort();
     expect(actual).toEqual(expected);
+  });
+
+  it("BRIDGE_CLASS still has an exercise key (documents the legacy operation this manifest omits)", () => {
+    expect(BRIDGE_CLASS).toHaveProperty("exercise");
   });
 });
 
@@ -145,24 +220,6 @@ describe("enh action output round-trips through parseFluidConsole", () => {
     expect(transcript.values).toEqual([out]);
     const problems = validateAgainstSchema(transcript.values[0], spec!.output, action);
     expect(problems).toEqual([]);
-  });
-
-  it("exercise: documented ERR-only path (rc=1, no OUT frame) round-trips", () => {
-    const transcript = parseFluidConsole(
-      [
-        beginFrame("exercise"),
-        `ZMCP-H>ERR ${JSON.stringify({
-          kind: "exception",
-          step: "dispatch",
-          text: "exercise cannot run on this shared, once-deployed body class: see docs",
-        })}`,
-        endFrame(1),
-      ].join("\n"),
-    );
-    expect(transcript.values).toEqual([]);
-    expect(transcript.errors).toHaveLength(1);
-    expect(transcript.errors[0]?.kind).toBe("exception");
-    expect(transcript.end?.rc).toBe(1);
   });
 
   it("a failure transcript (args error, no OUT) round-trips with rc=1 and one ERR frame", () => {
