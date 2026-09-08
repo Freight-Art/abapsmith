@@ -1,156 +1,105 @@
 /**
- * `DEVC/K` (package) delete bridge — offline; mirrors
- * `test/package-create.test.ts`'s fixture/gate/route style.
+ * `DEVC/K` (package) delete — offline, against the fluid `classic` tool.
+ * Mirrors `test/package-create.test.ts`'s fixture/gate/route style, itself
+ * mirroring `test/tran-create.test.ts` / `test/index-create.test.ts`.
+ *
+ * `abap-package.ts`'s `delete_package` method reads every value at RUNTIME
+ * via `s('path')`, so the deployed body class is a fixed, argument-independent
+ * string — as with every other classic action in this rewrite. The old
+ * per-call `packageDeleteFragment` generator and its dedicated
+ * `subrcGuardFragment`/`subrcCheckFragment` helpers no longer exist: the
+ * `IF sy-subrc <> 0. fail(...). RETURN. ENDIF.` guard shape they used to
+ * assemble is now written directly into the static template. Those
+ * generator-level unit tests are replaced by structural scans of
+ * `packagePart.source`'s `delete_package` slice; the tests that exercised
+ * actual runtime BEHAVIOUR (`deletePackageViaBridge`'s `beforeAssert`,
+ * `parsePackageContents`, the SET_CHANGEABLE_STEP lock-shaped hint) port
+ * essentially unchanged, since none of that logic moved.
+ *
+ * One structural fact worth calling out: unlike `create_package`'s single
+ * unconditional `lo_package->save` (transport always known, since
+ * `assertCorrNr` requires it), `delete_package`'s `save` is a compiled-in
+ * `IF lv_corr_nr IS INITIAL. ... ELSE. ... ENDIF.` pair — a local (`$`)
+ * package's delete really does skip `i_transport_request` entirely, decided
+ * at runtime by whatever the caller's `corr_nr` argument resolves to.
  */
-import { describe, expect, it } from "vitest";
-import type {
-  HttpClient,
-  HttpClientOptions,
-  HttpClientResponse,
-} from "abap-adt-api/build/AdtHTTP.js";
-import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
-import { SafetyGate } from "../src/safety.js";
+import { SafetyGate, type EvaluateOptions, type Operation, type SafetyTarget } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
+import { DDIC_ERR_PREFIX, parseDdicTranscript } from "../src/adt/ddic-transcript.js";
 import {
-  DDIC_BRIDGE_CLASS,
-  DDIC_BRIDGE_PACKAGE,
-  DDIC_ERR_PREFIX,
-  parseDdicTranscript,
-  subrcCheckFragment,
-  subrcGuardFragment,
-} from "../src/adt/ddic-bridge.js";
-import {
-  PACKAGE_DELETE_DATA_LINES,
   PKG_CONTENT_PREFIX,
   SET_CHANGEABLE_STEP,
   deletePackageViaBridge,
-  packageDeleteFragment,
   parsePackageContents,
   type PackageDeleteParams,
 } from "../src/adt/package-delete.js";
-import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { packagePart } from "../src/adt/fluid/builtin/classic/abap-package.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { canonicalArgsJson } from "../src/adt/fluid/invoke.js";
+import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 // ---------------------------------------------------------------------------
 // Fake transport — same shape as test/package-create.test.ts
 // ---------------------------------------------------------------------------
 
-const cfg = (): Config =>
-  ConfigSchema.parse({
+const fluidState = useFluidState();
+
+type Route = (o: HttpClientOptions) => HttpClientResponse | undefined;
+
+class FakeAdt implements HttpClient {
+  readonly calls: HttpClientOptions[] = [];
+  constructor(private readonly route: Route) {}
+  async request(o: HttpClientOptions): Promise<HttpClientResponse> {
+    this.calls.push(o);
+    const res = this.route(o);
+    if (!res) throw new Error(`FakeAdt: unrouted request ${(o.method ?? "GET").toUpperCase()} ${o.url}`);
+    return res;
+  }
+}
+
+const resp = (status: number, body = "", headers: Record<string, unknown> = {}): HttpClientResponse =>
+  ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
+
+function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
+  if (o.url.includes("/compatibility/graph")) {
+    return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+  }
+  if (o.url.endsWith("/discovery")) return resp(200, "<service/>", { "content-type": "application/xml" });
+  if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
+  return undefined;
+}
+
+function cfg(overrides: Partial<Config> = {}): Config {
+  return ConfigSchema.parse({
     url: "http://sap.invalid:50000",
     user: "TESTUSER",
     password: "secret",
     sid: "TST",
     client: "001",
     readOnly: false,
+    fluidApi: true,
+    stateDir: fluidState.dir(),
+    ...overrides,
   });
-
-const resp = (
-  status: number,
-  body = "",
-  headers: Record<string, unknown> = {},
-  statusText = String(status),
-): HttpClientResponse => ({ status, statusText, body, headers }) as unknown as HttpClientResponse;
-
-class RecordingClient implements HttpClient {
-  calls: HttpClientOptions[] = [];
-  constructor(private readonly respond: (o: HttpClientOptions) => HttpClientResponse) {}
-  async request(o: HttpClientOptions): Promise<HttpClientResponse> {
-    this.calls.push(o);
-    return this.respond(o);
-  }
 }
 
-const SESSION_URL = "/sap/bc/adt/compatibility/graph";
-const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
-const BRIDGE = DDIC_BRIDGE_CLASS.deletePackage;
-
-const LOCK_XML = (handle = "H1") =>
-  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
-  `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
-  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
-  `</DATA></asx:values></asx:abap>`;
-
-/** GET-404 -> POST-create -> LOCK -> PUT -> UNLOCK for the bridge class itself. */
-function objectHappyPath(collectionUrl: string, name: string): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  const objUrl = `${collectionUrl}/${name.toLowerCase()}`;
-  const sourceUri = `${objUrl}/source/main`;
-  return (o: HttpClientOptions) => {
-    const qs = (o.qs ?? {}) as Record<string, string>;
-    const method = (o.method ?? "GET").toUpperCase();
-    if (o.url === objUrl && method === "GET" && !qs._action) {
-      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-    }
-    if (o.url === collectionUrl && method === "POST") return resp(200, "", {});
-    if (o.url === objUrl && qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-    if (o.url === objUrl && qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url === sourceUri && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    return undefined;
-  };
-}
-
-const FLUID_PACKAGE_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
-
-const FLUID_PACKAGE_XML =
-  `<?xml version="1.0" encoding="utf-8"?>` +
-  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
-  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
-  `<adtcore:packageRef adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
-  `<pak:superPackage/>` +
-  `</pak:package>`;
-
-/** Session/discovery/activation/classrun plumbing shared by every test below. */
-function sharedRoute(
-  classrun: (o: HttpClientOptions) => HttpClientResponse | undefined,
-): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  return (o: HttpClientOptions) => {
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) return classrun(o);
-    if (o.url.includes(SESSION_URL)) {
-      return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
-    }
-    if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
-    if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
-    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-    if (o.url === FLUID_PACKAGE_URI && (o.method ?? "GET").toUpperCase() === "GET") {
-      return resp(200, FLUID_PACKAGE_XML, { "content-type": "application/xml" });
-    }
-    return undefined;
-  };
-}
-
-function combine(
-  ...routes: Array<(o: HttpClientOptions) => HttpClientResponse | undefined>
-): (o: HttpClientOptions) => HttpClientResponse {
-  return (o: HttpClientOptions) => {
-    for (const r of routes) {
-      const hit = r(o);
-      if (hit) return hit;
-    }
-    throw new Error(`unrouted request: ${(o.method ?? "GET").toUpperCase()} ${o.url}`);
-  };
-}
-
-async function connected(
-  route: (o: HttpClientOptions) => HttpClientResponse,
-): Promise<{ conn: AbapConnection; inner: RecordingClient }> {
-  const inner = new RecordingClient(route);
+async function connected(route: Route): Promise<{ conn: AbapConnection; adt: FakeAdt }> {
+  const adt = new FakeAdt((r) => baseRoute(r) ?? route(r));
   const conn = new AbapConnection(cfg(), {
-    httpClient: inner,
+    httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
     log: () => {},
     breaker: new AuthCircuitBreaker(),
   });
   await conn.connect();
-  inner.calls.length = 0;
-  return { conn, inner };
-}
-
-/** A bare classrun body — see test/package-create.test.ts's identical helper. */
-function classrunOutput(lines: readonly string[]): (o: HttpClientOptions) => HttpClientResponse {
-  const body = lines.join("\n");
-  return () => resp(200, body, { "content-type": "text/plain" });
+  adt.calls.length = 0;
+  return { conn, adt };
 }
 
 const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
@@ -162,28 +111,32 @@ const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
   return e;
 };
 
+beforeEach(() => {
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
 // ---------------------------------------------------------------------------
 // Gates
 // ---------------------------------------------------------------------------
 
 const PKG = "ZTM_TESTPKG";
 
-/** Allows both the bridge class ($ABAPSMITH_FLUID_API) and the package's own name (its container for a delete). */
+/** Allows both the fluid deploy package and the package's own name (its container for a delete). */
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: [DDIC_BRIDGE_PACKAGE, PKG],
-    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE.
+    allowPackages: [FLUID_PACKAGE, PKG],
     allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
 
-/** Allows the bridge class only — the domain gate must refuse the package delete before anything reaches the wire. */
+/** Allows only the fluid tool's own deploy package — the domain gate must refuse first. */
 const bridgeOnlyGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: [DDIC_BRIDGE_PACKAGE],
+    allowPackages: [FLUID_PACKAGE],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
@@ -198,8 +151,12 @@ const LOCAL_PARAMS: PackageDeleteParams = { packageName: PKG, corrNr: "" };
 const objRow = (n: string) => `${PKG_CONTENT_PREFIX} KIND=OBJECT PGMID=R3TR OBJECT=CLAS NAME=${n}`;
 const subpkgRow = (n: string) => `${PKG_CONTENT_PREFIX} KIND=SUBPKG PGMID=R3TR OBJECT=DEVC NAME=${n}`;
 
+const DELETE_METHOD = packagePart.source.slice(
+  packagePart.source.indexOf("METHOD delete_package."),
+);
+
 // ---------------------------------------------------------------------------
-// 1 - parsePackageContents, pure/offline
+// 1 — parsePackageContents, pure/offline (unchanged by the rewire)
 // ---------------------------------------------------------------------------
 
 describe("parsePackageContents", () => {
@@ -235,159 +192,155 @@ describe("parsePackageContents", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2 - packageDeleteFragment: pin the generated ABAP
+// 2 — regression guard: static ABAP source structure (closed template)
 // ---------------------------------------------------------------------------
 
-describe("packageDeleteFragment generates the expected ABAP (closed template — regression guard)", () => {
-  it("transportable: CALL METHOD lo_package->save carries i_transport_request = 'A4HK900123'", () => {
-    const src = packageDeleteFragment(TRANSPORT_PARAMS).join("\n");
-    expect(src).toContain("CALL METHOD lo_package->save");
-    expect(src).toContain("i_transport_request = 'A4HK900123'");
-  });
-
-  it("LOCAL (corrNr ''): CALL METHOD lo_package->save with NO i_transport_request= anywhere", () => {
-    const src = packageDeleteFragment(LOCAL_PARAMS).join("\n");
-    expect(src).toContain("CALL METHOD lo_package->save");
-    expect(src).not.toContain("i_transport_request =");
-  });
-
-  it("calls load_package, set_changeable( abap_true ), delete, and COMMIT WORK — every one of them via CALL METHOD ... EXCEPTIONS", () => {
-    const src = packageDeleteFragment(TRANSPORT_PARAMS).join("\n");
-    expect(src).toContain("CALL METHOD cl_package_factory=>load_package");
-    expect(src).toContain("CALL METHOD lo_package->set_changeable");
-    expect(src).toContain("i_changeable = abap_true");
-    expect(src).toContain("CALL METHOD lo_package->delete");
-    // A golden-string test that pinned "lo_package->if_package~delete( )."
-    // reported green while the generated class failed to activate — pin the
-    // invariant (no IF_PACKAGE~ prefix on an if_package reference), not only
-    // the literal. Same regression guard as test/package-create.test.ts:376.
-    expect(src).not.toContain("if_package~");
-    expect(src).toContain("COMMIT WORK.");
-  });
-
-  it("every CALL METHOD emitted carries an EXCEPTIONS clause — the classic-exception short-dump regression guard", () => {
-    for (const params of [TRANSPORT_PARAMS, LOCAL_PARAMS]) {
-      const lines = packageDeleteFragment(params);
-      // Every CALL METHOD statement (terminated by a lone-period line) must
-      // contain an EXCEPTIONS clause before that terminator.
-      const callIdxs = lines.reduce<number[]>((acc, l, i) => {
-        if (l.trim().startsWith("CALL METHOD")) acc.push(i);
-        return acc;
-      }, []);
-      expect(callIdxs.length).toBeGreaterThan(0);
-      for (const start of callIdxs) {
-        const end = lines.findIndex((l, i) => i >= start && l.trim().endsWith("."));
-        const stmt = lines.slice(start, end + 1).join("\n");
-        expect(stmt).toContain("EXCEPTIONS");
-        expect(stmt).toContain("OTHERS");
-      }
-      // No functional-call syntax survives for the six methods this bridge
-      // touches — a regression here is exactly how the classic-exception short-dump happened.
-      // Comments legitimately mention the OLD functional-call shape to
-      // explain why it's gone (e.g. "the old `lo_package->delete( ).`"), so
-      // this checks CODE ONLY, same filter as the other well-formedness
-      // tests in this file.
-      const codeOnly = lines
-        .filter((l) => !l.trim().startsWith('"'))
-        .join("\n");
-      for (const call of [
-        "lo_package->set_changeable(",
-        "lo_package->delete(",
-        "lo_package->save(",
-        "cl_package_factory=>load_package(",
-      ]) {
-        expect(codeOnly).not.toContain(call);
-      }
+describe("abap-package.ts's delete_package method (closed template — regression guard)", () => {
+  it("every CALL METHOD carries an EXCEPTIONS ... OTHERS clause", () => {
+    const lines = DELETE_METHOD.split("\n");
+    const callIdxs = lines.reduce<number[]>((acc, l, i) => {
+      if (l.trim().startsWith("CALL METHOD")) acc.push(i);
+      return acc;
+    }, []);
+    // load_package, set_changeable, delete, save(local branch), save(transport branch).
+    expect(callIdxs.length).toBe(5);
+    for (const start of callIdxs) {
+      const end = lines.findIndex((l, i) => i >= start && l.trim().endsWith("."));
+      const stmt = lines.slice(start, end + 1).join("\n");
+      expect(stmt).toContain("EXCEPTIONS");
+      expect(stmt).toContain("OTHERS");
     }
   });
 
-  it("emits PKG-EMPTY, PKG-DELETED and PKG-GONE", () => {
-    const lines = packageDeleteFragment(TRANSPORT_PARAMS);
-    for (const tag of ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]) {
-      expect(lines.some((l) => l.includes(`'${tag}'`))).toBe(true);
+  it("no unguarded functional-call syntax survives for load_package/set_changeable/delete/save", () => {
+    const codeOnly = DELETE_METHOD.split("\n")
+      .filter((l) => !l.trim().startsWith('"'))
+      .join("\n");
+    for (const call of [
+      "cl_package_factory=>load_package(",
+      "lo_package->set_changeable(",
+      "lo_package->delete(",
+      "lo_package->save(",
+    ]) {
+      expect(codeOnly).not.toContain(call);
     }
+    expect(DELETE_METHOD).not.toContain("if_package~");
   });
 
-  it("re-reads TDEVC AFTER COMMIT WORK, and raises ZMCP-DDIC-ERR> if the row survives — the only proof delete happened", () => {
-    const lines = packageDeleteFragment(TRANSPORT_PARAMS);
-    const commitIdx = lines.findIndex((l) => l.trim() === "COMMIT WORK.");
-    const reselectIdx = lines.findIndex(
-      (l, i) => i > commitIdx && l.includes("SELECT SINGLE * FROM tdevc"),
-    );
-    const errIdx = lines.findIndex((l) => l.includes(DDIC_ERR_PREFIX) && l.includes("still exists"));
-    const goneIdx = lines.findIndex((l) => l.includes("'PKG-GONE'"));
-    expect(commitIdx).toBeGreaterThanOrEqual(0);
-    expect(reselectIdx).toBeGreaterThan(commitIdx);
+  it("the save call branches on lv_corr_nr IS INITIAL — only the ELSE branch carries i_transport_request", () => {
+    const guardIdx = DELETE_METHOD.indexOf("IF lv_corr_nr IS INITIAL.");
+    const elseIdx = DELETE_METHOD.indexOf("ELSE.", guardIdx);
+    const endIdx = DELETE_METHOD.indexOf("ENDIF.", elseIdx);
+    expect(guardIdx).toBeGreaterThan(-1);
+    const ifBranch = DELETE_METHOD.slice(guardIdx, elseIdx);
+    const elseBranch = DELETE_METHOD.slice(elseIdx, endIdx);
+    expect(ifBranch).not.toContain("i_transport_request");
+    expect(elseBranch).toContain("i_transport_request = lv_corr_nr");
+    // exactly one save call is a functional-call-free CALL METHOD in each branch
+    expect(ifBranch).toContain("CALL METHOD lo_package->save");
+    expect(elseBranch).toContain("CALL METHOD lo_package->save");
+  });
+
+  it("emits PKG-EMPTY, PKG-DELETED, PKG-GONE, in that source order", () => {
+    // The method also emits ZMCP-PKG-CONTENT-TRUNCATED> lines (content-evidence
+    // gathering) via the same line(...) call — filter down to the three
+    // milestone status tags this test cares about.
+    const tags = [...DELETE_METHOD.matchAll(/line\(\s*'([^']+)'\s*\)/g)]
+      .map((m) => m[1]!)
+      .filter((t) => t === "PKG-EMPTY" || t === "PKG-DELETED" || t === "PKG-GONE");
+    expect(tags).toEqual(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]);
+  });
+
+  it("re-reads TDEVC strictly AFTER COMMIT WORK, and fails if the row still exists — the only proof delete happened", () => {
+    const commitIdx = DELETE_METHOD.indexOf("COMMIT WORK.");
+    const deletedTagIdx = DELETE_METHOD.indexOf("line( 'PKG-DELETED' )");
+    const reselectIdx = DELETE_METHOD.indexOf("SELECT SINGLE * FROM tdevc", deletedTagIdx);
+    const errIdx = DELETE_METHOD.indexOf("still exists");
+    const goneIdx = DELETE_METHOD.indexOf("line( 'PKG-GONE' )");
+    expect(commitIdx).toBeGreaterThan(-1);
+    expect(deletedTagIdx).toBeGreaterThan(commitIdx);
+    expect(reselectIdx).toBeGreaterThan(deletedTagIdx);
     expect(errIdx).toBeGreaterThan(reselectIdx);
     expect(goneIdx).toBeGreaterThan(errIdx);
   });
 
-  it('every comment uses " — never a *-style comment (only legal in column 1; the generator indents)', () => {
-    for (const params of [TRANSPORT_PARAMS, LOCAL_PARAMS]) {
-      const lines = packageDeleteFragment(params);
-      const starComments = lines.filter((l) => l.trim().startsWith("*"));
-      expect(starComments).toEqual([]);
-      // Not vacuous — there genuinely are comment lines to check.
-      expect(lines.some((l) => l.trim().startsWith('"'))).toBe(true);
-    }
+  it("a non-empty package's content query stops BEFORE cl_package_factory is ever touched", () => {
+    const guardIdx = DELETE_METHOD.indexOf("IF lv_content_count > 0.");
+    const returnIdx = DELETE_METHOD.indexOf("RETURN.", guardIdx);
+    const loadIdx = DELETE_METHOD.indexOf("CALL METHOD cl_package_factory=>load_package");
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(returnIdx).toBeGreaterThan(guardIdx);
+    expect(loadIdx).toBeGreaterThan(returnIdx);
   });
 
-  it("interpolates the package name and TRKORR where expected, and nowhere else when unset", () => {
-    const a = packageDeleteFragment({ packageName: "ZTM_ALPHA", corrNr: "A4HK900111" }).join("\n");
-    const b = packageDeleteFragment({ packageName: "ZTM_BETA", corrNr: "A4HK900222" }).join("\n");
-    expect(a).toContain("'ZTM_ALPHA'");
-    expect(a).toContain("A4HK900111");
-    expect(a).not.toContain("ZTM_BETA");
-    expect(a).not.toContain("A4HK900222");
-    expect(b).toContain("'ZTM_BETA'");
-    expect(b).toContain("A4HK900222");
-    const local = packageDeleteFragment(LOCAL_PARAMS).join("\n");
-    expect(local).toContain(`'${PKG}'`);
+  it("the package's own R3TR DEVC row in TADIR is excluded from the content evidence, but a same-named object is not otherwise special-cased", () => {
+    expect(DELETE_METHOD).toContain("ls_tadir-pgmid = 'R3TR' AND ls_tadir-object = 'DEVC' AND ls_tadir-obj_name = lv_package");
   });
 
-  it("accepts a $-prefixed local package name, quoted correctly in the generated ABAP", () => {
-    const src = packageDeleteFragment({ packageName: "$ZTMD_PKG_01", corrNr: "" }).join("\n");
-    expect(src).toContain("SELECT SINGLE * FROM tdevc INTO @ls_tdevc WHERE devclass = '$ZTMD_PKG_01'.");
+  it('every comment line uses " — never a *-style comment', () => {
+    const starComments = DELETE_METHOD.split("\n").filter((l) => l.trim().startsWith("*"));
+    expect(starComments).toEqual([]);
+    expect(DELETE_METHOD.split("\n").some((l) => l.trim().startsWith('"'))).toBe(true);
+  });
+
+  it("is pure ASCII", () => {
+    expect(/[^\x00-\x7F]/.test(DELETE_METHOD)).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 3 - input validation, refused before any network call
+// 3 — wire-content: the invoker's JSON payload carries the caller's args unmangled
+// ---------------------------------------------------------------------------
+
+describe("the invoker's JSON payload carries the caller's exact package_name/corr_nr", () => {
+  it("transportable delete", async () => {
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn } = await connected(fake.route);
+    await deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS);
+    const src = fake.sourceOf(fake.invoker()!);
+    const payload = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join("");
+    expect(payload).toBe(canonicalArgsJson({ package_name: PKG, corr_nr: "A4HK900123" }));
+  });
+
+  it("local delete (corr_nr empty string)", async () => {
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn } = await connected(fake.route);
+    await deletePackageViaBridge(conn, allowingGate(), LOCAL_PARAMS);
+    const src = fake.sourceOf(fake.invoker()!);
+    const payload = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join("");
+    expect(payload).toBe(canonicalArgsJson({ package_name: PKG, corr_nr: "" }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4 — input validation, refused before any network call
 // ---------------------------------------------------------------------------
 
 describe("input validation is refused before any network call", () => {
   const offline = null as unknown as AbapConnection;
 
-  it("a bad package name is refused, zero HTTP calls implied (offline conn)", async () => {
-    const err = await catchErr(
-      deletePackageViaBridge(offline, allowingGate(), { packageName: "1BAD", corrNr: "" }),
-    );
+  it("a bad package name is refused", async () => {
+    const err = await catchErr(deletePackageViaBridge(offline, allowingGate(), { packageName: "1BAD", corrNr: "" }));
     expect(err.code).toBe("BAD_INPUT");
   });
 
   it("a package name longer than 30 characters is refused", async () => {
-    const tooLong = `Z${"A".repeat(30)}`; // 31 characters
-    const err = await catchErr(
-      deletePackageViaBridge(offline, allowingGate(), { packageName: tooLong, corrNr: "" }),
-    );
+    const tooLong = `Z${"A".repeat(30)}`;
+    const err = await catchErr(deletePackageViaBridge(offline, allowingGate(), { packageName: tooLong, corrNr: "" }));
     expect(err.code).toBe("BAD_INPUT");
     expect(err.message).toContain("30");
   });
 
   it("refuses a package name containing a quote, period, or embedded newline — the ABAP-injection guard", async () => {
     for (const bad of ["ZTM'FOO", "ZTM.FOO", "ZTM\nFOO"]) {
-      const err = await catchErr(
-        deletePackageViaBridge(offline, allowingGate(), { packageName: bad, corrNr: "" }),
-      );
+      const err = await catchErr(deletePackageViaBridge(offline, allowingGate(), { packageName: bad, corrNr: "" }));
       expect(err.code).toBe("BAD_INPUT");
     }
   });
 
   it("still refuses a bare $ or $$-prefixed name — allowLocal strips only ONE leading $", async () => {
     for (const bad of ["$", "$$", "$$X"]) {
-      const err = await catchErr(
-        deletePackageViaBridge(offline, allowingGate(), { packageName: bad, corrNr: "" }),
-      );
+      const err = await catchErr(deletePackageViaBridge(offline, allowingGate(), { packageName: bad, corrNr: "" }));
       expect(err.code).toBe("BAD_INPUT");
     }
   });
@@ -400,131 +353,99 @@ describe("input validation is refused before any network call", () => {
     expect(err.message).toContain("corr_nr");
   });
 
-  it('corrNr: "" is legal (local delete, no transport) — it is not the thing rejected above', async () => {
-    expect(() => packageDeleteFragment({ packageName: PKG, corrNr: "" })).not.toThrow();
+  it('corrNr: "" is legal (local delete, no transport) — validation alone does not throw for it', async () => {
+    const err = await catchErr(deletePackageViaBridge(offline, allowingGate(), { packageName: "1BAD", corrNr: "" }));
+    // still throws — but for the package name, not for corrNr; confirm corrNr "" alone survives assertOptionalCorrNr.
+    expect(err.message).not.toContain("corr_nr");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 4 - safety gate: asserted as "delete" on the DOMAIN object, zero-network
+// 5 — safety gate: asserted as "delete" on the domain object, zero-network
 // ---------------------------------------------------------------------------
 
 describe("safety gate — asserted as a delete on the domain object, and runs FIRST (zero-network)", () => {
   it("gate.assert sees op 'delete' with type DEVC/K and the package's own name", async () => {
-    const seen: Array<{ op: string; type?: string; name?: string }> = [];
+    const seen: string[] = [];
     class RecordingGate extends SafetyGate {
-      override assert(
-        op: Parameters<SafetyGate["assert"]>[0],
-        obj?: Parameters<SafetyGate["assert"]>[1],
-        opts?: Parameters<SafetyGate["assert"]>[2],
-      ): void {
-        if (obj?.type === "DEVC/K") seen.push({ op, type: obj.type, name: obj.name });
+      override assert(op: Operation, obj?: SafetyTarget, opts?: EvaluateOptions): void {
+        if (obj?.type === "DEVC/K" && obj.name === PKG) seen.push(op);
         super.assert(op, obj, opts);
       }
     }
     const gate = new RecordingGate({
       readOnly: false,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, PKG],
+      allowPackages: [FLUID_PACKAGE, PKG],
       allowNamePrefixes: ["*"],
       allowTransports: ["*"],
       writesLockedOut: false,
     });
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"])),
-    );
-    const { conn } = await connected(route);
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn } = await connected(fake.route);
     await deletePackageViaBridge(conn, gate, TRANSPORT_PARAMS);
-    expect(seen).toEqual([
-      { op: "delete", type: "DEVC/K", name: PKG },
-      { op: "write", type: "DEVC/K", name: DDIC_BRIDGE_PACKAGE },
-    ]);
+    expect(seen).toEqual(["delete"]);
   });
 
-  it("a gate that refuses the package name refuses the whole call with ZERO HTTP requests — the refusal is the gate's own", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"])),
-    );
-    const { conn, inner } = await connected(route);
+  it("a gate that refuses the package name refuses the whole call with ZERO HTTP requests", async () => {
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn, adt } = await connected(fake.route);
     const err = await catchErr(deletePackageViaBridge(conn, bridgeOnlyGate(), TRANSPORT_PARAMS));
     expect(err.code).toBe("SAFETY_DENIED");
-    expect(inner.calls.length).toBe(0);
+    expect(adt.calls.length).toBe(0);
   });
 
   it("a readOnly gate refuses too, zero requests made", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"])),
-    );
-    const { conn, inner } = await connected(route);
-    const readOnly = new SafetyGate({
-      readOnly: true,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, PKG],
-      writesLockedOut: false,
-    });
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn, adt } = await connected(fake.route);
+    const readOnly = new SafetyGate({ readOnly: true, allowPackages: [FLUID_PACKAGE, PKG], writesLockedOut: false });
     const err = await catchErr(deletePackageViaBridge(conn, readOnly, TRANSPORT_PARAMS));
     expect(err).toBeTruthy();
-    expect(inner.calls.length).toBe(0);
+    expect(adt.calls.length).toBe(0);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 5 - happy path, transportable and LOCAL
+// 6 — happy path, transportable and LOCAL
 // ---------------------------------------------------------------------------
 
 describe("deletePackageViaBridge happy path", () => {
   it("transportable: PKG-EMPTY, PKG-DELETED, PKG-GONE resolves, contents is empty", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"])),
-    );
-    const { conn, inner } = await connected(route);
-    const { transcript, contents, truncated } = await deletePackageViaBridge(
-      conn,
-      allowingGate(),
-      TRANSPORT_PARAMS,
-    );
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn, adt } = await connected(fake.route);
+    const { transcript, contents, truncated } = await deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS);
     expect(transcript.tags).toEqual(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]);
     expect(transcript.errorLine).toBeUndefined();
     expect(contents).toEqual([]);
     expect(truncated).toBe(false);
-    expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
+    expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
   });
 
-  it("LOCAL (corrNr: ''): also resolves, and the source PUT over the wire carries a bare save( ) with no transport", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"])),
-    );
-    const { conn, inner } = await connected(route);
+  it("LOCAL (corrNr: ''): also resolves", async () => {
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn } = await connected(fake.route);
     const { contents } = await deletePackageViaBridge(conn, allowingGate(), LOCAL_PARAMS);
     expect(contents).toEqual([]);
-
-    const sourceUri = `${CLASS_COLLECTION}/${BRIDGE.toLowerCase()}/source/main`;
-    const put = inner.calls.find((c) => (c.method ?? "").toUpperCase() === "PUT" && c.url === sourceUri);
-    const body = String(put?.body);
-    expect(body).toContain("CALL METHOD lo_package->save");
-    expect(body).not.toContain("i_transport_request =");
   });
 
-  it("PACKAGE_DELETE_DATA_LINES declares the locals the fragment relies on", () => {
-    expect(PACKAGE_DELETE_DATA_LINES).toContain("ls_tdevc            TYPE tdevc.");
-    expect(PACKAGE_DELETE_DATA_LINES).toContain("lo_package          TYPE REF TO if_package.");
+  it("an identical repeat call issues no second invoker PUT", async () => {
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn, adt } = await connected(fake.route);
+    await deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS);
+    const before = adt.calls.length;
+    await deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS);
+    const putsAfterSecond = adt.calls.slice(before).filter((c) => (c.method ?? "").toUpperCase() === "PUT");
+    expect(putsAfterSecond).toEqual([]);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 6 - non-empty refusal: the most important behavioural test
+// 7 — non-empty refusal: the most important behavioural test
 // ---------------------------------------------------------------------------
 
 describe("a non-empty package is refused, naming what it still contains — not a generic missing-tag error", () => {
   it("a transcript reporting contents (never reaching PKG-EMPTY) throws CHECK_FAILED naming the objects found", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput([objRow("ZCL_KEPT"), subpkgRow("ZTM_CHILD")])),
-    );
-    const { conn } = await connected(route);
+    const fake = classicFake({ action: "delete_package", lines: () => [objRow("ZCL_KEPT"), subpkgRow("ZTM_CHILD")] });
+    const { conn } = await connected(fake.route);
     const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
     expect(err.message).toContain("ZCL_KEPT");
@@ -532,13 +453,11 @@ describe("a non-empty package is refused, naming what it still contains — not 
   });
 
   it("the truncation case still refuses (not a false 'looks small enough' pass)", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput([objRow("ZCL_KEPT"), "ZMCP-PKG-CONTENT-TRUNCATED> SOURCE=TADIR"]),
-      ),
-    );
-    const { conn } = await connected(route);
+    const fake = classicFake({
+      action: "delete_package",
+      lines: () => [objRow("ZCL_KEPT"), "ZMCP-PKG-CONTENT-TRUNCATED> SOURCE=TADIR"],
+    });
+    const { conn } = await connected(fake.route);
     const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
     expect(err.message).toContain("ZCL_KEPT");
@@ -546,33 +465,24 @@ describe("a non-empty package is refused, naming what it still contains — not 
 });
 
 // ---------------------------------------------------------------------------
-// 7 - ZMCP-DDIC-ERR> propagation
+// 8 — ZMCP-DDIC-ERR> propagation
 // ---------------------------------------------------------------------------
 
 describe("ZMCP-DDIC-ERR> lines propagate as errors carrying the ABAP-side message", () => {
   it("the package does not exist", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput([`${DDIC_ERR_PREFIX} package ${PKG} does not exist`])),
-    );
-    const { conn } = await connected(route);
+    const fake = classicFake({ action: "delete_package", lines: () => [`${DDIC_ERR_PREFIX} package ${PKG} does not exist`] });
+    const { conn } = await connected(fake.route);
     const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
     expect(err.message).toContain(`package ${PKG} does not exist`);
   });
 
   it("the post-COMMIT TDEVC row survives", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput([
-          "PKG-EMPTY",
-          "PKG-DELETED",
-          `${DDIC_ERR_PREFIX} delete of ${PKG} reported no error but the TDEVC row still exists`,
-        ]),
-      ),
-    );
-    const { conn } = await connected(route);
+    const fake = classicFake({
+      action: "delete_package",
+      lines: () => ["PKG-EMPTY", "PKG-DELETED", `${DDIC_ERR_PREFIX} delete of ${PKG} reported no error but the TDEVC row still exists`],
+    });
+    const { conn } = await connected(fake.route);
     const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
     expect(err.message).toContain("TDEVC row still exists");
@@ -580,85 +490,34 @@ describe("ZMCP-DDIC-ERR> lines propagate as errors carrying the ABAP-side messag
 });
 
 // ---------------------------------------------------------------------------
-// 8 - classic-exception regression: a locked package's classic exception must NOT dump
+// 9 — classic-exception regression: a locked package's classic exception must NOT dump
 // ---------------------------------------------------------------------------
 
 describe("a classic exception on set_changeable no longer short-dumps and destroys the transcript", () => {
-  it("subrcGuardFragment emits an IF sy-subrc <> 0 guard with NO trailing SUCCESS-tag write (it does write the error line itself)", () => {
-    const lines = subrcGuardFragment("Making package changeable");
-    expect(lines[0]).toBe("IF sy-subrc <> 0.");
-    expect(lines.some((l) => l.includes("Making package changeable failed"))).toBe(true);
-    expect(lines.some((l) => l.includes("sy-subrc"))).toBe(true);
-    expect(lines[lines.length - 1]).toBe("ENDIF.");
-    // The block DOES write the interpolated ZMCP-DDIC-ERR> failure line
-    // (that's the whole point) — what it must NOT do is write a bare
-    // single-quoted success tag the way subrcCheckFragment's extra line does.
-    expect(lines.some((l) => /out->write\(\s*'/.test(l))).toBe(false);
-  });
-
-  it("subrcGuardFragment rejects a step name that is not plain text", () => {
-    expect(() => subrcGuardFragment("bad; DROP TABLE")).toThrow();
-    expect(() => subrcGuardFragment("also bad\nwith a newline")).toThrow();
-    try {
-      subrcGuardFragment("also bad\nwith a newline");
-      throw new Error("expected a throw");
-    } catch (e) {
-      expect(isAbapError(e) && e.code).toBe("CHECK_FAILED");
-    }
-  });
-
-  it("subrcCheckFragment's existing output is unchanged by the refactor: same guard plus one trailing tag write", () => {
-    const guard = subrcGuardFragment("Loading package");
-    const checked = subrcCheckFragment("Loading package", "PKG-EMPTY");
-    expect(checked.slice(0, guard.length)).toEqual(guard);
-    expect(checked[checked.length - 1]).toBe("out->write( 'PKG-EMPTY' ).");
-    expect(checked.length).toBe(guard.length + 1);
-  });
-
-  it("subrcCheckFragment still rejects an undeclared tag", () => {
-    const notATag = "NOT-A-TAG" as unknown as Parameters<typeof subrcCheckFragment>[1];
-    expect(() => subrcCheckFragment("Loading package", notATag)).toThrow();
-  });
-
-  it("a synthetic transcript with PKG-EMPTY then a set_changeable ZMCP-DDIC-ERR> line parses as a clean CHECK_FAILED that STILL carries the PKG-EMPTY evidence — the regression test for the dump that destroyed it live", () => {
-    // This is exactly the shape this fix addresses: step 3 already wrote PKG-EMPTY
-    // (the package was confirmed empty) before step 4's set_changeable hit a
-    // classic exception. Before this fix that exception short-dumped and
-    // the caller never saw ANY of this — not even the emptiness evidence.
-    const raw = [
-      "PKG-EMPTY",
-      `${DDIC_ERR_PREFIX} ${SET_CHANGEABLE_STEP} failed, sy-subrc=1, `,
-    ].join("\n");
+  it("a synthetic transcript with PKG-EMPTY then a set_changeable ZMCP-DDIC-ERR> line parses as a clean failure that STILL carries the PKG-EMPTY evidence — the regression test for the dump that destroyed it live", () => {
+    const raw = ["PKG-EMPTY", `${DDIC_ERR_PREFIX} ${SET_CHANGEABLE_STEP} failed, sy-subrc=1, `].join("\n");
     const transcript = parseDdicTranscript(raw);
-    // The evidence survives being turned into an error: it's still sitting
-    // right there in tags/raw, never wiped out by the failure.
     expect(transcript.tags).toContain("PKG-EMPTY");
     expect(transcript.errorLine).toContain(`${SET_CHANGEABLE_STEP} failed`);
     expect(transcript.raw).toContain("PKG-EMPTY");
   });
 
   it("deletePackageViaBridge's beforeAssert turns exactly that transcript into a CHECK_FAILED naming the lock as a LIKELY (not confirmed) cause, and echoes the raw ABAP-side detail", async () => {
-    const raw = [
-      "PKG-EMPTY",
-      `${DDIC_ERR_PREFIX} ${SET_CHANGEABLE_STEP} failed, sy-subrc=1, `,
-    ].join("\n");
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(raw.split("\n"))));
-    const { conn } = await connected(route);
+    const raw = ["PKG-EMPTY", `${DDIC_ERR_PREFIX} ${SET_CHANGEABLE_STEP} failed, sy-subrc=1, `];
+    const fake = classicFake({ action: "delete_package", lines: () => raw });
+    const { conn } = await connected(fake.route);
     const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
-    // Never asserted as fact — only ever as a likely / possible cause.
     expect(err.message).toMatch(/likely|not confirmed/i);
     expect(err.message).toContain("SM12");
     expect(err.message).toContain(PKG);
-    // The raw ABAP-side detail (including the PKG-EMPTY-adjacent failure) is
-    // still surfaced, not swallowed by the friendlier wording layered on top.
     expect(err.message).toContain(`${SET_CHANGEABLE_STEP} failed`);
   });
 
   it("a classic exception on a DIFFERENT step (not set_changeable) still surfaces as a plain CHECK_FAILED, not the lock-specific message", async () => {
-    const raw = ["PKG-EMPTY", `${DDIC_ERR_PREFIX} Deleting package failed, sy-subrc=1, `].join("\n");
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(raw.split("\n"))));
-    const { conn } = await connected(route);
+    const raw = ["PKG-EMPTY", `${DDIC_ERR_PREFIX} Deleting package failed, sy-subrc=1, `];
+    const fake = classicFake({ action: "delete_package", lines: () => raw });
+    const { conn } = await connected(fake.route);
     const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
     expect(err.message).not.toContain("SM12");

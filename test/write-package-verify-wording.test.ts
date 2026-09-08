@@ -11,12 +11,13 @@
  * ZCL_ZMCP_DDIC_CPKG deploy/classrun choreography), then the repository
  * search that decides whether the create is trusted.
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import type {
   HttpClient,
   HttpClientOptions,
   HttpClientResponse,
 } from "abap-adt-api/build/AdtHTTP.js";
+import { rm } from "node:fs/promises";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { ConfigSchema, type Config } from "../src/config.js";
@@ -25,21 +26,16 @@ import { abapWrite } from "../src/tools/write.js";
 import { SafetyGate } from "../src/safety.js";
 import { SessionTransport } from "../src/adt/session-transport.js";
 import type { TrRequirement } from "../src/adt/transports.js";
-import { DDIC_BRIDGE_CLASS, DDIC_BRIDGE_PACKAGE } from "../src/adt/ddic-bridge.js";
+import { DDIC_BRIDGE_PACKAGE } from "../src/adt/ddic-bridge.js";
 import { verifyViaRepositorySearch } from "../src/adt/write-verify.js";
 import { searchResultsXml } from "./helpers/fake-adt.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 const PKG = "ZTM_TESTPKG";
 const PKG_URI = "/sap/bc/adt/packages/ztm_testpkg";
 const PARENT = "ZTM";
 const TRKORR = "A4HK900123";
-
-const CREATE_BRIDGE_CLASS = DDIC_BRIDGE_CLASS.createPackage;
-const CLASSES_COLLECTION = "/sap/bc/adt/oo/classes";
-const CREATE_BRIDGE_URI = `${CLASSES_COLLECTION}/${CREATE_BRIDGE_CLASS.toLowerCase()}`;
-const CREATE_BRIDGE_SOURCE_URI = `${CREATE_BRIDGE_URI}/source/main`;
-const CREATE_BRIDGE_CLASSRUN_URI = `/sap/bc/adt/oo/classrun/${CREATE_BRIDGE_CLASS}`;
 
 interface Recorded {
   label: string;
@@ -56,7 +52,6 @@ const resp = (
 ): HttpClientResponse =>
   ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
 
-const OK_TEXT = { "content-type": "text/plain" };
 const OK_XML = { "content-type": "application/xml" };
 const LOGIN_HEADERS = { "content-type": "application/xml", "x-csrf-token": "TOKEN123" };
 
@@ -81,6 +76,11 @@ class FakeAdt implements HttpClient {
   }
 }
 
+const fluidState = useFluidState();
+afterAll(async () => {
+  await rm(fluidState.dir(), { recursive: true, force: true });
+});
+
 const cfg = (): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
@@ -89,6 +89,7 @@ const cfg = (): Config =>
     sid: "A4H",
     client: "001",
     readOnly: false,
+    stateDir: fluidState.dir(),
   });
 
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
@@ -165,43 +166,9 @@ const gate = (): SafetyGate =>
     writesLockedOut: false,
   });
 
-const BRIDGE_LOCK_XML =
-  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
-  `<LOCK_HANDLE>H1</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
-  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
-  `</DATA></asx:values></asx:abap>`;
-
 /** The package does not exist yet: authorizeMutation's own GET on its URI. */
 const packageMissingRoute: Route = (r) =>
   r.url === PKG_URI && r.method === "GET" ? resp(404, NOT_FOUND_XML, OK_XML) : undefined;
-
-const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
-const FLUID_PACKAGE_XML =
-  `<?xml version="1.0" encoding="utf-8"?>` +
-  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
-  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
-  `<adtcore:packageRef adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
-  `<pak:superPackage/>` +
-  `</pak:package>`;
-
-/** GET-404 -> POST-create -> LOCK -> PUT -> UNLOCK -> activate for the CREATE bridge class itself. */
-const bridgeDeployRoute: Route = (r) => {
-  if (r.url === CREATE_BRIDGE_URI && r.method === "GET" && !r.qs._action)
-    return resp(404, NOT_FOUND_XML, OK_XML);
-  if (r.url === CLASSES_COLLECTION && r.method === "POST") return resp(200, "", {});
-  if (r.url === CREATE_BRIDGE_URI && r.qs._action === "LOCK") return resp(200, BRIDGE_LOCK_XML, OK_XML);
-  if (r.url === CREATE_BRIDGE_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-  if (r.url === CREATE_BRIDGE_SOURCE_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
-  if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-  if (r.url === FLUID_PKG_URI && r.method === "GET") return resp(200, FLUID_PACKAGE_XML, OK_XML);
-  return undefined;
-};
-
-/** Classrun executes the deployed bridge class and answers with a transcript body. */
-const bridgeClassrunRoute =
-  (transcript: string): Route =>
-  (r) =>
-    r.url === CREATE_BRIDGE_CLASSRUN_URI ? resp(200, transcript, OK_TEXT) : undefined;
 
 function combineRoutes(...routes: Route[]): Route {
   return (r) => {
@@ -215,7 +182,7 @@ function combineRoutes(...routes: Route[]): Route {
 
 // A super package is passed (PARENT), so all three tags are expected — see
 // createPackageViaBridge in src/adt/package-create.ts.
-const SUCCESS_TRANSCRIPT = ["PKG-CREATED", "PKG-PARENT-SET", "PKG-CONFIRMED"].join("\n");
+const SUCCESS_LINES = ["PKG-CREATED", "PKG-PARENT-SET", "PKG-CONFIRMED"];
 
 const searchRoute =
   (hits: readonly { name: string; type: string; uri: string }[]): Route =>
@@ -228,7 +195,11 @@ const searchMiss = searchRoute([]);
 const searchHit = searchRoute([{ name: PKG, type: "DEVC/K", uri: PKG_URI }]);
 
 const fullRoute = (search: Route): Route =>
-  combineRoutes(packageMissingRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT), search);
+  combineRoutes(
+    packageMissingRoute,
+    classicFake({ action: "create_package", lines: () => SUCCESS_LINES }).route,
+    search,
+  );
 
 const createInput = {
   object: PKG,

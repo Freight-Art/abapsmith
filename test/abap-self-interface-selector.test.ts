@@ -46,10 +46,9 @@ import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { SafetyGate } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
-import { packageFragment, PACKAGE_DATA_LINES, type PackageBridgeParams } from "../src/adt/package-create.js";
-import { ddicBridgeSource, DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
-import { classicViewFragment, type ClassicViewParams } from "../src/adt/view-create.js";
-import { transactionFragment, type TransactionParams } from "../src/adt/tran-create.js";
+import { packagePart } from "../src/adt/fluid/builtin/classic/abap-package.js";
+import { viewPart } from "../src/adt/fluid/builtin/classic/abap-view.js";
+import { tranPart } from "../src/adt/fluid/builtin/classic/abap-tran.js";
 import { exerciseFragment, type ExerciseParams } from "../src/adt/enhancement-templates.js";
 import {
   BRIDGE_CLASS,
@@ -98,7 +97,14 @@ interface SelfInterfaceScan {
  * coverage of the emitted ABAP at all).
  */
 function scanForSelfInterfaceSelector(source: string): SelfInterfaceScan {
-  const declRe = /\b([A-Za-z_]\w*)\s+TYPE\s+REF\s+TO\s+([A-Za-z_][\w/]*)\s*\./gi;
+  // Terminator is `.` OR `,` — the classic fluid tool's static ABAP parts
+  // (src/adt/fluid/builtin/classic/*.ts) declare locals SAP's usual chained
+  // way, `DATA: a TYPE x, b TYPE REF TO y, c TYPE z.`, where every field but
+  // the last ends in a comma, not a period. A period-only terminator is
+  // blind to `lo_package TYPE REF TO if_package,` in exactly that shape —
+  // the live incident's own declaration, re-hidden by a different ABAP
+  // formatting convention than the old per-call fragment generators used.
+  const declRe = /\b([A-Za-z_]\w*)\s+TYPE\s+REF\s+TO\s+([A-Za-z_][\w/]*)\s*[.,]/gi;
   const declarations = new Map<string, string>(); // lowercase var -> declared interface, original case
   let declarationCount = 0;
   for (const m of source.matchAll(declRe)) {
@@ -187,6 +193,18 @@ describe("scanForSelfInterfaceSelector", () => {
     expect(scanForSelfInterfaceSelector(src).hits).toHaveLength(1);
   });
 
+  it("a comma-terminated field inside a 'DATA: a, b TYPE REF TO iface, c.' chain declaration is still caught — the exact shape src/adt/fluid/builtin/classic/abap-package.ts uses for lo_package", () => {
+    const src = [
+      "DATA: ls_data TYPE scompkdtln,",
+      "      lo_package TYPE REF TO if_package,",
+      "      ls_tdevc TYPE tdevc.",
+      "lo_package->if_package~save( ).",
+    ].join("\n");
+    const { hits } = scanForSelfInterfaceSelector(src);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ variable: "lo_package", interfaceName: "if_package" });
+  });
+
   it("counts declarations even when there is nothing to flag — proves the scan isn't just returning empty because it saw nothing", () => {
     const src = "DATA lo_x TYPE REF TO if_y.\nlo_x->save( ).";
     expect(scanForSelfInterfaceSelector(src).declarationCount).toBe(1);
@@ -197,36 +215,6 @@ describe("scanForSelfInterfaceSelector", () => {
 // 1 — the emitted ABAP: call the real generators, check what they produce
 // ---------------------------------------------------------------------------
 
-const PACKAGE_ROOT: PackageBridgeParams = {
-  packageName: "ZTM_ROOTPKG",
-  description: "Root package",
-  softwareComponent: "HOME",
-  corrNr: "A4HK900123",
-};
-
-const PACKAGE_SUB: PackageBridgeParams = {
-  ...PACKAGE_ROOT,
-  packageName: "ZTM_SUBPKG",
-  superPackage: "ZTM",
-};
-
-const VIEW_PARAMS: ClassicViewParams = {
-  viewName: "ZTM_V_CARRIER",
-  baseTable: "SCARR",
-  fields: ["CARRID", "CARRNAME"],
-  description: "Test view",
-  packageName: "ZTM",
-  corrNr: "A4HK900121",
-};
-
-const TRAN_PARAMS: TransactionParams = {
-  tcode: "ZTM_CARRIERS",
-  program: "SAPMZTM_CARRIERS",
-  description: "Test transaction",
-  packageName: "ZTM",
-  corrNr: "A4HK900121",
-};
-
 const EXERCISE_PARAMS: ExerciseParams = {
   badiName: "ZMCP_BADI",
   methodName: "DO_SOMETHING",
@@ -234,32 +222,32 @@ const EXERCISE_PARAMS: ExerciseParams = {
 };
 
 describe("emitted ABAP — pure fragment generators, called directly (no live connection needed)", () => {
-  it("packageFragment: root and sub-package shapes — the EXACT site of the live self-interface-selector bug", () => {
-    // ddicBridgeSource is what actually joins PACKAGE_DATA_LINES's `DATA
-    // lo_package TYPE REF TO if_package.` to packageFragment's body — the
-    // same assembly `createPackageViaBridge` sends over the wire (see
-    // test/package-create.test.ts's `sourceFor`). Fragment-only source has
-    // no DATA declarations at all (they live in PACKAGE_DATA_LINES).
-    const fullSource = (p: PackageBridgeParams): string =>
-      ddicBridgeSource(DDIC_BRIDGE_CLASS.createPackage, PACKAGE_DATA_LINES, packageFragment(p));
-    assertNoSelfInterfaceSelectorHits(fullSource(PACKAGE_ROOT), "packageFragment(root)");
-    assertNoSelfInterfaceSelectorHits(fullSource(PACKAGE_SUB), "packageFragment(sub)");
+  // packageFragment/classicViewFragment/transactionFragment (and the
+  // ddicBridgeSource/DDIC_BRIDGE_CLASS/PACKAGE_DATA_LINES assembly they used)
+  // are gone: S3 moved create_package/create_view/create_transaction onto
+  // the fluid `classic` tool, whose ABAP is one static `ClassicAbapPart`
+  // per operation family (src/adt/fluid/builtin/classic/*.ts) with no
+  // per-call assembly step — every caller value is read at runtime via
+  // scan()/s()/b()/n(), never spliced into source text, so there is no
+  // longer a per-call "emitted ABAP" distinct from the part's own literal
+  // `.source` string. That string is what actually ships now; scanning it
+  // directly is the direct replacement and remains the exact site of the
+  // live incident this file guards (`packagePart.source` below).
+  it("packagePart.source: root and sub-package create/delete — the EXACT site of the live self-interface-selector bug", () => {
+    assertNoSelfInterfaceSelectorHits(packagePart.source, "packagePart.source");
     // Not vacuous: lo_package really is declared TYPE REF TO if_package here.
-    const src = fullSource(PACKAGE_SUB);
-    expect(src).toContain("TYPE REF TO if_package");
-    expect(scanForSelfInterfaceSelector(src).declarationCount).toBeGreaterThan(0);
+    expect(packagePart.source).toContain("TYPE REF TO if_package");
+    expect(scanForSelfInterfaceSelector(packagePart.source).declarationCount).toBeGreaterThan(0);
   });
 
-  it("classicViewFragment: no TYPE REF TO in this generator at all — checked, nothing to guard", () => {
-    const src = classicViewFragment(VIEW_PARAMS).join("\n");
-    assertNoSelfInterfaceSelectorHits(src, "classicViewFragment");
-    expect(scanForSelfInterfaceSelector(src).declarationCount).toBe(0);
+  it("viewPart.source: no TYPE REF TO in this part at all — checked, nothing to guard", () => {
+    assertNoSelfInterfaceSelectorHits(viewPart.source, "viewPart.source");
+    expect(scanForSelfInterfaceSelector(viewPart.source).declarationCount).toBe(0);
   });
 
-  it("transactionFragment: no TYPE REF TO in this generator at all — checked, nothing to guard", () => {
-    const src = transactionFragment(TRAN_PARAMS).join("\n");
-    assertNoSelfInterfaceSelectorHits(src, "transactionFragment");
-    expect(scanForSelfInterfaceSelector(src).declarationCount).toBe(0);
+  it("tranPart.source: no TYPE REF TO in this part at all — checked, nothing to guard", () => {
+    assertNoSelfInterfaceSelectorHits(tranPart.source, "tranPart.source");
+    expect(scanForSelfInterfaceSelector(tranPart.source).declarationCount).toBe(0);
   });
 
   it("exerciseFragment: declares lo_badi TYPE REF TO <badiName> and calls lo_badi-><method> with NO interface prefix at all", () => {

@@ -24,14 +24,17 @@ import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
-import { Journal, type JournalConfig } from "../src/journal.js";
+import { Journal, systemKey, type JournalConfig } from "../src/journal.js";
 import { abapWrite } from "../src/tools/write.js";
 import { planUndo, performUndo, type UndoOptions } from "../src/adt/undo.js";
 import { SafetyGate } from "../src/safety.js";
-import { DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
-import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
+import { CLASSIC_BODY_CLASS, CLASSIC_TOOL_ID } from "../src/adt/fluid/builtin/classic.js";
+import { forgetManifest } from "../src/adt/fluid/registry.js";
 
 const MAX = 20_000;
 
@@ -45,7 +48,6 @@ interface Recorded {
 
 type Route = (r: Recorded) => HttpClientResponse | undefined;
 
-const OK_TEXT = { "content-type": "text/plain" };
 const OK_XML = { "content-type": "application/xml" };
 const LOGIN_HEADERS = { "content-type": "application/xml", "x-csrf-token": "TOKEN123" };
 
@@ -59,12 +61,6 @@ const NOT_FOUND_XML = (name: string): string =>
   `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">` +
   `<namespace id="com.sap.adt"/><type id="ExceptionResourceNotFound"/>` +
   `<message lang="EN">${name} does not exist</message><properties/></exc:exception>`;
-
-const LOCK_XML =
-  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
-  `<LOCK_HANDLE>H1</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
-  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
-  `</DATA></asx:values></asx:abap>`;
 
 class FakeAdt implements HttpClient {
   readonly calls: Recorded[] = [];
@@ -81,6 +77,8 @@ class FakeAdt implements HttpClient {
   }
 }
 
+const fluidState = useFluidState();
+
 const cfg = (): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
@@ -89,6 +87,8 @@ const cfg = (): Config =>
     sid: "A4H",
     client: "001",
     readOnly: false,
+    fluidApi: true,
+    stateDir: fluidState.dir(),
   });
 
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
@@ -121,19 +121,7 @@ const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
 };
 
 const VIEW = "ZTMD_V_LOCAL";
-const VIEW_BRIDGE = DDIC_BRIDGE_CLASS.deleteView;
 const VIT_URI = vitBridgeUri("viewdv", VIEW);
-const BRIDGE_COLLECTION = "/sap/bc/adt/oo/classes";
-const BRIDGE_OBJ_URI = `${BRIDGE_COLLECTION}/${VIEW_BRIDGE.toLowerCase()}`;
-const BRIDGE_SRC_URI = `${BRIDGE_OBJ_URI}/source/main`;
-const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
-const FLUID_PACKAGE_XML =
-  `<?xml version="1.0" encoding="utf-8"?>` +
-  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
-  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K">` +
-  `<adtcore:packageRef adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K"/>` +
-  `<pak:superPackage/>` +
-  `</pak:package>`;
 
 /**
  * `pkg === null` renders `<adtcore:packageRef />` — a space before the
@@ -166,29 +154,27 @@ const localGate = (): SafetyGate =>
     writesLockedOut: false,
   });
 
-/** Deploy -> run the delete bridge; toggles `state.exists` so the post-delete VIT read reflects it. */
+/**
+ * Deploy -> run the delete bridge, routed through the shared `classicFake`
+ * (the fluid package/invoker/classrun plumbing — see
+ * test/helpers/fluid-classic-fake.ts) rather than this file's own former
+ * fixed-name `ZCL_ZMCP_DDIC_DVIEW` routing. Toggles `state.exists` right as
+ * the classrun call lands, so the post-delete VIT read reflects it, exactly
+ * as before.
+ */
 const bridgeServer = (pkg: string | null, classrunLines: string[]) => {
   const state = { exists: true };
+  const fake = classicFake({ action: "delete_view", lines: () => classrunLines });
   const route = (r: Recorded): HttpClientResponse | undefined => {
     if (r.url === VIT_URI && r.method === "GET") {
       return state.exists ? resp(200, vitXml(pkg), OK_XML) : resp(404, NOT_FOUND_XML(VIEW), OK_XML);
     }
-    if (r.url === BRIDGE_OBJ_URI && r.method === "GET" && !r.qs._action) {
-      return resp(404, NOT_FOUND_XML(VIEW_BRIDGE), OK_XML);
-    }
-    if (r.url === BRIDGE_COLLECTION && r.method === "POST") return resp(200, "", OK_TEXT);
-    if (r.url === BRIDGE_OBJ_URI && r.qs._action === "LOCK") return resp(200, LOCK_XML, OK_XML);
-    if (r.url === BRIDGE_OBJ_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-    if (r.url === BRIDGE_SRC_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
-    if (r.url === FLUID_PKG_URI && r.method === "GET") return resp(200, FLUID_PACKAGE_XML, OK_XML);
-    if (r.url.includes("/activation")) return resp(200, "", OK_TEXT);
-    if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) {
+    if (r.url.startsWith("/sap/bc/adt/oo/classrun/") && r.method === "POST") {
       state.exists = false;
-      return resp(200, classrunLines.join("\n"), OK_TEXT);
     }
-    return undefined;
+    return fake.route(r as unknown as HttpClientOptions);
   };
-  return { state, route };
+  return { state, route, fake };
 };
 
 let dir: string;
@@ -197,6 +183,14 @@ let journal: Journal;
 const jcfg = (): JournalConfig => ({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 });
 
 beforeEach(async () => {
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+  // The fluid registry is an on-disk cache keyed by stateDir, and every test
+  // in this file shares one stateDir (useFluidState() memoizes it per file).
+  // Without this, an earlier test's deploy leaves a "classic is already at
+  // this version" cache entry that makes a later test's own (empty,
+  // per-test) classicFake skip the deploy entirely.
+  await forgetManifest(cfg(), systemKey(cfg()), CLASSIC_TOOL_ID);
   dir = await mkdtemp(join(tmpdir(), "abap-view-local-delete-"));
   journal = new Journal(jcfg(), "A4H");
 });
@@ -207,7 +201,7 @@ afterEach(async () => {
 describe("VIEW/DV bridge delete: server-resolved package is the LOCAL $TMP", () => {
   it("(A) deletes through the classrun bridge, header names package $TMP, and no DELETE verb is ever sent", async () => {
     const gate = localGate();
-    const { route } = bridgeServer("$TMP", ["VIEW-DELETED", "VIEW-GONE"]);
+    const { route, fake } = bridgeServer("$TMP", ["VIEW-DELETED", "VIEW-GONE"]);
     const { conn, adt } = await connected(route);
 
     const result = await abapWrite(conn, { object: VIEW, type: "VIEW/DV", mode: "delete" }, MAX, gate);
@@ -216,7 +210,15 @@ describe("VIEW/DV bridge delete: server-resolved package is the LOCAL $TMP", () 
     expect(result.text).toMatch(/package: \$TMP/);
     expect(result.text).toMatch(/VIEW-DELETED VIEW-GONE/);
     expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
-    expect(adt.calls.some((c) => c.url === BRIDGE_SRC_URI && c.method === "PUT")).toBe(true);
+    // The old fixed BRIDGE_SRC_URI ("ZCL_ZMCP_DDIC_DVIEW"'s source) has no
+    // subject left: the invoker class deployed is content-hash named, and
+    // delete_view itself lives in the shared static ZCL_ZMCP_FLUID_CLASSIC
+    // body, not in the invoker. Prove the same thing structurally.
+    const invoker = fake.invoker();
+    expect(invoker).toBeTruthy();
+    expect(fake.sourceOf(invoker!)).toContain("zcl_zmcp_fluid_classic=>run( iv_action = 'delete_view'");
+    expect(fake.sourceOf(CLASSIC_BODY_CLASS)).toContain("METHOD delete_view.");
+    expect(adt.calls.some((c) => c.url.endsWith("/source/main") && c.method === "PUT")).toBe(true);
     expect(adt.calls.some((c) => c.method === "DELETE")).toBe(false);
   });
 

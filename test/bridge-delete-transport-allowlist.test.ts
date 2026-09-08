@@ -8,20 +8,20 @@
  * call — and that an explicit deny-all list still wins over the `local`
  * presentation.
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type {
   HttpClient,
   HttpClientOptions,
   HttpClientResponse,
 } from "abap-adt-api/build/AdtHTTP.js";
-import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { SafetyGate } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
-import { DDIC_BRIDGE_CLASS, DDIC_BRIDGE_PACKAGE } from "../src/adt/ddic-bridge.js";
-import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
+import { CLASSIC_BODY_CLASS } from "../src/adt/fluid/builtin/classic.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
 import { deleteClassicViewViaBridge, type ViewDeleteParams } from "../src/adt/view-delete.js";
 import {
   deleteTransactionViaBridge,
@@ -31,10 +31,19 @@ import { deletePackageViaBridge } from "../src/adt/package-delete.js";
 import { serverPackage, type ServerPackage } from "../src/adt/resolved-package.js";
 import type { VerifyOutcome } from "../src/adt/write-verify.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 // ---------------------------------------------------------------------------
 // Fake transport — same shape as test/view-delete.test.ts / test/tran-delete.test.ts
 // ---------------------------------------------------------------------------
+
+let fluidState: ReturnType<typeof useFluidState>;
+
+beforeEach(() => {
+  fluidState = useFluidState();
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
 
 const cfg = (): Config =>
   ConfigSchema.parse({
@@ -44,6 +53,7 @@ const cfg = (): Config =>
     sid: "TST",
     client: "001",
     readOnly: false,
+    stateDir: fluidState.dir(),
   });
 
 const resp = (
@@ -63,58 +73,15 @@ class RecordingClient implements HttpClient {
 }
 
 const SESSION_URL = "/sap/bc/adt/compatibility/graph";
-const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
 
-const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
-const FLUID_PACKAGE_XML =
-  `<?xml version="1.0" encoding="utf-8"?>` +
-  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
-  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K">` +
-  `<adtcore:packageRef adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K"/>` +
-  `<pak:superPackage/>` +
-  `</pak:package>`;
-
-const LOCK_XML = (handle = "H1") =>
-  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
-  `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
-  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
-  `</DATA></asx:values></asx:abap>`;
-
-/** GET-404 -> POST-create -> LOCK -> PUT -> UNLOCK for the bridge class itself. */
-function objectHappyPath(collectionUrl: string, name: string): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  const objUrl = `${collectionUrl}/${name.toLowerCase()}`;
-  const sourceUri = `${objUrl}/source/main`;
-  return (o: HttpClientOptions) => {
-    const qs = (o.qs ?? {}) as Record<string, string>;
-    const method = (o.method ?? "GET").toUpperCase();
-    if (o.url === objUrl && method === "GET" && !qs._action) {
-      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-    }
-    if (o.url === collectionUrl && method === "POST") return resp(200, "", {});
-    if (o.url === objUrl && qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-    if (o.url === objUrl && qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url === sourceUri && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    return undefined;
-  };
-}
-
-/** Session/discovery/activation/classrun plumbing shared by every test below. */
-function sharedRoute(
-  classrun: (o: HttpClientOptions) => HttpClientResponse | undefined,
-): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  return (o: HttpClientOptions) => {
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) return classrun(o);
-    if (o.url.includes(SESSION_URL)) {
-      return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
-    }
-    if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
-    if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
-    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-    if (o.url === FLUID_PKG_URI && (o.method ?? "GET").toUpperCase() === "GET")
-      return resp(200, FLUID_PACKAGE_XML, { "content-type": "application/xml" });
-    return undefined;
-  };
+/** Session/discovery/ato-settings plumbing shared by every test below — deploy/classrun routing comes from classicFake. */
+function sharedRoute(o: HttpClientOptions): HttpClientResponse | undefined {
+  if (o.url.includes(SESSION_URL)) {
+    return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+  }
+  if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+  if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
+  return undefined;
 }
 
 function combine(
@@ -141,12 +108,6 @@ async function connected(
   await conn.connect();
   inner.calls.length = 0;
   return { conn, inner };
-}
-
-/** A bare classrun body — see test/package-delete.test.ts's identical helper. */
-function classrunOutput(lines: readonly string[]): (o: HttpClientOptions) => HttpClientResponse {
-  const body = lines.join("\n");
-  return () => resp(200, body, { "content-type": "text/plain" });
 }
 
 const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
@@ -205,24 +166,22 @@ describe("pin: deleteClassicViewViaBridge proceeds under a pinned ABAP_ALLOW_TRA
   it("resolves VIEW-DELETED/VIEW-GONE and actually deploys+runs the bridge, rather than being refused SAFETY_DENIED", async () => {
     const gate = new SafetyGate({
       readOnly: false,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, VIEW_PKG],
+      allowPackages: [FLUID_PACKAGE, VIEW_PKG],
       // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
-      // (test/helper-package.test.ts) — needed for the cold-path create of DDIC_BRIDGE_PACKAGE.
+      // (test/helper-package.test.ts) — needed for the cold-path create of $ABAPSMITH_FLUID_API.
       allowNamePrefixes: ["*"],
       allowTransports: PINNED,
       writesLockedOut: false,
     });
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.deleteView),
-      sharedRoute(classrunOutput(["VIEW-DELETED", "VIEW-GONE"])),
-    );
-    const { conn, inner } = await connected(route);
+    const fake = classicFake({ action: "delete_view", lines: () => ["VIEW-DELETED", "VIEW-GONE"] });
+    const route = combine(fake.route, sharedRoute);
+    const { conn } = await connected(route);
     const { transcript } = await deleteClassicViewViaBridge(conn, gate, VIEW_PARAMS);
     expect(transcript.tags).toEqual(["VIEW-DELETED", "VIEW-GONE"]);
     expect(transcript.errorLine).toBeUndefined();
-    const sourceUri = `${CLASS_COLLECTION}/${DDIC_BRIDGE_CLASS.deleteView.toLowerCase()}/source/main`;
-    const put = inner.calls.find((c) => (c.method ?? "").toUpperCase() === "PUT" && c.url === sourceUri);
-    expect(put).toBeDefined();
+    expect(fake.deployed()).toEqual(expect.arrayContaining([CLASSIC_BODY_CLASS]));
+    expect(fake.sourceOf(CLASSIC_BODY_CLASS)).toBeDefined();
+    expect(fake.invoker()).toBeDefined();
   });
 });
 
@@ -234,24 +193,22 @@ describe("pin: deleteTransactionViaBridge proceeds under a pinned ABAP_ALLOW_TRA
   it("resolves TRAN-DELETED/TRAN-GONE and actually deploys+runs the bridge, rather than being refused SAFETY_DENIED", async () => {
     const gate = new SafetyGate({
       readOnly: false,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, TRAN_PKG],
+      allowPackages: [FLUID_PACKAGE, TRAN_PKG],
       // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
-      // (test/helper-package.test.ts) — needed for the cold-path create of DDIC_BRIDGE_PACKAGE.
+      // (test/helper-package.test.ts) — needed for the cold-path create of $ABAPSMITH_FLUID_API.
       allowNamePrefixes: ["*"],
       allowTransports: PINNED,
       writesLockedOut: false,
     });
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.deleteTransaction),
-      sharedRoute(classrunOutput(["TRAN-DELETED", "TRAN-GONE"])),
-    );
-    const { conn, inner } = await connected(route);
+    const fake = classicFake({ action: "delete_transaction", lines: () => ["TRAN-DELETED", "TRAN-GONE"] });
+    const route = combine(fake.route, sharedRoute);
+    const { conn } = await connected(route);
     const { transcript } = await deleteTransactionViaBridge(conn, gate, TRAN_PARAMS);
     expect(transcript.tags).toEqual(["TRAN-DELETED", "TRAN-GONE"]);
     expect(transcript.errorLine).toBeUndefined();
-    const sourceUri = `${CLASS_COLLECTION}/${DDIC_BRIDGE_CLASS.deleteTransaction.toLowerCase()}/source/main`;
-    const put = inner.calls.find((c) => (c.method ?? "").toUpperCase() === "PUT" && c.url === sourceUri);
-    expect(put).toBeDefined();
+    expect(fake.deployed()).toEqual(expect.arrayContaining([CLASSIC_BODY_CLASS]));
+    expect(fake.sourceOf(CLASSIC_BODY_CLASS)).toBeDefined();
+    expect(fake.invoker()).toBeDefined();
   });
 });
 
@@ -287,14 +244,12 @@ describe("pin: ABAP_ALLOW_TRANSPORTS=[] (explicit deny-all) still refuses a tran
   it("deleteClassicViewViaBridge is refused SAFETY_DENIED, rule 'transport allowlist (fail closed)', zero HTTP requests", async () => {
     const gate = new SafetyGate({
       readOnly: false,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, VIEW_PKG],
+      allowPackages: [FLUID_PACKAGE, VIEW_PKG],
       allowTransports: [],
       writesLockedOut: false,
     });
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.deleteView),
-      sharedRoute(classrunOutput(["VIEW-DELETED", "VIEW-GONE"])),
-    );
+    const fake = classicFake({ action: "delete_view", lines: () => ["VIEW-DELETED", "VIEW-GONE"] });
+    const route = combine(fake.route, sharedRoute);
     const { conn, inner } = await connected(route);
     const err = await catchErr(deleteClassicViewViaBridge(conn, gate, VIEW_PARAMS));
     expect(err.code).toBe("SAFETY_DENIED");
@@ -311,14 +266,12 @@ describe("pin: A4HK900001 does not leak into deletePackageViaBridge's real corr:
   it("a DEVC/K delete naming a request NOT on the pinned list is refused SAFETY_DENIED, rule 'transport allowlist', zero HTTP requests", async () => {
     const gate = new SafetyGate({
       readOnly: false,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, PKGDEL_PKG],
+      allowPackages: [FLUID_PACKAGE, PKGDEL_PKG],
       allowTransports: PINNED,
       writesLockedOut: false,
     });
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.deletePackage),
-      sharedRoute(classrunOutput(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"])),
-    );
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const route = combine(fake.route, sharedRoute);
     const { conn, inner } = await connected(route);
     const err = await catchErr(
       deletePackageViaBridge(conn, gate, { packageName: PKGDEL_PKG, corrNr: NOT_PINNED_CORR }),

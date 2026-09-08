@@ -1,68 +1,58 @@
 /**
- * `RS_CORR_INSERT`'s `object` key shape and emission order, for a
- * transportable classic-view create — offline, fragment-level only (see
- * test/view-create.test.ts's header for why: `createClassicView` refuses
- * every package before any of this could reach the wire).
+ * `RS_CORR_INSERT`'s `object` key shape and emission order, for the static
+ * `create_view` method inside `ZCL_ZMCP_FLUID_CLASSIC` — offline,
+ * source-level only (see test/view-create.test.ts's header for why:
+ * `createClassicView` refuses every package before any of this could reach
+ * the wire).
  *
  * Two defects this pins:
  *  - `object` for `object_class = 'DICT'` is a 44-char key (4-char transport
  *    object type + 40-char name), not the bare view name — a bare name lands
- *    its first 4 characters in the type field (live TK103).
+ *    its first 4 characters in the type field (live TK103). `create_view` is
+ *    now static (one source serves every call), so the key is built at ABAP
+ *    runtime via a WIDTH/ALIGN string template rather than baked in per
+ *    call; this file pins that template's shape structurally instead of
+ *    slicing a per-call generated literal.
  *  - registration must run BEFORE `DDIF_VIEW_PUT`/its `COMMIT WORK`, so a
  *    rejected key can never strand an active, unregistered view.
  */
 import { describe, expect, it } from "vitest";
-import { classicViewFragment, type ClassicViewParams } from "../src/adt/view-create.js";
+import { viewPart } from "../src/adt/fluid/builtin/classic/abap-view.js";
 
-const CORR_NR = "A4HK900121";
+const allLines = viewPart.source.split("\n");
+const createIdx = allLines.findIndex((l) => l.trim() === "METHOD create_view.");
+const deleteIdx = allLines.findIndex((l) => l.trim() === "METHOD delete_view.");
+const createLines = allLines.slice(createIdx, deleteIdx);
 
-const VIEW: ClassicViewParams = {
-  viewName: "ZTM_V_CARRIER",
-  baseTable: "SCARR",
-  fields: ["MANDT", "CARRID", "CARRNAME"],
-  description: "Carrier projection",
-  packageName: "ZTM",
-  corrNr: CORR_NR,
-};
-
-const LOCAL_VIEW: ClassicViewParams = { ...VIEW, packageName: "$TMP", corrNr: undefined };
-
-/** Every `out->write( 'TAG' )` the fragment emits, in emission order. */
-function emittedTags(lines: readonly string[]): string[] {
+/** Every `line( 'TAG' )` call in the given slice, in emission order. */
+function emittedTags(src: readonly string[]): string[] {
   const found: string[] = [];
-  for (const line of lines) {
-    const m = /^out->write\( '([^']*)' \)\.$/.exec(line.trim());
+  for (const l of src) {
+    const m = /^line\( '([^']*)' \)\.$/.exec(l.trim());
     if (m?.[1] !== undefined) found.push(m[1]);
   }
   return found;
 }
 
 describe("RS_CORR_INSERT's object key — the 44-char DICT layout", () => {
-  it("carries a 44-character value: 'VIEW' then the view name padded with blanks to 40", () => {
-    const lines = classicViewFragment(VIEW);
-    const objectLine = lines.find((l) => l.trim().startsWith("EXPORTING object ="));
+  it("lv_object is 'VIEW' + the view name left-aligned in 40 chars, built as a string so a 30-char-name view is not truncated — a 44-char DICT key, not the bare name", () => {
+    expect(createLines.map((l) => l.trim())).toContain(
+      "DATA(lv_object) = |VIEW{ lv_view WIDTH = 40 ALIGN = LEFT }|.",
+    );
+    const objectLine = createLines.find((l) => l.trim().startsWith("EXPORTING object ="));
     expect(objectLine).toBeTruthy();
-    // Slice the literal out of the line rather than string-comparing a
-    // hand-typed constant, so this proves the actual byte layout.
-    const m = /EXPORTING object = '(.*)'$/.exec(objectLine!.trim());
-    expect(m).toBeTruthy();
-    const key = m![1]!;
-    expect(key.length).toBe(44);
-    expect(key.slice(0, 4)).toBe("VIEW");
-    expect(key.slice(4)).toBe(VIEW.viewName.padEnd(40));
+    expect(objectLine!.trim()).toBe("EXPORTING object = lv_object");
   });
 
-  it("is NOT the bare view name — the shape that produced live TK103", () => {
-    const lines = classicViewFragment(VIEW);
-    expect(lines).not.toContain(`  EXPORTING object = '${VIEW.viewName}'`);
+  it("is NOT the bare view name — RS_CORR_INSERT is never called with object = lv_view", () => {
+    expect(createLines.some((l) => l.trim() === "EXPORTING object = lv_view")).toBe(false);
   });
 
   it("the object line sits between CALL FUNCTION 'RS_CORR_INSERT' and its EXCEPTIONS line", () => {
-    const lines = classicViewFragment(VIEW);
-    const callIdx = lines.indexOf("CALL FUNCTION 'RS_CORR_INSERT'");
-    const objectIdx = lines.findIndex((l) => l.trim().startsWith("EXPORTING object ="));
-    const excIdx = lines.findIndex(
-      (l, i) => i > callIdx && l.startsWith("  EXCEPTIONS cancelled = 1"),
+    const callIdx = createLines.findIndex((l) => l.trim() === "CALL FUNCTION 'RS_CORR_INSERT'");
+    const objectIdx = createLines.findIndex((l) => l.trim().startsWith("EXPORTING object ="));
+    const excIdx = createLines.findIndex(
+      (l, i) => i > callIdx && l.trim().startsWith("EXCEPTIONS cancelled = 1"),
     );
     expect(callIdx).toBeGreaterThanOrEqual(0);
     expect(objectIdx).toBeGreaterThan(callIdx);
@@ -72,40 +62,37 @@ describe("RS_CORR_INSERT's object key — the 44-char DICT layout", () => {
 
 describe("emission order — nothing is committed before registration", () => {
   it("RS_CORR_INSERT precedes DDIF_VIEW_PUT, which precedes the first COMMIT WORK", () => {
-    const lines = classicViewFragment(VIEW);
-    const corrIdx = lines.indexOf("CALL FUNCTION 'RS_CORR_INSERT'");
-    const putIdx = lines.indexOf("CALL FUNCTION 'DDIF_VIEW_PUT'");
-    const commitIdx = lines.indexOf("COMMIT WORK.");
+    const corrIdx = createLines.findIndex((l) => l.trim() === "CALL FUNCTION 'RS_CORR_INSERT'");
+    const putIdx = createLines.findIndex((l) => l.trim() === "CALL FUNCTION 'DDIF_VIEW_PUT'");
+    const commitIdx = createLines.findIndex((l) => l.trim() === "COMMIT WORK.");
     expect(corrIdx).toBeGreaterThanOrEqual(0);
     expect(putIdx).toBeGreaterThan(corrIdx);
     expect(commitIdx).toBeGreaterThan(putIdx);
   });
 
-  it("emits the tags in exactly VIEW-REGISTERED, VIEW-PUT, VIEW-ACTIVATED order for a transportable package", () => {
-    const tags = emittedTags(classicViewFragment(VIEW));
-    expect(tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+  it("emits the tags in exactly VIEW-REGISTERED, VIEW-PUT, VIEW-ACTIVATED order", () => {
+    expect(emittedTags(createLines)).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
   });
 });
 
-describe("the 44-char DICT key and korrnum = space also apply to a $-prefixed package", () => {
-  it("a $-package fragment carries RS_CORR_INSERT, the same 44-character DICT key, object_class = 'DICT', korrnum = space exactly, and the three tags in order", () => {
-    const lines = classicViewFragment(LOCAL_VIEW);
-    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-
-    const objectLine = lines.find((l) => l.trim().startsWith("EXPORTING object ="));
-    expect(objectLine).toBeTruthy();
-    const m = /EXPORTING object = '(.*)'$/.exec(objectLine!.trim());
-    expect(m).toBeTruthy();
-    const key = m![1]!;
-    expect(key.length).toBe(44);
-    expect(key.slice(0, 4)).toBe("VIEW");
-    expect(key.slice(4)).toBe(LOCAL_VIEW.viewName.padEnd(40));
-
-    expect(lines).toContain("            object_class = 'DICT'");
-    expect(lines).toContain("            korrnum = space");
-    expect(lines.some((l) => /korrnum = '/.test(l))).toBe(false);
-
-    expect(emittedTags(lines)).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
-    expect(lines.filter((l) => l === "COMMIT WORK.").length).toBe(2);
+describe("local ($) vs transportable korrnum — one static source now, branching at ABAP runtime", () => {
+  it("has no per-package fragment left to compare: create_view is one static source whose IF/ELSE picks korrnum at runtime, both branches feeding the same RS_CORR_INSERT call", () => {
+    // The old fragment generator produced different generated text for a
+    // `$`-prefixed package (korrnum = space) vs a transportable one
+    // (korrnum = the literal corr number) — two different call sites in TS.
+    // That generation step is gone: there is exactly one static
+    // `create_view` source for every call now, and `lv_local` picks the
+    // branch at ABAP runtime. What remains to pin here is that both
+    // branches exist, both assign `lv_korrnum`, and RS_CORR_INSERT is only
+    // ever called with the variable — never a per-package literal.
+    const trimmed = createLines.map((l) => l.trim());
+    expect(trimmed).toContain("IF lv_local = abap_true.");
+    expect(trimmed).toContain("lv_korrnum = space.");
+    expect(trimmed).toContain("ELSE.");
+    expect(trimmed).toContain("lv_korrnum = lv_corr.");
+    expect(trimmed).toContain("ENDIF.");
+    expect(trimmed).toContain("object_class = 'DICT'");
+    expect(trimmed).toContain("korrnum = lv_korrnum");
+    expect(trimmed.some((l) => /^korrnum = '/.test(l))).toBe(false);
   });
 });
