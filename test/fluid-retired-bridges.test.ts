@@ -21,6 +21,7 @@ import {
   RETIRED_BRIDGE_CLASSES,
   probeRetiredBridges,
   reapRetiredBridges,
+  type FluidLease,
   type RetiredBridgeProbe,
 } from "../src/adt/fluid/retired.js";
 
@@ -100,6 +101,42 @@ function cfg(overrides: Partial<Config> = {}): Config {
 /** Permissive: the spec's assertions are about probe/reap behaviour, not gate package/prefix policy. */
 const gate = (): SafetyGate =>
   new SafetyGate({ readOnly: false, allowPackages: ["*"], allowNamePrefixes: ["*"] });
+
+/**
+ * Fakes the pool's `withWrite`-shaped lease `reapRetiredBridges` now takes:
+ * every call mints a *fresh* `AbapConnection` (own `FakeAdt`, own logon
+ * counter) against the same `route`/backing store, exactly what
+ * `AdtSessionPool` gives each lease in production. `calls` accumulates every
+ * request issued across every minted connection, in order, for assertions
+ * that look at the whole run; `connectCallCounts` records, per lease call,
+ * how many times application code (as opposed to `connected()`'s own initial
+ * login) called `conn.connect()` on that lease's connection — the reap
+ * itself must never do this any more, since reviving a spent connection is
+ * exactly the bug this design removes.
+ */
+function makeLease(route: Route): {
+  lease: FluidLease;
+  calls: Recorded[];
+  connectCallCounts: number[];
+  /** One entry per lease call, in order — how many DELETEs that lease's own connection issued. */
+  deletesPerLeaseCall: number[];
+} {
+  const calls: Recorded[] = [];
+  const connectCallCounts: number[] = [];
+  const deletesPerLeaseCall: number[] = [];
+  const lease: FluidLease = async (_op, fn) => {
+    const { conn, adt } = await connected(route);
+    const connectSpy = vi.spyOn(conn, "connect");
+    try {
+      return await fn(conn);
+    } finally {
+      calls.push(...adt.calls);
+      connectCallCounts.push(connectSpy.mock.calls.length);
+      deletesPerLeaseCall.push(adt.calls.filter((c) => c.method === "DELETE").length);
+    }
+  };
+  return { lease, calls, connectCallCounts, deletesPerLeaseCall };
+}
 
 // --- ABAP-side fixtures ------------------------------------------------------
 
@@ -191,27 +228,29 @@ const ICMENOSESSION_RESPONSE = (): HttpClientResponse =>
 const LOGIN_URL = "compatibility/graph";
 
 /**
- * `retiredRoute`, but once any class DELETE has landed, the next `diesTimes`
- * class-URI existence-check GETs (any of the ten names, not just the one just
- * deleted) die with the session-dead shape. Models the live finding that
- * deleting a class tears the ADT session down, so the very next request on
- * those cookies fails — which, in `reapRetiredBridges`, is the *next* class's
- * `authorizeMutation` resolve, not necessarily the same class's.
+ * `retiredRoute`, but for each name in `failAfter`, that name's class-URI
+ * existence-check GET answers normally the first `failAfter[name]` times and
+ * the session-dead shape every time after. With `reapRetiredBridges` probing
+ * once (one successful read of every name) before ever deleting anything,
+ * `failAfter[name]: 1` means: the probe's own read succeeds (so the class is
+ * classified `"present"`), but that name's *delete*-lease — a brand-new
+ * connection, taking its own independent resolve read as the first step of
+ * `authorizeMutation` — hits a session already dead. Models a delete whose
+ * own lease connection is bad, independent of any other object's delete:
+ * exactly the failure mode left for the reaper to handle honestly now that
+ * it never revives a connection itself.
  */
-function retiredRouteSessionDies(store: Record<string, ObjState>, diesTimes: number): Route {
+function retiredRouteFailsResolveAfter(store: Record<string, ObjState>, failAfter: Record<string, number>): Route {
   const inner = retiredRoute(store);
-  const classUris = new Set(ALL_RETIRED_NAMES.map((n) => classUri(n)));
-  let deleteHappened = false;
-  let deathsLeft = diesTimes;
+  const counts = new Map<string, number>();
   return (r) => {
-    if (r.method === "DELETE" && classUris.has(r.url)) {
-      const res = inner(r);
-      deleteHappened = true;
-      return res;
-    }
-    if (deleteHappened && classUris.has(r.url) && r.method === "GET" && !r.qs._action && deathsLeft > 0) {
-      deathsLeft -= 1;
-      return ICMENOSESSION_RESPONSE();
+    if (r.method === "GET" && !r.qs._action) {
+      for (const [name, okCalls] of Object.entries(failAfter)) {
+        if (r.url !== classUri(name)) continue;
+        const n = (counts.get(name) ?? 0) + 1;
+        counts.set(name, n);
+        if (n > okCalls) return ICMENOSESSION_RESPONSE();
+      }
     }
     return inner(r);
   };
@@ -299,17 +338,17 @@ describe("probeRetiredBridges", () => {
     expect(byName.get(NAME)?.state).toBe("moved");
     expect(byName.get(NAME)?.foundIn).toBe("ZFOO");
 
-    // Fresh connection/store for the reap half: same fixture, but now driving
-    // the mutating call and asserting the DELETE never happens for it.
+    // Fresh store for the reap half: same fixture, but now driving the
+    // mutating call and asserting the DELETE never happens for it.
     const store2 = defaultStore({
       [NAME]: { exists: true, packageName: "ZFOO", source: SOURCE_TEXT(NAME) },
     });
-    const { conn, adt } = await connected(retiredRoute(store2));
-    const results = await reapRetiredBridges(conn, gate());
+    const { lease, calls } = makeLease(retiredRoute(store2));
+    const results = await reapRetiredBridges(gate(), lease);
     const outcome = results.find((r) => r.name === NAME);
     expect(outcome?.outcome).toBe("left-alone");
     expect(outcome?.foundIn).toBe("ZFOO");
-    expect(adt.calls.some((c) => c.method === "DELETE" && c.url === classUri(NAME))).toBe(false);
+    expect(calls.some((c) => c.method === "DELETE" && c.url === classUri(NAME))).toBe(false);
   });
 
   it("classifies a class whose probe throws as unknown, and never rejects itself", async () => {
@@ -343,11 +382,11 @@ describe("reapRetiredBridges", () => {
       [A]: { exists: true, packageName: "$TMP", source: SOURCE_TEXT(A) },
       [B]: { exists: true, packageName: "$TMP", source: SOURCE_TEXT(B) },
     });
-    const { conn, adt } = await connected(retiredRoute(store));
+    const { lease, calls } = makeLease(retiredRoute(store));
     const g = gate();
     const authorizeSpy = vi.spyOn(g, "authorize");
 
-    const results = await reapRetiredBridges(conn, g);
+    const results = await reapRetiredBridges(g, lease);
 
     const byName = new Map(results.map((r) => [r.name, r]));
     expect(byName.get(A)?.outcome).toBe("deleted");
@@ -356,7 +395,7 @@ describe("reapRetiredBridges", () => {
       if (r.name !== A && r.name !== B) expect(r.outcome).toBe("already-absent");
     }
 
-    const deletes = adt.calls.filter((c) => c.method === "DELETE");
+    const deletes = calls.filter((c) => c.method === "DELETE");
     expect(deletes.map((c) => c.url).sort()).toEqual([classUri(A), classUri(B)].sort());
 
     // "via the authorized delete path": the real SafetyGate.authorize was
@@ -365,63 +404,99 @@ describe("reapRetiredBridges", () => {
     expect(deleteAuthCalls.map((c) => (c[1] as { name: string }).name).sort()).toEqual([A, B].sort());
   });
 
-  it("session-death revive: the second delete's session dies once, then succeeds — exactly one connect() re-issue, never a loop", async () => {
-    // Declaration order in RETIRED_BRIDGE_CLASSES matters: A is processed
-    // before B, so A's successful delete is what arms `reviveOnDeadSession`
-    // for B's delete (see retired.ts's `reviveOnDeadSession` sequencing).
+  it("a delete whose own lease connection dies does not stop the reap: later deletes still run, on a fresh connection each — and the reaper itself never calls connect()", async () => {
     const A = "ZCL_ZMCP_DDIC_CVIEW";
     const B = "ZCL_ZMCP_DDIC_DVIEW";
     const store = defaultStore({
       [A]: { exists: true, packageName: "$TMP", source: SOURCE_TEXT(A) },
       [B]: { exists: true, packageName: "$TMP", source: SOURCE_TEXT(B) },
     });
-    const { conn, adt } = await connected(retiredRouteSessionDies(store, 1));
+    // A's own delete-lease resolve dies (its connection's session is already
+    // dead); B is untouched, so B's own fresh lease connection is healthy.
+    const { lease, calls, connectCallCounts } = makeLease(retiredRouteFailsResolveAfter(store, { [A]: 1 }));
 
-    const results = await reapRetiredBridges(conn, gate());
+    const results = await reapRetiredBridges(gate(), lease);
 
     const byName = new Map(results.map((r) => [r.name, r]));
-    expect(byName.get(A)?.outcome).toBe("deleted");
+    expect(byName.get(A)?.outcome).toBe("failed");
+    expect(byName.get(A)?.error).toBeTruthy();
+    // The reap made progress past A's failure: B still got deleted, on its
+    // own (later, fresh) lease connection.
     expect(byName.get(B)?.outcome).toBe("deleted");
+    expect(calls.some((c) => c.method === "DELETE" && c.url === classUri(B))).toBe(true);
 
-    const logins = adt.calls.filter((c) => c.url.includes(LOGIN_URL));
-    expect(logins.length).toBe(1);
-
-    const deletes = adt.calls.filter((c) => c.method === "DELETE");
-    expect(deletes.map((c) => c.url).sort()).toEqual([classUri(A), classUri(B)].sort());
+    // No revive: reviveOnDeadSession is gone, so `reapRetiredBridges` never
+    // calls `conn.connect()` on any of the connections its leases hand it —
+    // that job now belongs entirely to the pool.
+    expect(connectCallCounts.every((n) => n === 0)).toBe(true);
+    // Confirmed independently: no extra logon requests appear at all beyond
+    // each lease's own initial connect (which `connected()` strips from
+    // `calls` before returning).
+    expect(calls.filter((c) => c.url.includes(LOGIN_URL))).toEqual([]);
   });
 
-  it("a second consecutive session death is not itself retried (never a loop)", async () => {
+  it("a failed delete is recorded failed with a non-empty error, and the loop continues to the remaining objects rather than cascading", async () => {
     const A = "ZCL_ZMCP_DDIC_CVIEW";
     const B = "ZCL_ZMCP_DDIC_DVIEW";
+    const C = "ZCL_ZMCP_DDIC_CTRAN";
     const store = defaultStore({
       [A]: { exists: true, packageName: "$TMP", source: SOURCE_TEXT(A) },
       [B]: { exists: true, packageName: "$TMP", source: SOURCE_TEXT(B) },
+      [C]: { exists: true, packageName: "$TMP", source: SOURCE_TEXT(C) },
     });
-    const { conn, adt } = await connected(retiredRouteSessionDies(store, 2));
+    // Only B's delete-lease connection is bad; A and C are unaffected.
+    const { lease, calls } = makeLease(retiredRouteFailsResolveAfter(store, { [B]: 1 }));
 
-    const results = await reapRetiredBridges(conn, gate());
+    const results = await reapRetiredBridges(gate(), lease);
 
     const byName = new Map(results.map((r) => [r.name, r]));
     expect(byName.get(A)?.outcome).toBe("deleted");
-    // B's one-shot revive used its single retry on the first death; the
-    // second consecutive death on that retry is not swallowed by a second
-    // reconnect — it surfaces as a failure, not an infinite loop.
     expect(byName.get(B)?.outcome).toBe("failed");
+    expect(byName.get(B)?.error).toBeTruthy();
+    // B's failure did not cascade: C, declared after it, still got deleted —
+    // no loop, no abort, just an honestly recorded failure on B alone.
+    expect(byName.get(C)?.outcome).toBe("deleted");
 
-    const logins = adt.calls.filter((c) => c.url.includes(LOGIN_URL));
-    expect(logins.length).toBe(1);
+    const deletes = calls.filter((c) => c.method === "DELETE");
+    expect(deletes.map((c) => c.url).sort()).toEqual([classUri(A), classUri(C)].sort());
   });
 
   it("performs zero deletes on an all-absent system", async () => {
     const store = defaultStore();
-    const { conn, adt } = await connected(retiredRoute(store));
+    const { lease, calls } = makeLease(retiredRoute(store));
 
-    const results = await reapRetiredBridges(conn, gate());
+    const results = await reapRetiredBridges(gate(), lease);
 
     expect(results).toHaveLength(10);
     for (const r of results) {
       expect(r.outcome).toBe("already-absent");
     }
-    expect(adt.calls.filter((c) => c.method === "DELETE")).toEqual([]);
+    expect(calls.filter((c) => c.method === "DELETE")).toEqual([]);
+  });
+
+  it("regression: with more than five retired classes present, every one is deleted, and no single connection is ever asked to do more than one delete", async () => {
+    // All ten. `AbapConnection.LOGON_ENDPOINT_LIFETIME_CEILING` is 5 — this
+    // is exactly the shape that used to strand five classes undeleted when
+    // the reap shared one connection and revived it between deletes.
+    const store = defaultStore(
+      Object.fromEntries(ALL_RETIRED_NAMES.map((n) => [n, { exists: true, packageName: "$TMP", source: SOURCE_TEXT(n) }])),
+    );
+    const { lease, calls, deletesPerLeaseCall } = makeLease(retiredRoute(store));
+
+    const results = await reapRetiredBridges(gate(), lease);
+
+    expect(results).toHaveLength(10);
+    for (const r of results) {
+      expect(r.outcome).toBe("deleted");
+    }
+
+    const deletes = calls.filter((c) => c.method === "DELETE");
+    expect(deletes.map((c) => c.url).sort()).toEqual(ALL_RETIRED_NAMES.map((n) => classUri(n)).sort());
+
+    // One lease call for the probe, plus exactly one per delete — never a
+    // shared connection asked to carry more than one delete.
+    expect(deletesPerLeaseCall).toHaveLength(11);
+    expect(deletesPerLeaseCall.reduce((a, b) => a + b, 0)).toBe(10);
+    expect(deletesPerLeaseCall.every((n) => n <= 1)).toBe(true);
   });
 });

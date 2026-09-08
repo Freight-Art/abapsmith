@@ -102,20 +102,34 @@ export interface RetiredBridgeReap {
 }
 
 /**
+ * One short lease per unit of work, handed a live `AbapConnection` to use
+ * for exactly that `fn`. Real callers pass `(op, fn) => pool.withWrite(op,
+ * undefined, fn)`: every lease gets its own pool slot (a fresh logon-endpoint
+ * ceiling, `AdtSessionPool`'s per-slot `AbapConnection`), and a `SESSION_DEAD`
+ * inside `fn` is the pool's own concern — it retires the dead slot and
+ * replays `fn` once on a freshly minted one.
+ */
+export type FluidLease = <T>(op: string, fn: (conn: AbapConnection) => Promise<T>) => Promise<T>;
+
+/**
  * Deletes every retired bridge class this probe finds `"present"`.
  *
  * Probes everything up front, before any delete: a delete kills the ADT
  * session, so probing after one would need a revive of its own, and doing
- * all reads first avoids that entirely.
+ * all reads first avoids that entirely. The probe runs in one lease; every
+ * delete runs in its own — a delete kills the ADT session, and reviving a
+ * connection to keep deleting on it is exactly what pushed the fixed
+ * `AbapConnection` logon-endpoint ceiling past ten deletes. Taking one lease
+ * per delete instead means each delete gets a connection that has never been
+ * revived, and the pool's own dead-slot replay covers the rest.
  */
 export async function reapRetiredBridges(
-  conn: AbapConnection,
   gate: SafetyGate,
+  lease: FluidLease,
 ): Promise<readonly RetiredBridgeReap[]> {
-  const probes = await probeRetiredBridges(conn);
+  const probes = await lease("abap_fluid.repair.probe", (conn) => probeRetiredBridges(conn));
 
   const results: RetiredBridgeReap[] = [];
-  let reviveOnDeadSession = false;
   for (const probe of probes) {
     if (probe.state === "absent") {
       results.push({ name: probe.name, outcome: "already-absent" });
@@ -131,8 +145,9 @@ export async function reapRetiredBridges(
     }
 
     try {
-      const del = await deleteOneFluidObject(conn, gate, { type: "CLAS/OC", name: probe.name }, reviveOnDeadSession);
-      reviveOnDeadSession = true; // a delete just happened; the NEXT request on this session may hit SESSION_DEAD
+      const del = await lease("abap_fluid.repair.delete", (conn) =>
+        deleteOneFluidObject(conn, gate, { type: "CLAS/OC", name: probe.name }, false),
+      );
       results.push({ name: probe.name, outcome: del.deleted === false ? "failed" : "deleted" });
     } catch (e) {
       if (isAbapError(e) && e.code === "NOT_FOUND") {
@@ -140,7 +155,6 @@ export async function reapRetiredBridges(
       } else {
         results.push({ name: probe.name, outcome: "failed", error: describeUnknownError(e) });
       }
-      reviveOnDeadSession = false; // no delete was actually sent — nothing to revive from
     }
   }
   return results;

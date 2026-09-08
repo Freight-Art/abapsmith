@@ -509,7 +509,6 @@ async function runRepair(deps: FluidToolDeps, a: FluidInput): Promise<string> {
 
   const key = systemKey(deps.cfg);
   const results: EnsureFluidToolResult[] = [];
-  let reaped: readonly RetiredBridgeReap[] | undefined;
   await deps.pool.withWrite("abap_fluid.repair", undefined, async (conn) => {
     for (const t of targets) {
       // MUST run before `ensureFluidTool`: its cache short-circuits on a
@@ -525,14 +524,17 @@ async function runRepair(deps: FluidToolDeps, a: FluidInput): Promise<string> {
         }),
       );
     }
-
-    // Reap only a whole-system repair (`tool` omitted) — repairing one named
-    // tool must not delete unrelated objects. Must run LAST: a delete kills
-    // the ADT session, and the ensure loop above needs a live one.
-    if (a.tool === undefined) {
-      reaped = await reapRetiredBridges(conn, deps.safety);
-    }
   });
+
+  // Reap only a whole-system repair (`tool` omitted) — repairing one named
+  // tool must not delete unrelated objects. Must run LAST: the ensure loop
+  // above needs a live connection for the whole loop, and each reap delete
+  // takes its own short-lived write lease (never the ensure loop's), so this
+  // has to start only after that lease has been released.
+  let reaped: readonly RetiredBridgeReap[] | undefined;
+  if (a.tool === undefined) {
+    reaped = await reapRetiredBridges(deps.safety, (op, fn) => deps.pool.withWrite(op, undefined, fn));
+  }
 
   const rows: Array<Record<string, string>> = [];
   for (const r of results) {
