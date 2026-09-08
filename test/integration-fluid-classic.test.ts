@@ -20,6 +20,13 @@
  *     classic tool, and `exists` is asked before, between and after —
  *     ABSENT -> EXISTS -> ABSENT — with the create/delete transcript tags
  *     asserted at each step too.
+ *  3. `create_view`'s `RS_CORR_INSERT` DICT-key construction is exercised at
+ *     its widest case: a throwaway `$TMP` view named with the full
+ *     30-character `DD25L-VIEWNAME` ceiling — a name of 27+ chars is exactly
+ *     what a CHAR30 `ddobjname` key would truncate, surfacing as SAP message
+ *     TK103 — is created, proven EXISTS, then deleted, ABSENT again. The
+ *     view's own delete runs on a fresh connection (see afterAll's comment on
+ *     why).
  *
  * Concurrency note: another slice may be deploying its own fluid tool onto
  * the same appliance at the same time, so `$ABAPSMITH_FLUID_API` already
@@ -39,7 +46,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
-import { loadConfig, loadEnvFile } from "../src/config.js";
+import { loadConfig, loadEnvFile, type Config } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
 import { isSessionDeadFailure } from "../src/adt/write-verify.js";
 import { dispatch } from "../src/adt/fluid/dispatch.js";
@@ -48,6 +55,8 @@ import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 import { CLASSIC_TOOL_ID, CLASSIC_BODY_CLASS, classicTool } from "../src/adt/fluid/builtin/classic.js";
 import { createTransaction } from "../src/adt/tran-create.js";
 import { deleteTransactionViaBridge } from "../src/adt/tran-delete.js";
+import { createClassicView } from "../src/adt/view-create.js";
+import { deleteClassicViewViaBridge } from "../src/adt/view-delete.js";
 import { serverPackage } from "../src/adt/resolved-package.js";
 import { parsePackageRef } from "../src/adt/package-ref.js";
 import { liveSuiteSkipReason, skipForApplianceState } from "./live-appliance-state.js";
@@ -68,9 +77,27 @@ const TCODE = `ZMCP_S3_${randomSuffix}`;
  */
 const PROGRAM = "DEMO_LIST_SYSTEM_FIELDS";
 
+// Exactly 30 chars (DD25L-VIEWNAME's ceiling — see VIEW_NAME_MAX in
+// src/adt/view-create.ts) so this pins the RS_CORR_INSERT DICT-key width
+// fix: a CHAR30 ddobjname key would truncate a name this long and SAP would
+// answer TK103. "S11" plus a random tail keeps it from colliding with
+// another slice's live suite, or a rerun of this one, on the same appliance.
+const viewRandomSuffix = (Math.random().toString(36) + Math.random().toString(36) + Math.random().toString(36))
+  .replace(/[^a-z0-9]/g, "")
+  .slice(0, 19)
+  .padEnd(19, "0")
+  .toUpperCase();
+const VIEW_NAME = `ZMCP_S11_V_${viewRandomSuffix}`;
+
+/** SFLIGHT: confirmed present on this A4H appliance (see test/integration.test.ts). */
+const VIEW_BASE_TABLE = "SFLIGHT";
+const VIEW_FIELDS = ["MANDT", "CARRID"] as const;
+
 dw("live A4H classic fluid tool ($ABAPSMITH_FLUID_API + $TMP)", () => {
+  let cfg: Config;
   let conn: AbapConnection;
   let tcodeCreated = false;
+  let viewCreated = false;
   // allowNamePrefixes: ["*"] — FLUID_PACKAGE starts with "$", not "Z"/"Y", same
   // reasoning as test/integration-fluid-run.test.ts's GATE.
   const GATE = new SafetyGate({
@@ -102,7 +129,7 @@ dw("live A4H classic fluid tool ($ABAPSMITH_FLUID_API + $TMP)", () => {
     return m?.[1] === "active";
   };
 
-  const classicExists = async (kind: "transaction", name: string): Promise<string> => {
+  const classicExists = async (kind: "transaction" | "view", name: string): Promise<string> => {
     const result = await dispatch(
       { conn, cfg: conn.cfg, gate: GATE, tools: new Map([[CLASSIC_TOOL_ID, classicTool]]) },
       { tool: CLASSIC_TOOL_ID, action: "exists", args: { kind, name } },
@@ -113,12 +140,16 @@ dw("live A4H classic fluid tool ($ABAPSMITH_FLUID_API + $TMP)", () => {
   const currentServerPackage = (name: string) =>
     serverPackage({ status: "confirmed", uri: `fixture://live/${name}`, via: "read-back", packageName: name })!;
 
+  // A view delete runs DD_OBJ_DEL twice plus TR_TADIR_INTERFACE and can tear
+  // the ABAP session down server-side the same way a class delete can — same
+  // idiom as test/integration-fluid-enh.test.ts's freshConn: never reuse a
+  // connection that already did other work across a delete like this one.
+  const freshConn = () => new AbapConnection(cfg, { log: () => {}, breaker: new AuthCircuitBreaker() });
+
   beforeAll(async () => {
     const base = loadConfig();
-    conn = new AbapConnection(
-      { ...base, readOnly: false, allowPackages: ["$TMP", FLUID_PACKAGE] },
-      { log: () => {}, breaker },
-    );
+    cfg = { ...base, readOnly: false, allowPackages: ["$TMP", FLUID_PACKAGE] };
+    conn = new AbapConnection(cfg, { log: () => {}, breaker });
     await conn.connect();
   }, 60_000);
 
@@ -147,7 +178,29 @@ dw("live A4H classic fluid tool ($ABAPSMITH_FLUID_API + $TMP)", () => {
         console.warn(`afterAll: failed to clean up transaction ${TCODE} — remove it by hand.`, e);
       }
     };
+
+    // Same best-effort shape as the transaction cleanup above, but on its
+    // own fresh connection — see the freshConn comment above for why.
+    const cleanupView = async () => {
+      if (!viewCreated) return;
+      const doDelete = async () => {
+        const c = freshConn();
+        await c.connect();
+        try {
+          await deleteClassicViewViaBridge(c, GATE, { viewName: VIEW_NAME, packageName: currentServerPackage("$TMP") });
+        } finally {
+          await c.shutdown("test-end");
+        }
+      };
+      try {
+        await doDelete();
+      } catch (e) {
+        console.warn(`afterAll: failed to clean up view ${VIEW_NAME} — remove it by hand.`, e);
+      }
+    };
+
     await cleanup();
+    await cleanupView();
     await conn?.shutdown("test-end");
   }, 90_000);
 
@@ -191,5 +244,40 @@ dw("live A4H classic fluid tool ($ABAPSMITH_FLUID_API + $TMP)", () => {
     tcodeCreated = false;
 
     expect(await classicExists("transaction", TCODE)).toBe("ABSENT");
+  }, 180_000);
+
+  it("exists flips ABSENT -> EXISTS -> ABSENT across a create/delete round trip on a full-30-char $TMP view (TK103 pin)", async () => {
+    assertUsable();
+    expect(VIEW_NAME.length).toBe(30);
+
+    expect(await classicExists("view", VIEW_NAME)).toBe("ABSENT");
+
+    const created = await createClassicView(conn, GATE, {
+      viewName: VIEW_NAME,
+      baseTable: VIEW_BASE_TABLE,
+      fields: [...VIEW_FIELDS],
+      description: "S11 classic live round trip",
+      packageName: "$TMP",
+    });
+    // arm cleanup before asserting: the view may already exist server-side once the call returns
+    viewCreated = true;
+    expect(created.transcript.tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+
+    expect(await classicExists("view", VIEW_NAME)).toBe("EXISTS");
+
+    const deleteConn = freshConn();
+    await deleteConn.connect();
+    try {
+      const deleted = await deleteClassicViewViaBridge(deleteConn, GATE, {
+        viewName: VIEW_NAME,
+        packageName: currentServerPackage("$TMP"),
+      });
+      expect(deleted.transcript.tags).toEqual(["VIEW-DELETED", "VIEW-GONE"]);
+    } finally {
+      await deleteConn.shutdown("test-end");
+    }
+    viewCreated = false;
+
+    expect(await classicExists("view", VIEW_NAME)).toBe("ABSENT");
   }, 180_000);
 });
