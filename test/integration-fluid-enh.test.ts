@@ -256,13 +256,43 @@ dw("live A4H enh fluid tool ($ABAPSMITH_FLUID_API, BAdI enhancement spot/impleme
       }
     };
 
+    // The suite-level GATE deliberately grants only what the tests exercise;
+    // deleting an enhancement spot needs two things GATE doesn't grant.
+    // (1) Enhancement authoring (`allowEnhancements`) plus
+    // `enhanceTargets: "customer"`: the spot's own `affects` target
+    // (FLUID_PACKAGE = $ABAPSMITH_FLUID_API) is a local, non-SAP-namespace,
+    // non-SAP-package object, so `SafetyGate`'s ownership resolution
+    // (src/safety.ts, enhancementRules step 6) classifies it "customer" and
+    // grants outright — `enhanceTargetPackages` is consulted only on the
+    // "sap" branch (step 7), so it is not needed and is left unset.
+    // (`allowEnhancementDelete` is a `DeleteEnhancementObjectOptions` field
+    // passed directly to `deleteEnhancementObject` below, not a
+    // `SafetyConfig`/`SafetyGate` field, so it does not belong in this
+    // literal.) (2) `sid`: enhancementRules' origin ceiling (step 3, judged
+    // by `isLocalOrigin`) refuses an artefact whose `masterSystem` (here the
+    // live system's own SID, e.g. A4H) doesn't match `cfg.sid` or
+    // `originSystems` — a bare literal has no `sid` at all, so it reads as
+    // "SID not configured" and every real spot gets refused as a foreign
+    // repair. Spreading the suite's loaded `cfg` (assigned in beforeAll, so
+    // available here in afterAll) carries the real connection's `sid` and
+    // rest of its identity, same as `src/server.ts`'s cfg -> SafetyConfig
+    // mapping; the explicit fields below override it exactly as GATE does.
+    const CLEANUP_GATE = new SafetyGate({
+      ...cfg,
+      readOnly: false,
+      allowPackages: [FLUID_PACKAGE],
+      allowNamePrefixes: ["*"],
+      allowEnhancements: true,
+      enhanceTargets: "customer",
+    });
+
     const deleteSpotOnce = async (): Promise<void> => {
       const c = freshConn();
       await c.connect();
       try {
         await deleteEnhancementObject(
           c,
-          GATE,
+          CLEANUP_GATE,
           { type: "ENHS/XS", name: SPOT_NAME },
           {
             // packageName: FLUID_PACKAGE matches the header comment above —
