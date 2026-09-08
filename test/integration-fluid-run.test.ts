@@ -47,6 +47,7 @@ import { loadConfig, loadEnvFile } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
 import { authorizeMutation, deleteObject } from "../src/adt/write.js";
 import { bridgeClassName, deployBridge, runReport } from "../src/adt/run.js";
+import { isSessionDeadFailure } from "../src/adt/write-verify.js";
 import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 import { parsePackageRef } from "../src/adt/package-ref.js";
 import { liveSuiteSkipReason, skipForApplianceState } from "./live-appliance-state.js";
@@ -127,15 +128,28 @@ dw("live A4H fluid bridge package (write path, $ABAPSMITH_FLUID_API + $TMP)", ()
     // up (fluid package on the happy path, $TMP if the relocation itself
     // never ran). Each deletion runs independently so one failing doesn't
     // skip the other, and neither throws — a cleanup failure must not mask
-    // a real one, and must not be conflated with it either.
+    // a real one, and must not be conflated with it either. Deleting a class
+    // tears down the ABAP session server-side (see the relocation comment
+    // above), so the first cleanup's delete routinely kills the session the
+    // second cleanup starts on; one reconnect-and-retry, same idiom as
+    // `probeObjectPresence`/`authorizeBridgeTarget`, clears it.
     const cleanup = async (name: string) => {
+      const authorizeAndDelete = async () => {
+        const authorized = await authorizeMutation(conn, GATE, "delete", {
+          type: "CLAS/OC",
+          name,
+        });
+        await deleteObject(conn, authorized);
+      };
       try {
         if (conn?.isConnected && !conn.breaker.isTripped) {
-          const authorized = await authorizeMutation(conn, GATE, "delete", {
-            type: "CLAS/OC",
-            name,
-          });
-          await deleteObject(conn, authorized);
+          try {
+            await authorizeAndDelete();
+          } catch (e) {
+            if (!isSessionDeadFailure(e)) throw e;
+            await conn.connect();
+            await authorizeAndDelete();
+          }
         }
       } catch (e) {
         console.warn(`afterAll: failed to clean up ${name} — remove it by hand.`, e);
