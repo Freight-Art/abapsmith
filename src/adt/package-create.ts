@@ -1,55 +1,46 @@
 /**
- * `DEVC/K` (package) create — `CL_PACKAGE_FACTORY`, over the DDIC classrun bridge.
+ * `DEVC/K` (package) create — `CL_PACKAGE_FACTORY`, over the fluid `classic`
+ * tool (`create_package`, body class `ZCL_ZMCP_FLUID_CLASSIC`).
  *
  * ADT REST can't create a not-yet-existing package: its CTS pre-flight has no
  * TADIR entry to inspect, always answers `local`, and discards the caller's
- * `corr_nr`. This drives `CL_PACKAGE_FACTORY` directly via a throwaway
- * `$TMP` classrun — same pattern as `./ddic-bridge.ts` (read its header first).
+ * `corr_nr`. This drives `CL_PACKAGE_FACTORY` directly, now through the
+ * shared classic body class rather than a throwaway per-call `$TMP` classrun.
  *
- * The `CREATE_NEW_PACKAGE` recipe and constraints in {@link packageFragment}
+ * The `CREATE_NEW_PACKAGE` recipe and constraints below (mirrored in
+ * `src/adt/fluid/builtin/classic/abap-package.ts`'s `create_package` method)
  * were proven live on A4H by direct testing, not by this repo's tests.
  *
  * A package created here is deletable again since `./package-delete.ts` was
  * added, but only while empty. A non-empty package still has no
  * delete/undo path here; SE21 by a human is the only way to remove one.
  *
- * STOP-THE-LINE follow-up (discovered on the delete side, audited back
- * onto this file): `CREATE_NEW_PACKAGE`/`LOAD_PACKAGE`/`SAVE`/
- * `SET_CHANGEABLE`/`SET_SUPER_PACKAGE_NAME` all raise CLASSIC (non-`cx_root`)
- * exceptions, invisible to the `CATCH cx_root` wrapping the generated class
- * body (`ddicBridgeSource`) — an unguarded classic exception here would
- * short-dump exactly like the live delete-bridge incident did, destroying
- * the transcript. Every such call in {@link packageFragment} is now `CALL
- * METHOD ... EXCEPTIONS OTHERS = 1` (functional-call syntax cannot carry an
- * `EXCEPTIONS` clause) guarded immediately after by
- * `subrcGuardFragment`/`ddic-bridge.ts`. `OTHERS`, never a named exception,
- * for the same reason as the delete bridge: this system's exact `IF_PACKAGE`
- * exception signature has not been (cannot safely be) verified live.
+ * STOP-THE-LINE follow-up (discovered on the delete side, audited back onto
+ * this file): `CREATE_NEW_PACKAGE`/`LOAD_PACKAGE`/`SAVE`/`SET_CHANGEABLE`/
+ * `SET_SUPER_PACKAGE_NAME` all raise CLASSIC (non-`cx_root`) exceptions — an
+ * unguarded one here would short-dump exactly like the live delete-bridge
+ * incident did, destroying the transcript. Every such call in
+ * `abap-package.ts`'s `create_package` method is `CALL METHOD ... EXCEPTIONS
+ * OTHERS = 1`, guarded immediately after by an explicit `sy-subrc` check.
+ * `OTHERS`, never a named exception, for the same reason as the delete
+ * bridge: this system's exact `IF_PACKAGE` exception signature has not been
+ * (cannot safely be) verified live.
  *
  * Two `EXPORTING` parameter names had to be supplied BY HAND for this
  * (`i_changeable` for `set_changeable`, `i_super_package_name` for
  * `set_super_package_name`) — transcribed from the `IF_PACKAGE` interface,
- * not live-verified. See the inline comments at those call sites: a wrong
- * name fails the generated class's OWN syntax check at bridge activation
- * (`deployBridge`/`verifyBridgeActivation`), before any mutation runs — loud
- * and safe. `create_new_package`/`load_package`/`save` already used named
- * parameters before this change, so converting those is purely mechanical.
+ * not live-verified. A wrong name fails the class's OWN syntax check at
+ * deployment, before any mutation runs — loud and safe.
  */
 
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
 import type { SafetyCorr, SafetyGate } from "../safety.js";
 import type { RunResult } from "./run.js";
-import {
-  assertBridgeMutation,
-  DDIC_BRIDGE_CLASS,
-  DDIC_ERR_PREFIX,
-  ddicBridgeSource,
-  runDdicBridge,
-  subrcGuardFragment,
-  type DdicTranscript,
-} from "./ddic-bridge.js";
-import { abapLiteral, assertAbapText, assertEnhIdentifier } from "./enhancement-templates.js";
+import { assertBridgeMutation } from "./bridge-mutation.js";
+import type { DdicTranscript } from "./ddic-transcript.js";
+import { runClassicAction } from "./classic-call.js";
+import { assertAbapText, assertEnhIdentifier } from "./enhancement-templates.js";
 import { isTrkorr } from "./transports.js";
 
 // ---------------------------------------------------------------------------
@@ -67,9 +58,9 @@ const CTEXT_MAX_LENGTH = 60;
 // ---------------------------------------------------------------------------
 
 /**
- * `SCOMPKDTLN-DLVUNIT`, validated for verbatim substitution into generated
- * ABAP. Own grammar, not `assertEnhIdentifier`'s, since this field is never
- * local: `LOCAL` is refused outright, pointing the caller at ADT REST.
+ * `SCOMPKDTLN-DLVUNIT`, validated before being handed to the classic action.
+ * Own grammar, not `assertEnhIdentifier`'s, since this field is never local:
+ * `LOCAL` is refused outright, pointing the caller at ADT REST.
  */
 function assertSoftwareComponent(value: string, what = "softwareComponent"): string {
   if (typeof value !== "string" || !/^[A-Z][A-Z0-9_]{0,29}$/.test(value)) {
@@ -79,8 +70,6 @@ function assertSoftwareComponent(value: string, what = "softwareComponent"): str
         "then letters, digits and underscores only, max 30 characters, already upper-cased and " +
         "trimmed by the caller).",
       { what, value },
-      "This value is substituted verbatim into generated ABAP source that is then activated and " +
-        "executed — a quote, a period or a newline is refused outright, not escaped or stripped.",
     );
   }
   if (value === "LOCAL") {
@@ -117,15 +106,16 @@ function assertCorrNr(value: string): string {
 }
 
 /**
- * `packageType`: only `"development"` is supported today (→ `PACKTYPE = 'D'`).
- * Anything else is refused rather than silently mapped to the wrong literal.
+ * `packageType`: only `"development"` is supported today. Anything else is
+ * refused rather than silently accepted — the classic action re-checks this
+ * same rule itself, but a zero-network `BAD_INPUT` here is cheaper.
  */
-function assertPackageType(value: string | undefined): "D" {
-  if (value === undefined || value === "development") return "D";
+function assertPackageType(value: string | undefined): void {
+  if (value === undefined || value === "development") return;
   throw new AbapError(
     "BAD_INPUT",
-    `package_type ${JSON.stringify(value)} is not supported — only "development" (SCOMPKDTLN-PACKTYPE ` +
-      "= 'D') is exposed by this bridge today.",
+    `package_type ${JSON.stringify(value)} is not supported — only "development" ` +
+      "(SCOMPKDTLN-PACKTYPE = 'D') is exposed by this bridge today.",
     { what: "packageType", value },
     "Structure packages, main packages and other PACKTYPE values are not implemented — this is a " +
       "deliberate scope limitation, not an oversight; extend assertPackageType (src/adt/package-create.ts) " +
@@ -133,13 +123,8 @@ function assertPackageType(value: string | undefined): "D" {
   );
 }
 
-/** Quotes an ALREADY-VALIDATED identifier. Never call on an unvalidated string. */
-function quoted(validatedIdentifier: string): string {
-  return `'${validatedIdentifier}'`;
-}
-
 // ---------------------------------------------------------------------------
-// The closed fragment
+// Params and TDEVC evidence parsing
 // ---------------------------------------------------------------------------
 
 export interface PackageBridgeParams {
@@ -157,17 +142,7 @@ export interface PackageBridgeParams {
   packageType?: string;
 }
 
-/**
- * Bare `DATA` declarations for `ddicBridgeSource` (no leading `DATA`
- * keyword, which `ddicBridgeSource` prepends itself).
- */
-export const PACKAGE_DATA_LINES: readonly string[] = [
-  "ls_data    TYPE scompkdtln.",
-  "lo_package TYPE REF TO if_package.",
-  "ls_tdevc   TYPE tdevc.",
-];
-
-/** Prefix of the TDEVC evidence line the generated ABAP writes. */
+/** Prefix of the TDEVC evidence line the classic action writes. */
 export const PKG_TDEVC_PREFIX = "ZMCP-PKG-TDEVC>";
 
 export interface TdevcRow {
@@ -214,169 +189,14 @@ export function parseTdevcLine(raw: string): TdevcRow | undefined {
 }
 
 /**
- * `CL_PACKAGE_FACTORY=>CREATE_NEW_PACKAGE(...)`, optionally followed by a
- * second step to attach a superpackage, then a TDEVC re-read gating
- * `PKG-CONFIRMED`. The constraints below (also inline as ABAP comments) cost
- * a live iteration on A4H. Do not "simplify" them away.
- */
-export function packageFragment(p: PackageBridgeParams): string[] {
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", { maxLength: PACKAGE_MAX_LENGTH });
-  const description = assertAbapText(p.description, "description", CTEXT_MAX_LENGTH);
-  const softwareComponent = assertSoftwareComponent(p.softwareComponent);
-  const corrNr = assertCorrNr(p.corrNr);
-  const packType = assertPackageType(p.packageType);
-  const superPackage =
-    p.superPackage === undefined
-      ? undefined
-      : assertEnhIdentifier(p.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH });
-
-  const lines: string[] = [
-    '" --- Constraints proven live on A4H. Do not "simplify" these. ---',
-    '" 1. The classrun method must be if_oo_adt_classrun~main, not if_oo_adt_classrun.',
-    '"    (ddicBridgeSource already emits the correct form.)',
-    '" 2. SCOMPKDTLN has NO DEVLAYER field and no usable COMPONENT field - setting',
-    '"    either fails the syntax check.',
-    '" 3. SCOMPKDTLN-PDEVCLASS is the TRANSPORT LAYER, not the superpackage. Setting',
-    '"    it to a package name silently truncates to 4 characters and short-dumps',
-    '"    with LAYER_INVALID. It is never set here; the transport layer is left to',
-    '"    the transport route configured for the software component.',
-    '" 4. SUPERPACKAGE_IN_TDEVC looks right but is output-only on create - passing it',
-    '"    leaves PARENTCL blank. The parent is attached in a SECOND step below.',
-    `ls_data-devclass = ${quoted(packageName)}.`,
-    `ls_data-ctext    = ${abapLiteral(description)}.`,
-    "ls_data-as4user  = sy-uname.",
-    `ls_data-dlvunit  = ${quoted(softwareComponent)}.`,
-    "ls_data-korrflag = 'X'.",
-    `ls_data-packtype = ${quoted(packType)}.`,
-    "",
-    '" CREATE_NEW_PACKAGE / SAVE / SET_CHANGEABLE raise CLASSIC (non-cx_root)',
-    '" exceptions, invisible to the CATCH cx_root around this whole method',
-    '" (see ddic-bridge.ts) - CALL METHOD ... EXCEPTIONS OTHERS = 1 is the',
-    '" only way to attach EXCEPTIONS at all; functional-call syntax cannot.',
-    "CALL METHOD cl_package_factory=>create_new_package",
-    "  EXPORTING",
-    "    i_reuse_deleted_object = abap_true",
-    "  IMPORTING",
-    "    e_package               = lo_package",
-    "  CHANGING",
-    "    c_package_data           = ls_data",
-    "  EXCEPTIONS",
-    "    OTHERS                   = 1.",
-    ...subrcGuardFragment("Creating package"),
-    "",
-    "CALL METHOD lo_package->save",
-    "  EXPORTING",
-    `    i_transport_request = ${quoted(corrNr)}`,
-    "  EXCEPTIONS",
-    "    OTHERS               = 1.",
-    ...subrcGuardFragment("Saving package"),
-    "",
-    '" i_changeable is transcribed from the IF_PACKAGE signature and is NOT',
-    '" verified live by this change - see this file\'s header. A wrong name',
-    '" fails the generated class\'s OWN syntax check at bridge activation,',
-    '" before any mutation runs.',
-    "CALL METHOD lo_package->set_changeable",
-    "  EXPORTING",
-    "    i_changeable = abap_false",
-    "  EXCEPTIONS",
-    "    OTHERS       = 1.",
-    ...subrcGuardFragment("Making package not changeable"),
-    "COMMIT WORK.",
-    "out->write( 'PKG-CREATED' ).",
-  ];
-
-  if (superPackage !== undefined) {
-    lines.push(
-      "",
-      '" Step 2 - the parent CANNOT be set on create (constraint 4 above); the package',
-      '" is re-loaded and attached here. LOAD_PACKAGE / SET_CHANGEABLE / SAVE /',
-      '" SET_SUPER_PACKAGE_NAME all raise CLASSIC exceptions - see this file\'s header.',
-      "CALL METHOD cl_package_factory=>load_package",
-      "  EXPORTING",
-      `    i_package_name = ${quoted(packageName)}`,
-      "  IMPORTING",
-      "    e_package      = lo_package",
-      "  EXCEPTIONS",
-      "    OTHERS         = 1.",
-      ...subrcGuardFragment("Loading package"),
-      "",
-      '" i_changeable - see the unverified-parameter-name note above.',
-      "CALL METHOD lo_package->set_changeable",
-      "  EXPORTING",
-      "    i_changeable = abap_true",
-      "  EXCEPTIONS",
-      "    OTHERS       = 1.",
-      ...subrcGuardFragment("Making package changeable"),
-      "",
-      '" i_super_package_name is transcribed from the IF_PACKAGE signature and is',
-      '" NOT verified live by this change - see this file\'s header. A wrong name',
-      '" fails the generated class\'s OWN syntax check at bridge activation, before',
-      '" any mutation runs.',
-      "CALL METHOD lo_package->set_super_package_name",
-      "  EXPORTING",
-      `    i_super_package_name = ${quoted(superPackage)}`,
-      "  EXCEPTIONS",
-      "    OTHERS                = 1.",
-      ...subrcGuardFragment("Attaching super package"),
-      "",
-      "CALL METHOD lo_package->save",
-      "  EXCEPTIONS",
-      "    OTHERS = 1.",
-      ...subrcGuardFragment("Saving package"),
-      "",
-      "CALL METHOD lo_package->set_changeable",
-      "  EXPORTING",
-      "    i_changeable = abap_false",
-      "  EXCEPTIONS",
-      "    OTHERS       = 1.",
-      ...subrcGuardFragment("Making package not changeable"),
-      "COMMIT WORK.",
-      "out->write( 'PKG-PARENT-SET' ).",
-    );
-  }
-
-  lines.push(
-    "",
-    '" A tag alone is not proof: the classrun could report success for a row that',
-    '" was rolled back. Re-read TDEVC and refuse to write PKG-CONFIRMED unless the',
-    "\" row is actually there. (This is still the bridge's own stdout -",
-    '" src/tools/write.ts additionally verifies out-of-band.)',
-    "\"",
-    '" DLVUNIT and KORRFLAG are reported as EVIDENCE, not judged here. Two',
-    '" reasons. (a) Any RETURN below this point fires AFTER the create already',
-    '" happened, and this bridge does not self-delete on a discrepancy: a hard',
-    '" failure here would leave the package behind while telling the caller the',
-    '" operation failed - strictly worse than handing back the row and letting the TypeScript layer',
-    '" say what it means. (b) The KORRFLAG value TDEVC carries for a',
-    "\" transportable package is transcribed from the reporter's run, not",
-    '" independently confirmed, so a mismatch is not reliably a defect. The',
-    "\" comparison lives in createPackageViaBridge's caller instead, where it is a",
-    '" loud note rather than a verdict.',
-    `SELECT SINGLE * FROM tdevc INTO @ls_tdevc WHERE devclass = ${quoted(packageName)}.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} TDEVC has no row for ${packageName} after create| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    `out->write( |${PKG_TDEVC_PREFIX} DEVCLASS={ ls_tdevc-devclass } PARENTCL={ ls_tdevc-parentcl } DLVUNIT={ ls_tdevc-dlvunit } KORRFLAG={ ls_tdevc-korrflag }| ).`,
-  );
-
-  // PARENTCL is not judged here either: the package already exists, and this
-  // bridge does not self-delete on a discrepancy, so the row is handed back
-  // for {@link tdevcDiscrepancies} to compare instead of failing a create
-  // that already happened.
-  lines.push("out->write( 'PKG-CONFIRMED' ).");
-
-  return lines;
-}
-
-/**
  * Compares the TDEVC evidence row against what the create asked for; one
  * sentence per discrepancy, empty when it matches. This is the judgement the
- * generated ABAP deliberately doesn't make (see {@link packageFragment}) —
- * every check here runs AFTER a create that already happened and this bridge
- * does not self-delete, so a discrepancy means "exists, but not quite as
- * asked" (deletable afterwards via `abap_write mode=delete`, while empty —
- * see `./package-delete.ts`), never "nothing happened".
+ * classic action deliberately doesn't make (see `abap-package.ts`'s
+ * `create_package` method) — every check here runs AFTER a create that
+ * already happened and the action does not self-delete, so a discrepancy
+ * means "exists, but not quite as asked" (deletable afterwards via
+ * `abap_write mode=delete`, while empty — see `./package-delete.ts`), never
+ * "nothing happened".
  */
 export function tdevcDiscrepancies(
   row: TdevcRow | undefined,
@@ -425,11 +245,11 @@ export function tdevcDiscrepancies(
 // ---------------------------------------------------------------------------
 
 /**
- * Create a `DEVC/K` package via the DDIC classrun bridge. Order, mirroring
- * `./tran-create.ts`: (1) validate every caller string — safe standalone even
- * though {@link packageFragment} validates again; (2) {@link assertBridgeMutation}
- * on the domain object, zero-network, before any ABAP is generated; (3) build
- * source; (4) deploy + execute + assert transcript, then parse TDEVC.
+ * Create a `DEVC/K` package over the fluid `classic` tool. Order, mirroring
+ * `./tran-create.ts`: (1) validate every caller string, zero-network;
+ * (2) {@link assertBridgeMutation} on the domain object, zero-network, before
+ * any classic action runs; (3) run `create_package` and assert the
+ * transcript, then parse TDEVC.
  */
 export async function createPackageViaBridge(
   conn: AbapConnection,
@@ -449,7 +269,7 @@ export async function createPackageViaBridge(
     corrSource?: "named" | "auto";
   },
 ): Promise<{ run: RunResult; transcript: DdicTranscript; tdevc?: TdevcRow }> {
-  // 1 — re-validated inside packageFragment too (exported, must be safe standalone).
+  // 1 — safe standalone.
   const packageName = assertEnhIdentifier(params.packageName, "packageName", {
     maxLength: PACKAGE_MAX_LENGTH,
   });
@@ -462,9 +282,9 @@ export async function createPackageViaBridge(
       ? undefined
       : assertEnhIdentifier(params.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH });
 
-  // 2 — the second gate, on the domain object, zero-network, before any ABAP is generated.
-  // `deployBridge`'s own gate only covers ZCL_ZMCP_DDIC_CPKG in $TMP — a different
-  // object entirely — and a package has no activation step, hence activate: false.
+  // 2 — the second gate, on the domain object, zero-network, before the classic action runs.
+  // The fluid tool's own gate only covers its body class — a different object entirely —
+  // and a package has no activation step, hence activate: false.
   // `corr` carries the REAL corrNr (always known here — assertCorrNr already
   // required it) so the transport allowlist judges and, on refusal, names
   // the actual request rather than a synthesised "auto".
@@ -484,35 +304,25 @@ export async function createPackageViaBridge(
     { activate: false, corr },
   );
 
-  // 3
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.createPackage,
-    PACKAGE_DATA_LINES,
-    packageFragment({
-      packageName,
-      description,
-      softwareComponent,
-      corrNr,
-      superPackage,
-      packageType: params.packageType,
-    }),
-  );
-
-  // 4
-  const expectTags = (
+  // 3 — PKG-CREATED fires only after create_new_package + save (with corrNr) + set_changeable(false)
+  // + COMMIT WORK all succeeded — see abap-package.ts's create_package method. set_super_package_name
+  // (if any) runs strictly AFTER this tag, so "not attached to a super package" is accurate at this
+  // point. PKG-PARENT-SET fires only after the reload + set_super_package_name + save +
+  // set_changeable(false) + COMMIT WORK of the second step all succeeded.
+  const expectTags =
     superPackage !== undefined
       ? (["PKG-CREATED", "PKG-PARENT-SET", "PKG-CONFIRMED"] as const)
-      : (["PKG-CREATED", "PKG-CONFIRMED"] as const)
-  );
-  // PKG-CREATED fires only after create_new_package + save (with corrNr) + set_changeable(false)
-  // + COMMIT WORK all succeeded — see packageFragment. set_super_package_name (if any) runs
-  // strictly AFTER this tag, so "not attached to a super package" is accurate at this point.
-  // PKG-PARENT-SET fires only after the reload + set_super_package_name + save +
-  // set_changeable(false) + COMMIT WORK of the second step all succeeded.
-  const { run, transcript } = await runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.createPackage,
-    source,
-    description: `abapsmith create-package bridge (${packageName})`,
+      : (["PKG-CREATED", "PKG-CONFIRMED"] as const);
+  const { run, transcript } = await runClassicAction(conn, gate, {
+    action: "create_package",
+    args: {
+      package_name: packageName,
+      description,
+      software_component: softwareComponent,
+      corr_nr: corrNr,
+      super_package: superPackage ?? "",
+      package_type: params.packageType ?? "",
+    },
     what: `Creating package ${packageName}`,
     expectTags,
     completed: {
