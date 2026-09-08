@@ -45,12 +45,32 @@ const FLUID_RUNTIME_SOURCE = `CLASS zcl_zmcp_fluid_rt DEFINITION
       IMPORTING iv_text        TYPE string
       RETURNING VALUE(rv_text) TYPE string.
 
+    CLASS-METHODS scan
+      IMPORTING iv_json TYPE string.
+
+    CLASS-METHODS s
+      IMPORTING iv_path TYPE string
+      RETURNING VALUE(rv_value) TYPE string.
+
+    CLASS-METHODS b
+      IMPORTING iv_path TYPE string
+      RETURNING VALUE(rv_value) TYPE abap_bool.
+
+    CLASS-METHODS n
+      IMPORTING iv_path TYPE string
+      RETURNING VALUE(rv_count) TYPE i.
+
     CLASS-METHODS run
       IMPORTING iv_action TYPE string
                 iv_json   TYPE string.
 
   PRIVATE SECTION.
     CONSTANTS c_line_max TYPE i VALUE 800.
+
+    TYPES: BEGIN OF ty_arg,
+             path  TYPE string,
+             value TYPE string,
+           END OF ty_arg.
 
     CLASS-DATA go_out      TYPE REF TO if_oo_adt_classrun_out.
     CLASS-DATA gv_ver      TYPE string.
@@ -61,6 +81,7 @@ const FLUID_RUNTIME_SOURCE = `CLASS zcl_zmcp_fluid_rt DEFINITION
     CLASS-DATA gv_bytes    TYPE i.
     CLASS-DATA gv_errors   TYPE i.
     CLASS-DATA gv_t0       TYPE i.
+    CLASS-DATA gt_arg      TYPE SORTED TABLE OF ty_arg WITH UNIQUE KEY path.
 
     CLASS-METHODS emit
       IMPORTING iv_line TYPE string.
@@ -72,6 +93,11 @@ const FLUID_RUNTIME_SOURCE = `CLASS zcl_zmcp_fluid_rt DEFINITION
     CLASS-METHODS has_break
       IMPORTING iv_json        TYPE string
       RETURNING VALUE(rv_yes)  TYPE abap_bool.
+
+    CLASS-METHODS read_string
+      IMPORTING iv_json TYPE string
+      CHANGING  cv_off  TYPE i
+      RETURNING VALUE(rv_value) TYPE string.
 ENDCLASS.
 
 
@@ -264,6 +290,169 @@ CLASS zcl_zmcp_fluid_rt IMPLEMENTATION.
 
   METHOD failed.
     rv_failed = boolc( gv_errors > 0 ).
+  ENDMETHOD.
+
+  METHOD scan.
+    DATA lv_len   TYPE i.
+    DATA lv_off   TYPE i.
+    DATA lv_ch    TYPE c LENGTH 1.
+    DATA lv_key   TYPE string.
+    DATA lv_val   TYPE string.
+    DATA lv_idx   TYPE i.
+    DATA lv_start TYPE i.
+    DATA ls_arg   TYPE ty_arg.
+
+    CLEAR gt_arg.
+    lv_len = strlen( iv_json ).
+    IF lv_len < 2.
+      RETURN.
+    ENDIF.
+    lv_off = 1.
+    WHILE lv_off < lv_len.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '}'.
+        RETURN.
+      ENDIF.
+      lv_key = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+      lv_off = lv_off + 1.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '"'.
+        lv_val = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+        CLEAR ls_arg.
+        ls_arg-path = lv_key.
+        ls_arg-value = lv_val.
+        INSERT ls_arg INTO TABLE gt_arg.
+      ELSEIF lv_ch = '['.
+        lv_off = lv_off + 1.
+        lv_idx = 0.
+        lv_ch = iv_json+lv_off(1).
+        IF lv_ch <> ']'.
+          WHILE lv_off < lv_len.
+            lv_val = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+            CLEAR ls_arg.
+            ls_arg-path = |{ lv_key }/{ lv_idx }|.
+            ls_arg-value = lv_val.
+            INSERT ls_arg INTO TABLE gt_arg.
+            lv_idx = lv_idx + 1.
+            lv_ch = iv_json+lv_off(1).
+            IF lv_ch = ','.
+              lv_off = lv_off + 1.
+            ELSE.
+              EXIT.
+            ENDIF.
+          ENDWHILE.
+        ENDIF.
+        lv_off = lv_off + 1.
+      ELSE.
+        lv_start = lv_off.
+        WHILE lv_off < lv_len.
+          lv_ch = iv_json+lv_off(1).
+          IF lv_ch = ',' OR lv_ch = '}'.
+            EXIT.
+          ENDIF.
+          lv_off = lv_off + 1.
+        ENDWHILE.
+        lv_val = substring( val = iv_json off = lv_start len = lv_off - lv_start ).
+        CLEAR ls_arg.
+        ls_arg-path = lv_key.
+        ls_arg-value = lv_val.
+        INSERT ls_arg INTO TABLE gt_arg.
+      ENDIF.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = ','.
+        lv_off = lv_off + 1.
+      ELSE.
+        RETURN.
+      ENDIF.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD read_string.
+    DATA lv_len  TYPE i.
+    DATA lv_off  TYPE i.
+    DATA lv_ch   TYPE c LENGTH 1.
+    DATA lv_esc  TYPE c LENGTH 1.
+    DATA lv_hex  TYPE c LENGTH 4.
+    DATA lv_x2   TYPE x LENGTH 2.
+    DATA lv_xstr TYPE xstring.
+    DATA lv_uc   TYPE string.
+    DATA lv_crlf TYPE c LENGTH 2.
+    DATA lv_cr   TYPE c LENGTH 1.
+
+    lv_crlf = cl_abap_char_utilities=>cr_lf.
+    lv_cr = lv_crlf(1).
+    lv_len = strlen( iv_json ).
+    lv_off = cv_off + 1.
+    CLEAR rv_value.
+    WHILE lv_off < lv_len.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '"'.
+        lv_off = lv_off + 1.
+        EXIT.
+      ELSEIF lv_ch = '\\'.
+        lv_off = lv_off + 1.
+        lv_esc = iv_json+lv_off(1).
+        CASE lv_esc.
+          WHEN '"'.
+            rv_value = rv_value && '"'.
+          WHEN '\\'.
+            rv_value = rv_value && '\\'.
+          WHEN '/'.
+            rv_value = rv_value && '/'.
+          WHEN 'b'.
+            rv_value = rv_value && cl_abap_char_utilities=>backspace.
+          WHEN 'f'.
+            rv_value = rv_value && cl_abap_char_utilities=>form_feed.
+          WHEN 'n'.
+            rv_value = rv_value && cl_abap_char_utilities=>newline.
+          WHEN 'r'.
+            rv_value = rv_value && lv_cr.
+          WHEN 't'.
+            rv_value = rv_value && cl_abap_char_utilities=>horizontal_tab.
+          WHEN 'u'.
+            lv_hex = substring( val = iv_json off = lv_off + 1 len = 4 ).
+            lv_x2 = lv_hex.
+            lv_xstr = lv_x2.
+            CLEAR lv_uc.
+            TRY.
+                cl_abap_conv_in_ce=>create( input = lv_xstr encoding = 'UTF-16BE' )->read( IMPORTING data = lv_uc ).
+              CATCH cx_root.
+                lv_uc = '?'.
+            ENDTRY.
+            rv_value = rv_value && lv_uc.
+            lv_off = lv_off + 4.
+          WHEN OTHERS.
+            rv_value = rv_value && lv_esc.
+        ENDCASE.
+        lv_off = lv_off + 1.
+      ELSE.
+        rv_value = rv_value && lv_ch.
+        lv_off = lv_off + 1.
+      ENDIF.
+    ENDWHILE.
+    cv_off = lv_off.
+  ENDMETHOD.
+
+  METHOD s.
+    DATA ls_arg TYPE ty_arg.
+    CLEAR rv_value.
+    READ TABLE gt_arg INTO ls_arg WITH TABLE KEY path = iv_path.
+    IF sy-subrc = 0.
+      rv_value = ls_arg-value.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD b.
+    rv_value = boolc( s( iv_path ) = 'true' ).
+  ENDMETHOD.
+
+  METHOD n.
+    DATA lv_pattern TYPE string.
+    CLEAR rv_count.
+    lv_pattern = |{ iv_path }/*|.
+    LOOP AT gt_arg TRANSPORTING NO FIELDS WHERE path CP lv_pattern.
+      rv_count = rv_count + 1.
+    ENDLOOP.
   ENDMETHOD.
 
   METHOD run.

@@ -4,10 +4,25 @@
  * adapted from `bridgeClassSource` in `src/adt/run.ts` (SUBMIT ... EXPORTING
  * LIST TO MEMORY, then LIST_FROM_MEMORY / LIST_TO_ASCI), reshaped to the
  * fluid body-class contract (`run( iv_action, iv_json )` against
- * `ZCL_ZMCP_FLUID_RT`) instead of `IF_OO_ADT_CLASSRUN`.
+ * `ZCL_ZMCP_FLUID_RT`) instead of `IF_OO_ADT_CLASSRUN`. Input args are read
+ * out of `iv_json` via `ZCL_ZMCP_FLUID_RT`'s `scan()`/`s()`, and each
+ * captured list line is escaped into a JSON string via `esc()` before it
+ * goes out on an `OUT` frame, since `protocol.ts` runs every OUT payload
+ * through `JSON.parse`.
  */
 import type { FluidManifest } from "../manifest.js";
 import { FLUID_CONTRACT } from "../manifest.js";
+import { FLUID_RUNTIME_CLASS, fluidRuntimeManifest, fluidRuntimeSources } from "../abap/runtime.js";
+
+const RUNTIME_SOURCE = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE === undefined) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+
+const RUNTIME_OBJECT = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT === undefined) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
 
 const RUN_SOURCE = `CLASS zcl_zmcp_fluid_run DEFINITION
   PUBLIC
@@ -19,14 +34,6 @@ const RUN_SOURCE = `CLASS zcl_zmcp_fluid_run DEFINITION
       IMPORTING
         iv_action TYPE string
         iv_json   TYPE string.
-
-  PRIVATE SECTION.
-    CLASS-METHODS get_json_string
-      IMPORTING
-        iv_json         TYPE string
-        iv_name         TYPE string
-      RETURNING
-        VALUE(rv_value) TYPE string.
 
 ENDCLASS.
 
@@ -43,8 +50,9 @@ CLASS zcl_zmcp_fluid_run IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(lv_report)  = get_json_string( iv_json = iv_json iv_name = 'report' ).
-    DATA(lv_variant) = get_json_string( iv_json = iv_json iv_name = 'variant' ).
+    zcl_zmcp_fluid_rt=>scan( iv_json ).
+    DATA(lv_report)  = zcl_zmcp_fluid_rt=>s( 'report' ).
+    DATA(lv_variant) = zcl_zmcp_fluid_rt=>s( 'variant' ).
 
     IF lv_report IS INITIAL.
       zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
@@ -111,20 +119,10 @@ CLASS zcl_zmcp_fluid_run IMPLEMENTATION.
     ENDTRY.
 
     LOOP AT lt_txt INTO DATA(lv_line).
-      zcl_zmcp_fluid_rt=>out( |{ lv_line }| ).
+      zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( lv_line ) }"| ).
     ENDLOOP.
 
     zcl_zmcp_fluid_rt=>end( 0 ).
-  ENDMETHOD.
-
-  METHOD get_json_string.
-    " Stopgap for a top-level JSON string scalar until the runtime class
-    " exposes JSON helpers; does not handle nested objects or arrays.
-    DATA(lv_pattern) = |"| && iv_name && |":"([^"]*)"|.
-    FIND REGEX lv_pattern IN iv_json SUBMATCHES rv_value.
-    IF sy-subrc <> 0.
-      CLEAR rv_value.
-    ENDIF.
   ENDMETHOD.
 
 ENDCLASS.
@@ -136,6 +134,13 @@ export const runManifest: FluidManifest = {
   title: "Run",
   description: "Runs a classic ABAP report and captures its list output.",
   objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT.description,
+      source: { text: RUNTIME_SOURCE },
+    },
     {
       name: "ZCL_ZMCP_FLUID_RUN",
       type: "CLAS/OC",
@@ -168,4 +173,7 @@ export const runManifest: FluidManifest = {
   ],
 };
 
-export const runSources: ReadonlyMap<string, string> = new Map([["ZCL_ZMCP_FLUID_RUN", RUN_SOURCE]]);
+export const runSources: ReadonlyMap<string, string> = new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE],
+  ["ZCL_ZMCP_FLUID_RUN", RUN_SOURCE],
+]);

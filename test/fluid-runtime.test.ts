@@ -53,7 +53,21 @@ describe("fluidRuntimeSources", () => {
     expect(re.test(source)).toBe(true);
   });
 
-  const requiredMethods = ["attach", "begin", "out", "out_chunk", "err", "end", "failed", "esc", "run"];
+  const requiredMethods = [
+    "attach",
+    "begin",
+    "out",
+    "out_chunk",
+    "err",
+    "end",
+    "failed",
+    "esc",
+    "scan",
+    "s",
+    "b",
+    "n",
+    "run",
+  ];
 
   it("defines every required method in both the definition and implementation halves", () => {
     const source = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS) ?? "";
@@ -100,7 +114,7 @@ describe("fluidRuntimeTool.version", () => {
   // Pinned literal: a deliberate source edit changes this hash on purpose, and
   // the test must be updated deliberately alongside it — not silently pass.
   it("is pinned to the deployed runtime source's current hash", () => {
-    expect(fluidRuntimeTool.version).toBe("2d20afef");
+    expect(fluidRuntimeTool.version).toBe("134ccf5b");
   });
 });
 
@@ -159,9 +173,11 @@ describe("esc() lone-CR escaping (fix 2)", () => {
     expect(tabIdx).toBeGreaterThan(crIdx);
   });
 
-  it("never assigns a TYPE x field into a TYPE c field (hex-display corruption, not byte reinterpretation)", () => {
+  it("never assigns a TYPE x field into a TYPE c field within esc() itself (hex-display corruption, not byte reinterpretation)", () => {
+    // read_string()'s \uXXXX decoding legitimately declares a TYPE x buffer
+    // (mirroring classic/abap-core.ts); esc()'s own CR fix must not.
     const source = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS) ?? "";
-    expect(source).not.toMatch(/TYPE x LENGTH \d+/);
+    expect(methodBody(source, "esc")).not.toMatch(/TYPE x LENGTH \d+/);
   });
 });
 
