@@ -4,6 +4,7 @@
 import { fluidRuntimeManifest, fluidRuntimeSources } from "../abap/runtime.js";
 import type { FluidManifest } from "../manifest.js";
 import { classicManifest, classicSources } from "./classic.js";
+import { coreManifest, coreSources } from "./core.js";
 import { imgManifest, imgSources } from "./img.js";
 import { runManifest, runSources } from "./run.js";
 
@@ -14,6 +15,7 @@ export interface BuiltinFluidTool {
 
 export const BUILTIN_FLUID_TOOLS: readonly BuiltinFluidTool[] = [
   { manifest: classicManifest, sources: classicSources },
+  { manifest: coreManifest, sources: coreSources },
   { manifest: imgManifest, sources: imgSources },
   { manifest: fluidRuntimeManifest, sources: fluidRuntimeSources },
   { manifest: runManifest, sources: runSources },
