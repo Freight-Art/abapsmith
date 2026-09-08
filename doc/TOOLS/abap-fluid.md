@@ -16,13 +16,39 @@ the system later proves productive, the write lockout trips, or the
 system-role probe never answers — see `doc/FLUID-API/README.md`'s
 "Read-only disables the whole feature" for the full list of senses.
 
+## The tool description is generated
+
+The MCP tool description a client sees for `abap_fluid` is not
+hand-written — `buildFluidDescription` (`src/adt/fluid/describe.ts`) builds
+it at registration time from the loaded manifests: the header, a
+`tools.actions (category)` route index listing every loaded tool and every
+one of its actions, and two example calls built from the first tool's first
+action. The route index is **complete by construction**: every loaded tool
+and every action is rendered every time, never truncated, never an `+N
+more` elision. This means installing a fluid plugin and restarting the
+server is enough for its tool and actions to appear in the description —
+no code change, no MCP re-registration logic to update. A tool set with
+nothing loaded gets `No fluid tools are loaded.` instead of a route index.
+
 ## Calling with no arguments
 
-A call with **no fields at all** returns an info payload rather than an
-error: the loaded tools with their ids, origin (`builtin`/`plugin`),
-version and action names, plus a short usage block and a `NEXT` line
-suggesting where to go. Useful as a first call to see what is loaded before
-naming a `tool`.
+A call with **no fields at all** returns an info block rather than an
+error — `buildFluidInfoBlock` (`src/adt/fluid/describe.ts`): the
+`ABAP_FLUID_API` flag state, the package, the contract, the abap mode, the
+read-only state, whatever the safety gate exposes (system role, productive,
+write-lockout, role-probe failure), every loaded tool with its id, origin
+(`builtin`/`plugin`), version and action names, every **refused** plugin
+(its path, manifest id if parsed, refusal code and reason), any loader
+warnings, and a `next` line suggesting where to go — `describe` on the
+first loaded tool when one exists, otherwise a pointer at
+`ABAP_FLUID_PLUGINS`/`ABAP_ALLOW_FLUID_PLUGINS` or at the refusals. This is
+the one place a misconfigured plugin directory is never silently invisible.
+Useful as a first call to see what is loaded before naming a `tool`.
+
+The flag/read-only gate still applies before any of this: with
+`ABAP_FLUID_API` off, or the system otherwise read-only, the empty call
+returns the ordinary `FLUID_API_DISABLED` refusal, not the info block — see
+"Read-only disables the whole feature" in `doc/FLUID-API/README.md`.
 
 ```json
 {}
@@ -33,19 +59,27 @@ naming a `tool`.
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
 | `op` | enum `list` \| `describe` \| `status` \| `verify` \| `run` \| `repair` \| `remove` | no | `run` | Which operation to perform. |
-| `tool` | string | `run`/`describe`: yes; `verify`/`repair`/`remove`: no | for `verify`/`repair`/`remove`, every loaded tool | Fluid tool id, e.g. `rt`. |
+| `tool` | string | `run`: yes; `describe`/`verify`/`repair`/`remove`: no | for `describe`/`verify`/`repair`/`remove`, every loaded tool | Fluid tool id, e.g. `rt`. |
 | `action` | string | `run` only: yes | — | Action name within `tool`. |
 | `args` | object | `run` only | `{}` | The action's arguments, validated against that action's declared input schema. |
 | `confirm` | string | `remove`: yes (must be exactly `"remove"`) | — | Also passed through to `run` for actions that themselves declare a confirmation requirement. |
 | `corr_nr` | string | no | unset | Transport request for the deployment. `$ABAPSMITH_FLUID_API` is a local (`$`) package, so this is normally left unset. |
 | `scope` | enum `tool` \| `invokers` \| `all` | `remove` only | `tool` | `tool`: delete the named tool's own manifest objects. `invokers`: delete only the generated per-call `ZCL_ZMCP_I_*` invoker classes. `all`: delete every abapsmith-owned object in `$ABAPSMITH_FLUID_API`. |
 
+For `describe`, `verify` and `repair`, an explicit `tool: ""` is treated
+exactly like omitting `tool` — describe-all, verify-all, or whole-system
+repair. `remove`'s default `scope: "tool"` is the one exception: it still
+requires a non-empty `tool` and rejects `tool: ""` the same as omitting it
+entirely (`scope: "invokers"`/`"all"` don't need `tool` at all).
+
 ## Ops
 
 ### list — no network
 
 The loaded tools, their origin, version and actions, plus any refused
-plugins and loader warnings.
+plugins and loader warnings. A compact catalogue: it carries **no** JSON
+schemas — for those, use `describe`. Answered entirely from the loaded
+manifests; issues zero HTTP requests.
 
 ```json
 { "op": "list" }
@@ -53,24 +87,64 @@ plugins and loader warnings.
 
 ### describe — no network
 
-One tool in full: its manifest objects (name and type), its entry class,
-and each action's name, category, description, and JSON input/output
-schemas.
+One or more tools in full: each tool's manifest objects (name and type),
+its entry class, and each action's name, category, description, and full
+JSON input/output schemas, verbatim from the manifest, `targets` included
+where the action declares them. **`tool` is optional here**: name one to
+describe just that tool, or omit it to describe every loaded tool in one
+call. Like `list`, `describe` is answered entirely from the loaded
+manifests and issues zero HTTP requests.
+
+The response shape follows what was **asked for**, not how many tools
+happen to be loaded: naming a `tool` always renders the flat, single-tool
+form (a `TOOL` header plus one `OBJECTS`/`ACTIONS` body); omitting `tool`
+always renders one section per tool, each titled `<id> (<origin>,
+v<version>)`, even when exactly one tool is loaded. A system with a single
+fluid tool therefore renders differently depending on whether that tool's
+id was named in the call.
 
 ```json
 { "op": "describe", "tool": "rt" }
 ```
 
+```json
+{ "op": "describe" }
+```
+
 ### status — best-effort read
 
 Where the fluid API stands on this system: the flag, the package, the
-write mode, how many tools are loaded, and what abapsmith's local registry
-believes is currently deployed (tool id, contract, version, objects,
-`deployedAt`). Reads the local registry file under `ABAP_STATE_DIR`, and
-— best effort — probes the system for retired pre-fluid bridge classes,
-reporting which of them still exist. The probe is read-only and never
-mutates; if no connection can be made, or the probe fails, `status` still
-renders the local answer and says the probe did not run.
+contract, the abap mode, whether the connection is read-only, how many
+tools are loaded, and what abapsmith's local registry believes is
+currently deployed (tool id, contract, version, objects, `deployedAt`).
+Reads the local registry file under `ABAP_STATE_DIR`, then — best effort,
+over one shared connection attempt — runs two further read-only probes: a
+`RETIRED BRIDGE CLASSES` section (which retired pre-fluid bridge classes
+are still present) and an `INVOKER CLASSES` section (a per-tool invoker
+count, see "Invoker classes" below). Neither probe mutates anything. If
+the connection attempt itself fails, the local-registry answer above still
+renders in full, and both sections render their own
+`(probe unavailable: ...)` line instead of failing the whole call.
+
+The two probes **degrade independently** once connected. Only the invoker
+probe can still fail on its own after that point — listing the package or
+reading one invoker's source can throw — in which case `INVOKER CLASSES`
+alone shows `(probe unavailable: ...)` while `RETIRED BRIDGE CLASSES`,
+which already succeeded, renders normally. The retired-bridge probe itself
+never throws (an unreadable class is reported per-row as `unknown`
+instead), so the reverse — `RETIRED BRIDGE CLASSES` unavailable while
+`INVOKER CLASSES` succeeds — only happens when the initial connection
+attempt fails outright, which blanks both sections at once.
+
+`status`'s invoker probe reports the **total** number of
+`ZCL_ZMCP_I_<hash8>` invoker classes in `$ABAPSMITH_FLUID_API` in full —
+that costs one cheap package-listing call. Per-tool **attribution** (which
+tool each invoker belongs to) is more expensive, one source read per
+invoker inside a held connection lease, and is capped at the first 200
+invokers the listing returns per call (`INVOKER_PROBE_LIMIT = 200` in
+`src/tools/fluid.ts`). When the true total is higher, `INVOKER CLASSES`
+says how many were actually probed out of the total, and that the
+per-tool counts above it are a partial attribution, not a complete one.
 
 ```json
 { "op": "status" }
@@ -83,8 +157,16 @@ Classifies every object of the named tool (or of every loaded tool if
 `present`, `absent`, `stale`, `inactive`, `broken`, `foreign` (an object of
 that name exists in a package abapsmith does not own — it is never touched)
 or `legacy` (a reserved `ZCL_ZMCP_`/`ZIF_ZMCP_` name stranded in `$TMP` or
-`$ZMCP_HELPERS`, a pre-fluid install). The summary also reports how many
-retired pre-fluid bridge classes are still present on the system.
+`$ZMCP_HELPERS`, a pre-fluid install). The response also carries a
+`RETIRED BRIDGE CLASSES` section — the same list `status` renders (see
+above): each non-absent retired class's name, state
+(`present`/`moved`/`unknown`), and where it was found, not merely a count.
+Unlike `status`'s copy of this probe, `verify`'s never reports
+`(probe unavailable: ...)`: it runs inside the same already-held read
+lease used to classify the tools' own objects, and the underlying probe
+never throws. If the connection itself cannot be made, `verify` fails the
+whole call rather than degrading — there is no best-effort fallback here
+the way there is for `status`.
 
 ```json
 { "op": "verify", "tool": "rt" }
@@ -123,6 +205,21 @@ authorized delete path, and reports what it deleted. A class of one of
 those names found in a package abapsmith does not own is reported as
 moved and is never touched. Naming a `tool` skips the reap entirely.
 
+When `tool` is **given**, `repair` additionally prunes that tool's *stale*
+invoker classes — see "Invoker classes" below. Whole-system `repair` (no
+`tool`) does not prune invokers at all; pruning is a per-tool operation
+only.
+
+Pruning first re-probes that tool's invokers, capped the same way
+`status`'s attribution is: the full invoker count in
+`$ABAPSMITH_FLUID_API` is cheap to get, but checking each one for
+staleness costs a source read, so only the first 200 invokers the package
+listing returns per call (`INVOKER_PROBE_LIMIT = 200`) are read and
+checked. When the true total is higher, the `STALE INVOKERS` section is
+followed by a note saying how many of the total were actually checked —
+the pruning above reflects only those; an invoker past the cap is left
+alone, not pruned, until a later `repair` call reaches it.
+
 The ordinary authorized delete path means the safety gate's package
 allowlist applies to the reap like any other write. Nine of the ten
 retired classes live in `$TMP`, but `ZCL_ZMCP_IMG_WPROBE` lives
@@ -146,6 +243,8 @@ and a connection may only re-logon a small fixed number of times outside a
 budgeted request, so sharing one connection across a ten-class reap would
 run it out partway through and silently leave the tail of the list
 untouched. One lease per delete gives every delete a fresh connection.
+Pruning stale invokers (above) follows the same one-lease-per-delete
+discipline, for the same reason.
 
 ```json
 { "op": "repair", "tool": "rt" }
@@ -166,6 +265,54 @@ uses elsewhere deploys its own helper class into the target package before
 deleting it, and the generated ABAP refuses to delete a non-empty package —
 deleting the package from inside itself cannot work. Drop the empty
 package manually in SE80 or ADT if you want it gone.
+
+Like the reap and the invoker prune above, deleting several objects in one
+`remove` call takes a fresh write lease per delete, not one connection
+looped over the list — deleting an ABAP class ends the ADT session
+server-side, and a single connection survives only a small fixed number of
+re-logons. Expect `remove` and `repair` on a tool with many objects or many
+accumulated invokers to take one connection round-trip per object deleted,
+not one round-trip total.
+
+## Invoker classes
+
+Every `run` deploys a tiny generated invoker class, `ZCL_ZMCP_I_<8 hex>`
+(see `doc/FLUID-API/README.md`'s "Invoker accumulation" for why they
+accumulate and how `verify`/`remove` see them). The name is
+content-addressed from `(toolId, action, contract, canonical args)` —
+deliberately **excluding the tool version**. That keeps the invoker's name
+stable across a version bump of the same tool/action/args, so the
+runtime's `BEGIN.ver` version echo stays a real check of what actually
+ran, rather than a tautology against a name that already encodes the
+version it's supposed to confirm.
+
+Because the version is left out of the name, it cannot be read back from
+it. The only recoverable provenance is inside the generated ABAP source
+itself: a comment naming the tool id and action, and the `attach()` call
+naming the version and contract the invoker was built against. Reading
+that provenance means listing the package and reading each class's source
+— there is no cheaper way to attribute an invoker to a tool.
+
+This provenance drives two ops, and both cap how many invokers they read
+source for in a single call at `INVOKER_PROBE_LIMIT = 200`
+(`src/tools/fluid.ts`) — the full invoker count is always cheap and exact,
+but reading source to attribute or check each one is not:
+
+- **`status`** counts invokers per tool (see `status` above) — the total
+  is always exact; the per-tool breakdown is best effort over the first
+  200 invokers found, and both the retired-bridge and invoker probes
+  degrade independently rather than failing the whole call when a probe
+  can't run.
+- **`repair` with a `tool`** prunes that tool's *stale* invokers: those
+  whose source attributes them to that tool, parses a version, and that
+  version differs from the tool's current version. An invoker whose source
+  cannot be attributed to any tool, or that carries no parsed version, is
+  **never** pruned — an unattributable object is never safe to delete.
+  Whole-system `repair` (no `tool`) does not prune invokers at all.
+  Staleness, like `status`'s attribution, is only checked on the first 200
+  invokers the package listing returns per call; past the cap, `repair`
+  reports how many of the total it actually checked, and the pruning it
+  did is understood to reflect only those.
 
 ## Safety
 
