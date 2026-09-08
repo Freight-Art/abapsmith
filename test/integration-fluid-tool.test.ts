@@ -26,6 +26,11 @@
  *  7. op:"remove" rt        -> deletes rt's objects (confirm:"remove").
  *  8. op:"repair" rt, then
  *     one more op:"run" rt.ping -> redeploys rt and proves it works again.
+ *  9. op:"status"           -> invoker count for rt matches a direct
+ *     listInvokerClasses/probeInvokers probe.
+ *  10. op:"repair" tool:"rt" -> prunes only stale rt invokers; asserts
+ *     everything staleInvokers doesn't flag (current-version rt, anything
+ *     unrelated) survives.
  *
  * Steps 7 and 8 are deliberately last: 7 deletes `ZCL_ZMCP_FLUID_RT`, which
  * (like every ABAP class delete over ADT) kills the stateful session
@@ -69,6 +74,7 @@ import { errorResult } from "../src/tool-errors.js";
 import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 import { FLUID_RUNTIME_CLASS, fluidRuntimeManifest, fluidRuntimeTool } from "../src/adt/fluid/abap/runtime.js";
 import { invokerName } from "../src/adt/fluid/invoke.js";
+import { listInvokerClasses, probeInvokers, staleInvokers } from "../src/adt/fluid/invokers.js";
 import { BUILTIN_FLUID_TOOLS } from "../src/adt/fluid/builtin/index.js";
 import { builtinFluidToolSet, registerFluidTool, type FluidToolDeps } from "../src/tools/fluid.js";
 import { liveSuiteSkipReason, skipForApplianceState } from "./live-appliance-state.js";
@@ -309,4 +315,48 @@ dw("live A4H abap_fluid tool handler (write path, rt through the MCP tool)", () 
     expect(pingText).toContain("RESULT");
     expect(pingText).toContain('"pong": true');
   }, 180_000);
+
+  it('9. op:"status" reports an invoker count for rt matching a direct probe', async () => {
+    assertUsable();
+    const names = await withRevive((c) => listInvokerClasses(c));
+    const probes = await withRevive((c) => probeInvokers(c, names));
+    // Step 8's final ping leaves at least one rt invoker deployed; other
+    // slices sharing this appliance may add more, so compare against a
+    // fresh probe rather than a hard-coded number.
+    const expected = probes.filter((p) => p.toolId === "rt").length;
+    expect(expected).toBeGreaterThan(0);
+
+    const text = okText(await invoke(tools, { op: "status" }));
+    expect(text).toContain("INVOKER CLASSES");
+    const row = /^rt\s+(\d+)\s*$/m.exec(text);
+    expect(row).not.toBeNull();
+    expect(Number(row?.[1])).toBe(expected);
+  }, 60_000);
+
+  it('10. op:"repair" tool:"rt" prunes only stale rt invokers, leaving current and unrelated invokers alone', async () => {
+    assertUsable();
+    // Re-deploy so a current-version rt invoker is known to exist going in.
+    await invoke(tools, { op: "run", tool: "rt", action: "ping" });
+    const currentInvoker = invokerName("rt", "ping", {}, fluidRuntimeManifest.contract);
+
+    const before = await withRevive((c) => listInvokerClasses(c));
+    const beforeProbes = await withRevive((c) => probeInvokers(c, before));
+    expect(before).toContain(currentInvoker);
+    // `staleInvokers` is production's own definition of "safe to prune" —
+    // this suite has no way to deploy a genuinely stale rt invoker live
+    // without shipping a fake one, so nothing here is expected to qualify.
+    // The test asserts the safe half: repair's prune pass agrees (nothing
+    // pruned) and every invoker seen beforehand, rt's current one included,
+    // is still present afterward — the failure mode that matters is
+    // deleting an object repair had no business touching.
+    const stale = staleInvokers(beforeProbes, "rt", fluidRuntimeTool.version);
+    expect(stale).toEqual([]);
+
+    const text = okText(await invoke(tools, { op: "repair", tool: "rt" }));
+    expect(text).toContain("STALE INVOKERS");
+    expect(text).toContain("(none — no stale invokers found for this tool)");
+
+    const after = await withRevive((c) => listInvokerClasses(c));
+    for (const name of before) expect(after).toContain(name);
+  }, 120_000);
 });

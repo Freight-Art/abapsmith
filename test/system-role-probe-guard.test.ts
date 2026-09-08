@@ -194,6 +194,32 @@
  * deleted (and the ceiling dropped) if the suite ever stops connecting for
  * real.
  *
+ * ### Ceiling bump: the fluid-describe renderer suite
+ *
+ * `fluid-describe.test.ts` joined as a TWENTY-THIRD entry. Like
+ * `object-gate-config-equivalence.test.ts` / `pool-cross-process-object-gate.test.ts`
+ * above, it is a DIFFERENT permanent shape from the live suites: not a live
+ * suite with no fake, but a suite that is structurally incapable of ever
+ * reaching the probe in the first place. It is a pure OFFLINE suite over the
+ * three renderers in `src/adt/fluid/describe.ts` (`buildFluidDescription`,
+ * `buildFluidDescribe`, `buildFluidInfoBlock`), exercised only against
+ * hand-built `FluidToolSet` fixtures, and it never opens a connection: no
+ * `AbapConnection`, no pool lease, no `HttpClient`, and no fake ADT server
+ * anywhere in the file. It constructs its `SafetyGate` directly (from
+ * `../src/safety.js`) rather than deriving one from a probed connection, so
+ * `buildFluidInfoBlock`'s systemRole/productive/writesLockedOut/roleProbeFailure
+ * reporting is asserted off that gate's own `.config` — set explicitly by the
+ * test — never off what a real T000 probe would answer. It is flagged only
+ * because it must import `safety.js` (for that direct `SafetyGate`
+ * construction) and `manifest.js` (for its fixtures) to make real assertions
+ * — imports past what the mechanical config-only exemption allows (vitest +
+ * node:* + `../src/config.js` only) — the same reason
+ * `object-gate-config-equivalence.test.ts` sits on this list despite also
+ * never opening a connection. `ALLOWLIST_SIZE_AT_LANDING` still stays **8**;
+ * `ALLOWLIST_CEILING` is now **23**. This entry must be deleted (and the
+ * ceiling dropped) if the file is ever restructured to fit inside the
+ * config-only predicate instead.
+ *
  * ## The config-only exemption (separate from the allow-list)
  *
  * A suite whose SUBJECT is config resolution — env string in, resolved value
@@ -231,7 +257,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 14; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-core, +1 integration-fluid-ui, +1 integration-fluid-fpm, +1 integration-fluid-enh
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 15; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-core, +1 integration-fluid-ui, +1 integration-fluid-fpm, +1 integration-fluid-enh, +1 fluid-describe
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -487,6 +513,26 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "against production's real parsing, which is what trips this guard's loadConfig() regex — " +
       "not any new connectivity. Confirmed by grep: no .connect(, .withWrite(, routeSystemRoleProbe, " +
       "or datapreview anywhere in this file.",
+  },
+  {
+    file: "fluid-describe.test.ts",
+    why:
+      "Offline suite for the three PURE renderers in src/adt/fluid/describe.ts — " +
+      "buildFluidDescription, buildFluidDescribe, buildFluidInfoBlock — exercised only against " +
+      "hand-built FluidToolSet fixtures; no fake ADT server, no HttpClient, no built-in tool ids. " +
+      "It calls ConfigSchema.parse() (via its local cfg() helper) purely to build the Config " +
+      "argument those renderers read plain fields off of (flag/package/contract/abapMode/" +
+      "readOnly) — never to open a connection. It also constructs a SafetyGate directly (from " +
+      "../src/safety.js, not from a probed connection) so buildFluidInfoBlock's " +
+      "systemRole/productive/writesLockedOut/roleProbeFailure reporting can be asserted off that " +
+      "gate's own .config, which the test sets explicitly; no assertion here ever depends on what " +
+      "a real T000 probe would answer. It never calls AbapConnection, createServer, .connect(, " +
+      ".withRead( or .withWrite( — confirmed by grep. Its other imports (manifest.js, " +
+      "plugin-loader.js, describe.js) are pure type/fixture surfaces, the same reason " +
+      "object-gate-config-equivalence.test.ts sits on this list above despite also never opening " +
+      "a connection: importing anything beyond src/config.js disqualifies it from the narrow " +
+      "config-only exemption (vitest + node:* + ../src/config.js only), even though that " +
+      "exemption's premise — no reachable connection surface — holds here just as it does there.",
   },
   {
     file: "integration-lock-handle.test.ts",
