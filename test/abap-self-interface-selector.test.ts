@@ -53,6 +53,7 @@ import { transactionFragment, type TransactionParams } from "../src/adt/tran-cre
 import { exerciseFragment, type ExerciseParams } from "../src/adt/enhancement-templates.js";
 import {
   BRIDGE_CLASS,
+  ENH_BRIDGE_PACKAGE,
   ENH_CREATE_PACKAGE,
   createEnhancementSpot,
   createBadiImplementation,
@@ -307,6 +308,15 @@ class RecordingClient implements HttpClient {
 const SESSION_URL = "/sap/bc/adt/compatibility/graph";
 const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
 
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
 const LOCK_XML = (handle = "H1") =>
   `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
   `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
@@ -342,6 +352,8 @@ function sharedRoute(
     if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
     if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+    if (o.url === FLUID_PKG_URI && (o.method ?? "GET").toUpperCase() === "GET")
+      return resp(200, FLUID_PACKAGE_XML, { "content-type": "application/xml" });
     return undefined;
   };
 }
@@ -382,7 +394,10 @@ const AFFECTS = { name: "ZCL_TARGET", packageName: "ZTARGET_PKG", masterSystem: 
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: [ENH_CREATE_PACKAGE],
+    allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE],
+    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
+    // (test/helper-package.test.ts) — needed for the bridge class's own deploy into ENH_BRIDGE_PACKAGE.
+    allowNamePrefixes: ["*"],
     writesLockedOut: false,
     allowEnhancements: true,
     enhanceTargets: "customer",

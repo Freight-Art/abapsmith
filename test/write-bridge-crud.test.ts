@@ -139,6 +139,7 @@ const gate = () =>
   new SafetyGate({
     readOnly: false,
     allowPackages: ["*"],
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
@@ -149,6 +150,15 @@ const gate = () =>
 // ---------------------------------------------------------------------------
 
 const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
+
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="$ABAPSMITH_FLUID_API" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="$ABAPSMITH_FLUID_API" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
 
 const bridgeDeployRoute = (bridgeClass: string): Route => {
   const bridgeObjUrl = `${CLASS_COLLECTION}/${bridgeClass.toLowerCase()}`;
@@ -161,6 +171,7 @@ const bridgeDeployRoute = (bridgeClass: string): Route => {
     if (r.url === bridgeObjUrl && r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
     if (r.url === bridgeObjUrl && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
     if (r.url === bridgeSourceUri && r.method === "PUT") return resp(200, "", OK_TEXT);
+    if (r.url === FLUID_PKG_URI && r.method === "GET") return resp(200, FLUID_PACKAGE_XML, OK_XML);
     return undefined;
   };
 };

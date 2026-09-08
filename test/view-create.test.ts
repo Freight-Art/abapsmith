@@ -64,6 +64,7 @@ import {
   type ClassicViewParams,
 } from "../src/adt/view-create.js";
 import { isLocalPackageName } from "../src/adt/transports.js";
+import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 
 // ---------------------------------------------------------------------------
@@ -98,6 +99,14 @@ class RecordingClient implements HttpClient {
 
 const SESSION_URL = "/sap/bc/adt/compatibility/graph";
 const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
 
 const LOCK_XML = (handle = "H1") =>
   `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
@@ -139,6 +148,9 @@ function sharedRoute(
     if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
     if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+    if (o.url === FLUID_PKG_URI && (o.method ?? "GET").toUpperCase() === "GET") {
+      return resp(200, FLUID_PACKAGE_XML, { "content-type": "application/xml" });
+    }
     return undefined;
   };
 }
@@ -200,10 +212,10 @@ const catchSync = (fn: () => unknown): AbapError => {
 };
 
 /**
- * Allows both packages this suite writes into: `$TMP` for the generated bridge
- * class (`DDIC_BRIDGE_PACKAGE`) and `ZTM` for the view itself. Both are needed
- * — the two gates judge two different objects, which is the whole point of
- * `assertBridgeMutation` existing.
+ * Allows every package this suite writes into: `$TMP` and `$ABAPSMITH_FLUID_API`
+ * for the generated bridge class (`DDIC_BRIDGE_PACKAGE`) and `ZTM` for the view
+ * itself. All three are needed — the two gates judge two different objects,
+ * which is the whole point of `assertBridgeMutation` existing.
  *
  * `allowTransports` keeps the default `"auto"` entry (other tests in this
  * suite still rely on it) and adds `CORR_NR` literally — `source: "named"`
@@ -212,7 +224,10 @@ const catchSync = (fn: () => unknown): AbapError => {
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: ["$TMP", "ZTM"],
+    allowPackages: ["$TMP", "ZTM", FLUID_PACKAGE],
+    // $ is outside the default Z/Y customer namespace — ensureFluidPackage's own
+    // write names $ABAPSMITH_FLUID_API itself as the target.
+    allowNamePrefixes: ["*"],
     allowTransports: ["auto", CORR_NR],
     writesLockedOut: false,
   });
@@ -444,7 +459,8 @@ describe("zero-network refusals ahead of the gate; the safety gate still governs
     }
     const gate = new RecordingGate({
       readOnly: false,
-      allowPackages: ["$TMP"],
+      allowPackages: ["$TMP", FLUID_PACKAGE],
+      allowNamePrefixes: ["*"],
       writesLockedOut: false,
     });
     const route = combine(

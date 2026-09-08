@@ -43,6 +43,7 @@ import { abapTransport, type TransportInput, type TransportJournalDeps } from ".
 import { Journal, type JournalConfig, type JournalEntry } from "../src/journal.js";
 import { fakeCtsConnection, loadCtsFixture } from "./helpers/cts-fixtures.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 
 const MAX_CHARS = 60_000;
 
@@ -89,6 +90,15 @@ const SESSION_URL = "/sap/bc/adt/compatibility/graph";
 const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
 const TRANSPORT_REQUESTS = "/sap/bc/adt/cts/transportrequests";
 const BRIDGE = DDIC_BRIDGE_CLASS.removeTransportEntry;
+
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${FLUID_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
 
 const LOCK_XML = (handle = "H1") =>
   `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
@@ -144,6 +154,9 @@ function sharedRoute(
     if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
     if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+    if (o.url === FLUID_PKG_URI && (o.method ?? "GET").toUpperCase() === "GET") {
+      return resp(200, FLUID_PACKAGE_XML, { "content-type": "application/xml" });
+    }
     return undefined;
   };
 }
@@ -239,7 +252,14 @@ function catchSync(fn: () => unknown): AbapError {
 
 /** Wide open: write, delete-ceiling and the bridge's own package all permitted. */
 const bridgeAdminGate = (): SafetyGate =>
-  new SafetyGate({ readOnly: false, allowPackages: ["*"], allowTransportDelete: true });
+  new SafetyGate({
+    readOnly: false,
+    allowPackages: ["*"],
+    // $ is outside the default Z/Y customer namespace — ensureFluidPackage's own create
+    // (src/adt/fluid/package.ts) names $ABAPSMITH_FLUID_API itself as the write target.
+    allowNamePrefixes: ["*"],
+    allowTransportDelete: true,
+  });
 
 const PARAMS: TransportEntryRemoveParams = { trkorr: "A4HK900545", objectName: "ZTMD_I26_P1" };
 

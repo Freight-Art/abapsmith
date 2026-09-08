@@ -3,6 +3,7 @@
 
 import { fluidRuntimeManifest, fluidRuntimeSources } from "../abap/runtime.js";
 import type { FluidManifest } from "../manifest.js";
+import { runManifest, runSources } from "./run.js";
 
 export interface BuiltinFluidTool {
   readonly manifest: FluidManifest;
@@ -11,4 +12,5 @@ export interface BuiltinFluidTool {
 
 export const BUILTIN_FLUID_TOOLS: readonly BuiltinFluidTool[] = [
   { manifest: fluidRuntimeManifest, sources: fluidRuntimeSources },
+  { manifest: runManifest, sources: runSources },
 ];

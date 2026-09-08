@@ -607,6 +607,8 @@ const packageExistsRoute: Route = (r) => {
   return undefined;
 };
 
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+
 /** GET-404 → POST-create → LOCK → PUT → UNLOCK → activate for the bridge class itself. */
 const bridgeDeployRoute: Route = (r) => {
   if (r.url === DELETE_BRIDGE_URI && r.method === "GET" && !r.qs._action)
@@ -616,6 +618,7 @@ const bridgeDeployRoute: Route = (r) => {
   if (r.url === DELETE_BRIDGE_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
   if (r.url === DELETE_BRIDGE_SOURCE_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
   if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+  if (r.url === FLUID_PKG_URI && r.method === "GET") return resp(200, PACKAGE_XML(DDIC_BRIDGE_PACKAGE), OK_XML);
   return undefined;
 };
 
@@ -639,11 +642,12 @@ function combineRoutes(...routes: Route[]): Route {
 
 const SUCCESS_TRANSCRIPT = ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"].join("\n");
 
-/** Allows both the bridge class's home ($TMP) and the package actually being deleted. */
+/** Allows both the bridge class's home (DDIC_BRIDGE_PACKAGE) and the package actually being deleted. */
 const bridgeGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
     allowPackages: [DDIC_BRIDGE_PACKAGE, PKG],
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
@@ -800,6 +804,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
     const gate = new SafetyGate({
       readOnly: false,
       allowPackages: [PKG, DDIC_BRIDGE_PACKAGE],
+      allowNamePrefixes: ["*"],
       allowTransports: [trkorr],
     });
     const { conn, adt } = await connected(
@@ -977,6 +982,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
     const gate = new SafetyGate({
       readOnly: false,
       allowPackages: [PKG, DDIC_BRIDGE_PACKAGE],
+      allowNamePrefixes: ["*"],
       allowTransports: [trkorr],
     });
     const { conn } = await connected(

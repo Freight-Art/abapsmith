@@ -102,6 +102,16 @@ function objectHappyPath(collectionUrl: string, name: string): (o: HttpClientOpt
   };
 }
 
+const FLUID_PACKAGE_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${DDIC_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
 /** Session/discovery/activation/classrun plumbing shared by every test below. */
 function sharedRoute(
   classrun: (o: HttpClientOptions) => HttpClientResponse | undefined,
@@ -114,6 +124,9 @@ function sharedRoute(
     if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
     if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+    if (o.url === FLUID_PACKAGE_URI && (o.method ?? "GET").toUpperCase() === "GET") {
+      return resp(200, FLUID_PACKAGE_XML, { "content-type": "application/xml" });
+    }
     return undefined;
   };
 }
@@ -172,19 +185,21 @@ function tdevcLine(row: TdevcRow): string {
 // Gates
 // ---------------------------------------------------------------------------
 
-/** Allows BOTH the bridge class ($TMP) and the new package's superpackage (ZTM). */
+/** Allows BOTH the bridge class ($ABAPSMITH_FLUID_API) and the new package's superpackage (ZTM). */
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
     allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE.
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
 
 /**
- * Allows the bridge class in `$TMP` and nothing else, so only the domain
- * gate `createPackageViaBridge` runs itself can refuse a `DEVC/K` in
- * superpackage `ZTM` — `deployBridge`'s own checks pass under it.
+ * Allows the bridge class in `$ABAPSMITH_FLUID_API` and nothing else, so only
+ * the domain gate `createPackageViaBridge` runs itself can refuse a `DEVC/K`
+ * in superpackage `ZTM` — `deployBridge`'s own checks pass under it.
  */
 const bridgeOnlyGate = (): SafetyGate =>
   new SafetyGate({
@@ -469,6 +484,7 @@ describe("honest gate refusals — the second gate runs, and runs FIRST (zero-ne
     const wideOpen = new SafetyGate({
       readOnly: false,
       allowPackages: ["*"],
+      allowNamePrefixes: ["*"],
       allowTransports: ["*"],
       writesLockedOut: false,
     });
@@ -549,6 +565,7 @@ describe("honest gate refusals — the second gate runs, and runs FIRST (zero-ne
     const gate = new RecordingGate({
       readOnly: false,
       allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
       allowTransports: ["*"],
       writesLockedOut: false,
     });
@@ -585,6 +602,7 @@ describe("the real corrNr — not a fabricated 'auto' — reaches the domain gat
     const gate = new RecordingGate({
       readOnly: false,
       allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
       allowTransports: ["*"],
       writesLockedOut: false,
     });
@@ -639,6 +657,7 @@ describe("the real corrNr — not a fabricated 'auto' — reaches the domain gat
     const gate = new SafetyGate({
       readOnly: false,
       allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
       allowTransports: ["A4HK900224"], // no literal "auto" entry
       writesLockedOut: false,
     });

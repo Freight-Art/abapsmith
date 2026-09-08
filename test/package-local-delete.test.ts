@@ -181,6 +181,14 @@ const packageExistsRoute: Route = (r) => {
   return undefined;
 };
 
+/** ensureFluidPackage's cold-path probe for the bridge class's own package. */
+const FLUID_PACKAGE_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const fluidPackageRoute: Route = (r) => {
+  if (r.url === FLUID_PACKAGE_URI && r.method === "GET")
+    return resp(200, PACKAGE_XML(DDIC_BRIDGE_PACKAGE), OK_XML);
+  return undefined;
+};
+
 /**
  * `planUndo`'s existence probe for a DEVC/K entry uses repository search, not
  * a content GET to the packages URI (see test/undo.test.ts's "undo-of-create
@@ -230,7 +238,7 @@ describe("local ($) DEVC/K package delete: no adtcore:packageRef at all, empty p
   it("(A) deletes the package through the classrun bridge, never locking or DELETEing the package's own URI", async () => {
     const gate = bridgeGate();
     const { conn, adt } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+      combineRoutes(packageExistsRoute, fluidPackageRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
     );
 
     const target = await authDelete(conn, { type: "DEVC/K", name: PKG }, gate);
@@ -253,6 +261,7 @@ describe("local ($) DEVC/K package delete: no adtcore:packageRef at all, empty p
     const { conn, adt } = await connected(
       combineRoutes(
         packageExistsRoute,
+        fluidPackageRoute,
         searchExistsRoute,
         bridgeDeployRoute,
         bridgeClassrunRoute(SUCCESS_TRANSCRIPT),

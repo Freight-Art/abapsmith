@@ -235,9 +235,10 @@ describe("out()/out_chunk() control-channel injection guard (fix 6)", () => {
 });
 
 describe("BUILTIN_FLUID_TOOLS", () => {
-  it("has exactly one entry, whose manifest is fluidRuntimeManifest", () => {
-    expect(BUILTIN_FLUID_TOOLS).toHaveLength(1);
-    expect(BUILTIN_FLUID_TOOLS[0]?.manifest).toBe(fluidRuntimeManifest);
+  it("ships the framework runtime exactly once", () => {
+    const runtime = BUILTIN_FLUID_TOOLS.filter((t) => t.manifest === fluidRuntimeManifest);
+    expect(runtime).toHaveLength(1);
+    expect(runtime[0]?.sources).toBe(fluidRuntimeSources);
   });
 
   it("has unique, sorted tool ids", () => {

@@ -104,7 +104,7 @@ export async function abapRun(
   // Running a report creates the bridge class; the authoritative check is
   // `authorizeMutation` inside runReport (adt/run.ts), against the package the
   // server reports. This pre-check refuses cheaply, before any request, against
-  // the package we INTEND ($TMP). `gate` is required here (was optional — see
+  // the package we INTEND ($ABAPSMITH_FLUID_API). `gate` is required here (was optional — see
   // the git history); debug.ts's `triggerRun` still
   // declares it optional against the old contract.
   const parameters: RunParameterInput[] = (input.parameters ?? []) as RunParameterInput[];

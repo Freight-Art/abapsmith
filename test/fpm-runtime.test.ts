@@ -726,7 +726,14 @@ async function connected(
 }
 
 const allowingGate = (): SafetyGate =>
-  new SafetyGate({ readOnly: false, allowPackages: ["$TMP"], writesLockedOut: false });
+  new SafetyGate({
+    readOnly: false,
+    allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
+    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
+    // (test/helper-package.test.ts) — ensureFluidPackage's own DEVC/K create needs this too.
+    allowNamePrefixes: ["*"],
+    writesLockedOut: false,
+  });
 
 describe("runFpmRead", () => {
   it("find mode: writes+activates the bridge, executes it, and parses the returned transcript", async () => {
