@@ -26,7 +26,7 @@
  * (own `assertAllowed` callback); pre-existing, out of scope here.
  */
 import { CreatableTypes, type CreatableTypeIds } from "abap-adt-api";
-import { canonicalSource, contentHash, isPartialEtag, stripPartialEtag } from "../compact.js";
+import { canonicalEtag, canonicalSource, contentHash, isPartialEtag, stripPartialEtag } from "../compact.js";
 import {
   isAddressableAbapObjectName,
   isEnhancementType,
@@ -43,7 +43,7 @@ import {
   type CheckOutcome,
 } from "./activate.js";
 import type { AbapConnection } from "./connection.js";
-import { assertBridgeMutation } from "./ddic-bridge.js";
+import { assertBridgeMutation } from "./bridge-mutation.js";
 import { missingEnhancementWrapperError } from "./enhancement-refusals.js";
 import { AbapError, describeUnknownError, isAbapError } from "./errors.js";
 import { deletePackageViaBridge } from "./package-delete.js";
@@ -75,6 +75,11 @@ import {
 // `src/safety.ts` directly. The real definitions now live in safety.ts —
 // this is a pure alias, not a second declaration.
 export type { AuthorizedTarget, MutatingOperation } from "../safety.js";
+
+// Likewise `canonicalEtag`: it now lives in src/compact.ts (dependency-free,
+// see there for why) and is re-exported so existing importers of it from
+// this file are unaffected.
+export { canonicalEtag } from "../compact.js";
 
 /**
  * The object an enhancement `affects` — needed because `SafetyGate.evaluate()`
@@ -2317,18 +2322,10 @@ export function sourceEquals(a: string, b: string): boolean {
   return canonicalSource(a) === canonicalSource(b);
 }
 
-// canonicalSource lives in src/compact.ts (dependency-free) and is imported
-// here rather than re-spelled, so this file and journal.ts's
+// canonicalSource and canonicalEtag live in src/compact.ts (dependency-free)
+// and are imported here rather than re-spelled, so this file and journal.ts's
 // sourceFingerprint() can't drift on "same source" — they once did
 // (strip-one vs strip-all) until a live probe settled it; see that doc comment.
-
-/**
- * The etag abapsmith emits: a content hash of the canonical form. Exported
- * only so the pre-activation gate in src/tools/write.ts can hash a re-read
- * source with the identical normalisation — a second spelled-out
- * `contentHash(canonicalSource(…))` there could drift, as it once did.
- */
-export const canonicalEtag = (s: string): string => contentHash(canonicalSource(s));
 
 /**
  * Normalise a caller-supplied etag: we emit `sha256:…`, accept a bare digest
