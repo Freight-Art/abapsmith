@@ -136,15 +136,11 @@ instead), so the reverse — `RETIRED BRIDGE CLASSES` unavailable while
 `INVOKER CLASSES` succeeds — only happens when the initial connection
 attempt fails outright, which blanks both sections at once.
 
-`status`'s invoker probe reports the **total** number of
-`ZCL_ZMCP_I_<hash8>` invoker classes in `$ABAPSMITH_FLUID_API` in full —
-that costs one cheap package-listing call. Per-tool **attribution** (which
-tool each invoker belongs to) is more expensive, one source read per
-invoker inside a held connection lease, and is capped at the first 200
-invokers the listing returns per call (`INVOKER_PROBE_LIMIT = 200` in
-`src/tools/fluid.ts`). When the true total is higher, `INVOKER CLASSES`
-says how many were actually probed out of the total, and that the
-per-tool counts above it are a partial attribution, not a complete one.
+`status`'s invoker probe attributes every `ZCL_ZMCP_I_<hash8>` invoker
+class present in `$ABAPSMITH_FLUID_API` to a tool — one source read per
+invoker inside a held connection lease, however many invokers exist.
+`repair` prunes stale invokers (see below), which is what keeps the count
+bounded in practice.
 
 ```json
 { "op": "status" }
@@ -210,15 +206,10 @@ invoker classes — see "Invoker classes" below. Whole-system `repair` (no
 `tool`) does not prune invokers at all; pruning is a per-tool operation
 only.
 
-Pruning first re-probes that tool's invokers, capped the same way
-`status`'s attribution is: the full invoker count in
-`$ABAPSMITH_FLUID_API` is cheap to get, but checking each one for
-staleness costs a source read, so only the first 200 invokers the package
-listing returns per call (`INVOKER_PROBE_LIMIT = 200`) are read and
-checked. When the true total is higher, the `STALE INVOKERS` section is
-followed by a note saying how many of the total were actually checked —
-the pruning above reflects only those; an invoker past the cap is left
-alone, not pruned, until a later `repair` call reaches it.
+Pruning first re-probes every one of that tool's invokers present in
+`$ABAPSMITH_FLUID_API` — one source read per invoker, however many exist
+— then prunes whichever are stale. That pruning is itself what keeps the
+invoker count from growing without bound in practice.
 
 The ordinary authorized delete path means the safety gate's package
 allowlist applies to the reap like any other write. Nine of the ten
@@ -293,26 +284,23 @@ naming the version and contract the invoker was built against. Reading
 that provenance means listing the package and reading each class's source
 — there is no cheaper way to attribute an invoker to a tool.
 
-This provenance drives two ops, and both cap how many invokers they read
-source for in a single call at `INVOKER_PROBE_LIMIT = 200`
-(`src/tools/fluid.ts`) — the full invoker count is always cheap and exact,
-but reading source to attribute or check each one is not:
+This provenance drives two ops. Both read source for every invoker
+present, however many there are — the full invoker count is always cheap
+and exact, and so is attributing or checking each one, just at the cost
+of one source read per invoker:
 
-- **`status`** counts invokers per tool (see `status` above) — the total
-  is always exact; the per-tool breakdown is best effort over the first
-  200 invokers found, and both the retired-bridge and invoker probes
-  degrade independently rather than failing the whole call when a probe
-  can't run.
+- **`status`** counts invokers per tool (see `status` above) — both the
+  total and the per-tool breakdown are exact, and the retired-bridge and
+  invoker probes degrade independently rather than failing the whole call
+  when a probe can't run.
 - **`repair` with a `tool`** prunes that tool's *stale* invokers: those
   whose source attributes them to that tool, parses a version, and that
   version differs from the tool's current version. An invoker whose source
   cannot be attributed to any tool, or that carries no parsed version, is
   **never** pruned — an unattributable object is never safe to delete.
-  Whole-system `repair` (no `tool`) does not prune invokers at all.
-  Staleness, like `status`'s attribution, is only checked on the first 200
-  invokers the package listing returns per call; past the cap, `repair`
-  reports how many of the total it actually checked, and the pruning it
-  did is understood to reflect only those.
+  Whole-system `repair` (no `tool`) does not prune invokers at all. This
+  pruning is what keeps the invoker count bounded in practice, since
+  every invoker present is checked on every call.
 
 ## Safety
 

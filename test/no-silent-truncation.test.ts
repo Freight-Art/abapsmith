@@ -332,18 +332,6 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
     reason:
       "Pure arithmetic inside `blockLen` — it prices a candidate `kept` for the fit search and renders nothing. The output built from the same `kept` is `buildBlock`, whose omitted tail is disclosed by collapseLine()/elide() a few lines above.",
   },
-  {
-    file: "src/tools/fluid.ts",
-    contains: "invokerProbe = await probeInvokers(conn, invokerNames.slice(0, INVOKER_PROBE_LIMIT));",
-    reason:
-      "Caps only the per-invoker attribution reads in status's probe, not the reported total: `invokerCount = invokerNames.length` (the line above) is the FULL count of ZCL_ZMCP_I_* invoker classes on the system, and `renderInvokerCountsSection` is always called with that full `total`. When the cap bites (`total > all.length`, i.e. total > INVOKER_PROBE_LIMIT), that function appends a line naming exactly how many of how many were probed and says the per-tool counts above it are 'a partial attribution, not a complete one' — so a capped run cannot read as a complete one. The cap exists because `probeInvokers` issues one sequential HTTP GET per invoker inside the read lease held by `deps.pool.withRead`; on a system with hundreds of accumulated invokers, an unbounded probe would turn one `status` call into hundreds of sequential round trips inside a single held connection lease.",
-  },
-  {
-    file: "src/tools/fluid.ts",
-    contains: 'return { total: names.length, probes: await probeInvokers(conn, names.slice(0, INVOKER_PROBE_LIMIT)) };',
-    reason:
-      "Caps only the per-invoker attribution reads in repair's stale-invoker probe, not the reported total: `total: names.length` (same object literal, evaluated before the cap) is the FULL count of invoker classes on the system, returned alongside the capped `probes`. `runRepair` stores that as `invokerTotal` and, whenever `invokerTotal > INVOKER_PROBE_LIMIT`, pushes a note stating staleness was checked on only INVOKER_PROBE_LIMIT of `invokerTotal` invoker classes and that the pruning above reflects only those — so a capped run cannot be mistaken for a complete sweep. The cap exists because `probeInvokers` issues one sequential HTTP GET per invoker inside the read lease held by `deps.pool.withRead(\"abap_fluid.repair.probe-invokers\", ...)` here; on a system with hundreds of accumulated invokers, an unbounded probe would turn one `repair` call into hundreds of sequential round trips inside a single held connection lease.",
-  },
 ];
 
 function allowedReason(relPath: string, line: string): string | undefined {

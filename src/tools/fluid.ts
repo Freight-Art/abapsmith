@@ -373,11 +373,6 @@ function renderDescribe(deps: FluidToolDeps, payload: FluidDescribePayload, tool
   }).text;
 }
 
-// One source read per invoker, issued sequentially inside a held lease — an
-// unbounded probe on a system with hundreds of accumulated invokers would
-// turn `status`/`repair` into hundreds of sequential round trips.
-const INVOKER_PROBE_LIMIT = 200;
-
 const RETIRED_BRIDGE_REPAIR_NOTE =
   'op:"repair" with no `tool` deletes the ones reported "present". A "moved" one is in a ' +
   "package abapsmith does not own and is never touched.";
@@ -423,13 +418,13 @@ function renderRetiredBridgeSection(
 function renderInvokerCountsSection(
   probes: readonly FluidInvokerProbe[] | undefined,
   error: string | undefined,
-  total: number,
 ): { title: string; content: string } {
   const title = "INVOKER CLASSES";
   if (error !== undefined) return { title, content: `(probe unavailable: ${error})` };
-  if (total === 0) return { title, content: "(none — no ZCL_ZMCP_I_* invoker classes exist)" };
 
   const all = probes ?? [];
+  if (all.length === 0) return { title, content: "(none — no ZCL_ZMCP_I_* invoker classes exist)" };
+
   const counts = new Map<string, number>();
   let unattributable = 0;
   for (const p of all) {
@@ -444,14 +439,9 @@ function renderInvokerCountsSection(
     .map(([tool, count]) => ({ tool, invokers: String(count) }));
   const body = rows.length ? textTable(rows, ["tool", "invokers"]) : "(none attributable to a loaded tool id)";
   const unattributableLine = unattributable > 0 ? `\n${unattributable} invoker(s) could not be attributed to a tool.` : "";
-  const truncatedLine =
-    total > all.length
-      ? `\nProbed ${all.length} of ${total} invoker classes that exist (capped at ${INVOKER_PROBE_LIMIT} per call) — ` +
-        "the counts above are a partial attribution, not a complete one."
-      : "";
   return {
     title,
-    content: `${body}${unattributableLine}\nCounting invokers costs one source read per invoker.${truncatedLine}`,
+    content: `${body}${unattributableLine}\nCounting invokers costs one source read per invoker.`,
   };
 }
 
@@ -475,7 +465,6 @@ async function renderStatus(deps: FluidToolDeps): Promise<string> {
   // sharing the one lease below rather than opening a second connection.
   let retired: readonly RetiredBridgeProbe[] | undefined;
   let invokers: readonly FluidInvokerProbe[] | undefined;
-  let invokerTotal = 0;
   let probeError: string | undefined;
   let invokerProbeError: string | undefined;
   try {
@@ -483,20 +472,17 @@ async function renderStatus(deps: FluidToolDeps): Promise<string> {
     const probed = await deps.pool.withRead("abap_fluid.status", async (conn) => {
       const retiredProbe = await probeRetiredBridges(conn);
       let invokerProbe: readonly FluidInvokerProbe[] | undefined;
-      let invokerCount = 0;
       let invokerErr: string | undefined;
       try {
         const invokerNames = await listInvokerClasses(conn);
-        invokerCount = invokerNames.length;
-        invokerProbe = await probeInvokers(conn, invokerNames.slice(0, INVOKER_PROBE_LIMIT));
+        invokerProbe = await probeInvokers(conn, invokerNames);
       } catch (e) {
         invokerErr = describeUnknownError(e);
       }
-      return { retiredProbe, invokerProbe, invokerCount, invokerErr };
+      return { retiredProbe, invokerProbe, invokerErr };
     });
     retired = probed.retiredProbe;
     invokers = probed.invokerProbe;
-    invokerTotal = probed.invokerCount;
     invokerProbeError = probed.invokerErr;
   } catch (e) {
     probeError = describeUnknownError(e);
@@ -515,7 +501,7 @@ async function renderStatus(deps: FluidToolDeps): Promise<string> {
     bodyLabel: "LOCAL REGISTRY",
     sections: [
       renderRetiredBridgeSection(retired, probeError),
-      renderInvokerCountsSection(invokers, probeError ?? invokerProbeError, invokerTotal),
+      renderInvokerCountsSection(invokers, probeError ?? invokerProbeError),
     ],
     notes: [
       "The local registry is what abapsmith BELIEVES is deployed on this system — a cache, not " +
@@ -655,7 +641,6 @@ async function runRepair(deps: FluidToolDeps, a: FluidInput): Promise<string> {
   // ensure loop's), so this has to start only after that lease is released.
   let reaped: readonly RetiredBridgeReap[] | undefined;
   let pruned: readonly FluidInvokerPrune[] | undefined;
-  let invokerTotal: number | undefined;
   let invokerProbeError: string | undefined;
   if (soleTool === undefined) {
     reaped = await reapRetiredBridges(deps.safety, (op, fn) => deps.pool.withWrite(op, undefined, fn));
@@ -666,12 +651,11 @@ async function runRepair(deps: FluidToolDeps, a: FluidInput): Promise<string> {
     // throw and discard that already-succeeded repair result. Nothing is
     // pruned when the probe fails.
     try {
-      const probed = await deps.pool.withRead("abap_fluid.repair.probe-invokers", async (conn) => {
+      const probes = await deps.pool.withRead("abap_fluid.repair.probe-invokers", async (conn) => {
         const names = await listInvokerClasses(conn);
-        return { total: names.length, probes: await probeInvokers(conn, names.slice(0, INVOKER_PROBE_LIMIT)) };
+        return probeInvokers(conn, names);
       });
-      invokerTotal = probed.total;
-      const stale = staleInvokers(probed.probes, soleTool.manifest.id, soleTool.version);
+      const stale = staleInvokers(probes, soleTool.manifest.id, soleTool.version);
       pruned = await pruneInvokers(deps.safety, (op, fn) => deps.pool.withWrite(op, undefined, fn), stale);
     } catch (e) {
       invokerProbeError = describeUnknownError(e);
@@ -704,12 +688,6 @@ async function runRepair(deps: FluidToolDeps, a: FluidInput): Promise<string> {
         ? textTable(pruneRows, ["name", "outcome", "error"])
         : "(none — no stale invokers found for this tool)",
     });
-    if (invokerTotal !== undefined && invokerTotal > INVOKER_PROBE_LIMIT) {
-      notes.push(
-        `Staleness was checked on ${INVOKER_PROBE_LIMIT} of ${invokerTotal} invoker classes that exist ` +
-          `(capped at ${INVOKER_PROBE_LIMIT} per call) — pruning above reflects only those.`,
-      );
-    }
   } else if (invokerProbeError !== undefined) {
     sections.push({ title: "STALE INVOKERS", content: `(probe unavailable: ${invokerProbeError})` });
   }
