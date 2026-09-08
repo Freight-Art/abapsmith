@@ -5,9 +5,13 @@
 Read FPM/FBI (Floorplan Manager) configuration: find configs, or read one's
 node tree / full UIBB hierarchy / enqueue locks.
 
-**Availability**: case 1 — registered only when `canWrite` (this tool
-generates a throwaway classrun bridge class to read screen-mode data, so it
-needs write capability just to register/function).
+**Availability**: case 1 — registered only when `canWrite` (this tool runs
+through a bridge class abapsmith installs in `$ABAPSMITH_FLUID_API` to read
+screen-mode data, so it needs write capability just to register/function).
+With `ABAP_FLUID_API=false` it stays registered but every mode (`find`,
+`outline`, `app`, `locks`) refuses at call time with `FLUID_API_DISABLED`
+(`deployBridge` in `src/adt/run.ts:1100`), since all of them deploy the
+bridge.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
@@ -25,10 +29,10 @@ needs write capability just to register/function).
 
 Notes: `detail` is render-side only — it never reaches the ABAP bridge
 query, generated class name, or generated source, so `compact` and `full`
-cost the same SAP round trips and never create a second `$TMP` bridge
-class. It buys a cheaper *response*, not a cheaper *call*. `mode: "outline"`
-and `mode: "locks"` ignore `detail` and say so in a note if it was passed
-explicitly.
+cost the same SAP round trips and never create a second bridge class in
+`$ABAPSMITH_FLUID_API`. It buys a cheaper *response*, not a cheaper *call*.
+`mode: "outline"` and `mode: "locks"` ignore `detail` and say so in a note
+if it was passed explicitly.
 
 `xml_offset`/`xml_limit` are the `outline` analogue: also render-side only,
 also never touch the bridge call. Unlike `detail`, the default (neither
@@ -45,10 +49,12 @@ per-node XML excerpts dominate its full payload; `find` compacts the least,
 because after compaction most of what remains is already the minimum a
 caller needs — one `config_id`/`description` pair per matching row. Every
 call is slow regardless of `detail` or `mode`, because it deploys, activates,
-and runs a throwaway `$TMP` bridge class to read screen-mode data — the
-first call for a given query is markedly slower than a warm one. Because
-`find`'s cost tracks the number of matches rather than the response format,
-compact mode does not rescue an unnarrowed query — narrow with
+and runs a bridge class in `$ABAPSMITH_FLUID_API` to read screen-mode data.
+The bridge name hashes the whole query, so an identical call reuses the same
+class while a distinct query deploys — and leaves behind — another one; that
+is why the first call for a given query is markedly slower than a warm one.
+Because `find`'s cost tracks the number of matches rather than the response
+format, compact mode does not rescue an unnarrowed query — narrow with
 `config_id`/`component`/`package` instead.
 
 ## abap_ui
@@ -58,7 +64,10 @@ logic/GUI status, or run a scripted transaction.
 
 **Availability**: case 1 — registered only when `canWrite`. `mode=press`
 additionally needs `ABAP_MODE=admin` **and** `ABAP_ALLOW_UI_PRESS=true`,
-checked at call time (not at registration).
+checked at call time (not at registration). Both modes deploy a generated
+bridge (`runScreenTool` and `runPressTool` share `runUiBridge`), so with
+`ABAP_FLUID_API=false` `mode=screen` and `mode=press` both stay registered
+but refuse at call time with `FLUID_API_DISABLED`.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
