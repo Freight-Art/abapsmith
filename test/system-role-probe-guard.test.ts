@@ -190,7 +190,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 7; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 8; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-img
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -500,6 +500,20 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "$TMP is relocated into that package on next use — both confirmed by an independent ADT " +
       "read-back of the class's package, not by trusting the deploy path's own return value. " +
       "There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-img.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It proves, live, " +
+      "that the fluid API's img tool deploys ZCL_ZMCP_FLUID_IMG and dispatch()'s preview action " +
+      "runs a real DDIC probe against T005, returning a transcript that parses cleanly under " +
+      "parseImgWriteTranscript. There is no fake to route.",
   },
 ];
 

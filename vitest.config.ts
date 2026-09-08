@@ -31,6 +31,11 @@ const LIVE_INTEGRATION_TESTS = [
   // suite carries its own independent gate, same convention as the two
   // suites above.
   "test/integration-fluid-runtime.test.ts",
+  // Fluid img tool: dispatch() actually deploys ZCL_ZMCP_FLUID_IMG and runs
+  // its preview action's live DDIC probe (T005/LAND1) on a real system.
+  // Listed here so VITEST_LIVE=1 COLLECTS it — the suite carries its own
+  // independent gate, same convention as the suites above.
+  "test/integration-fluid-img.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";
