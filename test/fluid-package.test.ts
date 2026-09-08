@@ -40,7 +40,7 @@ const gate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
     allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
-    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE (test/helper-package.test.ts).
+    // $ is outside the default Z/Y customer namespace, hence the wide-open allowNamePrefixes below.
     allowNamePrefixes: ["*"],
     writesLockedOut: false,
   });

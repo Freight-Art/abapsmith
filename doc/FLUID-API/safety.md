@@ -87,8 +87,10 @@ action schema parsing, static review — is in
 `ZCL_ZMCP_` and `ZIF_ZMCP_` are reserved to abapsmith on any system it
 touches.
 
-An object under a reserved prefix found in `$TMP` or `$ZMCP_HELPERS` is
-relocated: deleted there, recreated in `$ABAPSMITH_FLUID_API`. ABAP
+An object under a reserved prefix found in `$TMP` or the legacy
+`$ZMCP_HELPERS` package — a package nothing creates any more, only
+relocates objects out of — is relocated: deleted there, recreated in
+`$ABAPSMITH_FLUID_API`. ABAP
 objects cannot change package, so this is the only way an existing
 pre-fluid install can continue to work. Relocation requires **both**
 conditions — the reserved prefix and one of the two known-legacy

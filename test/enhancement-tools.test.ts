@@ -248,7 +248,6 @@ const gate = (extra: Partial<ConstructorParameters<typeof SafetyGate>[0]> = {}):
     readOnly: false,
     allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE],
     // $ is outside the default Z/Y customer namespace, same as
-    // ensureHelperPackage's ALLOW_GATE (test/helper-package.test.ts) and
     // test/fluid-package.test.ts's own gate() — ensureFluidPackage's own
     // create call names the package itself, $ABAPSMITH_FLUID_API.
     allowNamePrefixes: ["*"],

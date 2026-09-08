@@ -206,8 +206,8 @@ describe("pin: deleteClassicViewViaBridge proceeds under a pinned ABAP_ALLOW_TRA
     const gate = new SafetyGate({
       readOnly: false,
       allowPackages: [DDIC_BRIDGE_PACKAGE, VIEW_PKG],
-      // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
-      // (test/helper-package.test.ts) — needed for the cold-path create of DDIC_BRIDGE_PACKAGE.
+      // $ is outside the default Z/Y customer namespace, same as
+      // test/fluid-package.test.ts's own gate() — needed for the cold-path create of DDIC_BRIDGE_PACKAGE.
       allowNamePrefixes: ["*"],
       allowTransports: PINNED,
       writesLockedOut: false,
@@ -235,8 +235,8 @@ describe("pin: deleteTransactionViaBridge proceeds under a pinned ABAP_ALLOW_TRA
     const gate = new SafetyGate({
       readOnly: false,
       allowPackages: [DDIC_BRIDGE_PACKAGE, TRAN_PKG],
-      // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
-      // (test/helper-package.test.ts) — needed for the cold-path create of DDIC_BRIDGE_PACKAGE.
+      // $ is outside the default Z/Y customer namespace, same as
+      // test/fluid-package.test.ts's own gate() — needed for the cold-path create of DDIC_BRIDGE_PACKAGE.
       allowNamePrefixes: ["*"],
       allowTransports: PINNED,
       writesLockedOut: false,

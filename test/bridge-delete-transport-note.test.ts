@@ -127,8 +127,8 @@ const gate = () =>
   new SafetyGate({
     readOnly: false,
     allowPackages: ["*"],
-    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE
-    // (test/helper-package.test.ts) — needed for the cold-path create of FLUID_PACKAGE.
+    // $ is outside the default Z/Y customer namespace, same as
+    // test/fluid-package.test.ts's own gate() — needed for the cold-path create of FLUID_PACKAGE.
     allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,

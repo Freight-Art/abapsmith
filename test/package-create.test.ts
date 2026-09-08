@@ -190,7 +190,7 @@ const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
     allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
-    // $ is outside the default Z/Y customer namespace, same as ensureHelperPackage's ALLOW_GATE.
+    // $ is outside the default Z/Y customer namespace, same as ensureFluidPackage's gate() in test/fluid-package.test.ts.
     allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
