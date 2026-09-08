@@ -158,7 +158,7 @@ const fixtureManifest: FluidManifest = {
     {
       name: FIXTURE_CLASS,
       type: "CLAS/OC",
-      description: "abapsmith S11 fixture: silent END / raised-exception coverage",
+      description: "abapsmith S11: silent-END/exception coverage",
       source: { text: FIXTURE_SOURCE },
     },
   ],
