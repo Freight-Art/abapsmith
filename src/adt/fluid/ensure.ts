@@ -9,7 +9,7 @@ import type { AbapConnection } from "../connection.js";
 import type { Config } from "../../config.js";
 import type { SafetyGate } from "../../safety.js";
 import { systemKey } from "../../journal.js";
-import { AbapError, describeUnknownError } from "../errors.js";
+import { AbapError, isAbapError, describeUnknownError } from "../errors.js";
 import { discloseBridgeResidue, type BridgeResidueStage } from "../bridge-residue.js";
 import {
   authorizeMutation,
@@ -25,9 +25,9 @@ import {
 import { activateObject, assertNoErrors, checkSource } from "../activate.js";
 import { isSessionDeadFailure } from "../write-verify.js";
 import { FLUID_PACKAGE, LEGACY_FLUID_PACKAGES, isReservedFluidName, ensureFluidPackage } from "./package.js";
-import { readFluidRegistry, recordManifest } from "./registry.js";
+import { forgetManifest, readFluidRegistry, recordManifest } from "./registry.js";
 import type { FluidObjectSpec, FluidObjectType, LoadedFluidTool } from "./manifest.js";
-import { fluidDisabledReason } from "./enabled.js";
+import { fluidDisabledReason, type FluidConfigFields } from "./enabled.js";
 
 export type FluidObjectState =
   | "absent" | "present" | "stale" | "inactive" | "broken" | "foreign" | "legacy";
@@ -119,9 +119,21 @@ function objectStatus(obj: FluidObjectSpec, c: Classification): FluidObjectStatu
   };
 }
 
+/**
+ * Read-only, always-live classification: every status here comes from at
+ * least one server round trip made in this call (`classifyOne` always starts
+ * with `resolveWriteTarget`, and only reaches `"present"` after also reading
+ * current source and running `checkSource`). It never reads the on-disk
+ * registry (`readFluidRegistry`/`registry.ts`) and never reads the
+ * `redeployed` in-memory ledger below — those are only touched by the
+ * mutating path (`ensureFluidTool` / `deployAndVerify`). A `"present"` here
+ * always means the server was actually asked, unlike `ensureFluidTool`'s
+ * cache-trusting fast path, which can report every object `"present"` for a
+ * tool the server no longer has, straight from a matching registry entry.
+ */
 export async function classifyFluidTool(
   conn: AbapConnection,
-  cfg: Config,
+  cfg: FluidConfigFields,
   tool: LoadedFluidTool,
 ): Promise<readonly FluidObjectStatus[]> {
   const disabled = fluidDisabledReason(cfg);
@@ -151,7 +163,7 @@ function requireSource(tool: LoadedFluidTool, obj: FluidObjectSpec): string {
 
 function fluidDisabledError(
   reason: NonNullable<ReturnType<typeof fluidDisabledReason>>,
-  cfg: Config,
+  cfg: FluidConfigFields,
   tool: LoadedFluidTool,
   ctx?: FluidCallContext,
 ): AbapError {
@@ -494,4 +506,66 @@ export async function ensureFluidTool(
   }
 
   return { toolId: tool.manifest.id, version: tool.version, deployed, objects: statuses };
+}
+
+/**
+ * True for the one shape ADT reliably uses when a referenced object no
+ * longer exists on the server: `404` + `ExceptionResourceNotFound`,
+ * translated by `translateAdtError` into `AbapError("NOT_FOUND", ...)` (see
+ * `isNotFoundError`, src/adt/session.ts:509-514, used at
+ * src/adt/session.ts:660-667). Every ADT existence check in this codebase —
+ * including `resolveWriteTarget`, which `classifyOne` above already relies
+ * on, and the retired-bridge reaper's `probeRetiredBridges`
+ * (src/adt/fluid/retired.ts:73-77) — goes through that same path, so a
+ * `NOT_FOUND` here is strong, provable evidence the object is gone, not a
+ * guess.
+ *
+ * What this deliberately does NOT cover: a generated invoker that still
+ * statically references a since-deleted entry class would fail at
+ * activation with `CHECK_FAILED` (`assertNoErrors`, src/adt/activate.ts),
+ * not `NOT_FOUND` — the same way `danglingRefPreflight`
+ * (src/tools/bopf.ts:643-679) treats "class does not exist" as a distinct
+ * existence check rather than something parsed out of an activation
+ * checklist. No cassette or fixture in this repo pins the checklist wording
+ * for that specific "unknown type" case, so it is left unmatched here rather
+ * than guessed at. A live run against a system with the entry class deleted
+ * out from under a still-referencing invoker would confirm whether that
+ * path also needs a code path here.
+ */
+export function isFluidObjectMissingFailure(e: unknown): boolean {
+  return isAbapError(e) && e.code === "NOT_FOUND";
+}
+
+/**
+ * Forgets the registry's cached entry for `tool` and redeploys once per call:
+ * this function's own body invokes `ensureFluidTool` exactly one time and
+ * returns its result, so a single call cannot loop internally.
+ *
+ * Plainly: that is the only bound this function provides. Nothing in its
+ * signature, return value, or body stops a caller from invoking
+ * `recoverMissingFluidObject` itself repeatedly — the "call this once per
+ * failure" contract is a caller-side convention, not something enforced or
+ * even observable from here. A dispatch call site relying on "once" must
+ * enforce it itself (e.g. a boolean already spent before this is called).
+ *
+ * The one real backstop is incidental, not designed as this function's loop
+ * guard: `ensureFluidTool`'s own per-object `redeployed` ledger (module-level
+ * `Set`, cleared only by `resetFluidEnsureState`) permits at most one extra
+ * redeploy cycle per (system, tool, object) per process. So repeated calls
+ * that keep hitting an unrecoverable object will eventually throw
+ * `redeployExhaustedError` instead of writing to the ABAP side forever — but
+ * that only engages once a write attempt has actually run; a caller looping
+ * on an object that keeps classifying as merely "present" or "absent"
+ * without ever reaching `deployAndVerify` gets no protection from it at all.
+ */
+export async function recoverMissingFluidObject(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  cfg: Config,
+  tool: LoadedFluidTool,
+  ctx: FluidCallContext,
+): Promise<EnsureFluidToolResult> {
+  const sysKey = systemKey(conn.cfg);
+  await forgetManifest(cfg, sysKey, tool.manifest.id);
+  return ensureFluidTool(conn, gate, cfg, tool, ctx);
 }
