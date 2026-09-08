@@ -3,10 +3,12 @@
  * "registry says present, server disagrees" defect: the genuine behavioral
  * divergence between `classifyFluidTool` (always asks the server; see its
  * doc comment in ensure.ts) and `ensureFluidTool`'s cache-trusting fast path,
- * plus `isFluidObjectMissingFailure` (the missing-class predicate for the
- * dispatch-side self-heal) and `recoverMissingFluidObject` (forget + redeploy
- * once). Same FakeAdt idiom as `test/fluid-ensure.test.ts` — nothing there is
- * exported, so the harness is re-built here rather than imported.
+ * plus `isFluidRedeployableFailure` (the dependency-drift predicate for the
+ * dispatch-side self-heal — true for both a plain `NOT_FOUND` and the
+ * `RUNTIME_DUMP` a since-deleted body class produces in a still-"active",
+ * unchanged generated invoker) and `recoverMissingFluidObject` (forget +
+ * redeploy once). Same FakeAdt idiom as `test/fluid-ensure.test.ts` — nothing
+ * there is exported, so the harness is re-built here rather than imported.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { promises as fs } from "node:fs";
@@ -23,7 +25,7 @@ import { systemKey } from "../src/journal.js";
 import {
   ensureFluidTool,
   classifyFluidTool,
-  isFluidObjectMissingFailure,
+  isFluidRedeployableFailure,
   recoverMissingFluidObject,
   resetFluidEnsureState,
   type FluidCallContext,
@@ -31,6 +33,8 @@ import {
 import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
 import { readFluidRegistry, recordManifest } from "../src/adt/fluid/registry.js";
 import { manifestVersion, type FluidManifest, type LoadedFluidTool } from "../src/adt/fluid/manifest.js";
+import { dispatch, type FluidDeps } from "../src/adt/fluid/dispatch.js";
+import { canonicalArgsJson, invokerName, invokerSource } from "../src/adt/fluid/invoke.js";
 
 interface Recorded {
   label: string;
@@ -327,21 +331,51 @@ describe("classifyFluidTool vs ensureFluidTool: the registry-cache divergence", 
   });
 });
 
-describe("isFluidObjectMissingFailure", () => {
+describe("isFluidRedeployableFailure", () => {
   it("is true for an AbapError NOT_FOUND", () => {
     const e = new AbapError("NOT_FOUND", "ZCL_X does not exist.");
-    expect(isFluidObjectMissingFailure(e)).toBe(true);
+    expect(isFluidRedeployableFailure(e)).toBe(true);
   });
 
-  it("is false for an unrelated AbapError code", () => {
+  it("is true for a RUNTIME_DUMP whose shortText is the standard invoker syntax-error dump", () => {
+    const e = new AbapError(
+      "RUNTIME_DUMP",
+      "ZCL_ZMCP_I_F4798196 short-dumped: Syntax error in program ZCL_ZMCP_I_F4798196===========CP .",
+      { class: "ZCL_ZMCP_I_F4798196", shortText: 'Syntax error in program "ZCL_ZMCP_I_F4798196===========CP".' },
+    );
+    expect(isFluidRedeployableFailure(e)).toBe(true);
+  });
+
+  it("is false for a RUNTIME_DUMP from an unrelated cause (own bug, not a missing dependency)", () => {
+    const divisionByZero = new AbapError("RUNTIME_DUMP", "ZCL_X short-dumped: Division by zero", {
+      class: "ZCL_X",
+      shortText: "Division by zero",
+    });
+    expect(isFluidRedeployableFailure(divisionByZero)).toBe(false);
+
+    // Mentions "syntax error" but not as the dump's own fixed opening text —
+    // must not match on a bare substring.
+    const unrelatedText = new AbapError("RUNTIME_DUMP", "ZCL_X short-dumped: see syntax error in program log", {
+      class: "ZCL_X",
+      shortText: "see syntax error in program log",
+    });
+    expect(isFluidRedeployableFailure(unrelatedText)).toBe(false);
+  });
+
+  it("is false for a RUNTIME_DUMP with no shortText at all", () => {
+    const e = new AbapError("RUNTIME_DUMP", "ZCL_X short-dumped: (unknown)", { class: "ZCL_X" });
+    expect(isFluidRedeployableFailure(e)).toBe(false);
+  });
+
+  it("is false for an unrelated AbapError code, including CHECK_FAILED with syntax-error wording", () => {
     const e = new AbapError("CHECK_FAILED", "Syntax error in ZCL_X.");
-    expect(isFluidObjectMissingFailure(e)).toBe(false);
+    expect(isFluidRedeployableFailure(e)).toBe(false);
   });
 
   it("is false for a plain Error and for non-error values", () => {
-    expect(isFluidObjectMissingFailure(new Error("boom"))).toBe(false);
-    expect(isFluidObjectMissingFailure("boom")).toBe(false);
-    expect(isFluidObjectMissingFailure(undefined)).toBe(false);
+    expect(isFluidRedeployableFailure(new Error("boom"))).toBe(false);
+    expect(isFluidRedeployableFailure("boom")).toBe(false);
+    expect(isFluidRedeployableFailure(undefined)).toBe(false);
   });
 });
 
@@ -363,5 +397,122 @@ describe("recoverMissingFluidObject", () => {
 
     const registry = await readFluidRegistry(cfg(), systemKey(conn.cfg));
     expect(registry.get(tool.manifest.id)?.version).toBe(tool.version);
+  });
+});
+
+describe("dispatch(): the retry must actually get the invoker's compiled program regenerated", () => {
+  it("forceInvokerRegeneration issues the invoker's activation POST strictly between the two classrun attempts — not merely 'the retry didn't throw'", async () => {
+    const NAME = "ZCL_ZMCP_DEMO3";
+    const tool = makeTool([{ name: NAME, source: SOURCE_A }], "t3");
+    const action = tool.manifest.actions[0]!;
+    const args = {};
+    const argsJson = canonicalArgsJson(args);
+
+    // Independently computed with the exact same pure functions dispatch.ts
+    // uses internally, from the exact same inputs — this is what makes the
+    // store's invoker entry (below) byte-identical to what dispatch.ts will
+    // itself derive, which is what triggers deployBridge's F6 "already
+    // active, nothing to do" shortcut on BOTH of dispatch's own attempts.
+    const invoker = invokerName(tool.manifest.id, action.name, args, tool.manifest.contract);
+    const invokerSrc = invokerSource({
+      name: invoker,
+      entry: tool.manifest.entry,
+      toolId: tool.manifest.id,
+      action: action.name,
+      argsJson,
+      version: tool.version,
+      contract: tool.manifest.contract,
+      commit: action.category === "mutate",
+    });
+
+    // Body class AND invoker both start present, active, and byte-matching —
+    // the exact "nothing here looks wrong" precondition a body class deleted
+    // and silently redeployed out-of-band leaves behind.
+    const store = makeStore({
+      [NAME]: { exists: true, packageName: FLUID_PACKAGE, source: SOURCE_A, active: true },
+      [invoker]: { exists: true, packageName: FLUID_PACKAGE, source: invokerSrc, active: true },
+    });
+
+    const dumpBody =
+      `<!DOCTYPE html><html><head><title>Application Server Error</title></head><body>` +
+      `<div class="err"><h1>500 Internal Server Error</h1>` +
+      `<p>Error: Syntax error in program "${invoker}===========CP" (termination: RABAX_STATE)</p>` +
+      `<p class="detailText"><span id="msgText">Server time: n/a</span></p>` +
+      `</div></body></html>`;
+
+    const successFrames =
+      `ZMCP-H>BEGIN ${JSON.stringify({ id: tool.manifest.id, ver: tool.version, action: action.name, contract: tool.manifest.contract })}\n` +
+      `ZMCP-H>OUT ${JSON.stringify({ ok: true })}\n` +
+      `ZMCP-H>END ${JSON.stringify({ rc: 0, outBytes: 0, ms: 1, truncated: false })}\n`;
+
+    // The classrun POST is intercepted directly (ahead of fluidRoute, which
+    // has no notion of "dump the first time, succeed the second") — every
+    // other request (GET/PUT/LOCK/UNLOCK/activation/checkrun/package) goes
+    // through the same static store-backed fluidRoute the rest of this file
+    // uses, so any activation POST it serves for the invoker is still the
+    // one under test.
+    let classrunCalls = 0;
+    const route: Route = (r) => {
+      if (r.method === "POST" && r.url === `/sap/bc/adt/oo/classrun/${invoker}`) {
+        classrunCalls += 1;
+        if (classrunCalls === 1) {
+          return resp(500, dumpBody, { "content-type": "text/html; charset=utf-8", connection: "close" });
+        }
+        return resp(200, successFrames, OK_TEXT);
+      }
+      return fluidRoute(store)(r);
+    };
+
+    const { conn, adt } = await connected(route);
+    await recordManifest(cfg(), systemKey(conn.cfg), {
+      toolId: tool.manifest.id,
+      contract: tool.manifest.contract,
+      version: tool.version,
+      objects: tool.manifest.objects.map((o) => o.name),
+      deployedAt: new Date().toISOString(),
+    });
+    adt.calls.length = 0;
+
+    const deps: FluidDeps = {
+      conn,
+      cfg: cfg(),
+      gate: gate(),
+      tools: new Map([[tool.manifest.id, tool]]),
+    };
+
+    const result = await dispatch(deps, { tool: tool.manifest.id, action: action.name, args });
+    expect(result.result).toEqual({ ok: true });
+
+    // Two classrun attempts happened — the retry actually ran the invoker
+    // again, it did not just swallow the first failure.
+    expect(classrunCalls).toBe(2);
+
+    const indices = (pred: (c: Recorded) => boolean): number[] =>
+      adt.calls.reduce<number[]>((acc, c, i) => (pred(c) ? [...acc, i] : acc), []);
+
+    const classrunIdx = indices(
+      (c) => c.method === "POST" && c.url === `/sap/bc/adt/oo/classrun/${invoker}`,
+    );
+    expect(classrunIdx.length).toBe(2);
+
+    const invokerActivationIdx = indices(
+      (c) =>
+        c.method === "POST" &&
+        c.url === "/sap/bc/adt/activation" &&
+        (c.body ?? "").includes(`adtcore:name="${invoker}"`),
+    );
+
+    // The crux: exactly one activation POST targeted the invoker, and it
+    // happened strictly between the two classrun calls — i.e. it is
+    // `forceInvokerRegeneration`'s own POST, not one `deployBridge` issued on
+    // its own on either attempt (both hit the F6 "already active, unchanged"
+    // shortcut, since the invoker's source and active-metadata never
+    // actually diverged from what the store already had). If this predicate
+    // fix let the retry fire but the invoker's stale compiled program was
+    // never forced to regenerate, this assertion — not just "no exception
+    // escaped" — is what would catch it.
+    expect(invokerActivationIdx.length).toBe(1);
+    expect(invokerActivationIdx[0]).toBeGreaterThan(classrunIdx[0]!);
+    expect(invokerActivationIdx[0]).toBeLessThan(classrunIdx[1]!);
   });
 });

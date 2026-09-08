@@ -509,31 +509,75 @@ export async function ensureFluidTool(
 }
 
 /**
- * True for the one shape ADT reliably uses when a referenced object no
- * longer exists on the server: `404` + `ExceptionResourceNotFound`,
- * translated by `translateAdtError` into `AbapError("NOT_FOUND", ...)` (see
- * `isNotFoundError`, src/adt/session.ts:509-514, used at
- * src/adt/session.ts:660-667). Every ADT existence check in this codebase —
- * including `resolveWriteTarget`, which `classifyOne` above already relies
- * on, and the retired-bridge reaper's `probeRetiredBridges`
- * (src/adt/fluid/retired.ts:73-77) — goes through that same path, so a
- * `NOT_FOUND` here is strong, provable evidence the object is gone, not a
- * guess.
- *
- * What this deliberately does NOT cover: a generated invoker that still
- * statically references a since-deleted entry class would fail at
- * activation with `CHECK_FAILED` (`assertNoErrors`, src/adt/activate.ts),
- * not `NOT_FOUND` — the same way `danglingRefPreflight`
- * (src/tools/bopf.ts:643-679) treats "class does not exist" as a distinct
- * existence check rather than something parsed out of an activation
- * checklist. No cassette or fixture in this repo pins the checklist wording
- * for that specific "unknown type" case, so it is left unmatched here rather
- * than guessed at. A live run against a system with the entry class deleted
- * out from under a still-referencing invoker would confirm whether that
- * path also needs a code path here.
+ * Standard ABAP kernel text for runtime error `SYNTAX_ERROR`: a fixed
+ * "Syntax error in program "&1"." template, not something abapsmith
+ * generates or controls. `translateRunFailure` (src/adt/run.ts) never
+ * exposes a runtime-error id or a structured "cause" field for a
+ * `RUNTIME_DUMP` — `AbapError.details` for that code carries only
+ * `{class, shortText, serverTime?, status, dumpCorrelation?}` (see
+ * `DumpInfo`/`translateRunFailure`, src/adt/run.ts:59-62 and 663-688), where
+ * `shortText` is whatever `extractDumpShortText` (src/adt/session.ts:224-244)
+ * scraped off the ICM error page's HTML. So `shortText` prose is the only
+ * discriminator this codebase has for "the class that just ran would not
+ * compile" — a real, acknowledged cost (a wording change on SAP's side would
+ * silently stop matching), which is why the match is anchored to the start
+ * of the string and requires the fixed word "program" right after it, rather
+ * than a loose substring test. Not verified against a non-English logon
+ * language; every fixture and live run seen so far uses English NetWeaver
+ * system text.
  */
-export function isFluidObjectMissingFailure(e: unknown): boolean {
-  return isAbapError(e) && e.code === "NOT_FOUND";
+const SYNTAX_ERROR_DUMP_TEXT = /^syntax error in program\b/i;
+
+/**
+ * True when the failure is one `forgetManifest` + a redeploy can plausibly
+ * repair — two distinct shapes, both meaning "the ABAP-side object graph
+ * this call depends on has drifted out from under the caller since it was
+ * last deployed," not "the fluid layer generated something that never
+ * compiled":
+ *
+ * 1. The one shape ADT reliably uses when a referenced object no longer
+ *    exists on the server at all: `404` + `ExceptionResourceNotFound`,
+ *    translated by `translateAdtError` into `AbapError("NOT_FOUND", ...)`
+ *    (see `isNotFoundError`, src/adt/session.ts:509-514, used at
+ *    src/adt/session.ts:660-667). Every ADT existence check in this
+ *    codebase — including `resolveWriteTarget`, which `classifyOne` above
+ *    already relies on, and the retired-bridge reaper's
+ *    `probeRetiredBridges` (src/adt/fluid/retired.ts:73-77) — goes through
+ *    that same path, so a `NOT_FOUND` here is strong, provable evidence the
+ *    object is gone, not a guess.
+ *
+ * 2. A generated invoker that still exists, unchanged, and whose own
+ *    `adtcore:version` metadata still says "active" — but which statically
+ *    references a fluid body class deleted out from under it. Deleting the
+ *    referenced class does not touch the invoker's own row, so it is NOT
+ *    `NOT_FOUND`: the invoker's *program* fails to (re)generate the next
+ *    time something tries to run it, which classrun (`runClass`,
+ *    src/adt/run.ts:775-810) surfaces as a `RUNTIME_DUMP` short dump — a
+ *    `SYNTAX_ERROR` whose short text is `Syntax error in program "…"` —
+ *    live-verified: dispatching against a fixture body class deleted
+ *    out-of-band produced exactly `RUNTIME_DUMP` with that shortText, not
+ *    `NOT_FOUND`, from `runClass` inside `executeBridge`. Matched by
+ *    {@link SYNTAX_ERROR_DUMP_TEXT} above.
+ *
+ * What this deliberately does NOT cover: any other `RUNTIME_DUMP` —
+ * "Division by zero", "Field symbol has not yet been assigned", and every
+ * other short dump a class can produce at runtime for reasons that have
+ * nothing to do with a missing fluid dependency — and a generated invoker
+ * that fails ADT's own activation check (`CHECK_FAILED` from
+ * `assertNoErrors`, src/adt/activate.ts) rather than a runtime dump. Both
+ * are real bugs in what this codebase generated or wrote, and matching them
+ * here would silently redeploy over a defect instead of surfacing it: the
+ * caller's bounded single retry (see `recoverMissingFluidObject`'s doc, and
+ * `dispatch.ts`'s call site, which never loops) still throws the second time
+ * for anything that is not actually a dependency drift, so under-matching is
+ * always safe and over-matching is the risk this function is written to avoid.
+ */
+export function isFluidRedeployableFailure(e: unknown): boolean {
+  if (!isAbapError(e)) return false;
+  if (e.code === "NOT_FOUND") return true;
+  if (e.code !== "RUNTIME_DUMP") return false;
+  const shortText = e.details.shortText;
+  return typeof shortText === "string" && SYNTAX_ERROR_DUMP_TEXT.test(shortText);
 }
 
 /**

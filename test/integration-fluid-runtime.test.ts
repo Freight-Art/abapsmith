@@ -380,11 +380,12 @@ dWrite("live: the fluid API runtime deploys, dispatches, and reports failures on
 
     // The registry still says FIXTURE_CLASS is deployed (nothing told it
     // otherwise) — exactly the stale-registry-vs-server-reality gap that
-    // dispatch()'s self-heal (ensure.ts's isFluidObjectMissingFailure /
-    // recoverMissingFluidObject, wired into dispatch.ts's runDeployAndExecute
-    // retry) exists to close. A single dispatch() call, with no special
-    // handling from the caller, must both succeed and leave the class back in
-    // place.
+    // dispatch()'s self-heal (ensure.ts's isFluidRedeployableFailure /
+    // recoverMissingFluidObject, plus dispatch.ts's forceInvokerRegeneration
+    // to get past deployBridge's own unchanged-content shortcut, wired into
+    // dispatch.ts's runDeployAndExecute retry) exists to close. A single
+    // dispatch() call, with no special handling from the caller, must both
+    // succeed and leave the class back in place.
     const after = await underApplianceStateWatch("dispatch s11_fix2.ok (self-heal)", () =>
       dispatch(deps, { tool: fixtureManifest.id, action: "ok", args: {} }),
     );
