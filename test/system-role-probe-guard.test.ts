@@ -210,7 +210,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 10; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 12; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-ui, +1 integration-fluid-fpm
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -570,6 +570,38 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "and activation state, and round-trips a create/delete of a throwaway $TMP transaction " +
       "through it, asserting the exists action reports ABSENT/EXISTS/ABSENT at each step. There " +
       "is no fake to route.",
+  },
+  {
+    file: "integration-fluid-ui.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It deploys and " +
+      "activates the builtin ui fluid tool's body class, ZCL_ZMCP_FLUID_UI, into " +
+      "$ABAPSMITH_FLUID_API, resolves a real classic dynpro via TSTC and RPY_DYNPRO_READ by " +
+      "both tcode and explicit program+dynpro, and asserts a nonexistent tcode is reported as a " +
+      "genuine FLUID_ACTION_FAILED failure, not silent success. There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-fpm.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts / integration-fluid-ui.test.ts. Gated on ABAP_URL plus " +
+      "write access via liveSuiteSkipReason({ write: true }) from " +
+      "test/live-appliance-state.ts, and named in vitest.config.ts's LIVE_INTEGRATION_TESTS. It " +
+      "builds its config with loadConfig() and talks to the real A4H appliance, which answers " +
+      "the T000 probe itself. It deploys and activates the builtin fpm fluid tool's body class, " +
+      "ZCL_ZMCP_FLUID_FPM, into $ABAPSMITH_FLUID_API, dispatches a broad find() wildcard query " +
+      "and asserts the result is a well-formed array (a bare appliance is unlikely to hold any " +
+      "real FPM/FBI config, so this deliberately does not assert non-empty rows), and asserts " +
+      "outline/app given a config_id that cannot exist are each reported as genuine " +
+      "FLUID_ACTION_FAILED failures, not silent success. There is no fake to route.",
   },
 ];
 

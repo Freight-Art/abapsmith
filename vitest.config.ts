@@ -53,6 +53,12 @@ const LIVE_INTEGRATION_TESTS = [
   // then program+dynpro form) plus an honest failure on a nonexistent tcode.
   // Same independent-gate convention as the other fluid live suites above.
   "test/integration-fluid-ui.test.ts",
+  // The builtin `fpm` fluid tool: deploys/activates ZCL_ZMCP_FLUID_FPM into
+  // $ABAPSMITH_FLUID_API and round-trips a live find/outline/app dispatch —
+  // a broad find() wildcard query, plus an honest FLUID_ACTION_FAILED on a
+  // nonexistent config_id for outline and app. Same independent-gate
+  // convention as the other fluid live suites above.
+  "test/integration-fluid-fpm.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";
