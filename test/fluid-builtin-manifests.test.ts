@@ -49,4 +49,19 @@ describe("BUILTIN_FLUID_TOOLS manifests", () => {
       expect(findings, JSON.stringify(findings, null, 2)).toEqual([]);
     }
   });
+
+  it.each(tools)("%s: any source referencing zcl_zmcp_fluid_rt declares the runtime object", (id, tool) => {
+    // rt is the runtime itself: its own source names its own class, not a dependency on a separate object.
+    if (id === "rt") {
+      return;
+    }
+    const referencesRuntime = [...tool.sources.values()].some((source) =>
+      /zcl_zmcp_fluid_rt/i.test(source),
+    );
+    if (!referencesRuntime) {
+      return;
+    }
+    expect(tool.manifest.objects.some((obj) => obj.name === "ZCL_ZMCP_FLUID_RT")).toBe(true);
+    expect(tool.sources.has("ZCL_ZMCP_FLUID_RT")).toBe(true);
+  });
 });
