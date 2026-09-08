@@ -1702,7 +1702,7 @@ export class SafetyGate {
           reason:
             `${obj.name} is in package ${obj.packageName}, which needs a transport request, but ` +
             "ABAP_ALLOW_TRANSPORTS is explicitly empty — every transportable write is refused. " +
-            "$TMP writes are unaffected.",
+            "Local ($-prefixed) packages are unaffected.",
           rule: "transport allowlist (fail closed)",
           code: "SAFETY_DENIED",
         };
