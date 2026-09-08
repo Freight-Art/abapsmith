@@ -16,6 +16,7 @@ import { deployBridge, executeBridge, verifyBridgeActivation } from "../run.js";
 import { fluidDisabledReason } from "./enabled.js";
 import { ensureFluidPackage, FLUID_PACKAGE } from "./package.js";
 import { ensureFluidTool } from "./ensure.js";
+import { guardCoreAction } from "./builtin/core.js";
 import { forgetManifest } from "./registry.js";
 import { parseFluidConsole } from "./protocol.js";
 import { canonicalArgsJson, invokerName, invokerSource } from "./invoke.js";
@@ -272,6 +273,11 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
       }
     }
   }
+
+  // Built-in `core` carries policy the manifest cannot express: `select` is judged by the
+  // data-preview policy, `call_fm` by ABAP_ALLOW_FLUID_CALL_FM plus a per-call confirm echo.
+  // One call site, one builtin — deliberately not a generic per-builtin hook.
+  await guardCoreAction(deps, req);
 
   const inputErrors = validateAgainstSchema(req.args, action.input, "args");
   if (inputErrors.length > 0) {
