@@ -153,6 +153,26 @@
  * **15**. This entry must be deleted (and the ceiling dropped) if the suite
  * ever stops connecting for real.
  *
+ * ### Ceiling bump: the classic fluid tool live suite
+ *
+ * `integration-fluid-classic.test.ts` joined as a SIXTEENTH entry, under the
+ * same clause as the six entries above: a genuine NINTH permanent member,
+ * same category as `integration.test.ts` / `integration-undo.test.ts` /
+ * `integration-fpm-lock.test.ts` / `integration-class-includes.test.ts` /
+ * `integration-lock-handle.test.ts` / `integration-fluid-runtime.test.ts` /
+ * `integration-fluid-run.test.ts`. It is a live suite (self-gated on
+ * `ABAP_URL` plus write access via `liveSuiteSkipReason({ write: true })`,
+ * and named in vitest.config.ts's `LIVE_INTEGRATION_TESTS`) that deploys and
+ * activates the builtin `classic` fluid tool's body class,
+ * `ZCL_ZMCP_FLUID_CLASSIC`, into `$ABAPSMITH_FLUID_API` on the real
+ * appliance, and round-trips a create/delete of a throwaway `$TMP`
+ * transaction through it, asserting the `exists` action reports
+ * ABSENT/EXISTS/ABSENT at each step. There is no fake in the file to route a
+ * probe through, and the real system answers the T000 probe itself.
+ * `ALLOWLIST_SIZE_AT_LANDING` still stays **8**; `ALLOWLIST_CEILING` is now
+ * **16**. This entry must be deleted (and the ceiling dropped) if the suite
+ * ever stops connecting for real.
+ *
  * ## The config-only exemption (separate from the allow-list)
  *
  * A suite whose SUBJECT is config resolution — env string in, resolved value
@@ -190,7 +210,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 7; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 8; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-classic
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -500,6 +520,22 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "$TMP is relocated into that package on next use — both confirmed by an independent ADT " +
       "read-back of the class's package, not by trusting the deploy path's own return value. " +
       "There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-classic.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It deploys and " +
+      "activates the builtin classic fluid tool's body class, ZCL_ZMCP_FLUID_CLASSIC, into " +
+      "$ABAPSMITH_FLUID_API, confirmed by an independent ADT read-back of the class's package " +
+      "and activation state, and round-trips a create/delete of a throwaway $TMP transaction " +
+      "through it, asserting the exists action reports ABSENT/EXISTS/ABSENT at each step. There " +
+      "is no fake to route.",
   },
 ];
 
