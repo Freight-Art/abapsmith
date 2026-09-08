@@ -6,8 +6,7 @@
  */
 import { z } from "zod";
 
-import { contentHash } from "../../compact.js";
-import { canonicalEtag } from "../write.js";
+import { canonicalEtag, contentHash } from "../../compact.js";
 
 export const FLUID_CONTRACT = "1.0";
 export const FLUID_CONTRACT_MAJOR = 1;
@@ -43,6 +42,8 @@ export interface FluidTargets {
   readonly object?: string;
   readonly package?: string;
   readonly transport?: string;
+  /** This action registers nothing in CTS — see `src/safety.ts` step 10 for who else may mint `{kind:"local"}`. Builtin actions only; a plugin manifest declaring it is ignored (`assertTargetsAgainstGate`). */
+  readonly corr?: "local";
 }
 
 export interface FluidActionSpec {
@@ -257,6 +258,7 @@ const FluidTargetsSchema = z.object({
   object: z.string().optional(),
   package: z.string().optional(),
   transport: z.string().optional(),
+  corr: z.literal("local").optional(),
 });
 
 const FluidJsonSchemaSchema = z.custom<FluidJsonSchema>(isPlainObject, {

@@ -142,7 +142,12 @@ function gateOpForCategory(category: FluidCategory): Operation {
  * in $ABAPSMITH_FLUID_API) is always harmless, so checking it instead of the
  * action's real targets would defeat the whole point of gating fluid calls.
  */
-function assertTargetsAgainstGate(gate: SafetyGate, action: FluidActionSpec, args: unknown): void {
+function assertTargetsAgainstGate(
+  gate: SafetyGate,
+  action: FluidActionSpec,
+  args: unknown,
+  origin: LoadedFluidTool["origin"],
+): void {
   const targets = action.targets;
   if (!targets) return;
   const resolvedObject = targets.object !== undefined ? resolveTargetString(args, targets.object, "object") : undefined;
@@ -153,7 +158,13 @@ function assertTargetsAgainstGate(gate: SafetyGate, action: FluidActionSpec, arg
     name: resolvedObject ?? resolvedPackage ?? "",
     ...(resolvedPackage !== undefined ? { packageName: resolvedPackage } : {}),
   });
-  gate.assert(gateOpForCategory(action.category), target, resolvedTransport !== undefined ? { corrNr: resolvedTransport } : {});
+  // `corr: "local"` only binds for a builtin tool — a plugin manifest cannot self-declare its
+  // way past the transport allowlist by claiming an action registers nothing in CTS.
+  const corr = targets.corr === "local" && origin === "builtin" ? ({ kind: "local" } as const) : undefined;
+  gate.assert(gateOpForCategory(action.category), target, {
+    ...(resolvedTransport !== undefined ? { corrNr: resolvedTransport } : {}),
+    ...(corr !== undefined ? { corr } : {}),
+  });
 }
 
 async function journalFluidMutate(
@@ -271,7 +282,7 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
     );
   }
 
-  assertTargetsAgainstGate(deps.gate, action, req.args);
+  assertTargetsAgainstGate(deps.gate, action, req.args, tool.origin);
 
   await ensureFluidPackage(deps.conn, deps.gate);
   const sysKey = systemKey(deps.conn.cfg);
