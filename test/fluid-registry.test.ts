@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConfigSchema, type Config } from "../src/config.js";
 import {
   readFluidRegistry,
   recordManifest,
   forgetManifest,
   fluidRegistryPath,
+  type FluidRegistryConfig,
   type FluidRegistryEntry,
 } from "../src/adt/fluid/registry.js";
 
@@ -21,15 +21,10 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-const cfg = (): Config =>
-  ConfigSchema.parse({
-    url: "http://sap.invalid:50000",
-    user: "DEVELOPER",
-    password: "secret",
-    sid: "A4H",
-    client: "001",
-    stateDir: dir,
-  });
+const cfg = (): FluidRegistryConfig => ({
+  sid: "A4H",
+  stateDir: dir,
+});
 
 const entry = (overrides: Partial<FluidRegistryEntry> = {}): FluidRegistryEntry => ({
   toolId: "zcl_widget_reader",

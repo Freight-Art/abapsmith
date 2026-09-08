@@ -1,6 +1,9 @@
 import type { Config } from "../../config.js";
 import type { SafetyGate } from "../../safety.js";
 
+/** Everything the predicate reads. A full `Config` satisfies it. */
+export type FluidConfigFields = Pick<Config, "fluidApi" | "abapMode" | "readOnly">;
+
 export type FluidDisabledReason =
   | { readonly kind: "flag"; readonly field: "ABAP_FLUID_API" }
   | { readonly kind: "read-only"; readonly field:
@@ -13,7 +16,7 @@ export type FluidDisabledReason =
  * the connected fields. Returns undefined when the fluid API is available.
  */
 export function fluidDisabledReason(
-  cfg: Config, gate?: SafetyGate,
+  cfg: FluidConfigFields, gate?: SafetyGate,
 ): FluidDisabledReason | undefined {
   if (cfg.fluidApi === false) return { kind: "flag", field: "ABAP_FLUID_API" };
   if (cfg.abapMode === "read") return { kind: "read-only", field: "cfg.abapMode" };
@@ -36,6 +39,6 @@ export function fluidDisabledReason(
 }
 
 /** The static half, for capability reporting before connect(). */
-export function canUseFluidApi(cfg: Config): boolean {
+export function canUseFluidApi(cfg: FluidConfigFields): boolean {
   return fluidDisabledReason(cfg) === undefined;
 }

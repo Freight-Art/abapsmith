@@ -18,6 +18,9 @@ import type { Config } from "../../config.js";
 import { safeSegment } from "../../journal.js";
 import { atomicWriteFileSync, hardenFileModeSync, withFileLock } from "../../state-dir.js";
 
+/** Everything the registry reads. A full `Config` satisfies it. */
+export type FluidRegistryConfig = Pick<Config, "stateDir" | "sid">;
+
 export interface FluidRegistryEntry {
   readonly toolId: string;
   readonly contract: string;
@@ -34,7 +37,7 @@ interface RegistryFile {
   systems: Record<string, Record<string, FluidRegistryEntry>>;
 }
 
-export function fluidRegistryPath(cfg: Config): string {
+export function fluidRegistryPath(cfg: FluidRegistryConfig): string {
   return path.join(path.resolve(cfg.stateDir), "fluid", safeSegment(cfg.sid), REGISTRY_FILE);
 }
 
@@ -111,7 +114,7 @@ async function mutateRegistryFile(registryPath: string, mutate: (file: RegistryF
 // asynchrony here. `recordManifest`/`forgetManifest` below do await for real.
 
 export async function readFluidRegistry(
-  cfg: Config,
+  cfg: FluidRegistryConfig,
   systemKey: string,
 ): Promise<ReadonlyMap<string, FluidRegistryEntry>> {
   const file = readRegistryFile(fluidRegistryPath(cfg));
@@ -121,7 +124,11 @@ export async function readFluidRegistry(
 }
 
 /** Called ONLY after activation has been verified. */
-export async function recordManifest(cfg: Config, systemKey: string, entry: FluidRegistryEntry): Promise<void> {
+export async function recordManifest(
+  cfg: FluidRegistryConfig,
+  systemKey: string,
+  entry: FluidRegistryEntry,
+): Promise<void> {
   try {
     await mutateRegistryFile(fluidRegistryPath(cfg), (file) => {
       const tools = file.systems[systemKey] ?? {};
@@ -134,7 +141,7 @@ export async function recordManifest(cfg: Config, systemKey: string, entry: Flui
   }
 }
 
-export async function forgetManifest(cfg: Config, systemKey: string, toolId: string): Promise<void> {
+export async function forgetManifest(cfg: FluidRegistryConfig, systemKey: string, toolId: string): Promise<void> {
   try {
     await mutateRegistryFile(fluidRegistryPath(cfg), (file) => {
       const tools = file.systems[systemKey];
