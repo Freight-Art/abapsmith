@@ -109,9 +109,9 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(lv_has_component) = boolc( lv_component IS NOT INITIAL ).
-    DATA(lv_has_query)     = boolc( lv_query IS NOT INITIAL ).
-    DATA(lv_has_package)   = boolc( lv_package IS NOT INITIAL ).
+    DATA(lv_has_component) = xsdbool( lv_component IS NOT INITIAL ).
+    DATA(lv_has_query)     = xsdbool( lv_query IS NOT INITIAL ).
+    DATA(lv_has_package)   = xsdbool( lv_package IS NOT INITIAL ).
 
     DATA(lv_pattern) = lv_query.
     REPLACE ALL OCCURRENCES OF '_' IN lv_pattern WITH '#_'.
@@ -301,7 +301,13 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
     lo_as->init_affixes( ).
     lo_as->ms_config_key-config_id   = lv_config_id.
     lo_as->ms_config_key-config_type = '02'.
-    lo_as->load_configuration( lo_as->mc_level-conf ).
+    TRY.
+        lo_as->load_configuration( lo_as->mc_level-conf ).
+      CATCH cx_root INTO DATA(lx_load).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'load_configuration'
+          iv_text = lx_load->get_text( ) ).
+        RETURN.
+    ENDTRY.
 
     LOOP AT lo_as->mt_node_table INTO DATA(ls_node).
       DATA(lv_resolved_json) = ||.
