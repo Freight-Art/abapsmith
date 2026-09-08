@@ -70,6 +70,8 @@ import { invokerName } from "../src/adt/fluid/invoke.js";
 import { uiManifest, uiSources } from "../src/adt/fluid/builtin/ui.js";
 import { authorizeMutation, deleteObject } from "../src/adt/write.js";
 import { parsePackageRef } from "../src/adt/package-ref.js";
+import { forgetManifest } from "../src/adt/fluid/registry.js";
+import { systemKey } from "../src/journal.js";
 import { liveSuiteSkipReason, skipForApplianceState } from "./live-appliance-state.js";
 
 loadEnvFile(); // so a .env in the repo root enables the live suite
@@ -138,6 +140,12 @@ dw("live A4H ui fluid tool ($ABAPSMITH_FLUID_API, read-only screen inspection)",
     cfg = { ...loadConfig(), readOnly: false, allowPackages: ["$TMP", FLUID_PACKAGE] };
     conn = new AbapConnection(cfg, { log: () => {}, breaker });
     await conn.connect();
+    // Drop any stale registry entry left by a previous run's afterAll (e.g. a
+    // crash before cleanup, or an older suite version that didn't forget the
+    // manifest). Without this, ensureFluidTool's on-disk short-circuit would
+    // report ZCL_ZMCP_FLUID_UI as already "present" and skip deploying it,
+    // even though this suite's own afterAll deletes that class every run.
+    await forgetManifest(cfg, systemKey(conn.cfg), UI_TOOL_ID);
   }, 60_000);
 
   afterAll(async () => {
@@ -183,6 +191,18 @@ dw("live A4H ui fluid tool ($ABAPSMITH_FLUID_API, read-only screen inspection)",
     ];
     for (const name of invokerNames) await deleteIfPresent(name);
     await deleteIfPresent(UI_BODY_CLASS);
+
+    // Drop the registry entry now that ZCL_ZMCP_FLUID_UI is actually gone
+    // from the appliance: leaving it behind would make the NEXT run's
+    // ensureFluidTool trust the stale "present" entry and skip redeploying a
+    // class that no longer exists, producing "Type ... is unknown" failures.
+    // Best-effort and wrapped so a failure here never masks a real test
+    // failure from the block above.
+    try {
+      await forgetManifest(cfg, systemKey(conn.cfg), UI_TOOL_ID);
+    } catch (e) {
+      console.warn(`afterAll: failed to forget registry entry for ${UI_TOOL_ID} — remove it by hand.`, e);
+    }
 
     await conn?.shutdown("test-end");
   }, 180_000);
