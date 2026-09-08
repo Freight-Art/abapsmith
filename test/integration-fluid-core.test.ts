@@ -42,8 +42,8 @@
  * than merely asserted is to run that refusal FIRST, before any other test in
  * this file has had a chance to deploy anything. The retired-bridge probe/
  * reap test runs LAST: a delete kills the ADT session, and this file's
- * `afterAll` reconnects before every cleanup delete anyway, so nothing after
- * it depends on session continuity.
+ * `afterAll` uses a fresh `AbapConnection` for every cleanup delete anyway,
+ * so nothing after it depends on session continuity.
  *
  * SAFETY: gated behind BOTH `ABAP_URL` and write access being configured
  * (`ABAP_MODE=edit`/`admin`, or legacy `ABAP_ALLOW_WRITE=true` — see
@@ -68,6 +68,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AbapConnection } from "../src/adt/connection.js";
+import { AdtSessionPool } from "../src/adt/pool.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { loadConfig, loadEnvFile, type Config } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
@@ -124,10 +125,39 @@ interface CoreCallFmResultItem {
   readonly value: unknown;
 }
 
+/**
+ * Diagnostic only (not an assertion helper): when `dispatch()` throws
+ * `AbapError("FLUID_ACTION_FAILED", ...)`, the actually useful detail — the
+ * ABAP-side `fail(...)` text relayed by `parseFluidConsole` — lives only in
+ * `details.frames[].text` (see spec test 4 above and
+ * `src/adt/fluid/dispatch.ts`), never in the generic top-level
+ * `"${tool}.${action} reported ${N} error frame(s)."` message. `details` is
+ * typed as a loose `Record<string, unknown>` on `AbapError`
+ * (`src/adt/errors.ts`), so this narrows defensively at every step and must
+ * never itself throw — even when `e` isn't an `AbapError`, or `frames` is
+ * missing, not an array, or contains entries with no string `text`.
+ */
+function logErrorFrameTexts(e: unknown): void {
+  if (!isAbapError(e)) return;
+  const frames = e.details["frames"];
+  if (!Array.isArray(frames)) return;
+  for (const frame of frames) {
+    const text =
+      typeof frame === "object" && frame !== null && typeof (frame as { text?: unknown }).text === "string"
+        ? (frame as { text: string }).text
+        : `(non-string frame: ${String(frame)})`;
+    console.error(`error frame: ${text}`);
+  }
+}
+
 dw("live A4H fluid core tool (select/describe_fm/call_fm) + retired-bridge reaper", () => {
   let conn: AbapConnection;
   let cfgOn: Config;
   let cfgOff: Config;
+  // Same Config shape beforeAll builds `conn` from — captured here (not
+  // recomputed) so afterAll's fresh per-delete connections are built from the
+  // exact identical object, not a fresh loadConfig() read.
+  let base: Config;
   const breaker = new AuthCircuitBreaker();
 
   // allowNamePrefixes: ["*"] — FLUID_PACKAGE starts with "$", not "Z"/"Y", and
@@ -177,7 +207,7 @@ dw("live A4H fluid core tool (select/describe_fm/call_fm) + retired-bridge reape
     // Both capability flags are set by constructing the config explicitly,
     // never by relying on the wrapper's process env, so the suite is
     // deterministic regardless of the shell it is launched from.
-    const base = { ...loadConfig(), readOnly: false, allowPackages: ["$TMP", FLUID_PACKAGE] };
+    base = { ...loadConfig(), readOnly: false, allowPackages: ["$TMP", FLUID_PACKAGE] };
     cfgOn = { ...base, allowDataPreview: true, allowFluidCallFm: true };
     cfgOff = { ...base, allowDataPreview: true, allowFluidCallFm: false };
 
@@ -198,19 +228,34 @@ dw("live A4H fluid core tool (select/describe_fm/call_fm) + retired-bridge reape
   }, 60_000);
 
   afterAll(async () => {
-    // Best-effort, independent, never throwing. Per the orchestrator: a
-    // fresh connection before EVERY delete (conn.connect() short-circuits
-    // when still alive and revives when a previous delete killed the
-    // session — see AbapConnection.connect()'s `if (this.connected) return
-    // this.info();`), so a session killed by one delete never poisons the
-    // next. Exactly one attempt per name, no retry, no loop.
+    // Best-effort, independent, never throwing. A delete kills the ADT
+    // session server-side, so every delete after the first needs a revive —
+    // but `AbapConnection` enforces LOGON_ENDPOINT_LIFETIME_CEILING (5) logon-
+    // endpoint requests PER INSTANCE outside a budgeted request(), and this
+    // suite's cleanup list is longer than that ceiling. Reconnecting the one
+    // shared `conn` before every delete burns through the ceiling and the
+    // tail of the cleanup dies with a permanently-refusing instance. Instead,
+    // each delete gets its own brand-new `AbapConnection` — a fresh instance
+    // starts with its own logon counter at zero, so the ceiling is never
+    // approached no matter how many objects are in the list. Built the exact
+    // same way beforeAll builds its own `conn` (same config shape, same
+    // shared `breaker` — one SAP user means one breaker instance, see the
+    // constructor comment in src/adt/connection.ts), so credentials/settings
+    // stay identical. Same delete idiom as integration-fluid-img.test.ts's
+    // `cleanup` otherwise: each object is independent and best-effort inside
+    // its own try/catch that warns (naming the object) and moves on — but
+    // exactly one connect() per fresh instance, never a retry loop.
     const cleanup = async (name: string) => {
+      let fresh: AbapConnection | undefined;
       try {
-        await conn.connect();
-        const authorized = await authorizeMutation(conn, GATE, "delete", { type: "CLAS/OC", name });
-        await deleteObject(conn, authorized);
+        fresh = new AbapConnection(base, { log: () => {}, breaker });
+        await fresh.connect();
+        const authorized = await authorizeMutation(fresh, GATE, "delete", { type: "CLAS/OC", name });
+        await deleteObject(fresh, authorized);
       } catch (e) {
         console.warn(`afterAll: failed to clean up ${name} — remove it by hand.`, e);
+      } finally {
+        await fresh?.shutdown("test-end");
       }
     };
 
@@ -382,7 +427,12 @@ dw("live A4H fluid core tool (select/describe_fm/call_fm) + retired-bridge reape
     assertUsable();
     const deps: FluidDeps = { conn, cfg: cfgOn, gate: GATE, tools };
 
-    const result = await dispatch(deps, { tool: "core", action: "call_fm", args: CALL_FM_ARGS_ALPHA });
+    const result = await dispatch(deps, { tool: "core", action: "call_fm", args: CALL_FM_ARGS_ALPHA }).catch((e) => {
+      // Diagnostic only — see logErrorFrameTexts above. Rethrows unchanged so
+      // this test still fails exactly as it does now.
+      logErrorFrameTexts(e);
+      throw e;
+    });
 
     expect(result.tool).toBe("core");
     expect(result.action).toBe("call_fm");
@@ -416,38 +466,106 @@ dw("live A4H fluid core tool (select/describe_fm/call_fm) + retired-bridge reape
   // Spec test 9, run LAST: a delete kills the ADT session, and afterAll
   // reconnects before every cleanup delete anyway, so nothing after this
   // depends on session continuity.
+  //
+  // reapRetiredBridges now takes a FluidLease, not a bare connection —
+  // production (`runRepair` in src/tools/fluid.ts) passes `(op, fn) =>
+  // deps.pool.withWrite(op, undefined, fn)` so that no single AbapConnection
+  // is ever asked to run more than one delete (each delete kills the ADT
+  // session; see retired.ts's own header). This test exercises that exact
+  // path rather than a fake lease, so it builds a real pool-backed
+  // AdtSessionPool — lazily, scoped to this test only, same construction
+  // shape as integration-fpm-lock.test.ts's `mode:"locks"` test — reusing
+  // the suite's own `base` config and shared `breaker` (one SAP user means
+  // one breaker instance). Every other test in this file keeps using the
+  // suite's bare `conn`; only the reap call below needs the pool, since
+  // probing is read-only and does not kill the session.
   it("retired bridge classes: probe, reap, probe again — never recreates any of them (runs last)", async () => {
     assertUsable();
 
-    const firstProbe = await probeRetiredBridges(conn);
-    expect(firstProbe.length).toBe(RETIRED_BRIDGE_CLASSES.length);
-    for (const p of firstProbe) {
-      expect(["present", "absent", "moved", "unknown"]).toContain(p.state);
-    }
-    const presentNames = new Set(firstProbe.filter((p) => p.state === "present").map((p) => p.name));
-    if (presentNames.size > 0) {
-      console.info(`retired bridges present before reap: ${[...presentNames].join(", ")}`);
-    } else {
-      console.info("retired bridges: none present before reap — the all-absent case is the normal outcome.");
-    }
+    const pool = new AdtSessionPool({
+      cfg: base,
+      breaker,
+      log: () => {},
+      createConnection: (c, o) => new AbapConnection(c, { ...o, log: () => {} }),
+      prepareConnection: async (c) => {
+        await c.connect();
+      },
+    });
 
-    const reap = await reapRetiredBridges(conn, GATE);
-    expect(reap.length).toBe(RETIRED_BRIDGE_CLASSES.length);
-    for (const r of reap) {
-      expect(["deleted", "already-absent", "left-alone", "unknown", "failed"]).toContain(r.outcome);
-      if (r.outcome === "deleted") {
-        expect(presentNames.has(r.name)).toBe(true);
+    try {
+      const firstProbe = await probeRetiredBridges(conn);
+      expect(firstProbe.length).toBe(RETIRED_BRIDGE_CLASSES.length);
+      for (const p of firstProbe) {
+        expect(["present", "absent", "moved", "unknown"]).toContain(p.state);
       }
-    }
-    // Tolerate total absence: on an already-clean system every entry reaps as
-    // already-absent/unknown-never and nothing above requires a deletion to
-    // have happened for this test to pass.
+      const presentNames = new Set(firstProbe.filter((p) => p.state === "present").map((p) => p.name));
+      if (presentNames.size > 0) {
+        console.info(`retired bridges present before reap: ${[...presentNames].join(", ")}`);
+      } else {
+        console.info("retired bridges: none present before reap — the all-absent case is the normal outcome.");
+      }
 
-    const secondProbe = await probeRetiredBridges(conn);
-    const deletedNames = new Set(reap.filter((r) => r.outcome === "deleted").map((r) => r.name));
-    for (const p of secondProbe) {
-      if (deletedNames.has(p.name)) {
-        expect(p.state).not.toBe("present");
+      const reap = await reapRetiredBridges(GATE, (op, fn) => pool.withWrite(op, undefined, fn));
+      // Observability only — the per-object outcome of the reap is otherwise
+      // invisible (only the "present before reap" list was ever logged), which
+      // is exactly what makes it impossible to tell, from a live run's output
+      // alone, whether a partial reap is a bug in reapRetiredBridges or an
+      // artefact of how this test calls it. One line per entry, full detail.
+      for (const r of reap) {
+        console.info(
+          `reap result: name=${r.name} outcome=${r.outcome}${r.error !== undefined ? ` error=${r.error}` : ""}`,
+        );
+      }
+      expect(reap.length).toBe(RETIRED_BRIDGE_CLASSES.length);
+      for (const r of reap) {
+        expect(["deleted", "already-absent", "left-alone", "unknown", "failed"]).toContain(r.outcome);
+        if (r.outcome === "deleted") {
+          expect(presentNames.has(r.name)).toBe(true);
+        }
+      }
+      // New assertion (observability, not a claim about what a partial reap
+      // means): whatever the reap reports as "failed" must always explain
+      // itself with a non-empty error string. It deliberately does NOT assert
+      // that everything present got deleted — whether a partial pass is a bug
+      // or expected is exactly the open question this logging exists to help
+      // answer.
+      for (const r of reap) {
+        if (r.outcome === "failed") {
+          expect(typeof r.error).toBe("string");
+          expect((r.error ?? "").length).toBeGreaterThan(0);
+        }
+      }
+      // Tolerate total absence: on an already-clean system every entry reaps as
+      // already-absent/unknown-never and nothing above requires a deletion to
+      // have happened for this test to pass.
+
+      const secondProbe = await probeRetiredBridges(conn);
+      // Observability only — the FULL "present after reap" list, one line per
+      // entry, so a live run shows exactly which names (if any) are still
+      // present after the reap, not just an aggregate pass/fail.
+      const presentAfterReap = secondProbe.filter((p) => p.state === "present");
+      if (presentAfterReap.length > 0) {
+        for (const p of presentAfterReap) {
+          console.info(`present after reap: name=${p.name} state=${p.state} foundIn=${p.foundIn ?? "(n/a)"}`);
+        }
+      } else {
+        console.info("present after reap: none — nothing is present on the second probe.");
+      }
+
+      const deletedNames = new Set(reap.filter((r) => r.outcome === "deleted").map((r) => r.name));
+      for (const p of secondProbe) {
+        if (deletedNames.has(p.name)) {
+          expect(p.state).not.toBe("present");
+        }
+      }
+    } finally {
+      // Must run even when the test body threw, and must never let a
+      // shutdown failure replace/mask a real assertion failure above — so
+      // the shutdown's own error is caught and only logged.
+      try {
+        await pool.shutdown("test-end");
+      } catch (e) {
+        console.warn("retired-bridge reap: pool shutdown failed — leaked session, remove it by hand.", e);
       }
     }
   }, 180_000);

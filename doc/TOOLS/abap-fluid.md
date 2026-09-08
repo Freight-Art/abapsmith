@@ -123,6 +123,30 @@ authorized delete path, and reports what it deleted. A class of one of
 those names found in a package abapsmith does not own is reported as
 moved and is never touched. Naming a `tool` skips the reap entirely.
 
+The ordinary authorized delete path means the safety gate's package
+allowlist applies to the reap like any other write. Nine of the ten
+retired classes live in `$TMP`, but `ZCL_ZMCP_IMG_WPROBE` lives
+in `$ZMCP_HELPERS`, so reaping that one class needs `$ZMCP_HELPERS` in
+`ABAP_ALLOW_PACKAGES` — which it would be on any system that created the
+class in the first place. Where it is not, the gate refuses the delete and
+the class is reported `failed` with the gate's own reason, e.g.:
+
+```
+Package $ZMCP_HELPERS is not in the allowlist [$TMP, $ABAPSMITH_FLUID_API].
+```
+
+This is distinct from `moved`: `moved` is a class found sitting in some
+other, unexpected package, which is never touched; a gate refusal is the
+class sitting exactly where expected, refused only because the allowlist
+no longer covers that package.
+
+Each delete takes its own write lease rather than sharing one connection
+across the reap: deleting an ABAP class kills the ADT session server-side,
+and a connection may only re-logon a small fixed number of times outside a
+budgeted request, so sharing one connection across a ten-class reap would
+run it out partway through and silently leave the tail of the list
+untouched. One lease per delete gives every delete a fresh connection.
+
 ```json
 { "op": "repair", "tool": "rt" }
 ```
