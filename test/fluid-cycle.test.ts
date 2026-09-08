@@ -44,4 +44,40 @@ describe("fluid import cycle — run.ts as entry", () => {
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout.trim()).toBe("string");
   });
+
+  it("entering the graph at dist/adt/fluid/package.js resolves BRIDGE_PACKAGE and ENH_BRIDGE_PACKAGE as live re-exports, not TDZ-undefined aliases", () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const distPackage = path.join(here, "..", "dist", "adt", "fluid", "package.js");
+    if (!existsSync(distPackage)) return;
+    const distPackageUrl = pathToFileURL(distPackage).href;
+    const distRunUrl = pathToFileURL(path.join(here, "..", "dist", "adt", "run.js")).href;
+    const distEnhUrl = pathToFileURL(path.join(here, "..", "dist", "adt", "enhancement-bridge.js")).href;
+    const script =
+      `import(${JSON.stringify(distPackageUrl)})` +
+      `.then((pkg) => Promise.all([pkg, import(${JSON.stringify(distRunUrl)}), import(${JSON.stringify(distEnhUrl)})]))` +
+      `.then(([pkg, run, enh]) => { process.stdout.write(JSON.stringify({ fluid: pkg.FLUID_PACKAGE, bridge: run.BRIDGE_PACKAGE, enhBridge: enh.ENH_BRIDGE_PACKAGE })); })` +
+      `.catch((e) => { console.error(e.stack); process.exit(1); });`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      fluid: "$ABAPSMITH_FLUID_API",
+      bridge: "$ABAPSMITH_FLUID_API",
+      enhBridge: "$ABAPSMITH_FLUID_API",
+    });
+  });
+
+  it("entering the graph at dist/adt/enhancement-bridge.js resolves ENH_BRIDGE_PACKAGE", () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const distEnh = path.join(here, "..", "dist", "adt", "enhancement-bridge.js");
+    if (!existsSync(distEnh)) return;
+    const distEnhUrl = pathToFileURL(distEnh).href;
+    const script = `import(${JSON.stringify(distEnhUrl)}).then(m => { process.stdout.write(JSON.stringify({ enhBridge: m.ENH_BRIDGE_PACKAGE })); }).catch(e => { console.error(e.stack); process.exit(1); });`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ enhBridge: "$ABAPSMITH_FLUID_API" });
+  });
 });

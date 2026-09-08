@@ -93,8 +93,12 @@ import {
   type ExerciseParams,
 } from "./enhancement-templates.js";
 
-/** abapsmith's own generated bridge classes — the fluid API owns them, so they live in its package. */
-export const ENH_BRIDGE_PACKAGE = FLUID_PACKAGE;
+/**
+ * abapsmith's own generated bridge classes — the fluid API owns them, so they live in its package.
+ * Live re-export, not `= FLUID_PACKAGE`: a module-scope alias is read before `./fluid/package.js`'s own body has
+ * run when the graph is entered at `dist/adt/fluid/package.js`, throwing a TDZ error under real Node ESM.
+ */
+export { FLUID_PACKAGE as ENH_BRIDGE_PACKAGE } from "./fluid/package.js";
 
 /**
  * The user's own ENHS/ENHO objects and the H21 marker interface, whose names the caller
@@ -361,7 +365,7 @@ async function writeActivateRunBridge(
     className,
     source,
     description,
-    packageName: ENH_BRIDGE_PACKAGE,
+    packageName: FLUID_PACKAGE,
     caller: { tool: "abap_enh", action },
     what: `Activation of the generated enhancement bridge ${className}`,
     verify: (activation) => verifyBridgeActivation(activation, className, "enhancement bridge"),

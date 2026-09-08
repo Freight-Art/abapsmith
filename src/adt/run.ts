@@ -236,8 +236,12 @@ export interface RunResult {
   diagnostics?: string[];
 }
 
-/** Package the generated bridge classes live in — the fluid API's own, created on first use. Local ⇒ no transport. */
-export const BRIDGE_PACKAGE = FLUID_PACKAGE;
+/**
+ * Package the generated bridge classes live in — the fluid API's own, created on first use. Local ⇒ no transport.
+ * Live re-export, not `= FLUID_PACKAGE`: a module-scope alias is read before `./fluid/package.js`'s own body has
+ * run when the graph is entered at `dist/adt/fluid/package.js`, throwing a TDZ error under real Node ESM.
+ */
+export { FLUID_PACKAGE as BRIDGE_PACKAGE } from "./fluid/package.js";
 
 /** Prefix the driver puts on every captured list line. */
 export const LIST_LINE_PREFIX = "LIST> ";
@@ -1086,7 +1090,7 @@ export async function deployBridge(
   opts: DeployBridgeOptions,
 ): Promise<DeployedBridge> {
   const { className, source } = opts;
-  const packageName = opts.packageName ?? BRIDGE_PACKAGE;
+  const packageName = opts.packageName ?? FLUID_PACKAGE;
 
   // The fluid API's one deploy-side chokepoint: every generated bridge in
   // the codebase reaches the wire through here, so the refusal is enforced
