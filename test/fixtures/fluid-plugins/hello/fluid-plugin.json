@@ -1,0 +1,17 @@
+{
+  "contract": "1.0",
+  "id": "hello",
+  "title": "Hello fluid plugin",
+  "description": "Smallest valid fluid plugin, used as a loader fixture.",
+  "objects": [
+    { "name": "ZCL_ZMCP_X_HELLO", "type": "CLAS/OC", "description": "fluid: hello body",
+      "source": { "file": "abap/zcl_zmcp_x_hello.abap" } }
+  ],
+  "entry": "ZCL_ZMCP_X_HELLO",
+  "actions": [
+    { "name": "ping", "category": "read", "description": "Replies with a fixed string.",
+      "input": { "type": "object" },
+      "output": { "type": "object", "required": ["reply"],
+                  "properties": { "reply": { "type": "string" } } } }
+  ]
+}
