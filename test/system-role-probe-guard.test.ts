@@ -112,6 +112,26 @@
  * **13**. This entry must be deleted (and the ceiling dropped) if the suite ever
  * stops connecting for real.
  *
+ * ### Ceiling bump: the fluid API runtime live suite
+ *
+ * `integration-fluid-runtime.test.ts` joined as a FOURTEENTH entry, under the
+ * same clause as the five entries above: a genuine SEVENTH permanent member,
+ * same category as `integration.test.ts` / `integration-undo.test.ts` /
+ * `integration-fpm-lock.test.ts` / `integration-class-includes.test.ts` /
+ * `integration-lock-handle.test.ts`. It is a live suite (self-gated on
+ * `VITEST_LIVE=1` **and** `ABAP_URL` **and** write access, independently of
+ * vitest.config.ts's `LIVE_INTEGRATION_TESTS`, which does now name it) that
+ * deploys and activates the fluid API's own runtime class,
+ * `ZCL_ZMCP_FLUID_RT`, into `$ABAPSMITH_FLUID_API` on the real appliance, and
+ * runs `dispatch()` against it for real — a successful `ping` round trip and a
+ * deliberately failing `fail` action — plus a read-mode case asserting
+ * `dispatch()` refuses before any request when write access is not
+ * configured. There is no fake in the file to route a probe through, and the
+ * real system answers the T000 probe itself. `ALLOWLIST_SIZE_AT_LANDING`
+ * still stays **8**; `ALLOWLIST_CEILING` is now **14**. This entry must be
+ * deleted (and the ceiling dropped) if the suite ever stops connecting for
+ * real.
+ *
  * ## The config-only exemption (separate from the allow-list)
  *
  * A suite whose SUBJECT is config resolution — env string in, resolved value
@@ -149,7 +169,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 5; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 6; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -422,6 +442,27 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "out and every PUT assertion in the file would go RED, loudly. There is no fake to route, " +
       "and faking one would replace the server behaviour — real lock/unlock semantics on the " +
       "wire — the suite exists to observe.",
+  },
+  {
+    file: "integration-fluid-runtime.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts, with the same extra belt as the latter two: it " +
+      "self-gates on VITEST_LIVE=1 as well as ABAP_URL and write access " +
+      "(liveWriteConfigured(), test/helpers/live-write-gate.ts), INDEPENDENTLY of " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS (which does now name it). It builds its config " +
+      "with loadConfig() and, against the real A4H appliance, deploys and activates the fluid " +
+      "API's own runtime class, ZCL_ZMCP_FLUID_RT, into $ABAPSMITH_FLUID_API, then runs " +
+      "dispatch() for real — a successful ping round trip and a deliberately failing fail action " +
+      "— plus a separate read-mode block asserting dispatch() refuses with FLUID_API_DISABLED " +
+      "before any request when write access is not configured. The real system answers the T000 " +
+      "probe itself, so the guard's failure mode (a fake leaving the verdict `inconclusive` while " +
+      "the suite stays green) cannot arise: an inconclusive verdict here would lock writes out and " +
+      "every deploy/dispatch assertion in the file would go RED, loudly. There is no fake in the " +
+      "file to route a probe through, and faking one would replace the server behaviour — real " +
+      "ABAP deploy/activate and console-protocol execution on the wire — the suite exists to " +
+      "observe.",
   },
 ];
 

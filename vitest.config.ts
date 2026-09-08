@@ -21,6 +21,12 @@ const LIVE_INTEGRATION_TESTS = [
   // when abap_write uses it. Same independent-gate convention as the CCAU
   // suite above.
   "test/integration-lock-handle.test.ts",
+  // Fluid API runtime: ensureFluidPackage/ensureFluidTool actually deploy
+  // ZCL_ZMCP_FLUID_RT and dispatch() actually round-trips its ping/fail
+  // actions on a real system. Listed here so VITEST_LIVE=1 COLLECTS it — the
+  // suite carries its own independent gate, same convention as the two
+  // suites above.
+  "test/integration-fluid-runtime.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";
