@@ -173,6 +173,27 @@
  * **16**. This entry must be deleted (and the ceiling dropped) if the suite
  * ever stops connecting for real.
  *
+ * ### Ceiling bump: the core fluid tool + retired-bridge reaper live suite
+ *
+ * `integration-fluid-core.test.ts` joined as a SEVENTEENTH entry, under the
+ * same clause as the seven entries above: a genuine TENTH permanent member,
+ * same category as `integration.test.ts` / `integration-undo.test.ts` /
+ * `integration-fpm-lock.test.ts` / `integration-class-includes.test.ts` /
+ * `integration-lock-handle.test.ts` / `integration-fluid-runtime.test.ts` /
+ * `integration-fluid-run.test.ts` / `integration-fluid-classic.test.ts`. It
+ * is a live suite (self-gated on `ABAP_URL` plus write access via
+ * `liveSuiteSkipReason({ write: true })`, and named in vitest.config.ts's
+ * `LIVE_INTEGRATION_TESTS`) that deploys and activates the builtin `core`
+ * fluid tool's body class, `ZCL_ZMCP_FLUID_CORE`, into
+ * `$ABAPSMITH_FLUID_API` on the real appliance, and round-trips its
+ * select/describe_fm/call_fm actions against real DDIC tables and function
+ * modules, and separately probes/reaps the closed `RETIRED_BRIDGE_CLASSES`
+ * list for real. There is no fake in the file to route a probe through, and
+ * the real system answers the T000 probe itself. `ALLOWLIST_SIZE_AT_LANDING`
+ * still stays **8**; `ALLOWLIST_CEILING` is now **17**. This entry must be
+ * deleted (and the ceiling dropped) if the suite ever stops connecting for
+ * real.
+ *
  * ## The config-only exemption (separate from the allow-list)
  *
  * A suite whose SUBJECT is config resolution — env string in, resolved value
@@ -210,7 +231,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 10; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 11; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-core
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -570,6 +591,22 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "and activation state, and round-trips a create/delete of a throwaway $TMP transaction " +
       "through it, asserting the exists action reports ABSENT/EXISTS/ABSENT at each step. There " +
       "is no fake to route.",
+  },
+  {
+    file: "integration-fluid-core.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts / integration-fluid-classic.test.ts. Gated on ABAP_URL " +
+      "plus write access via liveSuiteSkipReason({ write: true }) from " +
+      "test/live-appliance-state.ts, and named in vitest.config.ts's LIVE_INTEGRATION_TESTS. It " +
+      "builds its config with loadConfig() and talks to the real A4H appliance, which answers " +
+      "the T000 probe itself. It deploys and activates the builtin core fluid tool's body " +
+      "class, ZCL_ZMCP_FLUID_CORE, into $ABAPSMITH_FLUID_API, and round-trips its " +
+      "select/describe_fm/call_fm actions against real DDIC tables (T005) and function modules " +
+      "(RFC_SYSTEM_INFO, CONVERSION_EXIT_ALPHA_INPUT), and separately probes and reaps the " +
+      "closed RETIRED_BRIDGE_CLASSES list for real. There is no fake to route.",
   },
 ];
 

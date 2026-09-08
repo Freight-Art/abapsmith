@@ -23,14 +23,7 @@ import type { Journal } from "../journal.js";
 import { systemKey } from "../journal.js";
 import { AbapError, isAbapError, describeUnknownError } from "../adt/errors.js";
 import { buildResponse, textTable } from "../compact.js";
-import { isSessionDeadFailure } from "../adt/write-verify.js";
-import { authorizeMutation, deleteObject, NO_JOURNAL } from "../adt/write.js";
-import {
-  FLUID_CONTRACT,
-  manifestVersion,
-  type FluidObjectType,
-  type LoadedFluidTool,
-} from "../adt/fluid/manifest.js";
+import { FLUID_CONTRACT, manifestVersion, type LoadedFluidTool } from "../adt/fluid/manifest.js";
 import { FLUID_PACKAGE, LEGACY_FLUID_PACKAGES, isReservedFluidName } from "../adt/fluid/package.js";
 import { fluidDisabledReason, type FluidDisabledReason } from "../adt/fluid/enabled.js";
 import type { FluidBuiltinSource, FluidToolSet } from "../adt/fluid/plugin-loader.js";
@@ -42,6 +35,14 @@ import {
 } from "../adt/fluid/ensure.js";
 import { forgetManifest, readFluidRegistry, type FluidRegistryEntry } from "../adt/fluid/registry.js";
 import { dispatch, type FluidRunResult } from "../adt/fluid/dispatch.js";
+import { deleteOneFluidObject, type FluidDeleteTarget } from "../adt/fluid/delete.js";
+import {
+  probeRetiredBridges,
+  reapRetiredBridges,
+  RETIRED_BRIDGE_CLASSES,
+  type RetiredBridgeProbe,
+  type RetiredBridgeReap,
+} from "../adt/fluid/retired.js";
 
 // ------------------------------------------------------------------ schema ---
 
@@ -61,10 +62,12 @@ export const fluidInputSchema = {
     .optional()
     .describe(
       'What to do. Defaults to "run" whenever tool/action/args/confirm/corr_nr/scope is given; a ' +
-        "call with none of those returns the catalogue instead. list/describe/status touch no " +
-        "network. verify asks the system what is actually deployed. run (the default) executes " +
-        "one action, deploying or repairing first if needed. repair forces a redeploy. remove " +
-        "deletes abapsmith-owned generated ABAP.",
+        "call with none of those returns the catalogue instead. list/describe touch no network; " +
+        "status reads the local registry plus a best-effort probe of retired pre-fluid bridge " +
+        "classes. verify asks the system what is actually deployed. run (the default) executes " +
+        "one action, deploying or repairing first if needed. repair forces a redeploy (and, with " +
+        "no `tool`, also reaps retired pre-fluid bridge classes). remove deletes abapsmith-owned " +
+        "generated ABAP.",
     ),
   tool: z
     .string()
@@ -198,13 +201,16 @@ function fluidApiDisabledError(
  * At the top of every op, per the brief: catches connected ceilings
  * (productive system, write lockout, failed role probe) that are unknowable
  * at registration time. Cheap before `ensureConnected()` (zero HTTP), which
- * is what keeps list/describe/status zero-network while still refusing once
- * the gate already knows (from a PRIOR call's `ensureConnected()` — `safety`
- * is one long-lived object, not reconstructed per call). Called again after
+ * is what keeps list/describe zero-network while still refusing once the
+ * gate already knows (from a PRIOR call's `ensureConnected()` — `safety` is
+ * one long-lived object, not reconstructed per call). Called again after
  * `ensureConnected()` for verify/repair/remove — `run` gets that second
  * check for free inside `dispatch()`, which independently re-checks with
  * the now-connected gate; `remove` has no such internal recheck, so its own
- * post-connect call here is the only place that ceiling is enforced.
+ * post-connect call here is the only place that ceiling is enforced. `status`
+ * only gets the pre-connect check: its own retired-bridge probe is
+ * best-effort (see `renderStatus`) and reports a connect/gate failure inline
+ * as `(probe unavailable: ...)` rather than refusing the whole call.
  */
 function requireFluidEnabled(deps: FluidToolDeps, ctx: { readonly op: FluidOp | "catalogue"; readonly tool?: string; readonly action?: string }): void {
   const reason = fluidDisabledReason(deps.cfg, deps.safety);
@@ -235,7 +241,8 @@ function renderCatalogue(deps: FluidToolDeps): string {
   const usage = [
     "list      — every loaded tool: origin, version, action names+categories (zero network)",
     "describe  — {tool} one tool in full: objects, entry class, per-action input/output schema (zero network)",
-    "status    — flag/package/contract, and what the LOCAL REGISTRY believes is deployed (zero network)",
+    "status    — flag/package/contract, what the LOCAL REGISTRY believes is deployed, plus a " +
+      "best-effort retired-bridge-class probe",
     "verify    — {tool?} ask the system what is ACTUALLY deployed for one or every loaded tool",
     "run       — {tool, action, args?} the default op: execute one action, deploying/repairing first if needed",
     "repair    — {tool?} force a redeploy of one or every loaded tool",
@@ -316,6 +323,42 @@ function renderDescribe(deps: FluidToolDeps, tool: LoadedFluidTool): string {
   }).text;
 }
 
+const RETIRED_BRIDGE_REPAIR_NOTE =
+  'op:"repair" with no `tool` deletes the ones reported "present". A "moved" one is in a ' +
+  "package abapsmith does not own and is never touched.";
+
+/**
+ * Shared by `status` and `verify` — both report the same ten-class list, one
+ * best-effort (status can fail to connect at all), one inside an already-held
+ * read lease (verify never fails to probe, since `probeRetiredBridges` itself
+ * never throws).
+ */
+function renderRetiredBridgeSection(
+  probes: readonly RetiredBridgeProbe[] | undefined,
+  error: string | undefined,
+): { title: string; content: string } {
+  const title = "RETIRED BRIDGE CLASSES";
+  if (error !== undefined) return { title, content: `(probe unavailable: ${error})` };
+
+  const nonAbsent = (probes ?? []).filter((p) => p.state !== "absent");
+  if (nonAbsent.length === 0) {
+    return {
+      title,
+      content: `(none — all ${RETIRED_BRIDGE_CLASSES.length} retired pre-fluid bridge classes are gone)`,
+    };
+  }
+  const rows = nonAbsent.map((p) => ({
+    name: p.name,
+    state: p.state,
+    foundIn: p.foundIn ?? "",
+    supersededBy: p.supersededBy,
+  }));
+  return {
+    title,
+    content: textTable(rows, ["name", "state", "foundIn", "supersededBy"]) + "\n\n" + RETIRED_BRIDGE_REPAIR_NOTE,
+  };
+}
+
 async function renderStatus(deps: FluidToolDeps): Promise<string> {
   const key = systemKey(deps.cfg);
   const registry = await readFluidRegistry(deps.cfg, key);
@@ -328,6 +371,18 @@ async function renderStatus(deps: FluidToolDeps): Promise<string> {
       objects: e.objects.join(","),
       deployedAt: e.deployedAt,
     }));
+
+  // Best-effort: the local-registry answer above must still render in full
+  // even when there is no connection or the probe itself fails.
+  let retired: readonly RetiredBridgeProbe[] | undefined;
+  let retiredError: string | undefined;
+  try {
+    await deps.ensureConnected();
+    retired = await deps.pool.withRead("abap_fluid.status", (conn) => probeRetiredBridges(conn));
+  } catch (e) {
+    retiredError = describeUnknownError(e);
+  }
+
   return buildResponse({
     header: {
       flag_ABAP_FLUID_API: deps.cfg.fluidApi !== false,
@@ -339,6 +394,7 @@ async function renderStatus(deps: FluidToolDeps): Promise<string> {
     },
     body: rows.length ? textTable(rows, ["tool", "contract", "version", "objects", "deployedAt"]) : "(nothing recorded for this system)",
     bodyLabel: "LOCAL REGISTRY",
+    sections: [renderRetiredBridgeSection(retired, retiredError)],
     notes: [
       "The local registry is what abapsmith BELIEVES is deployed on this system — a cache, not " +
         'an authority. It can be stale or wrong. Use op:"verify" to actually ask the system what ' +
@@ -364,10 +420,10 @@ async function runVerify(deps: FluidToolDeps, a: FluidInput): Promise<string> {
   const targets = a.tool ? [mustGetTool(deps.toolSet, a.tool)] : [...deps.toolSet.tools.values()];
   if (targets.length === 0) throw badInput("No fluid tools are loaded; nothing to verify.", "tool");
 
-  const byTool = await deps.pool.withRead("abap_fluid.verify", async (conn) => {
+  const { byTool, retired } = await deps.pool.withRead("abap_fluid.verify", async (conn) => {
     const out = new Map<string, readonly FluidObjectStatus[]>();
     for (const t of targets) out.set(t.manifest.id, await classifyFluidTool(conn, deps.cfg, t));
-    return out;
+    return { byTool: out, retired: await probeRetiredBridges(conn) };
   });
 
   const rows: Array<Record<string, string>> = [];
@@ -379,11 +435,15 @@ async function runVerify(deps: FluidToolDeps, a: FluidInput): Promise<string> {
     }
   }
 
+  const notes: string[] = anyNotPresent ? [VERIFY_STATE_NOTE] : [];
+  if (retired.some((p) => p.state === "present")) notes.push(RETIRED_BRIDGE_REPAIR_NOTE);
+
   return buildResponse({
     header: { tools_checked: targets.length },
     body: rows.length ? textTable(rows, ["tool", "object", "type", "state", "foundIn"]) : "(nothing to verify)",
     bodyLabel: "OBJECTS",
-    notes: anyNotPresent ? [VERIFY_STATE_NOTE] : [],
+    sections: [renderRetiredBridgeSection(retired, undefined)],
+    notes,
     maxChars: deps.cfg.maxResponseChars,
   }).text;
 }
@@ -466,28 +526,48 @@ async function runRepair(deps: FluidToolDeps, a: FluidInput): Promise<string> {
     }
   });
 
+  // Reap only a whole-system repair (`tool` omitted) — repairing one named
+  // tool must not delete unrelated objects. Must run LAST: the ensure loop
+  // above needs a live connection for the whole loop, and each reap delete
+  // takes its own short-lived write lease (never the ensure loop's), so this
+  // has to start only after that lease has been released.
+  let reaped: readonly RetiredBridgeReap[] | undefined;
+  if (a.tool === undefined) {
+    reaped = await reapRetiredBridges(deps.safety, (op, fn) => deps.pool.withWrite(op, undefined, fn));
+  }
+
   const rows: Array<Record<string, string>> = [];
   for (const r of results) {
     for (const s of r.objects) rows.push({ tool: r.toolId, object: s.name, type: s.type, state: s.state });
   }
 
+  const sections = results.map((r) => ({ title: r.toolId, content: `version ${r.version}, deployed: ${r.deployed}` }));
+  const notes: string[] = [];
+  if (reaped) {
+    const reapRows = reaped.map((r) => ({ name: r.name, outcome: r.outcome, foundIn: r.foundIn ?? "", error: r.error ?? "" }));
+    sections.push({
+      title: "RETIRED BRIDGE CLASSES",
+      content: reaped.every((r) => r.outcome === "already-absent")
+        ? "(none — nothing retired was left on this system)"
+        : textTable(reapRows, ["name", "outcome", "foundIn", "error"]),
+    });
+  } else {
+    notes.push('Retired pre-fluid bridge classes are only reaped by op:"repair" with no `tool`.');
+  }
+
   return buildResponse({
     header: { tools_repaired: results.length },
-    sections: results.map((r) => ({ title: r.toolId, content: `version ${r.version}, deployed: ${r.deployed}` })),
+    sections,
     body: rows.length ? textTable(rows, ["tool", "object", "type", "state"]) : "(nothing to repair)",
     bodyLabel: "OBJECTS",
+    notes,
     maxChars: deps.cfg.maxResponseChars,
   }).text;
 }
 
 // -------------------------------------------------------------------- remove ---
 
-interface RemoveTarget {
-  readonly type: FluidObjectType;
-  readonly name: string;
-}
-
-type RemoveOutcome = RemoveTarget & { readonly outcome: "deleted" | "already-absent" | "failed"; readonly error?: string };
+type RemoveOutcome = FluidDeleteTarget & { readonly outcome: "deleted" | "already-absent" | "failed"; readonly error?: string };
 
 /**
  * `scope: "tool"` reads the target list straight off the loaded manifest —
@@ -503,14 +583,14 @@ async function removeTargets(
   toolSet: FluidToolSet,
   scope: "tool" | "invokers" | "all",
   toolId: string | undefined,
-): Promise<{ targets: readonly RemoveTarget[]; unmappable: ReadonlyArray<{ type: string; name: string }> }> {
+): Promise<{ targets: readonly FluidDeleteTarget[]; unmappable: ReadonlyArray<{ type: string; name: string }> }> {
   if (scope === "tool") {
     const t = mustGetTool(toolSet, toolId ?? "");
     return { targets: t.manifest.objects.map((o) => ({ type: o.type, name: o.name })), unmappable: [] };
   }
 
   const listed = await conn.adt.nodeContents("DEVC/K", FLUID_PACKAGE);
-  const targets: RemoveTarget[] = [];
+  const targets: FluidDeleteTarget[] = [];
   const unmappable: Array<{ type: string; name: string }> = [];
   for (const n of listed.nodes ?? []) {
     const name = n.OBJECT_NAME ?? "";
@@ -525,37 +605,6 @@ async function removeTargets(
     }
   }
   return { targets, unmappable };
-}
-
-/**
- * Deleting an ABAP class kills the ADT session server-side (the next
- * request on it gets `400 Session Timed Out` / `ICMENOSESSION`), so every
- * delete after the first must survive that. Same one-shot
- * revive-and-retry-once idiom as `authorizeBridgeTarget` in `src/adt/run.ts`
- * and the `"legacy"`/`"broken"` branches of `ensureOneObject` in
- * `src/adt/fluid/ensure.ts` (both confirmed reference implementations) —
- * never a loop, exactly one `conn.connect()` and one retry.
- */
-async function deleteOneFluidObject(
-  conn: AbapConnection,
-  gate: SafetyGate,
-  target: RemoveTarget,
-  reviveOnDeadSession: boolean,
-): Promise<{ deleted: boolean | "unverified" }> {
-  const attempt = async () => {
-    const authorized = await authorizeMutation(conn, gate, "delete", { type: target.type, name: target.name });
-    // NO_JOURNAL: abapsmith's own generated scaffolding, not user content —
-    // same idiom as `ensureFluidPackage`/`deployBridge`.
-    return deleteObject(conn, authorized, { onBeforeImage: NO_JOURNAL });
-  };
-  if (!reviveOnDeadSession) return attempt();
-  try {
-    return await attempt();
-  } catch (e) {
-    if (!isSessionDeadFailure(e)) throw e;
-    await conn.connect();
-    return attempt();
-  }
 }
 
 async function runRemove(deps: FluidToolDeps, a: FluidInput): Promise<string> {
@@ -666,11 +715,12 @@ export function registerFluidTool(mcp: McpServer, deps: FluidToolDeps): void {
         "Deploys and runs small, generated ABAP tools inside $ABAPSMITH_FLUID_API. Each fluid " +
         "tool is a manifest naming one or more generated ABAP classes/interfaces and the actions " +
         "they expose; this call deploys them on first use and re-verifies them on every call. " +
-        "op: list/describe/status (zero network) inspect what is loaded and what is believed " +
-        "deployed; verify asks the system directly; run (the default) executes one action, " +
-        "deploying or repairing first if needed; repair forces a redeploy; remove deletes " +
-        "abapsmith-owned generated ABAP. Call with no arguments for the catalogue of loaded " +
-        "tools and their actions.",
+        "op: list/describe (zero network) inspect what is loaded; status reads the local registry " +
+        "plus a best-effort probe for retired pre-fluid bridge classes; verify asks the system " +
+        "directly; run (the default) executes one action, deploying or repairing first if needed; " +
+        "repair forces a redeploy (and, with no `tool`, reaps retired pre-fluid bridge classes); " +
+        "remove deletes abapsmith-owned generated ABAP. Call with no arguments for the catalogue " +
+        "of loaded tools and their actions.",
       inputSchema: fluidInputSchema,
       annotations: {
         readOnlyHint: false,

@@ -24,7 +24,7 @@ The framework is reached through exactly one MCP tool, `abap_fluid` — see
 
 | Term | Meaning |
 |---|---|
-| Fluid tool | A named unit of ABAP functionality (`ddic`, `img`, `myplug`) with one or more actions. Built-in or plugin. Not an MCP tool. |
+| Fluid tool | A named unit of ABAP functionality (`ddic`, `img`, `core`, `myplug`) with one or more actions. Built-in or plugin. Not an MCP tool. |
 | Manifest | JSON describing one fluid tool: id, contract version, ABAP objects, actions. The unit of versioning and deployment. |
 | Object | An ABAP repository object the tool needs (class or interface). Static — its source never depends on call arguments. |
 | Action | A named callable on a tool, with an input schema, an output schema, and a safety category. |
@@ -32,6 +32,26 @@ The framework is reached through exactly one MCP tool, `abap_fluid` — see
 | Plugin | An operator-installed directory: `fluid-plugin.json` plus `.abap` files. |
 | Package | `$ABAPSMITH_FLUID_API`, a local (`$`, non-transportable) package holding every fluid object. Created on first use. |
 | Registry | A local JSON cache under `ABAP_STATE_DIR` recording what abapsmith believes is deployed per system. A cache, never the source of truth. |
+
+## Built-in tools
+
+`core` is a built-in fluid tool with three actions:
+
+- `core.select` (read) — a read-only row preview of one DDIC table.
+  Judged by the **existing** data-preview policy
+  (`ABAP_ALLOW_DATA_PREVIEW` plus the gate's table deny-list and
+  ceiling), not by a new fluid-specific policy.
+- `core.describe_fm` (read) — a function module's interface as a JSON
+  Schema, built from FUPARAREF.
+- `core.call_fm` (execute) — calls a function module dynamically. Off
+  by default; requires `ABAP_ALLOW_FLUID_CALL_FM`. When `commit: true`,
+  also requires a per-call `confirm: "core.call_fm"` echo.
+
+`select`'s `fields` are validated against the table's DDIC components
+before they reach the dynamic column list. `where` is passed through as
+a dynamic Open SQL condition scoped to that one table; Open SQL cannot
+express DML there, but the condition itself is not otherwise parsed or
+restricted.
 
 ## Contract version
 
@@ -53,6 +73,13 @@ it was written against.
 | `ABAP_ALLOW_FLUID_PLUGINS` | off | Required, in addition to a non-empty `ABAP_FLUID_PLUGINS`, before any plugin loads or runs. |
 | `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` | off | Required for a plugin action with `category: "mutate"`. Built-ins are unaffected. |
 | `ABAP_ALLOW_FLUID_CALL_FM` | off | Required for the built-in `core.call_fm` action. Every other `core` action is unaffected. |
+
+`call_fm` is an **authorisation-shaped control, not a sandbox.** With the
+flag on, any function module the logged-on user may call can be called,
+including ones that write. The controls are the flag, the ordinary write
+ceilings, the `commit: true` confirm echo, and the SAP user's own
+authorisations — there is no allow-list of "safe" function modules and no
+attempt to classify a module as read-only.
 
 `ABAP_FLUID_PLUGINS` is split on commas alone, not by the general
 `splitList` helper — that helper also splits on whitespace, which would
@@ -105,11 +132,18 @@ tool is hidden, renamed or unregistered.
 |---|---|---|
 | `list` | — | none |
 | `describe` | `tool` | none |
-| `status` | — | none |
+| `status` | — | best-effort read |
 | `verify` | `tool?` | reads |
 | `run` (default) | `tool`, `action`, `args`, `confirm?`, `corr_nr?` | writes and executes |
 | `repair` | `tool?` | writes |
 | `remove` | `tool?`, `scope?`, `confirm` | deletes |
+
+`status`'s local registry read is now paired with a best-effort probe of
+the system for retired pre-fluid bridge classes, reporting which of them
+still exist. The probe is read-only and never mutates; if no connection
+can be made, or the probe fails, `status` still renders the local answer
+and says the probe did not run. See `doc/TOOLS/abap-fluid.md`'s `status`
+section for the wire-level detail.
 
 ## Operations
 
@@ -152,3 +186,8 @@ operator's own `ABAP_MAX_RESPONSE_CHARS`, applied by `buildResponse`
 other tool. `FLUID_INPUT_TOO_LARGE` does not exist as an error code. A
 long argument becomes more generated ABAP source lines, never a refusal —
 see [protocol.md](protocol.md) for the chunking rule.
+
+`core.select`'s `max_rows` imposes nothing by default: omitted means no
+row restriction — the generated ABAP passes 0, and ABAP's `UP TO 0 ROWS`
+means no restriction. The only output budget remains `buildResponse`,
+above.

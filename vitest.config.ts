@@ -48,6 +48,14 @@ const LIVE_INTEGRATION_TESTS = [
   // a throwaway $TMP transaction. Same independent-gate convention as the
   // other fluid live suites above.
   "test/integration-fluid-classic.test.ts",
+  // The builtin `core` fluid tool: dispatch() actually deploys
+  // ZCL_ZMCP_FLUID_CORE and round-trips its select/describe_fm/call_fm
+  // actions (a T005 table read, an RFC_SYSTEM_INFO describe/call, and an
+  // ALPHA-conversion importing-parameter bind) against a real appliance, and
+  // the retired-bridge reaper probes/reaps the legacy DDIC/CTS/IMG bridge
+  // classes for real. Listed here so VITEST_LIVE=1 COLLECTS it — the suite
+  // carries its own independent gate, same convention as the suites above.
+  "test/integration-fluid-core.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";

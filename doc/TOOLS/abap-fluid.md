@@ -61,13 +61,16 @@ schemas.
 { "op": "describe", "tool": "rt" }
 ```
 
-### status — no network
+### status — best-effort read
 
 Where the fluid API stands on this system: the flag, the package, the
 write mode, how many tools are loaded, and what abapsmith's local registry
 believes is currently deployed (tool id, contract, version, objects,
-`deployedAt`). Reads the local registry file under `ABAP_STATE_DIR` only —
-never the system itself.
+`deployedAt`). Reads the local registry file under `ABAP_STATE_DIR`, and
+— best effort — probes the system for retired pre-fluid bridge classes,
+reporting which of them still exist. The probe is read-only and never
+mutates; if no connection can be made, or the probe fails, `status` still
+renders the local answer and says the probe did not run.
 
 ```json
 { "op": "status" }
@@ -80,7 +83,8 @@ Classifies every object of the named tool (or of every loaded tool if
 `present`, `absent`, `stale`, `inactive`, `broken`, `foreign` (an object of
 that name exists in a package abapsmith does not own — it is never touched)
 or `legacy` (a reserved `ZCL_ZMCP_`/`ZIF_ZMCP_` name stranded in `$TMP` or
-`$ZMCP_HELPERS`, a pre-fluid install).
+`$ZMCP_HELPERS`, a pre-fluid install). The summary also reports how many
+retired pre-fluid bridge classes are still present on the system.
 
 ```json
 { "op": "verify", "tool": "rt" }
@@ -112,6 +116,36 @@ from the system, then deploys, relocates, or re-creates whatever is not
 plain rewrite — the source already matches what would be written, so a
 plain write short-circuits and never touches a broken object. One repair
 attempt per object per call; never a retry loop.
+
+When `tool` is **omitted**, `repair` additionally deletes any retired
+pre-fluid bridge classes that are still present, through the ordinary
+authorized delete path, and reports what it deleted. A class of one of
+those names found in a package abapsmith does not own is reported as
+moved and is never touched. Naming a `tool` skips the reap entirely.
+
+The ordinary authorized delete path means the safety gate's package
+allowlist applies to the reap like any other write. Nine of the ten
+retired classes live in `$TMP`, but `ZCL_ZMCP_IMG_WPROBE` lives
+in `$ZMCP_HELPERS`, so reaping that one class needs `$ZMCP_HELPERS` in
+`ABAP_ALLOW_PACKAGES` — which it would be on any system that created the
+class in the first place. Where it is not, the gate refuses the delete and
+the class is reported `failed` with the gate's own reason, e.g.:
+
+```
+Package $ZMCP_HELPERS is not in the allowlist [$TMP, $ABAPSMITH_FLUID_API].
+```
+
+This is distinct from `moved`: `moved` is a class found sitting in some
+other, unexpected package, which is never touched; a gate refusal is the
+class sitting exactly where expected, refused only because the allowlist
+no longer covers that package.
+
+Each delete takes its own write lease rather than sharing one connection
+across the reap: deleting an ABAP class kills the ADT session server-side,
+and a connection may only re-logon a small fixed number of times outside a
+budgeted request, so sharing one connection across a ten-class reap would
+run it out partway through and silently leave the tail of the list
+untouched. One lease per delete gives every delete a fresh connection.
 
 ```json
 { "op": "repair", "tool": "rt" }
