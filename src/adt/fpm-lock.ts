@@ -6,7 +6,7 @@
  * locked config (observed live). This module enforces the lock itself in generated ABAP
  * ({@link buildLockedOperationSource}); like its sibling `fpm-runtime.ts`, nothing here is
  * reachable through ADT REST, so each operation is compiled into an `IF_OO_ADT_CLASSRUN` class in
- * `$TMP`, activated, executed, and read back as a line-prefixed transcript.
+ * `FLUID_PACKAGE`, activated, executed, and read back as a line-prefixed transcript.
  *
  * Two rules are non-negotiable, each closing a landmine that was hit live:
  *  - `DEQUEUE_*`'s `subrc` is never evidence of a release (`subrc = 0` even when nothing was
@@ -517,8 +517,9 @@ function lockDiscriminator(q: FpmLockInspectQuery | FpmLockedOperation): string 
 }
 
 /**
- * Deterministic `$TMP` bridge-class name, mirroring `fpmBridgeClassName`: hashed from a canonical
- * serialisation of every input so identical requests reuse one class instead of churning `$TMP`.
+ * Deterministic `FLUID_PACKAGE` bridge-class name, mirroring `fpmBridgeClassName`: hashed from a
+ * canonical serialisation of every input so identical requests reuse one class instead of
+ * churning `FLUID_PACKAGE`.
  */
 export function fpmLockBridgeClassName(q: FpmLockInspectQuery | FpmLockedOperation): string {
   const hashHexLen = MAX_NAME - FPM_LOCK_BRIDGE_CLASS_PREFIX.length;
@@ -2008,6 +2009,7 @@ export async function runFpmLockInspect(
     className,
     source,
     description: "abapsmith FPM lock inspection bridge",
+    caller: { tool: "abap_fpm_read", action: "locks" },
     what: "Activation of the generated FPM lock bridge",
     hint:
       "The bridge reads the enqueue table via ENQUEUE_READ and takes one throwaway self-lock " +

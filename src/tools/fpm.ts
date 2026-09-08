@@ -2,9 +2,9 @@
  * `abap_fpm_read` — reads SAP FPM/FBI screen configs. No ADT read endpoint
  * exists for this content (every write verb 405s — see `src/adt/fpm-runtime.ts`).
  * Like `abap_bopf_test`, it works by generating/activating a throwaway
- * `IF_OO_ADT_CLASSRUN` bridge class in $TMP, so despite being read-only in
- * effect it goes through `pool.withWrite` and is gated as a write on the
- * bridge class name.
+ * `IF_OO_ADT_CLASSRUN` bridge class in FLUID_PACKAGE, so despite being
+ * read-only in effect it goes through `pool.withWrite` and is gated as a
+ * write on the bridge class name.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -31,6 +31,7 @@ import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, textTable, CHARS_PER_TOKEN } from "../compact.js";
 import type { SafetyGate } from "../safety.js";
+import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 
 export const fpmReadInputSchema = {
   mode: z
@@ -582,7 +583,7 @@ const FPM_TOOL_DESCRIPTION =
   "component/config_id pattern/package. outline: one configuration's XML plus delta/package " +
   "metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints " +
   "(resolve, default true). locks: enqueue lock holders. Read-only; every call deploys a " +
-  "throwaway $TMP bridge class.";
+  "throwaway bridge class into abapsmith's own package.";
 
 export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as FpmReadInput;
@@ -597,7 +598,7 @@ export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<
     deps.safety.assert("read");
     deps.safety.assert(
       "write",
-      { name: lockBridgeClass, packageName: "$TMP", type: "CLAS/OC" },
+      { name: lockBridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
       { phase: "preflight" },
     );
 
@@ -618,7 +619,7 @@ export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<
   deps.safety.assert("read");
   deps.safety.assert(
     "write",
-    { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" },
+    { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
 

@@ -20,11 +20,12 @@
  * (`ABAP_MODE=edit`/`admin`, or legacy `ABAP_ALLOW_WRITE=true` — see
  * `test/helpers/live-write-gate.ts`) —
  * this suite takes real `ENQUEUE_E_WDY_CONFCOMP` locks and writes throwaway
- * `$TMP` bridge classes. Every artefact this file creates is `ZMCP_`-
- * prefixed and lives in `$TMP`; every test releases what it took in a
- * `try/finally`, and `afterAll` runs one more best-effort sweep for any
- * `ZMCP_LK_LIVE*` lock row left behind by an aborted run. Never touch an
- * object this suite did not create.
+ * bridge classes: most into `$TMP`, plus — via the real `runFpmReadTool`
+ * path the `mode:"locks"` test drives — some into `FLUID_PACKAGE`. Every
+ * artefact this file creates is `ZMCP_`-prefixed; every test releases what
+ * it took in a `try/finally`, and `afterAll` runs one more best-effort
+ * sweep for any `ZMCP_LK_LIVE*` lock row left behind by an aborted run.
+ * Never touch an object this suite did not create.
  *
  * Tests 2 and 4 deliberately reproduce broken/edge-case enqueue shapes
  * (a wildcard landmine, and an intentionally un-released lock).
@@ -53,6 +54,7 @@ import {
   FPM_LOCK_SCOPE,
   type FpmLockedOperation,
 } from "../src/adt/fpm-lock.js";
+import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 
 loadEnvFile(); // so a .env in the repo root enables the live suite
 const notRun = liveSuiteSkipReason({ write: true });
@@ -60,9 +62,9 @@ const dw = notRun === undefined ? describe : describe.skip;
 // A collection-time skip is counted but never says why; state the reason once, greppably.
 if (notRun !== undefined) it("live A4H fpm-lock protocol: suite not run", (ctx) => skipForApplianceState(ctx, notRun));
 
-dw("live A4H fpm-lock protocol (write path, $TMP only)", () => {
+dw("live A4H fpm-lock protocol (write path, $TMP + the fluid package)", () => {
   let conn: AbapConnection;
-  const GATE = new SafetyGate({ readOnly: false, allowPackages: ["$TMP"] });
+  const GATE = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", FLUID_PACKAGE] });
   const breaker = new AuthCircuitBreaker();
   /**
    * Built lazily and ONLY for the `mode:"locks"` test, which is the one case

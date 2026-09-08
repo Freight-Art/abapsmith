@@ -787,6 +787,7 @@ export async function runBopfTest(
     className,
     source,
     description: `abapsmith BOPF test bridge for ${model.name}`,
+    caller: { tool: "abap_bopf_test", action: "run_test" },
     what: "Activation of the generated BOPF test bridge",
     hint:
       `The bridge exercises BO ${model.name} through its service/transaction managers, so ` +

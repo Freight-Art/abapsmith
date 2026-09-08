@@ -1,10 +1,10 @@
 /**
  * ABAP bridge generation for `abap_ui` — headless classic dynpro driving
  * (discovery + batch-input "press") via generated `IF_OO_ADT_CLASSRUN`
- * bridge classes written/activated in $TMP and run in a fresh session, same
- * pattern as `fpm-runtime.ts`/`ddic-bridge.ts`. No ADT REST endpoint reaches
- * TSTC, the screen-painter reader FMs, CUA status, or CALL TRANSACTION, so
- * this drives them via a generated class instead.
+ * bridge classes written/activated in FLUID_PACKAGE and run in a fresh
+ * session, same pattern as `fpm-runtime.ts`/`ddic-bridge.ts`. No ADT REST
+ * endpoint reaches TSTC, the screen-painter reader FMs, CUA status, or
+ * CALL TRANSACTION, so this drives them via a generated class instead.
  *
  * Two modes:
  *  - `screen` (read-only): resolves a tcode via TSTC (or takes an explicit
@@ -956,7 +956,7 @@ export interface UiBridgeResult {
  * Deploys (if needed) and runs the UI bridge for `query`, returning the
  * parsed transcript. Mirrors `runFpmRead`'s shape: `deployBridge` +
  * `executeBridge` do all write/activate/execute gating on the generated
- * $TMP bridge class itself.
+ * bridge class itself, deployed into FLUID_PACKAGE.
  *
  * No second, domain-level safety gate is added for `press`'s
  * `CALL TRANSACTION`: unlike `ddic-bridge.ts`'s `assertBridgeMutation`
@@ -982,6 +982,7 @@ export async function runUiBridge(
     className,
     source,
     description: `abapsmith UI bridge (mode=${query.mode})`,
+    caller: { tool: "abap_ui", action: query.mode },
     what: "Activation of the generated UI bridge",
     hint:
       query.mode === "screen"

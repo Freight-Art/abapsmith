@@ -4,7 +4,7 @@
  *
  *   screen  discovery: given a tcode or program+dynpro, return the screen's
  *           fields, flow logic, and GUI status. Read-only in effect (writes
- *           only a throwaway $TMP bridge class, like abap_fpm_read).
+ *           only a throwaway bridge class into FLUID_PACKAGE, like abap_fpm_read).
  *   press   execute a batch-input script against a transaction. COMMITS —
  *           CALL TRANSACTION ... MODE 'N' UPDATE 'S' has no dry run and
  *           ROLLBACK WORK cannot reach back across the boundary. Gated by
@@ -54,6 +54,7 @@ import type { Config } from "../config.js";
 import { buildResponse, textTable } from "../compact.js";
 import { safetyTarget, type SafetyGate } from "../safety.js";
 import { withJournalledMutation, systemKey, type Journal } from "../journal.js";
+import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 
 // ---------------------------------------------------------------------------
 // Input schema
@@ -304,7 +305,7 @@ async function assertBdcApplies(deps: UiToolDeps, tcode: string): Promise<void> 
   const precheckClass = uiBridgeClassName(precheckQuery);
   deps.safety.assert(
     "write",
-    { name: precheckClass, packageName: "$TMP", type: "CLAS/OC" },
+    { name: precheckClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
   const precheck = await deps.pool.withWrite("abap_ui", precheckClass, (conn) =>
@@ -482,7 +483,7 @@ async function runScreenTool(deps: UiToolDeps, input: UiInput): Promise<CallTool
   // Cheap, zero-network preflight — mirrors abap_fpm_read: bridge class name is a pure function of the query.
   const bridgeClass = uiBridgeClassName(query);
   deps.safety.assert("read");
-  deps.safety.assert("write", { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" }, { phase: "preflight" });
+  deps.safety.assert("write", { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" }, { phase: "preflight" });
 
   await deps.ensureConnected();
 
@@ -513,7 +514,7 @@ async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolR
   await assertBdcApplies(deps, query.tcode);
 
   const bridgeClass = uiBridgeClassName(query);
-  deps.safety.assert("write", { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" }, { phase: "preflight" });
+  deps.safety.assert("write", { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" }, { phase: "preflight" });
 
   // Journal every press with the BDCDATA script (deliberately not skipped,
   // unlike other bridge-based writes elsewhere — a known gap). JournalOperation

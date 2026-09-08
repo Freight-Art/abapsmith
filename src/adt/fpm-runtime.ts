@@ -4,7 +4,8 @@
  * FPM/FBI screen configs live as XML in WDY_CONFIG_* tables with no ADT REST
  * read path (writes 405; no read endpoint) — like `bopf-runtime.ts`, this
  * generates a deterministic `IF_OO_ADT_CLASSRUN` ABAP class per query,
- * deploys it to $TMP, and runs it to get a line-prefixed text transcript.
+ * deploys it to FLUID_PACKAGE, and runs it to get a line-prefixed text
+ * transcript.
  *
  * Facts below are confirmed against a live A4H sandbox (captured probe
  * runs), not guessed. Full evidence: the git history
@@ -195,7 +196,7 @@ export const FPM_BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_FPM_";
  * Unlike `bopfBridgeClassName` (hashes a single BO name), FPM queries are
  * multi-parameter, so the class name hashes a canonical serialization of
  * every field — identical queries always produce the same class/source,
- * so repeats don't churn $TMP.
+ * so repeats don't churn FLUID_PACKAGE.
  */
 function discriminator(q: FpmBridgeQuery): string {
   switch (q.mode) {
@@ -789,6 +790,7 @@ export async function runFpmRead(
     className,
     source,
     description: `abapsmith FPM read bridge (mode=${query.mode})`,
+    caller: { tool: "abap_fpm_read", action: query.mode },
     what: "Activation of the generated FPM read bridge",
     hint:
       "The bridge reads FPM/FBI configuration via SAP-standard SELECTs and API calls — a syntax " +
