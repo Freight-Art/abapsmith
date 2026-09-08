@@ -61,16 +61,13 @@ import {
   FPM_LOCK_OBJECTS,
   FPM_LOCK_SCOPE,
   GARG_LENGTH,
-  GARG_SEGMENTS,
   GARG_WILDCARD_CHAR,
   LOCK_LINE_PREFIX,
   assertForceClearAllowed,
   assertLockBodyIsSafe,
   assertLockConfigType,
-  buildForceClearSource,
   buildGarg,
   buildLockInspectSource,
-  buildLockedOperationSource,
   fpmLockBridgeClassName,
   fpmLockKey,
   hasWildcardFill,
@@ -80,7 +77,6 @@ import {
   wrapAbapTemplateLines,
   type FpmLockInspectQuery,
   type FpmLockedOperation,
-  type LockRow,
 } from "../src/adt/fpm-lock.js";
 
 // ---------------------------------------------------------------------------
@@ -196,7 +192,6 @@ const LOCKED_OP: FpmLockedOperation = { key: KEY_00, body: BENIGN_BODY, bodyLabe
 const INSPECT_Q: FpmLockInspectQuery = { mode: "locks", configId: OK_ID, configType: "00" };
 
 const inspectSrc = (): string => buildLockInspectSource(INSPECT_Q, fpmLockBridgeClassName(INSPECT_Q));
-const lockedSrc = (): string => buildLockedOperationSource(LOCKED_OP, fpmLockBridgeClassName(LOCKED_OP));
 
 // ---------------------------------------------------------------------------
 // 1. Injection refusal
@@ -299,10 +294,7 @@ describe("generated ABAP shape — X-flags, _SCOPE, ENQUEUE_READ filters, no IS 
   // the source activates, and not that the FM parameter names exist. The wire
   // proof is in test/integration-fpm-lock.test.ts.
 
-  const SOURCES: Array<[string, () => string]> = [
-    ["buildLockInspectSource", inspectSrc],
-    ["buildLockedOperationSource", lockedSrc],
-  ];
+  const SOURCES: Array<[string, () => string]> = [["buildLockInspectSource", inspectSrc]];
 
   for (const [name, make] of SOURCES) {
     describe(name, () => {
@@ -373,75 +365,6 @@ describe("generated ABAP shape — X-flags, _SCOPE, ENQUEUE_READ filters, no IS 
     });
   }
 
-  it("an application-scope key (config_type 02) generates the CONFAPPL FMs, not CONFCOMP", () => {
-    // Text-only assertion; no ADT call is made and nothing is activated.
-    const op: FpmLockedOperation = { key: KEY_02, body: BENIGN_BODY, bodyLabel: BODY_LABEL };
-    const src = buildLockedOperationSource(op, fpmLockBridgeClassName(op));
-    expect(src).toContain(FPM_LOCK_OBJECTS.application.enqueueFm);
-    expect(src).toContain(FPM_LOCK_OBJECTS.application.dequeueFm);
-    expect(src).toContain(`'${FPM_LOCK_OBJECTS.application.gname}'`);
-  });
-
-  it("the DEQUEUE narration carries note=[subrc-is-not-evidence] (landmine 1, said on the wire)", () => {
-    // Asserts that we EMIT the disclaimer, not that DEQUEUE actually lies.
-    expect(lockedSrc()).toContain("note=[subrc-is-not-evidence]");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4. Ordering guarantee
-// ---------------------------------------------------------------------------
-
-describe("ordering guarantee: the body is unreachable unless the pre-save verify passed", () => {
-  it("emits the caller's body at a character index strictly AFTER the pre-save VERIFY emission", () => {
-    // This is a lexical/text assertion about generated source. It proves the
-    // ORDER OF THE TEXT WE EMIT. It does NOT prove ABAP executes it in that
-    // order (it does, trivially), and above all it does NOT prove that
-    // SAVE_COMP_CONFIG_TO_DB respects the lock — that was the original
-    // finding, and only test/integration-fpm-lock.test.ts touches the wire.
-    const src = lockedSrc();
-    const verifyIdx = src.indexOf(`${LOCK_LINE_PREFIX}VERIFY phase=[presave]`);
-    const bodyIdx = src.indexOf(BODY_SENTINEL);
-    expect(verifyIdx).toBeGreaterThan(-1);
-    expect(bodyIdx).toBeGreaterThan(-1);
-    expect(bodyIdx).toBeGreaterThan(verifyIdx);
-  });
-
-  it("nests the body inside a hard IF/ELSE/ENDIF guard whose ELSE branch can only emit a GUARD line", () => {
-    const src = lockedSrc();
-    const verifyIdx = src.indexOf(`${LOCK_LINE_PREFIX}VERIFY phase=[presave]`);
-    const guardIf = src.indexOf("IF lv_lk_held = 'X' AND lv_lk_mine = 'X' AND lv_lk_wild = '-'.", verifyIdx);
-    const bodyIdx = src.indexOf(BODY_SENTINEL);
-    const elseIdx = src.indexOf("ELSE.", bodyIdx);
-    const guardEmit = src.indexOf("emit_guard( iv_reason = 'presave-verify-failed'", elseIdx);
-    const endIf = src.indexOf("ENDIF.", guardEmit);
-
-    // IF ... <body> ... ELSE. <GUARD> ENDIF. — in that textual order.
-    expect(guardIf).toBeGreaterThan(-1);
-    expect(guardIf).toBeLessThan(bodyIdx);
-    expect(elseIdx).toBeGreaterThan(bodyIdx);
-    expect(guardEmit).toBeGreaterThan(elseIdx);
-    expect(endIf).toBeGreaterThan(guardEmit);
-    // Structural, not procedural: there is no "verified" flag consulted later.
-    // Again — asserts the ABAP we EMIT only.
-  });
-
-  it("the body is followed by a post-body re-verify and then the release, in that order", () => {
-    const src = lockedSrc();
-    const bodyIdx = src.indexOf(BODY_SENTINEL);
-    const postbody = src.indexOf(`${LOCK_LINE_PREFIX}VERIFY phase=[postbody]`);
-    const deq = src.indexOf("CALL FUNCTION 'DEQUEUE_E_WDY_CONFCOMP'", bodyIdx);
-    const release = src.indexOf(`${LOCK_LINE_PREFIX}RELEASE status=`);
-    expect(postbody).toBeGreaterThan(bodyIdx);
-    expect(deq).toBeGreaterThan(postbody);
-    expect(release).toBeGreaterThan(deq);
-  });
-
-  it("the enqueue-refused path emits a GUARD and never reaches the body", () => {
-    // Text assertion: an `ELSE` on `IF lv_lk_subrc = 0.` that only guards.
-    const src = lockedSrc();
-    expect(src).toContain("emit_guard( iv_reason = 'enqueue-refused'");
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -886,13 +809,6 @@ describe("assertLockBodyIsSafe — defense in depth around a generator-produced 
   it("refuses an unbalanced ABAP string literal (it would swallow the release statements)", () => {
     expectBadInput(() => assertLockBodyIsSafe("lv_a = 'oops.", BODY_LABEL));
   });
-
-  it("buildLockedOperationSource refuses the same bodies (the guard is not bypassable via the generator)", () => {
-    for (const [, body] of REFUSED) {
-      const op = { key: KEY_00, body, bodyLabel: BODY_LABEL } as FpmLockedOperation;
-      expectBadInput(() => buildLockedOperationSource(op, "ZCL_ZMCP_FPMLK_X"));
-    }
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -970,106 +886,6 @@ describe("parseBracketFields via parseLockTranscript: an embedded `]` does not t
 });
 
 // ---------------------------------------------------------------------------
-// 12. buildForceClearSource fails CLOSED when the GARG cannot be faithfully
-//     reconstructed
-// ---------------------------------------------------------------------------
-
-describe("buildForceClearSource: a non-reconstructible GARG must never be reported released", () => {
-  // ALL assertions below inspect generated ABAP TEXT. They prove the
-  // generator emits a hard-coded still-held verdict plus a GUARD when the
-  // reconstruction is lossy, and the ordinary conditional released/still-held
-  // pair when it is not. They do NOT prove ENQUE_DELETE deletes, or fails to
-  // delete, anything on a real system — no offline test can prove that.
-  // forceClear is not wired to any MCP tool in this repo; if it ever is,
-  // test/integration-fpm-lock.test.ts is the only place that could show
-  // ENQUE_DELETE actually deleting a row.
-
-  const segLen = (name: "configId" | "configType" | "configVar"): number =>
-    GARG_SEGMENTS[name][1] - GARG_SEGMENTS[name][0];
-
-  function seqgRow(garg: string): LockRow {
-    return {
-      gname: FPM_LOCK_OBJECTS.component.gname,
-      garg,
-      gmode: "E",
-      guname: "DEVELOPER",
-      gclient: "001",
-      gusr: SELF_OWNER,
-      gusrvb: "",
-      guse: "1",
-      gusevb: "0",
-      gobj: "E_WDY_CONFCOMP",
-      garg_view: parseGarg(garg),
-      ownership: "FOREIGN",
-    };
-  }
-
-  // Faithful: an ordinary precise GARG, built the same way the module itself
-  // builds one. reconstructForceClearGarg (private) rebuilds it segment by
-  // segment and must land on the exact same bytes.
-  const FAITHFUL_GARG = buildGarg(KEY_00);
-
-  // Lossy: the configVar segment carries ONE wildcard character (U+FFFF) in
-  // an otherwise ordinary 6-character segment — a PARTIAL-segment wildcard.
-  // parseGarg's wildcard sweep fires on ANY illegal character in a segment,
-  // and reconstructForceClearGarg then fills the WHOLE segment with U+FFFF:
-  // six wildcard characters where the observed bytes had one real character
-  // and five wildcard ones. The rebuilt row is therefore provably NOT the row
-  // that was read.
-  const LOSSY_VAR = "A" + GARG_WILDCARD_CHAR.repeat(segLen("configVar") - 1);
-  const LOSSY_GARG =
-    OK_ID.padEnd(segLen("configId")) +
-    "00" +
-    LOSSY_VAR +
-    " ".repeat(GARG_LENGTH - GARG_SEGMENTS.configVar[1]);
-
-  it("the faithful row generates the ordinary conditional released/still-held pair and no not-reconstructible GUARD", () => {
-    const src = buildForceClearSource(
-      [seqgRow(FAITHFUL_GARG)],
-      { allowForceClear: true },
-      "ZCL_ZMCP_FPMLK_FC1",
-    );
-    expect(src).not.toContain("force-clear-garg-not-reconstructible");
-    expect(src).toContain("RELEASE status=[released] remaining=[0]");
-    expect(src).toContain("RELEASE status=[still-held] remaining=[{ lv_lk_n }]");
-  });
-
-  it("the lossy row generates GUARD reason=[force-clear-garg-not-reconstructible] and a hard-coded still-held verdict, never released", () => {
-    const src = buildForceClearSource(
-      [seqgRow(LOSSY_GARG)],
-      { allowForceClear: true },
-      "ZCL_ZMCP_FPMLK_FC2",
-    );
-    expect(src).toContain("force-clear-garg-not-reconstructible");
-    // Hard-coded: NOT behind the `IF lv_lk_n = 0.` conditional the faithful
-    // path uses, and there is no `status=[released]` text ANYWHERE in this
-    // source — the exact fix this regression fence protects is the old
-    // behaviour of reporting `released remaining=[0]` for a delete that
-    // deleted nothing.
-    expect(src).not.toContain("status=[released]");
-    expect(src).toMatch(/status=\[still-held\] remaining=\[\{ lines\( lt_lk_del \) \}\]/);
-    // The GUARD is emitted unconditionally, right after the force-clear-input
-    // rows and before the ENQUE_DELETE call — a fact about the generated
-    // source, not a runtime outcome.
-    const guardIdx = src.indexOf("force-clear-garg-not-reconstructible");
-    const enqueDeleteIdx = src.indexOf("CALL FUNCTION 'ENQUE_DELETE'");
-    expect(guardIdx).toBeGreaterThan(-1);
-    expect(enqueDeleteIdx).toBeGreaterThan(guardIdx);
-  });
-
-  it("mixing a faithful and a lossy row still fails the whole force-clear closed, and names the lossy row's 1-based index", () => {
-    const src = buildForceClearSource(
-      [seqgRow(FAITHFUL_GARG), seqgRow(LOSSY_GARG)],
-      { allowForceClear: true },
-      "ZCL_ZMCP_FPMLK_FC3",
-    );
-    expect(src).toContain("force-clear-garg-not-reconstructible");
-    expect(src).toContain("row(s) 2");
-    expect(src).not.toContain("status=[released]");
-  });
-});
-
-// ---------------------------------------------------------------------------
 // 13. Self-probe failure forces UNKNOWN, never MINE
 // ---------------------------------------------------------------------------
 
@@ -1083,21 +899,21 @@ describe("selfIdentifyLines (generated ABAP): an unverified self-probe forces UN
   // test/integration-fpm-lock.test.ts is the only place they are proved.
 
   it("a self-probe ENQUEUE failure sets the bad flag and emits self-probe-enqueue-failed on the very next statement", () => {
-    const src = lockedSrc();
+    const src = inspectSrc();
     expect(src).toMatch(
       /lv_lk_selfbad = 'X'\.\s*\n\s*emit_guard\(\s*iv_reason = 'self-probe-enqueue-failed'/,
     );
   });
 
   it("a probe that succeeds but yields a blank owner id sets the bad flag and emits self-probe-owner-id-blank on the very next statement", () => {
-    const src = lockedSrc();
+    const src = inspectSrc();
     expect(src).toMatch(
       /lv_lk_selfbad = 'X'\.\s*\n\s*emit_guard\(\s*iv_reason = 'self-probe-owner-id-blank'/,
     );
   });
 
   it("the ok flag is set exactly once per probed lock object, and only inside the non-blank-GUSR branch", () => {
-    const src = lockedSrc(); // LOCKED_OP probes exactly one lock object (component)
+    const src = inspectSrc(); // INSPECT_Q (configType "00") probes exactly one lock object (component)
     // Anchored to the ASSIGNMENT statement only (a line that is exactly
     // `lv_lk_selfok = 'X'.`) — a plain substring search also catches the
     // unrelated `IF lv_lk_selfok = 'X'.` condition checks that read the flag
@@ -1175,70 +991,19 @@ describe("buildLockInspectSource: WDY_CONFIG_APPL rows are unconditionally flagg
 });
 
 // ---------------------------------------------------------------------------
-// 15. The fabricated scope= field is gone from the ENQUE_DELETE transcript line
-// ---------------------------------------------------------------------------
-
-describe("ENQUE_DELETE's DEQ transcript line does not fabricate a scope= field", () => {
-  // ENQUE_DELETE's actual interface is SUBRC / CHECK_UPD_REQUESTS /
-  // SUPPRESS_SYSLOG_ENTRY / TABLES ENQ — it has NO `_SCOPE` parameter at all.
-  // This is a text-only assertion that the generator no longer narrates a
-  // parameter the call never sends. It does not prove ENQUE_DELETE deletes,
-  // or fails to delete, anything — no offline test can prove that; see the
-  // honesty note in section 12.
-
-  it("buildForceClearSource's DEQ fm=[ENQUE_DELETE] line carries no scope=[ field", () => {
-    const garg = buildGarg(KEY_00);
-    const row: LockRow = {
-      gname: FPM_LOCK_OBJECTS.component.gname,
-      garg,
-      gmode: "E",
-      guname: "DEVELOPER",
-      gclient: "001",
-      gusr: SELF_OWNER,
-      gusrvb: "",
-      guse: "1",
-      gusevb: "0",
-      gobj: "E_WDY_CONFCOMP",
-      garg_view: parseGarg(garg),
-      ownership: "FOREIGN",
-    };
-    const src = buildForceClearSource([row], { allowForceClear: true }, "ZCL_ZMCP_FPMLK_NS1");
-    const deqLine = src.split("\n").find((l) => l.includes("DEQ fm=[ENQUE_DELETE]"));
-    expect(deqLine).toBeDefined();
-    expect(deqLine).not.toContain("scope=[");
-  });
-
-  it("buildLockedOperationSource's real DEQUEUE line still DOES carry scope=[, for contrast", () => {
-    const src = lockedSrc();
-    const deqLine = src
-      .split("\n")
-      .find((l) => l.includes(`DEQ fm=[${FPM_LOCK_OBJECTS.component.dequeueFm}]`));
-    expect(deqLine).toBeDefined();
-    expect(deqLine).toContain("scope=[");
-  });
-});
-
-// ---------------------------------------------------------------------------
 // 16. Regression fence — contract-critical properties still hold in every
 //     newly generated source shape
 // ---------------------------------------------------------------------------
 
 describe("regression fence: contract-critical properties across ALL generated source shapes", () => {
-  // Same style of assertion as section 3, but broadened to variants section 3
-  // did not cover: the application-scope buildLockedOperationSource, and
-  // buildLockInspectSource with NO configType (both lock objects at once).
-  // Text-only assertions against generated ABAP; none of it is compiled,
-  // activated or executed here. See the file header banner.
+  // Same style of assertion as section 3, but broadened to a variant section 3
+  // did not cover: buildLockInspectSource with NO configType (both lock
+  // objects at once). Text-only assertions against generated ABAP; none of
+  // it is compiled, activated or executed here. See the file header banner.
 
-  const APPL_OP: FpmLockedOperation = { key: KEY_02, body: BENIGN_BODY, bodyLabel: BODY_LABEL };
   const INSPECT_NO_TYPE: FpmLockInspectQuery = { mode: "locks", configId: OK_ID };
 
   const VARIANTS: Array<[string, () => string]> = [
-    ["buildLockedOperationSource (component)", lockedSrc],
-    [
-      "buildLockedOperationSource (application)",
-      () => buildLockedOperationSource(APPL_OP, fpmLockBridgeClassName(APPL_OP)),
-    ],
     ["buildLockInspectSource (configType present)", inspectSrc],
     [
       "buildLockInspectSource (configType absent, both lock objects)",
@@ -1373,71 +1138,6 @@ describe("ADT_MAX_SOURCE_LINE_LEN: no generated source line exceeds ADT's ceilin
         assertNoOverlongLines(src, `inspect(${configId}, <both>)`);
       });
     }
-  });
-
-  describe("buildLockedOperationSource", () => {
-    for (const configId of CONFIG_IDS) {
-      for (const configType of CONFIG_TYPES) {
-        it(`configId=${JSON.stringify(configId)} configType=${configType}`, () => {
-          const key = fpmLockKey({ configId, configType, configVar: "" });
-          const op: FpmLockedOperation = { key, body: "WRITE 'x'.", bodyLabel: "regression_probe" };
-          const src = buildLockedOperationSource(op, fpmLockBridgeClassName(op));
-          assertNoOverlongLines(src, `lockedOp(${configId}, ${configType})`);
-        });
-      }
-    }
-  });
-
-  describe("buildForceClearSource", () => {
-    // A GARG whose configId segment carries exactly one illegal (wildcard)
-    // character. parseGarg widens the WHOLE segment to "wildcard" on any
-    // illegal character, and reconstructForceClearGarg then fills the whole
-    // segment with GARG_WILDCARD_CHAR — so the reconstruction provably does
-    // not equal the row as read, which is what puts this row's 1-based
-    // index into the `row(s) ...` guard text this section exists to test.
-    function wildRow(seed: number): LockRow {
-      const [idFrom, idTo] = GARG_SEGMENTS.configId;
-      const idLen = idTo - idFrom;
-      const configIdSeg = "A".repeat(idLen - 1) + GARG_WILDCARD_CHAR;
-      const garg = (configIdSeg + "00" + "      ").padEnd(GARG_LENGTH, " ");
-      return {
-        gname: FPM_LOCK_OBJECTS.component.gname,
-        garg,
-        gmode: "E",
-        guname: "DEVELOPER",
-        gclient: "001",
-        gusr: `USER${seed}`,
-        gusrvb: "",
-        guse: "1",
-        gusevb: "0",
-        gobj: FPM_LOCK_OBJECTS.component.lockObject,
-        garg_view: parseGarg(garg),
-        ownership: "FOREIGN",
-      };
-    }
-
-    it("a single non-reconstructible row stays under the ceiling", () => {
-      const src = buildForceClearSource([wildRow(1)], { allowForceClear: true }, "ZCL_ZMCP_FPMLK_RT1");
-      assertNoOverlongLines(src, "forceClear(1 mismatched row)");
-      expect(src).toContain("force-clear-garg-not-reconstructible");
-    });
-
-    it("300 non-reconstructible rows (the shape that overflowed pre-fix) stay under the ceiling", () => {
-      // This is a THIRD instance of the live defect's bug class, found while
-      // writing this test rather than reported live: with enough mismatched
-      // rows, the un-wrapped `row(s) 1,2,3,...` guard text alone exceeded
-      // 255 characters (reproduced pre-fix at 300 rows -> a 1408-char line).
-      // buildForceClearSource is not wired to any MCP tool yet (see the
-      // module header on ForceClearOptions), so this was never reachable
-      // from a live call — but it is reachable the moment a force-clear tool
-      // ships, so it is covered here rather than left for the next person to
-      // rediscover.
-      const rows = Array.from({ length: 300 }, (_, idx) => wildRow(idx));
-      const src = buildForceClearSource(rows, { allowForceClear: true }, "ZCL_ZMCP_FPMLK_RT2");
-      assertNoOverlongLines(src, "forceClear(300 mismatched rows)");
-      expect(src).toContain("force-clear-garg-not-reconstructible");
-      expect(src).toContain("row(s) 1, 2, 3");
-    });
   });
 
   describe("wrapAbapTemplateLines (the helper itself)", () => {
@@ -1650,122 +1350,12 @@ describe("parseLockTranscript ownership: both owner slots are consulted, and nei
   });
 });
 
-// ---------------------------------------------------------------------------
-// 18. An exception in the body (or in the self-probe) cannot unwind past the
-//     DEQUEUE — the generated source wraps each of them in its own TRY
-// ---------------------------------------------------------------------------
-
-describe("buildLockedOperationSource: the caller's body sits in its own TRY, so the release is unconditional", () => {
-  // Text-only assertions about generated ABAP, in the same style as sections 3
-  // and 4. They prove the ORDER AND NESTING OF THE TEXT WE EMIT. They do NOT
-  // prove that ABAP's CATCH cx_root really catches what the body can raise
-  // (a short dump outside the exception hierarchy is not catchable at all),
-  // that the generated class activates, or that the DEQUEUE releases anything.
-  // Above all they do not prove the premise: that a lock can outlive the HTTP
-  // request, which is the reason this wrapper exists, is a finding of the
-  // lock-discipline spike audit, not of this file.
-
-  /** Start index of the last `TRY.` statement line before `before`. */
-  const lastTryBefore = (src: string, before: number): number => {
-    const opens = [...src.matchAll(/^[ \t]*TRY\.[ \t]*$/gm)]
-      .map((m) => m.index ?? -1)
-      .filter((idx) => idx > -1 && idx < before);
-    return opens.length === 0 ? -1 : opens[opens.length - 1]!;
-  };
-
-  it("encloses the injected body in TRY. ... CATCH cx_root ... ENDTRY., and that ENDTRY comes BEFORE the DEQUEUE", () => {
-    const src = lockedSrc();
-    const bodyIdx = src.indexOf(BODY_SENTINEL);
-    const presaveIdx = src.indexOf(`${LOCK_LINE_PREFIX}VERIFY phase=[presave]`);
-    const tryIdx = lastTryBefore(src, bodyIdx);
-    const catchIdx = src.indexOf("CATCH cx_root INTO DATA(lx_lk_body).", bodyIdx);
-    const endTryIdx = src.indexOf("ENDTRY.", catchIdx);
-    const deqIdx = src.indexOf(
-      `CALL FUNCTION '${FPM_LOCK_OBJECTS.component.dequeueFm}'`,
-      bodyIdx,
-    );
-
-    expect(bodyIdx).toBeGreaterThan(-1);
-    expect(tryIdx).toBeGreaterThan(-1);
-    // The TRY that wraps the body is the body's OWN — opened after the pre-save
-    // verify, i.e. inside the guard IF, not some outer TRY inherited from the
-    // self-probe block above.
-    expect(tryIdx).toBeGreaterThan(presaveIdx);
-    expect(tryIdx).toBeLessThan(bodyIdx);
-    expect(catchIdx).toBeGreaterThan(bodyIdx);
-    expect(endTryIdx).toBeGreaterThan(catchIdx);
-    // The whole point: the handler closes BEFORE the release, so an exception
-    // in the body falls through to the DEQUEUE instead of unwinding past it to
-    // the single outer TRY in main.
-    expect(deqIdx).toBeGreaterThan(endTryIdx);
-  });
-
-  it("the post-body re-read, the DEQUEUE, the survivor count and the RELEASE verdict all still follow the body's ENDTRY", () => {
-    const src = lockedSrc();
-    const bodyIdx = src.indexOf(BODY_SENTINEL);
-    const endTryIdx = src.indexOf(
-      "ENDTRY.",
-      src.indexOf("CATCH cx_root INTO DATA(lx_lk_body).", bodyIdx),
-    );
-    const postbodyIdx = src.indexOf("emit_rows( iv_phase = 'postbody'", endTryIdx);
-    const deqIdx = src.indexOf(
-      `CALL FUNCTION '${FPM_LOCK_OBJECTS.component.dequeueFm}'`,
-      endTryIdx,
-    );
-    const afterReleaseIdx = src.indexOf("emit_rows( iv_phase = 'after-release'", deqIdx);
-    const releaseIdx = src.indexOf(`${LOCK_LINE_PREFIX}RELEASE status=`, deqIdx);
-    const survivorIdx = src.indexOf("lv_lk_left = lv_lk_left + 1.", deqIdx);
-
-    for (const [what, idx] of [
-      ["postbody re-read", postbodyIdx],
-      ["DEQUEUE", deqIdx],
-      ["after-release re-read", afterReleaseIdx],
-      ["RELEASE verdict", releaseIdx],
-      ["survivor count", survivorIdx],
-    ] as const) {
-      expect(idx, what).toBeGreaterThan(endTryIdx);
-    }
-    expect(deqIdx).toBeGreaterThan(postbodyIdx);
-    expect(afterReleaseIdx).toBeGreaterThan(deqIdx);
-    expect(releaseIdx).toBeGreaterThan(afterReleaseIdx);
-    expect(src).toContain(`${LOCK_LINE_PREFIX}RELEASE status=[released] remaining=`);
-    expect(src).toContain(`${LOCK_LINE_PREFIX}RELEASE status=[still-held] remaining=`);
-  });
-
-  it("the CATCH emits GUARD reason=[body-exception] and suppresses ONLY the lock-lost-during-body verdict", () => {
-    const src = lockedSrc();
-    // The flag is set and the guard emitted on the very next statement, in the
-    // same style as the self-probe guards asserted in section 13.
-    expect(src).toMatch(
-      /lv_lk_bodyexc = 'X'\.\s*\n(?:\s*"[^\n]*\n)*\s*emit_guard\(\s*iv_reason = 'body-exception'/,
-    );
-    // No `BODY ... state=[end]` line is emitted on this path — the CATCH sits
-    // AFTER it, so an exception skips it and the transcript never claims the
-    // body completed.
-    const endLineIdx = src.indexOf(`${LOCK_LINE_PREFIX}BODY label=[${BODY_LABEL}] state=[end]`);
-    expect(endLineIdx).toBeGreaterThan(-1);
-    expect(src.indexOf("CATCH cx_root INTO DATA(lx_lk_body).")).toBeGreaterThan(endLineIdx);
-    // The flag gates exactly one thing: the second, misleading verdict.
-    expect(src).toContain("IF lv_lk_bodyexc = '-' AND lv_lk_pass = '-'.");
-    const gateIdx = src.indexOf("IF lv_lk_bodyexc = '-' AND lv_lk_pass = '-'.");
-    const lostIdx = src.indexOf("emit_guard( iv_reason = 'lock-lost-during-body'", gateIdx);
-    expect(lostIdx).toBeGreaterThan(gateIdx);
-    // ...and nothing in the release block reads it, so the release is not
-    // conditioned on the body having succeeded.
-    const deqIdx = src.indexOf(
-      `CALL FUNCTION '${FPM_LOCK_OBJECTS.component.dequeueFm}'`,
-      src.indexOf(BODY_SENTINEL),
-    );
-    expect(src.slice(deqIdx)).not.toContain("lv_lk_bodyexc");
-  });
-});
-
-describe("selfIdentifyLines (generated ABAP): the self-probe has the same TRY treatment, declared once", () => {
+describe("selfIdentifyLines (generated ABAP): the self-probe's exception reference is declared once", () => {
   // Text-only again. See the section 13 honesty note: nothing here proves the
   // probe's ENQUEUE, read-back or DEQUEUE behave as written on a live system.
 
   it("emits GUARD reason=[self-probe-exception] from a CATCH that closes BEFORE the probe's own DEQUEUE", () => {
-    const src = lockedSrc();
+    const src = inspectSrc();
     const catchIdx = src.indexOf("CATCH cx_root INTO lx_lk_self.");
     const guardIdx = src.indexOf("emit_guard( iv_reason = 'self-probe-exception'", catchIdx);
     const endTryIdx = src.indexOf("ENDTRY.", guardIdx);
