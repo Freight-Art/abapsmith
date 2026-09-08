@@ -12,7 +12,7 @@ export interface BuiltinFluidTool {
 }
 
 export const BUILTIN_FLUID_TOOLS: readonly BuiltinFluidTool[] = [
-  { manifest: fluidRuntimeManifest, sources: fluidRuntimeSources },
   { manifest: imgManifest, sources: imgSources },
+  { manifest: fluidRuntimeManifest, sources: fluidRuntimeSources },
   { manifest: runManifest, sources: runSources },
 ];
