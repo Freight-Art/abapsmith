@@ -11,7 +11,7 @@
  *         source is not written at all (the server returns CRLF for source that
  *         was PUT as LF, so only `contentHash()` can tell).
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -68,7 +68,6 @@ import {
 import { CLASS_INCLUDES, type ClassInclude } from "../src/adt/types.js";
 import { assertNoDuplicateDeleteTargets, MAX_DELETE_BATCH } from "../src/adt/write.js";
 import { Journal, systemKey } from "../src/journal.js";
-import { DDIC_BRIDGE_CLASS, DDIC_BRIDGE_PACKAGE } from "../src/adt/ddic-bridge.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
 import type { WriteToolDeps } from "../src/tools/write.js";
 import { errorResult } from "../src/server.js";
@@ -78,6 +77,7 @@ import type { TrRequirement } from "../src/adt/transports.js";
 import { loadCtsFixture } from "./helpers/cts-fixtures.js";
 import { captured, DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 import { searchResultsXml } from "./helpers/fake-adt.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 const REPORT = "ZMCP_TEST_REP";
 const REPORT_URI = "/sap/bc/adt/programs/programs/zmcp_test_rep";
@@ -228,13 +228,6 @@ const OBJECT_XML = (name: string, type: string, packageName = "$TMP"): string =>
   `<adtcore:packageRef adtcore:name="${packageName}"/>` +
   `</adtcore:objectMetadata>`;
 
-/** The probe `ensureFluidPackage` makes for DDIC_BRIDGE_PACKAGE on a cold bridge deploy. */
-const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
-const FLUID_PKG_ROUTE: Route = (r) =>
-  r.url === FLUID_PKG_URI && r.method === "GET"
-    ? resp(200, OBJECT_XML(DDIC_BRIDGE_PACKAGE, "DEVC/K"), OK_XML)
-    : undefined;
-
 /** A route may decline; the composition below decides what an unrouted call means. */
 type Route = (r: Recorded) => HttpClientResponse | undefined;
 
@@ -268,6 +261,11 @@ class FakeAdt implements HttpClient {
   }
 }
 
+const fluidState = useFluidState();
+afterAll(async () => {
+  await rm(fluidState.dir(), { recursive: true, force: true });
+});
+
 const cfg = (): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
@@ -279,6 +277,7 @@ const cfg = (): Config =>
     // refused with SAFETY_DENIED, whatever ABAP_ALLOW_WRITE says.
     client: "001",
     readOnly: false, // what ABAP_ALLOW_WRITE sets
+    stateDir: fluidState.dir(),
   });
 
 /** Everything `connect()` needs, including the T000 probe; anything else falls through. */
@@ -6027,31 +6026,6 @@ describe("abap_write → bridge creation: DEFECT 1 closed for VIEW/DV (create ru
   });
   const MAX = 20_000;
   const VIEW = "ZMCP_V_CARRIER";
-  const BRIDGE = DDIC_BRIDGE_CLASS.createView;
-  const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
-  const bridgeObjUrl = `${CLASS_COLLECTION}/${BRIDGE.toLowerCase()}`;
-  const bridgeSourceUri = `${bridgeObjUrl}/source/main`;
-
-  /** GET-404 → POST-create → LOCK → PUT → UNLOCK for the bridge class itself, same shape as view-create.test.ts's happy path. */
-  const bridgeDeployRoute: Route = (r) => {
-    if (r.url === bridgeObjUrl && r.method === "GET" && !r.qs._action) {
-      return resp(404, NOT_FOUND_XML, OK_XML);
-    }
-    if (r.url === CLASS_COLLECTION && r.method === "POST") return resp(200, "", OK_TEXT);
-    if (r.url === bridgeObjUrl && r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
-    if (r.url === bridgeObjUrl && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-    if (r.url === bridgeSourceUri && r.method === "PUT") return resp(200, "", OK_TEXT);
-    return undefined;
-  };
-
-  /** The classrun execution itself, plus the activation ping `deployBridge` makes. */
-  const classrunRoute =
-    (tags: readonly string[]): Route =>
-    (r) => {
-      if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, tags.join("\n"), OK_TEXT);
-      if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-      return undefined;
-    };
 
   /**
    * The post-create read-back `verifyViaVitBridge` makes, at the SAME uri
@@ -6082,9 +6056,12 @@ describe("abap_write → bridge creation: DEFECT 1 closed for VIEW/DV (create ru
   // (korrnum = space for a local package, the caller's TRKORR otherwise), so
   // VIEW-REGISTERED fires the same for $TMP as for a transportable package.
   const happyRoute = (vitMode: "confirmed" | "absent" | "indeterminate"): Route => {
-    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const classic = classicFake({
+      action: "create_view",
+      lines: () => ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"],
+    });
     const vit = vitRoute(vitMode, VIEW);
-    return (r) => bridgeDeployRoute(r) ?? classrun(r) ?? vit(r) ?? FLUID_PKG_ROUTE(r);
+    return (r) => classic.route(r) ?? vit(r);
   };
 
   const validInput = {
@@ -6210,31 +6187,6 @@ describe("abap_write → bridge creation: DEFECT 2 closed for TRAN/T (program ex
   });
   const MAX = 20_000;
   const TCODE = "ZMCPT01";
-  const BRIDGE = DDIC_BRIDGE_CLASS.createTransaction;
-  const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
-  const bridgeObjUrl = `${CLASS_COLLECTION}/${BRIDGE.toLowerCase()}`;
-  const bridgeSourceUri = `${bridgeObjUrl}/source/main`;
-
-  /** GET-404 → POST-create → LOCK → PUT → UNLOCK for the bridge class itself, same shape as tran-create.test.ts's objectHappyPath. */
-  const bridgeDeployRoute: Route = (r) => {
-    if (r.url === bridgeObjUrl && r.method === "GET" && !r.qs._action) {
-      return resp(404, NOT_FOUND_XML, OK_XML);
-    }
-    if (r.url === CLASS_COLLECTION && r.method === "POST") return resp(200, "", OK_TEXT);
-    if (r.url === bridgeObjUrl && r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
-    if (r.url === bridgeObjUrl && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-    if (r.url === bridgeSourceUri && r.method === "PUT") return resp(200, "", OK_TEXT);
-    return undefined;
-  };
-
-  /** The classrun execution itself, plus the activation ping `deployBridge` makes. */
-  const classrunRoute =
-    (tags: readonly string[]): Route =>
-    (r) => {
-      if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, tags.join("\n"), OK_TEXT);
-      if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-      return undefined;
-    };
 
   /**
    * The post-create read-back `verifyViaVitBridge` makes, at the SAME uri
@@ -6262,9 +6214,9 @@ describe("abap_write → bridge creation: DEFECT 2 closed for TRAN/T (program ex
     };
 
   const happyRoute = (vitMode: "confirmed" | "absent" | "indeterminate"): Route => {
-    const classrun = classrunRoute(["TRAN-CREATED"]);
+    const classic = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
     const vit = vitRoute(vitMode, TCODE);
-    return (r) => bridgeDeployRoute(r) ?? classrun(r) ?? vit(r) ?? FLUID_PKG_ROUTE(r);
+    return (r) => classic.route(r) ?? vit(r);
   };
 
   const validInput = {

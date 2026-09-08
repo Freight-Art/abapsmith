@@ -43,6 +43,11 @@ const LIVE_INTEGRATION_TESTS = [
   // Listed here so VITEST_LIVE=1 COLLECTS it — the suite carries its own
   // independent gate, same convention as the suites above.
   "test/integration-fluid-img.test.ts",
+  // The builtin `classic` fluid tool: deploys/activates ZCL_ZMCP_FLUID_CLASSIC
+  // into $ABAPSMITH_FLUID_API and round-trips a create/delete/exists cycle on
+  // a throwaway $TMP transaction. Same independent-gate convention as the
+  // other fluid live suites above.
+  "test/integration-fluid-classic.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";

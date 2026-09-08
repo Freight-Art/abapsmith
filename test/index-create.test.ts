@@ -1,74 +1,67 @@
 /**
- * Secondary-index (`TABL/DI`) create/delete bridge — pure unit tests except
- * §14, which drives a fake `HttpClient` transport (the only network-touching
- * part of this file) to pin the bridge-refresh behaviour; everything else is
- * ZERO network. `./view-create.test.ts`/`./view-delete.test.ts` already cover
- * the fake-transport happy path for this bridge family; this file only
- * exercises `src/adt/index-create.ts` itself:
+ * `TABL/DI` (secondary DDIC index) create/delete — offline, against the
+ * fluid `classic` tool. Nothing here touches SAP; the transport is faked
+ * through `ConnectionOptions.httpClient`, using the shared
+ * `test/helpers/fluid-classic-fake.ts` fake (which routes the fluid
+ * package/RT/body-class cold-deploy plumbing plus one per-call
+ * content-hashed invoker class), combined with a small local harness for the
+ * session/discovery/system-role plumbing every suite needs — same idiom as
+ * `test/tran-create.test.ts` / `test/tran-delete.test.ts`.
  *
- *  1. generator/parser drift — every tag either fragment writes is one
- *     `parseDdicTranscript` recognises;
- *  2. transport pairing — `$TMP` emits `no_transp_request`, never
- *     `transport_number`, and vice versa for a transportable package;
- *  3. the `unique` flag — emitted only when explicitly `true`;
- *  4. the field list — one `APPEND VALUE #( name = '<F>' )` per field, in
- *     order, component spelled `name`;
- *  5. `DD17V`/`DD17L` never appear anywhere in generated ABAP — neither table
- *     was ever probed live, so the generator sticks to `DD17S`, the field
- *     table the live probe actually read;
- *  6. `assertSecondaryIndexTarget` — zero-network, reached before any gate
- *     or request;
- *  7. validation refusals (index-name length, empty/too-long field list,
- *     over-long field name);
- *  8. `indexBridgeErrorHook` — every `DD_INDEX_EXCEPTIONS` entry maps its own
- *     `sy-subrc`, and the "does not exist" transcript maps to `NOT_FOUND`;
- *  9. `indexGateName`'s embedding of the base table into the gated name;
- * 10. `indexDeleteFragment`'s `TABLES index_fields = lt_fields` clause,
- *     positioned between IMPORTING and EXCEPTIONS — its 2026-09-05 live
- *     omission was rejected with "the mandatory parameter INDEX_FIELDS was
- *     not filled";
- * 11. the unique-index client-field guard — emitted only when `unique: true`,
- *     absent on the plain path already proven live (must not regress);
- * 12. `indexBridgeErrorHook` mapping the client-field guard's transcript line
- *     to `BAD_INPUT`;
- * 13. both fragments' ACTFAILED branches disclosing an unfiltered DD12V row
- *     count, since `DD_INDEX_INTERFACE` exports no activation log;
- * 14. `indexDeleteFragment`'s ACTFAILED-tolerant read-back (fix 3, live
- *     2026-09-05 round 2) — the post-commit DD12V/DD17S read-back decides,
- *     not ACTFAILED, so a delete that actually worked is reported success
- *     instead of CHECK_FAILED;
- * 15. the bridge-refresh pin — a stale (pre-fix) server-side bridge class
- *     body still gets PUT over with the current generated body, rather than
- *     skipped as unchanged.
- * 16. worst-case assembled-source line length — longest legal names, largest
- *     legal field list, through `ddicBridgeSource` — stays within
- *     `ABAP_SOURCE_LINE_MAX` (fix 4, the class-source PUT rejecting a >255-char
- *     line before `DD_INDEX_INTERFACE` was ever called, live 2026-09-05 round 3).
+ * Since `abap-index.ts`'s `create_index`/`delete_index` methods read every
+ * value at RUNTIME via `s('path')`/`b('path')`/`n('path')` off the JSON
+ * argument string (rather than having a caller's values baked into a
+ * freshly generated, per-call ABAP fragment the way the old per-operation
+ * bridge class did), the deployed class body is a fixed, argument-independent
+ * string. Tests that used to inspect a generated fragment for a caller value
+ * now either scan `indexPart.source` (the static body) for structure — guard
+ * ordering, exception list, the `fields` array decode loop — or, where a
+ * caller value's presence on the wire actually matters, inspect the
+ * classicFake invoker's stored JSON-carrying source via `fake.sourceOf`.
+ *
+ * Two old concerns from the pre-rewrite suite have NO analogue under this
+ * architecture and are deliberately dropped, not mechanically converted:
+ *
+ *   - "stale bridge body gets re-PUT on next call": the old per-operation
+ *     bridge was a single mutable class re-deployed in place; whether a
+ *     stale body got refreshed was this module's own concern. Under fluid,
+ *     the classic body class is content-hash versioned by
+ *     `src/adt/fluid/ensure.ts` (generic, shared by every fluid tool, not
+ *     index-specific) and each call's INVOKER is a separate class named by
+ *     a hash of its own arguments — identical arguments always produce the
+ *     identical invoker name and thus no second PUT (see the "happy path"
+ *     sections below, which assert exactly that), while a body-content
+ *     change produces a DIFFERENT class name rather than an in-place
+ *     overwrite. The old test's premise (one fixed-name class, mutable body,
+ *     diffed-and-re-PUT) does not exist any more; its generic replacement
+ *     — deploy freshness of the shared classic body class — belongs to
+ *     `test/fluid-dispatch.test.ts`, not this domain-specific suite.
+ *   - "worst-case caller values keep the generated line under 255 chars":
+ *     the old bridge generated ABAP literally containing the caller's
+ *     values, so a long index/table/field name could overflow a source
+ *     line. Since `abap-index.ts`'s source is now static (argument values
+ *     never appear in it — they travel only in the invoker's JSON payload,
+ *     chunked by `src/adt/fluid/invoke.ts`'s `abapArgumentChunks`), this
+ *     failure mode is gone from this module entirely; the generic
+ *     replacement (chunking correctness for a worst-case argument) is
+ *     `invoke.ts`'s own concern and is covered generically, not per-domain.
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
+import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
+import { SafetyGate, type EvaluateOptions, type Operation, type SafetyTarget } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
-import { SafetyGate } from "../src/safety.js";
-import { AbapError, isAbapError } from "../src/adt/errors.js";
+import { isAbapError, type AbapError } from "../src/adt/errors.js";
 import {
-  ABAP_SOURCE_LINE_MAX,
-  DDIC_BRIDGE_CLASS,
-  DDIC_BRIDGE_PACKAGE,
   DDIC_ERR_PREFIX,
   DDIC_NOTE_PREFIX,
-  DDIC_TAGS,
   assertDdicTranscript,
-  ddicBridgeSource,
   parseDdicTranscript,
-  type DdicTag,
-  type DdicTranscript,
-} from "../src/adt/ddic-bridge.js";
+} from "../src/adt/ddic-transcript.js";
 import {
   DD_INDEX_EXCEPTIONS,
-  INDEX_DATA_LINES,
-  INDEX_DELETE_DATA_LINES,
   INDEX_FIELD_NAME_MAX,
   INDEX_NAME_MAX,
   MAX_INDEX_FIELDS,
@@ -76,87 +69,76 @@ import {
   createSecondaryIndex,
   deleteSecondaryIndexViaBridge,
   indexBridgeErrorHook,
-  indexDeleteFragment,
   indexGateName,
-  secondaryIndexFragment,
+  resolveIndexOwner,
   type IndexDeleteParams,
   type SecondaryIndexParams,
 } from "../src/adt/index-create.js";
+import { indexPart } from "../src/adt/fluid/builtin/classic/abap-index.js";
 import { serverPackage, type ServerPackage } from "../src/adt/resolved-package.js";
-import type { VerifyOutcome } from "../src/adt/write-verify.js";
-import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { buildUri, specForType } from "../src/adt/types.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { canonicalArgsJson } from "../src/adt/fluid/invoke.js";
+import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 // ---------------------------------------------------------------------------
-// Fixtures
+// Fake transport — same shape as test/tran-create.test.ts / tran-delete.test.ts
 // ---------------------------------------------------------------------------
 
-/** A syntactically valid TRKORR — the shape `isTrkorr` (src/adt/transports.ts) accepts. */
-const CORR_NR = "A4HK900121";
+const fluidState = useFluidState();
 
-/** Mints a `ServerPackage` the only legal way — see test/view-delete.test.ts's `confirmedOutcome`/`SERVER_PKG`. */
-function pkg(name: string): ServerPackage {
-  const outcome: VerifyOutcome = {
-    status: "confirmed",
-    uri: "/sap/bc/adt/ddic/tables/ZTMD_I28_T",
-    via: "vit-bridge",
-    packageName: name,
-  };
-  const p = serverPackage(outcome);
-  if (!p) throw new Error("test fixture: serverPackage unexpectedly undefined");
-  return p;
+type Route = (o: HttpClientOptions) => HttpClientResponse | undefined;
+
+class FakeAdt implements HttpClient {
+  readonly calls: HttpClientOptions[] = [];
+  constructor(private readonly route: Route) {}
+  async request(o: HttpClientOptions): Promise<HttpClientResponse> {
+    this.calls.push(o);
+    const res = this.route(o);
+    if (!res) throw new Error(`FakeAdt: unrouted request ${(o.method ?? "GET").toUpperCase()} ${o.url}`);
+    return res;
+  }
 }
 
-const INDEX: SecondaryIndexParams = {
-  indexName: "Z01",
-  baseTable: "ZTMD_I28_T",
-  fields: ["CARRIER"],
-  description: "probe idx",
-  packageName: pkg("ZTM"),
-  corrNr: CORR_NR,
-};
-const LOCAL_INDEX: SecondaryIndexParams = { ...INDEX, packageName: pkg("$TMP"), corrNr: undefined };
+const resp = (status: number, body = "", headers: Record<string, unknown> = {}): HttpClientResponse =>
+  ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
 
-/** `DD12V-SQLTAB`/`TABNAME` is CHAR30 — mirrors src/adt/index-create.ts's own (un-exported) BASE_TABLE_MAX. */
-const BASE_TABLE_MAX = 30;
+function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
+  if (o.url.includes("/compatibility/graph")) {
+    return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+  }
+  if (o.url.endsWith("/discovery")) return resp(200, "<service/>", { "content-type": "application/xml" });
+  if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
+  return undefined;
+}
 
-/** Longest legal name at each limit — starts with a letter, as `isValidAbapIdentifier` requires. */
-const MAX_INDEX_NAME = "A".repeat(INDEX_NAME_MAX);
-const MAX_BASE_TABLE = "T".repeat(BASE_TABLE_MAX);
-const MAX_FIELD_NAME = "F".repeat(INDEX_FIELD_NAME_MAX);
-const MAX_FIELDS = Array.from({ length: MAX_INDEX_FIELDS }, () => MAX_FIELD_NAME);
-
-const WORST_CASE_INDEX = {
-  indexName: MAX_INDEX_NAME,
-  baseTable: MAX_BASE_TABLE,
-  fields: MAX_FIELDS,
-  description: "worst-case description",
-  packageName: { name: "$TMP" },
-} as unknown as SecondaryIndexParams;
-
-const WORST_CASE_DELETE = {
-  indexName: MAX_INDEX_NAME,
-  baseTable: MAX_BASE_TABLE,
-  packageName: { name: "$TMP" },
-} as unknown as IndexDeleteParams;
-
-const DELETE_INDEX: IndexDeleteParams = {
-  indexName: "Z01",
-  baseTable: "ZTMD_I28_T",
-  packageName: pkg("ZTM"),
-  corrNr: CORR_NR,
-};
-const LOCAL_DELETE_INDEX: IndexDeleteParams = { ...DELETE_INDEX, packageName: pkg("$TMP"), corrNr: undefined };
-
-/** A null connection IS the assertion: any code path reaching the wire before refusing throws a TypeError instead of the BAD_INPUT/TRANSPORT_ERROR these tests expect — same device as ./view-create.test.ts's `offline`. */
-const offline = null as unknown as AbapConnection;
-
-const allowingGate = (): SafetyGate =>
-  new SafetyGate({
+function cfg(overrides: Partial<Config> = {}): Config {
+  return ConfigSchema.parse({
+    url: "http://sap.invalid:50000",
+    user: "TESTUSER",
+    password: "secret",
+    sid: "TST",
+    client: "001",
     readOnly: false,
-    allowPackages: ["$TMP", "ZTM", DDIC_BRIDGE_PACKAGE],
-    allowTransports: ["auto", CORR_NR],
-    writesLockedOut: false,
+    fluidApi: true,
+    stateDir: fluidState.dir(),
+    ...overrides,
   });
+}
+
+async function connected(route: Route): Promise<{ conn: AbapConnection; adt: FakeAdt }> {
+  const adt = new FakeAdt((r) => baseRoute(r) ?? route(r));
+  const conn = new AbapConnection(cfg(), {
+    httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
+    log: () => {},
+    breaker: new AuthCircuitBreaker(),
+  });
+  await conn.connect();
+  adt.calls.length = 0;
+  return { conn, adt };
+}
 
 const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
   const e = await p.then(
@@ -167,707 +149,966 @@ const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
   return e;
 };
 
-const catchSync = (fn: () => unknown): AbapError => {
-  try {
-    fn();
-  } catch (e) {
-    if (isAbapError(e)) return e;
-    throw e;
-  }
-  throw new Error("expected an AbapError to be thrown");
+beforeEach(() => {
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
+// ---------------------------------------------------------------------------
+// Gates
+// ---------------------------------------------------------------------------
+
+/** Allows the fluid classic tool's own deploy package plus both index packages used below. */
+const allowingGate = (): SafetyGate =>
+  new SafetyGate({
+    readOnly: false,
+    allowPackages: [FLUID_PACKAGE, "ZTM", "$TMP"],
+    allowNamePrefixes: ["*"],
+    allowTransports: ["*"],
+    writesLockedOut: false,
+  });
+
+/** Allows the fluid classic tool's own deploy package only — the domain gate must refuse first. */
+const bridgeOnlyGate = (): SafetyGate =>
+  new SafetyGate({
+    readOnly: false,
+    allowPackages: [FLUID_PACKAGE],
+    allowTransports: ["*"],
+    writesLockedOut: false,
+  });
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+const CORR_NR = "A4HK900121";
+const BASE_TABLE = "ZTMD_I28_T";
+
+/** Mints a genuine `ServerPackage`, mirroring test/resolved-package.test.ts's `confirmed` fixture. */
+const pkg = (name: string): ServerPackage => {
+  const p = serverPackage({
+    status: "confirmed",
+    uri: `/sap/bc/adt/ddic/tables/${BASE_TABLE.toLowerCase()}`,
+    via: "read-back",
+    packageName: name,
+  });
+  if (!p) throw new Error("test fixture: serverPackage(...) unexpectedly undefined");
+  return p;
 };
 
-/** Every `out->write( 'TAG' )` a fragment emits, in emission order. */
-function emittedTags(lines: readonly string[]): string[] {
-  const found: string[] = [];
-  for (const line of lines) {
-    const m = /^out->write\( '([^']*)' \)\.$/.exec(line.trim());
-    if (m?.[1] !== undefined) found.push(m[1]);
-  }
-  return found;
-}
+const INDEX: SecondaryIndexParams = {
+  indexName: "Z01",
+  baseTable: BASE_TABLE,
+  fields: ["CARRIER"],
+  description: "probe idx",
+  packageName: pkg("ZTM"),
+  corrNr: CORR_NR,
+};
+
+const LOCAL_INDEX: SecondaryIndexParams = {
+  ...INDEX,
+  packageName: pkg("$TMP"),
+  corrNr: undefined,
+};
+
+const DELETE_INDEX: IndexDeleteParams = {
+  indexName: "Z01",
+  baseTable: BASE_TABLE,
+  packageName: pkg("ZTM"),
+  corrNr: CORR_NR,
+};
+
+const LOCAL_DELETE_INDEX: IndexDeleteParams = {
+  ...DELETE_INDEX,
+  packageName: pkg("$TMP"),
+  corrNr: undefined,
+};
+
+/** Isolates one method's text out of `indexPart.source`, which holds both `create_index` and `delete_index`. */
+const CREATE_METHOD = indexPart.source.slice(
+  indexPart.source.indexOf("METHOD create_index."),
+  indexPart.source.indexOf("METHOD delete_index."),
+);
+const DELETE_METHOD = indexPart.source.slice(indexPart.source.indexOf("METHOD delete_index."));
 
 /**
- * Extracts the code-controlled `*_FM_WHAT` text `subrcGuardFragment` embedded
- * in a fragment's own interpolated error line — derived from the fragment's
- * real output, never hand-typed, so it can't silently diverge from what
- * `indexBridgeErrorHook` actually matches against.
+ * Derives the code-controlled `"DD_INDEX_INTERFACE insert"` / `"...delete"`
+ * step-name text straight from the deployed ABAP's own `fail(...)` line,
+ * rather than hand-typing a copy — so this test breaks if `abap-index.ts`'s
+ * wording and `index-create.ts`'s internal `CREATE_FM_WHAT`/`DELETE_FM_WHAT`
+ * constants (used by `indexBridgeErrorHook`, not exported) ever drift apart.
  */
-function fmWhatFromFragment(lines: readonly string[]): string {
-  const line = lines.find((l) => l.includes("failed, sy-subrc={ sy-subrc }"));
-  if (!line) throw new Error("no subrc-guard error line found in fragment");
-  const m = /\|ZMCP-DDIC-ERR> (.+) failed, sy-subrc=\{ sy-subrc \}/.exec(line);
-  if (!m?.[1]) throw new Error(`could not extract FM_WHAT from: ${line}`);
-  return m[1];
+function fmWhatFromMethod(method: string): string {
+  const m = /\|(.+?) failed, sy-subrc=\{ sy-subrc \}/.exec(method);
+  if (!m) throw new Error("test fixture: could not find the sy-subrc fail() line in the method source");
+  return m[1]!;
 }
-
-const CREATE_WHAT = fmWhatFromFragment(secondaryIndexFragment(INDEX));
-const DELETE_WHAT = fmWhatFromFragment(indexDeleteFragment(DELETE_INDEX));
-
-/**
- * A delete-fragment message is built into `lv_msg` across several short
- * `lv_msg = ...`/`lv_msg = lv_msg && ...` lines and written once (fix 4: one
- * long interpolated line pushed the assembled class source over 255 chars,
- * live 2026-09-05 round 3) — finds the block from its first line through the
- * `out->write( lv_msg )` that follows, so callers can assert on the joined text.
- */
-function lvMsgBlock(
-  lines: readonly string[],
-  startsAt: (l: string) => boolean,
-): { text: string; endIdx: number } {
-  const start = lines.findIndex(startsAt);
-  if (start < 0) throw new Error("no lv_msg block start found");
-  const endIdx = lines.findIndex((l, i) => i > start && l.trim() === "out->write( lv_msg ).");
-  if (endIdx < 0) throw new Error("no out->write( lv_msg ) found after block start");
-  return { text: lines.slice(start, endIdx + 1).join(""), endIdx };
-}
+const CREATE_FM_WHAT = fmWhatFromMethod(CREATE_METHOD);
+const DELETE_FM_WHAT = fmWhatFromMethod(DELETE_METHOD);
 
 // ---------------------------------------------------------------------------
-// 1 — generator/parser drift
+// 1 — the classic body's own transcript vocabulary
 // ---------------------------------------------------------------------------
 
-describe("generator/parser drift", () => {
-  it("secondaryIndexFragment emits exactly the tag set createSecondaryIndex expects", () => {
-    const tags = emittedTags(secondaryIndexFragment(INDEX));
+describe("abap-index.ts's transcript vocabulary", () => {
+  it("create_index emits exactly INDEX-CREATED, INDEX-ACTIVE, INDEX-FIELDS, each recognised by parseDdicTranscript", () => {
+    const tags = [...CREATE_METHOD.matchAll(/line\(\s*'([^']+)'\s*\)/g)].map((m) => m[1]!);
     expect(new Set(tags)).toEqual(new Set(["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"]));
-    expect(tags).toEqual(["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"]);
+    const parsed = parseDdicTranscript(tags.join("\n"));
+    expect(new Set(parsed.tags)).toEqual(new Set(tags));
+    expect(parsed.errorLine).toBeUndefined();
   });
 
-  it("secondaryIndexFragment emits the same tag set for $TMP", () => {
-    const tags = emittedTags(secondaryIndexFragment(LOCAL_INDEX));
-    expect(new Set(tags)).toEqual(new Set(["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"]));
+  it("delete_index emits exactly INDEX-DELETED-ACTFAILED, INDEX-DELETED, INDEX-GONE as LITERAL tag lines", () => {
+    const tags = [...DELETE_METHOD.matchAll(/line\(\s*'([^']+)'\s*\)/g)].map((m) => m[1]!);
+    expect(new Set(tags)).toEqual(new Set(["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"]));
+    const parsed = parseDdicTranscript(tags.join("\n"));
+    expect(new Set(parsed.tags)).toEqual(new Set(tags));
   });
 
-  it("indexDeleteFragment emits exactly the tag set deleteSecondaryIndexViaBridge expects", () => {
-    const tags = emittedTags(indexDeleteFragment(DELETE_INDEX));
-    // expectTags itself, from deleteSecondaryIndexViaBridge — every one must still fire, in
-    // whatever sequence the fragment now emits it in.
-    for (const tag of ["INDEX-DELETED", "INDEX-GONE"]) expect(tags).toContain(tag);
-    expect(tags).toEqual(["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"]);
-  });
-
-  it("indexDeleteFragment emits the same tag set for $TMP", () => {
-    const tags = emittedTags(indexDeleteFragment(LOCAL_DELETE_INDEX));
-    for (const tag of ["INDEX-DELETED", "INDEX-GONE"]) expect(tags).toContain(tag);
-    expect(tags).toEqual(["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"]);
-  });
-
-  it("every tag either fragment writes is one parseDdicTranscript recognises", () => {
-    for (const lines of [
-      secondaryIndexFragment(INDEX),
-      secondaryIndexFragment(LOCAL_INDEX),
-      indexDeleteFragment(DELETE_INDEX),
-      indexDeleteFragment(LOCAL_DELETE_INDEX),
-    ]) {
-      const tags = emittedTags(lines);
-      expect(tags.length).toBeGreaterThan(0);
-      const parsed = parseDdicTranscript(tags.join("\n"));
-      expect(parsed.tags).toEqual(tags);
-      expect(parsed.errorLine).toBeUndefined();
-      for (const tag of tags) expect(DDIC_TAGS).toContain(tag as DdicTag);
-    }
-  });
-
-  it("assertDdicTranscript is satisfied by each fragment's own success output", () => {
-    const created = emittedTags(secondaryIndexFragment(INDEX));
+  it("assertDdicTranscript is satisfied by each method's own plain success output", () => {
     expect(() =>
-      assertDdicTranscript(parseDdicTranscript(created.join("\n")), created as DdicTag[], "Creating secondary index"),
+      assertDdicTranscript(
+        parseDdicTranscript("INDEX-CREATED\nINDEX-ACTIVE\nINDEX-FIELDS"),
+        ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"],
+        "Creating secondary index",
+      ),
     ).not.toThrow();
-
-    const deleted = emittedTags(indexDeleteFragment(DELETE_INDEX));
     expect(() =>
-      assertDdicTranscript(parseDdicTranscript(deleted.join("\n")), deleted as DdicTag[], "Deleting secondary index"),
+      assertDdicTranscript(
+        parseDdicTranscript("INDEX-DELETED\nINDEX-GONE"),
+        ["INDEX-DELETED", "INDEX-GONE"],
+        "Deleting secondary index",
+      ),
     ).not.toThrow();
   });
-});
 
-// ---------------------------------------------------------------------------
-// 2 — transport pairing
-// ---------------------------------------------------------------------------
-
-describe("transport pairing", () => {
-  it("secondaryIndexFragment: $TMP emits no_transp_request='X' and never transport_number", () => {
-    const lines = secondaryIndexFragment(LOCAL_INDEX);
-    expect(lines.some((l) => l.includes("no_transp_request") && l.includes("'X'"))).toBe(true);
-    expect(lines.some((l) => l.includes("transport_number"))).toBe(false);
+  it("the failure branches write lines parseDdicTranscript reads as errors, not tags", () => {
+    const parsed = parseDdicTranscript(`${DDIC_ERR_PREFIX} DD_INDEX_INTERFACE insert failed, sy-subrc=3, AU000`);
+    expect(parsed.tags).toEqual([]);
+    expect(parsed.errorLine).toContain("sy-subrc=3");
   });
 
-  it(`secondaryIndexFragment: a transportable package emits transport_number='${CORR_NR}' and never no_transp_request`, () => {
-    const lines = secondaryIndexFragment(INDEX);
-    expect(lines.some((l) => l.includes("transport_number") && l.includes(`'${CORR_NR}'`))).toBe(true);
-    expect(lines.some((l) => l.includes("no_transp_request"))).toBe(false);
-  });
-
-  it("indexDeleteFragment: $TMP emits no_transp_request='X' and never transport_number", () => {
-    const lines = indexDeleteFragment(LOCAL_DELETE_INDEX);
-    expect(lines.some((l) => l.includes("no_transp_request") && l.includes("'X'"))).toBe(true);
-    expect(lines.some((l) => l.includes("transport_number"))).toBe(false);
-  });
-
-  it(`indexDeleteFragment: a transportable package emits transport_number='${CORR_NR}' and never no_transp_request`, () => {
-    const lines = indexDeleteFragment(DELETE_INDEX);
-    expect(lines.some((l) => l.includes("transport_number") && l.includes(`'${CORR_NR}'`))).toBe(true);
-    expect(lines.some((l) => l.includes("no_transp_request"))).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 3 — unique flag
-// ---------------------------------------------------------------------------
-
-describe("unique flag", () => {
-  it("unique: true emits unique = 'X'", () => {
-    const lines = secondaryIndexFragment({ ...INDEX, unique: true });
-    expect(lines.some((l) => /^\s*unique\s*=\s*'X'/.test(l))).toBe(true);
-  });
-
-  it("unique omitted emits no unique= line at all", () => {
-    const lines = secondaryIndexFragment(INDEX);
-    expect(lines.some((l) => /^\s*unique\s*=/.test(l))).toBe(false);
-  });
-
-  it("unique: false emits no unique= line at all", () => {
-    const lines = secondaryIndexFragment({ ...INDEX, unique: false });
-    expect(lines.some((l) => /^\s*unique\s*=/.test(l))).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4 — field list
-// ---------------------------------------------------------------------------
-
-describe("field list", () => {
-  it("one APPEND VALUE #( name = '<F>' ) per field, in caller order, component spelled name", () => {
-    const lines = secondaryIndexFragment({ ...INDEX, fields: ["MANDT", "CARRIER", "CONNID"] });
-    const appends = lines.filter((l) => l.startsWith("APPEND VALUE #("));
-    expect(appends).toEqual([
-      "APPEND VALUE #( name = 'MANDT' ) TO lt_fields.",
-      "APPEND VALUE #( name = 'CARRIER' ) TO lt_fields.",
-      "APPEND VALUE #( name = 'CONNID' ) TO lt_fields.",
-    ]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 5 — DD17V/DD17L must never appear
-// ---------------------------------------------------------------------------
-
-describe("DD17V/DD17L never appear in generated ABAP (never probed live — only DD17S was)", () => {
-  it("secondaryIndexFragment never mentions dd17v or dd17l", () => {
-    const text = secondaryIndexFragment(INDEX).join("\n").toLowerCase();
-    expect(text).not.toContain("dd17v");
-    expect(text).not.toContain("dd17l");
-    expect(text).toContain("dd17s");
-  });
-
-  it("indexDeleteFragment never mentions dd17v or dd17l", () => {
-    const text = indexDeleteFragment(DELETE_INDEX).join("\n").toLowerCase();
-    expect(text).not.toContain("dd17v");
-    expect(text).not.toContain("dd17l");
-    expect(text).toContain("dd17s");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 6 — assertSecondaryIndexTarget: zero-network, ahead of everything else
-// ---------------------------------------------------------------------------
-
-describe("assertSecondaryIndexTarget", () => {
-  it("refuses a local package given a corr_nr as BAD_INPUT", () => {
-    expect(catchSync(() => assertSecondaryIndexTarget("$TMP", CORR_NR)).code).toBe("BAD_INPUT");
-  });
-
-  it("refuses a transportable package given no corr_nr as TRANSPORT_ERROR", () => {
-    expect(catchSync(() => assertSecondaryIndexTarget("ZTM", undefined)).code).toBe("TRANSPORT_ERROR");
-  });
-
-  it("refuses a malformed corr_nr as BAD_INPUT", () => {
-    expect(catchSync(() => assertSecondaryIndexTarget("ZTM", "not-a-trkorr")).code).toBe("BAD_INPUT");
-  });
-
-  it("a local package with no corr_nr returns the empty string", () => {
-    expect(assertSecondaryIndexTarget("$TMP", undefined)).toBe("");
-  });
-
-  it("a transportable package with a valid corr_nr returns the normalised TRKORR", () => {
-    expect(assertSecondaryIndexTarget("ZTM", CORR_NR.toLowerCase())).toBe(CORR_NR);
-  });
-
-  it("createSecondaryIndex refuses a local+corr_nr pair with ZERO connection use", async () => {
-    const err = await catchErr(createSecondaryIndex(offline, allowingGate(), { ...LOCAL_INDEX, corrNr: CORR_NR }));
-    expect(err.code).toBe("BAD_INPUT");
-  });
-
-  it("createSecondaryIndex refuses a transportable package with no corr_nr with ZERO connection use", async () => {
-    const { corrNr: _drop, ...withoutCorr } = INDEX;
-    const err = await catchErr(createSecondaryIndex(offline, allowingGate(), withoutCorr as SecondaryIndexParams));
-    expect(err.code).toBe("TRANSPORT_ERROR");
-  });
-
-  it("deleteSecondaryIndexViaBridge refuses a local+corr_nr pair with ZERO connection use", async () => {
-    const err = await catchErr(
-      deleteSecondaryIndexViaBridge(offline, allowingGate(), { ...LOCAL_DELETE_INDEX, corrNr: CORR_NR }),
+  it("the ACTFAILED-tolerant note line carries DDIC_NOTE_PREFIX, so it never becomes errorLine", () => {
+    const parsed = parseDdicTranscript(
+      `${DDIC_NOTE_PREFIX} DD_INDEX_INTERFACE delete reported ACTFAILED = 'X' for Z01 on ${BASE_TABLE}, but gone anyway\nINDEX-DELETED-ACTFAILED\nINDEX-DELETED\nINDEX-GONE`,
     );
-    expect(err.code).toBe("BAD_INPUT");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 7 — validation refusals
-// ---------------------------------------------------------------------------
-
-describe("validation refusals", () => {
-  it("refuses a 4-character index name (DD12V-INDEXNAME is CHAR3)", () => {
-    expect(catchSync(() => secondaryIndexFragment({ ...INDEX, indexName: "Z001" })).code).toBe("BAD_INPUT");
-  });
-
-  it("refuses an empty field list", () => {
-    expect(catchSync(() => secondaryIndexFragment({ ...INDEX, fields: [] })).code).toBe("BAD_INPUT");
-  });
-
-  it(`refuses more than MAX_INDEX_FIELDS (${MAX_INDEX_FIELDS}) fields`, () => {
-    const fields = Array.from({ length: MAX_INDEX_FIELDS + 1 }, (_, i) => `F${i}`);
-    const err = catchSync(() => secondaryIndexFragment({ ...INDEX, fields }));
-    expect(err.code).toBe("BAD_INPUT");
-  });
-
-  it(`refuses a field name longer than INDEX_FIELD_NAME_MAX (${INDEX_FIELD_NAME_MAX})`, () => {
-    const tooLong = "A".repeat(INDEX_FIELD_NAME_MAX + 1);
-    const err = catchSync(() => secondaryIndexFragment({ ...INDEX, fields: [tooLong] }));
-    expect(err.code).toBe("BAD_INPUT");
-  });
-
-  it("refuses an over-long description", () => {
-    const err = catchSync(() => secondaryIndexFragment({ ...INDEX, description: "x".repeat(61) }));
-    expect(err.code).toBe("BAD_INPUT");
-  });
-
-  it("refuses an injected indexName, producing no fragment at all", () => {
-    expect(catchSync(() => secondaryIndexFragment({ ...INDEX, indexName: "b'd" })).code).toBe("BAD_INPUT");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 8 — indexBridgeErrorHook / DD_INDEX_EXCEPTIONS
-// ---------------------------------------------------------------------------
-
-describe("indexBridgeErrorHook", () => {
-  it("no DD_INDEX_EXCEPTIONS entry maps to AUTH_FAILED", () => {
-    for (const entry of DD_INDEX_EXCEPTIONS) {
-      expect(entry.code).not.toBe("AUTH_FAILED");
-    }
-  });
-
-  for (const entry of DD_INDEX_EXCEPTIONS) {
-    it(`maps sy-subrc=${entry.subrc} (${entry.name}) to ${entry.code}, on create`, () => {
-      const line = `${CREATE_WHAT} failed, sy-subrc=${entry.subrc}, DDXXX051`;
-      const transcript: DdicTranscript = { tags: [], errorLine: line, raw: line };
-      const hook = indexBridgeErrorHook("insert", INDEX.indexName, INDEX.baseTable);
-      expect(catchSync(() => hook(transcript)).code).toBe(entry.code);
-    });
-
-    it(`maps sy-subrc=${entry.subrc} (${entry.name}) to ${entry.code}, on delete`, () => {
-      const line = `${DELETE_WHAT} failed, sy-subrc=${entry.subrc}, DDXXX051`;
-      const transcript: DdicTranscript = { tags: [], errorLine: line, raw: line };
-      const hook = indexBridgeErrorHook("delete", DELETE_INDEX.indexName, DELETE_INDEX.baseTable);
-      expect(catchSync(() => hook(transcript)).code).toBe(entry.code);
-    });
-  }
-
-  it('a "does not exist" transcript maps to NOT_FOUND, not CHECK_FAILED', () => {
-    const line = `index ${DELETE_INDEX.indexName} on ${DELETE_INDEX.baseTable} does not exist`;
-    const transcript: DdicTranscript = { tags: [], errorLine: line, raw: line };
-    const hook = indexBridgeErrorHook("delete", DELETE_INDEX.indexName, DELETE_INDEX.baseTable);
-    expect(catchSync(() => hook(transcript)).code).toBe("NOT_FOUND");
-  });
-
-  it('a "omits the client field" transcript maps to BAD_INPUT, naming the base table and a hint', () => {
-    const line = `unique index ${INDEX.indexName} on ${INDEX.baseTable} omits the client field MANDT`;
-    const transcript: DdicTranscript = { tags: [], errorLine: line, raw: line };
-    const hook = indexBridgeErrorHook("insert", INDEX.indexName, INDEX.baseTable);
-    const err = catchSync(() => hook(transcript));
-    expect(err.code).toBe("BAD_INPUT");
-    expect(err.message).toContain(INDEX.baseTable);
-    expect(err.message).toContain("client field");
-    expect(err.hint).toBeTruthy();
-  });
-
-  it("an unrelated error line does not throw — left for assertDdicTranscript to handle", () => {
-    const transcript: DdicTranscript = { tags: [], errorLine: "some unrelated failure", raw: "some unrelated failure" };
-    const hook = indexBridgeErrorHook("insert", INDEX.indexName, INDEX.baseTable);
-    expect(() => hook(transcript)).not.toThrow();
-  });
-
-  it("an empty transcript (no errorLine) does not throw", () => {
-    const transcript: DdicTranscript = { tags: [], raw: "" };
-    const hook = indexBridgeErrorHook("insert", INDEX.indexName, INDEX.baseTable);
-    expect(() => hook(transcript)).not.toThrow();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 9 — indexGateName
-// ---------------------------------------------------------------------------
-
-describe("indexGateName", () => {
-  it("embeds the base table ahead of the index id, so the namespace allowlist sees a real owner", () => {
-    expect(indexGateName("ZTMD_I28_T", "Z01")).toBe("ZTMD_I28_T-Z01");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 10 — indexDeleteFragment's TABLES clause (fix 1: DD_INDEX_INTERFACE
-// requires INDEX_FIELDS for every ACTION, content or not — its omission was
-// rejected live with "the mandatory parameter INDEX_FIELDS was not filled")
-// ---------------------------------------------------------------------------
-
-describe("indexDeleteFragment's TABLES index_fields clause", () => {
-  it("INDEX_DELETE_DATA_LINES declares lt_fields", () => {
-    expect(INDEX_DELETE_DATA_LINES).toContain("lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.");
-  });
-
-  it("emits a TABLES line and an index_fields = lt_fields line", () => {
-    const lines = indexDeleteFragment(DELETE_INDEX);
-    expect(lines.some((l) => l.trim() === "TABLES")).toBe(true);
-    expect(lines.some((l) => l.trim() === "index_fields = lt_fields")).toBe(true);
-  });
-
-  it("TABLES sits between IMPORTING and EXCEPTIONS — DD_INDEX_INTERFACE's own parameter order, which the syntax check enforces", () => {
-    const lines = indexDeleteFragment(DELETE_INDEX);
-    const importing = lines.findIndex((l) => l.trim() === "IMPORTING");
-    const tables = lines.findIndex((l) => l.trim() === "TABLES");
-    const exceptions = lines.findIndex((l) => l.trim() === "EXCEPTIONS");
-    expect(importing).toBeGreaterThanOrEqual(0);
-    expect(tables).toBeGreaterThan(importing);
-    expect(exceptions).toBeGreaterThan(tables);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 11 — unique-index client-field guard (fix 2: unconfirmed diagnosis of the
-// live 2026-09-05 ACTFAILED on a unique index over a client-dependent table)
-// ---------------------------------------------------------------------------
-
-describe("unique-index client-field guard", () => {
-  it("unique: true emits the DD03L lookup, the READ TABLE guard, and the omits-client-field write", () => {
-    const text = secondaryIndexFragment({ ...INDEX, unique: true }).join("\n");
-    expect(text).toContain("SELECT SINGLE fieldname FROM dd03l");
-    expect(text).toContain("datatype = 'CLNT'");
-    expect(text).toContain("READ TABLE lt_fields TRANSPORTING NO FIELDS WITH KEY name = lv_client_field.");
-    expect(text).toContain("omits the client field { lv_client_field }");
-  });
-
-  it("unique omitted emits none of the guard — the non-unique path already proven live must not regress", () => {
-    const text = secondaryIndexFragment(INDEX).join("\n").toLowerCase();
-    expect(text).not.toContain("dd03l");
-    expect(text).not.toContain("lv_client_field");
-    expect(text).not.toContain("omits the client field");
-  });
-
-  it("unique: false emits none of the guard either", () => {
-    const text = secondaryIndexFragment({ ...INDEX, unique: false }).join("\n").toLowerCase();
-    expect(text).not.toContain("dd03l");
-    expect(text).not.toContain("lv_client_field");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 13 — ACTFAILED branches disclose a DD12V row count (DD_INDEX_INTERFACE
-// exports no activation log, so this is the cheapest evidence available)
-// ---------------------------------------------------------------------------
-
-describe("ACTFAILED branches disclose an unfiltered DD12V row count", () => {
-  /** The `IF lv_actfailed = 'X'. ... ENDIF.` block, whichever fragment emitted it. */
-  function actfailedBlock(lines: readonly string[]): string[] {
-    const start = lines.findIndex((l) => l.trim() === "IF lv_actfailed = 'X'.");
-    if (start < 0) throw new Error("no ACTFAILED branch found");
-    const end = lines.findIndex((l, i) => i > start && l.trim() === "ENDIF.");
-    return lines.slice(start, end + 1);
-  }
-
-  it("secondaryIndexFragment's ACTFAILED branch selects DD12V with no AS4LOCAL filter and interpolates the counter", () => {
-    const block = actfailedBlock(secondaryIndexFragment(INDEX));
-    expect(block.some((l) => l.includes("SELECT COUNT( * ) FROM dd12v"))).toBe(true);
-    expect(block.some((l) => l.includes("SELECT COUNT( * ) FROM dd12v") && l.includes("AS4LOCAL"))).toBe(false);
-    expect(block.some((l) => l.includes("{ lv_dd12v_any }"))).toBe(true);
-  });
-
-  it("indexDeleteFragment's post-commit read-back selects DD12V unfiltered, DD12V AS4LOCAL='A', and DD17S, then interpolates all three in the failure message", () => {
-    const lines = indexDeleteFragment(DELETE_INDEX);
-    const commitIdx = lines.findIndex((l) => l.trim() === "COMMIT WORK.");
-    expect(commitIdx).toBeGreaterThanOrEqual(0);
-    const readback = lines.slice(commitIdx + 1);
-
-    const dd12vAny = readback.find((l) => l.includes("SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count"));
-    const dd12vActive = readback.find((l) => l.includes("SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_active"));
-    const dd17s = readback.find((l) => l.includes("SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count"));
-    expect(dd12vAny).toBeDefined();
-    expect(dd12vActive).toBeDefined();
-    expect(dd17s).toBeDefined();
-    expect(dd12vAny!.toLowerCase()).not.toContain("as4local");
-    expect(dd12vActive!.toLowerCase()).toContain("as4local");
-
-    const { text: errBlock } = lvMsgBlock(readback, (l) => l.includes(DDIC_ERR_PREFIX) && l.includes("left rows behind"));
-    expect(errBlock).toContain("{ lv_dd12v_count }");
-    expect(errBlock).toContain("{ lv_dd12v_active }");
-    expect(errBlock).toContain("{ lv_dd17s_count }");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 14 — indexDeleteFragment's ACTFAILED-tolerant read-back (fix 3: live
-// 2026-09-05 round 2 — ACTFAILED = 'X' fired on delete after the index was
-// already gone from DD12V/DD17S; the old fragment RETURNed before COMMIT
-// WORK on that alone, reporting CHECK_FAILED for a delete that had worked)
-// ---------------------------------------------------------------------------
-
-describe("indexDeleteFragment's ACTFAILED-tolerant read-back", () => {
-  /** Extracts a note/error line's interpolated content, not hand-typed — tracks the fragment's own wording. */
-  function interpolatedText(line: string): string {
-    const m = /\|(.+)\|/.exec(line);
-    if (!m?.[1]) throw new Error(`no interpolated text in: ${line}`);
-    return m[1];
-  }
-
-  const DELETE_LINES = indexDeleteFragment(DELETE_INDEX);
-
-  it("an ACTFAILED-but-gone transcript parses as success: the note line never becomes errorLine", () => {
-    const noteLine = interpolatedText(DELETE_LINES.find((l) => l.includes(DDIC_NOTE_PREFIX))!);
-    expect(noteLine.startsWith(DDIC_NOTE_PREFIX)).toBe(true);
-    expect(noteLine).not.toContain(DDIC_ERR_PREFIX);
-
-    const raw = [noteLine, "INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"].join("\n");
-    const parsed = parseDdicTranscript(raw);
     expect(parsed.errorLine).toBeUndefined();
     expect(parsed.tags).toEqual(["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"]);
   });
+});
 
-  it("INDEX-DELETED-ACTFAILED precedes INDEX-DELETED in the emitted fragment", () => {
-    const tags = emittedTags(DELETE_LINES);
-    const actfailedIdx = tags.indexOf("INDEX-DELETED-ACTFAILED");
-    const deletedIdx = tags.indexOf("INDEX-DELETED");
-    expect(actfailedIdx).toBeGreaterThanOrEqual(0);
-    expect(deletedIdx).toBeGreaterThan(actfailedIdx);
-  });
+// ---------------------------------------------------------------------------
+// 2 — closed template / injection / limits: refused before any network call
+// ---------------------------------------------------------------------------
 
-  it("rows still in DD12V/DD17S after commit is still a real failure, distinguishable from the ACTFAILED-but-gone note", () => {
-    const { text: errBlock, endIdx } = lvMsgBlock(
-      DELETE_LINES,
-      (l) => l.includes(DDIC_ERR_PREFIX) && l.includes("left rows behind"),
+describe("closed template — caller strings and shapes are refused, not escaped, before any network call", () => {
+  const offline = null as unknown as AbapConnection;
+
+  it(`refuses an indexName over ${INDEX_NAME_MAX} chars (DD12V-INDEXNAME is CHAR3) with BAD_INPUT`, async () => {
+    const err = await catchErr(
+      createSecondaryIndex(offline, allowingGate(), { ...INDEX, indexName: "Z001" }),
     );
-    expect(errBlock).toContain("{ lv_dd12v_count }");
-    expect(errBlock).toContain("{ lv_dd12v_active }");
-    expect(errBlock).toContain("{ lv_dd17s_count }");
-    expect(errBlock).toContain(`${DELETE_WHAT} ACTFAILED = '{ lv_actfailed }'`);
-    expect(errBlock).not.toContain(DDIC_NOTE_PREFIX);
-
-    expect(DELETE_LINES[endIdx + 1]!.trim()).toBe("RETURN.");
+    expect(err.code).toBe("BAD_INPUT");
   });
 
-  it("no RETURN sits between the FM call's sy-subrc guard and COMMIT WORK — ACTFAILED can no longer short-circuit the commit", () => {
-    const guardErrIdx = DELETE_LINES.findIndex((l) => l.includes(`${DELETE_WHAT} failed, sy-subrc={ sy-subrc }`));
-    expect(guardErrIdx).toBeGreaterThanOrEqual(0);
-    const guardEndIdx = DELETE_LINES.findIndex((l, i) => i > guardErrIdx && l.trim() === "ENDIF.");
-    const commitIdx = DELETE_LINES.findIndex((l) => l.trim() === "COMMIT WORK.");
-    expect(guardEndIdx).toBeGreaterThan(guardErrIdx);
-    expect(commitIdx).toBeGreaterThan(guardEndIdx);
-
-    const between = DELETE_LINES.slice(guardEndIdx + 1, commitIdx);
-    expect(between.some((l) => l.trim() === "RETURN.")).toBe(false);
+  it("refuses an indexName carrying an injection attempt with BAD_INPUT", async () => {
+    const err = await catchErr(
+      createSecondaryIndex(offline, allowingGate(), { ...INDEX, indexName: "Z'." }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
   });
 
-  it('"INDEX-DELETED-ACTFAILED" is a recognised tag, not dropped as prose', () => {
-    expect(DDIC_TAGS).toContain("INDEX-DELETED-ACTFAILED");
-    const parsed = parseDdicTranscript("INDEX-DELETED-ACTFAILED");
-    expect(parsed.tags).toEqual(["INDEX-DELETED-ACTFAILED"]);
-    expect(parsed.errorLine).toBeUndefined();
+  it("refuses a baseTable over 30 chars with BAD_INPUT", async () => {
+    const err = await catchErr(
+      createSecondaryIndex(offline, allowingGate(), { ...INDEX, baseTable: "Z" + "A".repeat(30) }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+  });
+
+  it("refuses an empty fields list with BAD_INPUT", async () => {
+    const err = await catchErr(createSecondaryIndex(offline, allowingGate(), { ...INDEX, fields: [] }));
+    expect(err.code).toBe("BAD_INPUT");
+  });
+
+  it("refuses a non-array fields value with BAD_INPUT rather than coercing it", async () => {
+    const err = await catchErr(
+      createSecondaryIndex(offline, allowingGate(), { ...INDEX, fields: "CARRIER" as unknown as string[] }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+  });
+
+  it(`refuses more than ${MAX_INDEX_FIELDS} fields with BAD_INPUT`, async () => {
+    const fields = Array.from({ length: MAX_INDEX_FIELDS + 1 }, (_, i) => `F${i}`);
+    const err = await catchErr(createSecondaryIndex(offline, allowingGate(), { ...INDEX, fields }));
+    expect(err.code).toBe("BAD_INPUT");
+  });
+
+  it(`refuses a field name over ${INDEX_FIELD_NAME_MAX} chars with BAD_INPUT`, async () => {
+    const err = await catchErr(
+      createSecondaryIndex(offline, allowingGate(), { ...INDEX, fields: ["A".repeat(31)] }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+  });
+
+  it("refuses a description over 60 chars with BAD_INPUT", async () => {
+    const err = await catchErr(
+      createSecondaryIndex(offline, allowingGate(), { ...INDEX, description: "x".repeat(61) }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+  });
+
+  it("refuses a corr_nr supplied for a local ($) package with BAD_INPUT", async () => {
+    const err = await catchErr(
+      createSecondaryIndex(offline, allowingGate(), { ...LOCAL_INDEX, corrNr: CORR_NR }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+  });
+
+  it("refuses a non-local package with no corr_nr at all with TRANSPORT_ERROR", async () => {
+    const err = await catchErr(createSecondaryIndex(offline, allowingGate(), { ...INDEX, corrNr: undefined }));
+    expect(err.code).toBe("TRANSPORT_ERROR");
+  });
+
+  it("refuses a corr_nr that isn't TRKORR-shaped with BAD_INPUT", async () => {
+    const err = await catchErr(createSecondaryIndex(offline, allowingGate(), { ...INDEX, corrNr: "not-a-trkorr" }));
+    expect(err.code).toBe("BAD_INPUT");
+  });
+
+  it("the delete path validates indexName/baseTable/package/corr the same way, before any network call", async () => {
+    const err = await catchErr(
+      deleteSecondaryIndexViaBridge(offline, allowingGate(), { ...DELETE_INDEX, indexName: "Z001" }),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+    const err2 = await catchErr(
+      deleteSecondaryIndexViaBridge(offline, allowingGate(), { ...LOCAL_DELETE_INDEX, corrNr: CORR_NR }),
+    );
+    expect(err2.code).toBe("BAD_INPUT");
+    const err3 = await catchErr(
+      deleteSecondaryIndexViaBridge(offline, allowingGate(), { ...DELETE_INDEX, corrNr: undefined }),
+    );
+    expect(err3.code).toBe("TRANSPORT_ERROR");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 15 — bridge-refresh pin: a stale (pre-fix) server-side bridge class body
-// still gets PUT over, rather than skipped as "class exists, unchanged".
-// Fake HttpClient transport, harness copied from test/view-delete.test.ts /
-// test/bopf-runtime.test.ts's `bridgeRouteWarm` — the only network-touching
-// section in this file.
+// 2b — the ServerPackage brand: a caller-claimed package never reaches the gate
 // ---------------------------------------------------------------------------
 
-describe("deleteSecondaryIndexViaBridge re-PUTs a stale bridge class body", () => {
-  const cfg = (): Config =>
-    ConfigSchema.parse({
-      url: "http://sap.invalid:50000",
-      user: "TESTUSER",
-      password: "secret",
-      sid: "TST",
-      client: "001",
+describe("the ServerPackage brand — a forged packageName is refused before the gate or any dispatch", () => {
+  it("create: a packageName forced in via `as unknown as ServerPackage` throws SAFETY_DENIED/PACKAGE_UNKNOWN, zero requests", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn, adt } = await connected(fake.route);
+    const forged = "ZTM" as unknown as ServerPackage;
+    const err = await catchErr(createSecondaryIndex(conn, allowingGate(), { ...INDEX, packageName: forged }));
+    expect(err.code).toBe("SAFETY_DENIED");
+    expect(err.details.reason).toBe("PACKAGE_UNKNOWN");
+    expect(adt.calls.length).toBe(0);
+  });
+
+  it("delete: same forged-package brand check, zero requests", async () => {
+    const fake = classicFake({ action: "delete_index", lines: () => ["INDEX-DELETED", "INDEX-GONE"] });
+    const { conn, adt } = await connected(fake.route);
+    const forged = "ZTM" as unknown as ServerPackage;
+    const err = await catchErr(
+      deleteSecondaryIndexViaBridge(conn, allowingGate(), { ...DELETE_INDEX, packageName: forged }),
+    );
+    expect(err.code).toBe("SAFETY_DENIED");
+    expect(err.details.reason).toBe("PACKAGE_UNKNOWN");
+    expect(adt.calls.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3 — assertSecondaryIndexTarget, pure and zero-network
+// ---------------------------------------------------------------------------
+
+describe("assertSecondaryIndexTarget — local vs transportable package/corr_nr pairing", () => {
+  it("a local ($) package with no corr_nr returns \"\"", () => {
+    expect(assertSecondaryIndexTarget("$TMP", undefined)).toBe("");
+  });
+
+  it("a local ($) package WITH a corr_nr is BAD_INPUT", () => {
+    expect(() => assertSecondaryIndexTarget("$TMP", CORR_NR)).toThrow();
+    try {
+      assertSecondaryIndexTarget("$TMP", CORR_NR);
+    } catch (e) {
+      expect((e as AbapError).code).toBe("BAD_INPUT");
+    }
+  });
+
+  it("a transportable package with NO corr_nr is TRANSPORT_ERROR", () => {
+    try {
+      assertSecondaryIndexTarget("ZTM", undefined);
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect((e as AbapError).code).toBe("TRANSPORT_ERROR");
+    }
+  });
+
+  it("a transportable package with a valid corr_nr returns it trimmed and uppercased", () => {
+    expect(assertSecondaryIndexTarget("ZTM", ` ${CORR_NR.toLowerCase()} `)).toBe(CORR_NR);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4 — indexGateName, pure
+// ---------------------------------------------------------------------------
+
+describe("indexGateName", () => {
+  it("embeds the base table so the gate's namespace allowlist has an owner-namespace signal", () => {
+    expect(indexGateName(BASE_TABLE, "Z01")).toBe(`${BASE_TABLE}-Z01`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5 — the domain gate: op, type, name, activate, corr threading
+// ---------------------------------------------------------------------------
+
+describe("the domain gate — asserted before any dispatch, zero-network on refusal", () => {
+  it("create: gate.assert sees TWO calls — op 'write' then op 'activate' — both TABL/DI, both named baseTable-indexName", async () => {
+    const seen: Array<{ op: string; type?: string; name?: string }> = [];
+    class RecordingGate extends SafetyGate {
+      override assert(
+        op: Parameters<SafetyGate["assert"]>[0],
+        obj?: Parameters<SafetyGate["assert"]>[1],
+        opts?: Parameters<SafetyGate["assert"]>[2],
+      ): void {
+        if (obj?.type === "TABL/DI") seen.push({ op, type: obj.type, name: obj.name });
+        super.assert(op, obj, opts);
+      }
+    }
+    const gate = new RecordingGate({
       readOnly: false,
+      allowPackages: [FLUID_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
+      allowTransports: ["*"],
+      writesLockedOut: false,
+    });
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connected(fake.route);
+    await createSecondaryIndex(conn, gate, INDEX);
+    expect(seen).toEqual([
+      { op: "write", type: "TABL/DI", name: `${BASE_TABLE}-Z01` },
+      { op: "activate", type: "TABL/DI", name: `${BASE_TABLE}-Z01` },
+    ]);
+  });
+
+  it("delete: gate.assert sees op 'delete' then op 'activate' (never 'write')", async () => {
+    const seen: Array<{ op: string; type?: string; name?: string }> = [];
+    class RecordingGate extends SafetyGate {
+      override assert(
+        op: Parameters<SafetyGate["assert"]>[0],
+        obj?: Parameters<SafetyGate["assert"]>[1],
+        opts?: Parameters<SafetyGate["assert"]>[2],
+      ): void {
+        if (obj?.type === "TABL/DI") seen.push({ op, type: obj.type, name: obj.name });
+        super.assert(op, obj, opts);
+      }
+    }
+    const gate = new RecordingGate({
+      readOnly: false,
+      allowPackages: [FLUID_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
+      allowTransports: ["*"],
+      writesLockedOut: false,
+    });
+    const fake = classicFake({ action: "delete_index", lines: () => ["INDEX-DELETED", "INDEX-GONE"] });
+    const { conn } = await connected(fake.route);
+    await deleteSecondaryIndexViaBridge(conn, gate, DELETE_INDEX);
+    expect(seen).toEqual([
+      { op: "delete", type: "TABL/DI", name: `${BASE_TABLE}-Z01` },
+      { op: "activate", type: "TABL/DI", name: `${BASE_TABLE}-Z01` },
+    ]);
+  });
+
+  it("a transportable package threads { corr: { kind: 'transport', corrNr, source: 'named' } } to BOTH gate.assert calls", async () => {
+    const seen: Array<EvaluateOptions> = [];
+    class RecordingGate extends SafetyGate {
+      override assert(op: Operation, obj?: SafetyTarget, opts: EvaluateOptions = {}): void {
+        if (obj?.type === "TABL/DI") seen.push(opts);
+        super.assert(op, obj, opts);
+      }
+    }
+    const gate = new RecordingGate({
+      readOnly: false,
+      allowPackages: [FLUID_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
+      allowTransports: ["*"],
+      writesLockedOut: false,
+    });
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connected(fake.route);
+    await createSecondaryIndex(conn, gate, INDEX);
+    expect(seen).toEqual([
+      { corr: { kind: "transport", corrNr: CORR_NR, source: "named" } },
+      { corr: { kind: "transport", corrNr: CORR_NR, source: "named" } },
+    ]);
+  });
+
+  it("a local package threads NO corr option at all (not a synthesised local corr) to either gate.assert call", async () => {
+    const seen: Array<EvaluateOptions> = [];
+    class RecordingGate extends SafetyGate {
+      override assert(op: Operation, obj?: SafetyTarget, opts: EvaluateOptions = {}): void {
+        if (obj?.type === "TABL/DI") seen.push(opts);
+        super.assert(op, obj, opts);
+      }
+    }
+    const gate = new RecordingGate({
+      readOnly: false,
+      allowPackages: [FLUID_PACKAGE, "$TMP"],
+      allowNamePrefixes: ["*"],
+      allowTransports: ["*"],
+      writesLockedOut: false,
+    });
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connected(fake.route);
+    await createSecondaryIndex(conn, gate, LOCAL_INDEX);
+    expect(seen).toEqual([{}, {}]);
+  });
+
+  it("a gate that refuses the index's own package refuses the whole call with ZERO requests (create)", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn, adt } = await connected(fake.route);
+    const err = await catchErr(createSecondaryIndex(conn, bridgeOnlyGate(), INDEX));
+    expect(err.code).toBe("SAFETY_DENIED");
+    expect(adt.calls.length).toBe(0);
+  });
+
+  it("a gate that refuses the index's own package refuses the whole call with ZERO requests (delete)", async () => {
+    const fake = classicFake({ action: "delete_index", lines: () => ["INDEX-DELETED", "INDEX-GONE"] });
+    const { conn, adt } = await connected(fake.route);
+    const err = await catchErr(deleteSecondaryIndexViaBridge(conn, bridgeOnlyGate(), DELETE_INDEX));
+    expect(err.code).toBe("SAFETY_DENIED");
+    expect(adt.calls.length).toBe(0);
+  });
+
+  it("a readOnly gate refuses too, zero requests made", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn, adt } = await connected(fake.route);
+    const readOnly = new SafetyGate({ readOnly: true, allowPackages: [FLUID_PACKAGE, "ZTM"], writesLockedOut: false });
+    const err = await catchErr(createSecondaryIndex(conn, readOnly, INDEX));
+    expect(err).toBeTruthy();
+    expect(adt.calls.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6 — the fields array: n('fields') count + s('fields/{i}') decode loop
+// ---------------------------------------------------------------------------
+
+describe("the fields array — n()/s() decode loop", () => {
+  it("create_index reads the count via n('fields') then loops s( |fields/{ lv_i - 1 }| ) into lt_fields", () => {
+    expect(CREATE_METHOD).toContain("n( 'fields' )");
+    expect(CREATE_METHOD).toContain("DO lv_field_count TIMES.");
+    expect(CREATE_METHOD).toContain("s( |fields/{ lv_i - 1 }| )");
+  });
+
+  it("the invoker's JSON payload carries a multi-field fields array, flattened and reconstructed byte-for-byte", async () => {
+    const many = { ...INDEX, fields: ["CARRIER", "CONNID", "FLDATE"] };
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connected(fake.route);
+    await createSecondaryIndex(conn, allowingGate(), many);
+
+    const invoker = fake.invoker();
+    expect(invoker).toBeTruthy();
+    const src = fake.sourceOf(invoker!);
+    const chunks = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]);
+    const payload = chunks.join("");
+    expect(payload).toBe(
+      canonicalArgsJson({
+        index_name: "Z01",
+        base_table: BASE_TABLE,
+        fields: ["CARRIER", "CONNID", "FLDATE"],
+        description: "probe idx",
+        package_name: "ZTM",
+        corr_nr: CORR_NR,
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7 — the unique flag: b('unique') at runtime, present on the wire only when the caller explicitly set it
+// ---------------------------------------------------------------------------
+
+describe("the unique flag", () => {
+  it("create_index reads it via b( 'unique' )", () => {
+    expect(CREATE_METHOD).toContain("DATA(lv_unique) = b( 'unique' ).");
+  });
+
+  it("caller omitting `unique` entirely omits the key from the wire JSON altogether", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connected(fake.route);
+    await createSecondaryIndex(conn, allowingGate(), INDEX);
+    const src = fake.sourceOf(fake.invoker()!);
+    const payload = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join("");
+    expect(payload).not.toContain('"unique"');
+  });
+
+  it("caller passing unique: true puts \"unique\":true on the wire", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connected(fake.route);
+    await createSecondaryIndex(conn, allowingGate(), { ...INDEX, unique: true });
+    const src = fake.sourceOf(fake.invoker()!);
+    const payload = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join("");
+    expect(payload).toContain('"unique":true');
+  });
+
+  it("caller passing unique: false EXPLICITLY still puts \"unique\":false on the wire (not omitted)", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connected(fake.route);
+    await createSecondaryIndex(conn, allowingGate(), { ...INDEX, unique: false });
+    const src = fake.sourceOf(fake.invoker()!);
+    const payload = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join("");
+    expect(payload).toContain('"unique":false');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8 — the unique-index client-field guard: structural + full round trip
+// ---------------------------------------------------------------------------
+
+describe("the unique-index client-field guard", () => {
+  it("is compiled in unconditionally but gated at RUNTIME by IF lv_unique = abap_true", () => {
+    const guardStart = CREATE_METHOD.indexOf("IF lv_unique = abap_true.");
+    const clntSelect = CREATE_METHOD.indexOf("datatype = 'CLNT'", guardStart);
+    const failCall = CREATE_METHOD.indexOf("omits the client field", clntSelect);
+    const endif = CREATE_METHOD.indexOf("ENDIF.", failCall);
+    expect(guardStart).toBeGreaterThanOrEqual(0);
+    expect(clntSelect).toBeGreaterThan(guardStart);
+    expect(failCall).toBeGreaterThan(clntSelect);
+    expect(endif).toBeGreaterThan(failCall);
+    // sits before the CALL FUNCTION, so a bad unique index never reaches DD_INDEX_INTERFACE at all
+    expect(CREATE_METHOD.indexOf("CALL FUNCTION 'DD_INDEX_INTERFACE'")).toBeGreaterThan(endif);
+  });
+
+  it("a unique index whose fields omit the client field is refused with BAD_INPUT, full round trip via classicFake", async () => {
+    const fake = classicFake({
+      action: "create_index",
+      lines: () => [`${DDIC_ERR_PREFIX} unique index Z01 on ${BASE_TABLE} omits the client field MANDT`],
+    });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(createSecondaryIndex(conn, allowingGate(), { ...INDEX, unique: true }));
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("client field");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9 — DD_INDEX_INTERFACE call structure: EXCEPTIONS clause, TABLES clause, guard ordering
+// ---------------------------------------------------------------------------
+
+describe("DD_INDEX_INTERFACE call structure", () => {
+  it("both methods declare the EXACT same 8 EXCEPTIONS, in the same subrc order DD_INDEX_EXCEPTIONS mirrors", () => {
+    const expected = DD_INDEX_EXCEPTIONS.map((e) => `${e.name} = ${e.subrc}`);
+    for (const method of [CREATE_METHOD, DELETE_METHOD]) {
+      const excBlock = method.slice(method.indexOf("EXCEPTIONS"), method.indexOf("OTHERS = 8.") + "OTHERS = 8.".length);
+      for (const line of expected.slice(0, -1)) {
+        expect(excBlock).toContain(line);
+      }
+      expect(excBlock).toContain("OTHERS = 8");
+    }
+  });
+
+  it("create_index passes TABLES index_fields = lt_fields, populated from the fields array", () => {
+    expect(CREATE_METHOD).toMatch(/TABLES\s+index_fields\s*=\s*lt_fields/);
+  });
+
+  it("delete_index ALSO passes TABLES index_fields = lt_fields — required even though it sends none (live 2026-09-05 bug)", () => {
+    expect(DELETE_METHOD).toMatch(/TABLES\s+index_fields\s*=\s*lt_fields/);
+    expect(DELETE_METHOD).toContain("mandatory parameter INDEX_FIELDS was not filled");
+  });
+
+  it("create_index: the sy-subrc guard sits BETWEEN the CALL FUNCTION and INDEX-CREATED, and RETURNs first", () => {
+    const call = CREATE_METHOD.indexOf("CALL FUNCTION 'DD_INDEX_INTERFACE'");
+    const guard = CREATE_METHOD.indexOf("IF sy-subrc <> 0.", call);
+    const tag = CREATE_METHOD.indexOf("line( 'INDEX-CREATED' )");
+    expect(call).toBeGreaterThanOrEqual(0);
+    expect(guard).toBeGreaterThan(call);
+    expect(tag).toBeGreaterThan(guard);
+  });
+
+  it("delete_index: the sy-subrc guard sits BETWEEN the CALL FUNCTION and the unconditional COMMIT WORK", () => {
+    const call = DELETE_METHOD.indexOf("CALL FUNCTION 'DD_INDEX_INTERFACE'");
+    const guard = DELETE_METHOD.indexOf("IF sy-subrc <> 0.", call);
+    const commit = DELETE_METHOD.indexOf("COMMIT WORK.", guard);
+    expect(call).toBeGreaterThanOrEqual(0);
+    expect(guard).toBeGreaterThan(call);
+    expect(commit).toBeGreaterThan(guard);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10 — indexBridgeErrorHook / DD_INDEX_EXCEPTIONS mapping
+// ---------------------------------------------------------------------------
+
+describe("indexBridgeErrorHook maps every DD_INDEX_INTERFACE exception through DD_INDEX_EXCEPTIONS", () => {
+  for (const entry of DD_INDEX_EXCEPTIONS) {
+    it(`insert: subrc ${entry.subrc} (${entry.name}) -> ${entry.code}`, () => {
+      const hook = indexBridgeErrorHook("insert", "Z01", BASE_TABLE);
+      const transcript = parseDdicTranscript(`${DDIC_ERR_PREFIX} ${CREATE_FM_WHAT} failed, sy-subrc=${entry.subrc}, AU000`);
+      let caught: AbapError | undefined;
+      try {
+        hook(transcript);
+      } catch (e) {
+        caught = e as AbapError;
+      }
+      expect(caught?.code).toBe(entry.code);
     });
 
-  const resp = (
-    status: number,
-    body = "",
-    headers: Record<string, unknown> = {},
-    statusText = String(status),
-  ): HttpClientResponse => ({ status, statusText, body, headers }) as unknown as HttpClientResponse;
-
-  class RecordingClient implements HttpClient {
-    calls: HttpClientOptions[] = [];
-    constructor(private readonly respond: (o: HttpClientOptions) => HttpClientResponse) {}
-    async request(o: HttpClientOptions): Promise<HttpClientResponse> {
-      this.calls.push(o);
-      return this.respond(o);
-    }
+    it(`delete: subrc ${entry.subrc} (${entry.name}) -> ${entry.code}`, () => {
+      const hook = indexBridgeErrorHook("delete", "Z01", BASE_TABLE);
+      const transcript = parseDdicTranscript(`${DDIC_ERR_PREFIX} ${DELETE_FM_WHAT} failed, sy-subrc=${entry.subrc}, AU000`);
+      let caught: AbapError | undefined;
+      try {
+        hook(transcript);
+      } catch (e) {
+        caught = e as AbapError;
+      }
+      expect(caught?.code).toBe(entry.code);
+    });
   }
 
-  const SESSION_URL = "/sap/bc/adt/compatibility/graph";
-  const LOCK_XML = (handle = "H1") =>
-    `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
-    `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
-    `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
-    `</DATA></asx:values></asx:abap>`;
+  it("delete: the pre-check \"does not exist\" line (never reaches DD_INDEX_INTERFACE) maps to NOT_FOUND", () => {
+    const hook = indexBridgeErrorHook("delete", "Z01", BASE_TABLE);
+    const transcript = parseDdicTranscript(`${DDIC_ERR_PREFIX} index Z01 on ${BASE_TABLE} does not exist`);
+    let caught: AbapError | undefined;
+    try {
+      hook(transcript);
+    } catch (e) {
+      caught = e as AbapError;
+    }
+    expect(caught?.code).toBe("NOT_FOUND");
+  });
 
-  async function connected(
-    route: (o: HttpClientOptions) => HttpClientResponse,
-  ): Promise<{ conn: AbapConnection; inner: RecordingClient }> {
-    const inner = new RecordingClient(route);
+  it("create: the client-field guard line maps to BAD_INPUT", () => {
+    const hook = indexBridgeErrorHook("insert", "Z01", BASE_TABLE);
+    const transcript = parseDdicTranscript(`${DDIC_ERR_PREFIX} unique index Z01 on ${BASE_TABLE} omits the client field MANDT`);
+    let caught: AbapError | undefined;
+    try {
+      hook(transcript);
+    } catch (e) {
+      caught = e as AbapError;
+    }
+    expect(caught?.code).toBe("BAD_INPUT");
+  });
+
+  it("an unrelated error line is left alone (returns without throwing) — assertDdicTranscript handles it generically", () => {
+    const hook = indexBridgeErrorHook("insert", "Z01", BASE_TABLE);
+    const transcript = parseDdicTranscript(`${DDIC_ERR_PREFIX} something else entirely`);
+    expect(() => hook(transcript)).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11 — ACTFAILED on CREATE: fails before INDEX-CREATED ever fires (no partial success)
+// ---------------------------------------------------------------------------
+
+describe("create: ACTFAILED = 'X' is a hard failure with NO tags fired yet", () => {
+  it("the ACTFAILED check sits AFTER the sy-subrc guard but BEFORE line('INDEX-CREATED')", () => {
+    const guard = CREATE_METHOD.indexOf("IF sy-subrc <> 0.");
+    const actfailed = CREATE_METHOD.indexOf("IF lv_actfailed = 'X'.");
+    const tag = CREATE_METHOD.indexOf("line( 'INDEX-CREATED' )");
+    expect(actfailed).toBeGreaterThan(guard);
+    expect(tag).toBeGreaterThan(actfailed);
+  });
+
+  it("full round trip: ACTFAILED disclosure is CHECK_FAILED with the DD12V row count, and reports NO partial success (INDEX-CREATED never fired)", async () => {
+    const fake = classicFake({
+      action: "create_index",
+      lines: () => [
+        `${DDIC_ERR_PREFIX} DD_INDEX_INTERFACE insert reported ACTFAILED = 'X' for Z01 on ${BASE_TABLE}; DD12V rows for this pair after the failure, any AS4LOCAL: 0`,
+      ],
+    });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(createSecondaryIndex(conn, allowingGate(), INDEX));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("ACTFAILED");
+    expect(err.message).not.toContain("PARTIAL SUCCESS");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12 — partial success on a LATER create-side failure
+// ---------------------------------------------------------------------------
+
+describe("create: a failure AFTER INDEX-CREATED already fired is reported as partial success, not a plain no-op failure", () => {
+  it("INDEX-CREATED fired then the DD12V active re-check fails -> CHECK_FAILED names INDEX-CREATED's already-committed effect", async () => {
+    const fake = classicFake({
+      action: "create_index",
+      lines: () => [
+        "INDEX-CREATED",
+        `${DDIC_ERR_PREFIX} Z01 on ${BASE_TABLE} not found active (AS4LOCAL = 'A') in DD12V after commit`,
+      ],
+    });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(createSecondaryIndex(conn, allowingGate(), INDEX));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("PARTIAL SUCCESS");
+    expect(err.message).toContain("DD_INDEX_INTERFACE (action='I') created");
+    expect(err.hint).toContain('mode="delete"');
+  });
+
+  it("INDEX-CREATED and INDEX-ACTIVE both fired, then DD17S count is short -> both completed sentences are named", async () => {
+    const fake = classicFake({
+      action: "create_index",
+      lines: () => [
+        "INDEX-CREATED",
+        "INDEX-ACTIVE",
+        `${DDIC_ERR_PREFIX} expected at least 1 DD17S field row(s) for Z01 on ${BASE_TABLE}, got 0`,
+      ],
+    });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(createSecondaryIndex(conn, allowingGate(), INDEX));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("PARTIAL SUCCESS");
+    expect(err.message).toContain("DD_INDEX_INTERFACE (action='I') created");
+    expect(err.message).toContain("was found active");
+  });
+
+  it("a plain missing-tag failure with NO error line at all is the ordinary (non-partial) CHECK_FAILED wording", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED"] });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(createSecondaryIndex(conn, allowingGate(), INDEX));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).not.toContain("PARTIAL SUCCESS");
+    expect(err.message).toContain("INDEX-ACTIVE");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 13 — ACTFAILED-tolerant delete read-back
+// ---------------------------------------------------------------------------
+
+describe("delete: the read-back decides, not ACTFAILED", () => {
+  it("COMMIT WORK runs unconditionally, BEFORE the post-commit read-back — even when ACTFAILED = 'X'", () => {
+    const call = DELETE_METHOD.indexOf("CALL FUNCTION 'DD_INDEX_INTERFACE'");
+    const commit = DELETE_METHOD.indexOf("COMMIT WORK.", call);
+    const readback = DELETE_METHOD.indexOf("SELECT COUNT( * ) FROM dd12v", commit);
+    expect(commit).toBeGreaterThan(call);
+    expect(readback).toBeGreaterThan(commit);
+    // No "IF lv_actfailed" gate stands between CALL FUNCTION and COMMIT WORK.
+    const actfailedGate = DELETE_METHOD.indexOf("IF lv_actfailed = 'X'.");
+    expect(actfailedGate).toBeGreaterThan(commit);
+  });
+
+  it("all three counters non-zero (or any one of them) -> fail, never INDEX-DELETED/INDEX-GONE", () => {
+    const readback = DELETE_METHOD.indexOf("IF lv_dd12v_count <> 0 OR lv_dd12v_active <> 0 OR lv_dd17s_count <> 0.");
+    const fail = DELETE_METHOD.indexOf("fail( lv_msg )", readback);
+    const ret = DELETE_METHOD.indexOf("RETURN.", fail);
+    const deletedTag = DELETE_METHOD.indexOf("line( 'INDEX-DELETED' )");
+    expect(readback).toBeGreaterThanOrEqual(0);
+    expect(fail).toBeGreaterThan(readback);
+    expect(ret).toBeGreaterThan(fail);
+    expect(deletedTag).toBeGreaterThan(ret);
+  });
+
+  it("full round trip: rows surviving after commit is CHECK_FAILED naming all three counts and the ACTFAILED value", async () => {
+    const fake = classicFake({
+      action: "delete_index",
+      lines: () => [
+        `${DDIC_ERR_PREFIX} delete of Z01 on ${BASE_TABLE} left rows behind after commit (DD12V any: 1, DD12V active: 0, DD17S: 2); DD_INDEX_INTERFACE delete ACTFAILED = ' '`,
+      ],
+    });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("left rows behind after commit");
+    expect(err.message).toContain("DD12V any: 1");
+  });
+
+  it("full round trip: ACTFAILED = 'X' with an ALL-ZERO read-back is treated as success — INDEX-DELETED-ACTFAILED plus the ordinary tags", async () => {
+    const fake = classicFake({
+      action: "delete_index",
+      lines: () => [
+        `${DDIC_NOTE_PREFIX} DD_INDEX_INTERFACE delete reported ACTFAILED = 'X' for Z01 on ${BASE_TABLE}, but the post-commit read-back found it gone (DD12V any: 0, DD12V active: 0, DD17S: 0) — treating as deleted`,
+        "INDEX-DELETED-ACTFAILED",
+        "INDEX-DELETED",
+        "INDEX-GONE",
+      ],
+    });
+    const { conn } = await connected(fake.route);
+    const { transcript } = await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
+    expect(transcript.tags).toEqual(["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"]);
+    expect(transcript.errorLine).toBeUndefined();
+  });
+
+  it("a non-existent index is refused by name via the pre-check, before DD_INDEX_INTERFACE is ever called", async () => {
+    const fake = classicFake({
+      action: "delete_index",
+      lines: () => [`${DDIC_ERR_PREFIX} index Z01 on ${BASE_TABLE} does not exist`],
+    });
+    const { conn } = await connected(fake.route);
+    const err = await catchErr(deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX));
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toContain("does not exist");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14 — happy path
+// ---------------------------------------------------------------------------
+
+describe("createSecondaryIndex happy path", () => {
+  it("deploys, activates and runs the classic tool; reports all three tags", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn, adt } = await connected(fake.route);
+
+    const { transcript, run } = await createSecondaryIndex(conn, allowingGate(), INDEX);
+    expect(transcript.tags).toEqual(["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"]);
+    expect(transcript.errorLine).toBeUndefined();
+    expect(run.output).toContain("INDEX-FIELDS");
+
+    const methods = adt.calls.map((c) => (c.method ?? "GET").toUpperCase());
+    expect(methods).toContain("PUT");
+    expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
+  });
+
+  it("the invoker's JSON payload carries every argument, unmangled, including an empty corr_nr for a local package", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connected(fake.route);
+    await createSecondaryIndex(conn, allowingGate(), LOCAL_INDEX);
+    const src = fake.sourceOf(fake.invoker()!);
+    const payload = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join("");
+    expect(payload).toBe(
+      canonicalArgsJson({
+        index_name: "Z01",
+        base_table: BASE_TABLE,
+        fields: ["CARRIER"],
+        description: "probe idx",
+        package_name: "$TMP",
+        corr_nr: "",
+      }),
+    );
+    expect(src).toContain("create_index");
+  });
+
+  it("an identical repeat call issues no second invoker PUT", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn, adt } = await connected(fake.route);
+    await createSecondaryIndex(conn, allowingGate(), INDEX);
+    const before = adt.calls.length;
+    await createSecondaryIndex(conn, allowingGate(), INDEX);
+    const putsAfterSecond = adt.calls.slice(before).filter((c) => (c.method ?? "").toUpperCase() === "PUT");
+    expect(putsAfterSecond).toEqual([]);
+  });
+});
+
+describe("deleteSecondaryIndexViaBridge happy path", () => {
+  it("deploys, activates and runs the classic tool; reports both INDEX-DELETED and INDEX-GONE", async () => {
+    const fake = classicFake({ action: "delete_index", lines: () => ["INDEX-DELETED", "INDEX-GONE"] });
+    const { conn, adt } = await connected(fake.route);
+
+    const { transcript, run } = await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
+    expect(transcript.tags).toEqual(["INDEX-DELETED", "INDEX-GONE"]);
+    expect(transcript.errorLine).toBeUndefined();
+    expect(run.output).toContain("INDEX-GONE");
+
+    const methods = adt.calls.map((c) => (c.method ?? "GET").toUpperCase());
+    expect(methods).toContain("PUT");
+  });
+
+  it("the invoker's JSON payload carries the caller's index_name/base_table/package_name/corr_nr, unmangled", async () => {
+    const fake = classicFake({ action: "delete_index", lines: () => ["INDEX-DELETED", "INDEX-GONE"] });
+    const { conn } = await connected(fake.route);
+    await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
+    const src = fake.sourceOf(fake.invoker()!);
+    const payload = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join("");
+    expect(payload).toBe(
+      canonicalArgsJson({ index_name: "Z01", base_table: BASE_TABLE, package_name: "ZTM", corr_nr: CORR_NR }),
+    );
+  });
+
+  it("an identical repeat call issues no second invoker PUT", async () => {
+    const fake = classicFake({ action: "delete_index", lines: () => ["INDEX-DELETED", "INDEX-GONE"] });
+    const { conn, adt } = await connected(fake.route);
+    await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
+    const before = adt.calls.length;
+    await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
+    const putsAfterSecond = adt.calls.slice(before).filter((c) => (c.method ?? "").toUpperCase() === "PUT");
+    expect(putsAfterSecond).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 15 — resolveIndexOwner: the ONLY constructor of a ServerPackage on this path
+// ---------------------------------------------------------------------------
+
+describe("resolveIndexOwner — reads the base table's real package, never trusts a caller-supplied one", () => {
+  const TABLE_URI = buildUri(specForType("TABL/DT")!, BASE_TABLE);
+
+  const tableXml = (packageName: string): string =>
+    `<?xml version="1.0" encoding="utf-8"?>` +
+    `<tabl:table xmlns:tabl="http://www.sap.com/wbobj/dictionary/tabl" xmlns:adtcore="http://www.sap.com/adt/core" ` +
+    `adtcore:name="${BASE_TABLE}" adtcore:type="TABL/DT"><adtcore:packageRef adtcore:name="${packageName}"/></tabl:table>`;
+
+  it("a table with a real packageRef resolves to a genuine ServerPackage carrying that name", async () => {
+    const adt = new FakeAdt((o) => {
+      const base = baseRoute(o);
+      if (base) return base;
+      if (o.url === TABLE_URI && (o.method ?? "GET").toUpperCase() === "GET") {
+        return resp(200, tableXml("ZTM"), { "content-type": "application/xml" });
+      }
+      return undefined;
+    });
     const conn = new AbapConnection(cfg(), {
-      httpClient: inner,
+      httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
       log: () => {},
       breaker: new AuthCircuitBreaker(),
     });
     await conn.connect();
-    inner.calls.length = 0;
-    return { conn, inner };
-  }
+    const { packageName, uri } = await resolveIndexOwner(conn, BASE_TABLE);
+    expect(packageName.name).toBe("ZTM");
+    expect(uri).toBe(TABLE_URI);
+  });
 
-  function classrunOutput(lines: readonly string[]): (o: HttpClientOptions) => HttpClientResponse {
-    const body = lines.join("\n");
-    return () => resp(200, body, { "content-type": "text/plain" });
-  }
-
-  const CLASS_NAME = DDIC_BRIDGE_CLASS.deleteIndex;
-  const classUri = `/sap/bc/adt/oo/classes/${CLASS_NAME.toLowerCase()}`;
-  const sourceUri = `${classUri}/source/main`;
-
-  /** All-active `class:abapClass` doc — same shape as bopf-runtime.test.ts's `classDocXml(className)` default. */
-  const CLASS_DOC =
-    `<?xml version="1.0" encoding="utf-8"?>` +
-    `<class:abapClass adtcore:name="${CLASS_NAME}" adtcore:type="CLAS/OC" adtcore:version="active" ` +
-    `xmlns:class="http://www.sap.com/adt/oo/classes" xmlns:adtcore="http://www.sap.com/adt/core" ` +
-    `xmlns:abapsource="http://www.sap.com/adt/abapsource">` +
-    `<adtcore:packageRef adtcore:name="${DDIC_BRIDGE_PACKAGE}"/>` +
-    `<class:include class:includeType="definitions" abapsource:sourceUri="includes/definitions" adtcore:name="" adtcore:type="CLAS/I" adtcore:version="active"/>` +
-    `<class:include class:includeType="implementations" abapsource:sourceUri="includes/implementations" adtcore:name="" adtcore:type="CLAS/I" adtcore:version="active"/>` +
-    `<class:include class:includeType="macros" abapsource:sourceUri="includes/macros" adtcore:name="" adtcore:type="CLAS/I" adtcore:version="active"/>` +
-    `<class:include class:includeType="main" abapsource:sourceUri="source/main" adtcore:name="" adtcore:type="CLAS/I" adtcore:version="active"/>` +
-    `</class:abapClass>`;
-
-  /** What deployBridge computes locally, right now, from the fixed generator. */
-  const FIXED_SOURCE = ddicBridgeSource(DDIC_BRIDGE_CLASS.deleteIndex, INDEX_DELETE_DATA_LINES, indexDeleteFragment(DELETE_INDEX));
-
-  /** The buggy pre-fix body DD_INDEX_INTERFACE rejected live: same class, minus fix 1's TABLES clause. */
-  const STALE_SOURCE = FIXED_SOURCE.split("\n")
-    .filter((l) => l.trim() !== "TABLES" && l.trim() !== "index_fields = lt_fields")
-    .join("\n");
-
-  function staleRoute(classrun: (o: HttpClientOptions) => HttpClientResponse): (o: HttpClientOptions) => HttpClientResponse {
-    return (o: HttpClientOptions) => {
-      const qs = (o.qs ?? {}) as Record<string, string>;
-      const method = (o.method ?? "GET").toUpperCase();
-
-      if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) return classrun(o);
-      if (o.url.includes(SESSION_URL)) {
-        return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+  it("a 404 on the base table throws NOT_FOUND, naming the table", async () => {
+    const adt = new FakeAdt((o) => {
+      const base = baseRoute(o);
+      if (base) return base;
+      if (o.url === TABLE_URI && (o.method ?? "GET").toUpperCase() === "GET") {
+        const notFoundXml =
+          `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">` +
+          `<namespace id="com.sap.adt"/><type id="ExceptionResourceNotFound"/>` +
+          `<message lang="EN">${BASE_TABLE} does not exist</message><properties/></exc:exception>`;
+        const r = resp(404, notFoundXml, { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
       }
-      if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
-      if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
-      if (o.url === classUri && method === "GET" && !qs._action) {
-        return resp(200, CLASS_DOC, { "content-type": "application/xml" });
+      return undefined;
+    });
+    const conn = new AbapConnection(cfg(), {
+      httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
+      log: () => {},
+      breaker: new AuthCircuitBreaker(),
+    });
+    await conn.connect();
+    const err = await catchErr(resolveIndexOwner(conn, BASE_TABLE));
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toContain(BASE_TABLE);
+  });
+
+  it("a table XML with no usable packageRef throws SAFETY_DENIED/PACKAGE_UNKNOWN rather than defaulting to $TMP or trusting a guess", async () => {
+    const adt = new FakeAdt((o) => {
+      const base = baseRoute(o);
+      if (base) return base;
+      if (o.url === TABLE_URI && (o.method ?? "GET").toUpperCase() === "GET") {
+        return resp(
+          200,
+          `<?xml version="1.0" encoding="utf-8"?><tabl:table xmlns:tabl="http://www.sap.com/wbobj/dictionary/tabl" adtcore:name="${BASE_TABLE}"/>`,
+          { "content-type": "application/xml" },
+        );
       }
-      if (o.url === sourceUri && method === "GET") {
-        return resp(200, STALE_SOURCE, { "content-type": "text/plain" });
-      }
-      if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-      if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-      if (o.url === sourceUri && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-      if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-      return resp(200, "<ok/>", { "content-type": "application/xml" });
-    };
-  }
-
-  it("re-PUTs the class source when the server holds the stale pre-fix body, and the new body carries the TABLES fix", async () => {
-    expect(STALE_SOURCE).not.toContain("index_fields = lt_fields"); // fixture really is the old buggy shape
-    const { conn, inner } = await connected(staleRoute(classrunOutput(["INDEX-DELETED", "INDEX-GONE"])));
-
-    await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
-
-    const put = inner.calls.find((c) => (c.method ?? "").toUpperCase() === "PUT" && c.url === sourceUri);
-    expect(put).toBeDefined();
-    expect(String(put!.body)).toContain("index_fields = lt_fields");
-  });
-
-  it("a byte-identical server body is left alone — no PUT at all, proving the pin above isn't vacuous", async () => {
-    const identicalRoute = (o: HttpClientOptions): HttpClientResponse => {
-      const method = (o.method ?? "GET").toUpperCase();
-      if (o.url === sourceUri && method === "GET") return resp(200, FIXED_SOURCE, { "content-type": "text/plain" });
-      return staleRoute(classrunOutput(["INDEX-DELETED", "INDEX-GONE"]))(o);
-    };
-    const { conn, inner } = await connected(identicalRoute);
-
-    await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
-
-    expect(inner.calls.some((c) => (c.method ?? "").toUpperCase() === "PUT")).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 16 — worst-case assembled-source line length (fix 4: a >255-char class-
-// source line rejected the PUT itself, live 2026-09-05 round 3, before
-// DD_INDEX_INTERFACE was ever called)
-// ---------------------------------------------------------------------------
-
-describe("worst-case assembled-source line length stays within ABAP_SOURCE_LINE_MAX", () => {
-  // Deliberately a literal, not the imported constant: this test has to stay red against a
-  // source tree where ABAP_SOURCE_LINE_MAX does not exist yet, where the import is undefined
-  // and every `length > undefined` comparison silently passes.
-  const LINE_MAX = 255;
-
-  /** Every line over the limit, with its 1-based number and length — an empty array is the pass. */
-  function offendingLines(source: string): Array<{ line: number; length: number }> {
-    return source
-      .split("\n")
-      .map((text, i) => ({ line: i + 1, length: text.length }))
-      .filter((l) => l.length > LINE_MAX);
-  }
-
-  it("ABAP_SOURCE_LINE_MAX matches the literal this suite measures against", () => {
-    expect(ABAP_SOURCE_LINE_MAX).toBe(LINE_MAX);
-  });
-
-  it("secondaryIndexFragment (non-unique), longest names and a full field list, at MAX_INDEX_FIELDS", () => {
-    const source = ddicBridgeSource(
-      DDIC_BRIDGE_CLASS.createIndex,
-      INDEX_DATA_LINES,
-      secondaryIndexFragment({ ...WORST_CASE_INDEX, unique: false }),
-    );
-    expect(offendingLines(source)).toEqual([]);
-  });
-
-  it("secondaryIndexFragment (unique), longest names and a full field list, at MAX_INDEX_FIELDS", () => {
-    const source = ddicBridgeSource(
-      DDIC_BRIDGE_CLASS.createIndex,
-      INDEX_DATA_LINES,
-      secondaryIndexFragment({ ...WORST_CASE_INDEX, unique: true }),
-    );
-    expect(offendingLines(source)).toEqual([]);
-  });
-
-  it("indexDeleteFragment, longest index name and base table", () => {
-    const source = ddicBridgeSource(
-      DDIC_BRIDGE_CLASS.deleteIndex,
-      INDEX_DELETE_DATA_LINES,
-      indexDeleteFragment(WORST_CASE_DELETE),
-    );
-    expect(offendingLines(source)).toEqual([]);
+      return undefined;
+    });
+    const conn = new AbapConnection(cfg(), {
+      httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
+      log: () => {},
+      breaker: new AuthCircuitBreaker(),
+    });
+    await conn.connect();
+    const err = await catchErr(resolveIndexOwner(conn, BASE_TABLE));
+    expect(err.code).toBe("SAFETY_DENIED");
+    expect(err.details.reason).toBe("PACKAGE_UNKNOWN");
   });
 });

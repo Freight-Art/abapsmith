@@ -1,5 +1,6 @@
 /**
- * Secondary DDIC index (`TABL/DI`) create/delete, through the classrun bridge.
+ * Secondary DDIC index (`TABL/DI`) create/delete, over the fluid `classic`
+ * tool (`create_index`/`delete_index`, body class `ZCL_ZMCP_FLUID_CLASSIC`).
  *
  * ADT REST has no working route for a table's secondary indexes: live-probed
  * 2026-09-05, `GET /sap/bc/adt/ddic/tables/t000/indexes` and
@@ -26,12 +27,14 @@
  * it had never once executed, because the rendered delete-bridge class
  * source carried a line over 255 chars (SEDI_ADT15/TooLongLine at the
  * class-source PUT), so DD_INDEX_INTERFACE was never called and the bridge
- * class was never refreshed. That line-length defect is fixed (see
- * `indexDeleteFragment` and `ddicBridgeSource`'s line-length guard); the
- * read-back's live behavior itself remains unexercised. The
- * transportable-package path, either direction, remains unexercised.
+ * class was never refreshed. That line-length defect is fixed in the ABAP
+ * (now `src/adt/fluid/builtin/classic/abap-index.ts`); the read-back's live
+ * behavior itself remains unexercised. The transportable-package path,
+ * either direction, remains unexercised.
  *
- * Two independent gates, one closed template — same shape as `./view-create.ts`
+ * Two independent gates: the fluid `classic` tool's own gate over its body
+ * class, and — {@link assertBridgeMutation} — the domain object this call
+ * will create, which the tool never sees. Same shape as `./view-create.ts`
  * and `./view-delete.ts`, which this file otherwise mirrors structurally.
  */
 
@@ -39,17 +42,10 @@ import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
 import type { AbapIdentifierOptions, SafetyCorr, SafetyGate } from "../safety.js";
 import type { RunResult } from "./run.js";
-import {
-  DDIC_BRIDGE_CLASS,
-  DDIC_NOTE_PREFIX,
-  assertBridgeMutation,
-  ddicBridgeSource,
-  runDdicBridge,
-  subrcGuardFragment,
-  type DdicTag,
-  type DdicTranscript,
-} from "./ddic-bridge.js";
-import { abapLiteral, assertAbapText, assertEnhIdentifier } from "./enhancement-templates.js";
+import { assertBridgeMutation } from "./bridge-mutation.js";
+import type { DdicTag, DdicTranscript } from "./ddic-transcript.js";
+import { runClassicAction } from "./classic-call.js";
+import { assertAbapText, assertEnhIdentifier } from "./enhancement-templates.js";
 import { assertServerPackage, serverPackage, type ServerPackage } from "./resolved-package.js";
 import { isNotFoundError } from "./session.js";
 import { isLocalPackageName, isTrkorr } from "./transports.js";
@@ -108,7 +104,11 @@ const BASE_TABLE_MAX = 30;
 const PACKAGE_MAX = 30;
 const PACKAGE_RULES: AbapIdentifierOptions = { maxLength: PACKAGE_MAX, allowLocal: true };
 
-/** Code-controlled step names for {@link subrcGuardFragment} — never caller input. */
+/**
+ * Code-controlled step-name text, matching the `fail(...)` prefix
+ * `src/adt/fluid/builtin/classic/abap-index.ts`'s `create_index`/`delete_index`
+ * methods emit on failure — never caller input.
+ */
 const CREATE_FM_WHAT = "DD_INDEX_INTERFACE insert";
 const DELETE_FM_WHAT = "DD_INDEX_INTERFACE delete";
 
@@ -173,11 +173,6 @@ function isLocalPackage(packageName: string): boolean {
   return isLocalPackageName(packageName);
 }
 
-/** A validated identifier, as an ABAP string literal — re-asserts at the point of embedding. */
-function quotedIdentifier(value: string, what: string, opts: AbapIdentifierOptions): string {
-  return abapLiteral(assertEnhIdentifier(value, what, opts));
-}
-
 /**
  * `corrNr`, validated as an ALREADY gate-judged TRKORR and normalised
  * (trim + uppercase) — `./view-create.ts`'s analogue returns the value
@@ -207,9 +202,9 @@ function assertCorrNr(value: string): string {
  * Return contract (deliberately NOT `./view-create.ts`'s
  * `assertClassicViewCreateTarget`, which returns the validated package
  * name): returns `""` for the local case, the normalised TRKORR otherwise —
- * exactly the value {@link secondaryIndexFragment}/{@link indexDeleteFragment}
- * need to decide `NO_TRANSP_REQUEST` vs `TRANSPORT_NUMBER`, without a second
- * `isLocalPackage` call at the point of use.
+ * exactly the `corr_nr` value the `create_index`/`delete_index` actions need
+ * to decide `NO_TRANSP_REQUEST` vs `TRANSPORT_NUMBER` on the ABAP side,
+ * without a second `isLocalPackage` call at the point of use.
  */
 export function assertSecondaryIndexTarget(packageName: string, corrNr: string | undefined): string {
   const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES);
@@ -249,11 +244,10 @@ export function indexGateName(baseTable: string, indexName: string): string {
 }
 
 /**
- * Every caller string validated once, so the fragment can never see a raw
- * one. `packageName` stays branded on the way out — {@link secondaryIndexFragment}
- * takes a full `SecondaryIndexParams` and would otherwise reject this return
- * value; only the plain-string form derived from it (`.name`) is used below,
- * for {@link assertSecondaryIndexTarget} and the gate.
+ * Every caller string validated once, so the classic action's args can never
+ * carry a raw one. `packageName` stays branded on the way out; only the
+ * plain-string form derived from it (`.name`) is used below, for
+ * {@link assertSecondaryIndexTarget} and the gate.
  */
 function validate(p: SecondaryIndexParams): {
   indexName: string;
@@ -308,15 +302,14 @@ function validateDelete(p: IndexDeleteParams): {
 }
 
 // ---------------------------------------------------------------------------
-// DD_INDEX_INTERFACE's EXCEPTIONS, shared by generator and parser
+// DD_INDEX_INTERFACE's EXCEPTIONS, shared by ABAP and parser
 // ---------------------------------------------------------------------------
 
 /**
- * One source of truth for `DD_INDEX_INTERFACE`'s `EXCEPTIONS` clause: both
- * CALL FUNCTION sites render it from this table via
- * {@link ddIndexExceptionsClause}, and {@link indexBridgeErrorHook} maps a
- * caught `sy-subrc` back through the same table — so the numbers can never
- * drift between generator and parser.
+ * `DD_INDEX_INTERFACE`'s `EXCEPTIONS` clause, mirrored by hand in
+ * `src/adt/fluid/builtin/classic/abap-index.ts`'s two `CALL FUNCTION` sites
+ * (same subrc numbers) — {@link indexBridgeErrorHook} maps a caught
+ * `sy-subrc` back through this table, so keep the two in sync.
  *
  * No `ALREADY_EXISTS` code exists in this codebase; `already_exist` maps to
  * `CHECK_FAILED`. `AUTH_FAILED` is FORBIDDEN here (it trips the circuit
@@ -393,246 +386,12 @@ export const DD_INDEX_EXCEPTIONS = [
   },
 ] as const;
 
-/**
- * Renders `DD_INDEX_EXCEPTIONS` as an `EXCEPTIONS` clause body (the
- * `EXCEPTIONS` keyword itself is NOT included — callers prepend it). The
- * `others` entry renders as the ABAP keyword `OTHERS`, not a named exception.
- */
-function ddIndexExceptionsClause(): string[] {
-  return DD_INDEX_EXCEPTIONS.map((e, i) => {
-    const kw = e.name === "others" ? "OTHERS" : e.name;
-    const end = i === DD_INDEX_EXCEPTIONS.length - 1 ? "." : "";
-    return `    ${kw} = ${e.subrc}${end}`;
-  });
-}
-
-/** Exactly one of `NO_TRANSP_REQUEST`/`TRANSPORT_NUMBER`, per {@link assertSecondaryIndexTarget}'s result. */
-function transportParamLine(local: boolean, corrNr: string | undefined): string {
-  return local ? "    no_transp_request   = 'X'" : `    transport_number    = ${abapLiteral(corrNr as string)}`;
-}
-
-// ---------------------------------------------------------------------------
-// The generated ABAP
-// ---------------------------------------------------------------------------
-
-/** Bare `DATA` declarations (no leading `DATA` keyword) for the create bridge. */
-export const INDEX_DATA_LINES: readonly string[] = [
-  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
-  "lv_actfailed TYPE ddrefstruc-flag.",
-  "lv_dd12v_count TYPE i.",
-  "lv_dd12v_any TYPE i.",
-  "lv_dd17s_count TYPE i.",
-  "lv_client_field TYPE dd03l-fieldname.",
-];
-
-/** Bare `DATA` declarations (no leading `DATA` keyword) for the delete bridge. */
-export const INDEX_DELETE_DATA_LINES: readonly string[] = [
-  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
-  "lv_actfailed TYPE ddrefstruc-flag.",
-  "lv_dd12v_count TYPE i.",
-  "lv_dd12v_active TYPE i.",
-  "lv_dd17s_count TYPE i.",
-  // built up over several assignments, not one literal — a 30-char baseTable pushes either
-  // message past the 255-char class-source line limit if written in one piece (live 2026-09-05).
-  "lv_msg TYPE string.",
-];
-
-/**
- * The closed ABAP fragment that creates, activates and field-verifies one
- * secondary index. Exported for the generator/parser drift test — every
- * `out->write( 'TAG' )` it emits must be a tag `parseDdicTranscript` recognises.
- *
- * The field read-back selects `DD17S` — the field table the live probe
- * actually read. `DD17V`/`DD17L` were never probed, so this generated ABAP
- * does not select them.
- */
-export function secondaryIndexFragment(p: SecondaryIndexParams): string[] {
-  const v = validate(p);
-  const { indexName, baseTable, fields, description, corrNr, unique } = v;
-  const index = quotedIdentifier(indexName, "indexName", { maxLength: INDEX_NAME_MAX });
-  const table = quotedIdentifier(baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
-  const local = corrNr === undefined;
-
-  const lines: string[] = [];
-
-  // Step 1: the index field list. DDFLDNAM's single component is NAME, not
-  // FIELDNAME — read from the system's interface definition, not guessed.
-  fields.forEach((f, i) => {
-    const quoted = quotedIdentifier(f, `fields[${i}]`, { maxLength: INDEX_FIELD_NAME_MAX });
-    lines.push(`APPEND VALUE #( name = ${quoted} ) TO lt_fields.`);
-  });
-  lines.push("");
-
-  // A unique secondary index on a client-dependent table must carry the client field, or
-  // activation fails; confirmed live 2026-09-05 (round 2) as the cause of the ACTFAILED seen in
-  // round 1 on a unique index over a client-dependent table.
-  if (unique) {
-    lines.push(
-      `SELECT SINGLE fieldname FROM dd03l INTO @lv_client_field WHERE tabname = ${table} AND as4local = 'A' AND datatype = 'CLNT'.`,
-      "IF sy-subrc = 0 AND lv_client_field IS NOT INITIAL.",
-      "  READ TABLE lt_fields TRANSPORTING NO FIELDS WITH KEY name = lv_client_field.",
-      "  IF sy-subrc <> 0.",
-      `    out->write( |ZMCP-DDIC-ERR> unique index ${indexName} on ${baseTable} omits the client field { lv_client_field }| ).`,
-      "    RETURN.",
-      "  ENDIF.",
-      "ENDIF.",
-      "",
-    );
-  }
-
-  // Step 2: create + activate in one call.
-  lines.push(
-    "CALL FUNCTION 'DD_INDEX_INTERFACE'",
-    "  EXPORTING",
-    `    table_name          = ${table}`,
-    `    index_name          = ${index}`,
-    "    action              = 'I'",
-    `    shorttext           = ${abapLiteral(description)}`,
-    "    activate            = 'X'",
-    ...(unique ? ["    unique              = 'X'"] : []),
-    transportParamLine(local, corrNr),
-    "  IMPORTING",
-    "    actfailed = lv_actfailed",
-    "  TABLES",
-    "    index_fields = lt_fields",
-    "  EXCEPTIONS",
-    ...ddIndexExceptionsClause(),
-    ...subrcGuardFragment(CREATE_FM_WHAT),
-    "IF lv_actfailed = 'X'.",
-    // DD_INDEX_INTERFACE exports no activation log; the cheapest evidence of what a failed
-    // activation left behind is a DD12V row count with no AS4LOCAL filter at all.
-    `  SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_any WHERE sqltab = ${table} AND indexname = ${index}.`,
-    `  out->write( |ZMCP-DDIC-ERR> ${CREATE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}; DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_any }| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'INDEX-CREATED' ).",
-    "",
-  );
-
-  // Step 3: commit — classrun return does NOT implicitly commit (./view-create.ts
-  // records a live false-success incident from omitting this).
-  lines.push("COMMIT WORK.", "");
-
-  // Step 4: re-read DD12V. Compared to 0, not <> 1 — DD12V carries DDLANGUAGE, so more than one row is possible.
-  lines.push(
-    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index} AND as4local = 'A'.`,
-    "IF lv_dd12v_count = 0.",
-    `  out->write( |ZMCP-DDIC-ERR> ${indexName} on ${baseTable} not found active (AS4LOCAL = 'A') in DD12V after commit| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'INDEX-ACTIVE' ).",
-    "",
-  );
-
-  // Step 5: count DD17S field rows. Compared with <, not <> — a floor, not an
-  // exact match, since this module has not established that DD17S holds
-  // exactly one row per index field.
-  lines.push(
-    `SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    `IF lv_dd17s_count < ${fields.length}.`,
-    `  out->write( |ZMCP-DDIC-ERR> expected at least ${fields.length} DD17S field row(s) for ${indexName} on ${baseTable}, got { lv_dd17s_count }| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'INDEX-FIELDS' ).",
-  );
-
-  return lines;
-}
-
-/**
- * The closed ABAP fragment that deletes one secondary index. Exported for
- * the generator/parser drift test.
- */
-export function indexDeleteFragment(p: IndexDeleteParams): string[] {
-  const v = validateDelete(p);
-  const { indexName, baseTable, corrNr } = v;
-  const index = quotedIdentifier(indexName, "indexName", { maxLength: INDEX_NAME_MAX });
-  const table = quotedIdentifier(baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
-  const local = corrNr === undefined;
-
-  const lines: string[] = [];
-
-  // Step 1: a delete of a pair that never existed is a refusal, not a no-op.
-  // DD12V carries DDLANGUAGE, so an index with no short text in the executing
-  // language could read as absent here — refusing instead of deleting.
-  lines.push(
-    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    "IF lv_dd12v_count = 0.",
-    `  out->write( |ZMCP-DDIC-ERR> index ${indexName} on ${baseTable} does not exist| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "",
-  );
-
-  // Step 2: delete + activate. Same EXCEPTIONS clause and transport pairing as the create side.
-  lines.push(
-    "CALL FUNCTION 'DD_INDEX_INTERFACE'",
-    "  EXPORTING",
-    `    table_name          = ${table}`,
-    `    index_name          = ${index}`,
-    "    action              = 'D'",
-    "    activate            = 'X'",
-    transportParamLine(local, corrNr),
-    "  IMPORTING",
-    "    actfailed = lv_actfailed",
-    // DD_INDEX_INTERFACE requires INDEX_FIELDS for every ACTION, content or not; omitting it
-    // failed live on 2026-09-05 with "the mandatory parameter INDEX_FIELDS was not filled".
-    "  TABLES",
-    "    index_fields = lt_fields",
-    "  EXCEPTIONS",
-    ...ddIndexExceptionsClause(),
-    ...subrcGuardFragment(DELETE_FM_WHAT),
-    "",
-  );
-
-  // Step 3: commit — unconditional even when ACTFAILED = 'X'. Live 2026-09-05: on both a
-  // non-unique and a unique index, ACTFAILED = 'X' fired while the DD12V row was already gone,
-  // meaning the catalog change had already taken effect before this classrun's own commit point.
-  // ACTFAILED alone no longer decides anything below; it only flags the read-back as worth a note.
-  lines.push("COMMIT WORK.", "");
-
-  // Step 4: read back all three signals before deciding — same discipline as the create side,
-  // now applied to ACTFAILED too instead of trusting it as fatal.
-  lines.push(
-    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_active WHERE sqltab = ${table} AND indexname = ${index} AND as4local = 'A'.`,
-    `SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    "",
-  );
-
-  // Step 5: the read-back decides, not ACTFAILED. All-zero is success even when ACTFAILED = 'X'
-  // fired (live 2026-09-05: the FM's own failure report lagged behind a catalog change that had
-  // already committed); any row surviving is still a real failure either way.
-  // Each message is built into lv_msg across several short lines and written once — never split
-  // across out->write calls, since parseDdicTranscript keeps only the LAST ZMCP-DDIC-ERR> line.
-  lines.push(
-    "IF lv_dd12v_count <> 0 OR lv_dd12v_active <> 0 OR lv_dd17s_count <> 0.",
-    `  lv_msg = |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} left rows behind after commit |.`,
-    "  lv_msg = lv_msg && |(DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, |.",
-    `  lv_msg = lv_msg && |DD17S: { lv_dd17s_count }); ${DELETE_FM_WHAT} ACTFAILED = '{ lv_actfailed }'|.`,
-    "  out->write( lv_msg ).",
-    "  RETURN.",
-    "ENDIF.",
-    "IF lv_actfailed = 'X'.",
-    `  lv_msg = |${DDIC_NOTE_PREFIX} ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}, |.`,
-    "  lv_msg = lv_msg && |but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, |.",
-    "  lv_msg = lv_msg && |DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }) — treating as deleted|.",
-    "  out->write( lv_msg ).",
-    "  out->write( 'INDEX-DELETED-ACTFAILED' ).",
-    "ENDIF.",
-    "out->write( 'INDEX-DELETED' ).",
-    "out->write( 'INDEX-GONE' ).",
-  );
-
-  return lines;
-}
-
 // ---------------------------------------------------------------------------
 // The operations
 // ---------------------------------------------------------------------------
 
 /**
- * `completed`/`hint` for {@link runDdicBridge}'s partial-success reporting.
+ * `completed`/`hint` for {@link runClassicAction}'s partial-success reporting.
  * Both `INDEX-CREATED` and `INDEX-ACTIVE` can fire before a LATER failure
  * (the DD17S field-count check, `INDEX-FIELDS`, is the last tag) — only
  * those two belong here.
@@ -659,8 +418,8 @@ export function indexCreatePartialSuccess(
  * Turns three known transcript shapes into a specific `AbapError` instead of
  * the generic missing-tag `CHECK_FAILED` the plain assertion would give:
  * a "does not exist" line (delete only), an "omits the client field" line
- * (create, unique only), and a `sy-subrc=<n>` line from {@link subrcGuardFragment}
- * for the matching `*_FM_WHAT` constant, mapped through {@link DD_INDEX_EXCEPTIONS}.
+ * (create, unique only), and a `sy-subrc=<n>` line for the matching
+ * `*_FM_WHAT` constant, mapped through {@link DD_INDEX_EXCEPTIONS}.
  * Anything else returns, leaving `assertDdicTranscript` to handle it.
  */
 export function indexBridgeErrorHook(
@@ -670,7 +429,7 @@ export function indexBridgeErrorHook(
 ): (t: DdicTranscript) => void {
   const fmWhat = what === "insert" ? CREATE_FM_WHAT : DELETE_FM_WHAT;
   // fmWhat is one of the two fixed, code-controlled constants above (letters/digits/underscore/space
-  // only, per subrcGuardFragment's own check), so no regex-metacharacter escaping is needed here.
+  // only), so no regex-metacharacter escaping is needed here.
   const subrcRe = new RegExp(`^${fmWhat} failed, sy-subrc=(\\d+),`);
   return (transcript: DdicTranscript): void => {
     const line = transcript.errorLine;
@@ -705,10 +464,10 @@ export function indexBridgeErrorHook(
 
 /**
  * Create one secondary index: validate, gate the index (as `${baseTable}-${indexName}`,
- * see {@link indexGateName}), generate, deploy, run, assert the transcript.
- * `validate()` (via {@link assertSecondaryIndexTarget}) runs first —
- * `BAD_INPUT`/`TRANSPORT_ERROR` before anything else — then
- * {@link assertBridgeMutation}, zero-network, only then ABAP is generated.
+ * see {@link indexGateName}), then run the fluid `classic` tool's `create_index`
+ * action and assert the transcript. `validate()` (via {@link assertSecondaryIndexTarget})
+ * runs first — `BAD_INPUT`/`TRANSPORT_ERROR` before anything else — then
+ * {@link assertBridgeMutation}, zero-network, only then the action runs.
  */
 export async function createSecondaryIndex(
   conn: AbapConnection,
@@ -717,12 +476,12 @@ export async function createSecondaryIndex(
 ): Promise<{ run: RunResult; transcript: DdicTranscript }> {
   assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
   const validated = validate(params);
-  const { indexName, baseTable, packageName, corrNr } = validated;
+  const { indexName, baseTable, fields, description, packageName, corrNr, unique } = validated;
 
   const corr: SafetyCorr | undefined =
     corrNr === undefined ? undefined : { kind: "transport", corrNr, source: "named" };
 
-  // Gate on the domain object itself — deployBridge only judges the bridge class, never this index.
+  // Gate on the domain object itself — the fluid tool's own gate only judges its body class, never this index.
   // activate: true because DD_INDEX_INTERFACE is called with ACTIVATE = 'X' in the same execution.
   assertBridgeMutation(
     gate,
@@ -730,13 +489,18 @@ export async function createSecondaryIndex(
     { activate: true, ...(corr !== undefined ? { corr } : {}) },
   );
 
-  const source = ddicBridgeSource(DDIC_BRIDGE_CLASS.createIndex, INDEX_DATA_LINES, secondaryIndexFragment(validated));
-
   const partial = indexCreatePartialSuccess(indexName, baseTable);
-  return runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.createIndex,
-    source,
-    description: `abapsmith create-secondary-index bridge (${indexName} on ${baseTable})`,
+  return runClassicAction(conn, gate, {
+    action: "create_index",
+    args: {
+      index_name: indexName,
+      base_table: baseTable,
+      fields,
+      description,
+      package_name: packageName.name,
+      corr_nr: corrNr ?? "",
+      ...(params.unique !== undefined ? { unique } : {}),
+    },
     what: `Creating secondary index ${indexName} on ${baseTable}`,
     expectTags: ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"],
     beforeAssert: indexBridgeErrorHook("insert", indexName, baseTable),
@@ -746,10 +510,10 @@ export async function createSecondaryIndex(
 }
 
 /**
- * Delete one secondary index via the DDIC classrun bridge. Gated as
- * `op: "delete"` on the index itself; `activate: true` even though this is a
- * delete — `DD_INDEX_INTERFACE` is called with `ACTIVATE = 'X'` for
- * `action = 'D'` too.
+ * Delete one secondary index over the fluid `classic` tool's `delete_index`
+ * action. Gated as `op: "delete"` on the index itself; `activate: true` even
+ * though this is a delete — `DD_INDEX_INTERFACE` is called with
+ * `ACTIVATE = 'X'` for `action = 'D'` too.
  */
 export async function deleteSecondaryIndexViaBridge(
   conn: AbapConnection,
@@ -769,16 +533,14 @@ export async function deleteSecondaryIndexViaBridge(
     { activate: true, op: "delete", ...(corr !== undefined ? { corr } : {}) },
   );
 
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.deleteIndex,
-    INDEX_DELETE_DATA_LINES,
-    indexDeleteFragment(validated),
-  );
-
-  return runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.deleteIndex,
-    source,
-    description: `abapsmith delete-secondary-index bridge (${indexName} on ${baseTable})`,
+  return runClassicAction(conn, gate, {
+    action: "delete_index",
+    args: {
+      index_name: indexName,
+      base_table: baseTable,
+      package_name: packageName.name,
+      corr_nr: corrNr ?? "",
+    },
     what: `Deleting secondary index ${indexName} on ${baseTable}`,
     expectTags: ["INDEX-DELETED", "INDEX-GONE"],
     beforeAssert: indexBridgeErrorHook("delete", indexName, baseTable),

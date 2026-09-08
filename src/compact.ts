@@ -104,6 +104,16 @@ export function canonicalSource(s: string): string {
     .replace(/\n+$/, "");
 }
 
+/**
+ * The etag abapsmith emits: a content hash of the canonical form. Lives here
+ * (not `adt/write.ts`, which re-exports it) so a module that only needs to
+ * hash source doesn't have to pull in `write.ts` — that created a real
+ * init-order cycle for `fluid/manifest.ts`'s `manifestVersion`, called eagerly
+ * at module scope by `fluid/builtin/classic.ts`, which is reachable from
+ * `write.ts`'s own import chain.
+ */
+export const canonicalEtag = (s: string): string => contentHash(canonicalSource(s));
+
 export interface ResponseParts {
   /** `key: value` header lines. Undefined/empty values are dropped. */
   header?: Record<string, string | number | boolean | undefined | null>;
