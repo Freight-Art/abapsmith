@@ -50,6 +50,7 @@ import { dispatch, type FluidDeps } from "../src/adt/fluid/dispatch.js";
 import { ensureFluidPackage, FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 import { ensureFluidTool } from "../src/adt/fluid/ensure.js";
 import { forgetManifest, readFluidRegistry } from "../src/adt/fluid/registry.js";
+import { isAbapError } from "../src/adt/errors.js";
 import { fluidRuntimeManifest, fluidRuntimeTool } from "../src/adt/fluid/abap/runtime.js";
 import { invokerName } from "../src/adt/fluid/invoke.js";
 import { authorizeMutation, deleteObject, resolveWriteTarget } from "../src/adt/write.js";
@@ -86,11 +87,29 @@ const assertUsable = (): void => {
   }
 };
 
-async function deleteInvokerIfPresent(action: string): Promise<void> {
+async function deleteInvokerOnce(config: Config, name: string): Promise<void> {
+  const c = new AbapConnection(config, { log: () => {}, breaker: new AuthCircuitBreaker() });
+  await c.connect();
+  try {
+    const authorized = await authorizeMutation(c, GATE, "delete", { type: "CLAS/OC", name });
+    await deleteObject(c, authorized);
+  } finally {
+    await c.shutdown("test-end");
+  }
+}
+
+async function deleteInvokerIfPresent(config: Config, action: string): Promise<void> {
   const name = invokerName(fluidRuntimeManifest.id, action, {}, fluidRuntimeManifest.contract);
   try {
-    const authorized = await authorizeMutation(conn, GATE, "delete", { type: "CLAS/OC", name });
-    await deleteObject(conn, authorized);
+    try {
+      await deleteInvokerOnce(config, name);
+    } catch (e) {
+      if (isAbapError(e) && e.code === "SESSION_DEAD") {
+        await deleteInvokerOnce(config, name);
+      } else {
+        throw e;
+      }
+    }
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -109,10 +128,14 @@ dWrite("live: the fluid API runtime deploys, dispatches, and reports failures on
 
   afterAll(async () => {
     if (!conn) return;
-    await deleteInvokerIfPresent("ping");
-    await deleteInvokerIfPresent("fail");
-    await conn.shutdown("test-end");
-  }, 90_000);
+    // A stateful session here survives only one object delete, so each invoker gets its own connection and one SESSION_DEAD retry.
+    try {
+      await deleteInvokerIfPresent(cfg, "ping");
+      await deleteInvokerIfPresent(cfg, "fail");
+    } finally {
+      await conn.shutdown("test-end");
+    }
+  }, 180_000);
 
   it("ensureFluidPackage creates $ABAPSMITH_FLUID_API under $TMP, and a second call issues no requests", async () => {
     assertUsable();
