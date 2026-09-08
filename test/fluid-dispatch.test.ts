@@ -338,6 +338,14 @@ const MUTATE_ACTION: FluidActionSpec = {
   output: { type: "object" },
 };
 
+const VOID_ACTION: FluidActionSpec = {
+  name: "run",
+  category: "execute",
+  description: "run, declaring no output at all",
+  input: { type: "object" },
+  output: {},
+};
+
 const MUTATE_STRICT_OUTPUT_ACTION: FluidActionSpec = {
   name: "commit",
   category: "mutate",
@@ -553,6 +561,49 @@ describe("dispatch — transcript protocol", () => {
     expect(err.code).toBe("FLUID_PROTOCOL_ERROR");
     expect(err.details["beginAction"]).toBe("other");
     expect(err.details["action"]).toBe("run");
+  });
+});
+
+describe("dispatch — END with neither OUT nor ERR", () => {
+  it("a non-void output schema raises FLUID_PROTOCOL_ERROR when END carries no OUT frames", async () => {
+    const tool = makeManifestTool({ id: "silentend", className: "ZCL_SILENTEND", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run" }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const err = await catchErr(dispatch(d, { tool: tool.manifest.id, action: "run", args: {} }));
+
+    expect(err.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(err.details["count"]).toBe(0);
+  });
+
+  it("a void (typeless) output schema succeeds when END carries no OUT frames", async () => {
+    const tool = makeManifestTool({ id: "voidend", className: "ZCL_VOIDEND", actions: [VOID_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run" }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const result = await dispatch(d, { tool: tool.manifest.id, action: "run", args: {} });
+
+    expect(result.result).toBeUndefined();
+  });
+
+  it("a void (typeless) output schema still raises FLUID_PROTOCOL_ERROR if the body emits an OUT anyway", async () => {
+    const tool = makeManifestTool({ id: "voidout", className: "ZCL_VOIDOUT", actions: [VOID_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const err = await catchErr(dispatch(d, { tool: tool.manifest.id, action: "run", args: {} }));
+
+    expect(err.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(err.details["count"]).toBe(1);
   });
 });
 

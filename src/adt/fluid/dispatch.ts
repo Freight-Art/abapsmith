@@ -366,6 +366,17 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
   let result: unknown;
   if (action.output.type === "array") {
     result = transcript.values;
+  } else if (action.output.type === undefined) {
+    // No declared output shape — the action legitimately emits nothing. An END with zero OUT and
+    // zero ERR (both already ruled out as failure above) is success, not a silently-swallowed body.
+    if (transcript.values.length !== 0) {
+      throw new AbapError(
+        "FLUID_PROTOCOL_ERROR",
+        `${req.tool}.${req.action}: expected no output value (void), got ${transcript.values.length}.`,
+        { tool: req.tool, action: req.action, count: transcript.values.length },
+      );
+    }
+    result = undefined;
   } else {
     if (transcript.values.length !== 1) {
       throw new AbapError(
