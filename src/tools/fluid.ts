@@ -31,7 +31,7 @@ import {
   type FluidObjectType,
   type LoadedFluidTool,
 } from "../adt/fluid/manifest.js";
-import { FLUID_PACKAGE, isReservedFluidName } from "../adt/fluid/package.js";
+import { FLUID_PACKAGE, LEGACY_FLUID_PACKAGES, isReservedFluidName } from "../adt/fluid/package.js";
 import { fluidDisabledReason, type FluidDisabledReason } from "../adt/fluid/enabled.js";
 import type { FluidBuiltinSource, FluidToolSet } from "../adt/fluid/plugin-loader.js";
 import {
@@ -353,7 +353,7 @@ const VERIFY_STATE_NOTE =
   "(deployed but content differs from the manifest), inactive (written but not activated), " +
   "broken (matches the manifest's content but fails a syntax check), foreign (exists, under a " +
   "reserved name, in a package abapsmith does not own), legacy (exists under a reserved name in " +
-  "an old fluid package — e.g. $ZMCP_HELPERS or $TMP — and would be relocated on the next run or " +
+  `an old fluid package — ${LEGACY_FLUID_PACKAGES.join(" or ")} — and would be relocated on the next run or ` +
   "repair).";
 
 async function runVerify(deps: FluidToolDeps, a: FluidInput): Promise<string> {
