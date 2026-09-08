@@ -101,6 +101,16 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
           RETURN.
         ENDIF.
 
+        " lv_program (syrepid) and lv_dynpro (sydynnr) are non-string flat
+        " types; ZCL_ZMCP_FLUID_RT=>esc's iv_text is TYPE string passed by
+        " reference (the IMPORTING default), which requires an exact type
+        " match rather than an implicit conversion, so both are materialised
+        " into genuine string locals here before being escaped below.
+        DATA lv_prog_s TYPE string.
+        DATA lv_dyn_s  TYPE string.
+        lv_prog_s = |{ lv_program }|.
+        lv_dyn_s  = |{ lv_dynpro }|.
+
         lv_step = 'read'.
         DATA ls_header      TYPE rpy_dyhead.
         DATA lt_fields_list TYPE TABLE OF d021s.
@@ -128,8 +138,8 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
         ENDIF.
 
         DATA lv_out TYPE string.
-        lv_out = |\\{"program":"{ zcl_zmcp_fluid_rt=>esc( lv_program ) }"|.
-        lv_out = lv_out && |,"dynpro":"{ zcl_zmcp_fluid_rt=>esc( lv_dynpro ) }"|.
+        lv_out = |\\{"program":"{ zcl_zmcp_fluid_rt=>esc( lv_prog_s ) }"|.
+        lv_out = lv_out && |,"dynpro":"{ zcl_zmcp_fluid_rt=>esc( lv_dyn_s ) }"|.
         lv_out = lv_out && ',"fields":['.
         LOOP AT lt_fields_list INTO DATA(ls_field).
           IF sy-tabix > 1.
