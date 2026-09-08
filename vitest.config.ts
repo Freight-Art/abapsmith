@@ -56,6 +56,24 @@ const LIVE_INTEGRATION_TESTS = [
   // classes for real. Listed here so VITEST_LIVE=1 COLLECTS it — the suite
   // carries its own independent gate, same convention as the suites above.
   "test/integration-fluid-core.test.ts",
+  // The builtin `ui` fluid tool: deploys/activates ZCL_ZMCP_FLUID_UI into
+  // $ABAPSMITH_FLUID_API and round-trips a live SE16 screen read (tcode form,
+  // then program+dynpro form) plus an honest failure on a nonexistent tcode.
+  // Same independent-gate convention as the other fluid live suites above.
+  "test/integration-fluid-ui.test.ts",
+  // The builtin `fpm` fluid tool: deploys/activates ZCL_ZMCP_FLUID_FPM into
+  // $ABAPSMITH_FLUID_API and round-trips a live find/outline/app dispatch —
+  // a broad find() wildcard query, plus an honest FLUID_ACTION_FAILED on a
+  // nonexistent config_id for outline and app. Same independent-gate
+  // convention as the other fluid live suites above.
+  "test/integration-fluid-fpm.test.ts",
+  // The builtin `enh` fluid tool: deploys/activates ZCL_ZMCP_FLUID_ENH into
+  // $ABAPSMITH_FLUID_API, creates and independently reads back a real BAdI
+  // enhancement spot (create_spot) plus a BAdI definition on it
+  // (add_badi_def), and asserts an honest FLUID_ACTION_FAILED against a
+  // nonexistent spot. Same independent-gate convention as the other fluid
+  // live suites above.
+  "test/integration-fluid-enh.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";

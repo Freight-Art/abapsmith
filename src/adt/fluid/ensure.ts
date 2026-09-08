@@ -10,6 +10,7 @@ import type { Config } from "../../config.js";
 import type { SafetyGate } from "../../safety.js";
 import { systemKey } from "../../journal.js";
 import { AbapError, describeUnknownError } from "../errors.js";
+import { discloseBridgeResidue, type BridgeResidueStage } from "../bridge-residue.js";
 import {
   authorizeMutation,
   canonicalEtag,
@@ -261,21 +262,27 @@ async function writeAndActivateOnce(
   const alreadyActive =
     !write.created && !write.changed && write.target.activation === "active-is-current";
 
-  gate.assert("activate", {
-    name: write.target.name,
-    packageName: write.target.packageName,
-    type: write.target.type,
-  });
+  let stage: BridgeResidueStage = "activate-gate";
+  try {
+    gate.assert("activate", {
+      name: write.target.name,
+      packageName: write.target.packageName,
+      type: write.target.type,
+    });
 
-  if (alreadyActive) return write;
+    if (alreadyActive) return write;
 
-  const activation = await activateObject(conn, write.target);
-  assertNoErrors(activation, {
-    what: `Deploy fluid object ${obj.name}`,
-    name: obj.name,
-    source: expectedSource,
-  });
-  return write;
+    stage = "activation";
+    const activation = await activateObject(conn, write.target);
+    assertNoErrors(activation, {
+      what: `Deploy fluid object ${obj.name}`,
+      name: obj.name,
+      source: expectedSource,
+    });
+    return write;
+  } catch (e) {
+    throw discloseBridgeResidue(e, obj.name, FLUID_PACKAGE, stage);
+  }
 }
 
 async function contentConfirmed(
@@ -314,17 +321,24 @@ async function deployAndVerify(
   reviveOnDeadSession = false,
 ): Promise<WriteResult> {
   let write = await writeAndActivateOnce(conn, gate, obj, expectedSource, reviveOnDeadSession);
-  if (await contentConfirmed(conn, write.target, expectedSource)) return write;
+  try {
+    if (await contentConfirmed(conn, write.target, expectedSource)) return write;
 
-  if (redeployed.has(ledgerKey)) {
-    throw redeployExhaustedError(obj, tool, false);
+    if (redeployed.has(ledgerKey)) {
+      throw redeployExhaustedError(obj, tool, false);
+    }
+    redeployed.add(ledgerKey);
+  } catch (e) {
+    throw discloseBridgeResidue(e, obj.name, FLUID_PACKAGE, "content-verify");
   }
-  redeployed.add(ledgerKey);
 
   write = await writeAndActivateOnce(conn, gate, obj, expectedSource);
-  if (await contentConfirmed(conn, write.target, expectedSource)) return write;
-
-  throw redeployExhaustedError(obj, tool, true);
+  try {
+    if (await contentConfirmed(conn, write.target, expectedSource)) return write;
+    throw redeployExhaustedError(obj, tool, true);
+  } catch (e) {
+    throw discloseBridgeResidue(e, obj.name, FLUID_PACKAGE, "content-verify");
+  }
 }
 
 async function ensureOneObject(

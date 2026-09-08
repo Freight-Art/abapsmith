@@ -359,13 +359,22 @@ describe("runImgProbe", () => {
 
     expect(isAbapError(err)).toBe(true);
     expect((err as { code: string }).code).toBe("CHECK_FAILED");
+    if (isAbapError(err)) expect(err.details.bridgeLeftBehind).toBe(true);
     const hint = (err as { hint?: string }).hint ?? "";
     // The probe no longer carries its own bespoke hint (PROBE_HINT is gone — img-write.ts's
     // header says so) — ensure.ts's writeAndActivateOnce passes assertNoErrors no custom hint,
-    // so this is activate.ts's checkFailedError default, verbatim.
+    // so the base sentence is activate.ts's checkFailedError default. It is no longer verbatim
+    // by itself, though: writeAndActivateOnce now runs every fluid deploy failure through
+    // discloseBridgeResidue (src/adt/bridge-residue.ts), same as the legacy bridge path
+    // (src/adt/run.ts) always has, so the default is followed by the shared residue-disclosure
+    // sentence naming the class and package left behind. That's still not a bespoke hint of the
+    // probe's own — unlike the apply/request bridges (see their sibling tests below), which
+    // supply their own hint text on top.
     expect(hint).toBe(
       "Fix the reported lines and write again. Line numbers come from the ADT href fragment, " +
-        "not from the message ordinal, so they are the real source lines.",
+        "not from the message ordinal, so they are the real source lines. " +
+        `Bridge class ${imgManifest.entry} was written to ${FLUID_PACKAGE} but failed to activate; ` +
+        `it is left behind there, inactive — safe to delete.`,
     );
     expect(inner.calls.some((c) => c.url.includes("/oo/classrun/"))).toBe(false);
   });

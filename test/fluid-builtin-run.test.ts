@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { runManifest, runSources } from "../src/adt/fluid/builtin/run.js";
 import { FLUID_CONTRACT, FluidManifestSchema, validateFluidSchema } from "../src/adt/fluid/manifest.js";
+import { FLUID_RUNTIME_CLASS, fluidRuntimeSources } from "../src/adt/fluid/abap/runtime.js";
 
 describe("runManifest — schema", () => {
   it("parses cleanly through FluidManifestSchema", () => {
@@ -19,6 +20,19 @@ describe("runManifest — schema", () => {
 
   it("declares the current FLUID_CONTRACT", () => {
     expect(runManifest.contract).toBe(FLUID_CONTRACT);
+  });
+
+  it("declares ZCL_ZMCP_FLUID_RT first so it is deployed before ZCL_ZMCP_FLUID_RUN", () => {
+    expect(runManifest.objects[0]?.name).toBe(FLUID_RUNTIME_CLASS);
+    expect(runManifest.objects.map((o) => o.name)).toContain("ZCL_ZMCP_FLUID_RUN");
+  });
+
+  it("keeps ZCL_ZMCP_FLUID_RUN as the entry class", () => {
+    expect(runManifest.entry).toBe("ZCL_ZMCP_FLUID_RUN");
+  });
+
+  it("ships the exact same ZCL_ZMCP_FLUID_RT source as the rt tool, not a copy", () => {
+    expect(runSources.get(FLUID_RUNTIME_CLASS)).toBe(fluidRuntimeSources.get(FLUID_RUNTIME_CLASS));
   });
 });
 

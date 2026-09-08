@@ -47,6 +47,7 @@ import {
   checkReferences as bopfCheckReferences,
   collectRefSites,
 } from "../adt/bopf.js";
+import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -347,7 +348,7 @@ export async function runBopfTest(deps: BopfTestDeps, args: unknown): Promise<Ca
   const bridgeClass = bopfBridgeClassName(input.bo);
   deps.safety.assert(
     "write",
-    { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" },
+    { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
   if (!input.generate_only) {
