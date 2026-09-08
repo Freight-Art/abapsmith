@@ -286,6 +286,7 @@ const CORE_METHODS = `  METHOD run.
     DATA lo_struct TYPE REF TO cl_abap_structdescr.
     DATA lv_first  TYPE abap_bool.
     DATA ls_comp   TYPE abap_compdescr.
+    DATA lv_cname  TYPE string.
     FIELD-SYMBOLS <lv_any> TYPE any.
     FIELD-SYMBOLS <lt_any> TYPE ANY TABLE.
 
@@ -307,7 +308,8 @@ const CORE_METHODS = `  METHOD run.
             rv_json = rv_json && ','.
           ENDIF.
           lv_first = abap_false.
-          rv_json = rv_json && |"{ zcl_zmcp_fluid_rt=>esc( ls_comp-name ) }":| && to_json( <lv_any> ).
+          lv_cname = ls_comp-name.
+          rv_json = rv_json && |"{ zcl_zmcp_fluid_rt=>esc( lv_cname ) }":| && to_json( <lv_any> ).
         ENDLOOP.
         rv_json = rv_json && '}'.
       WHEN cl_abap_typedescr=>kind_table.

@@ -149,6 +149,7 @@ export const fmPart: CoreAbapPart = {
     DATA lv_type  TYPE string.
     DATA lv_json  TYPE string.
     DATA lv_kind  TYPE string.
+    DATA lv_pname TYPE string.
     FIELD-SYMBOLS <lv_any> TYPE any.
 
     lv_name = to_upper( s( 'name' ) ).
@@ -210,7 +211,7 @@ export const fmPart: CoreAbapPart = {
       IF ls_par-typename IS INITIAL.
         CONTINUE.
       ENDIF.
-      READ TABLE lt_ptab TRANSPORTING NO FIELDS WITH TABLE KEY name = ls_par-name.
+      READ TABLE lt_ptab TRANSPORTING NO FIELDS WITH KEY name = ls_par-name.
       IF sy-subrc = 0.
         CONTINUE.
       ENDIF.
@@ -273,7 +274,8 @@ export const fmPart: CoreAbapPart = {
       IF sy-subrc <> 0.
         CONTINUE.
       ENDIF.
-      lv_json = |\\{"name":"{ zcl_zmcp_fluid_rt=>esc( ls_ptab-name ) }",|.
+      lv_pname = ls_ptab-name.
+      lv_json = |\\{"name":"{ zcl_zmcp_fluid_rt=>esc( lv_pname ) }",|.
       lv_json = lv_json && |"kind":"{ lv_kind }","value":| && to_json( <lv_any> ) && '}'.
       zcl_zmcp_fluid_rt=>out( lv_json ).
     ENDLOOP.
