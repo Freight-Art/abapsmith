@@ -1082,7 +1082,7 @@ describe("config: unrecognised ABAP_ALLOW_* names warn", () => {
     expect(joined).toMatch(/typo/i);
   });
 
-  it("every one of the 15 recognised names, set together, produces no unrecognised-name warning", () => {
+  it("every one of the 18 recognised names, set together, produces no unrecognised-name warning", () => {
     const warnings: string[] = [];
     const allSet = Object.fromEntries(RECOGNISED_ABAP_ALLOW_ENV_VARS.map((n) => [n, "true"]));
     loadConfig({
@@ -1132,5 +1132,144 @@ describe("config: unrecognised ABAP_ALLOW_* names warn", () => {
     });
     const joined = warnings.join("\n");
     expect(joined.indexOf("ABAP_ALLOW_AARDVARK")).toBeLessThan(joined.indexOf("ABAP_ALLOW_ZEBRA"));
+  });
+});
+
+describe("config: ABAP_FLUID_API parsing (boolishRejectDefaultTrue, same shape as crossProcessDebugLock)", () => {
+  it("defaults to true when unset", () => {
+    const cfg = loadConfig({ env: env(), warn: () => {}, skipDotenv: true });
+    expect(cfg.fluidApi).toBe(true);
+  });
+
+  for (const v of ["false", "0", "no", "off", "FALSE", "Off", " off "]) {
+    it(`ABAP_FLUID_API=${JSON.stringify(v)} resolves to false`, () => {
+      const cfg = loadConfig({ env: env({ ABAP_FLUID_API: v }), warn: () => {}, skipDotenv: true });
+      expect(cfg.fluidApi).toBe(false);
+    });
+  }
+
+  for (const v of ["true", "1", "yes", "on", "anything-else"]) {
+    it(`ABAP_FLUID_API=${JSON.stringify(v)} resolves to true`, () => {
+      const cfg = loadConfig({ env: env({ ABAP_FLUID_API: v }), warn: () => {}, skipDotenv: true });
+      expect(cfg.fluidApi).toBe(true);
+    });
+  }
+});
+
+describe("config: ABAP_ALLOW_FLUID_PLUGINS / ABAP_ALLOW_FLUID_PLUGIN_MUTATE / ABAP_ALLOW_FLUID_CALL_FM", () => {
+  it("all three default to false", () => {
+    const cfg = loadConfig({ env: env(), warn: () => {}, skipDotenv: true });
+    expect(cfg.allowFluidPlugins).toBe(false);
+    expect(cfg.allowFluidPluginMutate).toBe(false);
+    expect(cfg.allowFluidCallFm).toBe(false);
+  });
+
+  it("each goes true when set truthy, independently of the others", () => {
+    const cfg = loadConfig({
+      env: env({ ABAP_ALLOW_FLUID_PLUGINS: "true" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(cfg.allowFluidPlugins).toBe(true);
+    expect(cfg.allowFluidPluginMutate).toBe(false);
+    expect(cfg.allowFluidCallFm).toBe(false);
+  });
+
+  it("ABAP_ALLOW_FLUID_PLUGIN_MUTATE=true does not imply ABAP_ALLOW_FLUID_PLUGINS", () => {
+    const cfg = loadConfig({
+      env: env({ ABAP_ALLOW_FLUID_PLUGIN_MUTATE: "true" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(cfg.allowFluidPluginMutate).toBe(true);
+    expect(cfg.allowFluidPlugins).toBe(false);
+  });
+
+  it("ABAP_ALLOW_FLUID_CALL_FM=true resolves alone", () => {
+    const cfg = loadConfig({
+      env: env({ ABAP_ALLOW_FLUID_CALL_FM: "true" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(cfg.allowFluidCallFm).toBe(true);
+  });
+
+  it("setting any of the three produces no unrecognised-name warning — proof they landed in RECOGNISED_ABAP_ALLOW_ENV_VARS", () => {
+    for (const name of [
+      "ABAP_ALLOW_FLUID_PLUGINS",
+      "ABAP_ALLOW_FLUID_PLUGIN_MUTATE",
+      "ABAP_ALLOW_FLUID_CALL_FM",
+    ]) {
+      const warnings: string[] = [];
+      loadConfig({ env: env({ [name]: "true" }), warn: (m) => warnings.push(m), skipDotenv: true });
+      expect(warnings.join("\n"), name).not.toMatch(/not a setting this server reads/);
+    }
+  });
+});
+
+describe("config: ABAP_FLUID_PLUGINS splits on commas only", () => {
+  it("unset yields []", () => {
+    const cfg = loadConfig({ env: env(), warn: () => {}, skipDotenv: true });
+    expect(cfg.fluidPlugins).toEqual([]);
+  });
+
+  it("a space inside a plugin path survives — the whole reason this is not splitList", () => {
+    const cfg = loadConfig({
+      env: env({ ABAP_FLUID_PLUGINS: "/opt/my plugins/a,/opt/b" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(cfg.fluidPlugins).toEqual(["/opt/my plugins/a", "/opt/b"]);
+  });
+
+  it("drops empty entries from stray/trailing commas", () => {
+    const cfg = loadConfig({
+      env: env({ ABAP_FLUID_PLUGINS: "a,,b," }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(cfg.fluidPlugins).toEqual(["a", "b"]);
+  });
+});
+
+describe("config: resolveStaticCapabilities.canUseFluidApi", () => {
+  it("true on a writable config with the flag on", () => {
+    const cfg = loadConfig({
+      env: env({ ABAP_ALLOW_WRITE: "true" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(cfg.fluidApi).toBe(true);
+    expect(cfg.readOnly).toBe(false);
+    expect(resolveStaticCapabilities(cfg).canUseFluidApi).toBe(true);
+  });
+
+  it("false when ABAP_FLUID_API=false, even with writes on", () => {
+    const cfg = loadConfig({
+      env: env({ ABAP_ALLOW_WRITE: "true", ABAP_FLUID_API: "false" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(cfg.readOnly).toBe(false);
+    expect(resolveStaticCapabilities(cfg).canUseFluidApi).toBe(false);
+  });
+
+  it("false when ABAP_MODE=read, even with the flag on", () => {
+    const cfg = loadConfig({
+      env: env({ ABAP_MODE: "read" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(cfg.fluidApi).toBe(true);
+    expect(cfg.abapMode).toBe("read");
+    expect(resolveStaticCapabilities(cfg).canUseFluidApi).toBe(false);
+  });
+
+  it("false when writes are off (ABAP_ALLOW_WRITE unset, so readOnly is true)", () => {
+    const cfg = loadConfig({ env: env(), warn: () => {}, skipDotenv: true });
+    expect(cfg.fluidApi).toBe(true);
+    expect(cfg.readOnly).toBe(true);
+    expect(cfg.abapMode).toBeUndefined();
+    expect(resolveStaticCapabilities(cfg).canUseFluidApi).toBe(false);
   });
 });
