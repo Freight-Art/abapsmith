@@ -8,7 +8,7 @@
 import type { AbapConnection } from "../connection.js";
 import type { SafetyGate } from "../../safety.js";
 import { systemKey } from "../../journal.js";
-import { authorizeMutation, createPackage, NO_JOURNAL } from "../write.js";
+import { authorizeMutation, createPackage, resolveWriteTarget, NO_JOURNAL } from "../write.js";
 
 /** `$`-prefixed, so it is local by construction — `isSapPackage` and the transport allowlist both key off that prefix, not the literal name. */
 export const FLUID_PACKAGE = "$ABAPSMITH_FLUID_API";
@@ -35,6 +35,25 @@ export function isReservedFluidName(name: string): boolean {
 const memo = new Map<string, Promise<void>>();
 
 async function createFluidPackage(conn: AbapConnection, gate: SafetyGate): Promise<void> {
+  // Probe existence BEFORE asking the gate to judge anything. `SafetyGate`'s
+  // name-prefix rule (`ABAP_ALLOW_NAME_PREFIXES`) is a rule about what may be
+  // CREATED, but `FLUID_PACKAGE` is `$`-prefixed by construction (see its own
+  // doc comment) and so never starts with an operator's Z/Y-only allowlist —
+  // an operator who sets ABAP_ALLOW_NAME_PREFIXES=Z,Y (a perfectly ordinary
+  // setting) would have every cold path here refused even when the package
+  // already exists and nothing at all needs creating. A gate judging a name
+  // we are not going to write is a false refusal, not a safety property; the
+  // unauthorized resolver `resolveWriteTarget` (the same one `ensure.ts`'s
+  // `classifyOne` uses) answers "does it exist" for free, with no gate
+  // involved, so the common warm case costs nothing and denies nothing.
+  const probe = await resolveWriteTarget(conn, { type: "DEVC/K", name: FLUID_PACKAGE }, "write");
+  if (probe.exists) return;
+
+  // Only the actual CREATE — the one operation the gate exists to police —
+  // is authorized. It still carries the full gate: `authorizeMutation`
+  // re-resolves and re-checks `exists` itself (belt-and-braces below) before
+  // handing back a mint it alone can produce, so nothing here bypasses the
+  // safety check that matters; it only stops applying it to a no-op.
   const authorized = await authorizeMutation(conn, gate, "write", {
     type: "DEVC/K",
     name: FLUID_PACKAGE,

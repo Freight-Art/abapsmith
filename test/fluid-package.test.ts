@@ -226,3 +226,50 @@ describe("ensureFluidPackage", () => {
     expect(createsSince(server, before)).toHaveLength(2);
   });
 });
+
+// A live A4H finding: `ABAP_ALLOW_NAME_PREFIXES=Z,Y` is a perfectly ordinary
+// operator setting, and `$ABAPSMITH_FLUID_API` never starts with either — it
+// is `$`-prefixed by construction (see FLUID_PACKAGE's own doc comment). The
+// old `createFluidPackage` asked the gate to judge the create BEFORE checking
+// whether there was anything to create, so a warm system (package already
+// there, nothing to write) was refused for a name it was never going to
+// write. `zyGate` below is that exact operator setting, reused by both tests.
+describe("ensureFluidPackage under a Z/Y-only name-prefix allowlist", () => {
+  const zyGate = (): SafetyGate =>
+    new SafetyGate({
+      readOnly: false,
+      allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
+      allowNamePrefixes: ["Z", "Y"],
+      writesLockedOut: false,
+    });
+
+  it("an already-present $ABAPSMITH_FLUID_API is accepted under a Z/Y-only name-prefix allowlist", async () => {
+    const { conn, server } = await wired([existingRoute]);
+    const before = server.calls.length;
+
+    // Must resolve cleanly — nothing needs creating, so nothing should ever
+    // reach the gate to be judged and refused.
+    await expect(ensureFluidPackage(conn, zyGate())).resolves.toBeUndefined();
+
+    // And in particular: no create POST was ever issued.
+    expect(createsSince(server, before)).toHaveLength(0);
+  });
+
+  it("creating a missing $ABAPSMITH_FLUID_API still goes through the gate", async () => {
+    const { conn, server } = await wired([absentRoute]);
+    const before = server.calls.length;
+
+    // The package genuinely does not exist here, so the create path is
+    // exercised for real — and SafetyGate.evaluate's name-prefix rule (run
+    // unconditionally, after the package-allowlist check, independent of
+    // `exists`) judges $ABAPSMITH_FLUID_API against [Z, Y] and refuses it,
+    // same as it would for any other $-prefixed create under this allowlist.
+    // The point of this test is that the existence-probe fix does not also
+    // remove the gate from the path that actually creates something.
+    await expect(ensureFluidPackage(conn, zyGate())).rejects.toMatchObject({
+      code: "SAFETY_DENIED",
+    });
+
+    expect(createsSince(server, before)).toHaveLength(0);
+  });
+});
