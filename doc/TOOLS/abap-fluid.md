@@ -61,13 +61,16 @@ schemas.
 { "op": "describe", "tool": "rt" }
 ```
 
-### status — no network
+### status — best-effort read
 
 Where the fluid API stands on this system: the flag, the package, the
 write mode, how many tools are loaded, and what abapsmith's local registry
 believes is currently deployed (tool id, contract, version, objects,
-`deployedAt`). Reads the local registry file under `ABAP_STATE_DIR` only —
-never the system itself.
+`deployedAt`). Reads the local registry file under `ABAP_STATE_DIR`, and
+— best effort — probes the system for retired pre-fluid bridge classes,
+reporting which of them still exist. The probe is read-only and never
+mutates; if no connection can be made, or the probe fails, `status` still
+renders the local answer and says the probe did not run.
 
 ```json
 { "op": "status" }
@@ -80,7 +83,8 @@ Classifies every object of the named tool (or of every loaded tool if
 `present`, `absent`, `stale`, `inactive`, `broken`, `foreign` (an object of
 that name exists in a package abapsmith does not own — it is never touched)
 or `legacy` (a reserved `ZCL_ZMCP_`/`ZIF_ZMCP_` name stranded in `$TMP` or
-`$ZMCP_HELPERS`, a pre-fluid install).
+`$ZMCP_HELPERS`, a pre-fluid install). The summary also reports how many
+retired pre-fluid bridge classes are still present on the system.
 
 ```json
 { "op": "verify", "tool": "rt" }
@@ -112,6 +116,12 @@ from the system, then deploys, relocates, or re-creates whatever is not
 plain rewrite — the source already matches what would be written, so a
 plain write short-circuits and never touches a broken object. One repair
 attempt per object per call; never a retry loop.
+
+When `tool` is **omitted**, `repair` additionally deletes any retired
+pre-fluid bridge classes that are still present, through the ordinary
+authorized delete path, and reports what it deleted. A class of one of
+those names found in a package abapsmith does not own is reported as
+moved and is never touched. Naming a `tool` skips the reap entirely.
 
 ```json
 { "op": "repair", "tool": "rt" }
