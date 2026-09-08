@@ -16,6 +16,7 @@ import { createHash } from "node:crypto";
 import { isCsrfError } from "abap-adt-api";
 import type { AbapConnection } from "./connection.js";
 import { AbapError, isAbapError } from "./errors.js";
+import { discloseBridgeResidue, type BridgeResidueStage } from "./bridge-residue.js";
 import { truncateText, DUMP_SHORT_TEXT_MAX } from "../truncate.js";
 // Dump parsing and ADT-error translation live in session.ts — single source of
 // truth, so the write path and the run path classify a dead session identically.
@@ -1178,49 +1179,6 @@ export async function deployBridge(
   } catch (e) {
     throw discloseBridgeResidue(e, className, authorized.target.packageName, stage);
   }
-}
-
-/** Which post-write step {@link discloseBridgeResidue} caught the failure in. */
-type BridgeResidueStage = "activate-gate" | "activation" | "verify";
-
-/**
- * ARCH-09 §5.6/P9: once `writeObject` succeeds, any failure below it leaves
- * `className` behind in `packageName`. Disclosure, not deletion — deleting it
- * would destroy an artefact a developer might want to inspect — so this only
- * adds facts to the existing error; `code`/`message` stay untouched since
- * callers/tests branch on `code`.
- *
- * `stage` (not the caught error's `code`) decides the wording, since only
- * `stage` says what actually ran. Only called from the catch below
- * `writeObject` — a refusal from `authorizeMutation` must reach the caller
- * unchanged, so this isn't hoisted to wrap the whole function.
- */
-function discloseBridgeResidue(
-  e: unknown,
-  className: string,
-  packageName: string,
-  stage: BridgeResidueStage,
-): unknown {
-  if (!isAbapError(e)) return e; // every step above throws AbapError; anything else passes through untouched.
-
-  const outcome =
-    stage === "activate-gate"
-      ? "was blocked before activation could run; it is left behind there, inactive"
-      : stage === "activation"
-        ? "failed to activate; it is left behind there, inactive"
-        : "activated, then failed post-activation verification; it is left behind there";
-
-  const residueHint = `Bridge class ${className} was written to ${packageName} but ${outcome} — safe to delete.`;
-
-  const disclosed = new AbapError(
-    e.code,
-    e.message,
-    { ...e.details, bridgeClass: className, bridgeLeftBehind: true },
-    e.hint ? `${e.hint} ${residueHint}` : residueHint,
-  );
-  disclosed.stack = e.stack;
-  disclosed.cause = e.cause;
-  return disclosed;
 }
 
 /**
