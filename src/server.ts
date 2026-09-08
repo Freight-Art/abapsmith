@@ -48,8 +48,11 @@ import { registerDumpTools } from "./tools/dumps.js";
 import { registerAtcTools } from "./tools/atc.js";
 import { registerQuickFixTools } from "./tools/quickfix.js";
 import { registerServiceTools } from "./tools/service.js";
+import { builtinFluidToolSet, registerFluidTool } from "./tools/fluid.js";
 // The six v2 consolidated tools, opt-in via `cfg.toolSurface` (see REGISTRATION below).
 import { registerV2Tools } from "./tools/v2/register.js";
+import { BUILTIN_FLUID_TOOLS } from "./adt/fluid/builtin/index.js";
+import type { FluidToolSet } from "./adt/fluid/plugin-loader.js";
 
 export const SERVER_NAME = "abapsmith";
 export const SERVER_VERSION = "0.3.0";
@@ -57,6 +60,8 @@ export const SERVER_VERSION = "0.3.0";
 export interface ServerOptions extends ConnectionOptions {
   /** Injectable for tests; defaults to `journalConfigFromEnv()`. */
   journal?: Journal;
+  /** Fluid tools resolved by `loadFluidTools` (async, so it happens in src/index.ts). Defaults to builtins only. */
+  fluidToolSet?: FluidToolSet;
 }
 
 export interface AbapsmithServer {
@@ -265,6 +270,10 @@ export function instructionsFor(
   abapMode: AbapMode | undefined,
   readOnly: boolean,
   allowPackages: readonly string[],
+  // Optional, defaulted, so `test/server-instructions-write-scope.test.ts`'s
+  // existing 4-arg calls keep compiling. Only the v1 branch reads it — v2
+  // never registers `abap_fluid`.
+  fluidAvailable = false,
 ): string {
   // Under ABAP_MODE, ABAP_ALLOW_WRITE is never read; say what actually governs.
   const writeGate =
@@ -307,7 +316,11 @@ export function instructionsFor(
     `allowlist permits: ${packageScope} Every write records the ` +
     "previous source locally first, so abap_journal mode=undo can put it back — but " +
     "only for objects this server wrote. Responses are capped and truncation is " +
-    "always marked."
+    "always marked." +
+    (fluidAvailable
+      ? " abap_fluid deploys and runs small generated ABAP tools inside " +
+        "$ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)."
+      : "")
   );
 }
 
@@ -437,7 +450,15 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
 
   const mcp = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
-    { instructions: instructionsFor(cfg.toolSurface, cfg.abapMode, cfg.readOnly, cfg.allowPackages) },
+    {
+      instructions: instructionsFor(
+        cfg.toolSurface,
+        cfg.abapMode,
+        cfg.readOnly,
+        cfg.allowPackages,
+        toolCapabilities.canUseFluidApi,
+      ),
+    },
   );
   // Fallback session id — minted once here, not inside `oninitialized`,
   // so a second `initialize` on the same process (there is no such thing over
@@ -615,7 +636,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     if (toolCapabilities.canWrite) {
       registerBopfTestTool(mcp, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
       registerFpmTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-      // `abap_ui`'s `screen` mode deploys a throwaway $TMP bridge class, so
+      // `abap_ui`'s `screen` mode deploys a throwaway $ABAPSMITH_FLUID_API bridge class, so
       // it needs write capability just to register. `press` (committing) is
       // gated far more tightly at call time — `assertPressEnabled` in
       // src/tools/ui.ts requires ABAP_MODE=admin AND ABAP_ALLOW_UI_PRESS.
@@ -675,6 +696,27 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     // like `abap_atc` — three GETs, nothing created server-side. No
     // `safety` — `read` is outside `MUTATING_OPS` and always allowed.
     registerServiceTools(mcp, { pool, cfg, ensureConnected, errorResult });
+    // `abap_fluid` installs generated ABAP into $ABAPSMITH_FLUID_API — there is
+    // no read-only subset of it, so when ABAP_FLUID_API is off or the system is
+    // read-only the tool is not registered at all and costs no schema bytes,
+    // exactly like `abap_data_preview` above. `canUseFluidApi` is strictly
+    // narrower than `canWrite` (see its doc comment in config.ts), so this is
+    // outside/adjacent to the `canWrite` block rather than nested in it. The
+    // connected ceilings (a productive system, a write lockout, a failed role
+    // probe) are unknowable here, so every op re-checks
+    // `fluidDisabledReason(cfg, safety)` at call time (`src/tools/fluid.ts`).
+    if (toolCapabilities.canUseFluidApi) {
+      registerFluidTool(mcp, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult,
+        journal,
+        warn,
+        toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS),
+      });
+    }
   } else {
     // The six v2 consolidated tools. `abapMode` falls back, fail-closed, to
     // `"read"` for a missing/unrecognized ABAP_MODE, when on legacy per-flag config

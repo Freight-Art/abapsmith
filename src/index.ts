@@ -8,6 +8,8 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AbapConnection } from "./adt/connection.js";
 import { AuthCircuitBreaker } from "./adt/circuit-breaker.js";
+import { BUILTIN_FLUID_TOOLS } from "./adt/fluid/builtin/index.js";
+import { loadFluidTools } from "./adt/fluid/plugin-loader.js";
 import { loadConfig, redactConfigSecrets } from "./config.js";
 import { shutdownAllDebugSessions } from "./debug/session.js";
 import { createServer } from "./server.js";
@@ -63,9 +65,20 @@ async function main(): Promise<void> {
     `[abapsmith] config (secrets redacted; host, user and SID are not): ${JSON.stringify(redactConfigSecrets(cfg))}\n`,
   );
 
+  // Plugin discovery is filesystem work and async, and `createServer` is
+  // synchronous by design (it is the composition root, not an I/O step) — so
+  // the tool set is resolved here, once, before registration.
+  const fluidToolSet = await loadFluidTools(cfg, BUILTIN_FLUID_TOOLS);
+  for (const r of fluidToolSet.refused) {
+    process.stderr.write(`[abapsmith] fluid plugin refused (${r.code}): ${r.path} — ${r.reason}\n`);
+  }
+  for (const w of fluidToolSet.warnings) {
+    process.stderr.write(`[abapsmith] fluid plugin warning: ${w}\n`);
+  }
+
   // Sole circuit breaker instance for the process; forConfig() replays any
   // existing lockout for these credentials at zero request cost.
-  const server = createServer(cfg, { breaker: AuthCircuitBreaker.forConfig(cfg) });
+  const server = createServer(cfg, { breaker: AuthCircuitBreaker.forConfig(cfg), fluidToolSet });
   // Must precede server.start() — see armDebugShutdown.
   armDebugShutdown(server, async () => {
     // Synchronous and first: closes the debug trigger connection before any
