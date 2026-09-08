@@ -9,7 +9,7 @@ import type { AbapConnection } from "../connection.js";
 import type { Config } from "../../config.js";
 import type { SafetyGate } from "../../safety.js";
 import { systemKey } from "../../journal.js";
-import { AbapError, isAbapError, describeUnknownError } from "../errors.js";
+import { AbapError, describeUnknownError } from "../errors.js";
 import { discloseBridgeResidue, type BridgeResidueStage } from "../bridge-residue.js";
 import {
   authorizeMutation,
@@ -509,75 +509,90 @@ export async function ensureFluidTool(
 }
 
 /**
- * Standard ABAP kernel text for runtime error `SYNTAX_ERROR`: a fixed
- * "Syntax error in program "&1"." template, not something abapsmith
- * generates or controls. `translateRunFailure` (src/adt/run.ts) never
- * exposes a runtime-error id or a structured "cause" field for a
- * `RUNTIME_DUMP` — `AbapError.details` for that code carries only
- * `{class, shortText, serverTime?, status, dumpCorrelation?}` (see
- * `DumpInfo`/`translateRunFailure`, src/adt/run.ts:59-62 and 663-688), where
- * `shortText` is whatever `extractDumpShortText` (src/adt/session.ts:224-244)
- * scraped off the ICM error page's HTML. So `shortText` prose is the only
- * discriminator this codebase has for "the class that just ran would not
- * compile" — a real, acknowledged cost (a wording change on SAP's side would
- * silently stop matching), which is why the match is anchored to the start
- * of the string and requires the fixed word "program" right after it, rather
- * than a loose substring test. Not verified against a non-English logon
- * language; every fixture and live run seen so far uses English NetWeaver
- * system text.
+ * One object's live existence, as a provable server fact — nothing else.
+ * Deliberately narrower than {@link FluidObjectStatus}: no source comparison,
+ * no activation check, just "did `resolveWriteTarget` find it." That is the
+ * one thing cheap enough to run unconditionally on every deploy/execute
+ * failure (see `anyFluidObjectMissing`'s doc) and the one thing narrow enough
+ * that S9's own "is this tool's deployment still real" question can build on
+ * it without paying for a full `classifyFluidTool` pass.
  */
-const SYNTAX_ERROR_DUMP_TEXT = /^syntax error in program\b/i;
+export interface FluidObjectPresence {
+  readonly name: string;
+  readonly type: FluidObjectType;
+  readonly exists: boolean;
+}
 
 /**
- * True when the failure is one `forgetManifest` + a redeploy can plausibly
- * repair — two distinct shapes, both meaning "the ABAP-side object graph
- * this call depends on has drifted out from under the caller since it was
- * last deployed," not "the fluid layer generated something that never
- * compiled":
- *
- * 1. The one shape ADT reliably uses when a referenced object no longer
- *    exists on the server at all: `404` + `ExceptionResourceNotFound`,
- *    translated by `translateAdtError` into `AbapError("NOT_FOUND", ...)`
- *    (see `isNotFoundError`, src/adt/session.ts:509-514, used at
- *    src/adt/session.ts:660-667). Every ADT existence check in this
- *    codebase — including `resolveWriteTarget`, which `classifyOne` above
- *    already relies on, and the retired-bridge reaper's
- *    `probeRetiredBridges` (src/adt/fluid/retired.ts:73-77) — goes through
- *    that same path, so a `NOT_FOUND` here is strong, provable evidence the
- *    object is gone, not a guess.
- *
- * 2. A generated invoker that still exists, unchanged, and whose own
- *    `adtcore:version` metadata still says "active" — but which statically
- *    references a fluid body class deleted out from under it. Deleting the
- *    referenced class does not touch the invoker's own row, so it is NOT
- *    `NOT_FOUND`: the invoker's *program* fails to (re)generate the next
- *    time something tries to run it, which classrun (`runClass`,
- *    src/adt/run.ts:775-810) surfaces as a `RUNTIME_DUMP` short dump — a
- *    `SYNTAX_ERROR` whose short text is `Syntax error in program "…"` —
- *    live-verified: dispatching against a fixture body class deleted
- *    out-of-band produced exactly `RUNTIME_DUMP` with that shortText, not
- *    `NOT_FOUND`, from `runClass` inside `executeBridge`. Matched by
- *    {@link SYNTAX_ERROR_DUMP_TEXT} above.
- *
- * What this deliberately does NOT cover: any other `RUNTIME_DUMP` —
- * "Division by zero", "Field symbol has not yet been assigned", and every
- * other short dump a class can produce at runtime for reasons that have
- * nothing to do with a missing fluid dependency — and a generated invoker
- * that fails ADT's own activation check (`CHECK_FAILED` from
- * `assertNoErrors`, src/adt/activate.ts) rather than a runtime dump. Both
- * are real bugs in what this codebase generated or wrote, and matching them
- * here would silently redeploy over a defect instead of surfacing it: the
- * caller's bounded single retry (see `recoverMissingFluidObject`'s doc, and
- * `dispatch.ts`'s call site, which never loops) still throws the second time
- * for anything that is not actually a dependency drift, so under-matching is
- * always safe and over-matching is the risk this function is written to avoid.
+ * Cheap, read-only existence probe over every object `tool`'s manifest
+ * declares — one `resolveWriteTarget` GET per object, the exact same call
+ * `classifyOne` above and the retired-bridge reaper's `probeRetiredBridges`
+ * (src/adt/fluid/retired.ts:73) already use to answer "does the server have
+ * this?" as a provable fact rather than a guess. Never throws: a single
+ * unreadable name must not blind the whole probe, so a `resolveWriteTarget`
+ * failure on one object is worth surfacing, not swallowing — this
+ * deliberately does NOT copy `probeRetiredBridges`'s catch-and-report-"unknown"
+ * behavior, because a probe result `anyFluidObjectMissing` cannot tell apart
+ * from "definitely missing" is worse than letting the caller's own retry
+ * bound handle a genuine second failure.
  */
-export function isFluidRedeployableFailure(e: unknown): boolean {
-  if (!isAbapError(e)) return false;
-  if (e.code === "NOT_FOUND") return true;
-  if (e.code !== "RUNTIME_DUMP") return false;
-  const shortText = e.details.shortText;
-  return typeof shortText === "string" && SYNTAX_ERROR_DUMP_TEXT.test(shortText);
+export async function probeFluidObjectsExist(
+  conn: AbapConnection,
+  tool: LoadedFluidTool,
+): Promise<readonly FluidObjectPresence[]> {
+  const results: FluidObjectPresence[] = [];
+  for (const obj of tool.manifest.objects) {
+    const resolved = await resolveWriteTarget(conn, { type: obj.type, name: obj.name }, "write");
+    results.push({ name: obj.name, type: obj.type, exists: resolved.exists });
+  }
+  return results;
+}
+
+/**
+ * True when at least one of `tool`'s manifest objects is provably absent from
+ * the server right now. This is what `dispatch.ts`'s catch block runs on
+ * ANY failure out of its deploy/execute range to decide whether a redeploy
+ * can plausibly help — replacing an earlier, narrower approach
+ * (`isFluidRedeployableFailure`, matched on the failing `AbapError`'s own
+ * code and message text) that turned out to miss the dominant real-world
+ * shape entirely.
+ *
+ * Deleting a fluid body class out-of-band was live-verified to surface as
+ * BOTH of two different `AbapError` codes, depending on one thing:
+ * `deployBridge`'s own F6 shortcut (src/adt/run.ts, `alreadyActive`), which
+ * skips reactivating the generated invoker whenever its source hash is
+ * unchanged AND its `adtcore:version` metadata already says active.
+ *
+ *   - F6 engages (the invoker already existed, unchanged, still marked
+ *     active — true right after the SAME args are dispatched a second time):
+ *     the stale compiled program executes anyway, and `runClass` surfaces a
+ *     `RUNTIME_DUMP` short dump (`SYNTAX_ERROR`, "Syntax error in program …").
+ *   - F6 does NOT engage (the invoker needs writing or (re)activating at
+ *     all — new args, a class name never deployed on this connection before,
+ *     or any other reason `write.created || write.changed` is true, or the
+ *     server's own `adtcore:version` was not already "active-is-current"):
+ *     the activation check itself catches the dangling reference to the
+ *     deleted body class BEFORE `runClass` ever runs, and `assertNoErrors`
+ *     throws `CHECK_FAILED` — live-verified as the actual failure on a fresh
+ *     invoker built for previously-undeployed args.
+ *
+ * Matching free text for the second shape (a second regex over
+ * `checkFailedError`'s rendered checklist) would repeat the first shape's
+ * mistake — brittle, English-only prose — and worse: `CHECK_FAILED` also
+ * means "the fluid layer generated ABAP that genuinely does not compile," an
+ * outcome that must keep surfacing as a real error, never trigger a silent
+ * redeploy. An existence probe sidesteps the whole distinction: it does not
+ * look at what the failure says, only at whether the server can currently
+ * prove the dependency is there. `NOT_FOUND` (a referenced object entirely
+ * gone) and both of the shapes above all resolve to the same provable fact —
+ * something in the manifest is missing — while a `CHECK_FAILED` (or anything
+ * else) with every manifest object present is a genuine codegen defect and
+ * must not be papered over: `anyFluidObjectMissing` answers `false`, and the
+ * caller rethrows the original failure unchanged.
+ */
+export async function anyFluidObjectMissing(conn: AbapConnection, tool: LoadedFluidTool): Promise<boolean> {
+  const presence = await probeFluidObjectsExist(conn, tool);
+  return presence.some((p) => !p.exists);
 }
 
 /**

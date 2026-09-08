@@ -244,12 +244,67 @@ async function deleteInvokerIfPresent(config: Config, toolId: string, contract: 
   await deleteObjectIfPresent(config, invokerName(toolId, action, {}, contract));
 }
 
+/**
+ * The same "the registry can lie" premise the self-heal test below proves
+ * `dispatch()` survives, applied to the harness itself: `afterAll` deletes
+ * `FIXTURE_CLASS` every run (see its own comment) and forgets the registry
+ * entry alongside it, but a run that crashed before reaching `afterAll`, or
+ * ran under an older version of this file that didn't forget the entry, can
+ * leave the class deleted on the server while the on-disk registry still
+ * claims it is deployed at the current contract/version — exactly the
+ * condition `ensureFluidTool`'s cache-trusting fast path is built to trust.
+ * Called from `beforeAll` (so every test in this block starts from a
+ * known-good fixture instead of silently depending on `dispatch()`'s own
+ * self-heal — the very mechanism under test two `it`s down — to paper over
+ * the harness's own setup gap) and from the self-heal test's own `finally`
+ * (so a mid-test failure there cannot leave the appliance poisoned for
+ * every test/run that comes after). Always a live probe, never a registry
+ * read, so it correctly no-ops whenever the fixture is already present.
+ */
+async function restoreFixtureIfMissing(): Promise<void> {
+  const probe = await resolveWriteTarget(conn, { type: "CLAS/OC", name: FIXTURE_CLASS }, "write");
+  if (probe.exists) return;
+  await forgetManifest(cfg, systemKey(conn.cfg), fixtureManifest.id);
+  await ensureFluidTool(conn, GATE, cfg, fixtureTool, {
+    tool: fixtureManifest.id,
+    action: "ok",
+    op: "run",
+  });
+}
+
+/**
+ * On failure, print what `checkFailedError` (activate.ts) actually rendered
+ * — the one piece of a `CHECK_FAILED` that names which object and message
+ * the activation check complained about. Test output that shows only
+ * `"... failed: 1 error."` (the AbapError's own one-line summary) hides
+ * exactly this; logging `details.messages` is what turns an unattributable
+ * failure into an actionable one, the same instrumentation already applied
+ * to `delete_view`'s equivalent dump-to-diagnosis fix. Deliberately only
+ * called on the mismatch path (see call sites below) so a green run stays
+ * quiet.
+ */
+function logAbapErrorDetails(label: string, e: unknown): void {
+  if (!isAbapError(e)) {
+    // eslint-disable-next-line no-console
+    console.error(`[fluid-runtime live] ${label}: not an AbapError — ${String(e)}`);
+    return;
+  }
+  // eslint-disable-next-line no-console
+  console.error(`[fluid-runtime live] ${label}: ${e.code} — ${e.message}`);
+  const messages = e.details.messages;
+  if (typeof messages === "string") {
+    // eslint-disable-next-line no-console
+    console.error(`[fluid-runtime live] ${label} activation messages:\n${messages}`);
+  }
+}
+
 dWrite("live: the fluid API runtime deploys, dispatches, and reports failures on the real appliance", () => {
   beforeAll(async () => {
     cfg = loadConfig();
     conn = new AbapConnection(cfg, { log: () => {}, breaker: new AuthCircuitBreaker() });
     await conn.connect();
-  }, 90_000);
+    await restoreFixtureIfMissing();
+  }, 120_000);
 
   afterAll(async () => {
     if (!conn) return;
@@ -261,6 +316,17 @@ dWrite("live: the fluid API runtime deploys, dispatches, and reports failures on
       await deleteInvokerIfPresent(cfg, fixtureManifest.id, fixtureManifest.contract, "boom");
       await deleteInvokerIfPresent(cfg, fixtureManifest.id, fixtureManifest.contract, "ok");
       await deleteObjectIfPresent(cfg, FIXTURE_CLASS);
+      // Deleting the object above without also forgetting its registry entry
+      // is exactly what would poison the NEXT run of this very suite with a
+      // registry that lies — see restoreFixtureIfMissing's doc. Best-effort,
+      // same as the delete above: a systemKey/forgetManifest failure here
+      // must not fail the whole afterAll and skip conn.shutdown below.
+      try {
+        await forgetManifest(cfg, systemKey(conn.cfg), fixtureManifest.id);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(`[fluid-runtime live] could not forget the ${fixtureManifest.id} registry entry: ${String(e)}`);
+      }
     } finally {
       await conn.shutdown("test-end");
     }
@@ -332,9 +398,17 @@ dWrite("live: the fluid API runtime deploys, dispatches, and reports failures on
   it("dispatch()'s s11_fix2.silent action returns normally with neither OUT nor ERR against a non-void output schema, and surfaces as FLUID_PROTOCOL_ERROR", async () => {
     assertUsable();
     const deps: FluidDeps = { conn, cfg, gate: GATE, tools: FIXTURE_TOOLS };
-    await expect(
-      dispatch(deps, { tool: fixtureManifest.id, action: "silent", args: {} }),
-    ).rejects.toMatchObject({ code: "FLUID_PROTOCOL_ERROR" });
+    let caught: unknown;
+    try {
+      await dispatch(deps, { tool: fixtureManifest.id, action: "silent", args: {} });
+    } catch (e) {
+      caught = e;
+    }
+    if (!(isAbapError(caught) && caught.code === "FLUID_PROTOCOL_ERROR")) {
+      logAbapErrorDetails("s11_fix2.silent", caught);
+    }
+    expect(isAbapError(caught)).toBe(true);
+    expect(isAbapError(caught) && caught.code).toBe("FLUID_PROTOCOL_ERROR");
   }, 120_000);
 
   it("dispatch()'s s11_fix2.boom action raises CX_SY_ZERODIVIDE, caught by the invoker's own CATCH cx_root, and surfaces as FLUID_ACTION_FAILED carrying the exception text", async () => {
@@ -345,6 +419,9 @@ dWrite("live: the fluid API runtime deploys, dispatches, and reports failures on
       await dispatch(deps, { tool: fixtureManifest.id, action: "boom", args: {} });
     } catch (e) {
       caught = e;
+    }
+    if (!(isAbapError(caught) && caught.code === "FLUID_ACTION_FAILED")) {
+      logAbapErrorDetails("s11_fix2.boom", caught);
     }
     expect(isAbapError(caught)).toBe(true);
     expect(isAbapError(caught) && caught.code).toBe("FLUID_ACTION_FAILED");
@@ -366,33 +443,51 @@ dWrite("live: the fluid API runtime deploys, dispatches, and reports failures on
     );
     expect(before.result).toEqual({ ok: true });
 
-    // Delete the body class directly via ADT — NOT through abapsmith/dispatch,
-    // and NOT through the shared `conn` every other test in this block reuses:
-    // this file's own afterAll notes a stateful session here survives only one
-    // object delete, so deleteObjectIfPresent (used the same way afterAll uses
-    // it on this very class) opens its own fresh connection for the delete.
-    await deleteObjectIfPresent(cfg, FIXTURE_CLASS);
+    // Everything from here down deliberately deletes a live object out from
+    // under abapsmith — a `finally` below restores it (a live probe, not a
+    // registry trust) no matter how this section ends, so a mid-test failure
+    // here cannot leave the appliance poisoned for every test/run that comes
+    // after it on a shared appliance.
+    try {
+      // Delete the body class directly via ADT — NOT through abapsmith/dispatch,
+      // and NOT through the shared `conn` every other test in this block reuses:
+      // this file's own afterAll notes a stateful session here survives only one
+      // object delete, so deleteObjectIfPresent (used the same way afterAll uses
+      // it on this very class) opens its own fresh connection for the delete.
+      await deleteObjectIfPresent(cfg, FIXTURE_CLASS);
 
-    // Confirm it is actually gone before asking dispatch to recover it —
-    // otherwise this test would not be pinning anything real.
-    const goneCheck = await resolveWriteTarget(conn, { type: "CLAS/OC", name: FIXTURE_CLASS }, "write");
-    expect(goneCheck.exists, `${FIXTURE_CLASS} was not actually deleted — test setup is broken`).toBe(false);
+      // Confirm it is actually gone before asking dispatch to recover it —
+      // otherwise this test would not be pinning anything real.
+      const goneCheck = await resolveWriteTarget(conn, { type: "CLAS/OC", name: FIXTURE_CLASS }, "write");
+      expect(goneCheck.exists, `${FIXTURE_CLASS} was not actually deleted — test setup is broken`).toBe(false);
 
-    // The registry still says FIXTURE_CLASS is deployed (nothing told it
-    // otherwise) — exactly the stale-registry-vs-server-reality gap that
-    // dispatch()'s self-heal (ensure.ts's isFluidRedeployableFailure /
-    // recoverMissingFluidObject, plus dispatch.ts's forceInvokerRegeneration
-    // to get past deployBridge's own unchanged-content shortcut, wired into
-    // dispatch.ts's runDeployAndExecute retry) exists to close. A single
-    // dispatch() call, with no special handling from the caller, must both
-    // succeed and leave the class back in place.
-    const after = await underApplianceStateWatch("dispatch s11_fix2.ok (self-heal)", () =>
-      dispatch(deps, { tool: fixtureManifest.id, action: "ok", args: {} }),
-    );
-    expect(after.result).toEqual({ ok: true });
+      // The registry still says FIXTURE_CLASS is deployed (nothing told it
+      // otherwise) — exactly the stale-registry-vs-server-reality gap that
+      // dispatch()'s self-heal (ensure.ts's anyFluidObjectMissing /
+      // recoverMissingFluidObject, plus dispatch.ts's forceInvokerRegeneration
+      // to get past deployBridge's own unchanged-content shortcut, wired into
+      // dispatch.ts's runDeployAndExecute retry) exists to close. A single
+      // dispatch() call, with no special handling from the caller, must both
+      // succeed and leave the class back in place.
+      const after = await underApplianceStateWatch("dispatch s11_fix2.ok (self-heal)", async () => {
+        try {
+          return await dispatch(deps, { tool: fixtureManifest.id, action: "ok", args: {} });
+        } catch (e) {
+          logAbapErrorDetails("s11_fix2.ok (self-heal retry)", e);
+          throw e;
+        }
+      });
+      expect(after.result).toEqual({ ok: true });
 
-    const restored = await resolveWriteTarget(conn, { type: "CLAS/OC", name: FIXTURE_CLASS }, "write");
-    expect(restored.exists, `${FIXTURE_CLASS} was not redeployed by self-heal`).toBe(true);
+      const restored = await resolveWriteTarget(conn, { type: "CLAS/OC", name: FIXTURE_CLASS }, "write");
+      expect(restored.exists, `${FIXTURE_CLASS} was not redeployed by self-heal`).toBe(true);
+    } finally {
+      // Whatever happened above — self-heal worked, failed outright, or an
+      // assertion in between threw — restoreFixtureIfMissing is itself a
+      // live probe, so it correctly no-ops when self-heal already did its
+      // job and only pays for a redeploy when it didn't.
+      await restoreFixtureIfMissing();
+    }
   }, 180_000);
 });
 

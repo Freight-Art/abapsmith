@@ -3,12 +3,14 @@
  * "registry says present, server disagrees" defect: the genuine behavioral
  * divergence between `classifyFluidTool` (always asks the server; see its
  * doc comment in ensure.ts) and `ensureFluidTool`'s cache-trusting fast path,
- * plus `isFluidRedeployableFailure` (the dependency-drift predicate for the
- * dispatch-side self-heal — true for both a plain `NOT_FOUND` and the
- * `RUNTIME_DUMP` a since-deleted body class produces in a still-"active",
- * unchanged generated invoker) and `recoverMissingFluidObject` (forget +
- * redeploy once). Same FakeAdt idiom as `test/fluid-ensure.test.ts` — nothing
- * there is exported, so the harness is re-built here rather than imported.
+ * plus `probeFluidObjectsExist`/`anyFluidObjectMissing` (the existence-probe
+ * dispatch.ts's self-heal now gates on — a provable server fact over the
+ * tool's manifest objects, not a classification of the failing error's own
+ * code/message text; see their doc comments in ensure.ts for why free-text
+ * matching on the failure was replaced) and `recoverMissingFluidObject`
+ * (forget + redeploy once). Same FakeAdt idiom as `test/fluid-ensure.test.ts`
+ * — nothing there is exported, so the harness is re-built here rather than
+ * imported.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { promises as fs } from "node:fs";
@@ -20,12 +22,12 @@ import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
-import { AbapError } from "../src/adt/errors.js";
 import { systemKey } from "../src/journal.js";
 import {
   ensureFluidTool,
   classifyFluidTool,
-  isFluidRedeployableFailure,
+  anyFluidObjectMissing,
+  probeFluidObjectsExist,
   recoverMissingFluidObject,
   resetFluidEnsureState,
   type FluidCallContext,
@@ -331,51 +333,58 @@ describe("classifyFluidTool vs ensureFluidTool: the registry-cache divergence", 
   });
 });
 
-describe("isFluidRedeployableFailure", () => {
-  it("is true for an AbapError NOT_FOUND", () => {
-    const e = new AbapError("NOT_FOUND", "ZCL_X does not exist.");
-    expect(isFluidRedeployableFailure(e)).toBe(true);
-  });
-
-  it("is true for a RUNTIME_DUMP whose shortText is the standard invoker syntax-error dump", () => {
-    const e = new AbapError(
-      "RUNTIME_DUMP",
-      "ZCL_ZMCP_I_F4798196 short-dumped: Syntax error in program ZCL_ZMCP_I_F4798196===========CP .",
-      { class: "ZCL_ZMCP_I_F4798196", shortText: 'Syntax error in program "ZCL_ZMCP_I_F4798196===========CP".' },
+describe("probeFluidObjectsExist / anyFluidObjectMissing", () => {
+  it("probeFluidObjectsExist reports each manifest object's live existence independently", async () => {
+    const PRESENT = "ZCL_PROBE_PRESENT";
+    const ABSENT = "ZCL_PROBE_ABSENT";
+    const tool = makeTool(
+      [
+        { name: PRESENT, source: SOURCE_A },
+        { name: ABSENT, source: SOURCE_A },
+      ],
+      "probe-mixed",
     );
-    expect(isFluidRedeployableFailure(e)).toBe(true);
-  });
-
-  it("is false for a RUNTIME_DUMP from an unrelated cause (own bug, not a missing dependency)", () => {
-    const divisionByZero = new AbapError("RUNTIME_DUMP", "ZCL_X short-dumped: Division by zero", {
-      class: "ZCL_X",
-      shortText: "Division by zero",
+    const store = makeStore({
+      [PRESENT]: { exists: true, packageName: FLUID_PACKAGE, source: SOURCE_A, active: true },
+      [ABSENT]: { exists: false },
     });
-    expect(isFluidRedeployableFailure(divisionByZero)).toBe(false);
+    const { conn } = await connected(fluidRoute(store));
 
-    // Mentions "syntax error" but not as the dump's own fixed opening text —
-    // must not match on a bare substring.
-    const unrelatedText = new AbapError("RUNTIME_DUMP", "ZCL_X short-dumped: see syntax error in program log", {
-      class: "ZCL_X",
-      shortText: "see syntax error in program log",
+    const presence = await probeFluidObjectsExist(conn, tool);
+    expect(presence).toEqual([
+      { name: PRESENT, type: "CLAS/OC", exists: true },
+      { name: ABSENT, type: "CLAS/OC", exists: false },
+    ]);
+  });
+
+  it("anyFluidObjectMissing is true the moment any single manifest object is provably absent on the server", async () => {
+    const PRESENT = "ZCL_ANY_PRESENT";
+    const ABSENT = "ZCL_ANY_ABSENT";
+    const tool = makeTool(
+      [
+        { name: PRESENT, source: SOURCE_A },
+        { name: ABSENT, source: SOURCE_A },
+      ],
+      "any-mixed",
+    );
+    const store = makeStore({
+      [PRESENT]: { exists: true, packageName: FLUID_PACKAGE, source: SOURCE_A, active: true },
+      [ABSENT]: { exists: false },
     });
-    expect(isFluidRedeployableFailure(unrelatedText)).toBe(false);
+    const { conn } = await connected(fluidRoute(store));
+
+    expect(await anyFluidObjectMissing(conn, tool)).toBe(true);
   });
 
-  it("is false for a RUNTIME_DUMP with no shortText at all", () => {
-    const e = new AbapError("RUNTIME_DUMP", "ZCL_X short-dumped: (unknown)", { class: "ZCL_X" });
-    expect(isFluidRedeployableFailure(e)).toBe(false);
-  });
+  it("anyFluidObjectMissing is false when every manifest object actually exists on the server — a genuine codegen defect (e.g. CHECK_FAILED) must not be papered over by recovery in this case", async () => {
+    const NAME = "ZCL_ANY_ALL_PRESENT";
+    const tool = makeTool([{ name: NAME, source: SOURCE_A }], "any-all-present");
+    const store = makeStore({
+      [NAME]: { exists: true, packageName: FLUID_PACKAGE, source: SOURCE_A, active: true },
+    });
+    const { conn } = await connected(fluidRoute(store));
 
-  it("is false for an unrelated AbapError code, including CHECK_FAILED with syntax-error wording", () => {
-    const e = new AbapError("CHECK_FAILED", "Syntax error in ZCL_X.");
-    expect(isFluidRedeployableFailure(e)).toBe(false);
-  });
-
-  it("is false for a plain Error and for non-error values", () => {
-    expect(isFluidRedeployableFailure(new Error("boom"))).toBe(false);
-    expect(isFluidRedeployableFailure("boom")).toBe(false);
-    expect(isFluidRedeployableFailure(undefined)).toBe(false);
+    expect(await anyFluidObjectMissing(conn, tool)).toBe(false);
   });
 });
 
@@ -425,11 +434,19 @@ describe("dispatch(): the retry must actually get the invoker's compiled program
       commit: action.category === "mutate",
     });
 
-    // Body class AND invoker both start present, active, and byte-matching —
-    // the exact "nothing here looks wrong" precondition a body class deleted
-    // and silently redeployed out-of-band leaves behind.
+    // The body class is actually gone — the real-world precondition this
+    // whole mechanism exists for (see `anyFluidObjectMissing`'s doc in
+    // ensure.ts). The invoker, in contrast, starts present, active, and
+    // byte-matching what dispatch.ts will itself derive: unchanged from
+    // deployBridge's point of view, so its own F6 shortcut ("already active,
+    // nothing to do") engages on BOTH of dispatch's attempts and the invoker
+    // is never re-activated by deployBridge itself — its stale compiled
+    // program runs and dumps against the now-missing body class. Because the
+    // body class genuinely does not exist right now, the new probe-based
+    // catch in dispatch.ts (`anyFluidObjectMissing`) correctly finds it
+    // missing and recovers, instead of rethrowing the dump unchanged.
     const store = makeStore({
-      [NAME]: { exists: true, packageName: FLUID_PACKAGE, source: SOURCE_A, active: true },
+      [NAME]: { exists: false, packageName: FLUID_PACKAGE },
       [invoker]: { exists: true, packageName: FLUID_PACKAGE, source: invokerSrc, active: true },
     });
 
