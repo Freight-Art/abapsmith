@@ -115,6 +115,15 @@ describe("every wire frame is documented", () => {
       expect(text.includes(`ZMCP-H>${frame}`), `protocol.md missing ZMCP-H>${frame}`).toBe(true);
     }
   });
+
+  it("names no frame beyond the documented six", async () => {
+    const text = await readDoc("protocol.md");
+    // a bare `ZMCP-H>` naming the prefix itself yields an empty capture; drop it.
+    const found = new Set(
+      [...text.matchAll(/ZMCP-H>(\w*)/g)].map((m) => m[1]).filter((name): name is string => !!name),
+    );
+    expect(found).toEqual(new Set(FRAMES));
+  });
 });
 
 describe("authoring.md body-class contract matches protocol requirements", () => {
@@ -155,6 +164,8 @@ describe("truthfulness guards", () => {
 
   it("no FLUID_[A-Z_]+ token in the docs is an invented or stale code", async () => {
     const codes = fluidTokens(await errorsSource());
+    // FLUID_INPUT_TOO_LARGE is allowed here only so the docs can name and deny it;
+    // the "does not exist" test below constrains how it may be mentioned.
     const allowlist = new Set(["FLUID_CONTRACT", "FLUID_CONTRACT_MAJOR", "FLUID_INPUT_TOO_LARGE"]);
 
     const offenders: string[] = [];
