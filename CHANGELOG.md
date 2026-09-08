@@ -12,6 +12,78 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- abapsmith now installs a small set of generated ABAP objects into the connected SAP system,
+  rather than leaving nothing behind between calls. They go into a local, non-transportable
+  package, `$ABAPSMITH_FLUID_API`, which abapsmith creates on first use of a function that needs
+  one. No transport is created or required for any of this, no ICF service is registered, no RFC
+  destination is created, and no background job is scheduled. `ABAP_FLUID_API` (default `true`)
+  is the switch: set it `false` to unregister `abap_fluid` itself and stop the
+  `$ABAPSMITH_FLUID_API` package from ever being created, and pure-ADT tools are entirely
+  unaffected either way. Full detail in `doc/FLUID-API/README.md`.
+- **`ABAP_FLUID_API=false` is not "none of it".** With the flag off, `abap_run` report/class
+  execution, `abap_fpm_read`, `abap_ui` (both `screen` and `press`), `abap_bopf_test`,
+  `abap_img_edit` apply (including its CTS create-request path), `abap_enh`'s six create_*
+  operations (create_spot, add_badi_def, add_filter_def, create_impl, set_filter_values,
+  exercise), and the whole classic-call family (`abap_transport removeObject`, view-delete,
+  tran-delete, package-create, package-delete) all stay registered but now refuse every call with
+  `FLUID_API_DISABLED` — every one of those already worked in `0.4.0`, so turning this flag off
+  is a real regression for an operator upgrading, not a no-op. `abap_enh`'s other operations —
+  write_description, delete, set_impl_active, create_hook, and the read-only
+  discover_hook_anchors — are plain ADT calls, not bridge deploys, and keep working. Everything
+  else abapsmith writes — `abap_write`, `abap_activate`, the BOPF design-time tools, transports —
+  is gated by `canWrite`, not by this flag, and is unaffected.
+- A new tool, `abap_fluid`, with ops `run` (default), `list`, `describe`, `status`, `verify`,
+  `repair` and `remove`; a bare call returns an info block, and `list`/`describe` make no network
+  call. `abap_fluid(op="remove")` deletes the objects a scope names (`tool`, `invokers`, or
+  `all`) but never the `$ABAPSMITH_FLUID_API` package itself: deleting a package requires
+  deploying a helper class into it first, and a non-empty package can't be removed from inside
+  itself, so an operator who wants the package gone drops it by hand once it's empty. Full op
+  reference in `doc/TOOLS/abap-fluid.md`.
+- Three new default-off safety flags: `ABAP_ALLOW_FLUID_PLUGINS` (load operator-supplied fluid
+  plugins at all), `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` (allow a plugin action categorised `mutate`;
+  not implied by `ABAP_ALLOW_FLUID_PLUGINS`), and `ABAP_ALLOW_FLUID_CALL_FM` (allow the built-in
+  `core.call_fm` action, which calls an arbitrary function module under the connected user's own
+  SAP authorisations). `core.call_fm` is the widest blast radius in this feature, and the control
+  on it is authorisation-shaped: the flag only decides whether abapsmith will issue the call, not
+  what the call can do — that's the SAP authorisation concept's job.
+
+### Changed
+
+- Generated objects that earlier releases wrote to `$ZMCP_HELPERS` or `$TMP` are relocated to
+  `$ABAPSMITH_FLUID_API` the first time a loaded manifest that names them runs, by
+  delete-then-recreate — an ABAP object can't change package, so this is a move, not a copy, and
+  only objects a manifest actually names are ever touched. The ten retired pre-fluid bridge
+  classes are a separate, closed list: `abap_fluid(op="status")` reports each present/moved/unknown
+  class individually, folding an all-absent result into a single aggregate "none" line rather
+  than listing absent classes, and `abap_fluid(op="repair")` (with no `tool`) deletes the present
+  ones. abapsmith never deletes a package: `$ZMCP_HELPERS` is the one it used to create, and an
+  operator may drop it by hand once `status` shows it empty. `$TMP` is SAP's own standard
+  local-development package, not abapsmith's, and is never something to drop — only the leftover
+  `ZCL_ZMCP_*` objects inside it are left for the operator to clean up.
+- Generated invoker classes (`ZCL_ZMCP_I_...`) now accumulate in `$ABAPSMITH_FLUID_API` — each
+  distinct call shape gets its own class, and nothing deletes them automatically.
+  `abap_fluid(op="status")` counts them per tool, `repair(tool=...)` prunes stale ones, and
+  `remove(scope="invokers")` sweeps all of them.
+- No existing tool was renamed, removed, or changed shape, and `ABAP_TOOL_SURFACE` is unchanged;
+  `abap_fluid` is purely additive. A read-only session — `ABAP_MODE=read`, legacy config (no
+  `ABAP_MODE`) with `ABAP_ALLOW_WRITE` unset, a productive system, a failed role probe, or a write
+  lockout — disables the fluid API completely; `abap_fluid` is not even registered when any of
+  three statically-known conditions hold: `ABAP_FLUID_API=false`, `ABAP_MODE=read`, or `readOnly`
+  is otherwise true. `readOnly` traces back to `ABAP_ALLOW_WRITE` only when `ABAP_MODE` is unset —
+  once `ABAP_MODE` is set, `ABAP_ALLOW_WRITE` is ignored entirely and `readOnly` follows the
+  mode's own capability instead.
+- Operator note: a narrow `ABAP_ALLOW_PACKAGES` must now include both `$TMP` and
+  `$ABAPSMITH_FLUID_API` — creating the package is judged against its superpackage `$TMP`, but
+  every ordinary object write into it afterwards is judged against `$ABAPSMITH_FLUID_API`
+  itself. Missing either one makes every bridge-backed tool, not just new ones, refuse at the
+  package gate.
+- Operator note: a narrow `ABAP_ALLOW_NAME_PREFIXES` (e.g. `Z,Y`) refuses the one-time creation
+  of `$ABAPSMITH_FLUID_API`, since that name starts with neither `Z` nor `Y`. Widen the list once
+  (or create the package another way); once the package exists, the prefix rule is never
+  consulted for it again.
+
 ## [0.4.0] - 2026-09-06
 
 ### Added

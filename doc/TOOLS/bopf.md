@@ -1,5 +1,18 @@
 # BOPF
 
+`abap_bopf`, `abap_bopf_edit`, and `abap_bopf_delete` are pure ADT REST and
+are unaffected by `ABAP_FLUID_API`: with the flag off, all three keep
+working exactly as documented below — pinned by
+`test/bopf-design-time-not-fluid.test.ts`, which asserts no built-in fluid
+manifest claims a `bopf` tool id and that all three tools still produce a
+real, successful outcome with `fluidApi: false`. Only `abap_bopf_test` (see
+its section) uses the fluid bridge: registration is gated by `canWrite`, not
+by the flag, so it stays in `tools/list` with the flag off, but it refuses at
+call time with `FLUID_API_DISABLED` — pinned by
+`test/fluid-bridge-preflight-package.test.ts`, whose `abap_bopf_test` case
+drives `runBopfTestBridge` on a `fluidApi: false` connection and asserts the
+error's `details.tool`/`details.action` are `abap_bopf_test`/`run_test`.
+
 ## abap_bopf
 
 Read a BOPF business object model, or search for one.
@@ -418,6 +431,8 @@ and report what came back.
 
 Notes: **writes real rows by default** — save is not optional, because
 determinations and validations only fire on save. There is no ADT runtime
-surface for BOPF, so this generates and executes a throwaway classrun bridge
-class that performs the same `MODIFY`+`SAVE` the GUI would.
+surface for BOPF, so this generates and executes a bridge class — named
+after the business object, installed once into `$ABAPSMITH_FLUID_API`, and
+reused across calls for that BO rather than thrown away — that performs the
+same `MODIFY`+`SAVE` the GUI would.
 

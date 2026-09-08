@@ -141,6 +141,7 @@ you intend to write.
 |---|---|
 | [doc/CAPABILITIES/README.md](doc/CAPABILITIES/README.md) | Every object type, framework and capability, with the evidence behind each claim |
 | [doc/TOOLS/README.md](doc/TOOLS/README.md) | Full per-tool parameter reference |
+| [doc/FLUID-API/README.md](doc/FLUID-API/README.md) | The fluid API: one package, one manifest format, one wire protocol for the tools that install ABAP to run |
 | [doc/CONFIGURATION/README.md](doc/CONFIGURATION/README.md) | Every environment variable, its default, and its failure mode |
 | [doc/SAFETY/README.md](doc/SAFETY/README.md) | The gate, the modes, and the boundaries that are not security controls |
 | [doc/JOURNAL/README.md](doc/JOURNAL/README.md) | Journal format, undo semantics, drift detection, retention |
