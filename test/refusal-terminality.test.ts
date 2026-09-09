@@ -35,7 +35,7 @@ import {
 import { resolveObject } from "../src/adt/resolve.js";
 import { resolveWriteTarget } from "../src/adt/write.js";
 import type { AbapConnection } from "../src/adt/connection.js";
-import { assertClassicViewCreateTarget, classicViewFragment, type ClassicViewParams } from "../src/adt/view-create.js";
+import { assertClassicViewCreateTarget, createClassicView, type ClassicViewParams } from "../src/adt/view-create.js";
 import { SafetyGate } from "../src/safety.js";
 import { runUiTool, type UiInput, type UiToolDeps } from "../src/tools/ui.js";
 
@@ -159,7 +159,7 @@ describe("retryable on the error envelope", () => {
   });
 });
 
-describe("assertClassicViewCreateTarget / classicViewFragment derive retryable from RETRYABILITY with no 5th argument — neither refusal is terminal", () => {
+describe("assertClassicViewCreateTarget / createClassicView derive retryable from RETRYABILITY with no 5th argument — neither refusal is terminal", () => {
   const CORR_NR = "A4HK900121";
 
   it("a local package given a corrNr claims retryable:true (BAD_INPUT's default), not terminal", () => {
@@ -178,11 +178,12 @@ describe("assertClassicViewCreateTarget / classicViewFragment derive retryable f
 
   // `assertClassicViewCreateTarget` no longer refuses a transportable package
   // with no corrNr — that invariant moved into view-create.ts's module-private
-  // `validate()`, which `classicViewFragment` calls. TRANSPORT_ERROR's default
-  // is "conditional" — no claim either way, which is itself proof this
-  // refusal is not terminal (a terminal claim requires an explicit
-  // retryable:false, never a bare code default).
-  it("classicViewFragment given a transportable package with no corrNr claims no retryable value (TRANSPORT_ERROR's conditional default), not terminal", () => {
+  // `validate()`, which `createClassicView` calls as its first statement,
+  // before touching `conn` or `gate` — so a dead connection still reaches the
+  // throw. TRANSPORT_ERROR's default is "conditional" — no claim either way,
+  // which is itself proof this refusal is not terminal (a terminal claim
+  // requires an explicit retryable:false, never a bare code default).
+  it("createClassicView given a transportable package with no corrNr claims no retryable value (TRANSPORT_ERROR's conditional default), not terminal", async () => {
     const params: ClassicViewParams = {
       viewName: "ZTM_V_CARRIER",
       baseTable: "SCARR",
@@ -190,9 +191,10 @@ describe("assertClassicViewCreateTarget / classicViewFragment derive retryable f
       description: "Carriers",
       packageName: "ZTM",
     };
+    const gate = new SafetyGate({ readOnly: false, allowPackages: ["*"], allowNamePrefixes: ["*"], writesLockedOut: false });
     let caught: unknown;
     try {
-      classicViewFragment(params);
+      await createClassicView(makeDeadConn(), gate, params);
     } catch (e) {
       caught = e;
     }
@@ -431,12 +433,19 @@ describe("terminality overrides are deliberate and explained", () => {
     expect(retryableTrueHits.length).toBeGreaterThan(0);
   });
 
-  it("exactly 21 call sites pass a 5th argument to `new AbapError(...)` — 1 in adt/helper-package.ts, 1 in adt/img-write.ts, 2 in adt/resolve.ts, 8 in adt/write.ts, 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 1 in tools/write.ts, 1 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: 19 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry), and 2 (adt/helper-package.ts and adt/img-write.ts) are re-wraps that carry a caught error's retryable across instead of recomputing it from code; most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
+  // This count was 20 until `abap_img_edit` was rerouted through the fluid
+  // `dispatch()`. The 20th site lived in adt/img-write.ts and was not an
+  // override at all: it re-wrapped an error caught from the per-call bridge
+  // deploy, carrying the caught `retryable` across rather than recomputing it
+  // from the code. The reroute deleted the bridge deploy and with it that
+  // re-wrap, so every remaining site is a genuine per-site override — which is
+  // why the "and 1 is a re-wrap" clause is gone rather than merely renumbered.
+  it("exactly 19 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 1 in tools/write.ts, 1 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: all 19 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
     const { calls } = scanSrc();
     expect(
       calls.length,
       `found: ${calls.map((c) => `${c.file}:${c.line}`).join(", ")}`,
-    ).toBe(21);
+    ).toBe(19);
   });
 });
 

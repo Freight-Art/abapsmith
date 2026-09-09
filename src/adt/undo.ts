@@ -1267,8 +1267,8 @@ export interface UndoOptions {
   /**
    * The same gate `assertAllowed` is built from — REQUIRED for the same
    * reason. `deleteObject`'s DEVC/K bridge arm needs the live instance, not
-   * an `AuthorizedTarget` proof: the bridge gates its own mutation and its
-   * throwaway `$TMP` deploy class.
+   * an `AuthorizedTarget` proof: the bridge gates its own mutation, run
+   * through the fluid `classic` tool in `$ABAPSMITH_FLUID_API`.
    */
   gate: SafetyGate;
 }

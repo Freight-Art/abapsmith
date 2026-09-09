@@ -17,7 +17,7 @@
 | Where-used | n/a | yes | n/a | n/a | n/a | live | Static only; dynamic calls do not appear. The server ignores every limit parameter, so the whole result set is always fetched and `max` bounds only the display. |
 | Data preview | n/a | partial | no | n/a | n/a | mixed | One DDIC table or view per call, off by default, denylisted for sensitive tables, refused on any system that reports itself productive. No free-form SQL surface exists for callers — the catalog-driven SELECTs the IMG structure tool assembles server-side are not a caller-facing SQL surface either, since a caller never supplies or influences the statement text. |
 | IMG (customizing) navigation | no | partial | no | no | n/a | tests | Navigates the IMG structure only — activities, nodes, and the views/tables behind them — via the ADT freestyle data-preview endpoint, with SQL assembled server-side from a fixed catalog in `src/adt/img-catalog.ts`; every table in the catalog is measured against a live system and `IMG_CATALOG_VERIFIED` is `true`. Generates no ABAP and deploys nothing, so it runs under `ABAP_MODE=read`. Reading the customizing entries themselves is `abap_data_preview`'s job; changing them is `abap_img_edit`'s. |
-| IMG (customizing) write | no | partial | yes | yes | n/a | mixed | Writes a resolved base table's rows directly (a guarded `MODIFY`/`DELETE`), not through the view's own SM30-generated maintenance function module — its field-catalogue/dynamic-row-layout requirement was never established outside the SM30 dialog. Transport bookkeeping goes through the same CTS pair (`TR_OBJECTS_CHECK`/`TR_OBJECTS_INSERT`) SM30 itself uses, still interface-only knowledge, never called from here; `create_request` makes the type-`W` request via `TR_INSERT_REQUEST_WITH_TASKS`, called once from here on 2026-09-05 and confirmed working (a first-run defect with no task and a lost request number is why the tool now reports the number before checking for a task). Restricted to delivery classes `C`/`G`/`E`, at most 50 rows per call, and an armed write needs an exact `confirm` echo of the base table name. Generated helper classes go into the dedicated `$ZMCP_HELPERS` package, never `$TMP`. |
+| IMG (customizing) write | no | partial | yes | yes | n/a | mixed | Writes a resolved base table's rows directly (a guarded `MODIFY`/`DELETE`), not through the view's own SM30-generated maintenance function module — its field-catalogue/dynamic-row-layout requirement was never established outside the SM30 dialog. Transport bookkeeping goes through the same CTS pair (`TR_OBJECTS_CHECK`/`TR_OBJECTS_INSERT`) SM30 itself uses, still interface-only knowledge, never called from here; `create_request` makes the type-`W` request via `TR_INSERT_REQUEST_WITH_TASKS`, called once from here on 2026-09-05 and confirmed working (a first-run defect with no task and a lost request number is why the tool now reports the number before checking for a task). Restricted to delivery classes `C`/`G`/`E`, at most 50 rows per call, and an armed write needs an exact `confirm` echo of the base table name. Generated helper classes go into the dedicated `$ABAPSMITH_FLUID_API` package, never `$TMP`. |
 | Running code | n/a | n/a | n/a | n/a | yes | live | Classes implementing the classrun interface, and classic reports through a generated bridge class. No interactive output. |
 | UI automation | n/a | yes | n/a | n/a | yes | mixed | Classic dynpro only, driven by generated batch input. Pressing commits immediately with no dry run and no rollback. |
 | Service and OData exposure | no | yes | no | no | n/a | tests | Metadata introspection only. Publication and business data are structurally refused. |
@@ -88,8 +88,9 @@
   is an opt-in integration test that is skipped unless a live system is
   configured — which is why it is graded `tests` while the operations it
   reverses are graded `live`.
-- **UI automation.** Discovery is read-only in effect but still deploys a
-  throwaway bridge class. A press runs a transaction with scripted batch
+- **UI automation.** Discovery is read-only in effect but still writes — it
+  dispatches against the reused fluid body class `ZCL_ZMCP_FLUID_UI` plus a
+  content-addressed invoker. A press runs a transaction with scripted batch
   input, commits, and cannot be rolled back; it is gated on admin mode plus a
   separate opt-in flag plus an exact confirmation, and a denylist covers
   operating-system command, user and role administration, client
@@ -139,7 +140,7 @@
   its type (`taskType`) alongside the request number. Still unproven from
   here: whether the function module honours the `TYPE` value passed, and
   every failure path. Generated helper classes go into the dedicated,
-  non-transportable `$ZMCP_HELPERS` package, never `$TMP`, created on
+  non-transportable `$ABAPSMITH_FLUID_API` package, never `$TMP`, created on
   first use with no silent fallback if that fails.
 - **Search.** Every request goes out untyped and is filtered client side,
   because the server's own type filter drops fields and half-ignores the

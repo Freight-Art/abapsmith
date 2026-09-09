@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
 import { ERR_LINE_PREFIX } from "../src/adt/run.js";
-import { ABAP_SOURCE_LINE_MAX, DDIC_ERR_PREFIX } from "../src/adt/ddic-bridge.js";
+import { DDIC_ERR_PREFIX } from "../src/adt/ddic-bridge.js";
 import {
   IMGW_LINE_PREFIX,
   IMGW_BRIDGE_CLASS,
@@ -13,10 +13,9 @@ import {
   type ImgApplyPlan,
   validateProbePlan,
   validateApplyPlan,
-  imgProbeSource,
-  imgApplySource,
   parseImgWriteTranscript,
 } from "../src/adt/img-write-bridge.js";
+import { imgSources } from "../src/adt/fluid/builtin/img.js";
 
 const TABLE = "ZTEST01";
 const CLIENT_FIELD = "MANDT";
@@ -67,10 +66,6 @@ function expectBadInput(fn: () => unknown): void {
     if (!isAbapError(e)) throw e;
     expect((e as AbapError).code).toBe("BAD_INPUT");
   }
-}
-
-function maxLineLength(source: string): number {
-  return Math.max(...source.split("\n").map((l) => l.length));
 }
 
 // ---------------------------------------------------------------------------
@@ -356,591 +351,94 @@ describe("validateApplyPlan", () => {
 // ---------------------------------------------------------------------------
 // Generation properties
 // ---------------------------------------------------------------------------
+//
+// The per-call `imgProbeSource` generator this section used to test (one
+// `IF_OO_ADT_CLASSRUN` class body regenerated per call, parameterized by key
+// count) has been deleted outright: `img.preview`'s live ABAP body was ported
+// into the single, generic, content-addressed `ZCL_ZMCP_FLUID_IMG` class
+// (`src/adt/fluid/builtin/img.ts`), which is shipped once and reused across
+// every call rather than regenerated per call, and nothing in `src/` called
+// `imgProbeSource` any more once that port was done. Its dedicated tests are
+// gone with it; the "reads every column, not just the keys" and "FLD line
+// round-trips through the parser" properties they pinned are now covered
+// against the shipped class's actual runtime behavior in
+// `test/img-edit-tool.test.ts` / `test/integration-fluid-img.test.ts`, not
+// against generated source text.
 
-describe("imgProbeSource", () => {
-  it("generates a class body for the fixed probe class name", () => {
-    const src = imgProbeSource(baseProbe());
-    expect(src).toContain("ztest01_local".slice(0, 0)); // no-op guard against accidental literal drift
-    expect(src.toLowerCase()).toContain("zcl_zmcp_img_wprobe");
-    expect(src).toContain(`SELECT SINGLE * FROM ${TABLE.toLowerCase()} INTO @ls_wa`);
-  });
+// Regression pin for the live incident measured 2026-09-06: an armed upsert
+// on a multi-key table (TB004T, keyed SPRAS + BPKIND) failed activation with
+// `"LV_KEY_FLAG" was already declared` — the retired per-call
+// `imgProbeSource` generator ran one SELECT per key field, each binding its
+// four result variables with inline `@DATA(...)`, which is only legal the
+// first time a name is bound in a scope. That failure mode was a property of
+// *generating* a class body as a function of key count: more keys meant more
+// copies of the same inline binding in the same method.
+//
+// `ZCL_ZMCP_FLUID_IMG` structurally cannot repeat it, but not because some
+// generator was fixed — there is no longer a generator. The class is typed
+// generically (`ASSIGN COMPONENT ... OF STRUCTURE`, dynamic `SELECT`) and
+// ships as one static, hand-written body regardless of table/key shape, so
+// there is no per-call parameterization left to regress. The guarantee this
+// block pins is therefore no longer "the generator can't produce this shape
+// for any key count" (that generator is gone) but "the shipped source itself
+// never contains a duplicate inline `@DATA(name)` binding within the same
+// method" — a source-text invariant on the one static body that ships,
+// rather than a property re-derived per call. It is still a real regression
+// guard: it fails the moment anyone reintroduces an inline `@DATA(...)` into
+// `IMG_SOURCE` that collides with another in the same method, which is
+// exactly the shape of bug that caused the original incident.
+describe("ZCL_ZMCP_FLUID_IMG's shipped source never declares the same inline @DATA(name) twice in one method", () => {
+  const IMG_CLASS = "ZCL_ZMCP_FLUID_IMG";
 
-  it("stays within ABAP_SOURCE_LINE_MAX at longest legal input", () => {
-    const table = "Z" + "A".repeat(29);
-    const keyField = "K".repeat(30);
-    const rows: ImgWriteRow[] = Array.from({ length: IMGW_MAX_ROWS }, (_, i) => ({
-      key: { [keyField]: `V${i}` },
-      values: {},
-    }));
-    const src = imgProbeSource({ table, clientField: CLIENT_FIELD, keyFields: [keyField], rows, language: "E" });
-    expect(maxLineLength(src)).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
-  });
-
-  // Core regression for the live 2026-09-06 TB004T finding: the probe's only IMGW> FLD emission
-  // used to sit inside the per-key-field loop, so it reported KEY FIELDS ONLY — an apply plan
-  // built from that probe could never legally name a value column. The fix reads every column of
-  // the base table once and reports each of them.
-  it("reads every column of the base table, not just the key fields", () => {
-    const src = imgProbeSource(
-      baseProbe({ keyFields: [KEY_FIELD, "ZKEY2"], rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} }] }),
-    );
-    // Exactly one DD03L read, regardless of key count.
-    expect(src.split("FROM dd03l").length - 1).toBe(1);
-    // Never restricted to a particular fieldname — every column comes back, not just the keys.
-    expect(src).not.toContain("fieldname = '");
-    // position is selected purely so ORDER BY position cannot trip the strict-SQL check.
-    expect(src).toContain("ORDER BY position.");
-    // The .INCLUDE/.APPEND marker-row guard.
-    expect(src).toContain("IF ls_fld-fieldname(1) = '.'.");
-    expect(src).toContain("CONTINUE.");
-    // The FLD line is written from inside the LOOP AT lt_fld, not the old per-key-field loop.
-    const loopIdx = src.indexOf("LOOP AT lt_fld INTO ls_fld.");
-    const endloopIdx = src.indexOf("ENDLOOP.");
-    const fldIdx = src.indexOf(`${IMGW_LINE_PREFIX}FLD table=`);
-    expect(loopIdx).toBeGreaterThan(-1);
-    expect(endloopIdx).toBeGreaterThan(loopIdx);
-    expect(fldIdx).toBeGreaterThan(loopIdx);
-    expect(fldIdx).toBeLessThan(endloopIdx);
-  });
-
-  // Rewritten Defect-H (duplicate declaration) regression, replacing the two tests this replaces
-  // ("hoists the four DD03L lookup variables exactly once for a two-/three-key table..."): those
-  // pinned the per-key-field SELECT shape being deleted here (one SELECT per key field, four
-  // hoisted lv_key_* variables). The new shape structurally cannot repeat the "LV_KEY_FLAG was
-  // already declared" failure measured live 2026-09-06, because the DD03L read is emitted exactly
-  // once no matter how many key fields (or columns) the table has — this pins that the FROM dd03l
-  // count stays at 1 as key count grows, and that no inline @DATA(...) survives anywhere in the
-  // generated probe source.
-  it("emits exactly one FROM dd03l regardless of key count, and never redeclares the same inline @DATA(name) twice, for both a two-key and a three-key table", () => {
-    const twoKey = imgProbeSource(
-      baseProbe({ keyFields: [KEY_FIELD, "ZKEY2"], rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} }] }),
-    );
-    const threeKey = imgProbeSource(
-      baseProbe({
-        keyFields: [KEY_FIELD, "ZKEY2", "ZKEY3"],
-        rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2", ZKEY3: "C3" }, values: {} }],
-      }),
-    );
-    expect(twoKey.split("FROM dd03l").length - 1).toBe(1);
-    expect(threeKey.split("FROM dd03l").length - 1).toBe(1);
-    // Neither the two-key-specific "lv_key_flag" etc. shape this replaces, nor any duplicate of
-    // the same inline @DATA(name) survives as key count grows — the DD03L read (and its
-    // lt_fld/ls_fld declarations, now hoisted plain DATA statements, not inline) is emitted
-    // exactly once regardless of how many key fields the table has.
-    for (const src of [twoKey, threeKey]) {
-      expect(src).not.toContain("lv_key_flag");
-      const names = [...src.matchAll(/@DATA\(([a-zA-Z_][a-zA-Z0-9_]*)\)/g)].map((m) => m[1]!);
-      const counts = new Map<string, number>();
-      for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
-      const dupes = [...counts.entries()].filter(([, c]) => c > 1);
-      expect(dupes).toEqual([]);
-    }
-  });
-
-  // Generator/parser drift check: the FLD line the generator actually emits, with concrete runtime
-  // values substituted for the { ls_fld-... } placeholders, must round-trip through the transcript
-  // parser as a VALUE (non-key) column — this is the pin that the probe's new value-column output
-  // is actually consumable by the rest of this module, not just present as text in the source.
-  it("the generated FLD line, with runtime values substituted, parses as a non-key value column", () => {
-    const src = imgProbeSource(baseProbe());
-    const fldLineStart = src.indexOf(`out->write( |${IMGW_LINE_PREFIX}FLD table=`);
-    expect(fldLineStart).toBeGreaterThan(-1);
-    const fldLineEnd = src.indexOf(").", fldLineStart);
-    const generatedTemplate = src.slice(fldLineStart, fldLineEnd);
-
-    // Pull out the two |...| string-literal segments the generator concatenates with && and join
-    // them exactly as ABAP would, then substitute concrete runtime values for the five
-    // { ls_fld-... } placeholders — this reconstructs the literal transcript line the generated
-    // ABAP would actually emit for a non-key CHAR(40) column named TEXT40.
-    const segments = [...generatedTemplate.matchAll(/\|([^|]*)\|/g)].map((m) => m[1]!);
-    expect(segments.length).toBe(2);
-    const literalLine = segments
-      .join("")
-      .replace("{ ls_fld-fieldname }", "TEXT40")
-      .replace("{ ls_fld-keyflag }", "")
-      .replace("{ ls_fld-datatype }", "CHAR")
-      .replace("{ ls_fld-leng }", "40")
-      .replace("{ ls_fld-rollname }", "TEXT40");
-    expect(literalLine).toBe(`${IMGW_LINE_PREFIX}FLD table=[${TABLE.toLowerCase()}] field=[TEXT40] key=[] type=[CHAR] len=[40] rollname=[TEXT40]`);
-
-    const t = parseImgWriteTranscript(literalLine);
-    expect(t.droppedLines).toBe(0);
-    expect(t.fields).toEqual([
-      { table: TABLE.toLowerCase(), field: "TEXT40", key: false, dataType: "CHAR", length: "40", dataElement: "TEXT40" },
-    ]);
-  });
-});
-
-describe("imgApplySource: field preservation (upsert)", () => {
-  it("reads the row before writing it, and assigns only named non-key fields", () => {
-    const plan = baseApply({
-      rows: [{ key: { [KEY_FIELD]: "A1" }, values: { [VAL_FIELD]: "Hello" } }],
-    });
-    const src = imgApplySource(plan);
-    expect(src).toContain(`SELECT SINGLE * FROM ${TABLE.toLowerCase()} INTO @ls_wa WHERE`);
-    // the named field is assigned...
-    expect(src).toContain(`ls_wa-${VAL_FIELD.toLowerCase()} = 'Hello'.`);
-    // ...but the other declared, unnamed field is never assigned anywhere in this plan's source.
-    expect(src).not.toContain(`ls_wa-${VAL_FIELD2.toLowerCase()} =`);
-  });
-
-  it("builds the work area from the before-image read, never from named fields alone", () => {
-    // The red-proof for this property lives in the scratchpad break-test; this asserts the
-    // healthy generator's own load-bearing statement is present and precedes the assignment.
-    const src = imgApplySource(baseApply());
-    const selectIdx = src.indexOf("SELECT SINGLE * FROM");
-    const assignIdx = src.indexOf(`ls_wa-${VAL_FIELD.toLowerCase()} = 'Hello'.`);
-    expect(selectIdx).toBeGreaterThan(-1);
-    expect(assignIdx).toBeGreaterThan(selectIdx);
-  });
-
-  it("never wipes ls_wa between the before-image read and the MODIFY", () => {
-    // A CLEAR ls_wa (or any rebuild-from-scratch) inserted after the successful SELECT and
-    // before the field assignments would silently drop every preserved, unnamed field — the
-    // read-then-assign text pattern alone does not rule that out, so this checks the segment
-    // between them directly.
-    const src = imgApplySource(baseApply());
-    const endifIdx = src.indexOf("ENDIF.", src.indexOf("BABSENT"));
-    const modifyIdx = src.indexOf(`MODIFY ${TABLE.toLowerCase()} FROM ls_wa.`);
-    expect(endifIdx).toBeGreaterThan(-1);
-    expect(modifyIdx).toBeGreaterThan(endifIdx);
-    const segment = src.slice(endifIdx, modifyIdx);
-    expect(segment).not.toContain("CLEAR ls_wa");
-  });
-});
-
-describe("imgApplySource: key-only upsert row", () => {
-  it("generates a CLEAR/key/client/MODIFY sequence with no ls_wa field assignment, all lines under the line cap", () => {
-    const plan = baseApply({ rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] });
-    const src = imgApplySource(plan);
-    const lower = TABLE.toLowerCase();
-    const key = KEY_FIELD.toLowerCase();
-    const client = CLIENT_FIELD.toLowerCase();
-
-    expect(src).toContain("CLEAR ls_key.");
-    expect(src).toContain(`ls_key-${key} = 'A1'.`);
-    expect(src).toContain("CLEAR ls_wa.");
-    expect(src).toContain(`SELECT SINGLE * FROM ${lower} INTO @ls_wa WHERE ${key} = 'A1'.`);
-    expect(src).toContain(`  out->write( |${IMGW_LINE_PREFIX}BABSENT row=[1]| ).`);
-    expect(src).toContain(`  ls_wa-${key} = ls_key-${key}.`);
-    expect(src).toContain(`ls_wa-${client} = sy-mandt.`);
-    expect(src).toContain(`MODIFY ${lower} FROM ls_wa.`);
-
-    // No value field the row didn't name is ever assigned — this is exactly what makes a
-    // key-only row a no-op MODIFY when the row already exists (before-image preserved) and a
-    // key+client-only insert when it does not.
-    expect(src).not.toContain(`ls_wa-${VAL_FIELD.toLowerCase()} =`);
-    expect(src).not.toContain(`ls_wa-${VAL_FIELD2.toLowerCase()} =`);
-
-    expect(maxLineLength(src)).toBeLessThan(255);
-  });
-});
-
-describe("imgApplySource: no open key (delete)", () => {
-  it("never emits DELETE ... WHERE, only DELETE ... FROM a fully keyed work area", () => {
-    const plan = baseApply({ op: "delete", rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] });
-    const src = imgApplySource(plan);
-    expect(src).toMatch(new RegExp(`DELETE ${TABLE.toLowerCase()} FROM ls_wa\\.`));
-    for (const line of src.split("\n")) {
-      if (/\bDELETE\b/i.test(line)) {
-        expect(line.toUpperCase()).not.toContain("WHERE");
-      }
-    }
-  });
-
-  it("populates every key field on the delete work area from the caller's key, never partially", () => {
-    const plan = baseApply({
-      keyFields: [KEY_FIELD, "ZKEY2"],
-      op: "delete",
-      fields: [...baseFields(), { field: "ZKEY2", key: true, dataType: "CHAR" }],
-      rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} }],
-    });
-    const src = imgApplySource(plan);
-    expect(src).toContain(`ls_wa-${KEY_FIELD.toLowerCase()} = ls_key-${KEY_FIELD.toLowerCase()}.`);
-    expect(src).toContain(`ls_wa-zkey2 = ls_key-zkey2.`);
-  });
-});
-
-describe("imgApplySource: client field", () => {
-  it("always sources the client field from sy-mandt, upsert", () => {
-    const src = imgApplySource(baseApply());
-    expect(src).toContain(`ls_wa-${CLIENT_FIELD.toLowerCase()} = sy-mandt.`);
-    expect(src).not.toMatch(new RegExp(`ls_wa-${CLIENT_FIELD.toLowerCase()} = '`));
-  });
-
-  it("always sources the client field from sy-mandt, delete", () => {
-    const src = imgApplySource(baseApply({ op: "delete", rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] }));
-    expect(src).toContain(`ls_wa-${CLIENT_FIELD.toLowerCase()} = sy-mandt.`);
-  });
-});
-
-describe("imgApplySource: CTS ordering", () => {
-  it("calls TR_OBJECTS_CHECK before TR_OBJECTS_INSERT, both before the MODIFY on an upsert row", () => {
-    const src = imgApplySource(baseApply());
-    const checkIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
-    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
-    const modifyIdx = src.indexOf(`MODIFY ${TABLE.toLowerCase()} FROM ls_wa.`);
-    expect(checkIdx).toBeGreaterThan(-1);
-    expect(insertIdx).toBeGreaterThan(checkIdx);
-    expect(modifyIdx).toBeGreaterThan(insertIdx);
-  });
-
-  it("calls TR_OBJECTS_CHECK before TR_OBJECTS_INSERT, both before the DELETE on a delete row", () => {
-    const src = imgApplySource(baseApply({ op: "delete", rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] }));
-    const checkIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
-    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
-    const deleteIdx = src.indexOf(`DELETE ${TABLE.toLowerCase()} FROM ls_wa.`);
-    expect(checkIdx).toBeGreaterThan(-1);
-    expect(insertIdx).toBeGreaterThan(checkIdx);
-    expect(deleteIdx).toBeGreaterThan(insertIdx);
-  });
-
-  it("skips CTS bookkeeping entirely when no corrNr is given", () => {
-    const plan = baseApply({ corrNr: undefined });
-    const src = imgApplySource(plan);
-    expect(src).not.toContain(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
-    expect(src).not.toContain(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
-  });
-});
-
-describe("imgApplySource: CTS record shape", () => {
-  it("emits a KO200 header row typed VDAT with the view name and OBJFUNC K", () => {
-    const src = imgApplySource(baseApply());
-    expect(src).toContain("ls_ko200-pgmid = 'R3TR'.");
-    expect(src).toContain(`ls_ko200-object = 'VDAT'.`);
-    expect(src).toContain(`ls_ko200-obj_name = '${VIEW}'.`);
-    expect(src).toContain("ls_ko200-objfunc = 'K'.");
-  });
-
-  it("emits a KO200 header row typed CDAT when masterType is CDAT", () => {
-    const src = imgApplySource(baseApply({ masterType: "CDAT" }));
-    expect(src).toContain(`ls_ko200-object = 'CDAT'.`);
-    expect(src).not.toContain(`ls_ko200-object = 'VDAT'.`);
-  });
-
-  it("emits one E071K row per written row with all fields, MASTERNAME and VIEWNAME both the view", () => {
-    const src = imgApplySource(baseApply());
-    expect(src).toContain("ls_e071k-pgmid = 'R3TR'.");
-    expect(src).toContain("ls_e071k-object = 'TABU'.");
-    expect(src).toContain(`ls_e071k-objname = '${TABLE}'.`);
-    expect(src).toContain(`ls_e071k-mastertype = 'VDAT'.`);
-    expect(src).toContain(`ls_e071k-mastername = '${VIEW}'.`);
-    expect(src).toContain(`ls_e071k-viewname = '${VIEW}'.`);
-    expect(src).toContain("ls_e071k-objfunc = ' '.");
-    expect(src).toContain("ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|.");
-  });
-
-  it("spells the E071K object-name component OBJNAME, not the KO200/E071 OBJ_NAME spelling", () => {
-    // Live DD03L read of E071K (active version) returned OBJNAME (no underscore),
-    // 14 fields in position order. SAP rejected the generated ABAP when this
-    // fragment used the underscored OBJ_NAME spelling instead.
-    const src = imgApplySource(baseApply());
-    expect(src).toContain(`ls_e071k-objname = '${TABLE}'.`);
-    expect(src).not.toContain("ls_e071k-obj_name");
-  });
-
-  it("emits exactly these eight E071K components, spelled as the live DD03L listing spells them", () => {
-    // The order below is the generator's own assignment order and carries no
-    // meaning by itself — ABAP does not care what order structure components
-    // are assigned in. Only the set of names and their spelling matter here.
-    // If the fragment is ever reordered, this expectation should simply be
-    // reordered to match; that is a free change, not a regression.
-    //
-    // Checked by eye against a live DD03L read of E071K (active version),
-    // all 14 fields in position order:
-    //   TRKORR PGMID OBJECT OBJNAME AS4POS MASTERTYPE MASTERNAME VIEWNAME
-    //   OBJFUNC TABKEY SORTFLAG FLAG LANG ACTIVITY
-    // TRKORR and AS4POS are deliberately not assigned here, on the
-    // assumption that TR_OBJECTS_INSERT fills them itself — that assumption
-    // is unverified. The remaining six fields not in the eight below
-    // (TRKORR, AS4POS, SORTFLAG, FLAG, LANG, ACTIVITY) are not claimed to be
-    // irrelevant; they simply aren't assigned by this fragment.
-    const src = imgApplySource(baseApply());
-    const components = [...src.matchAll(/ls_e071k-(\w+) =/g)].map((m) => m[1]);
-    expect(components).toEqual([
-      "pgmid",
-      "object",
-      "objname",
-      "mastertype",
-      "mastername",
-      "viewname",
-      "objfunc",
-      "tabkey",
-    ]);
-  });
-
-  it("passes both suppressor flags as 'X' on both TR_OBJECTS_CHECK and TR_OBJECTS_INSERT", () => {
-    const src = imgApplySource(baseApply());
-    const checkIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
-    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
-    const afterInsertIdx = src.indexOf("ENDIF.", insertIdx);
-    const checkBlock = src.slice(checkIdx, insertIdx);
-    const insertBlock = src.slice(insertIdx, afterInsertIdx);
-    for (const block of [checkBlock, insertBlock]) {
-      expect(block).toContain("iv_no_standard_editor = 'X'");
-      expect(block).toContain("iv_no_show_option     = 'X'");
-    }
-  });
-
-  it("names both exceptions with distinct sy-subrc values on both calls, and emits sy-msgid/sy-msgv1 on failure", () => {
-    const src = imgApplySource(baseApply());
-    expect(src).toContain("cancel_edit_other_error = 1");
-    expect(src).toContain("show_only_other_error   = 2");
-    expect(src).toContain("msgid=[{ sy-msgid }]");
-    expect(src).toContain("msgv1=[{ sy-msgv1 }]");
-    // failed on both FMs, not just one:
-    expect(src).toContain(`${CTS_INSERT_FM.checkFm} failed for row`);
-    expect(src).toContain(`${CTS_INSERT_FM.insertFm} failed for row`);
-  });
-
-  it("types the CTS objects table KO200, not a STANDARD TABLE OF e071", () => {
-    // Was pinned as "... WITH EMPTY KEY." before the live round-5 finding: a TABLES formal
-    // (wt_ko200/wt_e071k) is a standard table with the DEFAULT key, and an EMPTY KEY actual is a
-    // runtime CX_SY_DYN_CALL_ILLEGAL_TYPE the ADT activation syntax check never catches. Updated
-    // to WITH DEFAULT KEY — see "declares lt_ko200/lt_e071k WITH DEFAULT KEY" below for the
-    // blanket regression guard.
-    const src = imgApplySource(baseApply());
-    expect(src).toContain("DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.");
-    expect(src).not.toMatch(/TYPE STANDARD TABLE OF e071\b/);
-  });
-
-  it("captures WE_ORDER/WE_TASK from TR_OBJECTS_INSERT and reports both on the TRKEY line, alongside the requested trkorr", () => {
-    const src = imgApplySource(baseApply());
-    expect(src).toContain("DATA lv_we_order TYPE trkorr.");
-    expect(src).toContain("DATA lv_we_task TYPE trkorr.");
-    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
-    const tablesIdx = src.indexOf("TABLES", insertIdx);
-    const importingBlock = src.slice(insertIdx, tablesIdx);
-    expect(importingBlock).toContain("IMPORTING");
-    expect(importingBlock).toContain(`${CTS_INSERT_FM.params.weOrder} = lv_we_order`);
-    expect(importingBlock).toContain(`${CTS_INSERT_FM.params.weTask} = lv_we_task`);
-    expect(src).toContain("trkorr=[XXXK900001]");
-    expect(src).toContain("order_len=[{ strlen( lv_we_order ) }] order=[{ lv_we_order }]");
-    expect(src).toContain("task_len=[{ strlen( lv_we_task ) }] task=[{ lv_we_task }]");
-  });
-});
-
-describe("imgApplySource: TABLES actual key type", () => {
-  it("declares lt_ko200/lt_e071k WITH DEFAULT KEY, and never emits WITH EMPTY KEY anywhere", () => {
-    // Blanket negative assertion, not just a check on these two names: it is the one that would
-    // catch a future regression anywhere in this generator, the way the old, narrower
-    // "types the CTS objects table KO200" test above did not — that test pinned the exact bug.
-    const src = imgApplySource(baseApply());
-    expect(src).toContain("DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.");
-    expect(src).toContain("DATA lt_e071k TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.");
-    expect(src).not.toContain("WITH EMPTY KEY");
-  });
-});
-
-describe("imgApplySource: CTS runtime failure handling", () => {
-  it("wraps the CTS calls in TRY / CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing / CATCH cx_root / ENDTRY, declares lx_cts exactly once across a 2-row plan, and emits the IMGW> ERROR line in both handlers", () => {
-    const plan = baseApply({
-      rows: [
-        { key: { [KEY_FIELD]: "A1" }, values: { [VAL_FIELD]: "Hello" } },
-        { key: { [KEY_FIELD]: "A2" }, values: { [VAL_FIELD]: "World" } },
-      ],
-    });
-    const src = imgApplySource(plan);
-
-    expect(src).toContain("TRY.");
-    expect(src).toContain("CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts.");
-    expect(src).toContain("CATCH cx_root INTO lx_cts.");
-    expect(src).toContain("ENDTRY.");
-
-    // Declared once in the body's DATA block, even though the plan has two rows (two
-    // ctsRecordFragment emissions) — an inline CATCH ... INTO DATA(lx) would duplicate-declare.
-    const declCount = (src.match(/DATA lx_cts TYPE REF TO cx_root\./g) ?? []).length;
-    expect(declCount).toBe(1);
-
-    // But the CATCH block itself, and the ERROR write inside it, are emitted once per row.
-    const catchCount = (
-      src.match(/CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts\./g) ?? []
-    ).length;
-    expect(catchCount).toBe(2);
-    const errorWriteCount = (src.match(/ERROR class=\[\{ lv_exc_class \}\]/g) ?? []).length;
-    expect(errorWriteCount).toBe(4); // 2 rows x 2 CATCH branches each
-
-    expect(src).toContain(
-      `out->write( |${IMGW_LINE_PREFIX}ERROR class=[{ lv_exc_class }] len=[{ strlen( lv_exc_text ) }] | &&`,
-    );
-    expect(src).toContain("|value=[{ lv_exc_text }]| ).");
-  });
-
-  it("keeps the CALL FUNCTION statements and their sy-subrc checks textually inside the inner (CTS-specific) TRY, ending at its own ENDTRY — not merely ddicBridgeSource's outer TRY/ENDTRY", () => {
-    // ddicBridgeSource already wraps the whole method body in its own outer TRY ... ENDTRY, so a
-    // plain src.indexOf("TRY.") / src.indexOf("ENDTRY.") would find that outer wrap and pass even
-    // if the inner CTS-specific TRY/CATCH were missing entirely. To actually prove the inner TRY
-    // exists, anchor on the CTS-specific CATCH line and require an inner TRY strictly after the
-    // outer one, and an ENDTRY between the CATCH and the rest of the method.
-    const src = imgApplySource(baseApply());
-    const outerTryIdx = src.indexOf("TRY.");
-    const checkIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`);
-    const insertIdx = src.indexOf(`CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`);
-    const catchIdx = src.indexOf(
-      "CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts.",
-    );
-    const innerTryIdx = src.lastIndexOf("TRY.", checkIdx);
-    const innerEndtryIdx = src.indexOf("ENDTRY.", catchIdx);
-
-    expect(outerTryIdx).toBeGreaterThan(-1);
-    expect(innerTryIdx).toBeGreaterThan(outerTryIdx);
-    expect(checkIdx).toBeGreaterThan(innerTryIdx);
-    expect(insertIdx).toBeGreaterThan(checkIdx);
-    expect(catchIdx).toBeGreaterThan(insertIdx);
-    expect(innerEndtryIdx).toBeGreaterThan(catchIdx);
-    // The existing sy-subrc/sy-msg* error blocks must still be present, unchanged, inside the TRY.
-    expect(src).toContain(`${CTS_INSERT_FM.checkFm} failed for row`);
-    expect(src).toContain(`${CTS_INSERT_FM.insertFm} failed for row`);
-  });
-});
-
-describe("imgApplySource: WROTE marker", () => {
-  it("emits IMGW> WROTE row=[1] immediately after a successful MODIFY on upsert", () => {
-    const src = imgApplySource(baseApply());
-    const modifyIdx = src.indexOf(`MODIFY ${TABLE.toLowerCase()} FROM ls_wa.`);
-    const wroteIdx = src.indexOf(`out->write( |${IMGW_LINE_PREFIX}WROTE row=[1]| ).`);
-    expect(modifyIdx).toBeGreaterThan(-1);
-    expect(wroteIdx).toBeGreaterThan(modifyIdx);
-  });
-
-  it("emits IMGW> WROTE row=[1] immediately after a successful DELETE on delete", () => {
-    const plan = baseApply({ op: "delete", rows: [{ key: { [KEY_FIELD]: "A1" }, values: {} }] });
-    const src = imgApplySource(plan);
-    const deleteIdx = src.indexOf(`DELETE ${TABLE.toLowerCase()} FROM ls_wa.`);
-    const wroteIdx = src.indexOf(`out->write( |${IMGW_LINE_PREFIX}WROTE row=[1]| ).`);
-    expect(deleteIdx).toBeGreaterThan(-1);
-    expect(wroteIdx).toBeGreaterThan(deleteIdx);
-  });
-});
-
-describe("imgApplySource: commit and after-image", () => {
-  it("commits after all row writes and re-reads the after-image", () => {
-    const src = imgApplySource(baseApply());
-    const commitIdx = src.indexOf("COMMIT WORK AND WAIT.");
-    const modifyIdx = src.indexOf(`MODIFY ${TABLE.toLowerCase()} FROM ls_wa.`);
-    expect(commitIdx).toBeGreaterThan(modifyIdx);
-    expect(src.indexOf("AVAL", commitIdx)).toBeGreaterThan(-1);
-  });
-});
-
-describe("imgApplySource: line length", () => {
-  it("stays within ABAP_SOURCE_LINE_MAX at longest legal input, upsert", () => {
-    const table = "Z" + "A".repeat(29);
-    const keyField = "K".repeat(30);
-    const valField = "V".repeat(30);
-    const rows: ImgWriteRow[] = Array.from({ length: IMGW_MAX_ROWS }, (_, i) => ({
-      key: { [keyField]: `A${i}` },
-      values: { [valField]: `x${i}` },
-    }));
-    const plan: ImgApplyPlan = {
-      table,
-      clientField: CLIENT_FIELD,
-      keyFields: [keyField],
-      rows,
-      language: "E",
-      op: "upsert",
-      fields: [
-        { field: keyField, key: true, dataType: "CHAR" },
-        { field: valField, key: false, dataType: "CHAR" },
-      ],
-      corrNr: "AAAK900050",
-      expectedDeliveryClass: "C",
-      expectedClientDependent: true,
-      view: "V" + "B".repeat(29),
-      masterType: "VDAT",
-    };
-    expect(maxLineLength(imgApplySource(plan))).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
-  });
-
-  it("stays within ABAP_SOURCE_LINE_MAX at longest legal input, delete", () => {
-    const table = "Z" + "A".repeat(29);
-    const keyField = "K".repeat(30);
-    const rows: ImgWriteRow[] = Array.from({ length: IMGW_MAX_ROWS }, (_, i) => ({
-      key: { [keyField]: `A${i}` },
-      values: {},
-    }));
-    const plan: ImgApplyPlan = {
-      table,
-      clientField: CLIENT_FIELD,
-      keyFields: [keyField],
-      rows,
-      language: "E",
-      op: "delete",
-      fields: [{ field: keyField, key: true, dataType: "CHAR" }],
-      corrNr: "AAAK900050",
-      expectedDeliveryClass: "C",
-      expectedClientDependent: true,
-      view: "V" + "B".repeat(29),
-      masterType: "CDAT",
-    };
-    expect(maxLineLength(imgApplySource(plan))).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
-  });
-});
-
-describe("no generated source declares the same inline @DATA(name) twice", () => {
-  // Collects every @DATA(name) occurrence (with repeats) so a name appearing more than once is
-  // visible, not just a yes/no verdict — an inline @DATA(...) is only legal the first time a name
-  // is bound in a scope; a second occurrence anywhere in the same generated method is the exact
-  // "already declared" activation failure measured live against TB004T (round 6).
-  function collectInlineDataNames(source: string): string[] {
-    const names: string[] = [];
-    const re = /@DATA\(([a-zA-Z_][a-zA-Z0-9_]*)\)/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(source)) !== null) {
-      names.push(m[1]!);
-    }
-    return names;
+  function shippedSource(): string {
+    const src = imgSources.get(IMG_CLASS);
+    if (src === undefined) throw new Error(`imgSources has no entry for ${IMG_CLASS}`);
+    return src;
   }
 
-  function assertNoDuplicateInlineData(label: string, source: string): void {
-    const names = collectInlineDataNames(source);
+  // Splits the class body into per-METHOD segments (ABAP scopes an inline
+  // `@DATA(name)` binding to its enclosing method, not to the whole class),
+  // so a name reused across two different methods is not a false positive.
+  function methodSegments(source: string): { name: string; body: string }[] {
+    const lines = source.split("\n");
+    const segments: { name: string; body: string }[] = [];
+    let current: { name: string; lines: string[] } | null = null;
+    const methodStart = /^\s*METHOD\s+(\w+)\s*\.\s*$/i;
+    const methodEnd = /^\s*ENDMETHOD\s*\.\s*$/i;
+    for (const line of lines) {
+      const start = methodStart.exec(line);
+      if (start) {
+        current = { name: start[1]!, lines: [] };
+        continue;
+      }
+      if (methodEnd.test(line)) {
+        if (current) segments.push({ name: current.name, body: current.lines.join("\n") });
+        current = null;
+        continue;
+      }
+      if (current) current.lines.push(line);
+    }
+    return segments;
+  }
+
+  function duplicateInlineDataNames(body: string): string[] {
+    const names = [...body.matchAll(/@DATA\(([a-zA-Z_][a-zA-Z0-9_]*)\)/g)].map((m) => m[1]!);
     const counts = new Map<string, number>();
     for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
-    const dupes = [...counts.entries()].filter(([, c]) => c > 1);
-    expect(dupes, `${label}: duplicate inline @DATA(...) declaration(s): ${dupes
-      .map(([n, c]) => `${n} (x${c})`)
-      .join(", ")}`).toEqual([]);
+    return [...counts.entries()].filter(([, c]) => c > 1).map(([n]) => n);
   }
 
-  it("holds across a representative set: one-key probe, two-key probe, three-key probe, multi-row multi-key apply upsert, apply delete", () => {
-    const oneKeyProbe = imgProbeSource(baseProbe());
-    const twoKeyProbe = imgProbeSource(
-      baseProbe({ keyFields: [KEY_FIELD, "ZKEY2"], rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} }] }),
-    );
-    const threeKeyProbe = imgProbeSource(
-      baseProbe({
-        keyFields: [KEY_FIELD, "ZKEY2", "ZKEY3"],
-        rows: [{ key: { [KEY_FIELD]: "A1", ZKEY2: "B2", ZKEY3: "C3" }, values: {} }],
-      }),
-    );
-    const multiRowMultiKeyUpsert = imgApplySource(
-      baseApply({
-        keyFields: [KEY_FIELD, "ZKEY2", "ZKEY3"],
-        fields: [...baseFields(), { field: "ZKEY2", key: true, dataType: "CHAR" }, { field: "ZKEY3", key: true, dataType: "CHAR" }],
-        rows: [
-          { key: { [KEY_FIELD]: "A1", ZKEY2: "B2", ZKEY3: "C3" }, values: { [VAL_FIELD]: "Hello" } },
-          { key: { [KEY_FIELD]: "A2", ZKEY2: "B3", ZKEY3: "C4" }, values: { [VAL_FIELD]: "World" } },
-          { key: { [KEY_FIELD]: "A3", ZKEY2: "B4", ZKEY3: "C5" }, values: {} },
-        ],
-      }),
-    );
-    const applyDelete = imgApplySource(
-      baseApply({
-        op: "delete",
-        keyFields: [KEY_FIELD, "ZKEY2"],
-        fields: [...baseFields(), { field: "ZKEY2", key: true, dataType: "CHAR" }],
-        rows: [
-          { key: { [KEY_FIELD]: "A1", ZKEY2: "B2" }, values: {} },
-          { key: { [KEY_FIELD]: "A2", ZKEY2: "B3" }, values: {} },
-        ],
-      }),
-    );
+  it("has at least one METHOD to check (the scan below isn't vacuously scanning nothing)", () => {
+    const segments = methodSegments(shippedSource());
+    expect(segments.length).toBeGreaterThan(0);
+  });
 
-    assertNoDuplicateInlineData("one-key probe", oneKeyProbe);
-    assertNoDuplicateInlineData("two-key probe", twoKeyProbe);
-    assertNoDuplicateInlineData("three-key probe", threeKeyProbe);
-    assertNoDuplicateInlineData("multi-row multi-key apply upsert", multiRowMultiKeyUpsert);
-    assertNoDuplicateInlineData("apply delete", applyDelete);
+  it("declares no inline @DATA(name) twice within any single method", () => {
+    const segments = methodSegments(shippedSource());
+    for (const { name, body } of segments) {
+      const dupes = duplicateInlineDataNames(body);
+      expect(dupes, `METHOD ${name}: duplicate inline @DATA(...) declaration(s): ${dupes.join(", ")}`).toEqual([]);
+    }
   });
 });
 

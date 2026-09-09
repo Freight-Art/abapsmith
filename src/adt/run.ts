@@ -16,6 +16,7 @@ import { createHash } from "node:crypto";
 import { isCsrfError } from "abap-adt-api";
 import type { AbapConnection } from "./connection.js";
 import { AbapError, isAbapError } from "./errors.js";
+import { discloseBridgeResidue, type BridgeResidueStage } from "./bridge-residue.js";
 import { truncateText, DUMP_SHORT_TEXT_MAX } from "../truncate.js";
 // Dump parsing and ADT-error translation live in session.ts — single source of
 // truth, so the write path and the run path classify a dead session identically.
@@ -27,12 +28,21 @@ import {
 } from "./session.js";
 import {
   authorizeMutation,
+  deleteObject,
   writeObject,
   NO_JOURNAL,
   type ResolvedTarget,
   type WriteResult,
 } from "./write.js";
+import { isSessionDeadFailure } from "./write-verify.js";
 import type { SafetyGate } from "../safety.js";
+import {
+  FLUID_PACKAGE,
+  LEGACY_FLUID_PACKAGES,
+  ensureFluidPackage,
+  isReservedFluidName,
+} from "./fluid/package.js";
+import { fluidDisabledReason, type FluidDisabledReason } from "./fluid/enabled.js";
 import { activateObject, assertNoErrors, type ActivationOutcome } from "./activate.js";
 // Correlation only — FQL builder/validator + feed path, so the query handed
 // to a caller matches what the dumps tool accepts. Acyclic (verified: chain
@@ -227,8 +237,12 @@ export interface RunResult {
   diagnostics?: string[];
 }
 
-/** Package the generated bridge classes live in. Local ⇒ no transport. */
-export const BRIDGE_PACKAGE = "$TMP";
+/**
+ * Package the generated bridge classes live in — the fluid API's own, created on first use. Local ⇒ no transport.
+ * Live re-export, not `= FLUID_PACKAGE`: a module-scope alias is read before `./fluid/package.js`'s own body has
+ * run when the graph is entered at `dist/adt/fluid/package.js`, throwing a TDZ error under real Node ESM.
+ */
+export { FLUID_PACKAGE as BRIDGE_PACKAGE } from "./fluid/package.js";
 
 /** Prefix the driver puts on every captured list line. */
 export const LIST_LINE_PREFIX = "LIST> ";
@@ -247,7 +261,7 @@ export const WIDTH_TRUNCATION_MARKER = "capture width and may be truncated";
 /** The only execution collection in the discovery document. */
 export const CLASSRUN_PATH = "/sap/bc/adt/oo/classrun/";
 
-const BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_RUN_";
+export const BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_RUN_";
 /**
  * ABAP repository object names are 30 characters. Exported because every
  * bridge-name builder in the codebase needs the same ceiling
@@ -866,9 +880,11 @@ export interface DeployBridgeOptions {
   description: string;
   /**
    * Defaults to {@link BRIDGE_PACKAGE}. A parameter and not a constant because
-   * `enhancement-bridge.ts` names the same package through its own
-   * `ENH_CREATE_PACKAGE` alias, and because the day the two diverge this is
-   * where it has to be expressible.
+   * `enhancement-bridge.ts` names its own bridge families' package through its
+   * own `ENH_BRIDGE_PACKAGE` alias — the two have now diverged, since
+   * `ENH_CREATE_PACKAGE` stays `$TMP` for the user's own ENHS/ENHO objects —
+   * and because the day either alias drifts further this is where it has to
+   * be expressible.
    */
   packageName?: string;
   /** `assertNoErrors`' `what` — the caller's exact wording, per bridge. */
@@ -881,6 +897,8 @@ export interface DeployBridgeOptions {
    * reports a negative verdict by returning.
    */
   verify: (activation: ActivationOutcome) => true;
+  /** Names the caller in a `FLUID_API_DISABLED` refusal. Optional: the bridge families that predate the fluid API have nothing to say beyond the class name. */
+  caller?: { readonly tool: string; readonly action: string };
 }
 
 /** Proof that {@link deployBridge} ran, and the only input {@link executeBridge} takes. */
@@ -911,6 +929,118 @@ export interface DeployedBridge {
    * `verifyBridgeActivation` would otherwise have demanded from a POST.
    */
   activationVerified: true;
+}
+
+function fluidApiDisabled(
+  reason: FluidDisabledReason,
+  conn: AbapConnection,
+  opts: DeployBridgeOptions,
+  packageName: string,
+): AbapError {
+  const who = opts.caller ? `${opts.caller.tool} ${opts.caller.action}` : opts.className;
+  const details = {
+    reason: reason.kind,
+    field: reason.field,
+    flag: "ABAP_FLUID_API",
+    flagEnabled: conn.cfg.fluidApi !== false,
+    package: packageName,
+    ...(opts.caller ? { tool: opts.caller.tool, action: opts.caller.action } : {}),
+    objects: [opts.className],
+  };
+
+  if (reason.kind === "flag") {
+    return new AbapError(
+      "FLUID_API_DISABLED",
+      `${who} needs abapsmith's fluid API — the generated ABAP class ${opts.className} that ` +
+        `abapsmith installs into ${packageName} — but the fluid API is disabled by ` +
+        "ABAP_FLUID_API=false. Nothing was deployed and nothing was changed.",
+      details,
+      "Set ABAP_FLUID_API=true, or unset it (it defaults to on), to allow it. The ordinary " +
+        "ceilings still apply on top: a productive or inconclusive system, ABAP_MODE=read, or " +
+        "a read-only session refuses it regardless of this flag.",
+    );
+  }
+
+  return new AbapError(
+    "FLUID_API_DISABLED",
+    `${who} needs abapsmith's fluid API, which installs ABAP objects into ${packageName}. ` +
+      `This session is read-only (${reason.field}), so no fluid operation is available. ` +
+      "Nothing was deployed and nothing was changed.",
+    details,
+    "The fluid API installs and runs ABAP; there is no read-only subset of it. Run with " +
+      "ABAP_MODE=edit against a system abapsmith can prove is non-productive.",
+  );
+}
+
+/**
+ * The cross-package guard in `resolveWriteTarget` refuses an existing object
+ * whose server package is not the requested one. For a fluid-owned bridge
+ * left in a legacy package that refusal is the signal to relocate, not the
+ * verdict. Returns the legacy package, or undefined when the error is
+ * anything else.
+ */
+function strandedLegacyPackage(e: unknown, className: string, packageName: string): string | undefined {
+  if (packageName !== FLUID_PACKAGE) return undefined;
+  if (!isAbapError(e) || e.code !== "BAD_INPUT") return undefined;
+  if (!isReservedFluidName(className)) return undefined;
+  const details = e.details;
+  const server = details["serverPackage"];
+  if (typeof server !== "string") return undefined;
+  if (details["requestedPackage"] !== FLUID_PACKAGE) return undefined;
+  return LEGACY_FLUID_PACKAGES.includes(server.toUpperCase()) ? server : undefined;
+}
+
+async function authorizeBridgeTarget(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  opts: DeployBridgeOptions,
+  packageName: string,
+) {
+  const spec = {
+    type: "CLAS/OC" as const,
+    name: opts.className,
+    packageName,
+    description: opts.description,
+  };
+  try {
+    return await authorizeMutation(conn, gate, "write", spec);
+  } catch (e) {
+    const strandedIn = strandedLegacyPackage(e, opts.className, packageName);
+    if (strandedIn === undefined) throw e;
+    // ABAP objects cannot change package, so delete-then-recreate is the
+    // only way to move a bridge left behind by an older abapsmith. Guarded
+    // twice over: reserved name AND a known legacy package.
+    const authorizedDelete = await authorizeMutation(conn, gate, "delete", {
+      type: "CLAS/OC",
+      name: opts.className,
+    });
+    const del = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
+    if (del.deleted === false) {
+      throw new AbapError(
+        "FLUID_OBJECT_CONFLICT",
+        `CLAS/OC ${opts.className} could not be relocated out of ${strandedIn}: the delete was ` +
+          `sent, but a read-back confirmed the object is still there.`,
+        { name: opts.className, type: "CLAS/OC", foundIn: strandedIn, requestedPackage: packageName },
+        "Delete it manually, or find out why the delete did not take effect, before retrying.",
+      );
+    }
+    // Live-verified on A4H: deleting a class tears down the ABAP session
+    // server-side, even though the delete's own read-back (deleteObject's
+    // verifyObjectDeleted, on its own fresh probe) can still get an answer —
+    // the corpse serves exactly one more request before it stops responding.
+    // The very next call on these cookies, this re-authorize GET, gets
+    // `SESSION_DEAD`. One reconnect-and-re-issue clears it, same idiom as
+    // `probeObjectPresence` in write-verify.ts. Safe to retry without a loop:
+    // a re-authorize is a read plus a gate assert, nothing mutating, so
+    // issuing it twice is idempotent.
+    try {
+      return await authorizeMutation(conn, gate, "write", spec);
+    } catch (e2) {
+      if (!isSessionDeadFailure(e2)) throw e2;
+      await conn.connect();
+      return await authorizeMutation(conn, gate, "write", spec);
+    }
+  }
 }
 
 /**
@@ -961,15 +1091,25 @@ export async function deployBridge(
   opts: DeployBridgeOptions,
 ): Promise<DeployedBridge> {
   const { className, source } = opts;
+  const packageName = opts.packageName ?? FLUID_PACKAGE;
 
-  const authorized = await authorizeMutation(conn, gate, "write", {
-    type: "CLAS/OC",
-    name: className,
-    packageName: opts.packageName ?? BRIDGE_PACKAGE,
-    description: opts.description,
-  });
+  // The fluid API's one deploy-side chokepoint: every generated bridge in
+  // the codebase reaches the wire through here, so the refusal is enforced
+  // once rather than at each caller. Before any I/O — a refused call must
+  // not open a socket.
+  const disabled = fluidDisabledReason(conn.cfg, gate);
+  if (disabled) throw fluidApiDisabled(disabled, conn, opts, packageName);
 
-  // NO_JOURNAL: this is a generated $TMP bridge, not a user object —
+  const authorized = await authorizeBridgeTarget(conn, gate, opts, packageName);
+
+  // `$ABAPSMITH_FLUID_API` is not `$TMP`: it has to be created before the
+  // first object lands in it. Skipped when the bridge already exists, which
+  // is proof enough that the package does — the warm path costs no round trip.
+  if (packageName === FLUID_PACKAGE && !authorized.target.exists) {
+    await ensureFluidPackage(conn, gate);
+  }
+
+  // NO_JOURNAL: this is a generated bridge, not a user object —
   // journalling it would fill abap_journal with machine-written scaffolding.
   const write = await writeObject(conn, authorized, {
     source,
@@ -1039,49 +1179,6 @@ export async function deployBridge(
   } catch (e) {
     throw discloseBridgeResidue(e, className, authorized.target.packageName, stage);
   }
-}
-
-/** Which post-write step {@link discloseBridgeResidue} caught the failure in. */
-type BridgeResidueStage = "activate-gate" | "activation" | "verify";
-
-/**
- * ARCH-09 §5.6/P9: once `writeObject` succeeds, any failure below it leaves
- * `className` behind in `packageName`. Disclosure, not deletion — deleting it
- * would destroy an artefact a developer might want to inspect — so this only
- * adds facts to the existing error; `code`/`message` stay untouched since
- * callers/tests branch on `code`.
- *
- * `stage` (not the caught error's `code`) decides the wording, since only
- * `stage` says what actually ran. Only called from the catch below
- * `writeObject` — a refusal from `authorizeMutation` must reach the caller
- * unchanged, so this isn't hoisted to wrap the whole function.
- */
-function discloseBridgeResidue(
-  e: unknown,
-  className: string,
-  packageName: string,
-  stage: BridgeResidueStage,
-): unknown {
-  if (!isAbapError(e)) return e; // every step above throws AbapError; anything else passes through untouched.
-
-  const outcome =
-    stage === "activate-gate"
-      ? "was blocked before activation could run; it is left behind there, inactive"
-      : stage === "activation"
-        ? "failed to activate; it is left behind there, inactive"
-        : "activated, then failed post-activation verification; it is left behind there";
-
-  const residueHint = `Bridge class ${className} was written to ${packageName} but ${outcome} — safe to delete.`;
-
-  const disclosed = new AbapError(
-    e.code,
-    e.message,
-    { ...e.details, bridgeClass: className, bridgeLeftBehind: true },
-    e.hint ? `${e.hint} ${residueHint}` : residueHint,
-  );
-  disclosed.stack = e.stack;
-  disclosed.cause = e.cause;
-  return disclosed;
 }
 
 /**
@@ -1162,6 +1259,7 @@ export async function runReport(
     className,
     source,
     description: `abapsmith run bridge for report ${report}`,
+    caller: { tool: "abap_run", action: "report" },
     what: "Activation of the generated run bridge",
     hint:
       `The bridge SUBMITs ${report} by name, so the usual cause is that ${report} does ` +

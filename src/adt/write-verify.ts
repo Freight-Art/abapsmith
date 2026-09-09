@@ -1,8 +1,8 @@
 /**
  * Post-create verification for the classrun-bridge creates (`VIEW/DV`, `TRAN/T`).
  *
- * `ddic-bridge.ts`'s `runDdicBridge` only proves the generated classrun ran
- * and its calls returned `sy-subrc = 0` — not that the result persisted
+ * `classic-call.ts`'s fluid dispatch path only proves the classic body class
+ * ran and its calls returned `sy-subrc = 0` — not that the result persisted
  * (implicit rollback / missing commit inside the classrun's own execution
  * context can produce an identical transcript to a genuine success). That gap
  * — `created: true` reported for an object that was never actually there —

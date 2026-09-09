@@ -1,0 +1,17 @@
+{
+  "contract": "1.0",
+  "id": "commitwk",
+  "title": "COMMIT WORK fluid plugin",
+  "description": "Loader fixture: a bare COMMIT WORK not wrapped in any declared action target.",
+  "objects": [
+    { "name": "ZCL_ZMCP_X_COMMITWK", "type": "CLAS/OC", "description": "fluid: commitwk body",
+      "source": { "file": "abap/zcl_zmcp_x_commitwk.abap" } }
+  ],
+  "entry": "ZCL_ZMCP_X_COMMITWK",
+  "actions": [
+    { "name": "ping", "category": "read", "description": "Replies with a fixed string.",
+      "input": { "type": "object" },
+      "output": { "type": "object", "required": ["reply"],
+                  "properties": { "reply": { "type": "string" } } } }
+  ]
+}

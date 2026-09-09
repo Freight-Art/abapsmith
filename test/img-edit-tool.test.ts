@@ -4,13 +4,21 @@
  * `src/adt/img-write-policy.ts`'s pure `evaluateImgWrite`.
  *
  * Same harness shape as `test/img-write.test.ts` (a `RecordingClient`
- * implementing `HttpClient` directly, `$ZMCP_HELPERS` already existing so no
- * package-create POST is ever needed, `bridgeHappyPath`-style routing), with
- * one addition: an armed `upsert`/`delete` call deploys and executes TWO
- * bridge classes in one connected session (the probe, then the apply) — see
- * `multiBridgeHappyPath` below, a generalisation of `img-write.test.ts`'s
- * own single-class `bridgeHappyPath` keyed by class name instead of closed
- * over one.
+ * implementing `HttpClient` directly, `FLUID_PACKAGE` already existing so no
+ * package-create POST is ever needed), with one addition: an armed
+ * `upsert`/`delete` call dispatches TWO fluid `img` actions in one connected
+ * session — `preview` (the probe) and then `apply` — each through
+ * `fluid/dispatch.ts` against the one shared body class (`imgManifest.entry`)
+ * plus its own content-hash invoker class (`ZCL_ZMCP_I_` + 8 hex), so the
+ * wire fake here has to answer per action, not per bridge class (there is no
+ * per-action class any more: `ZCL_ZMCP_IMG_WAPPLY`/`ZCL_ZMCP_CTS_WREQ` are
+ * retired). See `multiBridgeHappyPath` below: it keys its classrun answers by
+ * action name and recovers each invoker's action from the `iv_action = '...'`
+ * literal `fluid/invoke.ts` bakes into the invoker's source PUT, since the
+ * invoker's name is only a content hash over tool/action/args.
+ * `test/helpers/fluid-img-fake.ts` carries the fluid transcript-framing and
+ * class-lifecycle fake shared with `img-write.test.ts` — see that file's
+ * header for the frame grammar.
  *
  * Plan validation, ABAP fragment generation, transcript parsing and the
  * deploy/activate/execute wiring itself are already covered in
@@ -21,7 +29,7 @@
  * rendering (including the SM30-bypass disclosure appearing on armed output
  * and nowhere in `preview`), and post-hoc journalling of the before-image.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,16 +48,30 @@ import { ConfigSchema, type Config } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
 import type { SessionPool } from "../src/adt/pool.js";
 import { errorResult } from "../src/server.js";
-import { HELPER_PACKAGE } from "../src/adt/helper-package.js";
-import { IMGW_BRIDGE_CLASS } from "../src/adt/img-write-bridge.js";
-import { CUSTOMIZING_REQUEST_CLASS } from "../src/adt/customizing-request.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { imgManifest } from "../src/adt/fluid/builtin/img.js";
+import { FLUID_RUNTIME_CLASS } from "../src/adt/fluid/abap/runtime.js";
 import { Journal } from "../src/journal.js";
 import { registerImgEditTools, type ImgEditToolDeps } from "../src/tools/img-edit.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { dynamicImgFluidRoute, imgProbeConsole } from "./helpers/fluid-img-fake.js";
 
 // ----------------------------------------------------------------------- harness ---
 
-const cfg = (): Config =>
+let tmp: string;
+
+beforeEach(async () => {
+  tmp = await mkdtemp(join(tmpdir(), "abapsmith-img-edit-"));
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
+afterEach(async () => {
+  await rm(tmp, { recursive: true, force: true });
+});
+
+const cfg = (opts: { maxResponseChars?: number; language?: string } = {}): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
     user: "TESTUSER",
@@ -57,6 +79,10 @@ const cfg = (): Config =>
     sid: "TST",
     client: "001",
     readOnly: false,
+    fluidApi: true,
+    stateDir: tmp,
+    maxResponseChars: opts.maxResponseChars ?? 30_000,
+    language: opts.language ?? "",
   });
 
 const resp = (
@@ -74,8 +100,44 @@ class RecordingClient implements HttpClient {
   }
 }
 
+type ImgAction = "preview" | "apply" | "create_request";
+type ClassrunHandler = (o: HttpClientOptions) => HttpClientResponse;
+
+const CLASSRUN_PATH = "/sap/bc/adt/oo/classrun/";
+const INVOKER_SOURCE_URL_RE = /^\/sap\/bc\/adt\/oo\/classes\/(zcl_zmcp_i_[0-9a-f]{8})\/source\/main$/i;
+
+/** The action a generated invoker class was written for — `fluid/invoke.ts` bakes it into the invoker's source as `iv_action = '<action>'`; the class name itself is only a content hash over tool/action/args, so it cannot be told apart by name. */
+function invokerActionOf(body: unknown): string | undefined {
+  return /iv_action = '([a-z_]+)'/.exec(typeof body === "string" ? body : "")?.[1];
+}
+
+/** The invoker's args JSON, reassembled from the backtick-literal chunks `fluid/invoke.ts` splits it into (a chunk boundary can land anywhere, so no single source line is guaranteed to hold a whole key/value pair). */
+function invokerArgsJson(source: string): string {
+  return [...source.matchAll(/lv_json = lv_json && `((?:[^`]|``)*)`\./g)].map((m) => m[1]!.replace(/``/g, "`")).join("");
+}
+
+/** Name of the invoker class this session wrote for `action`, if any — from its source PUT. */
+function invokerFor(inner: RecordingClient, action: ImgAction): string | undefined {
+  for (const c of inner.calls) {
+    if ((c.method ?? "GET").toUpperCase() !== "PUT") continue;
+    const m = INVOKER_SOURCE_URL_RE.exec(c.url);
+    if (m && invokerActionOf(c.body) === action) return m[1]!.toUpperCase();
+  }
+  return undefined;
+}
+
+/** "Did img.<action> run?" means its invoker was both written and classrun — all three actions deploy the same body class (imgManifest.entry), so that class's presence on the wire says nothing about which action reached execution. */
+function actionRan(inner: RecordingClient, action: ImgAction): boolean {
+  const name = invokerFor(inner, action);
+  return name !== undefined && inner.calls.some((c) => c.url.toUpperCase() === `${CLASSRUN_PATH}${name}`.toUpperCase());
+}
+
+function probeRan(inner: RecordingClient): boolean {
+  return actionRan(inner, "preview");
+}
+
 const SESSION_URL = "/sap/bc/adt/compatibility/graph";
-const PKG_URI = "/sap/bc/adt/packages/%24zmcp_helpers";
+const PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
 
 const LOCK_XML = (handle = "H1") =>
   `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
@@ -86,7 +148,7 @@ const LOCK_XML = (handle = "H1") =>
 const PACKAGE_XML = (name: string): string =>
   `<?xml version="1.0" encoding="utf-8"?>` +
   `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
-  `xmlns:adtcore:name="${name}" adtcore:type="DEVC/K">` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${name}" adtcore:type="DEVC/K">` +
   `<adtcore:packageRef adtcore:name="${name}" adtcore:type="DEVC/K"/>` +
   `<pak:superPackage adtcore:name="$TMP"/>` +
   `</pak:package>`;
@@ -119,7 +181,7 @@ function emptyBody(): string {
   return '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview"></dataPreview:tableData>';
 }
 
-/** Base routes every test needs regardless of which bridge class(es) are being deployed: login, the $ZMCP_HELPERS existence GET (already there — no create needed), and the connect-time probes `AbapConnection.connect()` itself makes. */
+/** Base routes every test needs regardless of which bridge class(es) are being deployed: login, the FLUID_PACKAGE existence GET (already there — no create needed), and the connect-time probes `AbapConnection.connect()` itself makes. */
 function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
   if (o.url.includes(SESSION_URL)) {
     return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
@@ -127,48 +189,182 @@ function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
   if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
   if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
   if (o.url === PKG_URI && (o.method ?? "GET").toUpperCase() === "GET") {
-    return resp(200, PACKAGE_XML(HELPER_PACKAGE), { "content-type": "application/xml" });
+    return resp(200, PACKAGE_XML(FLUID_PACKAGE), { "content-type": "application/xml" });
   }
   return undefined;
 }
 
 /**
+ * `dynamicImgFluidRoute` (test/helpers/fluid-img-fake.ts) only recognizes the
+ * fluid img body class (`imgManifest.entry`) and its content-hash invoker —
+ * it predates `img.ts` declaring the shared runtime class
+ * (`FLUID_RUNTIME_CLASS`) as a manifest object of its own, deployed FIRST,
+ * ahead of the body class (see `src/adt/fluid/ensure.ts`'s in-order deploy).
+ * Left unhandled, every request for the runtime class's own lifecycle
+ * (existence GET, create, LOCK/PUT/UNLOCK, activation) falls through
+ * `dynamicImgFluidRoute` to whatever catch-all a route composes it with —
+ * here a bare `resp(200, "<ok/>", ...)`, which lacks an
+ * `<adtcore:packageRef>`, so `resolveWriteTarget` (src/adt/write.ts) throws
+ * `packageUnknown` on the very first classify pass, before the body class
+ * deploy is ever reached. This is the same auto-vivifying per-name state-
+ * store idiom `test/helpers/fluid-classic-fake.ts`'s (ungated) `classicFake`
+ * already uses successfully for the identical runtime-class-first shape in
+ * the `classic` builtin's manifest — scoped here to just the one class name,
+ * duplicated locally (and duplicated again in `test/img-write.test.ts`)
+ * since `fluid-img-fake.ts` itself is out of scope to change.
+ */
+function runtimeClassRoute(packageName: string): (o: HttpClientOptions) => HttpClientResponse | undefined {
+  const classUri = `/sap/bc/adt/oo/classes/${FLUID_RUNTIME_CLASS.toLowerCase()}`;
+  const srcUri = `${classUri}/source/main`;
+  const st: { exists: boolean; source?: string; active: boolean } = { exists: false, active: false };
+
+  const notFoundXml = () =>
+    `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">` +
+    `<namespace id="com.sap.adt"/><type id="ExceptionResourceNotFound"/>` +
+    `<message lang="EN">${FLUID_RUNTIME_CLASS} does not exist</message><properties/></exc:exception>`;
+
+  const classDocXml = () => {
+    const main = st.active ? "active" : "inactive";
+    const inc = (type: string, version: string) =>
+      `<class:include class:includeType="${type}" ` +
+      `abapsource:sourceUri="${type === "main" ? "source/main" : `includes/${type}`}" ` +
+      `adtcore:name="" adtcore:type="CLAS/I" adtcore:version="${version}"/>`;
+    return (
+      `<?xml version="1.0" encoding="utf-8"?>` +
+      `<class:abapClass adtcore:name="${FLUID_RUNTIME_CLASS}" adtcore:type="CLAS/OC" adtcore:version="active" ` +
+      `xmlns:class="http://www.sap.com/adt/oo/classes" xmlns:adtcore="http://www.sap.com/adt/core" ` +
+      `xmlns:abapsource="http://www.sap.com/adt/abapsource">` +
+      `<adtcore:packageRef adtcore:name="${packageName}"/>` +
+      inc("definitions", "active") +
+      inc("implementations", "active") +
+      inc("macros", "active") +
+      inc("main", main) +
+      `</class:abapClass>`
+    );
+  };
+
+  return (o: HttpClientOptions) => {
+    const method = (o.method ?? "GET").toUpperCase();
+    const qs = (o.qs ?? {}) as Record<string, string>;
+
+    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") {
+      if (!(o.body ?? "").includes(`adtcore:name="${FLUID_RUNTIME_CLASS}"`)) return undefined;
+      st.exists = true;
+      st.active = false;
+      return resp(200, "", { "content-type": "text/plain" });
+    }
+    if (o.url === "/sap/bc/adt/activation" && method === "POST") {
+      if (!(typeof o.body === "string" && o.body.includes(FLUID_RUNTIME_CLASS))) return undefined;
+      st.active = true;
+      return resp(200, "", { "content-length": "0" });
+    }
+    if (o.url === classUri && method === "GET" && !qs._action) {
+      if (!st.exists) {
+        const r = resp(404, notFoundXml(), { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+      }
+      return resp(200, classDocXml(), { "content-type": "application/xml" });
+    }
+    if (o.url === srcUri && method === "GET") {
+      if (!st.exists || st.source === undefined) {
+        const r = resp(404, notFoundXml(), { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
+      }
+      return resp(200, st.source, { "content-type": "text/plain" });
+    }
+    if (o.url === classUri && qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
+    if (o.url === classUri && qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
+    if (o.url === srcUri && method === "PUT") {
+      st.source = o.body ?? "";
+      st.exists = true;
+      st.active = false;
+      return resp(200, "", { "content-type": "text/plain" });
+    }
+    return undefined;
+  };
+}
+
+/** A real compile error from an activation POST, in the shape `abap-adt-api`'s `activate()` hands back — same fixture as `test/img-write.test.ts`'s activation-refusal routes, parameterised over which class is being refused. */
+function activationErrorXml(className: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
+  <msg objDescr="Class ${className}" type="E" line="1"
+       href="/sap/bc/adt/oo/classes/${className.toLowerCase()}/source/main#start=12,4" forceSupported="true">
+    <shortText><txt>Field "LV_UNDEFINED" is unknown. It is neither in one of the specified tables nor defined by a "DATA" statement.</txt></shortText>
+  </msg>
+</chkl:messages>`;
+}
+
+/**
  * Full write -> activate -> classrun happy path, generalised over as many
- * bridge classes as `classRuns` names — unlike `img-write.test.ts`'s own
- * single-class `bridgeHappyPath`, an armed `upsert`/`delete` call here
- * deploys and executes BOTH `IMGW_BRIDGE_CLASS.probe` and `.apply` within
- * one connected session, so the routing has to know both class names at
- * once. A classrun POST for a class name not present in `classRuns` throws
- * loudly rather than falling through to a generic 200 — the whole point of
- * several tests below is that a bridge is or is NOT reached.
+ * fluid `img` actions as `actionRuns` names — an armed `upsert`/`delete`
+ * call dispatches `preview` and then `apply` within one connected session,
+ * both against the same body class, each through its own content-hash
+ * invoker. Every invoker's source PUT is watched for the `iv_action` literal
+ * so that, by the time its classrun (and its activation) arrives, the route
+ * knows which action that class stands for. A classrun for an action not
+ * present in `actionRuns` throws loudly rather than falling through to a
+ * generic 200 — the whole point of several tests below is that an action is
+ * or is NOT reached. `refuseActivationOf` answers that one action's invoker
+ * activation with a real compile error instead, leaving the body class and
+ * every other invoker activating cleanly.
  */
 function multiBridgeHappyPath(
-  classRuns: Record<string, (o: HttpClientOptions) => HttpClientResponse>,
-): (o: HttpClientOptions) => HttpClientResponse {
+  actionRuns: Partial<Record<ImgAction, ClassrunHandler>>,
+  opts: { refuseActivationOf?: ImgAction } = {},
+): ClassrunHandler {
+  const invokerActions = new Map<string, string>();
+  const fluidRoute = dynamicImgFluidRoute({
+    // Classrun for a fluid img class is routed per action below (never through this branch), since
+    // dynamicImgFluidRoute's own classrun interception is name-unfiltered and one transcript
+    // cannot answer both the probe and the apply of one armed session.
+    transcript: () => {
+      throw new Error("unreachable: fluid classrun is intercepted before dynamicImgFluidRoute sees it");
+    },
+    packageName: FLUID_PACKAGE,
+    ...(opts.refuseActivationOf === undefined
+      ? {}
+      : {
+          activationError: {
+            matches: (name: string) => invokerActions.get(name) === opts.refuseActivationOf,
+            xml: activationErrorXml,
+          },
+        }),
+  });
+  const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+
   return (o: HttpClientOptions) => {
     const base = baseRoute(o);
     if (base) return base;
     const qs = (o.qs ?? {}) as Record<string, string>;
     const method = (o.method ?? "GET").toUpperCase();
 
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
-      const name = o.url.slice("/sap/bc/adt/oo/classrun/".length);
-      const handler = classRuns[name];
+    const sourcePut = INVOKER_SOURCE_URL_RE.exec(o.url);
+    if (sourcePut && method === "PUT") {
+      const action = invokerActionOf(o.body);
+      if (action !== undefined) invokerActions.set(sourcePut[1]!.toUpperCase(), action);
+    }
+
+    if (o.url.startsWith(CLASSRUN_PATH)) {
+      const name = o.url.slice(CLASSRUN_PATH.length).toUpperCase();
+      const action = invokerActions.get(name);
+      const handler = action === undefined ? undefined : actionRuns[action as ImgAction];
       if (!handler) {
-        throw new Error(`unrouted classrun call for ${name} — this test did not expect it to be reached`);
+        throw new Error(
+          `unrouted classrun call for ${name} (img.${action ?? "<unknown action>"}) — this test did not expect it to be reached`,
+        );
       }
-      return handler(o);
+      const r = handler(o);
+      if (r.status !== 200) return r;
+      return resp(200, imgProbeConsole(String(r.body), { action }), { "content-type": "text/plain" });
     }
-    for (const name of Object.keys(classRuns)) {
-      const classUri = `/sap/bc/adt/oo/classes/${name.toLowerCase()}`;
-      if (o.url === classUri && method === "GET" && !qs._action) {
-        const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-      }
-      if (o.url === `${classUri}/source/main` && method === "PUT") {
-        return resp(200, "", { "content-type": "text/plain" });
-      }
-    }
+
+    const fluid = fluidRoute(o);
+    if (fluid) return fluid;
+
+    const runtime = runtimeRoute(o);
+    if (runtime) return runtime;
+
     if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
     if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
     if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
@@ -198,11 +394,11 @@ function multiBridgeHappyPath(
  */
 function resolutionRoute(
   imgBodies: readonly string[],
-  classRuns: Record<string, (o: HttpClientOptions) => HttpClientResponse> = {},
-): (o: HttpClientOptions) => HttpClientResponse {
+  actionRuns: Partial<Record<ImgAction, ClassrunHandler>> = {},
+): ClassrunHandler {
   let freestyleCalls = 0;
   const queue = [...imgBodies];
-  const rest = multiBridgeHappyPath(classRuns);
+  const rest = multiBridgeHappyPath(actionRuns);
   return (o: HttpClientOptions) => {
     if (o.url.includes("/datapreview/freestyle")) {
       freestyleCalls += 1;
@@ -337,13 +533,12 @@ function depsFor(
   conn: AbapConnection,
   opts: { safety?: SafetyGate; maxResponseChars?: number; journal?: Journal; language?: string; ensureConnected?: () => Promise<void> } = {},
 ): ImgEditToolDeps {
-  const c = cfg();
   return {
     pool: fakePool(conn),
     safety: opts.safety ?? openGate(),
     ensureConnected: opts.ensureConnected ?? (async () => {}),
     errorResult,
-    cfg: { maxResponseChars: opts.maxResponseChars ?? 30_000, language: opts.language ?? "", sid: c.sid, url: c.url, client: c.client },
+    cfg: cfg({ maxResponseChars: opts.maxResponseChars, language: opts.language }),
     journal: opts.journal ?? disabledJournal,
   };
 }
@@ -405,7 +600,7 @@ const PROBE_TRANSCRIPT_ABSENT =
 /**
  * Defect fixture — a `delete` apply transcript for a row that never existed: `BABSENT`/`AABSENT`
  * on both sides, no `TRKEY` line and no `WROTE` line (both sit inside the before-image `SELECT`'s
- * `ELSE` in `imgApplySource`'s delete branch, src/adt/img-write-bridge.ts, so an absent row emits
+ * `ELSE` in the `apply` action's delete branch, src/adt/fluid/builtin/img.ts, so an absent row emits
  * neither). Live symptom this reproduces: an armed delete of a nonexistent row answered
  * `[ok] applied: 1` with a `ROWS DELETED` body carrying no `changed`/`result` column at all — a
  * caller reading that response could only conclude the row was deleted, which was false.
@@ -468,7 +663,7 @@ const APPLY_TRANSCRIPT_UPSERT_TABKEY_NO_CLIENT =
   `IMGW> AVAL row=[1] field=[ZDESC] len=[3] value=[New]\n` +
   `IMGW> APPLIED rows=[1]\n`;
 
-/** Delete-side counterpart of `APPLY_TRANSCRIPT_UPSERT_TABKEY` — confirms the identity/tabkey disclosure is not upsert-only (deletes call `ctsRecordFragment` too — see `imgApplySource`'s delete branch in `src/adt/img-write-bridge.ts`). */
+/** Delete-side counterpart of `APPLY_TRANSCRIPT_UPSERT_TABKEY` — confirms the identity/tabkey disclosure is not upsert-only (deletes record a CTS entry too — see the `apply` action's delete branch in `src/adt/fluid/builtin/img.ts`). */
 const APPLY_TRANSCRIPT_DELETE_TABKEY =
   `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
   `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
@@ -505,7 +700,7 @@ const BASE_ARGS = {
 describe("abap_img_edit — mode: preview", () => {
   it("renders current vs. prospective rows and a descriptive transport-entry line, never deploying the apply bridge, and omits the SM30-bypass disclosure", async () => {
     const { conn, inner } = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     const { tools } = await registered(conn);
 
@@ -539,8 +734,8 @@ describe("abap_img_edit — mode: preview", () => {
     // been written yet, so this module deliberately filters it out of preview's own rendering.
     expect(text).not.toContain("table-maintenance-generator events");
 
-    expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
-    expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
+    expect(probeRan(inner)).toBe(true);
+    expect(actionRan(inner, "apply")).toBe(false);
   });
 
   it("a single-row preview labels the same row 0 in CURRENT ROWS and PROSPECTIVE CHANGE, even though the transcript's own row numbers are 1-based", async () => {
@@ -549,7 +744,7 @@ describe("abap_img_edit — mode: preview", () => {
     // row 0 — the caller's own array index — never the raw transcript number, and never two
     // different numbers for the same row in the same response.
     const { conn } = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     const { tools } = await registered(conn);
 
@@ -583,7 +778,7 @@ describe("abap_img_edit — mode: preview", () => {
       `IMGW> FLD table=[ztest_imgw] field=[ZDESC] key=[] type=[CHAR] len=[40] rollname=[ZDESC]\n` +
       `IMGW> BABSENT row=[1]\n` +
       `IMGW> PROBED rows=[1]\n`;
-    const { conn } = await connected(multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, TRANSCRIPT) }));
+    const { conn } = await connected(multiBridgeHappyPath({ preview: () => resp(200, TRANSCRIPT) }));
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_img_edit", {
@@ -604,8 +799,8 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
     await withJournal(async (journal) => {
       const { conn, inner } = await connected(
         multiBridgeHappyPath({
-          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
+          preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+          apply: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
         }),
       );
       const { tools } = await registered(conn, { journal });
@@ -625,8 +820,8 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
       expect(text).toContain("table-maintenance-generator events");
       expect(text).toMatch(/Journalled as entry/);
 
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(true);
+      expect(probeRan(inner)).toBe(true);
+      expect(actionRan(inner, "apply")).toBe(true);
 
       const entries = await journal.list({});
       expect(entries).toHaveLength(1);
@@ -646,8 +841,8 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
         multiBridgeHappyPath({
-          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_DELETE),
+          preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+          apply: () => resp(200, APPLY_TRANSCRIPT_DELETE),
         }),
       );
       const { tools } = await registered(conn, { journal });
@@ -671,7 +866,7 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
 
   it("confirm-mismatch refuses after the probe already ran but before the apply bridge is ever deployed", async () => {
     const { conn, inner } = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     const { tools } = await registered(conn);
 
@@ -683,13 +878,13 @@ describe("abap_img_edit — mode: upsert (armed)", () => {
     });
 
     expect(errorPayload(result).error).toBe("SAFETY_DENIED");
-    expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
-    expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
+    expect(probeRan(inner)).toBe(true);
+    expect(actionRan(inner, "apply")).toBe(false);
   });
 
   it("a BAD_INPUT argument error (missing rows) is thrown before any network call", async () => {
     const { conn, inner } = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     const { tools } = await registered(conn);
 
@@ -722,8 +917,8 @@ describe("abap_img_edit — armed delete: per-row changed/result disclosure", ()
     await withJournal(async (journal) => {
       const { conn } = await connected(
         multiBridgeHappyPath({
-          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_ABSENT),
-          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_DELETE_ABSENT),
+          preview: () => resp(200, PROBE_TRANSCRIPT_ABSENT),
+          apply: () => resp(200, APPLY_TRANSCRIPT_DELETE_ABSENT),
         }),
       );
       const { tools } = await registered(conn, { journal });
@@ -767,8 +962,8 @@ describe("abap_img_edit — armed delete: per-row changed/result disclosure", ()
   it("a row that DID exist is still reported as changed: yes / deleted, with the transport entry disclosure intact", async () => {
     const { conn } = await connected(
       multiBridgeHappyPath({
-        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_DELETE),
+        preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        apply: () => resp(200, APPLY_TRANSCRIPT_DELETE),
       }),
     );
     const { tools } = await registered(conn);
@@ -795,8 +990,8 @@ describe("abap_img_edit — armed delete: per-row changed/result disclosure", ()
   it("a mixed delete (one existing row, one absent row) classifies each row independently and names only the absent one in the note", async () => {
     const { conn } = await connected(
       multiBridgeHappyPath({
-        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_MIXED),
-        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_DELETE_MIXED),
+        preview: () => resp(200, PROBE_TRANSCRIPT_MIXED),
+        apply: () => resp(200, APPLY_TRANSCRIPT_DELETE_MIXED),
       }),
     );
     const { tools } = await registered(conn);
@@ -851,8 +1046,8 @@ describe("abap_img_edit — armed transport entry identity disclosure", () => {
   it("armed upsert discloses pgmid/object/objname/mastertype/mastername above the per-row table, with the plan's real values", async () => {
     const { conn } = await connected(
       multiBridgeHappyPath({
-        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
+        preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        apply: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
       }),
     );
     const { tools } = await registered(conn);
@@ -875,8 +1070,8 @@ describe("abap_img_edit — armed transport entry identity disclosure", () => {
   it("the rendered tabkey is client-prefixed: mandt 001 + a TRKEY value of ZTMD renders 001ZTMD, matching what SAP actually stored", async () => {
     const { conn } = await connected(
       multiBridgeHappyPath({
-        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_UPSERT_TABKEY),
+        preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        apply: () => resp(200, APPLY_TRANSCRIPT_UPSERT_TABKEY),
       }),
     );
     const { tools } = await registered(conn);
@@ -901,8 +1096,8 @@ describe("abap_img_edit — armed transport entry identity disclosure", () => {
   it("without an IMGW> CLIENT line, no client prefix is fabricated — the key renders unprefixed and the response says so", async () => {
     const { conn } = await connected(
       multiBridgeHappyPath({
-        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_UPSERT_TABKEY_NO_CLIENT),
+        preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        apply: () => resp(200, APPLY_TRANSCRIPT_UPSERT_TABKEY_NO_CLIENT),
       }),
     );
     const { tools } = await registered(conn);
@@ -925,8 +1120,8 @@ describe("abap_img_edit — armed transport entry identity disclosure", () => {
   it("a delete also records a CTS entry, and the section renders the same identity/tabkey disclosure", async () => {
     const { conn } = await connected(
       multiBridgeHappyPath({
-        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_DELETE_TABKEY),
+        preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        apply: () => resp(200, APPLY_TRANSCRIPT_DELETE_TABKEY),
       }),
     );
     const { tools } = await registered(conn);
@@ -977,48 +1172,12 @@ const APPLY_TRANSCRIPT_MISSING_AFTER_IMAGE =
   `IMGW> WROTE row=[1]\n` +
   `IMGW> APPLIED rows=[1]\n`;
 
-/** Bridge class write succeeds, but the APPLY class's own activation POST reports a real compile error — same fixture shape as `test/img-write.test.ts`'s `bridgeActivationRefused`, generalised to a two-class (`probe` + `apply`) session where the probe runs cleanly and only the apply class's activation is refused. Discriminates which class's activation POST is being answered by checking the request body for the class name — `abap-adt-api`'s `activate()` embeds it as `adtcore:name="<class>"`. */
-function probeOkApplyActivationRefused(): (o: HttpClientOptions) => HttpClientResponse {
-  const probeClass = IMGW_BRIDGE_CLASS.probe;
-  const applyClass = IMGW_BRIDGE_CLASS.apply;
-  const applyClassUri = `/sap/bc/adt/oo/classes/${applyClass.toLowerCase()}`;
-  const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
-<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
-  <msg objDescr="Class ${applyClass}" type="E" line="1"
-       href="${applyClassUri}/source/main#start=12,4" forceSupported="true">
-    <shortText><txt>Field "LV_UNDEFINED" is unknown. It is neither in one of the specified tables nor defined by a "DATA" statement.</txt></shortText>
-  </msg>
-</chkl:messages>`;
-  return (o: HttpClientOptions) => {
-    const base = baseRoute(o);
-    if (base) return base;
-    const qs = (o.qs ?? {}) as Record<string, string>;
-    const method = (o.method ?? "GET").toUpperCase();
-
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
-      const name = o.url.slice("/sap/bc/adt/oo/classrun/".length);
-      if (name === probeClass) return resp(200, PROBE_TRANSCRIPT_EXISTING);
-      throw new Error(`unrouted classrun call for ${name} — the apply class's activation should have refused first`);
-    }
-    for (const name of [probeClass, applyClass]) {
-      const classUri = `/sap/bc/adt/oo/classes/${name.toLowerCase()}`;
-      if (o.url === classUri && method === "GET" && !qs._action) {
-        const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-        throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-      }
-      if (o.url === `${classUri}/source/main` && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    }
-    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
-    if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-    if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url.includes("/sap/bc/adt/activation")) {
-      const activatingApply = typeof o.body === "string" && o.body.includes(applyClass);
-      return activatingApply
-        ? resp(200, ACTIVATION_ERROR, { "content-type": "application/xml" })
-        : resp(200, "", { "content-length": "0" });
-    }
-    return resp(200, "<ok/>", { "content-type": "application/xml" });
-  };
+/** The (fluid) probe runs cleanly, then the apply invoker's own activation POST reports a real compile error — the fluid-era shape of `test/img-write.test.ts`'s activation-refusal fixture: the body class is shared by both actions and activates fine, so the only per-action activation left to refuse is the apply invoker's. */
+function probeOkApplyActivationRefused(): ClassrunHandler {
+  return multiBridgeHappyPath(
+    { preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) },
+    { refuseActivationOf: "apply" },
+  );
 }
 
 describe("abap_img_edit — armed apply cannot be silently unaccounted-for (Defect G)", () => {
@@ -1036,16 +1195,18 @@ describe("abap_img_edit — armed apply cannot be silently unaccounted-for (Defe
     const err = errorPayload(result);
     expect(err.error).toBe("CHECK_FAILED");
     expect((err.details as Record<string, unknown> | undefined)?.bridgeLeftBehind).toBe(true);
-    expect((err.details as Record<string, unknown> | undefined)?.bridgeClass).toBe(IMGW_BRIDGE_CLASS.apply);
-    expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
+    // The class left behind is the apply invoker, not the shared body class the probe already ran through.
+    expect((err.details as Record<string, unknown> | undefined)?.bridgeClass).toBe(invokerFor(inner, "apply"));
+    expect(probeRan(inner)).toBe(true);
+    expect(actionRan(inner, "apply")).toBe(false);
   });
 
   it("a runtime exception before any row write throws CHECK_FAILED with mayHaveExecuted false, and journals the mutation as failed", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
         multiBridgeHappyPath({
-          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_ERROR_BEFORE_WRITE),
+          preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+          apply: () => resp(200, APPLY_TRANSCRIPT_ERROR_BEFORE_WRITE),
         }),
       );
       const { tools } = await registered(conn, { journal });
@@ -1071,8 +1232,8 @@ describe("abap_img_edit — armed apply cannot be silently unaccounted-for (Defe
   it("a runtime exception after a row write throws CHECK_FAILED with mayHaveExecuted true (a WROTE marker is on the wire)", async () => {
     const { conn } = await connected(
       multiBridgeHappyPath({
-        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_ERROR_AFTER_WRITE),
+        preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        apply: () => resp(200, APPLY_TRANSCRIPT_ERROR_AFTER_WRITE),
       }),
     );
     const { tools } = await registered(conn);
@@ -1092,8 +1253,8 @@ describe("abap_img_edit — armed apply cannot be silently unaccounted-for (Defe
   it("no bridge error line, but a row missing its after-image, still throws CHECK_FAILED rather than answering ok with an unaccounted-for row", async () => {
     const { conn } = await connected(
       multiBridgeHappyPath({
-        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_MISSING_AFTER_IMAGE),
+        preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        apply: () => resp(200, APPLY_TRANSCRIPT_MISSING_AFTER_IMAGE),
       }),
     );
     const { tools } = await registered(conn);
@@ -1130,7 +1291,7 @@ describe("abap_img_edit — armed apply cannot be silently unaccounted-for (Defe
 describe("abap_img_edit — key-only upsert rows (zero value fields is a legal upsert)", () => {
   it("preview shows the new key-only wording, never a dangling empty SET", async () => {
     const { conn } = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     const { tools } = await registered(conn);
 
@@ -1153,7 +1314,7 @@ describe("abap_img_edit — key-only upsert rows (zero value fields is a legal u
     const badRows = [{ key: { ZKEY: "A" }, values: { ZBOGUS: "x" } }];
 
     const previewConn = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     const { tools: previewTools } = await registered(previewConn.conn);
     const previewResult = await invoke(previewTools, "abap_img_edit", {
@@ -1164,7 +1325,7 @@ describe("abap_img_edit — key-only upsert rows (zero value fields is a legal u
     const previewErr = errorPayload(previewResult);
 
     const armedConn = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     const { tools: armedTools } = await registered(armedConn.conn);
     const armedResult = await invoke(armedTools, "abap_img_edit", {
@@ -1181,9 +1342,7 @@ describe("abap_img_edit — key-only upsert rows (zero value fields is a legal u
     expect(String(previewErr.message)).toBe(String(armedErr.message));
     // Refused before the apply bridge was ever deployed — the armed call never got past shared
     // validation to reach it either.
-    expect(armedConn.inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(
-      false,
-    );
+    expect(actionRan(armedConn.inner, "apply")).toBe(false);
   });
 
   it("armed upsert: an absent-before key-only row is reported inserted/changed yes; a present-before key-only row is changed no with 'row exists, no value fields to write'", async () => {
@@ -1201,8 +1360,8 @@ describe("abap_img_edit — key-only upsert rows (zero value fields is a legal u
 
     const { conn } = await connected(
       multiBridgeHappyPath({
-        [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
-        [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_KEY_ONLY_MIXED),
+        preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+        apply: () => resp(200, APPLY_TRANSCRIPT_KEY_ONLY_MIXED),
       }),
     );
     const { tools } = await registered(conn);
@@ -1270,7 +1429,7 @@ describe("abap_img_edit — before-image row numbering (transcript is 1-based; t
     const MIXED_APPLY_TRANSCRIPT =
       `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
       `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
-      // The real apply bridge (imgApplySource) always dumps a before-image (BVAL/BABSENT) for
+      // The real `apply` action always dumps a before-image (BVAL/BABSENT) for
       // each row before its MODIFY/DELETE — matching the probe's before-state here (row 1
       // present, row 2 absent), since nothing else wrote between the probe and the apply.
       `IMGW> BVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
@@ -1285,8 +1444,8 @@ describe("abap_img_edit — before-image row numbering (transcript is 1-based; t
     await withJournal(async (journal) => {
       const { conn } = await connected(
         multiBridgeHappyPath({
-          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, MIXED_PROBE_TRANSCRIPT),
-          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, MIXED_APPLY_TRANSCRIPT),
+          preview: () => resp(200, MIXED_PROBE_TRANSCRIPT),
+          apply: () => resp(200, MIXED_APPLY_TRANSCRIPT),
         }),
       );
       const { tools } = await registered(conn, { journal });
@@ -1324,7 +1483,7 @@ describe("abap_img_edit — before-image row numbering (transcript is 1-based; t
 describe("abap_img_edit — policy refusal short-circuits before any deploy", () => {
   it("a read-only safety gate refuses at the config-only pre-check, before ensureConnected or any network call", async () => {
     const { conn, inner } = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     const { tools } = await registered(conn, { safety: readOnlyGate() });
 
@@ -1341,7 +1500,7 @@ describe("abap_img_edit — policy refusal short-circuits before any deploy", ()
 
   it("the same short-circuit applies to preview, not only to armed modes", async () => {
     const { conn, inner } = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     const { tools } = await registered(conn, { safety: readOnlyGate() });
 
@@ -1360,7 +1519,7 @@ describe("abap_img_edit — policy refusal short-circuits before any deploy", ()
 
 describe("abap_img_edit — scaffold-level failure", () => {
   it("the probe bridge's classrun POST 500ing surfaces as an error, not a silent empty preview", async () => {
-    const { conn } = await connected(multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: classrunBlowsUp }));
+    const { conn } = await connected(multiBridgeHappyPath({ preview: classrunBlowsUp }));
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_img_edit", {
@@ -1379,7 +1538,7 @@ describe("abap_img_edit — mode: create_request", () => {
   it("mints a customizing request, returns its number, and journals it as `transport-create`", async () => {
     await withJournal(async (journal) => {
       const { conn, inner } = await connected(
-        multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, CREATE_REQUEST_TRANSCRIPT) }),
+        multiBridgeHappyPath({ create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT) }),
       );
       const { tools } = await registered(conn, { journal });
 
@@ -1393,7 +1552,7 @@ describe("abap_img_edit — mode: create_request", () => {
       expect(text).toContain("mode: create_request");
       expect(text).toContain("A4HK900002");
       expect(text).toContain("A4HK900003");
-      expect(inner.calls.some((c) => c.url.includes(CUSTOMIZING_REQUEST_CLASS.toLowerCase()))).toBe(true);
+      expect(actionRan(inner, "create_request")).toBe(true);
 
       const entries = await journal.list({});
       expect(entries).toHaveLength(1);
@@ -1407,7 +1566,7 @@ describe("abap_img_edit — mode: create_request", () => {
 
   it("renders the created task's type (A3) when the transcript carries a TASKTYPE line", async () => {
     const { conn } = await connected(
-      multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, CREATE_REQUEST_TRANSCRIPT_WITH_TASKTYPE) }),
+      multiBridgeHappyPath({ create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT_WITH_TASKTYPE) }),
     );
     const { tools } = await registered(conn);
 
@@ -1424,7 +1583,7 @@ describe("abap_img_edit — mode: create_request", () => {
 
   it("omits the task type cleanly (A3) when the transcript carries no TASKTYPE line", async () => {
     const { conn } = await connected(
-      multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, CREATE_REQUEST_TRANSCRIPT) }),
+      multiBridgeHappyPath({ create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT) }),
     );
     const { tools } = await registered(conn);
 
@@ -1441,7 +1600,7 @@ describe("abap_img_edit — mode: create_request", () => {
 
   it("rejects a row-edit-only field (table) with BAD_INPUT before any network call", async () => {
     const { conn, inner } = await connected(
-      multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, CREATE_REQUEST_TRANSCRIPT) }),
+      multiBridgeHappyPath({ create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT) }),
     );
     const { tools } = await registered(conn);
 
@@ -1457,7 +1616,7 @@ describe("abap_img_edit — mode: create_request", () => {
 
   it("a transcript with no request number is CHECK_FAILED, names the description, and points at abap_transport list", async () => {
     const { conn } = await connected(
-      multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, NO_TASK_ERROR_NO_NUMBER_TRANSCRIPT) }),
+      multiBridgeHappyPath({ create_request: () => resp(200, NO_TASK_ERROR_NO_NUMBER_TRANSCRIPT) }),
     );
     const { tools } = await registered(conn);
 
@@ -1478,7 +1637,7 @@ describe("abap_img_edit — mode: create_request", () => {
   it("journals a suspected-orphan entry (failed, non-numeric placeholder name) when no request number came back", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
-        multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, NO_TASK_ERROR_NO_NUMBER_TRANSCRIPT) }),
+        multiBridgeHappyPath({ create_request: () => resp(200, NO_TASK_ERROR_NO_NUMBER_TRANSCRIPT) }),
       );
       const { tools } = await registered(conn, { journal });
 
@@ -1501,7 +1660,7 @@ describe("abap_img_edit — mode: create_request", () => {
 
   it("any bridge error line is CHECK_FAILED even alongside a parsed request number", async () => {
     const { conn } = await connected(
-      multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, REQUEST_PLUS_SCAFFOLD_ERROR_TRANSCRIPT) }),
+      multiBridgeHappyPath({ create_request: () => resp(200, REQUEST_PLUS_SCAFFOLD_ERROR_TRANSCRIPT) }),
     );
     const { tools } = await registered(conn);
 
@@ -1516,7 +1675,7 @@ describe("abap_img_edit — mode: create_request", () => {
   it("the NO_TASK *warning* path succeeds, surfaces the request number, and journals it as succeeded", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
-        multiBridgeHappyPath({ [CUSTOMIZING_REQUEST_CLASS]: () => resp(200, REQUEST_PLUS_NO_TASK_WARNING_TRANSCRIPT) }),
+        multiBridgeHappyPath({ create_request: () => resp(200, REQUEST_PLUS_NO_TASK_WARNING_TRANSCRIPT) }),
       );
       const { tools } = await registered(conn, { journal });
 
@@ -1595,7 +1754,7 @@ describe("abap_img_edit — language default and validation", () => {
 describe("abap_img_edit — cold-process role verdict runs before the write-lockout gate", () => {
   it("writesLockedOut UNSET: a preview calls ensureConnected BEFORE the policy verdict is taken, and is not refused", async () => {
     const { conn } = await connected(
-      multiBridgeHappyPath({ [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING) }),
     );
     // Deliberately omits `writesLockedOut` — the exact state a fresh process's SafetyGate starts in
     // before any call has ever connected.
@@ -1779,7 +1938,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       `IMGW> PROBED rows=[1]\n`;
 
     it("resolves `object` + `kind: table` to TB004, derives CLIENT (not MANDT) as the client field, and renders a RESOLVED section naming the base table", async () => {
-      const route = resolutionRoute(TB004_IMG_BODIES, { [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_TB004) });
+      const route = resolutionRoute(TB004_IMG_BODIES, { preview: () => resp(200, PROBE_TRANSCRIPT_TB004) });
       const { conn, inner } = await connected(route);
       const { tools } = await registered(conn);
 
@@ -1800,12 +1959,12 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       // Preview's arming line plainly names the resolved base table.
       expect(text).toContain("TABU TB004");
 
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
-      expect(inner.calls.some((c) => c.url.toLowerCase().includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(false);
+      expect(probeRan(inner)).toBe(true);
+      expect(actionRan(inner, "apply")).toBe(false);
     });
 
     it('with no `language` input and `cfg.language` = "", the DD02T text read embeds the default SAP key "E" (never the rejected ISO code "EN"), and the rendered header echoes it', async () => {
-      const route = resolutionRoute(TB004_IMG_BODIES, { [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_TB004) });
+      const route = resolutionRoute(TB004_IMG_BODIES, { preview: () => resp(200, PROBE_TRANSCRIPT_TB004) });
       const { conn, inner } = await connected(route);
       const { tools } = await registered(conn, { language: "" });
 
@@ -1845,7 +2004,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
 
       expect(err.error).toBe("NOT_FOUND");
       expect(String(err.message)).toContain("abap_img search");
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+      expect(probeRan(inner)).toBe(false);
     });
 
     it("an object resolving to zero base tables (an empty view cluster) reaches evaluateImgWrite rule 4 as ambiguous-target", async () => {
@@ -1867,7 +2026,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       expect(err.error).toBe("SAFETY_DENIED");
       expect((err.details as Record<string, unknown>).rule).toBe("ambiguous-target");
       expect(String(err.message)).toContain("no known base table");
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+      expect(probeRan(inner)).toBe(false);
     });
 
     it("an object resolving to more than one base table reaches evaluateImgWrite rule 4 as ambiguous-target", async () => {
@@ -1893,7 +2052,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       expect(String(err.message)).toContain("spans 2 base tables");
       expect(String(err.message)).toMatch(/ZTABA/);
       expect(String(err.message)).toMatch(/ZTABB/);
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+      expect(probeRan(inner)).toBe(false);
     });
   });
 
@@ -1958,8 +2117,8 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
     it("resolves `activity` to its linked table, and an armed upsert renders RESOLVED (with the activity title) ahead of the write", async () => {
       await withJournal(async (journal) => {
         const route = resolutionRoute(ACTIVITY_IMG_BODIES, {
-          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_ZTAB1),
-          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_ZTAB1),
+          preview: () => resp(200, PROBE_TRANSCRIPT_ZTAB1),
+          apply: () => resp(200, APPLY_TRANSCRIPT_ZTAB1),
         });
         const { conn, inner } = await connected(route);
         const { tools } = await registered(conn, { journal });
@@ -1984,8 +2143,8 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
         expect(text).toContain("ROWS WRITTEN");
         expect(text).toContain("table-maintenance-generator events");
 
-        expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(true);
-        expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.apply.toLowerCase()))).toBe(true);
+        expect(probeRan(inner)).toBe(true);
+        expect(actionRan(inner, "apply")).toBe(true);
 
         const entries = await journal.list({});
         expect(entries).toHaveLength(1);
@@ -1996,8 +2155,8 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
     it("an explicit `view` on an activity-resolved upsert overrides the computed default and reaches the transport entry", async () => {
       await withJournal(async (journal) => {
         const route = resolutionRoute(ACTIVITY_IMG_BODIES, {
-          [IMGW_BRIDGE_CLASS.probe]: () => resp(200, PROBE_TRANSCRIPT_ZTAB1),
-          [IMGW_BRIDGE_CLASS.apply]: () => resp(200, APPLY_TRANSCRIPT_ZTAB1),
+          preview: () => resp(200, PROBE_TRANSCRIPT_ZTAB1),
+          apply: () => resp(200, APPLY_TRANSCRIPT_ZTAB1),
         });
         const { conn, inner } = await connected(route);
         const { tools } = await registered(conn, { journal });
@@ -2017,16 +2176,18 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
         expect(text).toContain("view: ZCUSTOM_VIEW");
         expect(text).not.toContain("view: ZTAB1");
 
-        // The generated apply class's source is what actually carries E071K-MASTERNAME/-VIEWNAME —
-        // the real "transport entry" this override has to reach, not just the rendered text above.
+        // The apply invoker's args JSON is what actually carries `view` to the ABAP side (img.ts reads
+        // it into E071K-MASTERNAME/-VIEWNAME) — the real "transport entry" this override has to reach,
+        // not just the rendered text above.
         const sourcePut = inner.calls.find(
           (c) =>
-            c.url === `/sap/bc/adt/oo/classes/${IMGW_BRIDGE_CLASS.apply.toLowerCase()}/source/main` &&
-            (c.method ?? "GET").toUpperCase() === "PUT",
+            (c.method ?? "GET").toUpperCase() === "PUT" &&
+            INVOKER_SOURCE_URL_RE.test(c.url) &&
+            invokerActionOf(c.body) === "apply",
         );
         expect(sourcePut).toBeDefined();
-        expect(String(sourcePut!.body)).toContain("ls_e071k-mastername = 'ZCUSTOM_VIEW'.");
-        expect(String(sourcePut!.body)).not.toContain("ls_e071k-mastername = 'ZTAB1'.");
+        const args = JSON.parse(invokerArgsJson(String(sourcePut!.body))) as { view?: string };
+        expect(args.view).toBe("ZCUSTOM_VIEW");
       });
     });
 
@@ -2063,7 +2224,7 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       expect((err.details as Record<string, unknown>).rule).toBe("ambiguous-target");
       expect(String(err.message)).toMatch(/ZOBJA/);
       expect(String(err.message)).toMatch(/ZOBJB/);
-      expect(inner.calls.some((c) => c.url.includes(IMGW_BRIDGE_CLASS.probe.toLowerCase()))).toBe(false);
+      expect(probeRan(inner)).toBe(false);
     });
   });
 });

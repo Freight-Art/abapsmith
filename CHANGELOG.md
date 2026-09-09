@@ -12,6 +12,137 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- abapsmith now installs a small set of generated ABAP objects into the connected SAP system,
+  rather than leaving nothing behind between calls. They go into a local, non-transportable
+  package, `$ABAPSMITH_FLUID_API`, which abapsmith creates on first use of a function that needs
+  one. No transport is created or required for any of this, no ICF service is registered, no RFC
+  destination is created, and no background job is scheduled. `ABAP_FLUID_API` (default `true`)
+  is the switch: set it `false` to unregister `abap_fluid` itself and stop the
+  `$ABAPSMITH_FLUID_API` package from ever being created, and pure-ADT tools are entirely
+  unaffected either way. Full detail in `doc/FLUID-API/README.md`.
+- **`ABAP_FLUID_API=false` is not "none of it".** With the flag off, `abap_run` report/class
+  execution, `abap_fpm_read`, `abap_ui` (both `screen` and `press`), `abap_bopf_test`,
+  `abap_img_edit` apply (including its CTS create-request path), `abap_enh`'s six create_*
+  operations (create_spot, add_badi_def, add_filter_def, create_impl, set_filter_values,
+  exercise), and the whole classic-call family (`abap_transport removeObject`, view-delete,
+  tran-delete, package-create, package-delete) all stay registered but now refuse every call with
+  `FLUID_API_DISABLED` — every one of those already worked in `0.4.0`, so turning this flag off
+  is a real regression for an operator upgrading, not a no-op. `abap_enh`'s other operations —
+  write_description, delete, set_impl_active, create_hook, and the read-only
+  discover_hook_anchors — are plain ADT calls, not bridge deploys, and keep working. Everything
+  else abapsmith writes — `abap_write`, `abap_activate`, the BOPF design-time tools, transports —
+  is gated by `canWrite`, not by this flag, and is unaffected.
+- A new tool, `abap_fluid`, with ops `run` (default), `list`, `describe`, `status`, `verify`,
+  `repair` and `remove`; a bare call returns an info block, and `list`/`describe` make no network
+  call. `abap_fluid(op="remove")` deletes the objects a scope names (`tool`, `invokers`, or
+  `all`) but never the `$ABAPSMITH_FLUID_API` package itself: deleting a package requires
+  deploying a helper class into it first, and a non-empty package can't be removed from inside
+  itself, so an operator who wants the package gone drops it by hand once it's empty. Full op
+  reference in `doc/TOOLS/abap-fluid.md`.
+- Three new default-off safety flags: `ABAP_ALLOW_FLUID_PLUGINS` (load operator-supplied fluid
+  plugins at all), `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` (allow a plugin action categorised `mutate`;
+  not implied by `ABAP_ALLOW_FLUID_PLUGINS`), and `ABAP_ALLOW_FLUID_CALL_FM` (allow the built-in
+  `core.call_fm` action, which calls an arbitrary function module under the connected user's own
+  SAP authorisations). `core.call_fm` is the widest blast radius in this feature, and the control
+  on it is authorisation-shaped: the flag only decides whether abapsmith will issue the call, not
+  what the call can do — that's the SAP authorisation concept's job.
+- Every fluid object now carries a provenance marker naming the abapsmith version that deployed
+  it. When an installed object's marker names a version strictly newer than the one running,
+  classification reports a new `newer` state — distinct from `stale`/`present`/etc — and `run`/
+  `repair` refuse to touch it (`FLUID_OBJECT_CONFLICT`, with `installed_version`/`our_version`
+  details and a hint to upgrade abapsmith or run `abap_fluid op=remove`), so two abapsmith
+  releases pointed at the same system can no longer treat each other's deploys as ordinary drift
+  and rewrite them back and forth. `status`/`verify` report `newer` like any other state.
+- A manifest may set `internal: true` (currently only the framework's own `rt` tool) to mark a
+  tool as framework plumbing rather than something a caller should be routed to: it is left out of
+  the `abap_fluid` tool description's route index and worked example, while `list`/`describe`
+  still show it in full, flagged `internal: true`. Additive — `contract` stays `"1.0"`.
+- `FluidRunResult`, and the `FLUID_ACTION_FAILED` error's details on failure, now carry
+  `warnings`: human-readable notes for stray non-frame console output and for a value whose
+  `OUTC`/`OUTE` reassembly could not be parsed. Neither ever fails a call on its own; both were
+  previously silent.
+- A plugin's ABAP source is now scanned at load time for a database-write statement or `COMMIT
+  WORK`/`ROLLBACK WORK` (gated by `ABAP_ALLOW_FLUID_PLUGIN_MUTATE`) and for `CALL FUNCTION` in any
+  form (gated by `ABAP_ALLOW_FLUID_CALL_FM`), in addition to the per-call gating those flags
+  already did based on an action's declared `category`. Either statement found with its flag off
+  refuses the whole plugin (`FLUID_PLUGIN_MUTATE_DISABLED` or `SAFETY_DENIED`), naming the object,
+  file and line — closing the gap where an action with no `targets`, or a plain `CALL FUNCTION`
+  outside any declared `mutate` action, previously loaded unchallenged.
+- The loader now also refuses a plugin whose manifest claims an ABAP object name a different tool
+  — built-in or another plugin, whichever loaded first — already claimed (`FLUID_OBJECT_CONFLICT`,
+  naming both tool ids); previously only a duplicate name inside the same manifest was caught.
+
+### Changed
+
+- Generated objects that earlier releases wrote to `$ZMCP_HELPERS` or `$TMP` are relocated to
+  `$ABAPSMITH_FLUID_API` the first time a loaded manifest that names them runs, by
+  delete-then-recreate — an ABAP object can't change package, so this is a move, not a copy, and
+  only objects a manifest actually names are ever touched. The retired pre-fluid bridge classes
+  are a separate, closed list — ten from before the fluid API existed, plus seven retired since
+  (the IMG write-apply and customizing-request-creation bridges, and `abap_enh`'s five create-family
+  bridges, all superseded now that those paths dispatch against a fluid body class), seventeen in
+  all: `abap_fluid(op="status")` reports each present/moved/unknown class individually, folding an
+  all-absent result into a single aggregate "none" line rather than listing absent classes, and
+  `abap_fluid(op="repair")` (with no `tool`) deletes the present ones. abapsmith never deletes a
+  package: `$ZMCP_HELPERS` is the one it used to create, and an operator may drop it by hand once
+  `status` shows it empty. `$TMP` is SAP's own standard local-development package, not abapsmith's,
+  and is never something to drop — only the leftover `ZCL_ZMCP_*` objects inside it are left for
+  the operator to clean up.
+- `abap_fpm_read` (`find`, `outline` and `app`), `abap_ui` (`screen`), `abap_enh`'s create family
+  (`create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`, `set_filter_values`), and
+  `abap_img_edit`'s `apply` and `create_request` now dispatch against the fluid API's static body
+  classes (`ZCL_ZMCP_FLUID_FPM`/`_UI`/`_ENH`/`_IMG`) through a content-addressed invoker, instead
+  of generating a throwaway `IF_OO_ADT_CLASSRUN` bridge class per call. Each tool keeps its own
+  name, zod schema, annotations, domain gates and response shape; a refusal still names the
+  dedicated tool, not `abap_fluid`. `abap_bopf_test`, `abap_ui` `press`, `abap_enh` `exercise`,
+  `abap_fpm_read` `mode:"locks"`, and `abap_run`'s report execution still generate a per-call
+  bridge, by design, because there is no fixed manifest to dispatch to when the ABAP has to be
+  built fresh from the caller's own input every call.
+- `abap_fluid status` gained a `DYNAMIC BRIDGES` section listing the five per-call bridge families
+  that remain (`abap_bopf_test`, `abap_ui` `press`, `abap_enh` `exercise`, `abap_fpm_read`
+  `mode:"locks"`, and `abap_run`'s report bridge), and `abap_fluid remove` gained an additive
+  `scope: "dynamic"` that deletes every one of them.
+- Removed the 50-row cap on `abap_img` preview reads and the 200-row cap on `abap_fpm_read`
+  `find` queries (both its `WDY_CONFIG_APPL` and `WDY_CONFIG_DATA` branches); both now return
+  every matching row. `abap_package delete`'s evidence listing (the TDEVC/TADIR contents shown
+  before a non-empty package delete is refused) no longer caps at 20 rows either.
+- Removed `abap_ui mode:"screen"`'s own caps too — the 30-status button-lookup loop and the
+  350-row FKEY emission limit are both gone, since the response layer's own truncation already
+  discloses when it cuts, and these caps were destroying data a step earlier than that.
+- Generated invoker classes (`ZCL_ZMCP_I_...`) now accumulate in `$ABAPSMITH_FLUID_API` — each
+  distinct call shape gets its own class, and nothing deletes them automatically.
+  `abap_fluid(op="status")` counts them per tool, `repair(tool=...)` prunes stale ones, and
+  `remove(scope="invokers")` sweeps all of them.
+- No existing tool was renamed, removed, or changed shape, and `ABAP_TOOL_SURFACE` is unchanged;
+  `abap_fluid` is purely additive. A read-only session — `ABAP_MODE=read`, legacy config (no
+  `ABAP_MODE`) with `ABAP_ALLOW_WRITE` unset, a productive system, a failed role probe, or a write
+  lockout — disables the fluid API completely; `abap_fluid` is not even registered when any of
+  three statically-known conditions hold: `ABAP_FLUID_API=false`, `ABAP_MODE=read`, or `readOnly`
+  is otherwise true. `readOnly` traces back to `ABAP_ALLOW_WRITE` only when `ABAP_MODE` is unset —
+  once `ABAP_MODE` is set, `ABAP_ALLOW_WRITE` is ignored entirely and `readOnly` follows the
+  mode's own capability instead.
+- Operator note: a narrow `ABAP_ALLOW_PACKAGES` must now include both `$TMP` and
+  `$ABAPSMITH_FLUID_API` — creating the package is judged against its superpackage `$TMP`, but
+  every ordinary object write into it afterwards is judged against `$ABAPSMITH_FLUID_API`
+  itself. Missing either one makes every bridge-backed tool, not just new ones, refuse at the
+  package gate.
+- Operator note: a narrow `ABAP_ALLOW_NAME_PREFIXES` (e.g. `Z,Y`) refuses the one-time creation
+  of `$ABAPSMITH_FLUID_API`, since that name starts with neither `Z` nor `Y`. Widen the list once
+  (or create the package another way); once the package exists, the prefix rule is never
+  consulted for it again.
+
+### Fixed
+
+- The MCP `initialize` response now reports the real package version. `SERVER_VERSION` was
+  hard-coded at `0.3.0` while `package.json` had already moved to `0.4.0`; it's now read from
+  `package.json` at runtime so the two can't drift again.
+- `img.apply`'s expert `client_field` escape hatch bypassed the same client-field split every
+  other write path goes through, so `allow_cross_client: true` on a genuinely client-independent
+  table could reach a live `MODIFY`/`DELETE` with a silently no-op client stamp. It now refuses
+  upfront when the declared `client_field` is not a component of the target table.
+
 ## [0.4.0] - 2026-09-06
 
 ### Added

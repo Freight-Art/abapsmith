@@ -848,7 +848,14 @@ async function connected(
 }
 
 const allowingGate = (): SafetyGate =>
-  new SafetyGate({ readOnly: false, allowPackages: ["$TMP"], writesLockedOut: false });
+  new SafetyGate({
+    readOnly: false,
+    allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
+    // $ is outside the default Z/Y customer namespace, same as
+    // test/fluid-package.test.ts's own gate() — ensureFluidPackage's own DEVC/K create needs this too.
+    allowNamePrefixes: ["*"],
+    writesLockedOut: false,
+  });
 
 describe("runBopfTest", () => {
   it("generateOnly:true writes and activates the bridge but never calls runClass / hits classrun", async () => {
@@ -1102,7 +1109,7 @@ describe("deployBridge / executeBridge warm-path round trips", () => {
       `<class:abapClass adtcore:name="${className}" adtcore:type="CLAS/OC"${ver(root)} ` +
       `xmlns:class="http://www.sap.com/adt/oo/classes" xmlns:adtcore="http://www.sap.com/adt/core" ` +
       `xmlns:abapsource="http://www.sap.com/adt/abapsource">` +
-      `<adtcore:packageRef adtcore:name="$TMP"/>` +
+      `<adtcore:packageRef adtcore:name="$ABAPSMITH_FLUID_API"/>` +
       inc("definitions", "active") +
       inc("implementations", "active") +
       inc("macros", "active") +

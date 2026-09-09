@@ -1,74 +1,95 @@
 /**
  * Classic-view (`VIEW/DV`) create bridge — offline. Nothing here touches SAP;
- * the transport is faked through `ConnectionOptions.httpClient`, repeating
- * `test/enhancement-bridge.test.ts`'s `RecordingClient`/`resp`/`connected`/
- * `objectHappyPath` harness (that file's own header explains why each suite
- * keeps its own small copy rather than sharing one heavier fake).
+ * the transport is faked through `ConnectionOptions.httpClient`, using
+ * `test/helpers/fluid-classic-fake.ts`'s shared `classicFake` for the fluid
+ * `classic` tool's ensure/deploy/classrun cycle (see that helper's header for
+ * why one fake now serves every classic-bridge suite, replacing this file's
+ * own former `objectHappyPath`/`classrunOutput` routing).
+ *
+ * `create_view`'s ABAP is now static — `src/adt/fluid/builtin/classic/
+ * abap-view.ts`'s `viewPart` serves every call, with `$TMP` vs a
+ * transportable package picked by an `IF lv_local = abap_true.` branch at
+ * ABAP runtime, not by generating different TS-side text per call. That
+ * moves several of this file's old per-argument comparisons (a `$TMP`
+ * fragment vs a `ZTM` fragment, a caller's literal field names baked into
+ * `ls_dd27p-viewfield`, a description quote-escaped into a literal, ...) out
+ * of reach of an offline test: those are pinned structurally against
+ * `viewPart.source` instead, or — where the claim is genuinely about runtime
+ * behaviour rather than generated text — proven end to end through
+ * `classicFake`. Each conversion is called out in place, with a short "why".
  *
  * What these tests are FOR, in the order the module's risks run:
  *
- *  1. generator/parser drift — every tag the fragment writes is a tag
- *     `parseDdicTranscript` knows, asserted as a SET so a rename on either
- *     side fails;
- *  2. the closed-template defence — a quote, a period, a newline or a space in
- *     any identifier is refused, and no source is produced at all (not
- *     escaped, not stripped);
- *  3. `assertClassicViewCreateTarget` — zero-network, and reached before the
- *     safety gate and before any request, proven by the fake server seeing
- *     zero requests rather than merely by the throw: a local package refuses
- *     a `corrNr` (BAD_INPUT), a transportable one requires one
- *     (TRANSPORT_ERROR), a malformed one is BAD_INPUT regardless;
- *  4. the `sy-subrc` guard between the `DDIF_VIEW_PUT` call and its success
- *     tag — these FMs report failure through classic EXCEPTIONS, which no
- *     `CATCH cx_root` sees, so a tag written unconditionally would report
- *     success for a call that did nothing;
+ *  1. generator/parser drift — every tag `create_view` writes is a tag
+ *     `parseDdicTranscript` knows;
+ *  2. the closed-template defence — a quote, a period, a newline or a space
+ *     in any identifier is refused before `createClassicView` ever reaches
+ *     the wire (not escaped, not stripped);
+ *  3. the safety gate on `VIEW/DV` — reached, and only reached, after
+ *     `assertClassicViewCreateTarget` has already refused a bad
+ *     package/corrNr pairing zero-network;
+ *  4. the `sy-subrc` guard between each `CALL FUNCTION` and its success tag —
+ *     these FMs report failure through classic EXCEPTIONS, which no
+ *     `CATCH cx_root` sees, so an unconditional tag would report success for
+ *     a call that did nothing;
  *  5. a failing transcript (empty output, or a `ZMCP-DDIC-ERR>` line) is a
  *     failure, not a success with nothing to say;
- *  6. `$TMP` and a real package now generate the SAME shape — `RS_CORR_INSERT`
- *     and `VIEW-REGISTERED` fire for both, `korrnum` the only thing that
- *     differs (`space` vs the quoted TRKORR), and `expectTags` is the same
- *     three-tag set for every package;
- *  7. the source the bridge would deploy, with the captured parameter names
- *     in it;
- *  8. the happy path — `createClassicView` resolves for both a local and a
- *     transportable package once the fake classrun reports all three tags,
- *     and a transcript missing `VIEW-REGISTERED` is `CHECK_FAILED` for
- *     either.
+ *  6. `$TMP` and a real package now generate the SAME static source —
+ *     `RS_CORR_INSERT`/`VIEW-REGISTERED` fire unconditionally, `korrnum` the
+ *     only thing the local/transportable branch picks, for every package,
+ *     not just `$TMP`;
+ *  7. corrNr threaded into `RS_CORR_INSERT`'s KORRNUM;
+ *  8. the static source itself, and the happy path proving it end to end,
+ *     with the right content-hashed invoker actually deployed.
  */
-import { describe, expect, it } from "vitest";
-import type {
-  HttpClient,
-  HttpClientOptions,
-  HttpClientResponse,
-} from "abap-adt-api/build/AdtHTTP.js";
-import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { SafetyGate, type Operation, type SafetyTarget, type EvaluateOptions } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import {
-  DDIC_BRIDGE_CLASS,
   DDIC_ERR_PREFIX,
   DDIC_TAGS,
   assertDdicTranscript,
-  ddicBridgeSource,
   parseDdicTranscript,
   type DdicTag,
-} from "../src/adt/ddic-bridge.js";
+} from "../src/adt/ddic-transcript.js";
 import {
-  VIEW_DATA_LINES,
   assertClassicViewCreateTarget,
-  classicViewFragment,
   createClassicView,
   type ClassicViewParams,
 } from "../src/adt/view-create.js";
+import { viewPart } from "../src/adt/fluid/builtin/classic/abap-view.js";
+import { CLASSIC_BODY_CLASS, CLASSIC_TOOL_ID } from "../src/adt/fluid/builtin/classic.js";
 import { isLocalPackageName } from "../src/adt/transports.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { forgetManifest } from "../src/adt/fluid/registry.js";
+import { systemKey } from "../src/journal.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 // ---------------------------------------------------------------------------
-// Fake transport — same shape as test/enhancement-bridge.test.ts
+// Fake transport
 // ---------------------------------------------------------------------------
+
+const fluidState = useFluidState();
+
+beforeEach(async () => {
+  // In-memory singletons the fluid deploy path memoizes across calls within
+  // one process — without this, a later test can see a stale "already
+  // deployed" verdict left by an earlier test's own (separate) classicFake.
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+  // The fluid registry is an on-disk cache keyed by stateDir, and every test
+  // in this file shares one stateDir (useFluidState() memoizes it per file).
+  // Without this, the first test's deploy leaves a "classic is already at
+  // this version" cache entry that makes every later test's own (empty,
+  // per-test) classicFake skip the deploy entirely.
+  await forgetManifest(cfg(), systemKey(cfg()), CLASSIC_TOOL_ID);
+});
 
 const cfg = (): Config =>
   ConfigSchema.parse({
@@ -78,14 +99,12 @@ const cfg = (): Config =>
     sid: "TST",
     client: "001",
     readOnly: false,
+    fluidApi: true,
+    stateDir: fluidState.dir(),
   });
 
-const resp = (
-  status: number,
-  body = "",
-  headers: Record<string, unknown> = {},
-  statusText = String(status),
-): HttpClientResponse => ({ status, statusText, body, headers }) as unknown as HttpClientResponse;
+const resp = (status: number, body = "", headers: Record<string, unknown> = {}): HttpClientResponse =>
+  ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
 
 class RecordingClient implements HttpClient {
   calls: HttpClientOptions[] = [];
@@ -97,51 +116,16 @@ class RecordingClient implements HttpClient {
 }
 
 const SESSION_URL = "/sap/bc/adt/compatibility/graph";
-const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
 
-const LOCK_XML = (handle = "H1") =>
-  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
-  `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
-  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
-  `</DATA></asx:values></asx:abap>`;
-
-/** GET-404 → POST-create → LOCK → PUT → UNLOCK for the generated bridge class. */
-function objectHappyPath(
-  collectionUrl: string,
-  name: string,
-): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  const objUrl = `${collectionUrl}/${name.toLowerCase()}`;
-  const sourceUri = `${objUrl}/source/main`;
-  return (o: HttpClientOptions) => {
-    const qs = (o.qs ?? {}) as Record<string, string>;
-    const method = (o.method ?? "GET").toUpperCase();
-    if (o.url === objUrl && method === "GET" && !qs._action) {
-      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-    }
-    if (o.url === collectionUrl && method === "POST") return resp(200, "", {});
-    if (o.url === objUrl && qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-    if (o.url === objUrl && qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url === sourceUri && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    return undefined;
-  };
-}
-
-/** Session/discovery/activation/classrun plumbing shared by every test below. */
-function sharedRoute(
-  classrun: (o: HttpClientOptions) => HttpClientResponse | undefined,
-): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  return (o: HttpClientOptions) => {
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) return classrun(o);
-    if (o.url.includes(SESSION_URL)) {
-      return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
-    }
-    if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
-    if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
-    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-    return undefined;
-  };
-}
+/** Session/discovery plumbing shared by every test below — deploy/classrun routing is `classicFake`'s job. */
+const sharedRoute = (o: HttpClientOptions): HttpClientResponse | undefined => {
+  if (o.url.includes(SESSION_URL)) {
+    return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+  }
+  if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+  if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
+  return undefined;
+};
 
 function combine(
   ...routes: Array<(o: HttpClientOptions) => HttpClientResponse | undefined>
@@ -169,16 +153,9 @@ async function connected(
   return { conn, inner };
 }
 
-/**
- * `out->write('TAG')` lines are the whole line, unprefixed — `runClass` hands
- * back raw classrun stdout with only newline normalisation. See
- * test/enhancement-bridge.test.ts's `classrunOutput` comment for the "LIST> "
- * prefix mistake this shape exists to avoid repeating.
- */
-function classrunOutput(lines: readonly string[]): (o: HttpClientOptions) => HttpClientResponse {
-  const body = lines.join("\n");
-  return () => resp(200, body, { "content-type": "text/plain" });
-}
+/** A fresh classicFake wired for create_view, answering with the given tags. */
+const createFake = (tags: readonly string[] = ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]) =>
+  classicFake({ action: "create_view", lines: () => tags });
 
 const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
   const e = await p.then(
@@ -200,28 +177,23 @@ const catchSync = (fn: () => unknown): AbapError => {
 };
 
 /**
- * Allows both packages this suite writes into: `$TMP` for the generated bridge
- * class (`DDIC_BRIDGE_PACKAGE`) and `ZTM` for the view itself. Both are needed
- * — the two gates judge two different objects, which is the whole point of
- * `assertBridgeMutation` existing.
- *
- * `allowTransports` keeps the default `"auto"` entry (other tests in this
- * suite still rely on it) and adds `CORR_NR` literally — `source: "named"`
- * never matches the `"auto"` entry, mirroring `test/package-create.test.ts`.
+ * Allows every package this suite writes into: `$TMP`/`ZTM` for the view
+ * itself, `FLUID_PACKAGE` for the fluid tool's own deploy plumbing — two
+ * different objects, judged by two different `assertBridgeMutation` calls.
  */
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: ["$TMP", "ZTM"],
+    allowPackages: ["$TMP", "ZTM", FLUID_PACKAGE],
+    allowNamePrefixes: ["*"],
     allowTransports: ["auto", CORR_NR],
     writesLockedOut: false,
   });
 
 /**
- * Denies `VIEW/DV` and nothing else. `$TMP` — the only package
- * createClassicView ever reaches — is allowlisted for everything else, so
- * this can only be refusing the view itself, not `deployBridge`'s own gate
- * on the bridge class.
+ * Denies `VIEW/DV` and nothing else. `$TMP`/`FLUID_PACKAGE` are allowlisted
+ * for everything else, so this can only be refusing the view itself, not the
+ * fluid tool's own deploy-plumbing gate.
  */
 class ViewDenyingGate extends SafetyGate {
   override assert(op: Operation, obj?: SafetyTarget, opts: EvaluateOptions = {}): void {
@@ -233,12 +205,13 @@ class ViewDenyingGate extends SafetyGate {
 }
 
 const viewDenyingGate = (): SafetyGate =>
-  new ViewDenyingGate({ readOnly: false, allowPackages: ["$TMP"], writesLockedOut: false });
+  new ViewDenyingGate({ readOnly: false, allowPackages: ["$TMP", FLUID_PACKAGE], writesLockedOut: false });
 
 /**
  * A null connection IS the assertion: any code path that reaches the wire
- * before refusing throws a TypeError instead of the `BAD_INPUT` these tests
- * expect. Same device, and same reasoning, as `test/write.test.ts`'s `offline`.
+ * before refusing throws a TypeError instead of the `BAD_INPUT`/
+ * `TRANSPORT_ERROR` these tests expect. Same device as `test/write.test.ts`'s
+ * `offline`.
  */
 const offline = null as unknown as AbapConnection;
 
@@ -256,11 +229,20 @@ const VIEW: ClassicViewParams = {
 
 const LOCAL_VIEW: ClassicViewParams = { ...VIEW, packageName: "$TMP", corrNr: undefined };
 
-/** Every `out->write( 'TAG' )` the fragment emits, in emission order. */
+// `create_view`'s method body, sliced out of the static class source once —
+// every structural assertion below reads this slice, not a per-call
+// generated fragment (see this file's header).
+const allSourceLines = viewPart.source.split("\n");
+const createIdx = allSourceLines.findIndex((l) => l.trim() === "METHOD create_view.");
+const deleteIdx = allSourceLines.findIndex((l) => l.trim() === "METHOD delete_view.");
+const createLines = allSourceLines.slice(createIdx, deleteIdx);
+const createTrim = createLines.map((l) => l.trim());
+
+/** Every `line( 'TAG' )` call in create_view's source, in emission order. */
 function emittedTags(lines: readonly string[]): string[] {
   const found: string[] = [];
-  for (const line of lines) {
-    const m = /^out->write\( '([^']*)' \)\.$/.exec(line.trim());
+  for (const l of lines) {
+    const m = /^line\( '([^']*)' \)\.$/.exec(l.trim());
     if (m?.[1] !== undefined) found.push(m[1]);
   }
   return found;
@@ -271,50 +253,42 @@ function emittedTags(lines: readonly string[]): string[] {
 // ---------------------------------------------------------------------------
 
 describe("generator/parser drift", () => {
-  it("emits exactly the tag SET createClassicView expects, for a transportable package", () => {
-    const tags = emittedTags(classicViewFragment(VIEW));
+  // Old: two tests, one per package, generated from two different TS-side
+  // calls that could in principle diverge. New: one static source serves
+  // every package, so there is only one tag set to check, for everyone —
+  // folded into a single test.
+  it("emits exactly the tag SET createClassicView expects, for every package", () => {
+    const tags = emittedTags(createLines);
     expect(new Set(tags)).toEqual(new Set(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"]));
     expect(tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
   });
 
-  it("emits exactly the tag SET createClassicView expects, for $TMP too — RS_CORR_INSERT/VIEW-REGISTERED now run for every package", () => {
-    const tags = emittedTags(classicViewFragment(LOCAL_VIEW));
-    expect(new Set(tags)).toEqual(new Set(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"]));
+  it("every tag create_view writes is one parseDdicTranscript recognises", () => {
+    const tags = emittedTags(createLines);
+    expect(tags.length).toBeGreaterThan(0);
+    // The parser is the arbiter, not a copy of the tag list in this file:
+    // feed create_view's own tags through it and require it to return them
+    // all. A tag renamed on either side drops out here.
+    const parsed = parseDdicTranscript(tags.join("\n"));
+    expect(parsed.tags).toEqual(tags);
+    expect(parsed.errorLine).toBeUndefined();
+    for (const tag of tags) expect(DDIC_TAGS).toContain(tag as DdicTag);
   });
 
-  it("every tag the fragment writes is one parseDdicTranscript recognises", () => {
-    for (const params of [VIEW, LOCAL_VIEW]) {
-      const tags = emittedTags(classicViewFragment(params));
-      expect(tags.length).toBeGreaterThan(0);
-      // The parser is the arbiter, not a copy of the tag list in this file:
-      // feed the generator's own tags through it and require it to return
-      // them all. A tag renamed on either side drops out here.
-      const parsed = parseDdicTranscript(tags.join("\n"));
-      expect(parsed.tags).toEqual(tags);
-      expect(parsed.errorLine).toBeUndefined();
-      for (const tag of tags) expect(DDIC_TAGS).toContain(tag as DdicTag);
-    }
-  });
-
-  it("assertDdicTranscript is satisfied by the fragment's own success output", () => {
-    const ztm = emittedTags(classicViewFragment(VIEW));
+  it("assertDdicTranscript is satisfied by create_view's own success output", () => {
+    const tags = emittedTags(createLines);
     expect(() =>
-      assertDdicTranscript(parseDdicTranscript(ztm.join("\n")), ztm as DdicTag[], "Creating classic view"),
-    ).not.toThrow();
-
-    const tmp = emittedTags(classicViewFragment(LOCAL_VIEW));
-    expect(() =>
-      assertDdicTranscript(parseDdicTranscript(tmp.join("\n")), tmp as DdicTag[], "Creating classic view"),
+      assertDdicTranscript(parseDdicTranscript(tags.join("\n")), tags as DdicTag[], "Creating classic view"),
     ).not.toThrow();
   });
 
-  it("the fragment's own sy-subrc error lines parse as an error, not as a tag", () => {
-    // subrcCheckFragment writes `out->write( |ZMCP-DDIC-ERR> ...| )`. The
-    // interpolated form cannot be evaluated here, but its literal prefix is
-    // what the parser keys on — prove the prefix the generator uses is the
-    // prefix the parser strips.
-    const errLine = classicViewFragment(VIEW).find((l) => l.includes(DDIC_ERR_PREFIX));
-    expect(errLine).toBeTruthy();
+  it("create_view's own sy-subrc error lines parse as an error, not as a tag", () => {
+    // `fail()` calls `line( |ZMCP-DDIC-ERR> ...| )` — the interpolated form
+    // can't be evaluated here, but its literal prefix is what the parser
+    // keys on: prove the prefix `fail` uses is the prefix the parser strips.
+    expect(createTrim).toContain(
+      "fail( |RS_CORR_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).",
+    );
     const parsed = parseDdicTranscript(`${DDIC_ERR_PREFIX} DDIF_VIEW_PUT failed, sy-subrc=4`);
     expect(parsed.tags).toEqual([]);
     expect(parsed.errorLine).toContain("DDIF_VIEW_PUT failed");
@@ -325,98 +299,98 @@ describe("generator/parser drift", () => {
 // 2 — closed template / injection
 // ---------------------------------------------------------------------------
 
-describe("closed template — an injection is refused, never escaped", () => {
+describe("closed template — an injection is refused, never escaped, before any request", () => {
   const bad = ["bad'name", "bad.name", "bad\nname", "bad name"];
 
-  // Asserted at the fragment level: assertEnhIdentifier refuses these
-  // regardless of package/corrNr, and the fragment is where an injection
-  // would have to survive to reach a bridge class, so it is the load-bearing
-  // check.
+  // Asserted through createClassicView(offline, ...): assertEnhIdentifier
+  // refuses these regardless of package/corrNr, and validate() runs before
+  // any network access, so a null connection is proof enough that nothing
+  // reached the wire — same device section 3 below uses with a live route.
   for (const value of bad) {
-    it(`refuses viewName ${JSON.stringify(value)} with BAD_INPUT, and produces no fragment at all`, () => {
-      expect(catchSync(() => classicViewFragment({ ...LOCAL_VIEW, viewName: value })).code).toBe("BAD_INPUT");
+    it(`refuses viewName ${JSON.stringify(value)} with BAD_INPUT, with no connection to reach`, async () => {
+      const err = await catchErr(
+        createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, viewName: value }),
+      );
+      expect(err.code).toBe("BAD_INPUT");
     });
 
-    it(`refuses baseTable ${JSON.stringify(value)} with BAD_INPUT, and produces no fragment at all`, () => {
-      expect(catchSync(() => classicViewFragment({ ...LOCAL_VIEW, baseTable: value })).code).toBe("BAD_INPUT");
+    it(`refuses baseTable ${JSON.stringify(value)} with BAD_INPUT, with no connection to reach`, async () => {
+      const err = await catchErr(
+        createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, baseTable: value }),
+      );
+      expect(err.code).toBe("BAD_INPUT");
     });
 
-    it(`refuses a field ${JSON.stringify(value)} with BAD_INPUT, and produces no fragment at all`, () => {
+    it(`refuses a field ${JSON.stringify(value)} with BAD_INPUT, with no connection to reach`, async () => {
       const params = { ...LOCAL_VIEW, fields: ["CARRID", value] };
-      expect(catchSync(() => classicViewFragment(params)).code).toBe("BAD_INPUT");
+      const err = await catchErr(createClassicView(offline, allowingGate(), params));
+      expect(err.code).toBe("BAD_INPUT");
+    });
+
+    it(`refuses packageName ${JSON.stringify(value)} with BAD_INPUT, with no connection to reach`, async () => {
+      const err = await catchErr(
+        createClassicView(offline, allowingGate(), { ...VIEW, packageName: value }),
+      );
+      expect(err.code).toBe("BAD_INPUT");
     });
   }
 
-  it("refuses a description containing a newline — refused, not stripped", () => {
-    const err = catchSync(() => classicViewFragment({ ...LOCAL_VIEW, description: "line1\nline2" }));
+  it("refuses a description containing a newline — refused, not stripped", async () => {
+    const err = await catchErr(
+      createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, description: "line1\nline2" }),
+    );
     expect(err.code).toBe("BAD_INPUT");
   });
 
-  it("still escapes a legitimate quote in the description (free text, not an identifier)", () => {
-    const line = classicViewFragment({ ...VIEW, description: "Fritz's view" }).find((l) =>
-      l.startsWith("ls_dd25v-ddtext"),
-    );
-    expect(line).toBe("ls_dd25v-ddtext     = 'Fritz''s view'.");
+  it("refuses an empty field list with BAD_INPUT", async () => {
+    const err = await catchErr(createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, fields: [] }));
+    expect(err.code).toBe("BAD_INPUT");
   });
 
-  it("refuses an empty field list with BAD_INPUT", () => {
-    expect(catchSync(() => classicViewFragment({ ...LOCAL_VIEW, fields: [] })).code).toBe("BAD_INPUT");
-  });
-
-  it("refuses more fields than DD27P-OBJPOS's 4-character position can carry", () => {
+  it("refuses more fields than DD27P-OBJPOS's 4-character position can carry", async () => {
     const fields = Array.from({ length: 250 }, (_, i) => `F${i}`);
-    const err = catchSync(() => classicViewFragment({ ...LOCAL_VIEW, fields }));
+    const err = await catchErr(createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, fields }));
     expect(err.code).toBe("BAD_INPUT");
     expect(err.message).toContain("OBJPOS");
   });
+});
 
-  it("createClassicView refuses a malformed packageName with BAD_INPUT, with no connection to reach", async () => {
-    const err = await catchErr(
-      createClassicView(offline, allowingGate(), { ...LOCAL_VIEW, packageName: "bad'name" }),
-    );
-    expect(err.code).toBe("BAD_INPUT");
+// The old generator embedded `description` as a TS-side ABAP string literal,
+// doubling embedded quotes itself (`'Fritz''s view'`), and baked each
+// caller's OBJPOS as a per-call zero-padded literal — both per-call
+// generated text this file used to slice and compare directly. That
+// generation step is gone: create_view is one static source, and both values
+// are read at ABAP runtime (`s('description')`, a `WIDTH/PAD/ALIGN` string
+// template over the loop index) — there is no TS-side literal left to assert
+// against for a *specific* caller's input. What survives is that both are
+// runtime reads, never per-call baked literals; escaping (`esc()`, in
+// abap-core.ts) now happens once, on the output side, not here.
+describe("description and OBJPOS are threaded as runtime reads, never per-call baked literals", () => {
+  it("ls_dd25v-ddtext is assigned from lv_desc at runtime, never a quoted string literal", () => {
+    expect(createTrim).toContain("ls_dd25v-ddtext     = lv_desc.");
+    expect(createTrim.some((l) => /^ls_dd25v-ddtext\s*=\s*'/.test(l))).toBe(false);
   });
 
-  it("refuses an injected packageName with BAD_INPUT, at the fragment level (embedded raw in RS_CORR_INSERT)", () => {
-    for (const value of bad) {
-      expect(() => classicViewFragment({ ...VIEW, packageName: value })).toThrow(AbapError);
-    }
-  });
-
-  it("zero-pads every generated OBJPOS to four characters, in caller order", () => {
-    const lines = classicViewFragment({ ...VIEW, fields: ["A", "B", "C"] });
-    const positions = lines.filter((l) => l.startsWith("ls_dd27p-objpos"));
-    expect(positions).toEqual([
-      "ls_dd27p-objpos    = '0001'.",
-      "ls_dd27p-objpos    = '0002'.",
-      "ls_dd27p-objpos    = '0003'.",
-    ]);
+  it("OBJPOS is computed at runtime (WIDTH=4 PAD='0' ALIGN=RIGHT on the loop index), never a per-call baked literal", () => {
+    expect(createTrim).toContain("ls_dd27p-objpos    = |{ lv_i WIDTH = 4 PAD = '0' ALIGN = RIGHT }|.");
+    expect(createTrim.some((l) => /^ls_dd27p-objpos\s*=\s*'\d{4}'\.$/.test(l))).toBe(false);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 3 — assertClassicViewCreateTarget runs first, zero-network; the safety
-//     gate still governs the view itself, and runs before any request
+// 3 — the safety gate on VIEW/DV
 // ---------------------------------------------------------------------------
 
 describe("zero-network refusals ahead of the gate; the safety gate still governs the view", () => {
   it("refuses a local package given a corrNr as BAD_INPUT, with ZERO requests reaching the fake server", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
-    );
-    const { conn, inner } = await connected(route);
+    const { conn, inner } = await connected(combine(createFake().route, sharedRoute));
     const err = await catchErr(createClassicView(conn, allowingGate(), { ...LOCAL_VIEW, corrNr: CORR_NR }));
     expect(err.code).toBe("BAD_INPUT");
     expect(inner.calls.length).toBe(0);
   });
 
   it("refuses a transportable package given no corrNr as TRANSPORT_ERROR, with ZERO requests reaching the fake server", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
-    );
-    const { conn, inner } = await connected(route);
+    const { conn, inner } = await connected(combine(createFake().route, sharedRoute));
     const { corrNr: _drop, ...withoutCorr } = VIEW;
     const err = await catchErr(createClassicView(conn, allowingGate(), withoutCorr as ClassicViewParams));
     expect(err.code).toBe("TRANSPORT_ERROR");
@@ -424,11 +398,7 @@ describe("zero-network refusals ahead of the gate; the safety gate still governs
   });
 
   it("the safety gate still governs a VIEW/DV create — a gate that denies VIEW/DV makes createClassicView throw SAFETY_DENIED, with ZERO requests reaching the fake server", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
-    );
-    const { conn, inner } = await connected(route);
+    const { conn, inner } = await connected(combine(createFake().route, sharedRoute));
     const err = await catchErr(createClassicView(conn, viewDenyingGate(), LOCAL_VIEW));
     expect(err.code).toBe("SAFETY_DENIED");
     expect(inner.calls.length).toBe(0);
@@ -444,14 +414,11 @@ describe("zero-network refusals ahead of the gate; the safety gate still governs
     }
     const gate = new RecordingGate({
       readOnly: false,
-      allowPackages: ["$TMP"],
+      allowPackages: ["$TMP", FLUID_PACKAGE],
+      allowNamePrefixes: ["*"],
       writesLockedOut: false,
     });
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
-    );
-    const { conn, inner } = await connected(route);
+    const { conn, inner } = await connected(combine(createFake().route, sharedRoute));
     await createClassicView(conn, gate, LOCAL_VIEW);
     // Both write and activate are gated — DDIF_VIEW_ACTIVATE runs inside the
     // same bridge execution as the write, so the view's own create asserts both.
@@ -465,43 +432,37 @@ describe("zero-network refusals ahead of the gate; the safety gate still governs
 // ---------------------------------------------------------------------------
 
 describe("the sy-subrc guard — a classic EXCEPTIONS failure is never tagged as success", () => {
-  const sourceFor = (params: ClassicViewParams): string =>
-    ddicBridgeSource(DDIC_BRIDGE_CLASS.createView, VIEW_DATA_LINES, classicViewFragment(params));
-
-  it("puts an `IF sy-subrc <> 0.` guard between the DDIF_VIEW_PUT call and its success tag", () => {
-    const lines = sourceFor(VIEW).split("\n").map((l) => l.trim());
-    const callIdx = lines.indexOf("CALL FUNCTION 'DDIF_VIEW_PUT'");
-    const tagIdx = lines.indexOf("out->write( 'VIEW-PUT' ).");
+  it("puts an `IF sy-subrc <> 0.` guard, with a RETURN and a fail(), between the DDIF_VIEW_PUT call and its success tag", () => {
+    const callIdx = createTrim.indexOf("CALL FUNCTION 'DDIF_VIEW_PUT'");
+    const tagIdx = createTrim.indexOf("line( 'VIEW-PUT' ).");
     expect(callIdx).toBeGreaterThanOrEqual(0);
     expect(tagIdx).toBeGreaterThan(callIdx);
-    const between = lines.slice(callIdx, tagIdx);
+    const between = createTrim.slice(callIdx, tagIdx);
     expect(between).toContain("IF sy-subrc <> 0.");
     // And the guard RETURNs, so a failed PUT can never fall through into the
     // activation step that follows. Registration (RS_CORR_INSERT) already ran
     // before this call, so this guard has nothing before it left to protect.
     expect(between).toContain("RETURN.");
-    expect(between.some((l) => l.startsWith(`out->write( |${DDIC_ERR_PREFIX}`))).toBe(true);
+    expect(between.some((l) => l.startsWith("fail( |DDIF_VIEW_PUT failed"))).toBe(true);
   });
 
   it("guards RS_CORR_INSERT and DDIF_VIEW_ACTIVATE the same way", () => {
-    const lines = sourceFor(VIEW).split("\n").map((l) => l.trim());
     for (const [call, tag] of [
-      ["CALL FUNCTION 'RS_CORR_INSERT'", "out->write( 'VIEW-REGISTERED' )."],
-      ["CALL FUNCTION 'DDIF_VIEW_ACTIVATE'", "out->write( 'VIEW-ACTIVATED' )."],
+      ["CALL FUNCTION 'RS_CORR_INSERT'", "line( 'VIEW-REGISTERED' )."],
+      ["CALL FUNCTION 'DDIF_VIEW_ACTIVATE'", "line( 'VIEW-ACTIVATED' )."],
     ] as const) {
-      const callIdx = lines.indexOf(call);
-      const tagIdx = lines.indexOf(tag);
+      const callIdx = createTrim.indexOf(call);
+      const tagIdx = createTrim.indexOf(tag);
       expect(callIdx).toBeGreaterThanOrEqual(0);
       expect(tagIdx).toBeGreaterThan(callIdx);
-      expect(lines.slice(callIdx, tagIdx)).toContain("IF sy-subrc <> 0.");
+      expect(createTrim.slice(callIdx, tagIdx)).toContain("IF sy-subrc <> 0.");
     }
   });
 
   it("folds DDIF_VIEW_ACTIVATE's rc into sy-subrc — rc > 4 is a failure the guard must see", () => {
-    const lines = sourceFor(VIEW).split("\n").map((l) => l.trim());
-    const rcIdx = lines.indexOf("IF sy-subrc = 0 AND lv_rc > 4. sy-subrc = lv_rc. ENDIF.");
-    const callIdx = lines.indexOf("CALL FUNCTION 'DDIF_VIEW_ACTIVATE'");
-    const tagIdx = lines.indexOf("out->write( 'VIEW-ACTIVATED' ).");
+    const rcIdx = createTrim.indexOf("IF sy-subrc = 0 AND lv_rc > 4.");
+    const callIdx = createTrim.indexOf("CALL FUNCTION 'DDIF_VIEW_ACTIVATE'");
+    const tagIdx = createTrim.indexOf("line( 'VIEW-ACTIVATED' ).");
     expect(rcIdx).toBeGreaterThan(callIdx);
     expect(rcIdx).toBeLessThan(tagIdx);
   });
@@ -511,15 +472,10 @@ describe("the sy-subrc guard — a classic EXCEPTIONS failure is never tagged as
 // 5 — a failing transcript is a failure
 // ---------------------------------------------------------------------------
 
-// Asserted directly against `assertDdicTranscript` with a $TMP-shaped
-// two-tag expectation, rather than through `createClassicView` — the tag SET
-// is the fragment's own (see the drift suite above), so a rename still fails
-// here. (The happy-path describe below exercises the real, now-three-tag
-// expectation through `createClassicView` itself.)
 describe("a failing transcript is a failure, not a silent success", () => {
-  const TMP_TAGS = ["VIEW-PUT", "VIEW-ACTIVATED"] as DdicTag[];
+  const EXPECTED_TAGS = ["VIEW-PUT", "VIEW-ACTIVATED"] as DdicTag[];
   const check = (output: string): AbapError =>
-    catchSync(() => assertDdicTranscript(parseDdicTranscript(output), TMP_TAGS, "Creating classic view"));
+    catchSync(() => assertDdicTranscript(parseDdicTranscript(output), EXPECTED_TAGS, "Creating classic view"));
 
   it("throws CHECK_FAILED on empty classrun output", () => {
     const err = check("");
@@ -549,175 +505,49 @@ describe("a failing transcript is a failure, not a silent success", () => {
  * Round 5 (2026-08-14) skipped RS_CORR_INSERT for $TMP after a live run of an
  * unconditional call reproduced a headless-dialog CHECK_FAILED. Two further
  * live runs prove that reasoning wrong, not right: 2026-09-04 (transportable,
- * a transportable package, a real corr_nr) and 2026-09-05 (local, `$ZTMD_I09`, `korrnum =
- * space`) both registered cleanly, and the local registration is what let the
- * delete bridge remove the view afterwards. See `src/adt/view-create.ts`'s
+ * a real corr_nr) and 2026-09-05 (local, `$ZTMD_I09`, `korrnum = space`) both
+ * registered cleanly, and the local registration is what let the delete
+ * bridge remove the view afterwards. See `src/adt/view-create.ts`'s
  * `isLocalPackage` doc comment for the full account.
  */
 describe("$TMP now emits RS_CORR_INSERT/VIEW-REGISTERED the same as a transportable package", () => {
-  it("generates RS_CORR_INSERT and the VIEW-REGISTERED tag for ZTM (transportable)", () => {
-    const lines = classicViewFragment(VIEW);
-    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-    expect(lines).toContain("            devclass = 'ZTM'");
-    expect(lines).toContain("            object_class = 'DICT'");
-    expect(lines).toContain("out->write( 'VIEW-REGISTERED' ).");
+  it("RS_CORR_INSERT and VIEW-REGISTERED are UNCONDITIONAL — one call site, one tag, for every package; only korrnum's value varies", () => {
+    expect(createTrim.filter((l) => l === "CALL FUNCTION 'RS_CORR_INSERT'").length).toBe(1);
+    expect(createTrim.filter((l) => l === "line( 'VIEW-REGISTERED' ).").length).toBe(1);
   });
 
-  it("generates RS_CORR_INSERT, the DICT object key, object_class = 'DICT', the caller's devclass and VIEW-REGISTERED for $TMP too — korrnum = space, no quoted TRKORR anywhere", () => {
-    const lines = classicViewFragment(LOCAL_VIEW);
-    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-    expect(lines.some((l) => l.trim().startsWith("EXPORTING object ="))).toBe(true);
-    expect(lines).toContain("            object_class = 'DICT'");
-    expect(lines).toContain("            devclass = '$TMP'");
-    expect(lines).toContain("            korrnum = space");
-    expect(lines.some((l) => /korrnum = '/.test(l))).toBe(false);
-    expect(lines).toContain("out->write( 'VIEW-REGISTERED' ).");
-    // The PUT and the activation are unaffected — registration is additive, not a replacement.
-    expect(lines).toContain("CALL FUNCTION 'DDIF_VIEW_PUT'");
-    expect(lines).toContain("CALL FUNCTION 'DDIF_VIEW_ACTIVATE'");
+  it("$-detection is `to_upper( lv_package ) CP '$*'` — matches any $-prefixed package, case-insensitively, not just $TMP", () => {
+    // Same reading TS-side isLocalPackageName uses
+    // (`packageName.trim().toUpperCase().startsWith("$")`): a leading `$`
+    // after case-folding, nothing more specific to $TMP. This is what
+    // $FOO/$tmp/$MYLOCAL being treated identically to $TMP now rests on —
+    // there is no per-argument generated fragment left to compare
+    // package-by-package (see this file's header), but the pattern-match
+    // expression itself, by construction, generalises over every $-prefixed
+    // value, and the two independent implementations agree below.
+    expect(createTrim).toContain("DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' ).");
+    for (const value of ["$TMP", "$tmp", "$FOO", "$MYLOCAL", "ZTM", ""]) {
+      expect(isLocalPackageName(value)).toBe(/^\$/.test(value.toUpperCase()));
+    }
   });
 
-  it("treats lower-case $tmp exactly the same as $TMP — case-insensitive, korrnum = space either way", () => {
-    const lines = classicViewFragment({ ...VIEW, packageName: "$tmp", corrNr: undefined });
-    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-    expect(lines).toContain("            korrnum = space");
-    expect(lines).toContain("out->write( 'VIEW-REGISTERED' ).");
-    expect(lines).toContain("CALL FUNCTION 'DDIF_VIEW_PUT'");
-    expect(lines).toContain("CALL FUNCTION 'DDIF_VIEW_ACTIVATE'");
+  it("both COMMIT WORK statements sit in the same relative placement regardless of package — one right after VIEW-PUT, one ending the method after VIEW-ACTIVATED", () => {
+    expect(createTrim.filter((l) => l === "COMMIT WORK.").length).toBe(2);
+    const putTagIdx = createTrim.indexOf("line( 'VIEW-PUT' ).");
+    const activateTagIdx = createTrim.indexOf("line( 'VIEW-ACTIVATED' ).");
+    expect(createTrim[putTagIdx + 1]).toBe("");
+    expect(createTrim[putTagIdx + 2]).toBe("COMMIT WORK.");
+    expect(createTrim[activateTagIdx + 1]).toBe("");
+    expect(createTrim[activateTagIdx + 2]).toBe("COMMIT WORK.");
+    expect(createTrim[activateTagIdx + 3]).toBe("ENDMETHOD.");
   });
 
-  it("treats ANY $-prefixed package as local, not just $TMP — $FOO registers with korrnum = space too (matches safety.ts's $-prefix rule)", () => {
-    const lines = classicViewFragment({ ...VIEW, packageName: "$FOO", corrNr: undefined });
-    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-    expect(lines).toContain("            devclass = '$FOO'");
-    expect(lines).toContain("            korrnum = space");
-    expect(lines).toContain("out->write( 'VIEW-REGISTERED' ).");
-  });
-
-  it("both COMMIT WORK statements are present in the $TMP shape, in the same relative placement as the transportable shape", () => {
-    const lines = classicViewFragment(LOCAL_VIEW);
-    const commitCount = lines.filter((l) => l === "COMMIT WORK.").length;
-    expect(commitCount).toBe(2);
-    // One right after DDIF_VIEW_PUT's success tag, one at the very end (after
-    // DDIF_VIEW_ACTIVATE's success tag). A blank separator line sits between
-    // the tag and the COMMIT (same one-blank-line-then-statement style every
-    // block in this fragment uses).
-    const putTagIdx = lines.indexOf("out->write( 'VIEW-PUT' ).");
-    const activateTagIdx = lines.indexOf("out->write( 'VIEW-ACTIVATED' ).");
-    expect(lines[putTagIdx + 1]).toBe("");
-    expect(lines[putTagIdx + 2]).toBe("COMMIT WORK.");
-    expect(lines[lines.length - 1]).toBe("COMMIT WORK.");
-    expect(activateTagIdx).toBeLessThan(lines.length - 1);
-  });
-
-  it("both COMMIT WORK statements are present in the transportable-package shape too", () => {
-    const lines = classicViewFragment(VIEW);
-    const commitCount = lines.filter((l) => l === "COMMIT WORK.").length;
-    expect(commitCount).toBe(2);
-    const putTagIdx = lines.indexOf("out->write( 'VIEW-PUT' ).");
-    expect(lines[putTagIdx + 1]).toBe("");
-    expect(lines[putTagIdx + 2]).toBe("COMMIT WORK.");
-    expect(lines[lines.length - 1]).toBe("COMMIT WORK.");
-  });
-
-  it("emits all three tags, in VIEW-REGISTERED, VIEW-PUT, VIEW-ACTIVATED order, for $TMP exactly as for a transportable package", () => {
-    const tags = emittedTags(classicViewFragment(LOCAL_VIEW));
-    expect(tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
-    expect(() =>
-      assertDdicTranscript(parseDdicTranscript(tags.join("\n")), tags as DdicTag[], "Creating classic view"),
-    ).not.toThrow();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 8 — corrNr / RS_CORR_INSERT's KORRNUM
-// ---------------------------------------------------------------------------
-//
-// RS_CORR_INSERT with no request number opens CTS's own request-
-// selection dynpro (SAPLSTRD 0352), which IF_OO_ADT_CLASSRUN cannot render —
-// CHECK_FAILED, "No window system type specified", 100% of the time for any
-// non-$TMP package. The fix threads a caller-supplied, already gate-judged
-// TRKORR through as KORRNUM, mirroring package-create.ts's corrNr discipline.
-
-describe("corrNr threaded into RS_CORR_INSERT's KORRNUM", () => {
-  it("emits korrnum carrying the exact corrNr, quoted like every other emitted value", () => {
-    const lines = classicViewFragment(VIEW);
-    expect(lines).toContain(`            korrnum = '${CORR_NR}'`);
-    // Inside the RS_CORR_INSERT call specifically, not merely present somewhere in the fragment.
-    const callIdx = lines.indexOf("CALL FUNCTION 'RS_CORR_INSERT'");
-    const excIdx = lines.findIndex(
-      (l, i) => i > callIdx && l.startsWith("  EXCEPTIONS cancelled = 1"),
-    );
-    const korrnumIdx = lines.indexOf(`            korrnum = '${CORR_NR}'`);
-    expect(korrnumIdx).toBeGreaterThan(callIdx);
-    expect(korrnumIdx).toBeLessThan(excIdx);
-  });
-
-  it("emits suppress_dialog = 'X' immediately after korrnum, inside the RS_CORR_INSERT call — korrnum alone did not suppress the dialog live", () => {
-    const lines = classicViewFragment(VIEW);
-    const callIdx = lines.indexOf("CALL FUNCTION 'RS_CORR_INSERT'");
-    const excIdx = lines.findIndex(
-      (l, i) => i > callIdx && l.startsWith("  EXCEPTIONS cancelled = 1"),
-    );
-    const korrnumIdx = lines.indexOf(`            korrnum = '${CORR_NR}'`);
-    const suppressIdx = lines.indexOf("            suppress_dialog = 'X'");
-    expect(korrnumIdx).toBeGreaterThan(callIdx);
-    expect(korrnumIdx).toBeLessThan(excIdx);
-    expect(suppressIdx).toBeGreaterThan(callIdx);
-    expect(suppressIdx).toBeLessThan(excIdx);
-    // Additive, not a replacement: korrnum must still be there alongside it.
-    expect(suppressIdx).toBe(korrnumIdx + 1);
-  });
-
-  it("validate() still refuses a non-$TMP view with no corrNr as TRANSPORT_ERROR, via classicViewFragment", () => {
-    const { corrNr: _drop, ...withoutCorr } = VIEW;
-    const err = catchSync(() => classicViewFragment(withoutCorr as ClassicViewParams));
-    expect(err.code).toBe("TRANSPORT_ERROR");
-    expect(err.message).toContain("corr_nr");
-    expect(err.message).toContain("transport request");
-  });
-
-  it("createClassicView refuses a non-$TMP view with no corrNr as TRANSPORT_ERROR, with zero requests reaching the fake server — the guard runs before validate() ever produces a fragment", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-PUT", "VIEW-REGISTERED", "VIEW-ACTIVATED"])),
-    );
-    const { conn, inner } = await connected(route);
-    const { corrNr: _drop, ...withoutCorr } = VIEW;
-    const err = await catchErr(createClassicView(conn, allowingGate(), withoutCorr as ClassicViewParams));
-    expect(err.code).toBe("TRANSPORT_ERROR");
-    expect(inner.calls.length).toBe(0);
-  });
-
-  it("a $TMP fragment emits RS_CORR_INSERT, korrnum = space and suppress_dialog = 'X', and expects VIEW-REGISTERED/VIEW-PUT/VIEW-ACTIVATED", () => {
-    const lines = classicViewFragment(LOCAL_VIEW);
-    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-    expect(lines).toContain("            korrnum = space");
-    expect(lines).toContain("            suppress_dialog = 'X'");
-    expect(emittedTags(lines)).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
-  });
-
-  it("a $TMP fragment WITH a corrNr is refused BAD_INPUT — a $TMP view registers with korrnum = space, not on a transport request", () => {
-    const params: ClassicViewParams = { ...LOCAL_VIEW, corrNr: CORR_NR };
-    const err = catchSync(() => classicViewFragment(params));
-    expect(err.code).toBe("BAD_INPUT");
-    expect(err.message).toContain("$TMP");
-    expect(err.message).toContain("korrnum = space");
-  });
-
-  it("validate() still refuses a malformed corrNr as BAD_INPUT, via classicViewFragment", () => {
-    const params: ClassicViewParams = { ...VIEW, corrNr: "not-a-request" };
-    const err = catchSync(() => classicViewFragment(params));
-    expect(err.code).toBe("BAD_INPUT");
-    expect(err.message).toContain("not-a-request");
-  });
-
-  it("expectTags for a non-$TMP create still requires VIEW-REGISTERED, and the fragment still contains RS_CORR_INSERT — asserted together so the two can't drift", () => {
-    const lines = classicViewFragment(VIEW);
-    const hasCorrInsert = lines.some((l) => l.includes("RS_CORR_INSERT"));
-    const tags = emittedTags(lines);
-    expect(hasCorrInsert).toBe(true);
-    expect(tags).toContain("VIEW-REGISTERED");
+  it("emits all three tags, in VIEW-REGISTERED, VIEW-PUT, VIEW-ACTIVATED order — the same set for $TMP and for a transportable package, proven end to end", async () => {
+    for (const params of [LOCAL_VIEW, VIEW]) {
+      const { conn } = await connected(combine(createFake().route, sharedRoute));
+      const { transcript } = await createClassicView(conn, allowingGate(), params);
+      expect(transcript.tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    }
   });
 });
 
@@ -773,37 +603,72 @@ describe("isLocalPackageName", () => {
 });
 
 describe("any $-prefixed package behaves identically — $MYLOCAL is not special", () => {
-  it("classicViewFragment emits RS_CORR_INSERT and korrnum = space for $MYLOCAL, same as $TMP", () => {
-    const lines = classicViewFragment({ ...VIEW, packageName: "$MYLOCAL", corrNr: undefined });
-    expect(lines).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
-    expect(lines).toContain("            korrnum = space");
-    expect(lines).toContain("            devclass = '$MYLOCAL'");
-  });
-
-  it("classicViewFragment with $MYLOCAL and a valid corrNr throws BAD_INPUT, not TRANSPORT_ERROR — a local package has nothing for a request to attach to", () => {
-    const err = catchSync(() =>
-      classicViewFragment({ ...VIEW, packageName: "$MYLOCAL", corrNr: CORR_NR }),
-    );
+  it("assertClassicViewCreateTarget refuses $MYLOCAL given a corrNr as BAD_INPUT, not TRANSPORT_ERROR — a local package has nothing for a request to attach to", () => {
+    const err = catchSync(() => assertClassicViewCreateTarget("$MYLOCAL", CORR_NR));
     expect(err.code).toBe("BAD_INPUT");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 7 — the generated source the create bridge deploys
+// 7 — corrNr / RS_CORR_INSERT's KORRNUM
+// ---------------------------------------------------------------------------
+//
+// RS_CORR_INSERT with no request number opens CTS's own request-
+// selection dynpro (SAPLSTRD 0352), which IF_OO_ADT_CLASSRUN cannot render —
+// CHECK_FAILED, "No window system type specified", 100% of the time for any
+// non-$TMP package. The fix threads a caller-supplied, already gate-judged
+// TRKORR through as KORRNUM, mirroring package-create.ts's corrNr discipline.
+
+describe("corrNr threaded into RS_CORR_INSERT's KORRNUM", () => {
+  it("lv_corr reads corr_nr at runtime, and only ever feeds korrnum through the local/transportable branch — never a per-call baked literal", () => {
+    expect(createTrim).toContain("DATA(lv_corr) = s( 'corr_nr' ).");
+    expect(createTrim.some((l) => /^korrnum = '/.test(l))).toBe(false);
+  });
+
+  it("emits suppress_dialog = 'X' immediately after korrnum, inside RS_CORR_INSERT — korrnum alone did not suppress the dialog live", () => {
+    const korrnumIdx = createTrim.indexOf("korrnum = lv_korrnum");
+    const suppressIdx = createTrim.indexOf("suppress_dialog = 'X'");
+    expect(korrnumIdx).toBeGreaterThanOrEqual(0);
+    expect(suppressIdx).toBe(korrnumIdx + 1);
+  });
+
+  it("assertClassicViewCreateTarget does NOT itself require a corrNr for a non-$TMP package — that invariant belongs to createClassicView's own validate(), since a caller may still resolve one after this runs", () => {
+    expect(() => assertClassicViewCreateTarget("ZTM", undefined)).not.toThrow();
+    expect(assertClassicViewCreateTarget("ZTM", undefined)).toBe("ZTM");
+  });
+
+  it("createClassicView refuses a non-$TMP view with no corrNr as TRANSPORT_ERROR, with zero requests reaching the fake server — the target guard runs before dispatch ever reaches the wire", async () => {
+    const { conn, inner } = await connected(combine(createFake().route, sharedRoute));
+    const { corrNr: _drop, ...withoutCorr } = VIEW;
+    const err = await catchErr(createClassicView(conn, allowingGate(), withoutCorr as ClassicViewParams));
+    expect(err.code).toBe("TRANSPORT_ERROR");
+    expect(inner.calls.length).toBe(0);
+  });
+
+  it("assertClassicViewCreateTarget refuses $TMP given a corrNr as BAD_INPUT — a $TMP view registers with korrnum = space, not on a transport request", () => {
+    const err = catchSync(() => assertClassicViewCreateTarget("$TMP", CORR_NR));
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("$TMP");
+    expect(err.message).toContain("korrnum = space");
+  });
+
+  it("assertClassicViewCreateTarget refuses a malformed corrNr as BAD_INPUT", () => {
+    const err = catchSync(() => assertClassicViewCreateTarget("ZTM", "not-a-request"));
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("not-a-request");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8 — the static source the create bridge deploys, and the happy path
 // ---------------------------------------------------------------------------
 
-describe("the source the create bridge deploys", () => {
-  it("carries the captured DDIF_VIEW_PUT/ACTIVATE parameter names and the generated DATA section", () => {
-    const body = ddicBridgeSource(
-      DDIC_BRIDGE_CLASS.createView,
-      VIEW_DATA_LINES,
-      classicViewFragment(LOCAL_VIEW),
-    );
+describe("the static source the create bridge deploys", () => {
+  it("carries the DDIF_VIEW_PUT/ACTIVATE parameter names, the generated DATA section, and RS_CORR_INSERT's local/transportable korrnum branch", () => {
+    const body = createLines.join("\n");
 
-    // The captured parameter names (R-BOUNDARY-RECHECK.md §D-L07-L08), in the
-    // source — not a paraphrase of them.
     expect(body).toContain("CALL FUNCTION 'DDIF_VIEW_PUT'");
-    expect(body).toContain("EXPORTING name = 'ZTM_V_CARRIER'");
+    expect(body).toContain("EXPORTING name = lv_view");
     expect(body).toContain("dd25v_wa = ls_dd25v");
     expect(body).toContain("TABLES    dd26v_tab = lt_dd26v");
     expect(body).toContain("dd27p_tab = lt_dd27p");
@@ -815,14 +680,16 @@ describe("the source the create bridge deploys", () => {
     expect(body).toContain("IMPORTING rc = lv_rc");
     expect(body).toContain("EXCEPTIONS not_found = 1 put_failure = 2 OTHERS = 3.");
 
-    // The DATA section carries the `DATA` keyword this file never puts in
-    // VIEW_DATA_LINES itself — ddicBridgeSource prepends it.
+    // The DATA section, local to the method (create_view is now the only
+    // place these types are declared — no class-level per-call generation).
     expect(body).toContain("DATA ls_dd25v TYPE dd25v.");
     expect(body).toContain("DATA lt_dd27p TYPE STANDARD TABLE OF dd27p.");
 
-    // $TMP: RS_CORR_INSERT and korrnum = space, same as a transportable package.
+    // RS_CORR_INSERT and the korrnum local/transportable branch — the $TMP
+    // lift; see the corrNr describe block above for the full IF/ELSE pin.
     expect(body).toContain("CALL FUNCTION 'RS_CORR_INSERT'");
     expect(body).toContain("korrnum = space");
+    expect(body).toContain("korrnum = lv_korrnum");
 
     // Explicitly out of scope, and it must stay out: no SE54 wizard call is
     // ever generated here.
@@ -830,36 +697,38 @@ describe("the source the create bridge deploys", () => {
     expect(body).not.toContain("SE55");
   });
 
-  it("projects the caller's fields, in order, into DD27P rows", () => {
-    const lines = classicViewFragment(VIEW);
-    const viewFields = lines
-      .filter((l) => l.startsWith("ls_dd27p-viewfield"))
-      .map((l) => l.split("=")[1]?.trim());
-    expect(viewFields).toEqual(["'MANDT'.", "'CARRID'.", "'CARRNAME'."]);
-    // Base table into DD26V, projected fields into DD27P — the DDIC reading of
-    // the TABLES parameters. See classicViewFragment's ASSUMPTION block: the
-    // capture's own inline comments read the other way round and appear
-    // shifted by one; only this payload split, never the parameter names,
-    // depends on which reading is right.
-    expect(lines).toContain("ls_dd26v-tabname  = 'SCARR'.");
-    expect(lines).toContain("ls_dd26v-tabpos   = '0001'.");
-    expect(lines.filter((l) => l.startsWith("ls_dd26v-tabname")).length).toBe(1);
+  // The old generator wrote one `ls_dd27p-viewfield = '<FIELD>'.` line per
+  // caller field, so a caller's actual field names were visible in the
+  // generated text. That's gone: create_view is one static source, and
+  // ls_dd27p-viewfield is assigned from lv_field, read out of the
+  // `fields/<i>` JSON args at ABAP runtime inside a DO loop bounded by
+  // n('fields'). There is no TS-side subject left to compare a caller's
+  // literal field names against — what remains provable is the loop shape:
+  // it runs n('fields') times, and each iteration assigns viewfield/
+  // fieldname from that one lv_field, tabname from lv_table.
+  it("projects one DD27P row per caller field, at ABAP runtime, in a DO...TIMES loop over n('fields') — never a per-call baked field-name literal", () => {
+    const doIdx = createTrim.indexOf("lv_n = n( 'fields' ).");
+    const enddoIdx = createTrim.indexOf("ENDDO.");
+    expect(doIdx).toBeGreaterThanOrEqual(0);
+    expect(enddoIdx).toBeGreaterThan(doIdx);
+    const body = createTrim.slice(doIdx, enddoIdx);
+    expect(body).toContain("lv_field = s( |fields/{ lv_i - 1 }| ).");
+    expect(body).toContain("ls_dd27p-viewfield = lv_field.");
+    expect(body).toContain("ls_dd27p-fieldname = lv_field.");
+    expect(body).toContain("ls_dd27p-tabname   = lv_table.");
+    expect(body).toContain("APPEND ls_dd27p TO lt_dd27p.");
+
+    // DD26V carries the base table once, into TABPOS '0001' — every caller
+    // field projects against that one root table, not one row each.
+    expect(createTrim).toContain("ls_dd26v-tabname  = lv_table.");
+    expect(createTrim).toContain("ls_dd26v-tabpos   = '0001'.");
+    expect(createTrim.filter((l) => l === "ls_dd26v-tabname  = lv_table.").length).toBe(1);
   });
 });
 
-// ---------------------------------------------------------------------------
-// 8 — the happy path: createClassicView resolves once the fake classrun
-//     reports all three tags, for a local package exactly as for a
-//     transportable one
-// ---------------------------------------------------------------------------
-
 describe("createClassicView happy path — the create-target lift proven end to end", () => {
   it("resolves for $TMP — a $TMP create is no longer refused (the lift)", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
-    );
-    const { conn } = await connected(route);
+    const { conn } = await connected(combine(createFake().route, sharedRoute));
     const { transcript, run } = await createClassicView(conn, allowingGate(), LOCAL_VIEW);
     expect(transcript.tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
     expect(transcript.errorLine).toBeUndefined();
@@ -867,23 +736,29 @@ describe("createClassicView happy path — the create-target lift proven end to 
   });
 
   it("resolves for ZTM (transportable, with corr_nr) when the fake classrun returns all three tags", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"])),
-    );
-    const { conn } = await connected(route);
+    const { conn } = await connected(combine(createFake().route, sharedRoute));
     const { transcript } = await createClassicView(conn, allowingGate(), VIEW);
     expect(transcript.tags).toEqual(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
     expect(transcript.errorLine).toBeUndefined();
   });
 
   it("a transcript missing VIEW-REGISTERED is CHECK_FAILED for a $TMP create too — the whole point of the lift", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, DDIC_BRIDGE_CLASS.createView),
-      sharedRoute(classrunOutput(["VIEW-PUT", "VIEW-ACTIVATED"])),
-    );
-    const { conn } = await connected(route);
+    const { conn } = await connected(combine(createFake(["VIEW-PUT", "VIEW-ACTIVATED"]).route, sharedRoute));
     const err = await catchErr(createClassicView(conn, allowingGate(), LOCAL_VIEW));
     expect(err.code).toBe("CHECK_FAILED");
+  });
+
+  it("deploys a content-hashed invoker class (thin — JSON args + a call into the static body), and the static ZCL_ZMCP_FLUID_CLASSIC body it calls carries both create_view and delete_view — the fixed-class-name check this replaces (there is no more DDIC_BRIDGE_CLASS.createView; the invoker name is content-hash derived)", async () => {
+    const fake = createFake();
+    const { conn } = await connected(combine(fake.route, sharedRoute));
+    await createClassicView(conn, allowingGate(), VIEW);
+    const invoker = fake.invoker();
+    expect(invoker).toBeTruthy();
+    const invokerSource = fake.sourceOf(invoker!);
+    expect(invokerSource).toContain("zcl_zmcp_fluid_classic=>run( iv_action = 'create_view'");
+    const body = fake.sourceOf(CLASSIC_BODY_CLASS);
+    expect(body).toBeTruthy();
+    expect(body).toContain("METHOD create_view.");
+    expect(body).toContain("METHOD delete_view.");
   });
 });

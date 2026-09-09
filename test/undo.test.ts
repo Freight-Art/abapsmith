@@ -13,7 +13,7 @@
  *   - objects the journal never saw are refused in plain words rather than
  *     guessed at.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -44,10 +44,11 @@ import {
 import { abapJournal, undoPreflightTarget } from "../src/tools/journal.js";
 import { abapWrite } from "../src/tools/write.js";
 import { SafetyGate } from "../src/safety.js";
-import { DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
+import { DDIC_BRIDGE_PACKAGE } from "../src/adt/ddic-bridge.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
 import { PKG_CONTENT_PREFIX } from "../src/adt/package-delete.js";
 import { searchResultsXml, type FakeObjectRef } from "./helpers/fake-adt.js";
+import { classicFake, useFluidState, type ClassicFake } from "./helpers/fluid-classic-fake.js";
 
 const REPORT = "ZMCP_UNDO_REP";
 const REPORT_URI = "/sap/bc/adt/programs/programs/zmcp_undo_rep";
@@ -128,6 +129,11 @@ class FakeAdt implements HttpClient {
   }
 }
 
+const fluidState = useFluidState();
+afterAll(async () => {
+  await rm(fluidState.dir(), { recursive: true, force: true });
+});
+
 const cfg = (over: Partial<Record<string, unknown>> = {}): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
@@ -139,6 +145,7 @@ const cfg = (over: Partial<Record<string, unknown>> = {}): Config =>
     // unclassifiable system is pinned read-only (fail closed).
     client: "001",
     readOnly: false,
+    stateDir: fluidState.dir(),
     ...over,
   });
 
@@ -3017,11 +3024,6 @@ describe("undo of a DEVC/K package create now performs the delete", () => {
     `adtcore:type="DEVC/K" adtcore:description="undo probe">` +
     `<adtcore:packageRef adtcore:name="${name}"/></pak:package>`;
 
-  const BRIDGE_CLASS = DDIC_BRIDGE_CLASS.deletePackage;
-  const BRIDGE_COLLECTION = "/sap/bc/adt/oo/classes";
-  const BRIDGE_OBJ_URI = `${BRIDGE_COLLECTION}/${BRIDGE_CLASS.toLowerCase()}`;
-  const BRIDGE_SRC_URI = `${BRIDGE_OBJ_URI}/source/main`;
-
   /**
    * `src/safety.ts` judges a package delete by the package's OWN name as its
    * container (it is its own package) — `openGate()`'s `["$TMP"]` allowlist
@@ -3030,26 +3032,17 @@ describe("undo of a DEVC/K package create now performs the delete", () => {
    * as `src/tools/journal.ts`'s real undo handler does — not a weaker gate,
    * a correctly-scoped one.
    */
-  const packageGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", PKG_NAME] });
+  const packageGate = new SafetyGate({
+    readOnly: false,
+    allowPackages: ["$TMP", PKG_NAME, DDIC_BRIDGE_PACKAGE],
+    allowNamePrefixes: ["*"],
+  });
   const PKG_ALLOW: UndoOptions = {
     assertAllowed: (action, target) => packageGate.authorize(action === "delete" ? "delete" : "write", target),
     gate: packageGate,
   };
 
-  /** Deploy → activate → run the delete bridge; `classrunLines` is the transcript it produces. */
-  const bridgeRoute =
-    (classrunLines: string[]) =>
-    (r: Recorded): HttpClientResponse | undefined => {
-      if (r.url === BRIDGE_OBJ_URI && r.method === "GET" && !r.qs._action) return resp(404, NOT_FOUND_XML, OK_XML);
-      if (r.url === BRIDGE_COLLECTION && r.method === "POST") return resp(200, "", OK_TEXT);
-      if (r.url === BRIDGE_OBJ_URI && r.qs._action === "LOCK") return resp(200, LOCK_XML, OK_XML);
-      if (r.url === BRIDGE_OBJ_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-      if (r.url === BRIDGE_SRC_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
-      if (r.url.includes("/activation")) return resp(200, "", OK_TEXT);
-      if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, classrunLines.join("\n"), OK_TEXT);
-      return undefined;
-    };
-
+  const CLASSES_COLLECTION = "/sap/bc/adt/oo/classes";
   const SEARCH_PATH = "/sap/bc/adt/repository/informationsystem/search";
   const pkgRef: FakeObjectRef = { name: PKG_NAME, type: "DEVC/K", uri: PKG_URI, packageName: PKG_NAME };
 
@@ -3059,18 +3052,22 @@ describe("undo of a DEVC/K package create now performs the delete", () => {
    * `Accept: application/*` since DEVC/K sets no `mediaType`) plus `planUndo`'s
    * drift-check probe, now repository search confirming the package exists
    * (no GET to `PKG_SRC`/`/source/main` any more — see the describe
-   * block above), plus the delete bridge above.
+   * block above), plus the delete bridge (`classicFake`) below.
    */
   const packageRoute =
-    (classrunLines: string[]) =>
-    (r: Recorded): HttpClientResponse => {
-      if (r.url === PKG_URI && r.method === "GET") return resp(200, pkgXml(), OK_XML);
-      if (r.url === SEARCH_PATH) return resp(200, searchResultsXml([pkgRef]), OK_XML);
-      return bridgeRoute(classrunLines)(r) ?? resp(200, "", OK_TEXT);
+    (classrunLines: readonly string[]): { route: (r: Recorded) => HttpClientResponse; classic: ClassicFake } => {
+      const classic = classicFake({ action: "delete_package", lines: () => classrunLines });
+      const route = (r: Recorded): HttpClientResponse => {
+        if (r.url === PKG_URI && r.method === "GET") return resp(200, pkgXml(), OK_XML);
+        if (r.url === SEARCH_PATH) return resp(200, searchResultsXml([pkgRef]), OK_XML);
+        return classic.route(r) ?? resp(200, "", OK_TEXT);
+      };
+      return { route, classic };
     };
 
   it("deletes the package for real, through the bridge — never through ADT lock/REST-DELETE", async () => {
-    const { conn, adt } = await connected(packageRoute(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]));
+    const { route, classic } = packageRoute(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]);
+    const { conn, adt } = await connected(route);
     const e = await journal.begin({
       operation: "create",
       object: { name: PKG_NAME, type: "DEVC/K", uri: PKG_URI, package: PKG_NAME },
@@ -3088,7 +3085,13 @@ describe("undo of a DEVC/K package create now performs the delete", () => {
     expect(res.performed).toBe(true);
     expect(res.plan.action).toBe("delete");
     // The bridge really ran: its class was written and executed.
-    expect(adt.calls.some((c) => c.url === BRIDGE_SRC_URI && c.method === "PUT")).toBe(true);
+    const invoker = classic.invoker();
+    expect(invoker).toBeDefined();
+    expect(
+      adt.calls.some(
+        (c) => c.url === `${CLASSES_COLLECTION}/${invoker!.toLowerCase()}/source/main` && c.method === "PUT",
+      ),
+    ).toBe(true);
     expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
     // Never the ordinary object path — there is no ADT REST DELETE for a package.
     expect(adt.calls.some((c) => c.method === "DELETE")).toBe(false);
@@ -3098,7 +3101,7 @@ describe("undo of a DEVC/K package create now performs the delete", () => {
   });
 
   it("PKG-DELETED/PKG-GONE are required, not just PKG-EMPTY — a truncated transcript is a failure", async () => {
-    const { conn } = await connected(packageRoute(["PKG-EMPTY", "PKG-DELETED"])); // no PKG-GONE
+    const { conn } = await connected(packageRoute(["PKG-EMPTY", "PKG-DELETED"]).route); // no PKG-GONE
     const e = await journal.begin({
       operation: "create",
       object: { name: PKG_NAME, type: "DEVC/K", uri: PKG_URI, package: PKG_NAME },
@@ -3115,7 +3118,7 @@ describe("undo of a DEVC/K package create now performs the delete", () => {
   });
 
   it("the gate really reaches the bridge: a mismatched allowlist refuses before the bridge is ever touched", async () => {
-    const { conn, adt } = await connected(packageRoute(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]));
+    const { conn, adt } = await connected(packageRoute(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]).route);
     const e = await journal.begin({
       operation: "create",
       object: { name: PKG_NAME, type: "DEVC/K", uri: PKG_URI, package: PKG_NAME },
@@ -3140,12 +3143,12 @@ describe("undo of a DEVC/K package create now performs the delete", () => {
     // runs — unavoidable, unrelated to the bridge. What must be true is that
     // NOTHING past it happened: the bridge was never deployed or run.
     expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(false);
-    expect(adt.calls.some((c) => c.url === BRIDGE_SRC_URI)).toBe(false);
+    expect(adt.calls.some((c) => c.url.startsWith(`${CLASSES_COLLECTION}/`) && c.method === "PUT")).toBe(false);
     expect(adt.verbs).not.toContain("LOCK");
   });
 
   it("deleteEvidenceBlocker is exactly as strict for DEVC/K as for any other type — not forceable", async () => {
-    const { conn, adt } = await connected(packageRoute(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]));
+    const { conn, adt } = await connected(packageRoute(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]).route);
     const e = await journal.begin({
       operation: "create",
       object: { name: PKG_NAME, type: "DEVC/K", uri: PKG_URI, package: PKG_NAME },
@@ -3167,7 +3170,7 @@ describe("undo of a DEVC/K package create now performs the delete", () => {
 
   it("a non-empty package refuses honestly — CHECK_FAILED names the contents, and the entry is not marked undone", async () => {
     const contentLine = `${PKG_CONTENT_PREFIX} KIND=OBJECT PGMID=R3TR OBJECT=CLAS NAME=ZCL_INSIDE_PKG`;
-    const { conn, adt } = await connected(packageRoute([contentLine]));
+    const { conn, adt } = await connected(packageRoute([contentLine]).route);
     const e = await journal.begin({
       operation: "create",
       object: { name: PKG_NAME, type: "DEVC/K", uri: PKG_URI, package: PKG_NAME },
@@ -3324,10 +3327,7 @@ describe("undo-of-create probe: VIEW/DV existence via the VIT bridge, never reso
 describe("undo of a VIEW/DV bridge create now performs the delete via the DDIC bridge", () => {
   const VIEW = "ZMCP_UNDO_V2";
   const VIT_URI = vitBridgeUri("viewdv", VIEW);
-  const BRIDGE_CLASS = DDIC_BRIDGE_CLASS.deleteView;
-  const BRIDGE_COLLECTION = "/sap/bc/adt/oo/classes";
-  const BRIDGE_OBJ_URI = `${BRIDGE_COLLECTION}/${BRIDGE_CLASS.toLowerCase()}`;
-  const BRIDGE_SRC_URI = `${BRIDGE_OBJ_URI}/source/main`;
+  const CLASSES_COLLECTION = "/sap/bc/adt/oo/classes";
 
   const vitXml = (pkg: string): string =>
     `<vit:properties xmlns:vit="http://www.sap.com/adt/vit" xmlns:adtcore="http://www.sap.com/adt/core" ` +
@@ -3344,32 +3344,25 @@ describe("undo of a VIEW/DV bridge create now performs the delete via the DDIC b
    */
   const REAL_PKG = "ZTM";
   const STALE_JOURNAL_PKG = "WRONG_PKG";
-  const viewGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", REAL_PKG] });
+  const viewGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", REAL_PKG, DDIC_BRIDGE_PACKAGE] });
   const VIEW_ALLOW: UndoOptions = {
     assertAllowed: (action, target) => viewGate.authorize(action === "delete" ? "delete" : "write", target),
     gate: viewGate,
   };
 
   /** Deploy → run the delete bridge; toggles `state.exists` so the post-delete VIT read reflects it. */
-  const bridgeServer = (classrunLines: string[]) => {
+  const bridgeServer = (classrunLines: readonly string[]) => {
     const state = { exists: true };
+    const classic = classicFake({ action: "delete_view", lines: () => classrunLines });
     const route = (r: Recorded): HttpClientResponse | undefined => {
       if (r.url === VIT_URI && r.method === "GET") {
         return state.exists ? resp(200, vitXml(REAL_PKG), OK_XML) : resp(404, NOT_FOUND_XML, OK_XML);
       }
-      if (r.url === BRIDGE_OBJ_URI && r.method === "GET" && !r.qs._action) return resp(404, NOT_FOUND_XML, OK_XML);
-      if (r.url === BRIDGE_COLLECTION && r.method === "POST") return resp(200, "", OK_TEXT);
-      if (r.url === BRIDGE_OBJ_URI && r.qs._action === "LOCK") return resp(200, LOCK_XML, OK_XML);
-      if (r.url === BRIDGE_OBJ_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-      if (r.url === BRIDGE_SRC_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
-      if (r.url.includes("/activation")) return resp(200, "", OK_TEXT);
-      if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) {
-        state.exists = false;
-        return resp(200, classrunLines.join("\n"), OK_TEXT);
-      }
-      return undefined;
+      const hit = classic.route(r);
+      if (hit && r.url.startsWith("/sap/bc/adt/oo/classrun/")) state.exists = false;
+      return hit;
     };
-    return { state, route };
+    return { state, route, classic };
   };
 
   const beginEntry = () =>
@@ -3381,7 +3374,7 @@ describe("undo of a VIEW/DV bridge create now performs the delete via the DDIC b
     });
 
   it("deletes for real through the bridge, using the SERVER-confirmed package, not the journal's stored one", async () => {
-    const { state, route } = bridgeServer(["VIEW-DELETED", "VIEW-GONE"]);
+    const { state, route, classic } = bridgeServer(["VIEW-DELETED", "VIEW-GONE"]);
     const { conn, adt } = await connected(route);
     const e = await beginEntry();
     await journal.finish(e!.id, { outcome: "succeeded" });
@@ -3392,7 +3385,13 @@ describe("undo of a VIEW/DV bridge create now performs the delete via the DDIC b
     expect(res.performed).toBe(true);
     expect(res.plan.action).toBe("delete");
     expect(state.exists).toBe(false);
-    expect(adt.calls.some((c) => c.url === BRIDGE_SRC_URI && c.method === "PUT")).toBe(true);
+    const invoker = classic.invoker();
+    expect(invoker).toBeDefined();
+    expect(
+      adt.calls.some(
+        (c) => c.url === `${CLASSES_COLLECTION}/${invoker!.toLowerCase()}/source/main` && c.method === "PUT",
+      ),
+    ).toBe(true);
     expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
     // Never the ordinary object path — VIEW/DV has no writable ADT REST collection.
     expect(adt.calls.some((c) => c.method === "DELETE")).toBe(false);
@@ -3449,41 +3448,31 @@ describe("undo of a VIEW/DV bridge create now performs the delete via the DDIC b
 describe("undo of a TRAN/T bridge create now performs the delete via the DDIC bridge", () => {
   const TCODE = "ZMCPT02";
   const VIT_URI = vitBridgeUri("trant", TCODE);
-  const BRIDGE_CLASS = DDIC_BRIDGE_CLASS.deleteTransaction;
-  const BRIDGE_COLLECTION = "/sap/bc/adt/oo/classes";
-  const BRIDGE_OBJ_URI = `${BRIDGE_COLLECTION}/${BRIDGE_CLASS.toLowerCase()}`;
-  const BRIDGE_SRC_URI = `${BRIDGE_OBJ_URI}/source/main`;
+  const CLASSES_COLLECTION = "/sap/bc/adt/oo/classes";
   const REAL_PKG = "ZTM";
 
   const vitXml = (pkg: string): string =>
     `<vit:properties xmlns:vit="http://www.sap.com/adt/vit" xmlns:adtcore="http://www.sap.com/adt/core" ` +
     `adtcore:type="TRAN/T" adtcore:name="${TCODE}"><adtcore:packageRef adtcore:name="${pkg}"/></vit:properties>`;
 
-  const tranGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", REAL_PKG] });
+  const tranGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", REAL_PKG, DDIC_BRIDGE_PACKAGE] });
   const TRAN_ALLOW: UndoOptions = {
     assertAllowed: (action, target) => tranGate.authorize(action === "delete" ? "delete" : "write", target),
     gate: tranGate,
   };
 
-  const bridgeServer = (classrunLines: string[]) => {
+  const bridgeServer = (classrunLines: readonly string[]) => {
     const state = { exists: true };
+    const classic = classicFake({ action: "delete_transaction", lines: () => classrunLines });
     const route = (r: Recorded): HttpClientResponse | undefined => {
       if (r.url === VIT_URI && r.method === "GET") {
         return state.exists ? resp(200, vitXml(REAL_PKG), OK_XML) : resp(404, NOT_FOUND_XML, OK_XML);
       }
-      if (r.url === BRIDGE_OBJ_URI && r.method === "GET" && !r.qs._action) return resp(404, NOT_FOUND_XML, OK_XML);
-      if (r.url === BRIDGE_COLLECTION && r.method === "POST") return resp(200, "", OK_TEXT);
-      if (r.url === BRIDGE_OBJ_URI && r.qs._action === "LOCK") return resp(200, LOCK_XML, OK_XML);
-      if (r.url === BRIDGE_OBJ_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-      if (r.url === BRIDGE_SRC_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
-      if (r.url.includes("/activation")) return resp(200, "", OK_TEXT);
-      if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) {
-        state.exists = false;
-        return resp(200, classrunLines.join("\n"), OK_TEXT);
-      }
-      return undefined;
+      const hit = classic.route(r);
+      if (hit && r.url.startsWith("/sap/bc/adt/oo/classrun/")) state.exists = false;
+      return hit;
     };
-    return { state, route };
+    return { state, route, classic };
   };
 
   const beginEntry = () =>
@@ -3495,7 +3484,7 @@ describe("undo of a TRAN/T bridge create now performs the delete via the DDIC br
     });
 
   it("deletes for real through the bridge, same dispatch as VIEW/DV", async () => {
-    const { state, route } = bridgeServer(["TRAN-DELETED", "TRAN-GONE"]);
+    const { state, route, classic } = bridgeServer(["TRAN-DELETED", "TRAN-GONE"]);
     const { conn, adt } = await connected(route);
     const e = await beginEntry();
     await journal.finish(e!.id, { outcome: "succeeded" });
@@ -3505,7 +3494,13 @@ describe("undo of a TRAN/T bridge create now performs the delete via the DDIC br
 
     expect(res.performed).toBe(true);
     expect(state.exists).toBe(false);
-    expect(adt.calls.some((c) => c.url === BRIDGE_SRC_URI && c.method === "PUT")).toBe(true);
+    const invoker = classic.invoker();
+    expect(invoker).toBeDefined();
+    expect(
+      adt.calls.some(
+        (c) => c.url === `${CLASSES_COLLECTION}/${invoker!.toLowerCase()}/source/main` && c.method === "PUT",
+      ),
+    ).toBe(true);
     expect(adt.calls.some((c) => c.method === "DELETE")).toBe(false);
     expect((await journal.get(e!.id))!.undoneBy).toBeDefined();
   });
@@ -3547,24 +3542,7 @@ describe("undo of a package create, end-to-end through the real abap_write creat
 
   const pkgRef: FakeObjectRef = { name: PKG_NAME, type: "DEVC/K", uri: PKG_URI, packageName: PKG_NAME };
 
-  const BRIDGE_CLASS = DDIC_BRIDGE_CLASS.deletePackage;
-  const BRIDGE_COLLECTION = "/sap/bc/adt/oo/classes";
-  const BRIDGE_OBJ_URI = `${BRIDGE_COLLECTION}/${BRIDGE_CLASS.toLowerCase()}`;
-  const BRIDGE_SRC_URI = `${BRIDGE_OBJ_URI}/source/main`;
-
-  /** Deploy → activate → run the delete bridge; same shape as the blocks above. */
-  const bridgeRoute =
-    (classrunLines: string[]) =>
-    (r: Recorded): HttpClientResponse | undefined => {
-      if (r.url === BRIDGE_OBJ_URI && r.method === "GET" && !r.qs._action) return resp(404, NOT_FOUND_XML, OK_XML);
-      if (r.url === BRIDGE_COLLECTION && r.method === "POST") return resp(200, "", OK_TEXT);
-      if (r.url === BRIDGE_OBJ_URI && r.qs._action === "LOCK") return resp(200, LOCK_XML, OK_XML);
-      if (r.url === BRIDGE_OBJ_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-      if (r.url === BRIDGE_SRC_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
-      if (r.url.includes("/activation")) return resp(200, "", OK_TEXT);
-      if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, classrunLines.join("\n"), OK_TEXT);
-      return undefined;
-    };
+  const CLASSES_COLLECTION = "/sap/bc/adt/oo/classes";
 
   /**
    * A single fake package that actually tracks whether it exists, so ONE
@@ -3573,8 +3551,9 @@ describe("undo of a package create, end-to-end through the real abap_write creat
    * (resolveWriteTarget's GET, planUndo's repository-search drift check),
    * with the delete bridge layered on top.
    */
-  function fakePackageServer(classrunLines: string[]) {
+  function fakePackageServer(classrunLines: readonly string[]) {
     let exists = false;
+    const classic = classicFake({ action: "delete_package", lines: () => classrunLines });
     const route = (r: Recorded): HttpClientResponse | undefined => {
       if (r.url === PKG_URI && r.method === "GET") {
         return exists ? resp(200, pkgXml(), OK_XML) : resp(404, NOT_FOUND_XML, OK_XML);
@@ -3584,9 +3563,9 @@ describe("undo of a package create, end-to-end through the real abap_write creat
         return resp(200, "", OK_TEXT);
       }
       if (r.url === SEARCH_PATH) return resp(200, searchResultsXml(exists ? [pkgRef] : []), OK_XML);
-      return bridgeRoute(classrunLines)(r);
+      return classic.route(r);
     };
-    return { route };
+    return { route, classic };
   }
 
   it("planUndo/performUndo, fed the entry abap_write actually wrote for a package create, delete it clean", async () => {
@@ -3646,7 +3625,13 @@ describe("undo of a package create, end-to-end through the real abap_write creat
     expect(res.performed).toBe(true);
     expect(res.plan.action).toBe("delete");
     // The bridge really ran: its class was written and executed.
-    expect(adt.calls.some((c) => c.url === BRIDGE_SRC_URI && c.method === "PUT")).toBe(true);
+    const invoker = srv.classic.invoker();
+    expect(invoker).toBeDefined();
+    expect(
+      adt.calls.some(
+        (c) => c.url === `${CLASSES_COLLECTION}/${invoker!.toLowerCase()}/source/main` && c.method === "PUT",
+      ),
+    ).toBe(true);
     expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
     // Never the ordinary object path — there is no ADT REST DELETE for a package.
     expect(adt.calls.some((c) => c.method === "DELETE")).toBe(false);

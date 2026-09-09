@@ -1,40 +1,52 @@
 /**
- * IMG (SPRO customizing) row write. Reading the IMG catalog no longer needs
- * a generated bridge (`src/adt/img-read.ts` reads straight through the
- * freestyle data-preview endpoint), but writing still does — ADT has no IMG
- * REST route, only classic function-module plumbing — so this module keeps
- * the generated `IF_OO_ADT_CLASSRUN` class delivery mechanism, touching a
- * base customizing table's own data rather than a catalog table. Deployed
- * into `HELPER_PACKAGE` (`src/adt/helper-package.ts`), not `$TMP` — the
- * owner rule for bridge/helper classes going forward.
+ * IMG (SPRO customizing) row write: TS-side plan validation and transcript
+ * parsing for the fluid `img` tool's `preview`/`apply` actions
+ * (`ZCL_ZMCP_FLUID_IMG`, `src/adt/fluid/builtin/img.ts`, dispatched via
+ * `src/adt/img-write.ts`'s `runImgProbe`/`runImgApply`).
  *
- * Two fixed classes: `ZCL_ZMCP_IMG_WPROBE` (read-only: T000 flags, the base
- * table's DD02L/DD03L shape, before-image rows for caller-supplied keys) and
- * `ZCL_ZMCP_IMG_WAPPLY` (writes: records the CTS transport key, then
- * MODIFY/DELETEs rows, commits, and re-reads the after-image).
+ * This module used to also generate and own the ABAP delivery mechanism —
+ * one `IF_OO_ADT_CLASSRUN` class regenerated per call, in two fixed shapes:
+ * `ZCL_ZMCP_IMG_WPROBE` (read-only: T000 flags, the base table's DD02L/DD03L
+ * shape, before-image rows for caller-supplied keys) and `ZCL_ZMCP_IMG_WAPPLY`
+ * (writes: records the CTS transport key, then MODIFY/DELETEs rows, commits,
+ * and re-reads the after-image). Both are now RETIRED (`src/adt/fluid/
+ * retired.ts`) — the fluid `img` tool ships as one content-addressed class
+ * reused across calls, generic over table/field/row arguments read at ABAP
+ * runtime, rather than a class regenerated per call with those baked in.
+ * `IMGW_BRIDGE_CLASS` below still names the two retired classes; nothing
+ * deploys against them anymore, and it is kept only because
+ * `test/img-write-bridge.test.ts` still pins its literal values. The old
+ * per-call generator for `ZCL_ZMCP_IMG_WPROBE`'s body (`imgProbeSource`) has
+ * been deleted outright, along with the private ABAP-fragment helpers and
+ * DDIC field-name maps that existed only to feed it — `img.preview`'s live
+ * body was ported into `ZCL_ZMCP_FLUID_IMG` directly (see that file's own
+ * module doc comment), and the generator had no other caller left, test or
+ * otherwise, once that port was done.
  *
- * Every statement below is STATICALLY typed ABAP: table and field names are
- * baked into the generated source at TypeScript-generation time
- * (`DATA ls_wa TYPE t001.`, `ls_wa-butxt = '...'.`, `MODIFY t001 FROM
- * ls_wa.`) — never `CREATE DATA ... TYPE (lv_tab)` or `MODIFY (lv_tab)`.
- * This is the whole safety argument: a wrong field name is a syntax error
- * at class activation, before a single row is touched; a wrong data type is
- * a syntax error too, not a silent truncation of whatever the caller typed.
- * Each row is unrolled into its own block of generated statements (not a
- * runtime loop over a shared work area) precisely so that which fields a
- * given row assigns is fixed at generation time, not decided by data at
- * runtime — the one place that would otherwise tempt something dynamic.
+ * The old per-call design's safety argument doesn't carry over verbatim: a
+ * freshly generated, statically typed class made a wrong field or table name
+ * a syntax error at activation, before a row was touched. A single reused
+ * class can't do that — it has no caller-supplied table/field names to bake
+ * in — so `ZCL_ZMCP_FLUID_IMG` reproduces the same guarantee dynamically
+ * instead: `ASSIGN COMPONENT ... OF STRUCTURE` plus an `sy-subrc` check
+ * before every field touch, refusing the row (never touching it) the moment
+ * a named field doesn't exist on the described structure. What DOES carry
+ * over unchanged from the retired classes: this module's plan validation
+ * (`validateProbePlan`/`validateApplyPlan`, still the sole pre-dispatch
+ * gate for both actions) and its transcript grammar
+ * (`parseImgWriteTranscript`), which `ZCL_ZMCP_FLUID_IMG` was written to keep
+ * emitting unchanged.
  *
  * Neither `img-resolve.ts` nor `img-write-policy.ts` is imported here — this
- * module only generates ABAP source and parses its transcript; the caller
- * plan (table, keys, rows) is expected to already be resolved and allowed by
+ * module only validates a plan and parses a transcript; the caller plan
+ * (table, keys, rows) is expected to already be resolved and allowed by
  * those modules elsewhere.
  */
 
 import { AbapError } from "./errors.js";
-import { ddicBridgeSource, DDIC_ERR_PREFIX } from "./ddic-bridge.js";
+import { DDIC_ERR_PREFIX } from "./ddic-bridge.js";
 import { ERR_LINE_PREFIX, parseBracketFields } from "./run.js";
-import { abapLiteral, assertAbapText } from "./enhancement-templates.js";
+import { assertAbapText } from "./enhancement-templates.js";
 import { assertTrkorr } from "./transports.js";
 import { assertImgLanguage } from "./img-query.js";
 
@@ -145,8 +157,7 @@ export interface ImgApplyPlan extends ImgProbePlan {
   readonly fields: readonly ImgWriteField[];
   readonly corrNr?: string;
   /**
-   * DD02L-CONTFLAG / CLIDEP as read at probe time. Not in the brief's
-   * original sketch of this interface — added because generation rule 6
+   * DD02L-CONTFLAG / CLIDEP as read at probe time. Generation rule 6
    * ("abort if the delivery class or client dependence changed since the
    * probe") needs something from the probe to compare the apply-time re-read
    * against, and nothing else in this plan carries it. Which classes are
@@ -190,11 +201,16 @@ function assertDdicIdentifier(value: string, what: string): string {
 }
 
 /**
- * A row field value is embedded as an ABAP string literal via
- * {@link abapLiteral} (quote-doubling only), never inside a `|...{ }...|`
- * template — so the one thing that can actually corrupt the generated
- * source is a raw control character (a literal newline breaks the line the
- * assignment sits on; ABAP has no escape for it inside `'...'`).
+ * `ZCL_ZMCP_FLUID_IMG` receives row key/value strings as fluid action
+ * arguments (JSON, parsed at ABAP runtime), not baked into generated ABAP
+ * source — this module's retired per-call generator used to embed them as
+ * ABAP string literals instead, where a raw control character (a literal
+ * newline) could break the line the assignment sat on, since ABAP has no
+ * escape for it inside `'...'`. That specific corruption path is gone with
+ * the generator, but the same values still flow into other ABAP-side
+ * contexts this module doesn't control end to end (comparisons, transport
+ * text, transcript output), so the check stays as a general well-formedness
+ * gate rather than one tied to a since-deleted embedding mechanism.
  * {@link assertAbapText} is `enhancement-templates.ts`'s existing check for
  * exactly this, reused rather than re-implemented; the length cap here is
  * this module's own, not that function's default.
@@ -345,473 +361,6 @@ export function validateApplyPlan(p: ImgApplyPlan): void {
       assertRowValue(row.values[name]!, `row ${i} value ${name}`);
     }
   });
-}
-
-// ---------------------------------------------------------------------------
-// Shared ABAP fragments
-// ---------------------------------------------------------------------------
-
-/** T000 fields actually confirmed live elsewhere in this codebase (`system-role.ts`'s `T000_QUERY`) — MANDT, CCCATEGORY, CCCORACTIV. No fourth field is added on the strength of an example alone. */
-const T000_FIELDS = { mandt: "mandt", cccategory: "cccategory", cccoractiv: "cccoractiv" } as const;
-
-const DD02L_FIELDS = { table: "tabname", delclass: "contflag", clidep: "clidep", active: "as4local" } as const;
-
-/**
- * RTTI dump of every component of `ls_wa` (a work area statically typed off
- * the real table) — the one place this module inspects field names it did
- * not itself declare, and only to format OUTPUT. It does not touch the
- * SELECT/MODIFY/DELETE targets, which stay literal table/field names decided
- * at generation time; RTTI here never drives what gets read or written.
- * `lo_descr`/`lo_struct`/`ls_comp`/`<fs_val>`/`lv_fval` are declared once,
- * at the top of the generated method, and reused by plain assignment on
- * every call of this fragment — inline `DATA(...)`/`FIELD-SYMBOL(...)`
- * cannot be redeclared in the same scope, and this fragment is emitted once
- * per row, sometimes twice per row (before- and after-image).
- */
-function dumpRowFragment(tag: "BVAL" | "AVAL", rowLiteral: number): string[] {
-  return [
-    "lo_descr = cl_abap_typedescr=>describe_by_data( ls_wa ).",
-    "lo_struct = CAST cl_abap_structdescr( lo_descr ).",
-    "lt_comp = lo_struct->get_components( ).",
-    "LOOP AT lt_comp INTO ls_comp.",
-    "  ASSIGN COMPONENT ls_comp-name OF STRUCTURE ls_wa TO <fs_val>.",
-    "  IF sy-subrc <> 0.",
-    "    CONTINUE.",
-    "  ENDIF.",
-    "  lv_fval = |{ <fs_val> }|.",
-    `  out->write( |${IMGW_LINE_PREFIX}${tag} row=[${rowLiteral}] field=[{ ls_comp-name }] | &&`,
-    "    |len=[{ strlen( lv_fval ) }] value=[{ lv_fval }]| ).",
-    "ENDLOOP.",
-  ];
-}
-
-/** `T000` read + emit, common to both classes. Aborts (writes a `ZMCP-DDIC-ERR>` line and `RETURN`s) on `CCCORACTIV = '2'` — SAP's own "client-dependent customizing blocked outright in this client" state. This is a narrow ABAP-side backstop, not a substitute for the fuller `img-write-policy.ts` evaluation that runs before this bridge is ever deployed. */
-function clientCheckFragment(): string[] {
-  return [
-    `SELECT SINGLE ${T000_FIELDS.mandt}, ${T000_FIELDS.cccategory}, ${T000_FIELDS.cccoractiv} FROM t000`,
-    `  INTO (@DATA(lv_mandt), @DATA(lv_cccategory), @DATA(lv_cccoractiv))`,
-    `  WHERE ${T000_FIELDS.mandt} = @sy-mandt.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} T000 read failed for client { sy-mandt }| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    `out->write( |${IMGW_LINE_PREFIX}CLIENT mandt=[{ lv_mandt }] cccategory=[{ lv_cccategory }] cccoractiv=[{ lv_cccoractiv }]| ).`,
-    "IF lv_cccoractiv = '2'.",
-    `  out->write( |${DDIC_ERR_PREFIX} T000-CCCORACTIV = 2 for client { sy-mandt }: client-dependent customizing changes are blocked outright in this client.| ).`,
-    "  RETURN.",
-    "ENDIF.",
-  ];
-}
-
-/** `DD02L` read + emit for `table`. Returns the body lines and the two local variable names the caller reads to see the just-fetched values (for the apply side's TOCTOU comparison). */
-function ddicTableCheckFragment(tableLower: string, tableLit: string): string[] {
-  return [
-    `SELECT SINGLE ${DD02L_FIELDS.delclass}, ${DD02L_FIELDS.clidep} FROM dd02l`,
-    `  INTO (@DATA(lv_delclass), @DATA(lv_clidep))`,
-    `  WHERE ${DD02L_FIELDS.table} = '${tableLit}' AND ${DD02L_FIELDS.active} = 'A'.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} DD02L read failed for ${tableLower}| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    `out->write( |${IMGW_LINE_PREFIX}TABLE table=[${tableLower}] delclass=[{ lv_delclass }] clidep=[{ lv_clidep }]| ).`,
-  ];
-}
-
-function whereOnKeys(keyFields: readonly string[], row: ImgWriteRow): string {
-  return keyFields.map((f) => `${f.toLowerCase()} = ${abapLiteral(row.key[f]!)}`).join(" AND ");
-}
-
-// ---------------------------------------------------------------------------
-// PROBE
-// ---------------------------------------------------------------------------
-
-export function imgProbeSource(p: ImgProbePlan): string {
-  validateProbePlan(p);
-  const tableLower = p.table.toLowerCase();
-  const tableLit = p.table.toUpperCase();
-
-  const body: string[] = [
-    "DATA lo_descr TYPE REF TO cl_abap_typedescr.",
-    "DATA lo_struct TYPE REF TO cl_abap_structdescr.",
-    "DATA ls_comp TYPE abap_componentdescr.",
-    "DATA lt_comp TYPE cl_abap_structdescr=>component_table.",
-    "FIELD-SYMBOLS <fs_val> TYPE any.",
-    "DATA lv_fval TYPE string.",
-    `DATA ls_wa TYPE ${tableLower}.`,
-    // One DD03L read for the whole table, not one per key field: the DD03L loop below used to run
-    // once per key field with its four result variables bound inline (@DATA(...)) on the SELECT,
-    // which is a duplicate declaration for any table with more than one key field (every text
-    // table, e.g. TB004T) — measured live 2026-09-06, activation failed with `"LV_KEY_FLAG" was
-    // already declared.` on exactly this shape. Reading the whole table once, into a table
-    // variable declared here and reused by plain LOOP AT below, cannot repeat that: the
-    // declaration is emitted exactly once regardless of how many columns or key fields the table
-    // has. This read is also what makes VALUE (non-key) columns visible to the caller at all — the
-    // old per-key-field loop only ever emitted key fields, so no value column could ever be named
-    // in an apply plan.
-    "DATA lt_fld TYPE STANDARD TABLE OF dd03l WITH DEFAULT KEY.",
-    "DATA ls_fld TYPE dd03l.",
-    "",
-    ...clientCheckFragment(),
-    "",
-    ...ddicTableCheckFragment(tableLower, tableLit),
-    "",
-  ];
-
-  // Reads every column of the base table (not just p.keyFields) so an apply plan built from this
-  // probe's output can name a value column, not only a key column. `position` is selected only so
-  // `ORDER BY position` cannot trip the strict-SQL "order by a column not in the select list"
-  // check; it is otherwise unused. The `.`-prefixed rows DD03L carries for a table's own
-  // `.INCLUDE`/`.APPEND` marker are skipped — the real columns an include contributes are separate
-  // DD03L rows of their own and are not skipped by this guard.
-  body.push(
-    `SELECT position, fieldname, keyflag, datatype, leng, rollname FROM dd03l`,
-    `  INTO CORRESPONDING FIELDS OF TABLE @lt_fld`,
-    `  WHERE tabname = '${tableLit}' AND as4local = 'A'`,
-    `  ORDER BY position.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} DD03L returned no fields for ${tableLower}| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "LOOP AT lt_fld INTO ls_fld.",
-    "  IF ls_fld-fieldname(1) = '.'.",
-    "    CONTINUE.",
-    "  ENDIF.",
-    `  out->write( |${IMGW_LINE_PREFIX}FLD table=[${tableLower}] field=[{ ls_fld-fieldname }] key=[{ ls_fld-keyflag }] | &&`,
-    `    |type=[{ ls_fld-datatype }] len=[{ ls_fld-leng }] rollname=[{ ls_fld-rollname }]| ).`,
-    "ENDLOOP.",
-    "",
-  );
-
-  p.rows.forEach((row, i) => {
-    const rowNo = i + 1;
-    body.push(
-      "CLEAR ls_wa.",
-      `SELECT SINGLE * FROM ${tableLower} INTO @ls_wa WHERE ${whereOnKeys(p.keyFields, row)}.`,
-      "IF sy-subrc <> 0.",
-      `  out->write( |${IMGW_LINE_PREFIX}BABSENT row=[${rowNo}]| ).`,
-      "ELSE.",
-      ...dumpRowFragment("BVAL", rowNo).map((l) => "  " + l),
-      "ENDIF.",
-      "",
-    );
-  });
-
-  body.push(`out->write( |${IMGW_LINE_PREFIX}PROBED rows=[${p.rows.length}]| ).`);
-
-  return ddicBridgeSource(IMGW_BRIDGE_CLASS.probe, [], body);
-}
-
-// ---------------------------------------------------------------------------
-// APPLY
-// ---------------------------------------------------------------------------
-
-/**
- * Records the CTS key for one row via {@link CTS_INSERT_FM}, immediately
- * before the caller writes that row — generation rule 6's ordering. Emitted
- * only when `corrNr` is given; a plan with no `corrNr` skips CTS bookkeeping
- * entirely rather than guessing a transport, and the row write proceeds (or
- * is refused by the real system if one turns out to be required).
- *
- * `KO200` header (one row: `PGMID R3TR`, `OBJECT` = `masterType`, `OBJ_NAME`
- * = `view`, `OBJFUNC K`) plus one `E071K` row per row written (`PGMID
- * R3TR`, `OBJECT TABU`, `OBJNAME` = base table, `MASTERTYPE` = `masterType`,
- * `MASTERNAME`/`VIEWNAME` = `view`, `OBJFUNC` blank) — the shape SM30 itself
- * records for view-maintained customizing, per the measured evidence in
- * {@link CTS_INSERT_FM}.
- *
- * The key structure (`ls_key`) is typed off the table's own key fields only
- * — client excluded — and cast to a character string with `ASSIGN ...
- * CASTING TYPE c`; this cast is sound only when every component of
- * `ls_key` is character-like (CHAR/NUMC/CLNT/LANG/UNIT/...): a `P` or `X`
- * component would cast to raw bytes, not the padded text SAP expects in
- * `TABKEY`. This module does not check key field data types — that check
- * belongs to `img-write-policy.ts` (rule 8 there), run before a plan ever
- * reaches this generator. `TABKEY` itself is `sy-mandt` (client) followed by
- * the cast key: `ls_key` never carries the client field, so nothing here
- * would double it.
- *
- * `TR_OBJECTS_CHECK` runs first — required before an object's first edit —
- * then `TR_OBJECTS_INSERT`; both take the same suppressor flags and both
- * name `CANCEL_EDIT_OTHER_ERROR`/`SHOW_ONLY_OTHER_ERROR` as distinct
- * exceptions so a lock conflict's real reason (`sy-msg*`) survives into the
- * transcript instead of being collapsed into a bare `sy-subrc`.
- *
- * `TR_OBJECTS_INSERT` also exports `WE_ORDER`/`WE_TASK` — what CTS actually
- * recorded the object under, which may be a task beneath the requested
- * order rather than the order itself. Both are captured (`lv_we_order`,
- * `lv_we_task`, declared once by the caller, typed `trkorr` — this file's
- * existing convention for a transport number, e.g. `transport-entry-remove.ts`)
- * and appended to the `TRKEY` transcript line alongside the requested
- * number, each behind its own `len=[n] value=[...]` guard — the same
- * discipline the line's existing `value=[...]` already uses — so a
- * divergence between requested and recorded is visible to a caller
- * re-reading the request afterward, rather than assumed away.
- *
- * Both `CALL FUNCTION`s are wrapped in one `TRY`/`ENDTRY`, catching
- * `cx_sy_dyn_call_illegal_type`/`cx_sy_dyn_call_param_missing` (a
- * `TABLES`-formal-vs-actual mismatch — measured live 2026-09-06 against
- * `wt_ko200`/`wt_e071k` declared `WITH EMPTY KEY`, see the `lt_ko200`/
- * `lt_e071k` declarations in `imgApplySource`) ahead of a generic `cx_root`
- * catch, so a runtime failure here becomes its own attributed `IMGW> ERROR`
- * transcript line instead of only the unattributed `ZMCP-DDIC-ERR>` line
- * `ddicBridgeSource`'s outer `CATCH cx_root` already prints for anything
- * uncaught. `lx_cts`/`lo_exc_type`/`lv_exc_class`/`lv_exc_text` are declared
- * once in `imgApplySource`'s `body`, not here — this fragment runs once per
- * row, and an inline `CATCH ... INTO DATA(lx)` would be a duplicate
- * declaration on a second row.
- */
-function ctsRecordFragment(
-  tableLower: string,
-  tableLit: string,
-  corrNr: string,
-  rowNo: number,
-  view: string,
-  masterType: "VDAT" | "CDAT",
-): string[] {
-  const corrLit = abapLiteral(corrNr);
-  const viewLit = view.toUpperCase();
-  const P = CTS_INSERT_FM.params;
-  const X = CTS_INSERT_FM.exceptions;
-
-  const errorLines = (fm: string): string[] => [
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} ${fm} failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc } | &&`,
-    `    |msgid=[{ sy-msgid }] msgty=[{ sy-msgty }] msgno=[{ sy-msgno }] msgv1=[{ sy-msgv1 }] | &&`,
-    `    |msgv2=[{ sy-msgv2 }] msgv3=[{ sy-msgv3 }] msgv4=[{ sy-msgv4 }]| ).`,
-    "  RETURN.",
-    "ENDIF.",
-  ];
-
-  // Sets lv_exc_class/lv_exc_text and writes one IMGW> ERROR line, using the len=[n] value=[...]
-  // discipline every row-carrying tag in this module already uses (a get_text() can itself
-  // contain "]"). `mismatch` prefixes a wording that names this as a function-module interface
-  // problem — true of both caught classes: CX_SY_DYN_CALL_ILLEGAL_TYPE and
-  // CX_SY_DYN_CALL_PARAM_MISSING are both raised by CALL FUNCTION for a caller/callee interface
-  // disagreement, which is exactly what a WITH EMPTY KEY vs. TABLES-formal conflict is. The
-  // cx_root catch below gets no such claim — it may be nothing to do with the interface at all.
-  const dynCallErrorLines = (wording: "mismatch" | "generic"): string[] => [
-    "  lo_exc_type = cl_abap_typedescr=>describe_by_object_ref( lx_cts ).",
-    "  lv_exc_class = lo_exc_type->get_relative_name( ).",
-    wording === "mismatch"
-      ? "  lv_exc_text = |function-module interface mismatch: { lx_cts->get_text( ) }|."
-      : "  lv_exc_text = lx_cts->get_text( ).",
-    `  out->write( |${IMGW_LINE_PREFIX}ERROR class=[{ lv_exc_class }] len=[{ strlen( lv_exc_text ) }] | &&`,
-    "    |value=[{ lv_exc_text }]| ).",
-    "  RETURN.",
-  ];
-
-  return [
-    "CLEAR ls_ko200.",
-    "ls_ko200-pgmid = 'R3TR'.",
-    `ls_ko200-object = '${masterType}'.`,
-    `ls_ko200-obj_name = '${viewLit}'.`,
-    "ls_ko200-objfunc = 'K'.",
-    "REFRESH lt_ko200.",
-    "APPEND ls_ko200 TO lt_ko200.",
-    "CLEAR ls_e071k.",
-    "ls_e071k-pgmid = 'R3TR'.",
-    "ls_e071k-object = 'TABU'.",
-    `ls_e071k-objname = '${tableLit}'.`,
-    `ls_e071k-mastertype = '${masterType}'.`,
-    `ls_e071k-mastername = '${viewLit}'.`,
-    `ls_e071k-viewname = '${viewLit}'.`,
-    "ls_e071k-objfunc = ' '.",
-    "ASSIGN ls_key TO <key_c> CASTING TYPE c.",
-    "ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|.",
-    "REFRESH lt_e071k.",
-    "APPEND ls_e071k TO lt_e071k.",
-    // TRY/CATCH added so a TABLES-formal/actual mismatch — measured live 2026-09-06 on this very
-    // pair of calls — surfaces as its own tagged IMGW> ERROR line instead of only the generic,
-    // unattributed ZMCP-DDIC-ERR> line the outer CATCH cx_root in ddicBridgeSource already prints.
-    "TRY.",
-    `    CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`,
-    "      EXPORTING",
-    `        ${P.noStandardEditor} = 'X'`,
-    `        ${P.noShowOption}     = 'X'`,
-    "      TABLES",
-    `        ${P.objects} = lt_ko200`,
-    `        ${P.keys}    = lt_e071k`,
-    "      EXCEPTIONS",
-    `        ${X.cancelEditOtherError} = 1`,
-    `        ${X.showOnlyOtherError}   = 2`,
-    "        OTHERS = 3.",
-    ...errorLines(CTS_INSERT_FM.checkFm).map((l) => "  " + l),
-    `    CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`,
-    "      EXPORTING",
-    `        ${P.order}            = ${corrLit}`,
-    `        ${P.noStandardEditor} = 'X'`,
-    `        ${P.noShowOption}     = 'X'`,
-    "      IMPORTING",
-    `        ${P.weOrder} = lv_we_order`,
-    `        ${P.weTask} = lv_we_task`,
-    "      TABLES",
-    `        ${P.objects} = lt_ko200`,
-    `        ${P.keys}    = lt_e071k`,
-    "      EXCEPTIONS",
-    `        ${X.cancelEditOtherError} = 1`,
-    `        ${X.showOnlyOtherError}   = 2`,
-    "        OTHERS = 3.",
-    ...errorLines(CTS_INSERT_FM.insertFm).map((l) => "  " + l),
-    "  CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts.",
-    ...dynCallErrorLines("mismatch"),
-    "  CATCH cx_root INTO lx_cts.",
-    ...dynCallErrorLines("generic"),
-    "ENDTRY.",
-    `out->write( |${IMGW_LINE_PREFIX}TRKEY row=[${rowNo}] trkorr=[${corrNr}] | &&`,
-    `  |order_len=[{ strlen( lv_we_order ) }] order=[{ lv_we_order }] | &&`,
-    `  |task_len=[{ strlen( lv_we_task ) }] task=[{ lv_we_task }] | &&`,
-    `  |len=[{ strlen( <key_c> ) }] value=[{ <key_c> }]| ).`,
-  ];
-}
-
-export function imgApplySource(p: ImgApplyPlan): string {
-  validateApplyPlan(p);
-  const tableLower = p.table.toLowerCase();
-  const tableLit = p.table.toUpperCase();
-  const fieldByName = new Map(p.fields.map((f) => [f.field.toUpperCase(), f]));
-
-  const keyDataLines = p.keyFields.map((kf) => `  ${kf.toLowerCase()} TYPE ${tableLower}-${kf.toLowerCase()},`);
-
-  const body: string[] = [
-    "DATA lo_descr TYPE REF TO cl_abap_typedescr.",
-    "DATA lo_struct TYPE REF TO cl_abap_structdescr.",
-    "DATA ls_comp TYPE abap_componentdescr.",
-    "DATA lt_comp TYPE cl_abap_structdescr=>component_table.",
-    "FIELD-SYMBOLS <fs_val> TYPE any.",
-    "DATA lv_fval TYPE string.",
-    `DATA ls_wa TYPE ${tableLower}.`,
-    "DATA: BEGIN OF ls_key,",
-    ...keyDataLines,
-    "END OF ls_key.",
-    "FIELD-SYMBOLS <key_c> TYPE c.",
-    "DATA ls_ko200 TYPE ko200.",
-    // wt_ko200/wt_e071k (CTS_INSERT_FM.params.objects/keys) are TABLES formal parameters on
-    // TR_OBJECTS_CHECK/TR_OBJECTS_INSERT — a classic TABLES formal is a standard table with the
-    // DEFAULT key, and passing a WITH EMPTY KEY actual there is a runtime type conflict
-    // (CALL_FUNCTION_CONFLICT_TAB_TYP, catchable as CX_SY_DYN_CALL_ILLEGAL_TYPE) that ADT's
-    // activation syntax check does not catch. Measured live 2026-09-06: ZCL_ZMCP_IMG_WAPPLY
-    // activated and ran, then threw exactly this exception ("not handled locally or declared in
-    // a RAISING clause") at the TR_OBJECTS_CHECK call, before any row was written. WITH DEFAULT
-    // KEY is the standard fix for a TABLES actual; not itself re-verified live as of this change.
-    "DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.",
-    "DATA ls_e071k TYPE e071k.",
-    "DATA lt_e071k TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.",
-    "DATA lv_we_order TYPE trkorr.",
-    "DATA lv_we_task TYPE trkorr.",
-    // Declared once here, not inside ctsRecordFragment: that fragment is emitted once per row, so
-    // an inline DATA(lx)-style CATCH declaration would be a duplicate-declaration syntax error on
-    // any plan with more than one row. describe_by_object_ref/get_relative_name (not
-    // cl_abap_classdescr=>get_class_name) is used to name the caught exception at runtime — the
-    // oldest, most-certain RTTI path, chosen because this branch has already lost two live rounds
-    // to unverified SAP API names.
-    "DATA lx_cts TYPE REF TO cx_root.",
-    "DATA lo_exc_type TYPE REF TO cl_abap_typedescr.",
-    "DATA lv_exc_class TYPE string.",
-    "DATA lv_exc_text TYPE string.",
-    "",
-    ...clientCheckFragment(),
-    "",
-    ...ddicTableCheckFragment(tableLower, tableLit),
-    `IF lv_delclass <> '${p.expectedDeliveryClass.toUpperCase()}' OR boolc( lv_clidep = 'X' ) <> '${p.expectedClientDependent ? "X" : ""}'.`,
-    `  out->write( |${DDIC_ERR_PREFIX} DD02L for ${tableLower} changed since the probe (delclass/clidep) — re-probe before applying.| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "",
-  ];
-
-  // Per-row: before-image, CTS record, MODIFY/DELETE.
-  p.rows.forEach((row, i) => {
-    const rowNo = i + 1;
-    body.push("CLEAR ls_key.");
-    for (const kf of p.keyFields) {
-      body.push(`ls_key-${kf.toLowerCase()} = ${abapLiteral(row.key[kf]!)}.`);
-    }
-    body.push(
-      "CLEAR ls_wa.",
-      `SELECT SINGLE * FROM ${tableLower} INTO @ls_wa WHERE ${whereOnKeys(p.keyFields, row)}.`,
-    );
-
-    if (p.op === "upsert") {
-      body.push(
-        "IF sy-subrc <> 0.",
-        `  out->write( |${IMGW_LINE_PREFIX}BABSENT row=[${rowNo}]| ).`,
-        "  CLEAR ls_wa.",
-        ...p.keyFields.map((kf) => `  ls_wa-${kf.toLowerCase()} = ls_key-${kf.toLowerCase()}.`),
-        "ELSE.",
-        ...dumpRowFragment("BVAL", rowNo).map((l) => "  " + l),
-        "ENDIF.",
-        `ls_wa-${p.clientField.toLowerCase()} = sy-mandt.`,
-      );
-      if (p.corrNr !== undefined) {
-        body.push(...ctsRecordFragment(tableLower, tableLit, p.corrNr, rowNo, p.view, p.masterType));
-      }
-      // Only the fields THIS row named — never the whole plan's field list, and
-      // never built from scratch: ls_wa already carries the before-image (or, if
-      // absent, just the key + client set above), so every other field the
-      // caller did not name is preserved unchanged.
-      for (const [name, value] of Object.entries(row.values)) {
-        const field = fieldByName.get(name.toUpperCase());
-        if (!field) continue; // validated already; unreachable
-        body.push(`ls_wa-${field.field.toLowerCase()} = ${abapLiteral(value)}.`);
-      }
-      body.push(
-        `MODIFY ${tableLower} FROM ls_wa.`,
-        "IF sy-subrc <> 0.",
-        `  out->write( |${DDIC_ERR_PREFIX} MODIFY failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc }| ).`,
-        "  RETURN.",
-        "ENDIF.",
-        // Marks this row's own MODIFY as done (sy-subrc 0) — not that the batch committed.
-        // COMMIT WORK AND WAIT runs only after every row in the plan reaches here.
-        `out->write( |${IMGW_LINE_PREFIX}WROTE row=[${rowNo}]| ).`,
-      );
-    } else {
-      body.push(
-        "IF sy-subrc <> 0.",
-        `  out->write( |${IMGW_LINE_PREFIX}BABSENT row=[${rowNo}]| ).`,
-        "ELSE.",
-        ...dumpRowFragment("BVAL", rowNo).map((l) => "  " + l),
-      );
-      if (p.corrNr !== undefined) {
-        body.push(...ctsRecordFragment(tableLower, tableLit, p.corrNr, rowNo, p.view, p.masterType).map((l) => "  " + l));
-      }
-      body.push(
-        // Key work area only — DELETE FROM never widens the key with a WHERE clause.
-        `  ls_wa-${p.clientField.toLowerCase()} = sy-mandt.`,
-        ...p.keyFields.map((kf) => `  ls_wa-${kf.toLowerCase()} = ls_key-${kf.toLowerCase()}.`),
-        `  DELETE ${tableLower} FROM ls_wa.`,
-        "  IF sy-subrc <> 0.",
-        `    out->write( |${DDIC_ERR_PREFIX} DELETE failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc }| ).`,
-        "    RETURN.",
-        "  ENDIF.",
-        // Same marker as the upsert side, same caveat: this row's own DELETE returned sy-subrc 0;
-        // COMMIT WORK AND WAIT (below, after all rows) is what actually commits it.
-        `  out->write( |${IMGW_LINE_PREFIX}WROTE row=[${rowNo}]| ).`,
-        "ENDIF.",
-      );
-    }
-    body.push("");
-  });
-
-  body.push("COMMIT WORK AND WAIT.", "");
-
-  // Second pass: after-image.
-  p.rows.forEach((row, i) => {
-    const rowNo = i + 1;
-    body.push(
-      "CLEAR ls_wa.",
-      `SELECT SINGLE * FROM ${tableLower} INTO @ls_wa WHERE ${whereOnKeys(p.keyFields, row)}.`,
-      "IF sy-subrc <> 0.",
-      `  out->write( |${IMGW_LINE_PREFIX}AABSENT row=[${rowNo}]| ).`,
-      "ELSE.",
-      ...dumpRowFragment("AVAL", rowNo).map((l) => "  " + l),
-      "ENDIF.",
-      "",
-    );
-  });
-
-  body.push(`out->write( |${IMGW_LINE_PREFIX}APPLIED rows=[${p.rows.length}]| ).`);
-
-  return ddicBridgeSource(IMGW_BRIDGE_CLASS.apply, [], body);
 }
 
 // ---------------------------------------------------------------------------

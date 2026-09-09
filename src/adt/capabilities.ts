@@ -1232,8 +1232,8 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "type=\"application/vnd.sap.sapgui\" — a GUI handoff (SE11's Indexes tab), not a REST " +
         "resource. No discovery collection mentions indexes either.",
       via:
-        "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from a " +
-        "generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by " +
+        "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from " +
+        "the fluid `classic` tool's `create_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by " +
         "re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone — " +
         "the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an " +
         "ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H " +
@@ -1268,15 +1268,15 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
       via:
-        "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated " +
-        "IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading " +
+        "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from the " +
+        "fluid `classic` tool's `delete_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading " +
         "DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See " +
         "src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check " +
         "is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned " +
         "NOT_FOUND correctly, before ever calling the FM. Round 1's defect — the generated " +
         "ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS — is " +
-        "fixed and deployed: confirmed live, A4H 2026-09-05, the class body of " +
-        "ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a " +
+        "fixed and deployed: confirmed live, A4H 2026-09-05, the class body of the bridge " +
+        "that was then ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a " +
         "second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took " +
         "effect — the failure message's own DD12V read showed zero rows for the pair, and " +
         "an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal " +
@@ -1287,8 +1287,8 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "ran: round 3 found its own added ACTFAILED note line rendered as a " +
         "272-character ABAP source line (292 at the longest legal names), over the " +
         "255-character class-source limit, so every TABL/DI delete failed the " +
-        "class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of " +
-        "ZCL_ZMCP_DDIC_DINDX) before DD_INDEX_INTERFACE was ever called — the bridge " +
+        "class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of the " +
+        "then-ZCL_ZMCP_DDIC_DINDX bridge) before DD_INDEX_INTERFACE was ever called — the bridge " +
         "class was never refreshed and stayed on its round-2 body. The " +
         "ACTFAILED-tolerant read-back above had therefore never executed live before " +
         "round 4. Round 4 fixes the generator two ways: this fragment's two long messages " +
@@ -1300,7 +1300,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the " +
         "non-unique Z01 and the unique-with-client-field Z02 were each deleted with " +
         "INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 " +
-        "returned NOT_FOUND from the DD12V pre-check, and the deployed ZCL_ZMCP_DDIC_DINDX " +
+        "returned NOT_FOUND from the DD12V pre-check, and the deployed then-ZCL_ZMCP_DDIC_DINDX " +
         "body read back with the new read-back variable and no line over 255. So the " +
         "ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both " +
         "deletes while all three read-backs came back empty, so what the flag itself " +

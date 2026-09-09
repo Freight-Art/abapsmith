@@ -1,10 +1,10 @@
 /**
  * ABAP bridge generation for `abap_ui` — headless classic dynpro driving
  * (discovery + batch-input "press") via generated `IF_OO_ADT_CLASSRUN`
- * bridge classes written/activated in $TMP and run in a fresh session, same
- * pattern as `fpm-runtime.ts`/`ddic-bridge.ts`. No ADT REST endpoint reaches
- * TSTC, the screen-painter reader FMs, CUA status, or CALL TRANSACTION, so
- * this drives them via a generated class instead.
+ * bridge classes written/activated in FLUID_PACKAGE and run in a fresh
+ * session, same pattern as `fpm-runtime.ts`/`ddic-bridge.ts`. No ADT REST
+ * endpoint reaches TSTC, the screen-painter reader FMs, CUA status, or
+ * CALL TRANSACTION, so this drives them via a generated class instead.
  *
  * Two modes:
  *  - `screen` (read-only): resolves a tcode via TSTC (or takes an explicit
@@ -43,6 +43,9 @@ import {
   verifyBridgeActivation,
 } from "./run.js";
 import type { SafetyGate } from "../safety.js";
+import { dispatch } from "./fluid/dispatch.js";
+import { manifestVersion, type LoadedFluidTool } from "./fluid/manifest.js";
+import { uiManifest, uiSources } from "./fluid/builtin/ui.js";
 
 // ---------------------------------------------------------------------------
 // Query model
@@ -228,7 +231,7 @@ export function assertOkCode(value: string): string {
   return trimmed;
 }
 
-/** Runs every field-level validator for `q`'s mode, throwing `BAD_INPUT` on anything malformed. Called both from `uiBridgeClassName` (zero-network preflight) and again inside `screenBody`/`pressBody`. */
+/** Runs every field-level validator for `q`'s mode, throwing `BAD_INPUT` on anything malformed. Called from `uiBridgeClassName` (zero-network preflight), from `uiBridgeSource` before generating `pressBody`, and from `runUiScreenFluid` before dispatching a screen query via fluid. */
 function validateQuery(q: UiBridgeQuery): void {
   switch (q.mode) {
     case "screen":
@@ -266,7 +269,8 @@ function validateQuery(q: UiBridgeQuery): void {
 export const UI_BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_UI_";
 
 /**
- * Class name is a hash of every query field (like `fpmBridgeClassName`), so
+ * Class name is a hash of every query field (like `fpmLockBridgeClassName` in
+ * `fpm-lock.ts`, the other surviving generated-bridge namer), so
  * identical queries reuse the same deployed class. This only affects the
  * DEPLOY step's cost — `executeBridge` always runs the class regardless of
  * whether the PUT was skipped, so a repeated `press` still performs its
@@ -295,23 +299,6 @@ export function uiBridgeClassName(q: UiBridgeQuery): string {
 /** Line prefix for structured output; `ERR_LINE_PREFIX` (from run.ts, "ZMCP-ERR> ") is reused for diagnostics. */
 export const UI_LINE_PREFIX = "UI> ";
 
-/**
- * Cap on per-status `RS_CUA_GET_STATUS` calls in screen mode (~32ms warm each;
- * ~674ms total for SAPLSETB's 21 statuses — see archive). When exceeded, the
- * transcript's STATUS_LOOP line reports `capped=1`; callers must disclose it.
- */
-export const UI_STATUS_LOOP_CAP = 30;
-
-/**
- * Cap on total FKEY rows emitted across all statuses. Added after
- * `buildResponse`'s char budget silently dropped rows past the header's
- * count on a real transcript (SAPLSVIM: header said 778, body had 442 — see
- * archive) — capping at the source avoids the transport doing it silently.
- * When hit, the transcript's FKEY_CAP line reports `capped=1`; callers must
- * disclose it, same as {@link UI_STATUS_LOOP_CAP}.
- */
-export const UI_FKEY_ROW_CAP = 350;
-
 /** ADT's PUT rejects a source line over this length with `ExceptionResourceBadRequest`/`TooLongLine`. */
 const ABAP_MAX_LINE_LEN = 255;
 
@@ -331,213 +318,6 @@ function assertNoOverlongLines(source: string, className: string): void {
       );
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// ABAP source generation — screen (mode 1)
-// ---------------------------------------------------------------------------
-
-function screenBody(q: UiScreenQuery): string {
-  const lines: string[] = [];
-  lines.push(`    DATA lv_program TYPE syrepid.`);
-  lines.push(`    DATA lv_dynpro TYPE sydynnr.`);
-  lines.push(`    CLEAR: lv_program, lv_dynpro.`);
-
-  if (q.target.by === "tcode") {
-    const tcode = escapeAbapLiteral(assertTcode(q.target.tcode));
-    lines.push(`    DATA lv_cinfo TYPE tstc-cinfo.`);
-    lines.push(`    CLEAR lv_cinfo.`);
-    lines.push(`    SELECT SINGLE pgmna, dypno, cinfo`);
-    lines.push(`      FROM tstc`);
-    lines.push(`      WHERE tcode = '${tcode}'`);
-    lines.push(`      INTO (@lv_program, @lv_dynpro, @lv_cinfo).`);
-    lines.push(`    IF sy-subrc <> 0.`);
-    lines.push(
-      `      out->write( |${ERR_LINE_PREFIX}TSTC lookup failed for tcode ${tcode}, sy-subrc={ sy-subrc } (tcode probably does not exist)| ).`,
-    );
-    lines.push(`      RETURN.`);
-    lines.push(`    ENDIF.`);
-    lines.push(`    DATA lv_kind TYPE string.`);
-    lines.push(`    CLEAR lv_kind.`);
-    lines.push(`    CASE lv_cinfo.`);
-    lines.push(`      WHEN '00'.`);
-    lines.push(`        lv_kind = 'dialog transaction (classic dynpro; batch input / press applies)'.`);
-    lines.push(`      WHEN '80'.`);
-    lines.push(`        lv_kind = 'report transaction (SUBMIT-driven; batch input does NOT apply)'.`);
-    lines.push(`      WHEN OTHERS.`);
-    lines.push(
-      `        lv_kind = 'unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies'.`,
-    );
-    lines.push(`    ENDCASE.`);
-    lines.push(
-      `    mo_out->write( |${UI_LINE_PREFIX}TCODE tcode=[${tcode}] program=[{ lv_program }] dynpro=[{ lv_dynpro }] cinfo=[{ lv_cinfo }] kind=[{ lv_kind }]| ).`,
-    );
-  } else {
-    const program = escapeAbapLiteral(assertProgramName(q.target.program));
-    const dynpro = escapeAbapLiteral(assertDynpro(q.target.dynpro));
-    lines.push(`    lv_program = '${program}'.`);
-    lines.push(`    lv_dynpro = '${dynpro}'.`);
-  }
-
-  lines.push(`    mo_out->write( |${UI_LINE_PREFIX}RESOLVED program=[{ lv_program }] dynpro=[{ lv_dynpro }]| ).`);
-
-  // D021S/RPY_DYHEAD/RPY_DYFLOW component names are unconfirmed, so every
-  // row is dumped generically via flatten_any() rather than named.
-  lines.push(`    DATA ls_header TYPE rpy_dyhead.`);
-  // A TABLES parameter declared `LIKE <struct>` types the ROW, not the
-  // table, so both need `TYPE TABLE OF` — lt_flow_logic previously shipped
-  // as a bare `TYPE rpy_dyflow` and failed activation every call; the
-  // invariant test in test/ui-runtime.test.ts now checks every TABLES-bound
-  // variable (see archive for the incident).
-  lines.push(`    DATA lt_fields_list TYPE TABLE OF d021s.`);
-  lines.push(`    DATA lt_flow_logic TYPE TABLE OF rpy_dyflow.`);
-  lines.push(`    CLEAR: ls_header, lt_fields_list, lt_flow_logic.`);
-  lines.push(`    CALL FUNCTION 'RPY_DYNPRO_READ'`);
-  lines.push(`      EXPORTING`);
-  lines.push(`        progname = lv_program`);
-  lines.push(`        dynnr    = lv_dynpro`);
-  lines.push(`      IMPORTING`);
-  lines.push(`        header   = ls_header`);
-  lines.push(`      TABLES`);
-  lines.push(`        flow_logic  = lt_flow_logic`);
-  lines.push(`        fields_list = lt_fields_list`);
-  lines.push(`      EXCEPTIONS`);
-  lines.push(`        cancelled        = 1`);
-  lines.push(`        not_found        = 2`);
-  lines.push(`        permission_error = 3`);
-  lines.push(`        OTHERS           = 4.`);
-  lines.push(`    IF sy-subrc <> 0.`);
-  lines.push(
-    `      out->write( |${ERR_LINE_PREFIX}RPY_DYNPRO_READ failed, sy-subrc={ sy-subrc } (1=cancelled 2=not_found 3=permission_error 4=other)| ).`,
-  );
-  lines.push(`    ELSE.`);
-  lines.push(`      mo_out->write( |${UI_LINE_PREFIX}HEADER { flatten_any( ls_header ) }| ).`);
-  lines.push(`      mo_out->write( |${UI_LINE_PREFIX}COUNT_FIELDS { lines( lt_fields_list ) }| ).`);
-  lines.push(`      LOOP AT lt_fields_list INTO DATA(ls_field).`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}FIELD { flatten_any( ls_field ) }| ).`);
-  lines.push(`      ENDLOOP.`);
-  lines.push(`      mo_out->write( |${UI_LINE_PREFIX}COUNT_FLOW { lines( lt_flow_logic ) }| ).`);
-  lines.push(`      LOOP AT lt_flow_logic INTO DATA(ls_flow).`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}FLOW { flatten_any( ls_flow ) }| ).`);
-  lines.push(`      ENDLOOP.`);
-  lines.push(`    ENDIF.`);
-
-  // GUI status/buttons — two-step approach (see module header for why).
-  // Keyed by PROGRAM alone, so it always runs even if the read above failed.
-  lines.push(`    IF lv_program IS NOT INITIAL.`);
-  lines.push(`      DATA lt_sta TYPE STANDARD TABLE OF rsmpe_stat.`);
-  lines.push(`      DATA lt_fun TYPE STANDARD TABLE OF rsmpe_funt.`);
-  lines.push(`      DATA lt_men TYPE STANDARD TABLE OF rsmpe_men.`);
-  lines.push(`      DATA lt_mtx TYPE STANDARD TABLE OF rsmpe_mnlt.`);
-  lines.push(`      DATA lt_act TYPE STANDARD TABLE OF rsmpe_act.`);
-  lines.push(`      DATA lt_but TYPE STANDARD TABLE OF rsmpe_but.`);
-  lines.push(`      DATA lt_pfk TYPE STANDARD TABLE OF rsmpe_pfk.`);
-  lines.push(`      DATA lt_set TYPE STANDARD TABLE OF rsmpe_staf.`);
-  lines.push(`      DATA lt_doc TYPE STANDARD TABLE OF rsmpe_atrt.`);
-  lines.push(`      DATA lt_tit TYPE STANDARD TABLE OF rsmpe_titt.`);
-  lines.push(`      DATA lt_biv TYPE STANDARD TABLE OF rsmpe_buts.`);
-  lines.push(`      DATA lt_fkeys TYPE STANDARD TABLE OF rseul_keys.`);
-  lines.push(
-    `      CLEAR: lt_sta, lt_fun, lt_men, lt_mtx, lt_act, lt_but, lt_pfk, lt_set, lt_doc, lt_tit, lt_biv, lt_fkeys.`,
-  );
-  lines.push(`      CALL FUNCTION 'RS_CUA_INTERNAL_FETCH'`);
-  lines.push(`        EXPORTING`);
-  lines.push(`          program = lv_program`);
-  lines.push(`        TABLES`);
-  lines.push(`          sta = lt_sta`);
-  lines.push(`          fun = lt_fun`);
-  lines.push(`          men = lt_men`);
-  lines.push(`          mtx = lt_mtx`);
-  lines.push(`          act = lt_act`);
-  lines.push(`          but = lt_but`);
-  lines.push(`          pfk = lt_pfk`);
-  lines.push(`          set = lt_set`);
-  lines.push(`          doc = lt_doc`);
-  lines.push(`          tit = lt_tit`);
-  lines.push(`          biv = lt_biv`);
-  lines.push(`        EXCEPTIONS`);
-  lines.push(`          not_found       = 1`);
-  lines.push(`          unknown_version = 2`);
-  lines.push(`          OTHERS          = 3.`);
-  lines.push(`      IF sy-subrc = 1.`);
-  lines.push(
-    `        mo_out->write( |${UI_LINE_PREFIX}NOCUA program=[{ lv_program }] note=[no GUI status defined for this program]| ).`,
-  );
-  lines.push(`      ELSEIF sy-subrc <> 0.`);
-  lines.push(
-    `        out->write( |${ERR_LINE_PREFIX}RS_CUA_INTERNAL_FETCH failed, sy-subrc={ sy-subrc } (1=not_found 2=unknown_version 3=other)| ).`,
-  );
-  lines.push(`      ELSE.`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}COUNT_STATUS { lines( lt_sta ) }| ).`);
-  lines.push(`        LOOP AT lt_sta INTO DATA(ls_sta).`);
-  lines.push(`          mo_out->write( |${UI_LINE_PREFIX}STATUS { flatten_any( ls_sta ) }| ).`);
-  lines.push(`        ENDLOOP.`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}COUNT_FUNCTIONS { lines( lt_fun ) }| ).`);
-  lines.push(`        LOOP AT lt_fun INTO DATA(ls_fun).`);
-  lines.push(
-    `          mo_out->write( |${UI_LINE_PREFIX}FUNCTION code=[{ ls_fun-code }] text=[{ ls_fun-fun_text }] type=[{ ls_fun-type }]| ).`,
-  );
-  lines.push(`        ENDLOOP.`);
-  lines.push(`        DATA lv_status_done TYPE i VALUE 0.`);
-  lines.push(`        DATA lv_status_capped TYPE abap_bool VALUE abap_false.`);
-  lines.push(`        DATA lv_fkeys_total TYPE i VALUE 0.`);
-  lines.push(`        DATA lv_fkeys_capped TYPE abap_bool VALUE abap_false.`);
-  // GUI_STATUS, not a bare CHAR40: STATUS is untyped (TYPE ANY), and only
-  // the GUI_STATUS form was confirmed live — do not pass ls_sta-code directly.
-  lines.push(`        DATA lv_status TYPE gui_status.`);
-  lines.push(`        LOOP AT lt_sta INTO ls_sta.`);
-  lines.push(`          IF lv_status_done >= ${UI_STATUS_LOOP_CAP}.`);
-  lines.push(`            lv_status_capped = abap_true.`);
-  lines.push(`            EXIT.`);
-  lines.push(`          ENDIF.`);
-  lines.push(`          lv_status = ls_sta-code.`);
-  lines.push(`          CLEAR lt_fkeys.`);
-  lines.push(`          CALL FUNCTION 'RS_CUA_GET_STATUS'`);
-  lines.push(`            EXPORTING`);
-  lines.push(`              program = lv_program`);
-  lines.push(`              status  = lv_status`);
-  lines.push(`            TABLES`);
-  lines.push(`              fkeys = lt_fkeys`);
-  lines.push(`            EXCEPTIONS`);
-  lines.push(`              not_found_program = 1`);
-  lines.push(`              not_found_status  = 2`);
-  lines.push(`              recursive_menues  = 3`);
-  lines.push(`              empty_list        = 4`);
-  lines.push(`              not_found_menu    = 5`);
-  lines.push(`              OTHERS            = 6.`);
-  lines.push(`          IF sy-subrc = 0.`);
-  lines.push(`            LOOP AT lt_fkeys INTO DATA(ls_fkey).`);
-  // status= is attributed from lv_status (sent to the FM), not
-  // RSEUL_KEYS-STATUS (unverified whether the FM populates it). Empty-CODE
-  // rows (unassigned function-key slots) are dropped.
-  lines.push(`              IF ls_fkey-code IS NOT INITIAL.`);
-  // Stops EMITTING at the cap but keeps walking lt_sta/lt_fkeys, so
-  // lv_fkeys_total (and COUNT_FKEYS) always equals rows actually written,
-  // never rows encountered — see UI_FKEY_ROW_CAP's doc comment.
-  lines.push(`                IF lv_fkeys_total < ${UI_FKEY_ROW_CAP}.`);
-  lines.push(
-    `                  mo_out->write( |${UI_LINE_PREFIX}FKEY status=[{ lv_status }] code=[{ ls_fkey-code }] text=[{ ls_fkey-text }] quickinfo=[{ ls_fkey-quickinfo }]| ).`,
-  );
-  lines.push(`                  lv_fkeys_total = lv_fkeys_total + 1.`);
-  lines.push(`                ELSE.`);
-  lines.push(`                  lv_fkeys_capped = abap_true.`);
-  lines.push(`                ENDIF.`);
-  lines.push(`              ENDIF.`);
-  lines.push(`            ENDLOOP.`);
-  lines.push(`          ENDIF.`);
-  lines.push(`          lv_status_done = lv_status_done + 1.`);
-  lines.push(`        ENDLOOP.`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}COUNT_FKEYS { lv_fkeys_total }| ).`);
-  lines.push(
-    `        mo_out->write( |${UI_LINE_PREFIX}FKEY_CAP emitted=[{ lv_fkeys_total }] capped=[{ lv_fkeys_capped }]| ).`,
-  );
-  lines.push(
-    `        mo_out->write( |${UI_LINE_PREFIX}STATUS_LOOP done=[{ lv_status_done }] total=[{ lines( lt_sta ) }] capped=[{ lv_status_capped }]| ).`,
-  );
-  lines.push(`      ENDIF.`);
-  lines.push(`    ENDIF.`);
-
-  return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -610,11 +390,11 @@ function pressBody(q: UiPressQuery): string {
 // ---------------------------------------------------------------------------
 
 /** Generates the full bridge class source for `query`. Byte-stable per query (no timestamps/counters) so `writeObject` can skip an unchanged PUT. */
-export function uiBridgeSource(query: UiBridgeQuery, className: string): string {
+export function uiBridgeSource(query: UiPressQuery, className: string): string {
   const cls = assertPlainName(className, "Bridge class name").toLowerCase();
   validateQuery(query);
 
-  const body = query.mode === "screen" ? screenBody(query) : pressBody(query);
+  const body = pressBody(query);
 
   const source = `CLASS ${cls} DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
@@ -744,25 +524,15 @@ export interface UiTranscriptResult {
   functionsCount?: number;
   functions: Record<string, string>[];
   /**
-   * Union of per-status buttons across up to {@link UI_STATUS_LOOP_CAP}
-   * statuses. Fixed `{status, code, text, quickinfo}` projection off
-   * `RSEUL_KEYS`; `status` is attributed from the loop variable sent to
-   * RS_CUA_GET_STATUS, not `RSEUL_KEYS-STATUS` (unverified whether that FM
-   * populates it). Empty-`code` rows are dropped. `fkeysCount` totals across
-   * all statuses, not per status.
+   * Union of per-status buttons across every status. Fixed
+   * `{status, code, text, quickinfo}` projection off `RSEUL_KEYS`; `status`
+   * is attributed from the loop variable sent to RS_CUA_GET_STATUS, not
+   * `RSEUL_KEYS-STATUS` (unverified whether that FM populates it).
+   * Empty-`code` rows are dropped. `fkeysCount` totals across all statuses,
+   * not per status.
    */
   fkeysCount?: number;
   fkeys: Record<string, string>[];
-  /** Capped per-status RS_CUA_GET_STATUS loop summary. When `capped`, `fkeys` is incomplete — callers must disclose this. */
-  statusLoop?: { done: number; total: number; capped: boolean };
-  /**
-   * {@link UI_FKEY_ROW_CAP} row-cap summary — a separate fact from
-   * `statusLoop`: that says whether every status got a lookup, this says
-   * whether every found button was reported (either, both, or neither can be
-   * true; SAPLSVIM trips both — see archive). When `capped`, `fkeys` is
-   * incomplete — callers must disclose this.
-   */
-  fkeyCap?: { emitted: number; capped: boolean };
   /** Set when RS_CUA_INTERNAL_FETCH returned sy-subrc=1 (NOT_FOUND) — normal for a program with no GUI status, not an error. */
   noCua?: { program: string; note: string };
   press?: UiPressResult;
@@ -866,23 +636,6 @@ export function parseUiTranscript(raw: string): UiTranscriptResult {
       case "FKEY":
         result.fkeys.push(fields);
         break;
-      case "FKEY_CAP": {
-        const emitted = Number(fields.emitted ?? "");
-        const capped = fields.capped === "X" || fields.capped === "1" || fields.capped === "true";
-        if (!Number.isNaN(emitted)) {
-          result.fkeyCap = { emitted, capped };
-        }
-        break;
-      }
-      case "STATUS_LOOP": {
-        const done = Number(fields.done ?? "");
-        const total = Number(fields.total ?? "");
-        const capped = fields.capped === "X" || fields.capped === "1" || fields.capped === "true";
-        if (!Number.isNaN(done) && !Number.isNaN(total)) {
-          result.statusLoop = { done, total, capped };
-        }
-        break;
-      }
       case "NOCUA":
         result.noCua = { program: fields.program ?? "", note: fields.note ?? "" };
         break;
@@ -952,11 +705,93 @@ export interface UiBridgeResult {
   bodyBytes: number;
 }
 
+const UI_TOOLS: ReadonlyMap<string, LoadedFluidTool> = new Map([
+  [
+    "ui",
+    {
+      manifest: uiManifest,
+      origin: "builtin",
+      sources: uiSources,
+      version: manifestVersion(uiManifest, uiSources),
+    } as const,
+  ],
+]);
+
+/** Shape of the fluid `ui.screen` action's JSON object output — see `src/adt/fluid/builtin/ui.ts`'s `UI_SOURCE`/`uiManifest.actions[0].output`. */
+interface UiFluidScreenPayload {
+  tcode?: {
+    tcode: string;
+    program: string;
+    dynpro: string;
+    cinfo: string;
+    kind: string;
+    bdcApplies?: boolean;
+  };
+  program: string;
+  dynpro: string;
+  header?: Record<string, string>;
+  fields: Record<string, string>[];
+  flowCount?: number;
+  flow?: Record<string, string>[];
+  statusCount?: number;
+  statusList?: Record<string, string>[];
+  functionsCount?: number;
+  functions?: Record<string, string>[];
+  fkeysCount?: number;
+  fkeys?: Record<string, string>[];
+  noCua?: { program: string; note: string };
+}
+
+/**
+ * `dispatch()` already validated `result` against `uiManifest`'s declared
+ * output schema (`validateAgainstSchema`, `fluid/manifest.ts`) — this is type
+ * narrowing for the fields this module reads next, not a real recovery path,
+ * same idiom as `runImgProbe`'s array check in `img-write.ts`. A mismatch
+ * here means the manifest and this guard have drifted, not a bad caller input.
+ */
+function isUiFluidScreenPayload(v: unknown): v is UiFluidScreenPayload {
+  if (typeof v !== "object" || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return typeof o.program === "string" && typeof o.dynpro === "string" && Array.isArray(o.fields);
+}
+
+/**
+ * Reshapes the fluid payload into `UiTranscriptResult`. `resolved` and
+ * `fieldsCount` are derived here rather than emitted by the ABAP — both are
+ * trivial functions of data the payload already carries (`program`/`dynpro`,
+ * `fields.length`), so adding them server-side would only duplicate wire
+ * bytes for no new information. A screen result never carries `press` or
+ * non-fatal `diagnostics`: the fluid protocol's `err()` is unconditionally
+ * fatal (`dispatch()` throws `FLUID_ACTION_FAILED` on any `err()` call), so a
+ * successful dispatch can never leave partial-failure diagnostics behind the
+ * way the legacy per-call bridge's `ZMCP-ERR>` lines could.
+ */
+function toUiTranscriptResult(payload: UiFluidScreenPayload): UiTranscriptResult {
+  return {
+    ...(payload.tcode ? { tcode: payload.tcode } : {}),
+    resolved: { program: payload.program, dynpro: payload.dynpro },
+    ...(payload.header ? { header: payload.header } : {}),
+    fieldsCount: payload.fields.length,
+    fields: payload.fields,
+    ...(payload.flowCount !== undefined ? { flowCount: payload.flowCount } : {}),
+    flow: payload.flow ?? [],
+    ...(payload.statusCount !== undefined ? { statusCount: payload.statusCount } : {}),
+    statusList: payload.statusList ?? [],
+    ...(payload.functionsCount !== undefined ? { functionsCount: payload.functionsCount } : {}),
+    functions: payload.functions ?? [],
+    ...(payload.fkeysCount !== undefined ? { fkeysCount: payload.fkeysCount } : {}),
+    fkeys: payload.fkeys ?? [],
+    ...(payload.noCua ? { noCua: payload.noCua } : {}),
+    diagnostics: [],
+    droppedLines: 0,
+  };
+}
+
 /**
  * Deploys (if needed) and runs the UI bridge for `query`, returning the
  * parsed transcript. Mirrors `runFpmRead`'s shape: `deployBridge` +
  * `executeBridge` do all write/activate/execute gating on the generated
- * $TMP bridge class itself.
+ * bridge class itself, deployed into FLUID_PACKAGE.
  *
  * No second, domain-level safety gate is added for `press`'s
  * `CALL TRANSACTION`: unlike `ddic-bridge.ts`'s `assertBridgeMutation`
@@ -974,6 +809,57 @@ export async function runUiBridge(
   query: UiBridgeQuery,
   gate: SafetyGate,
 ): Promise<UiBridgeResult> {
+  if (query.mode === "screen") {
+    return runUiScreenFluid(conn, query, gate);
+  }
+  return runUiPressBridge(conn, query, gate);
+}
+
+/** `screen` (mode 1) — dispatched against the static fluid body class `ZCL_ZMCP_FLUID_UI` (`ui.screen`) instead of a generated per-call bridge. */
+async function runUiScreenFluid(
+  conn: AbapConnection,
+  query: UiScreenQuery,
+  gate: SafetyGate,
+): Promise<UiBridgeResult> {
+  const started = Date.now();
+  validateQuery(query);
+
+  const args =
+    query.target.by === "tcode"
+      ? { tcode: query.target.tcode }
+      : { program: query.target.program, dynpro: query.target.dynpro };
+
+  const res = await dispatch(
+    { conn, cfg: conn.cfg, gate, tools: UI_TOOLS },
+    { tool: "ui", action: "screen", args, caller: { tool: "abap_ui", action: "screen" } },
+  );
+
+  if (!isUiFluidScreenPayload(res.result)) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      "ui.screen returned a result that does not match its declared output schema.",
+      { tool: "ui", action: "screen", result: res.result },
+    );
+  }
+  const transcript = toUiTranscriptResult(res.result);
+
+  return {
+    query,
+    bridgeClass: uiManifest.entry,
+    bridgeRefreshed: res.deployed,
+    durationMs: Date.now() - started,
+    transcript,
+    outputComplete: !res.truncated,
+    bodyBytes: Buffer.byteLength(JSON.stringify(res.result), "utf8"),
+  };
+}
+
+/** `press` (mode 2) — unchanged: deploys and executes a per-call generated bridge class that builds BDCDATA and runs CALL TRANSACTION. */
+async function runUiPressBridge(
+  conn: AbapConnection,
+  query: UiPressQuery,
+  gate: SafetyGate,
+): Promise<UiBridgeResult> {
   const started = Date.now();
   const className = uiBridgeClassName(query);
   const source = uiBridgeSource(query, className);
@@ -982,17 +868,12 @@ export async function runUiBridge(
     className,
     source,
     description: `abapsmith UI bridge (mode=${query.mode})`,
+    caller: { tool: "abap_ui", action: query.mode },
     what: "Activation of the generated UI bridge",
     hint:
-      query.mode === "screen"
-        ? "The bridge reads dynpro/status metadata via RPY_DYNPRO_READ and RS_CUA_GET_STATUS — a " +
-          "syntax error here is unlikely to be about caller input (program/dynpro/tcode are " +
-          "validated and charset-restricted before any ABAP is generated) and more likely points " +
-          "at this module's own template (see ui-runtime.ts's module header for what is confirmed " +
-          "vs. best-effort)."
-        : "The bridge builds a BDCDATA table and runs CALL TRANSACTION — a syntax error here is " +
-          "unlikely to be about caller input (every field/program/dynpro/OK-code is validated " +
-          "before a line of ABAP is generated) and more likely points at this module's own template.",
+      "The bridge builds a BDCDATA table and runs CALL TRANSACTION — a syntax error here is " +
+      "unlikely to be about caller input (every field/program/dynpro/OK-code is validated " +
+      "before a line of ABAP is generated) and more likely points at this module's own template.",
     verify: (activation) => verifyBridgeActivation(activation, className, "UI bridge", { mode: query.mode }),
   });
   const { bridgeRefreshed } = deployed;

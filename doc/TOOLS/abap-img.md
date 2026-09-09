@@ -21,10 +21,14 @@ never supply or influence SQL syntax itself.
 **Availability**: because nothing is deployed and nothing is written,
 `abap_img` needs no write access at all and is registered under
 `ABAP_MODE=read`. This is a change from the previous, now-removed mechanism
-(a generated `IF_OO_ADT_CLASSRUN` bridge class deployed to `$TMP`, gated as
-a write like `abap_fpm_read`) — that mechanism required write access purely
-to deploy the bridge, even though every call after the first was itself a
-pure read; the freestyle endpoint has no such requirement.
+(a generated `IF_OO_ADT_CLASSRUN` bridge class deployed to `$TMP`) — that
+mechanism required write access purely to deploy the bridge, even though
+every call after the first was itself a pure read; the freestyle endpoint
+has no such requirement. `abap_fpm_read` still needs write access for the
+same reason today (deploying a bridge), though its bridge no longer lives
+in `$TMP` — see `doc/TOOLS/ui-and-fpm.md`. Because `abap_img` deploys
+nothing, it is also unaffected by `ABAP_FLUID_API`: it keeps working exactly
+as documented below whether the flag is on or off.
 
 ## What it reads
 
@@ -197,7 +201,10 @@ resolve the underlying base table itself with `kind: table`.
 - To **change** a resolved table's rows, use `abap_img_edit` — see
   `doc/TOOLS/abap-img-edit.md`. It targets the same activity/object
   vocabulary as this tool, so a name found with `search`/`tree`/`show` can
-  be passed straight through.
+  be passed straight through. Unlike `abap_img` itself, `abap_img_edit`'s
+  apply path and its CTS create-request path deploy a bridge, so with
+  `ABAP_FLUID_API=false` they stay registered but refuse at call time with
+  `FLUID_API_DISABLED`.
 
 ## Limitations
 

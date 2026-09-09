@@ -10,6 +10,10 @@ const LIVE_INTEGRATION_TESTS = [
   "test/integration-debug.test.ts",
   "test/integration-undo.test.ts",
   "test/integration-fpm-lock.test.ts",
+  // Proves the fluid API's bridge package (BRIDGE_PACKAGE = FLUID_PACKAGE =
+  // $ABAPSMITH_FLUID_API) against a real appliance: a report bridge runs from
+  // its new package, and a bridge stranded in $TMP is relocated into it.
+  "test/integration-fluid-run.test.ts",
   // Acceptance case: writes an ABAP Unit test class into a real class's
   // CCAU include, activates, reads back, runs it, cleans up. Listed here so
   // `VITEST_LIVE=1` COLLECTS it — the suite carries its own independent gate
@@ -21,6 +25,60 @@ const LIVE_INTEGRATION_TESTS = [
   // when abap_write uses it. Same independent-gate convention as the CCAU
   // suite above.
   "test/integration-lock-handle.test.ts",
+  // Fluid API runtime: ensureFluidPackage/ensureFluidTool actually deploy
+  // ZCL_ZMCP_FLUID_RT and dispatch() actually round-trips its ping/fail
+  // actions on a real system. Listed here so VITEST_LIVE=1 COLLECTS it — the
+  // suite carries its own independent gate, same convention as the two
+  // suites above.
+  "test/integration-fluid-runtime.test.ts",
+  // Drives the abap_fluid MCP TOOL HANDLER (registerFluidTool) against a
+  // real appliance — list/describe/status/verify/run/repair/remove all
+  // through the same registered handler an MCP client would call, not
+  // dispatch()/ensureFluidTool() directly (see integration-fluid-runtime.test.ts
+  // above for that). Listed here so VITEST_LIVE=1 COLLECTS it — the suite
+  // carries its own independent gate, same convention as the suites above.
+  "test/integration-fluid-tool.test.ts",
+  // Fluid img tool: dispatch() actually deploys ZCL_ZMCP_FLUID_IMG and runs
+  // its preview action's live DDIC probe (T005/LAND1) on a real system.
+  // Listed here so VITEST_LIVE=1 COLLECTS it — the suite carries its own
+  // independent gate, same convention as the suites above.
+  "test/integration-fluid-img.test.ts",
+  // The builtin `classic` fluid tool: deploys/activates ZCL_ZMCP_FLUID_CLASSIC
+  // into $ABAPSMITH_FLUID_API and round-trips a create/delete/exists cycle on
+  // a throwaway $TMP transaction. Same independent-gate convention as the
+  // other fluid live suites above.
+  "test/integration-fluid-classic.test.ts",
+  // The builtin `core` fluid tool: dispatch() actually deploys
+  // ZCL_ZMCP_FLUID_CORE and round-trips its select/describe_fm/call_fm
+  // actions (a T005 table read, an RFC_SYSTEM_INFO describe/call, and an
+  // ALPHA-conversion importing-parameter bind) against a real appliance, and
+  // the retired-bridge reaper probes/reaps the legacy DDIC/CTS/IMG bridge
+  // classes for real. Listed here so VITEST_LIVE=1 COLLECTS it — the suite
+  // carries its own independent gate, same convention as the suites above.
+  "test/integration-fluid-core.test.ts",
+  // The builtin `ui` fluid tool: deploys/activates ZCL_ZMCP_FLUID_UI into
+  // $ABAPSMITH_FLUID_API and round-trips a live SE16 screen read (tcode form,
+  // then program+dynpro form) plus an honest failure on a nonexistent tcode.
+  // Same independent-gate convention as the other fluid live suites above.
+  "test/integration-fluid-ui.test.ts",
+  // The builtin `fpm` fluid tool: deploys/activates ZCL_ZMCP_FLUID_FPM into
+  // $ABAPSMITH_FLUID_API and round-trips a live find/outline/app dispatch —
+  // a broad find() wildcard query, plus an honest FLUID_ACTION_FAILED on a
+  // nonexistent config_id for outline and app. Same independent-gate
+  // convention as the other fluid live suites above.
+  "test/integration-fluid-fpm.test.ts",
+  // The builtin `enh` fluid tool: deploys/activates ZCL_ZMCP_FLUID_ENH into
+  // $ABAPSMITH_FLUID_API, creates and independently reads back a real BAdI
+  // enhancement spot (create_spot) plus a BAdI definition on it
+  // (add_badi_def), and asserts an honest FLUID_ACTION_FAILED against a
+  // nonexistent spot. Same independent-gate convention as the other fluid
+  // live suites above.
+  "test/integration-fluid-enh.test.ts",
+  // Pins the S13 fix: a plugin call redeploys ZCL_ZMCP_FLUID_RT when it is
+  // missing, since a plugin manifest can never declare that class itself
+  // (the loader's namespace guard refuses it). Same independent-gate
+  // convention as the other fluid live suites above.
+  "test/integration-fluid-plugin.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";

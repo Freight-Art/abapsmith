@@ -95,7 +95,6 @@ import type {
   HttpClientOptions,
   HttpClientResponse,
 } from "abap-adt-api/build/AdtHTTP.js";
-import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
 
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
@@ -113,8 +112,9 @@ import {
   type JournalConfig,
   type JournalEntry,
 } from "../src/journal.js";
-import { BRIDGE_CLASS } from "../src/adt/enhancement-bridge.js";
+import { ENH_BRIDGE_PACKAGE } from "../src/adt/enhancement-bridge.js";
 import { T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { dynamicEnhFluidRoute, enhProbeConsole } from "./helpers/fluid-enh-fake.js";
 
 // ---------------------------------------------------------------------------
 // Harness — a trimmed, independent copy of test/enh-system-key.test.ts's own
@@ -173,11 +173,27 @@ const cfg = (): Config =>
 
 const DISCOVERY_ENHANCEMENTS_XML = fixture("discovery-enhancements.xml");
 
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
   if (r.url.includes("/compatibility/graph")) return resp(200, "<graph/>", LOGIN_HEADERS);
   if (r.url.endsWith("/discovery")) return resp(200, DISCOVERY_ENHANCEMENTS_XML, OK_XML);
   if (r.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
   if (r.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, OK_XML);
+  // ensureFluidPackage's package-existence probe (run.ts's deployBridge, cold
+  // path only): already exists, so this is the whole round trip — no create
+  // POST follows. Memoized per process per system, so only the first cold
+  // bridge deploy in this file actually reaches it.
+  if (r.url === FLUID_PKG_URI && r.method === "GET" && !r.qs._action)
+    return resp(200, FLUID_PACKAGE_XML, OK_XML);
   return undefined;
 }
 
@@ -193,16 +209,14 @@ async function connected(route: Route): Promise<{ conn: AbapConnection; adt: Fak
   return { conn, adt };
 }
 
-const LOCK_LOCAL_XML_H =
-  `<?xml version="1.0" encoding="utf-8"?><asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml">` +
-  `<asx:values><DATA><LOCK_HANDLE>H1</LOCK_HANDLE><CORRNR/>` +
-  `<CORRUSER/><CORRTEXT/><IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/>` +
-  `<MODIFICATION_SUPPORT>NoModification</MODIFICATION_SUPPORT><SCOPE_MESSAGES/></DATA></asx:values></asx:abap>`;
-
 const gate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: ["$TMP"],
+    allowPackages: ["$TMP", ENH_BRIDGE_PACKAGE],
+    // $ is outside the default Z/Y customer namespace, same as
+    // test/fluid-package.test.ts's own gate() — ensureFluidPackage's own
+    // create call names the package itself, $ABAPSMITH_FLUID_API.
+    allowNamePrefixes: ["*"],
     allowEnhancements: true,
     enhanceTargets: "customer",
     originSystems: ["A4H"],
@@ -298,35 +312,21 @@ async function registered(
 }
 
 /**
- * `set_filter_values`'s classrun bridge choreography — GET-404 -> POST-create
- * -> LOCK -> PUT source -> UNLOCK, generalized over an arbitrary collection +
- * object name. Same shape as `test/enh-system-key.test.ts`'s own
- * `createSpotBridgeRoute` / `test/enhancement-tools.test.ts`'s
- * `objectHappyPathRoute`, kept as its own copy per this file's header.
+ * `set_filter_values` now dispatches through the static fluid body
+ * `ZCL_ZMCP_FLUID_ENH` instead of a per-call classrun bridge — see
+ * `dynamicEnhFluidRoute`/`enhProbeConsole` (test/helpers/fluid-enh-fake.ts),
+ * the same helper `enhancement-bridge.test.ts` and `enh-system-key.test.ts`
+ * use. It deploys/activates both manifest objects plus the content-hashed
+ * invoker, and answers the invoker's classrun with one `enhProbeConsole`
+ * transcript carrying `result`. `replaced` is the field
+ * `set_filter_values`'s output schema requires (see enh.ts's manifest).
  */
-const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
-function objectHappyPathRoute(collectionUrl: string, objName: string): Route {
-  const objUrl = `${collectionUrl}/${objName.toLowerCase()}`;
-  const sourceUri = `${objUrl}/source/main`;
-  return (r: Recorded) => {
-    if (r.url === objUrl && r.method === "GET" && !r.qs._action) {
-      const res = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, r as unknown as HttpClientOptions, res);
-    }
-    if (r.url === collectionUrl && r.method === "POST") return resp(200, "", {});
-    if (r.url === objUrl && r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML_H, OK_XML);
-    if (r.url === objUrl && r.qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (r.url === sourceUri && r.method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    return undefined;
-  };
-}
-
-/** The classrun execution response — `run.output` is parsed by `parseEnhancementTranscript`. */
-function classrunRoute(tags: readonly string[]): Route {
-  return (r: Recorded) => {
-    if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, tags.join("\n"), { "content-type": "text/plain" });
-    return undefined;
-  };
+function fluidSetFilterValuesRoute(result: Record<string, unknown> = { replaced: true }): Route {
+  const route = dynamicEnhFluidRoute({
+    transcript: () => enhProbeConsole("set_filter_values", result),
+    packageName: ENH_BRIDGE_PACKAGE,
+  });
+  return (r: Recorded) => route(r as unknown as HttpClientOptions);
 }
 
 function combineRoutes(...routes: Route[]): Route {
@@ -425,8 +425,7 @@ describe("set_filter_values's H23 joint activation journals BOTH objects, in ord
       const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
       const { conn } = await connected(
         combineRoutes(
-          objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues),
-          classrunRoute(["IMPL-REPLACED"]),
+          fluidSetFilterValuesRoute(),
           (r) => (r.url.includes("/sap/bc/adt/activation") ? resp(200, "", { "content-length": "0" }) : undefined),
         ),
       );
@@ -472,8 +471,7 @@ describe("set_filter_values's H23 joint activation journals BOTH objects, in ord
 
       const { conn } = await connected(
         combineRoutes(
-          objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues),
-          classrunRoute(["IMPL-REPLACED"]),
+          fluidSetFilterValuesRoute(),
           (r) => {
             if (!r.url.includes("/sap/bc/adt/activation")) return undefined;
             activationRouteHit = true;
@@ -536,8 +534,7 @@ describe("set_filter_values's H23 joint activation journals BOTH objects, in ord
       let activationRouteHit = false;
       const { conn } = await connected(
         combineRoutes(
-          objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues),
-          classrunRoute(["IMPL-REPLACED"]),
+          fluidSetFilterValuesRoute(),
           (r) => {
             if (!r.url.includes("/sap/bc/adt/activation")) return undefined;
             // NOT every POST to this URL is the H23 joint activation. The
@@ -587,8 +584,7 @@ describe("set_filter_values's H23 joint activation journals BOTH objects, in ord
       const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
       const { conn } = await connected(
         combineRoutes(
-          objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues),
-          classrunRoute(["IMPL-REPLACED"]),
+          fluidSetFilterValuesRoute(),
           // Poison ONLY the H23 joint activation, identified by the spot's own
           // `ENHS/XS` reference in the request body. The generated bridge CLASS
           // is activated through this same endpoint earlier; failing that one

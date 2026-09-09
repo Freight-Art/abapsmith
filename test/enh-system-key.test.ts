@@ -42,7 +42,6 @@ import type {
   HttpClientOptions,
   HttpClientResponse,
 } from "abap-adt-api/build/AdtHTTP.js";
-import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
 
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
@@ -54,8 +53,9 @@ import type { SessionPool } from "../src/adt/pool.js";
 import { errorResult } from "../src/server.js";
 import { registerEnhancementTools, type EnhToolDeps } from "../src/tools/enh.js";
 import { Journal, systemKey } from "../src/journal.js";
-import { BRIDGE_CLASS } from "../src/adt/enhancement-bridge.js";
+import { ENH_BRIDGE_PACKAGE } from "../src/adt/enhancement-bridge.js";
 import { T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { dynamicEnhFluidRoute, enhProbeConsole } from "./helpers/fluid-enh-fake.js";
 
 // ---------------------------------------------------------------------------
 // Harness — a trimmed, independent copy of test/enhancement-tools.test.ts's
@@ -114,11 +114,27 @@ const cfg = (): Config =>
 
 const DISCOVERY_ENHANCEMENTS_XML = fixture("discovery-enhancements.xml");
 
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
   if (r.url.includes("/compatibility/graph")) return resp(200, "<graph/>", LOGIN_HEADERS);
   if (r.url.endsWith("/discovery")) return resp(200, DISCOVERY_ENHANCEMENTS_XML, OK_XML);
   if (r.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
   if (r.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, OK_XML);
+  // ensureFluidPackage's package-existence probe (run.ts's deployBridge, cold
+  // path only): already exists, so this is the whole round trip — no create
+  // POST follows. Memoized per process per system, so only the first cold
+  // bridge deploy in this file actually reaches it.
+  if (r.url === FLUID_PKG_URI && r.method === "GET" && !r.qs._action)
+    return resp(200, FLUID_PACKAGE_XML, OK_XML);
   return undefined;
 }
 
@@ -147,16 +163,14 @@ const LOCK_LOCAL_XML =
   `<CORRUSER/><CORRTEXT/><IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/>` +
   `<MODIFICATION_SUPPORT>NoModification</MODIFICATION_SUPPORT><SCOPE_MESSAGES/></DATA></asx:values></asx:abap>`;
 
-const LOCK_LOCAL_XML_H =
-  `<?xml version="1.0" encoding="utf-8"?><asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml">` +
-  `<asx:values><DATA><LOCK_HANDLE>H1</LOCK_HANDLE><CORRNR/>` +
-  `<CORRUSER/><CORRTEXT/><IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/>` +
-  `<MODIFICATION_SUPPORT>NoModification</MODIFICATION_SUPPORT><SCOPE_MESSAGES/></DATA></asx:values></asx:abap>`;
-
 const gate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: ["$TMP"],
+    allowPackages: ["$TMP", ENH_BRIDGE_PACKAGE],
+    // $ is outside the default Z/Y customer namespace, same as
+    // test/fluid-package.test.ts's own gate() — ensureFluidPackage's own
+    // create call names the package itself, $ABAPSMITH_FLUID_API.
+    allowNamePrefixes: ["*"],
     allowEnhancements: true,
     enhanceTargets: "customer",
     originSystems: ["A4H"],
@@ -252,23 +266,23 @@ async function registered(
   return tools;
 }
 
-/** create_spot's classrun bridge choreography — GET-404 -> POST-create -> LOCK -> PUT source ->
- *  UNLOCK -> classrun -> activation. Same shape as enhancement-tools.test.ts's own
- *  `createSpotBridgeRoute`, kept as its own copy per this file's header. */
-const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
+/** create_spot now dispatches through the static fluid body `ZCL_ZMCP_FLUID_ENH`
+ *  instead of a per-call classrun bridge — see `dynamicEnhFluidRoute`/`enhProbeConsole`
+ *  (test/helpers/fluid-enh-fake.ts), the same helper `enhancement-bridge.test.ts` uses.
+ *  It deploys/activates both manifest objects plus the content-hashed invoker, and
+ *  answers the invoker's classrun with one `enhProbeConsole` transcript. */
 function createSpotBridgeRoute(): Route {
-  const objUrl = `${CLASS_COLLECTION}/${BRIDGE_CLASS.createSpot.toLowerCase()}`;
-  const sourceUri = `${objUrl}/source/main`;
+  const fluid = dynamicEnhFluidRoute({
+    transcript: () => enhProbeConsole("create_spot", { created: true }),
+    packageName: ENH_BRIDGE_PACKAGE,
+  });
   return (r: Recorded) => {
-    if (r.url === objUrl && r.method === "GET" && !r.qs._action) {
-      const res = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, r as unknown as HttpClientOptions, res);
-    }
-    if (r.url === CLASS_COLLECTION && r.method === "POST") return resp(200, "", {});
-    if (r.url === objUrl && r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML_H, OK_XML);
-    if (r.url === objUrl && r.qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (r.url === sourceUri && r.method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, "SPOT-OBJECT-CREATED", { "content-type": "text/plain" });
+    const hit = fluid(r as unknown as HttpClientOptions);
+    if (hit) return hit;
+    // The TS-side post-op `activateObject(ZMCP_SPOT, ...)` call, unchanged by
+    // the reroute — not a fluid class, so `dynamicEnhFluidRoute` leaves it
+    // unrouted. Same fallback `sharedRoute` gives every non-fluid activation
+    // in enhancement-bridge.test.ts.
     if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
     return undefined;
   };

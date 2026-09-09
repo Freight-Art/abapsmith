@@ -7,6 +7,22 @@
  * `test/write.test.ts`'s `resolveWriteTarget`-level unit test does. This file
  * drives the real entry points (`deleteObject`, `planUndo`/`performUndo`)
  * offline, with a fake `HttpClient`, same harness idiom as those two files.
+ *
+ * S3 rewire: `src/adt/write.ts`'s `deleteObject` still routes a `DEVC/K`
+ * delete through `deletePackageViaBridge` (`src/adt/package-delete.ts`,
+ * unchanged by this rewrite) — but that function no longer deploys a
+ * per-operation `ZCL_ZMCP_DDIC_*` classrun bridge class of its own; it calls
+ * `runClassicAction`, which goes through the single static fluid body class
+ * `ZCL_ZMCP_FLUID_CLASSIC` (`src/adt/fluid/builtin/classic.ts`) via a
+ * content-hashed `ZCL_ZMCP_I_<hex>` invoker. The old hand-rolled
+ * `DDIC_BRIDGE_CLASS.deletePackage`/`bridgeDeployRoute`/`bridgeClassrunRoute`
+ * fixtures are replaced with `test/helpers/fluid-classic-fake.ts`'s
+ * `classicFake`, exactly as in `test/package-delete.test.ts`. No transport
+ * manager is ever wired into `deleteObject`'s `opts` here (this file
+ * exercises the LOCAL-package leg), so `preflightCorr` short-circuits on
+ * `opts.transport === undefined` and never issues a lock/transportchecks
+ * request against the package's own URI either — this was true before the
+ * rewire too and needed no change.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -25,19 +41,18 @@ import { Journal, type JournalConfig } from "../src/journal.js";
 import { authorizeMutation, deleteObject, type WriteTarget } from "../src/adt/write.js";
 import { planUndo, performUndo, type UndoOptions } from "../src/adt/undo.js";
 import { SafetyGate } from "../src/safety.js";
-import { DDIC_BRIDGE_CLASS, DDIC_BRIDGE_PACKAGE } from "../src/adt/ddic-bridge.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 import { searchResultsXml, type FakeObjectRef } from "./helpers/fake-adt.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
+
+const fluidState = useFluidState();
 
 const PKG = "$ZTMD_LOCAL_01";
 const PKG_URI = "/sap/bc/adt/packages/%24ztmd_local_01";
 const TAB = "ZTMD_LOCAL_TAB";
 const TAB_URI = "/sap/bc/adt/ddic/tables/ztmd_local_tab";
-
-const NOT_FOUND_XML = (name: string): string =>
-  `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">` +
-  `<namespace id="com.sap.adt"/><type id="ExceptionResourceNotFound"/>` +
-  `<message lang="EN">${name} does not exist</message><properties/></exc:exception>`;
 
 /**
  * The exact live shape: no `<adtcore:packageRef>` element anywhere, and an
@@ -66,7 +81,6 @@ interface Recorded {
 
 type Route = (r: Recorded) => HttpClientResponse | undefined;
 
-const OK_TEXT = { "content-type": "text/plain" };
 const OK_XML = { "content-type": "application/xml" };
 const LOGIN_HEADERS = { "content-type": "application/xml", "x-csrf-token": "TOKEN123" };
 
@@ -99,6 +113,8 @@ const cfg = (): Config =>
     sid: "A4H",
     client: "001",
     readOnly: false,
+    fluidApi: true,
+    stateDir: fluidState.dir(),
   });
 
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
@@ -131,6 +147,12 @@ function combineRoutes(...routes: Route[]): Route {
   };
 }
 
+/** Bridges `classicFake`'s `HttpClientOptions`-shaped route to this file's `Recorded`-shaped one. */
+function fromClassicFake(fake: ReturnType<typeof classicFake>): Route {
+  return (r) =>
+    fake.route({ method: r.method, url: r.url, qs: r.qs, body: r.body } as HttpClientOptions);
+}
+
 const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
   const e = await p.then(
     () => undefined,
@@ -150,7 +172,7 @@ const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
 const bridgeGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: [DDIC_BRIDGE_PACKAGE, PKG],
+    allowPackages: [FLUID_PACKAGE, PKG],
     allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
@@ -159,21 +181,7 @@ const bridgeGate = (): SafetyGate =>
 const authDelete = (conn: AbapConnection, target: WriteTarget, gate: SafetyGate) =>
   authorizeMutation(conn, gate, "delete", target);
 
-// Bridge deploy/run routes, same choreography as test/write-package.test.ts's DEVC/K bridge-delete block.
-
-const DELETE_BRIDGE_CLASS = DDIC_BRIDGE_CLASS.deletePackage;
-const CLASSES_COLLECTION = "/sap/bc/adt/oo/classes";
-const DELETE_BRIDGE_URI = `${CLASSES_COLLECTION}/${DELETE_BRIDGE_CLASS.toLowerCase()}`;
-const DELETE_BRIDGE_SOURCE_URI = `${DELETE_BRIDGE_URI}/source/main`;
-const DELETE_BRIDGE_CLASSRUN_URI = `/sap/bc/adt/oo/classrun/${DELETE_BRIDGE_CLASS}`;
-
-const BRIDGE_LOCK_XML =
-  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
-  `<LOCK_HANDLE>H1</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
-  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
-  `</DATA></asx:values></asx:abap>`;
-
-const SUCCESS_TRANSCRIPT = ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"].join("\n");
+const SUCCESS_LINES = ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"];
 
 /** The package resolve GET that every deleteObject/authorizeMutation call pays first. */
 const packageExistsRoute: Route = (r) => {
@@ -194,25 +202,6 @@ const searchExistsRoute: Route = (r) => {
   return undefined;
 };
 
-/** GET-404 → POST-create → LOCK → PUT → UNLOCK → activate for the bridge class itself. */
-const bridgeDeployRoute: Route = (r) => {
-  if (r.url === DELETE_BRIDGE_URI && r.method === "GET" && !r.qs._action)
-    return resp(404, NOT_FOUND_XML(DELETE_BRIDGE_CLASS), OK_XML);
-  if (r.url === CLASSES_COLLECTION && r.method === "POST") return resp(200, "", {});
-  if (r.url === DELETE_BRIDGE_URI && r.qs._action === "LOCK") return resp(200, BRIDGE_LOCK_XML, OK_XML);
-  if (r.url === DELETE_BRIDGE_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-  if (r.url === DELETE_BRIDGE_SOURCE_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
-  if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-  return undefined;
-};
-
-const bridgeClassrunRoute =
-  (transcript: string): Route =>
-  (r) => {
-    if (r.url === DELETE_BRIDGE_CLASSRUN_URI) return resp(200, transcript, OK_TEXT);
-    return undefined;
-  };
-
 let dir: string;
 let journal: Journal;
 
@@ -221,17 +210,18 @@ const jcfg = (): JournalConfig => ({ dir, enabled: true, maxEntries: 200, maxAge
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "abap-local-pkg-delete-"));
   journal = new Journal(jcfg(), "A4H");
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
 describe("local ($) DEVC/K package delete: no adtcore:packageRef at all, empty pak:superPackage", () => {
-  it("(A) deletes the package through the classrun bridge, never locking or DELETEing the package's own URI", async () => {
+  it("(A) deletes the package through the classic fluid tool, never locking or DELETEing the package's own URI", async () => {
     const gate = bridgeGate();
-    const { conn, adt } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
-    );
+    const fake = classicFake({ action: "delete_package", lines: () => SUCCESS_LINES });
+    const { conn, adt } = await connected(combineRoutes(packageExistsRoute, fromClassicFake(fake)));
 
     const target = await authDelete(conn, { type: "DEVC/K", name: PKG }, gate);
     const res = await deleteObject(conn, target, {
@@ -241,22 +231,18 @@ describe("local ($) DEVC/K package delete: no adtcore:packageRef at all, empty p
 
     expect(res.deleted).toBe(true);
     // The package's own URI is never locked or DELETEd — the whole
-    // operation goes through the classrun bridge instead.
+    // operation goes through the fluid classic tool instead.
     expect(adt.calls.filter((c) => c.url === PKG_URI && c.method === "DELETE")).toHaveLength(0);
     expect(adt.calls.filter((c) => c.url === PKG_URI && c.qs._action === "LOCK")).toHaveLength(0);
-    expect(adt.calls.some((c) => c.url === DELETE_BRIDGE_CLASSRUN_URI)).toBe(true);
-    expect(adt.calls.some((c) => c.url === DELETE_BRIDGE_SOURCE_URI && c.method === "PUT")).toBe(true);
+    expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
+    expect(fake.invoker()).toBeDefined();
   });
 
-  it("(B) undo of the create journal entry plans and performs a real delete through the bridge", async () => {
+  it("(B) undo of the create journal entry plans and performs a real delete through the classic fluid tool", async () => {
     const gate = bridgeGate();
+    const fake = classicFake({ action: "delete_package", lines: () => SUCCESS_LINES });
     const { conn, adt } = await connected(
-      combineRoutes(
-        packageExistsRoute,
-        searchExistsRoute,
-        bridgeDeployRoute,
-        bridgeClassrunRoute(SUCCESS_TRANSCRIPT),
-      ),
+      combineRoutes(packageExistsRoute, searchExistsRoute, fromClassicFake(fake)),
     );
 
     const e = await journal.begin({
@@ -284,7 +270,7 @@ describe("local ($) DEVC/K package delete: no adtcore:packageRef at all, empty p
 
     expect(res.performed).toBe(true);
     expect(res.plan.action).toBe("delete");
-    expect(adt.calls.some((c) => c.url === DELETE_BRIDGE_CLASSRUN_URI)).toBe(true);
+    expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
     expect(adt.calls.some((c) => c.method === "DELETE")).toBe(false);
     expect((await journal.get(e!.id))!.undoneBy).toBeDefined();
   });

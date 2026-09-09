@@ -489,7 +489,7 @@ function intFromEnv(raw: string | undefined, fallback: number): number {
 }
 
 /** `$TMP` and friends are legal SIDs-in-name-only; keep them off the filesystem. */
-function safeSegment(sid: string): string {
+export function safeSegment(sid: string): string {
   const cleaned = sid.trim().replace(/[^A-Za-z0-9_-]/g, "_");
   return cleaned.length ? cleaned.toUpperCase() : "UNKNOWN";
 }

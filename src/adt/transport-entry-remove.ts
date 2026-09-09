@@ -5,21 +5,23 @@
  * ADT exposes a per-entry `removeobject` link on a transport's object list,
  * but its verb and body are UNKNOWN and are NOT guessed here. Instead this
  * reaches CTS's own backend the way `./tran-delete.ts` / `./view-delete.ts`
- * reach theirs: a generated `IF_OO_ADT_CLASSRUN` class deployed to `$TMP`,
- * calling `TRINT_READ_REQUEST` to find the row and `TR_DELETE_COMM_OBJECT_KEYS`
- * to remove it. This route clears an entry whose request holds exactly one
- * E071 row for it. A live run on 2026-09-05 found that CTS refuses the
- * removal when the request's object list holds two or more E071 rows for the
- * same PGMID+OBJECT+OBJ_NAME (E071's key is TRKORR+AS4POS, not object
- * identity, so duplicates are legal); the bridge now detects that up front.
+ * reach theirs: the fluid `classic` tool's `remove_transport_entry` action
+ * (body class `ZCL_ZMCP_FLUID_CLASSIC`), calling `TRINT_READ_REQUEST` to find
+ * the row and `TR_DELETE_COMM_OBJECT_KEYS` to remove it. This route clears an
+ * entry whose request holds exactly one E071 row for it. A live run on
+ * 2026-09-05 found that CTS refuses the removal when the request's object
+ * list holds two or more E071 rows for the same PGMID+OBJECT+OBJ_NAME
+ * (E071's key is TRKORR+AS4POS, not object identity, so duplicates are
+ * legal); the bridge now detects that up front.
  */
 
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
 import type { SafetyGate } from "../safety.js";
 import type { RunResult } from "./run.js";
-import { DDIC_BRIDGE_CLASS, ddicBridgeSource, runDdicBridge, type DdicTranscript } from "./ddic-bridge.js";
-import { abapLiteral, assertEnhIdentifier } from "./enhancement-templates.js";
+import type { DdicTranscript } from "./ddic-transcript.js";
+import { runClassicAction } from "./classic-call.js";
+import { assertEnhIdentifier } from "./enhancement-templates.js";
 import { assertTrkorr, type TransportCeilingProof } from "./transports.js";
 
 export interface TransportEntryRemoveParams {
@@ -27,186 +29,6 @@ export interface TransportEntryRemoveParams {
   trkorr: string;
   /** Object name of the entry, e.g. ZTMD_I26_P1. Every E071 row with this OBJ_NAME is removed. */
   objectName: string;
-}
-
-/**
- * Bare `DATA` declarations for `ddicBridgeSource` (no leading `DATA` keyword).
- */
-export const TRANSPORT_ENTRY_REMOVE_DATA_LINES: readonly string[] = [
-  "ls_req TYPE trwbo_request.",
-  "ls_e071 TYPE e071.",
-  "lt_rows TYPE STANDARD TABLE OF e071 WITH EMPTY KEY.",
-  "lt_candidates TYPE STANDARD TABLE OF trkorr WITH EMPTY KEY.",
-  "lt_tasks TYPE STANDARD TABLE OF trkorr WITH EMPTY KEY.",
-  "lv_trkorr TYPE trkorr.",
-  "lv_holder TYPE trkorr.",
-  "lv_check TYPE trkorr.",
-  "lv_subrc TYPE sy-subrc.",
-  "ls_msg TYPE symsg.",
-  "lv_msgtext TYPE string.",
-  "lv_readerr TYPE string.",
-  "ls_other TYPE e071.",
-  "lv_n TYPE i.",
-  "lv_positions TYPE string.",
-];
-
-/**
- * The closed ABAP fragment. Exported for the generator/parser drift test —
- * re-validates both params since it is callable standalone.
- *
- * Eight steps: resolve the holder (trying the passed trkorr, then its
- * tasks), refuse honestly if none carries the entry, name the resolved
- * holder, refuse if the holder has 2+ E071 rows for the object, remove
- * every matching row, tag success once for the whole batch, commit, then
- * prove E071 absence.
- */
-export function transportEntryRemoveFragment(p: TransportEntryRemoveParams): string[] {
-  const trkorr = assertTrkorr(p.trkorr, "transportEntryRemove");
-  const objectName = assertEnhIdentifier(p.objectName, "object", {
-    maxLength: 40,
-    allowNamespace: true,
-  }).toUpperCase();
-  const trkorrLit = abapLiteral(trkorr);
-  const nameLit = abapLiteral(objectName);
-
-  // Step 1: candidates are the passed number, then its tasks (entries usually live on a
-  // task, not the request the caller names) — first candidate whose own object list
-  // carries the entry wins.
-  const step1 = [
-    '" Step 1: resolve which of trkorr or its tasks holds the entry.',
-    `lv_trkorr = ${trkorrLit}.`,
-    "APPEND lv_trkorr TO lt_candidates.",
-    `SELECT trkorr FROM e070 INTO TABLE lt_tasks WHERE strkorr = ${trkorrLit}.`,
-    "APPEND LINES OF lt_tasks TO lt_candidates.",
-    "CLEAR lv_holder.",
-    "LOOP AT lt_candidates INTO lv_trkorr.",
-    "  CLEAR ls_req.",
-    "  ls_req-h-trkorr = lv_trkorr.",
-    "  CALL FUNCTION 'TRINT_READ_REQUEST'",
-    "    EXPORTING iv_read_e070 = 'X' iv_read_e07t = 'X' iv_read_e070c = 'X' iv_read_e070m = 'X'",
-    "              iv_read_objs_keys = 'X' iv_read_attributes = 'X'",
-    "    CHANGING  cs_request = ls_req",
-    "    EXCEPTIONS OTHERS = 1.",
-    "  lv_subrc = sy-subrc.",
-    "  MOVE-CORRESPONDING sy TO ls_msg.",
-    "  IF lv_subrc <> 0.",
-    "    lv_readerr = |{ lv_trkorr } sy-subrc={ lv_subrc } msg={ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } " +
-      "v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
-    "    CONTINUE.",
-    "  ENDIF.",
-    "  CLEAR lt_rows.",
-    `  LOOP AT ls_req-objects INTO ls_e071 WHERE obj_name = ${nameLit}.`,
-    "    APPEND ls_e071 TO lt_rows.",
-    "  ENDLOOP.",
-    "  IF lines( lt_rows ) > 0.",
-    "    lv_holder = lv_trkorr.",
-    "    EXIT.",
-    "  ENDIF.",
-    "ENDLOOP.",
-  ];
-
-  // Step 2: a refusal with nothing removed, not a silent success.
-  const step2 = [
-    '" Step 2: refuse if no candidate carried the entry.',
-    "IF lv_holder IS INITIAL.",
-    "  IF lv_readerr IS INITIAL.",
-    `    out->write( |ZMCP-DDIC-ERR> no entry for ${objectName} on ${trkorr} or its tasks| ).`,
-    "  ELSE.",
-    `    out->write( |ZMCP-DDIC-ERR> no entry for ${objectName} on ${trkorr} or its tasks; ` +
-      "last TRINT_READ_REQUEST failure: { lv_readerr }| ).",
-    "  ENDIF.",
-    "  RETURN.",
-    "ENDIF.",
-  ];
-
-  // Step 3: the resolved holder may be a task of the number the caller passed.
-  const step3 = ['" Step 3: name the resolved holder.', "out->write( |ZMCP-TREN-HOLDER { lv_holder }| )."];
-
-  // Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name — checked
-  // before any FM call, so a duplicate can't leave one row removed and the next refused.
-  // The nested LOOP AT lt_rows uses its own work area (ls_other); each loop keeps its own cursor.
-  const step4 = [
-    '" Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name.',
-    "LOOP AT lt_rows INTO ls_e071.",
-    "  lv_n = 0.",
-    "  CLEAR lv_positions.",
-    "  LOOP AT lt_rows INTO ls_other WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object",
-    "                                  AND obj_name = ls_e071-obj_name.",
-    "    lv_n = lv_n + 1.",
-    "    IF lv_positions IS INITIAL.",
-    "      lv_positions = |{ ls_other-as4pos }|.",
-    "    ELSE.",
-    "      lv_positions = |{ lv_positions },{ ls_other-as4pos }|.",
-    "    ENDIF.",
-    "  ENDLOOP.",
-    "  IF lv_n >= 2.",
-    "    out->write( |ZMCP-DDIC-ERR> duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } " +
-      "{ ls_e071-obj_name } on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }| ).",
-    "    RETURN.",
-    "  ENDIF.",
-    "ENDLOOP.",
-  ];
-
-  // Step 5: is_e071_delete and cs_request are both mandatory — passing is_e071_delete alone
-  // short-dumps on the missing CS_REQUEST. Tag is emitted once after the loop, not per row,
-  // so subrcCheckFragment isn't used here.
-  const step5 = [
-    '" Step 5: remove every collected row.',
-    "LOOP AT lt_rows INTO ls_e071.",
-    "  CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'",
-    "    EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071",
-    "    CHANGING cs_request = ls_req",
-    "    EXCEPTIONS OTHERS = 1.",
-    "  lv_subrc = sy-subrc.",
-    "  MOVE-CORRESPONDING sy TO ls_msg.",
-    "  IF lv_subrc <> 0.",
-    // OTHERS = 1, not a named exception: which exceptions exist is a property of the installed
-    // release; naming one absent here is a syntax error at class activation, not runtime —
-    // so sy-subrc/sy-msg* are read instead. sy-msg* is best-effort (bare RAISE leaves it blank);
-    // the duplicate case's E TR 292, blank v1-v4, is expected: MESSAGE e292(tr) takes no WITH operands.
-    "    lv_msgtext = |{ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } " +
-      "v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
-    "    out->write( |ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } " +
-      "{ ls_e071-object } { ls_e071-obj_name }, sy-subrc={ lv_subrc }, msg={ lv_msgtext }| ).",
-    "    RETURN.",
-    "  ENDIF.",
-    "  out->write( |ZMCP-TREN-ROW { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }| ).",
-    "ENDLOOP.",
-  ];
-
-  const step6 = ['" Step 6: one success tag for the whole batch.', "out->write( 'TREN-REMOVED' )."];
-
-  // Step 7: a classrun return does not commit, and step 8 must read committed state.
-  const step7 = ['" Step 7: commit.', "COMMIT WORK AND WAIT."];
-
-  // Step 8: proves only that the E071 row is gone.
-  const step8 = [
-    '" Step 8: prove absence.',
-    `SELECT SINGLE trkorr FROM e071 INTO @lv_check WHERE trkorr = @lv_holder AND obj_name = ${nameLit}.`,
-    "IF sy-subrc = 0.",
-    `  out->write( |ZMCP-DDIC-ERR> removal of ${objectName} reported no error but a row is still there| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'TREN-GONE' ).",
-  ];
-
-  return [
-    ...step1,
-    "",
-    ...step2,
-    "",
-    ...step3,
-    "",
-    ...step4,
-    "",
-    ...step5,
-    "",
-    ...step6,
-    "",
-    ...step7,
-    "",
-    ...step8,
-  ];
 }
 
 export interface TransportEntryRemoveResult {
@@ -219,13 +41,13 @@ export interface TransportEntryRemoveResult {
 }
 
 /**
- * Remove one E071 entry via the DDIC classrun bridge.
+ * Remove one E071 entry via the fluid `classic` tool.
  *
  * No `assertBridgeMutation` call: this removes a CTS bookkeeping row, not an
  * ABAP object, and there is no object/package left to authorize against —
- * the object named is typically already deleted. `deployBridge`/`executeBridge`
- * inside `runDdicBridge` still gate the `$TMP` bridge class itself; `proof`
- * is the tool layer's admin-only transport-delete ceiling check.
+ * the object named is typically already deleted. `proof` is the tool layer's
+ * admin-only transport-delete ceiling check, and is this operation's only
+ * gate (declared `targets` are deliberately absent — see `S3-REROUTE.md`).
  */
 export async function removeTransportEntryViaBridge(
   conn: AbapConnection,
@@ -240,12 +62,6 @@ export async function removeTransportEntryViaBridge(
     maxLength: 40,
     allowNamespace: true,
   }).toUpperCase();
-
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.removeTransportEntry,
-    TRANSPORT_ENTRY_REMOVE_DATA_LINES,
-    transportEntryRemoveFragment({ trkorr, objectName }),
-  );
 
   // Mirrors tran-delete.ts's beforeAssert: turn the known "no entry for" line into a
   // named refusal rather than the generic missing-tag CHECK_FAILED.
@@ -295,10 +111,9 @@ export async function removeTransportEntryViaBridge(
     }
   };
 
-  const { run, transcript } = await runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.removeTransportEntry,
-    source,
-    description: `abapsmith remove-transport-entry bridge (${objectName})`,
+  const { run, transcript } = await runClassicAction(conn, gate, {
+    action: "remove_transport_entry",
+    args: { trkorr, object_name: objectName },
     what: `Removing ${objectName} from ${trkorr}`,
     expectTags: ["TREN-REMOVED", "TREN-GONE"],
     beforeAssert,

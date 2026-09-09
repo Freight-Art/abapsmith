@@ -38,7 +38,7 @@ Check here before planning any create.
 - `ENQU/DL` — write shape `properties`, delete: yes
 - `SRVB/SVB` — write shape `properties`, delete: yes
 
-**Bridge-only create types (4).** ADT REST has no usable create for these, so abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The bridge never updates an existing object. Whether it can delete one — and so whether the create is reversible — differs per type; see each bullet.
+**Bridge-only create types (4).** ADT REST has no usable create for these, so abapsmith runs them over the fluid `classic` tool's shared `ZCL_ZMCP_FLUID_CLASSIC` body class in `$ABAPSMITH_FLUID_API`, not a throwaway per-call `$TMP` classrun. The bridge never updates an existing object. Whether it can delete one — and so whether the create is reversible — differs per type; see each bullet.
 
 - `DEVC/K` — `software_component: "LOCAL"` goes over ADT REST; anything else needs the bridge and a transport request. Delete works only on an EMPTY package — no sub-packages, no TADIR objects. Delete: runs over the same bridge (src/adt/package-delete.ts) the create uses, gated by the same empty-package limit noted above; the create's journal entry no longer marks itself irreversible; but IF_PACKAGE~DELETE's failure behaviour is not itself live-verified.
 - `VIEW/DV` — builds a single-table database view (DD25V class 'D') via RS_CORR_INSERT then DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE; no joins, no SE54 maintenance dialog. A transportable package resolves a transport request the same way a DEVC/K create does — the caller's corr_nr, or else one picked or created under ABAP_ALLOW_TRANSPORTS; a `$` package refuses a corr_nr and registers with korrnum = space instead. There is no read-back: abapsmith cannot read a classic view through ADT, so success is proven only by transcript markers. Proven live on A4H: 2026-09-04 into a transportable package with a corr_nr; 2026-09-05, RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR row), then removed by the delete bridge. Change is not supported either. Delete: abapsmith's own create registers every view in TADIR, so the delete bridge (src/adt/view-delete.ts) always has one to act on. Proven live on A4H 2026-09-05: a bridge-created view in a `$`-prefixed package was removed cleanly, VIEW-DELETED / VIEW-GONE.
@@ -78,7 +78,7 @@ Screen Painter / SE11-subobject territory.
 
 `VIEW/DV`, `TRAN/T`, and `TABL/DI` are different: real ADT concepts, but with
 no ADT-readable collection to resolve a URI against. `abap_write` can create
-any of these through the classrun bridge — a view needs `corr_nr` for a
+any of these through the fluid `classic` tool — a view needs `corr_nr` for a
 transportable package and refuses one for a `$` package, and an index takes
 the same corr_nr rule under its base table's package, never the caller's —
 but there is no read-back for any of them: an object you just created cannot
@@ -95,12 +95,20 @@ delete it. Never send a partial descriptor.
 
 `read` < `edit` < `admin`. Write tools are absent from `tools/list` in `read`
 mode — a missing `abap_write` means the mode is wrong, not the tool.
-`abap_fpm_read` is read-only in effect but is absent under `read` too,
-because its first call deploys a `$TMP` bridge class, which is itself a
-write. `abap_img` is different: it generates no ABAP and deploys nothing, so
-it is genuinely present under `read`. `abap_img_edit` is a real write (it
-modifies customizing rows directly) and is absent under `read` like any
-other write tool.
+`abap_fpm_read` is read-only in effect but is absent under `read` too, because
+both paths install an ABAP class into `$ABAPSMITH_FLUID_API` — find/outline/app
+the fluid `fpm` tool's body class, `locks` a per-call bridge class — and
+installing a class is itself a write. `abap_img` is different: it generates no
+ABAP and deploys nothing, so it is genuinely present under `read`.
+`abap_img_edit` is a real write (it modifies customizing rows directly) and is
+absent under `read` like any other write tool. `abap_fluid` is the extreme
+case: it is abapsmith's single entry point to the fluid API — functions that
+only work by installing generated ABAP into `$ABAPSMITH_FLUID_API` — and even
+its read-shaped ops (`list`, `describe`, `status`, `verify`) need write access
+to exist at all, so it is unavailable on a read-only or productive system:
+absent from `tools/list` under `read` mode, and refusing `FLUID_API_DISABLED`
+again if a system that started writable later proves productive or trips the
+write lockout. See `doc/TOOLS/abap-fluid.md`.
 
 `ABAP_MODE` is the current way to set this. A legacy `ABAP_ALLOW_WRITE=true`
 flag grants ordinary write access too, but only when `ABAP_MODE` itself is

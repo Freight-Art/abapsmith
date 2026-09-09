@@ -489,9 +489,11 @@ export const ConfigSchema = z.object({
    * flag together — neither alone reaches `press`, and this flag can only
    * narrow admin further, never substitute for it.
    *
-   * `screen` mode (discovery) is NOT gated by this flag — it only deploys a
-   * throwaway `$TMP` bridge class (like `abap_fpm_read`), gated by ordinary
-   * write capability instead.
+   * `screen` mode (discovery) is NOT gated by this flag — it only dispatches
+   * against the reused fluid body class `ZCL_ZMCP_FLUID_UI` and a
+   * content-addressed invoker in `$ABAPSMITH_FLUID_API` (exactly as
+   * `abap_fpm_read`'s read modes do), gated by ordinary write capability
+   * instead.
    */
   allowUiPress: z.boolean().default(false),
   /**
@@ -724,6 +726,27 @@ export const ConfigSchema = z.object({
    * not have the server touch SAP at startup at all.
    */
   startupProbe: boolishRejectDefaultTrue,
+  /**
+   * Master switch for the fluid API surface. ON by default — this is why the
+   * env var is `ABAP_FLUID_API`, not an `ABAP_ALLOW_*` name: an `ALLOW` name
+   * that defaults to on is a contradiction, and it would land the flag in
+   * `RECOGNISED_ABAP_ALLOW_ENV_VARS`, which is the list of out-of-band
+   * ceilings. `false`/`0`/`no`/`off` opts out. Same shape as
+   * `crossProcessDebugLock`/`crossProcessObjectLock`/`startupProbe` above.
+   */
+  fluidApi: boolishRejectDefaultTrue,
+  /**
+   * Fluid plugin paths to load. `[]` by default (no plugins). Split on `,`
+   * only, not `splitList`'s `[,;\s]+` — a plugin path may itself contain a
+   * space.
+   */
+  fluidPlugins: z.array(z.string()).default([]),
+  /** Ceiling for loading any `fluidPlugins` entry at all. Off by default. */
+  allowFluidPlugins: z.boolean().default(false),
+  /** Ceiling for a loaded fluid plugin mutating state. NOT implied by `allowFluidPlugins`. Off by default. */
+  allowFluidPluginMutate: z.boolean().default(false),
+  /** Ceiling for a fluid plugin calling a remote-enabled function module. Off by default. */
+  allowFluidCallFm: z.boolean().default(false),
 });
 
 export type Config = z.infer<typeof ConfigSchema> & {
@@ -770,6 +793,15 @@ function splitList(v: string | undefined): string[] {
     .filter(Boolean);
 }
 
+// Comma-only: unlike splitList's ABAP-name lists, a plugin path may contain a space.
+function splitPathList(v: string | undefined): string[] {
+  if (!v) return [];
+  return v
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 /**
  * Normalise one `ABAP_ALLOW_TRANSPORTS` entry. TRKORRs are uppercased to
  * match `isTrkorr`'s (`src/adt/transports.ts`) own case-folding — previously
@@ -803,6 +835,9 @@ export const RECOGNISED_ABAP_ALLOW_ENV_VARS: readonly string[] = Object.freeze([
   "ABAP_ALLOW_DUMP_VARIABLES",
   "ABAP_ALLOW_ENHANCEMENTS",
   "ABAP_ALLOW_ENHANCEMENT_DELETE",
+  "ABAP_ALLOW_FLUID_CALL_FM",
+  "ABAP_ALLOW_FLUID_PLUGINS",
+  "ABAP_ALLOW_FLUID_PLUGIN_MUTATE",
   "ABAP_ALLOW_NAME_PREFIXES",
   "ABAP_ALLOW_PACKAGES",
   "ABAP_ALLOW_RAW_ADT_WRITES",
@@ -969,6 +1004,11 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
   // `ABAP_MODE === "admin"` before this flag matters).
   const allowUiPress = boolFromEnv(env.ABAP_ALLOW_UI_PRESS);
 
+  const fluidPlugins = splitPathList(env.ABAP_FLUID_PLUGINS);
+  const allowFluidPlugins = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGINS);
+  const allowFluidPluginMutate = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGIN_MUTATE);
+  const allowFluidCallFm = boolFromEnv(env.ABAP_ALLOW_FLUID_CALL_FM);
+
   // When ABAP_MODE is set it decides WHETHER a category of operation is
   // possible; these six list-/enum-shaped legacy vars, if also explicitly
   // set, REPLACE the mode's default outright, in either direction — widening
@@ -1092,6 +1132,10 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     // comments on allowDumpVariables/allowUiPress.
     allowDumpVariables,
     allowUiPress,
+    fluidPlugins,
+    allowFluidPlugins,
+    allowFluidPluginMutate,
+    allowFluidCallFm,
     dataPreviewDenyTables,
     // Bare fields below: each has a zod `.default()`/`.max()` that is the
     // single source of truth, so out-of-range/invalid input reaches the
@@ -1122,6 +1166,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     crossProcessObjectLock: env.ABAP_CROSS_PROCESS_OBJECT_LOCK,
     objectLockWaitMs: env.ABAP_OBJECT_LOCK_WAIT_MS,
     startupProbe: env.ABAP_STARTUP_PROBE,
+    fluidApi: env.ABAP_FLUID_API,
   });
 
   if (
@@ -1504,8 +1549,9 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
  * a read-only server never even shows `abap_write`/`abap_run`/etc. in its
  * tool list, so there's nothing for an LLM to be tricked into calling.
  *
- * Decided by exactly five `Config` fields — `readOnly`, `allowTransportRelease`,
- * `allowEnhancements`, `allowDataPreview`, `allowDumpVariables` — all fixed
+ * Decided by exactly six `Config` fields — `readOnly`, `allowTransportRelease`,
+ * `allowEnhancements`, `allowDataPreview`, `allowDumpVariables`, `fluidApi`
+ * (`abapMode` is also read, for `canUseFluidApi`) — all fixed
  * for the process lifetime (`SafetyGate.update()` only ever touches
  * `productive`/`systemRole`/`writesLockedOut`/`lockoutReason`), so a decision
  * made at startup can never go stale.
@@ -1564,6 +1610,14 @@ export interface StaticCapabilities {
    * prompt-injected into requesting.
    */
   readonly canReadDumpVariables: boolean;
+  /**
+   * Register the fluid API surface. The STATIC half of the enablement
+   * predicate only — productive/write-lockout/role-probe conditions are
+   * unknowable before `connect()`, exactly why `canWrite` above is
+   * `!cfg.readOnly` and nothing else. Set from `fluidApi`, `readOnly`, and
+   * `abapMode` alone.
+   */
+  readonly canUseFluidApi: boolean;
 }
 
 /** Pure function of `Config` — no I/O, no `SafetyGate`, safe to call once at startup. */
@@ -1577,6 +1631,7 @@ export function resolveStaticCapabilities(cfg: Config): StaticCapabilities {
     // doc comments: requiring writes to read would invert the control.
     canPreviewData: cfg.allowDataPreview,
     canReadDumpVariables: cfg.allowDumpVariables,
+    canUseFluidApi: cfg.fluidApi && !cfg.readOnly && cfg.abapMode !== "read",
   };
 }
 
@@ -1628,6 +1683,11 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     dataPreviewDenyTables: cfg.dataPreviewDenyTables,
     allowDumpVariables: cfg.allowDumpVariables,
     allowUiPress: cfg.allowUiPress,
+    fluidApi: cfg.fluidApi,
+    fluidPlugins: cfg.fluidPlugins,
+    allowFluidPlugins: cfg.allowFluidPlugins,
+    allowFluidPluginMutate: cfg.allowFluidPluginMutate,
+    allowFluidCallFm: cfg.allowFluidCallFm,
     originSystems: cfg.originSystems,
     maxResponseChars: cfg.maxResponseChars,
     stateDir: cfg.stateDir,

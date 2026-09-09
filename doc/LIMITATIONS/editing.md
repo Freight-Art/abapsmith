@@ -70,9 +70,9 @@
   (`src/adt/package-create.ts`, `src/tools/write.ts`). The delete only ever
   succeeds on a package with no sub-packages and no TADIR objects besides its
   own `R3TR DEVC` row — checked inside the bridge before `DELETE` is called.
-  A non-empty package is refused, with what it still contains listed in the
-  error (up to 20 rows, flagged if there's more); abapsmith never deletes a
-  package's contents on the caller's behalf, so there is no cascade.
+  A non-empty package is refused, with everything it still contains listed in
+  the error, no matter how many rows; abapsmith never deletes a package's
+  contents on the caller's behalf, so there is no cascade.
   `abap_write`'s tool description and the `software_component` / `base_table`
   / `program` field descriptions say so up front (`src/tools/write.ts`); the
   registry documents it structurally too (`BRIDGE_DELETABLE_TYPES`,

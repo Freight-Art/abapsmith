@@ -19,9 +19,11 @@
  * only ever exercises the HAPPY activation path — the interesting surface
  * here is entirely above that boundary.
  */
-import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readFileSync, promises as fs } from "node:fs";
 import { dirname, join } from "node:path";
+import * as os from "node:os";
+import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -38,13 +40,10 @@ import { ConfigSchema, type Config } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
 import type { SessionPool } from "../src/adt/pool.js";
 import { errorResult } from "../src/server.js";
-import {
-  FPM_LINE_PREFIX,
-  fpmBridgeClassName,
-  type FpmAppQuery,
-  type FpmFindQuery,
-  type FpmOutlineQuery,
-} from "../src/adt/fpm-runtime.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { manifestVersion } from "../src/adt/fluid/manifest.js";
+import { fpmManifest, fpmSources } from "../src/adt/fluid/builtin/fpm.js";
 import {
   LOCK_LINE_PREFIX,
   fpmLockBridgeClassName,
@@ -52,6 +51,10 @@ import {
 } from "../src/adt/fpm-lock.js";
 import { registerFpmTools, type FpmToolDeps } from "../src/tools/fpm.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { fpmFluidRoute, fpmTranscript, fpmTruncatedTranscript, fpmErrTranscript } from "./helpers/fluid-fpm-fake.js";
+
+/** `fpm`'s deployed manifest version, so canned transcripts claim the real one dispatch() checks against. */
+const FPM_VER = manifestVersion(fpmManifest, fpmSources);
 
 // --------------------------------------------------------------------- fixtures ---
 
@@ -64,6 +67,18 @@ const REAL_OUTLINE_XML = readFileSync(join(FIXTURES, "36-BOFU_DEMO_SO_HDR_VIEW.f
 
 // ----------------------------------------------------------------------- harness ---
 
+let tmp: string;
+
+beforeEach(async () => {
+  tmp = await fs.mkdtemp(path.join(os.tmpdir(), "abapsmith-fpm-tools-"));
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
+afterEach(async () => {
+  await fs.rm(tmp, { recursive: true, force: true });
+});
+
 const cfg = (): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
@@ -72,6 +87,8 @@ const cfg = (): Config =>
     sid: "TST",
     client: "001",
     readOnly: false,
+    fluidApi: true,
+    stateDir: tmp,
   });
 
 const resp = (
@@ -144,8 +161,48 @@ async function connected(
   return { conn, inner };
 }
 
+/** Non-fpm-specific parts of the wire: login/session, discovery, ato settings, the §10.4 role probe. */
+function fpmBaseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
+  if (o.url.includes(SESSION_URL)) {
+    return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+  }
+  if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+  if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
+  if (o.url.endsWith("/discovery")) return resp(200, "<service/>", { "content-type": "application/xml" });
+  return undefined;
+}
+
+/**
+ * find/outline/app now run through `dispatch()` against the static fluid
+ * `fpm` tool body, so their fake server needs the full deploy/activate/
+ * classrun mechanics from `helpers/fluid-fpm-fake.ts`'s `fpmFluidRoute`,
+ * composed with the session/discovery bits above — unlike `connected()` +
+ * `bridgeHappyPath`, still used below for `locks` (a separate, per-call-
+ * generated bridge untouched by this reroute).
+ */
+async function connectedFluid(opts: {
+  transcript: () => string;
+}): Promise<{ conn: AbapConnection; inner: RecordingClient }> {
+  const { route: fluidRoute } = fpmFluidRoute(opts);
+  const route = (o: HttpClientOptions): HttpClientResponse => {
+    const viaBase = fpmBaseRoute(o);
+    if (viaBase) return viaBase;
+    const viaFluid = fluidRoute(o);
+    if (viaFluid) return viaFluid;
+    throw new Error(`connectedFluid: unrouted request ${(o.method ?? "GET").toUpperCase()} ${o.url}`);
+  };
+  return connected(route);
+}
+
 const openGate = (): SafetyGate =>
-  new SafetyGate({ readOnly: false, allowPackages: ["$TMP"], writesLockedOut: false });
+  new SafetyGate({
+    readOnly: false,
+    allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
+    // $ is outside the default Z/Y customer namespace, same as
+    // test/fluid-package.test.ts's own gate() — ensureFluidPackage's own DEVC/K create needs this too.
+    allowNamePrefixes: ["*"],
+    writesLockedOut: false,
+  });
 const closedGate = (): SafetyGate => new SafetyGate({ readOnly: true, allowPackages: [] });
 
 /** A `SessionPool` that just forwards straight onto one wired connection — this repo has no reusable fake pool. */
@@ -221,25 +278,6 @@ async function registered(
   return { tools, deps };
 }
 
-/** Mirrors emit_xml's own escaping: real CR/LF -> literal two-char \n. Same helper as fpm-runtime.test.ts. */
-function escapeForBridge(text: string): string {
-  return text.replace(/\r\n/g, "\\n").replace(/\n/g, "\\n");
-}
-
-function wrapXmlStream(tag: string, text: string): string {
-  const escaped = escapeForBridge(text);
-  return `${FPM_LINE_PREFIX}${tag}_BEGIN\n${FPM_LINE_PREFIX}${tag}C ${escaped}\n${FPM_LINE_PREFIX}${tag}_END`;
-}
-
-function xmlExcerptBlock(ordinal: number, text: string): string {
-  const escaped = escapeForBridge(text);
-  return (
-    `${FPM_LINE_PREFIX}XMLEXCERPT_${ordinal}_BEGIN\n` +
-    `${FPM_LINE_PREFIX}XMLEXCERPT_${ordinal}C ${escaped}\n` +
-    `${FPM_LINE_PREFIX}XMLEXCERPT_${ordinal}_END\n`
-  );
-}
-
 /** Column names of the header row of a `textTable`-rendered `--- <label> ---` section. */
 function tableHeader(text: string, label: string): string[] {
   const marker = `--- ${label} ---\n`;
@@ -250,70 +288,79 @@ function tableHeader(text: string, label: string): string[] {
 }
 
 /**
- * Canned `find` transcript at the scale actually measured on A4H
+ * Canned `find` rows at the scale actually measured on A4H
  * (doc/bench-runs/tool-calls-readonly.ndjson, c.fpm.find.filtered:
  * matches=200/serverRowCount=200) — config_type/config_var/component held
  * constant across every row so detail:"compact" has something to hoist.
  */
-function generateFindTranscript(n: number): string {
-  const lines = [`${FPM_LINE_PREFIX}COUNT ${n}`];
+function generateFindRows(n: number): Record<string, string>[] {
+  const rows: Record<string, string>[] = [];
   for (let i = 1; i <= n; i++) {
-    lines.push(
-      `${FPM_LINE_PREFIX}CONFIG config_id=[SCALE_CONFIG_${String(i).padStart(4, "0")}] config_type=[00] ` +
-        `config_var=[STD] component=[FPM_OVP_COMPONENT] description=[Scale test configuration number ${i} of ${n}]`,
-    );
+    rows.push({
+      config_id: `SCALE_CONFIG_${String(i).padStart(4, "0")}`,
+      config_type: "00",
+      config_var: "STD",
+      component: "FPM_OVP_COMPONENT",
+      description: `Scale test configuration number ${i} of ${n}`,
+      devclass: "",
+    });
   }
-  return lines.join("\n");
+  return rows;
 }
 
 /**
- * Canned `app` transcript at the scale actually measured on A4H
+ * Canned `app` nodes at the scale actually measured on A4H
  * (doc/bench-runs/tool-calls-readonly.ndjson, c.fpm.app.resolve:
  * nodeCount=34/serverNodeCount=34) — every node resolved, each with an
  * excerpt padded to exactly `excerptChars` (the ABAP side caps at 300, per
  * `appBody`'s `nmin(... val2 = 300)`).
  */
-function generateAppTranscript(n: number, excerptChars = 300): string {
-  let out = `${FPM_LINE_PREFIX}COUNT ${n}\n`;
+function generateAppNodes(n: number, excerptChars = 300): Record<string, unknown>[] {
+  const nodes: Record<string, unknown>[] = [];
   for (let i = 1; i <= n; i++) {
     const path = `CONFIGURATION_CONTEXT.${String(i).padStart(6, "0")}.NODE`;
-    out +=
-      `${FPM_LINE_PREFIX}NODE node_path=[${path}] parent_path=[APPLICATION_CONFIGURATION] is_top=[] ` +
-      `node_name=[NODE_${i}] description=[Node ${i}] component=[FPM_OVP_COMPONENT] interface_view=[] ` +
-      `config_id=[/BOBF/EPM_FPM_SADL_PD] config_type=[02] config_var=[] target_config_id=[] ` +
-      `is_configurable=[X] is_customized=[] is_enhanced=[] is_freestyle_uibb=[] is_leaf=[X]\n`;
     const body = `<UIBB><FEEDER_CLASS>/BOFU/CL_SO_NODE_${i}</FEEDER_CLASS><BO_KEY>ROOT_${i}</BO_KEY></UIBB>`;
     const excerpt = body.padEnd(excerptChars, ".").slice(0, excerptChars);
-    out += `${FPM_LINE_PREFIX}RESOLVED node_path=[${path}] xml_len=[${excerpt.length}] feeder_hint=[X] bopf_hint=[X]\n`;
-    out += xmlExcerptBlock(i, excerpt);
+    nodes.push({
+      node_path: path,
+      parent_path: "APPLICATION_CONFIGURATION",
+      is_top_node: false,
+      node_name: `NODE_${i}`,
+      description: `Node ${i}`,
+      component_name: "FPM_OVP_COMPONENT",
+      interface_view: "",
+      config_id: "/BOBF/EPM_FPM_SADL_PD",
+      config_type: "02",
+      config_var: "",
+      target_config_id: "",
+      is_configurable: true,
+      is_customized: false,
+      is_enhanced: false,
+      is_freestyle_uibb: false,
+      is_leaf: true,
+      resolved: { xml_len: excerpt.length, feeder_hint: true, bopf_hint: true, excerpt },
+    });
   }
-  return out;
+  return nodes;
 }
 
 // ===========================================================================
 
 describe("abap_fpm_read — mode: find", () => {
-  it('detail: "full": canned CONFIG transcript renders a table plus the three fidelity notes verbatim', async () => {
-    const TRANSCRIPT =
-      `${FPM_LINE_PREFIX}COUNT 1\n` +
-      `${FPM_LINE_PREFIX}CONFIG config_id=[BOFU_DEMO_SO_HDR_VIEW] config_type=[00] config_var=[] component=[FPM_OVP_COMPONENT] description=[Demo]\n`;
-    // The bridge class name is a pure function of the built query
-    // (`fpmBridgeClassName` hashes a normalized discriminator) — computed
-    // here the exact same way `buildQuery` in `src/tools/fpm.ts` builds it
-    // for these input args, so the fake server's write/activate/classrun
-    // routing (keyed off this class name) lines up with what the tool
-    // handler actually writes.
-    const query: FpmFindQuery = {
-      mode: "find",
-      configType: "00",
-      component: "FPM_OVP_COMPONENT",
-      queryPattern: undefined,
-      package: undefined,
-    };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+  it('detail: "full": canned find row renders a table plus the three fidelity notes verbatim', async () => {
+    const outs = [
+      {
+        config_id: "BOFU_DEMO_SO_HDR_VIEW",
+        config_type: "00",
+        config_var: "",
+        component: "FPM_OVP_COMPONENT",
+        description: "Demo",
+        devclass: "",
+      },
+    ];
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "find", outs }),
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", {
@@ -336,21 +383,27 @@ describe("abap_fpm_read — mode: find", () => {
   });
 
   it('detail: "compact" (default): >=2 rows with identical config_type/config_var/component hoists them into allRows and drops them from the table', async () => {
-    const TRANSCRIPT =
-      `${FPM_LINE_PREFIX}COUNT 2\n` +
-      `${FPM_LINE_PREFIX}CONFIG config_id=[CFG_A] config_type=[00] config_var=[STD] component=[FPM_OVP_COMPONENT] description=[Config A]\n` +
-      `${FPM_LINE_PREFIX}CONFIG config_id=[CFG_B] config_type=[00] config_var=[STD] component=[FPM_OVP_COMPONENT] description=[Config B]\n`;
-    const query: FpmFindQuery = {
-      mode: "find",
-      configType: "00",
-      component: "FPM_OVP_COMPONENT",
-      queryPattern: undefined,
-      package: undefined,
-    };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const outs = [
+      {
+        config_id: "CFG_A",
+        config_type: "00",
+        config_var: "STD",
+        component: "FPM_OVP_COMPONENT",
+        description: "Config A",
+        devclass: "",
+      },
+      {
+        config_id: "CFG_B",
+        config_type: "00",
+        config_var: "STD",
+        component: "FPM_OVP_COMPONENT",
+        description: "Config B",
+        devclass: "",
+      },
+    ];
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "find", outs }),
+    });
     const { tools } = await registered(conn);
 
     // No `detail` passed — proves the default is "compact", not just that compact works when asked for.
@@ -370,21 +423,27 @@ describe("abap_fpm_read — mode: find", () => {
   });
 
   it('detail: "compact": a column blank on every row still hoists, rendered as "(blank)" — distinguishing "blank on every row" from "column omitted"', async () => {
-    const TRANSCRIPT =
-      `${FPM_LINE_PREFIX}COUNT 2\n` +
-      `${FPM_LINE_PREFIX}CONFIG config_id=[CFG_A] config_type=[00] config_var=[] component=[FPM_OVP_COMPONENT] description=[Config A]\n` +
-      `${FPM_LINE_PREFIX}CONFIG config_id=[CFG_B] config_type=[00] config_var=[] component=[FPM_OVP_COMPONENT] description=[Config B]\n`;
-    const query: FpmFindQuery = {
-      mode: "find",
-      configType: "00",
-      component: "FPM_OVP_COMPONENT",
-      queryPattern: undefined,
-      package: undefined,
-    };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const outs = [
+      {
+        config_id: "CFG_A",
+        config_type: "00",
+        config_var: "",
+        component: "FPM_OVP_COMPONENT",
+        description: "Config A",
+        devclass: "",
+      },
+      {
+        config_id: "CFG_B",
+        config_type: "00",
+        config_var: "",
+        component: "FPM_OVP_COMPONENT",
+        description: "Config B",
+        devclass: "",
+      },
+    ];
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "find", outs }),
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", { mode: "find", component: "FPM_OVP_COMPONENT" });
@@ -393,21 +452,79 @@ describe("abap_fpm_read — mode: find", () => {
     expect(text).toContain("allRows: config_type=00, config_var=(blank), component=FPM_OVP_COMPONENT");
     expect(tableHeader(text, "CONFIGURATIONS")).toEqual(["config_id", "description"]);
   });
+
+  it("a large but COMPLETE result set (outputComplete: true) does not claim possible truncation", async () => {
+    const outs = generateFindRows(200);
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "find", outs }),
+    });
+    const { tools } = await registered(conn, { maxResponseChars: 200_000 });
+
+    const result = await invoke(tools, "abap_fpm_read", { mode: "find", component: "FPM_OVP_COMPONENT" });
+    const text = okText(result);
+
+    expect(text).toContain("matches: 200");
+    expect(text).toContain("serverRowCount: 200");
+    expect(text).not.toContain("cut off before every matching row could be returned");
+  });
+
+  it("a genuinely truncated result (outputComplete: false, dispatch's END.truncated) still discloses it", async () => {
+    const outs = generateFindRows(5);
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTruncatedTranscript({ ver: FPM_VER, action: "find", outs }),
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_fpm_read", { mode: "find", component: "FPM_OVP_COMPONENT" });
+    const text = okText(result);
+
+    expect(text).toContain(
+      "cut off before every matching row could be returned — there may be more configs than are shown",
+    );
+  });
 });
 
 // ===========================================================================
 
+/** `outline`'s canned single OUT-frame result object, matching `FpmOutlineResult` (fpm-runtime.ts). */
+function outlineOut(opts: {
+  configId: string;
+  configType: string;
+  configVar?: string;
+  xml: string;
+  configIdPar?: string;
+  configTypePar?: string;
+  configVarPar?: string;
+  component?: string;
+  devclass?: string;
+}): Record<string, unknown> {
+  return {
+    config_id: opts.configId,
+    config_type: opts.configType,
+    config_var: opts.configVar ?? "",
+    xml: opts.xml,
+    meta: {
+      config_idpar: opts.configIdPar ?? "",
+      config_typepar: opts.configTypePar ?? "",
+      config_varpar: opts.configVarPar ?? "",
+      component: opts.component ?? "",
+      devclass: opts.devclass ?? "",
+    },
+  };
+}
+
 describe("abap_fpm_read — mode: outline", () => {
   it("the real captured fixture XML comes through in the body verbatim, with NO delta warning — outline ignores detail and always returns full XML", async () => {
-    const TRANSCRIPT =
-      wrapXmlStream("XML", REAL_OUTLINE_XML) +
-      "\n" +
-      `${FPM_LINE_PREFIX}META CONFIG_IDPAR=[] CONFIG_TYPEPAR=[] CONFIG_VARPAR=[] COMPONENT=[FPM_OVP_COMPONENT] DEVCLASS=[ZFPM_PKG]\n`;
-    const query: FpmOutlineQuery = { mode: "outline", configId: "BOFU_DEMO_SO_HDR_VIEW", configType: "00", configVar: "" };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const out = outlineOut({
+      configId: "BOFU_DEMO_SO_HDR_VIEW",
+      configType: "00",
+      xml: REAL_OUTLINE_XML,
+      component: "FPM_OVP_COMPONENT",
+      devclass: "ZFPM_PKG",
+    });
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "outline", outs: [out] }),
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", {
@@ -435,18 +552,20 @@ describe("abap_fpm_read — mode: outline", () => {
 
   it("delta: a non-blank CONFIG_IDPAR produces a visible delta/parent warning naming the parent id", async () => {
     // NB: the delta signal is CONFIG_IDPAR alone — there is no separate
-    // `is_delta` field anywhere in the transcript format or in
+    // `is_delta` field anywhere in the fluid result or in
     // `buildOutlineResponse` (`src/tools/fpm.ts`'s
     // `const isRealDelta = idpar !== "" && !idpar.startsWith("N/A");`).
-    const TRANSCRIPT =
-      wrapXmlStream("XML", "<Component/>") +
-      "\n" +
-      `${FPM_LINE_PREFIX}META CONFIG_IDPAR=[BOFU_DEMO_SO_HDR_VIEW] CONFIG_TYPEPAR=[00] CONFIG_VARPAR=[] COMPONENT=[FPM_OVP_COMPONENT] DEVCLASS=[]\n`;
-    const query: FpmOutlineQuery = { mode: "outline", configId: "BOFU_DEMO_SO_ITM_VIEW", configType: "00", configVar: "" };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const out = outlineOut({
+      configId: "BOFU_DEMO_SO_ITM_VIEW",
+      configType: "00",
+      xml: "<Component/>",
+      configIdPar: "BOFU_DEMO_SO_HDR_VIEW",
+      configTypePar: "00",
+      component: "FPM_OVP_COMPONENT",
+    });
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "outline", outs: [out] }),
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", {
@@ -461,15 +580,15 @@ describe("abap_fpm_read — mode: outline", () => {
   });
 
   it('a placeholder CONFIG_IDPAR value starting with "N/A" is NOT treated as a real delta', async () => {
-    const TRANSCRIPT =
-      wrapXmlStream("XML", "<Component/>") +
-      "\n" +
-      `${FPM_LINE_PREFIX}META CONFIG_IDPAR=[N/A - application config] CONFIG_TYPEPAR=[] CONFIG_VARPAR=[] COMPONENT=[] DEVCLASS=[]\n`;
-    const query: FpmOutlineQuery = { mode: "outline", configId: "SOME_APPL_CFG", configType: "02", configVar: "" };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const out = outlineOut({
+      configId: "SOME_APPL_CFG",
+      configType: "02",
+      xml: "<Component/>",
+      configIdPar: "N/A - application config",
+    });
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "outline", outs: [out] }),
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", { mode: "outline", config_id: "SOME_APPL_CFG", config_type: "02" });
@@ -480,9 +599,11 @@ describe("abap_fpm_read — mode: outline", () => {
   });
 
   it("outline without config_id refuses BAD_INPUT, zero network calls", async () => {
-    const { conn, inner } = await connected(
-      bridgeHappyPath("ZCL_ZMCP_FPM_ANY", () => resp(200, "should never be reached", { "content-type": "text/plain" })),
-    );
+    const { conn, inner } = await connectedFluid({
+      transcript: () => {
+        throw new Error("should never be reached");
+      },
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", { mode: "outline" });
@@ -490,22 +611,67 @@ describe("abap_fpm_read — mode: outline", () => {
     expect(inner.calls).toHaveLength(0);
   });
 
-  it('detail is ignored: output is identical whether detail is absent or "full", except an extra note appears only when detail was explicitly passed', async () => {
-    const TRANSCRIPT =
-      wrapXmlStream("XML", REAL_OUTLINE_XML) +
-      "\n" +
-      `${FPM_LINE_PREFIX}META CONFIG_IDPAR=[] CONFIG_TYPEPAR=[] CONFIG_VARPAR=[] COMPONENT=[FPM_OVP_COMPONENT] DEVCLASS=[ZFPM_PKG]\n`;
-    const query: FpmOutlineQuery = { mode: "outline", configId: "BOFU_DEMO_SO_HDR_VIEW", configType: "00", configVar: "" };
-    const className = fpmBridgeClassName(query);
-    const route = bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" }));
+  it("not found: the fluid body's not-found err() frame (select/wdy_config_appl not-found shape) is turned into the legacy diagnostic wording, with no XML content", async () => {
+    const { conn } = await connectedFluid({
+      transcript: () =>
+        fpmErrTranscript({
+          ver: FPM_VER,
+          action: "outline",
+          kind: "subrc",
+          step: "select",
+          text: "wdy_config_appl: no matching row for the given key",
+        }),
+    });
+    const { tools } = await registered(conn);
 
-    const { conn: connAbsent } = await connected(route);
+    const result = await invoke(tools, "abap_fpm_read", {
+      mode: "outline",
+      config_id: "NOPE",
+      config_type: "02",
+    });
+    const text = okText(result);
+
+    expect(text).toContain("No XML content was returned");
+    expect(text).toContain("wdy_config_appl: no matching row for the given key");
+  });
+
+  it("not found: the fluid body's not-found err() frame (read_comp_config_from_db exception shape) is turned into the legacy diagnostic wording", async () => {
+    const { conn } = await connectedFluid({
+      transcript: () =>
+        fpmErrTranscript({
+          ver: FPM_VER,
+          action: "outline",
+          kind: "exception",
+          step: "read_comp_config_from_db",
+          text: "Configuration does not exist",
+        }),
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_fpm_read", { mode: "outline", config_id: "NOPE" });
+    const text = okText(result);
+
+    expect(text).toContain("No XML content was returned");
+    expect(text).toContain("READ_COMP_CONFIG_FROM_DB FAILED Configuration does not exist");
+  });
+
+  it('detail is ignored: output is identical whether detail is absent or "full", except an extra note appears only when detail was explicitly passed', async () => {
+    const out = outlineOut({
+      configId: "BOFU_DEMO_SO_HDR_VIEW",
+      configType: "00",
+      xml: REAL_OUTLINE_XML,
+      component: "FPM_OVP_COMPONENT",
+      devclass: "ZFPM_PKG",
+    });
+    const transcript = () => fpmTranscript({ ver: FPM_VER, action: "outline", outs: [out] });
+
+    const { conn: connAbsent } = await connectedFluid({ transcript });
     const { tools: toolsAbsent } = await registered(connAbsent);
     const textAbsent = okText(
       await invoke(toolsAbsent, "abap_fpm_read", { mode: "outline", config_id: "BOFU_DEMO_SO_HDR_VIEW" }),
     );
 
-    const { conn: connFull } = await connected(route);
+    const { conn: connFull } = await connectedFluid({ transcript });
     const { tools: toolsFull } = await registered(connFull);
     const textFull = okText(
       await invoke(toolsFull, "abap_fpm_read", {
@@ -529,26 +695,69 @@ describe("abap_fpm_read — mode: outline", () => {
 
 // ===========================================================================
 
+/** `app`'s canned per-node OUT payload, matching `FpmAppNodeResult` (fpm-runtime.ts). */
+function appNode(opts: {
+  nodePath: string;
+  parentPath: string;
+  isTop?: boolean;
+  nodeName: string;
+  description: string;
+  componentName?: string;
+  targetConfigId?: string;
+  isLeaf?: boolean;
+  resolved?: { xmlLen: number; feederHint: boolean; bopfHint: boolean; excerpt?: string };
+  resolveError?: string;
+}): Record<string, unknown> {
+  return {
+    node_path: opts.nodePath,
+    parent_path: opts.parentPath,
+    is_top_node: opts.isTop ?? false,
+    node_name: opts.nodeName,
+    description: opts.description,
+    component_name: opts.componentName ?? "",
+    interface_view: "",
+    config_id: "/BOBF/EPM_FPM_SADL_PD",
+    config_type: "02",
+    config_var: "",
+    target_config_id: opts.targetConfigId ?? "",
+    is_configurable: true,
+    is_customized: false,
+    is_enhanced: false,
+    is_freestyle_uibb: false,
+    is_leaf: opts.isLeaf ?? false,
+    ...(opts.resolved
+      ? { resolved: { xml_len: opts.resolved.xmlLen, feeder_hint: opts.resolved.feederHint, bopf_hint: opts.resolved.bopfHint, excerpt: opts.resolved.excerpt } }
+      : {}),
+    ...(opts.resolveError !== undefined ? { resolve_error: opts.resolveError } : {}),
+  };
+}
+
 describe("abap_fpm_read — mode: app", () => {
-  const NODE_TOP =
-    `${FPM_LINE_PREFIX}NODE node_path=[APPLICATION_CONFIGURATION] parent_path=[] is_top=[X] node_name=[CONFIGURATION_CONTEXT] description=[Application Configuration] component=[] interface_view=[] config_id=[/BOBF/EPM_FPM_SADL_PD] config_type=[02] config_var=[] target_config_id=[Z_EPM_FPM_SADL_PD] is_configurable=[X] is_customized=[] is_enhanced=[] is_freestyle_uibb=[] is_leaf=[]`;
-  const NODE_UIBB =
-    `${FPM_LINE_PREFIX}NODE node_path=[CONFIGURATION_CONTEXT.000001.OVP_APPLICATION] parent_path=[APPLICATION_CONFIGURATION] is_top=[] node_name=[OVP_APPLICATION] description=[Overview Page Floorplan] component=[FPM_OVP_COMPONENT] interface_view=[] config_id=[/BOBF/EPM_FPM_SADL_PD] config_type=[02] config_var=[] target_config_id=[] is_configurable=[X] is_customized=[] is_enhanced=[] is_freestyle_uibb=[] is_leaf=[]`;
+  const NODE_TOP = appNode({
+    nodePath: "APPLICATION_CONFIGURATION",
+    parentPath: "",
+    isTop: true,
+    nodeName: "CONFIGURATION_CONTEXT",
+    description: "Application Configuration",
+    targetConfigId: "Z_EPM_FPM_SADL_PD",
+  });
+  const NODE_UIBB_BASE = {
+    nodePath: "CONFIGURATION_CONTEXT.000001.OVP_APPLICATION",
+    parentPath: "APPLICATION_CONFIGURATION",
+    nodeName: "OVP_APPLICATION",
+    description: "Overview Page Floorplan",
+    componentName: "FPM_OVP_COMPONENT",
+  };
   const EXCERPT_XML = "<UIBB><FEEDER_CLASS>/BOFU/CL_SO_CONFIRM_DIALOG</FEEDER_CLASS><BO_KEY>ROOT</BO_KEY></UIBB>";
 
   it('detail: "full": node table renders top/leaf columns, FEEDER/BOPF hints and the per-node excerpt section', async () => {
-    // NODE_TOP is ordinal 1, NODE_UIBB is ordinal 2 — resolveOrdinal keys off
-    // NODE lines seen (sy-tabix in the ABAP driver), matching
-    // fpm-runtime.test.ts's off-by-one-safe test of the same mechanism.
-    const RESOLVED =
-      `${FPM_LINE_PREFIX}RESOLVED node_path=[CONFIGURATION_CONTEXT.000001.OVP_APPLICATION] xml_len=[${EXCERPT_XML.length}] feeder_hint=[X] bopf_hint=[X]\n`;
-    const TRANSCRIPT =
-      `${FPM_LINE_PREFIX}COUNT 2\n` + `${NODE_TOP}\n` + `${NODE_UIBB}\n` + RESOLVED + xmlExcerptBlock(2, EXCERPT_XML);
-    const query: FpmAppQuery = { mode: "app", configId: "/BOBF/EPM_FPM_SADL_PD", resolve: true };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const NODE_UIBB = appNode({
+      ...NODE_UIBB_BASE,
+      resolved: { xmlLen: EXCERPT_XML.length, feederHint: true, bopfHint: true, excerpt: EXCERPT_XML },
+    });
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "app", outs: [NODE_TOP, NODE_UIBB] }),
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", {
@@ -574,15 +783,13 @@ describe("abap_fpm_read — mode: app", () => {
   });
 
   it('detail: "compact" (default): EXCERPT sections and top/leaf columns are omitted, replaced by an omitted-count note', async () => {
-    const RESOLVED =
-      `${FPM_LINE_PREFIX}RESOLVED node_path=[CONFIGURATION_CONTEXT.000001.OVP_APPLICATION] xml_len=[${EXCERPT_XML.length}] feeder_hint=[X] bopf_hint=[X]\n`;
-    const TRANSCRIPT =
-      `${FPM_LINE_PREFIX}COUNT 2\n` + `${NODE_TOP}\n` + `${NODE_UIBB}\n` + RESOLVED + xmlExcerptBlock(2, EXCERPT_XML);
-    const query: FpmAppQuery = { mode: "app", configId: "/BOBF/EPM_FPM_SADL_PD", resolve: true };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const NODE_UIBB = appNode({
+      ...NODE_UIBB_BASE,
+      resolved: { xmlLen: EXCERPT_XML.length, feederHint: true, bopfHint: true, excerpt: EXCERPT_XML },
+    });
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "app", outs: [NODE_TOP, NODE_UIBB] }),
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", { mode: "app", config_id: "/BOBF/EPM_FPM_SADL_PD" });
@@ -602,12 +809,9 @@ describe("abap_fpm_read — mode: app", () => {
   });
 
   it("resolve: false suppresses the FEEDER/BOPF hint caveat note", async () => {
-    const TRANSCRIPT = `${FPM_LINE_PREFIX}COUNT 1\n` + `${NODE_TOP}\n`;
-    const query: FpmAppQuery = { mode: "app", configId: "/BOBF/EPM_FPM_SADL_PD", resolve: false };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "app", outs: [NODE_TOP] }),
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", {
@@ -621,10 +825,30 @@ describe("abap_fpm_read — mode: app", () => {
     expect(text).not.toContain("FEEDER/BOPF-binding hints");
   });
 
+  it("a node's resolve_error is surfaced as a DIAGNOSTICS line and counted in the unresolved-node note", async () => {
+    const failedNode = appNode({ ...NODE_UIBB_BASE, resolveError: "READ_COMP_CONFIG_FROM_DB raised CX_WDR_RUNTIME" });
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "app", outs: [NODE_TOP, failedNode] }),
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_fpm_read", {
+      mode: "app",
+      config_id: "/BOBF/EPM_FPM_SADL_PD",
+      detail: "full",
+    });
+    const text = okText(result);
+
+    expect(text).toContain("RESOLVE CONFIGURATION_CONTEXT.000001.OVP_APPLICATION FAILED READ_COMP_CONFIG_FROM_DB raised CX_WDR_RUNTIME");
+    expect(text).toContain("1 configurable node(s) with a component were NOT successfully resolved");
+  });
+
   it("app without config_id refuses BAD_INPUT, zero network calls", async () => {
-    const { conn, inner } = await connected(
-      bridgeHappyPath("ZCL_ZMCP_FPM_ANY", () => resp(200, "should never be reached", { "content-type": "text/plain" })),
-    );
+    const { conn, inner } = await connectedFluid({
+      transcript: () => {
+        throw new Error("should never be reached");
+      },
+    });
     const { tools } = await registered(conn);
 
     const result = await invoke(tools, "abap_fpm_read", { mode: "app" });
@@ -733,10 +957,11 @@ describe("abap_fpm_read — mode: locks", () => {
 
   it('a config_type that is not exactly 2 numeric digits ("0", "0A") is refused at the tool boundary, zero network calls', async () => {
     // Proves: buildLocksQuery routes config_type through fpm-lock.ts's STRICT
-    // assertLockConfigType — unlike fpm-runtime.ts's lenient assertConfigType,
-    // which silently defaults a missing value to "00" — so a malformed NUMC2
-    // is refused before any network call rather than becoming a wildcard key
-    // (landmine 2). Does NOT prove anything about what SAP's
+    // assertLockConfigType — unlike the lenient read path (src/tools/fpm.ts's
+    // buildQuery, `input.config_type ?? "00"`, and the fluid `fpm` body's own
+    // initial-value default), which silently defaults a missing value to "00"
+    // — so a malformed NUMC2 is refused before any network call rather than
+    // becoming a wildcard key (landmine 2). Does NOT prove anything about SAP's
     // enqueue function modules do with a malformed CONFIG_TYPE on the wire —
     // see test/integration-fpm-lock.test.ts for that.
     const { conn, inner } = await connected(
@@ -924,24 +1149,31 @@ describe("abap_fpm_read — mode: locks", () => {
 
 describe("abap_fpm_read — detail is render-only: the bridge round trip is unaffected", () => {
   it("find: detail 'compact' (default) and 'full' produce byte-identical HTTP requests", async () => {
-    const TRANSCRIPT =
-      `${FPM_LINE_PREFIX}COUNT 1\n` +
-      `${FPM_LINE_PREFIX}CONFIG config_id=[BOFU_DEMO_SO_HDR_VIEW] config_type=[00] config_var=[] component=[FPM_OVP_COMPONENT] description=[Demo]\n`;
-    const query: FpmFindQuery = {
-      mode: "find",
-      configType: "00",
-      component: "FPM_OVP_COMPONENT",
-      queryPattern: undefined,
-      package: undefined,
-    };
-    const className = fpmBridgeClassName(query);
-    const route = bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" }));
+    const outs = [
+      {
+        config_id: "BOFU_DEMO_SO_HDR_VIEW",
+        config_type: "00",
+        config_var: "",
+        component: "FPM_OVP_COMPONENT",
+        description: "Demo",
+        devclass: "",
+      },
+    ];
+    const transcript = () => fpmTranscript({ ver: FPM_VER, action: "find", outs });
 
-    const { conn: connCompact, inner: innerCompact } = await connected(route);
+    const { conn: connCompact, inner: innerCompact } = await connectedFluid({ transcript });
     const { tools: toolsCompact } = await registered(connCompact);
     await invoke(toolsCompact, "abap_fpm_read", { mode: "find", component: "FPM_OVP_COMPONENT" });
 
-    const { conn: connFull, inner: innerFull } = await connected(route);
+    // ensureFluidTool's "already deployed" outcome is cached both in-memory (module scope) and on
+    // disk (the registry under `stateDir`, shared by every connection in this test via `cfg()`'s
+    // `tmp`). A second connection would otherwise skip straight to classrun — reset the in-memory
+    // caches AND point at a fresh state dir so the "full" run gets its own cold deploy too.
+    resetFluidEnsureState();
+    resetFluidPackageMemo();
+    await fs.rm(tmp, { recursive: true, force: true });
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), "abapsmith-fpm-tools-"));
+    const { conn: connFull, inner: innerFull } = await connectedFluid({ transcript });
     const { tools: toolsFull } = await registered(connFull);
     await invoke(toolsFull, "abap_fpm_read", { mode: "find", component: "FPM_OVP_COMPONENT", detail: "full" });
 
@@ -952,27 +1184,35 @@ describe("abap_fpm_read — detail is render-only: the bridge round trip is unaf
   });
 
   it("app: detail 'compact' (default) and 'full' produce byte-identical HTTP requests", async () => {
-    const RESOLVED =
-      `${FPM_LINE_PREFIX}RESOLVED node_path=[CONFIGURATION_CONTEXT.000001.OVP_APPLICATION] xml_len=[10] feeder_hint=[X] bopf_hint=[X]\n`;
-    const NODE_TOP =
-      `${FPM_LINE_PREFIX}NODE node_path=[APPLICATION_CONFIGURATION] parent_path=[] is_top=[X] node_name=[CONFIGURATION_CONTEXT] description=[Application Configuration] component=[] interface_view=[] config_id=[/BOBF/EPM_FPM_SADL_PD] config_type=[02] config_var=[] target_config_id=[Z_EPM_FPM_SADL_PD] is_configurable=[X] is_customized=[] is_enhanced=[] is_freestyle_uibb=[] is_leaf=[]`;
-    const NODE_UIBB =
-      `${FPM_LINE_PREFIX}NODE node_path=[CONFIGURATION_CONTEXT.000001.OVP_APPLICATION] parent_path=[APPLICATION_CONFIGURATION] is_top=[] node_name=[OVP_APPLICATION] description=[Overview Page Floorplan] component=[FPM_OVP_COMPONENT] interface_view=[] config_id=[/BOBF/EPM_FPM_SADL_PD] config_type=[02] config_var=[] target_config_id=[] is_configurable=[X] is_customized=[] is_enhanced=[] is_freestyle_uibb=[] is_leaf=[]`;
-    const TRANSCRIPT =
-      `${FPM_LINE_PREFIX}COUNT 2\n` +
-      `${NODE_TOP}\n` +
-      `${NODE_UIBB}\n` +
-      RESOLVED +
-      xmlExcerptBlock(2, "<UIBB/>");
-    const query: FpmAppQuery = { mode: "app", configId: "/BOBF/EPM_FPM_SADL_PD", resolve: true };
-    const className = fpmBridgeClassName(query);
-    const route = bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" }));
+    const NODE_TOP = appNode({
+      nodePath: "APPLICATION_CONFIGURATION",
+      parentPath: "",
+      isTop: true,
+      nodeName: "CONFIGURATION_CONTEXT",
+      description: "Application Configuration",
+      targetConfigId: "Z_EPM_FPM_SADL_PD",
+    });
+    const NODE_UIBB = appNode({
+      nodePath: "CONFIGURATION_CONTEXT.000001.OVP_APPLICATION",
+      parentPath: "APPLICATION_CONFIGURATION",
+      nodeName: "OVP_APPLICATION",
+      description: "Overview Page Floorplan",
+      componentName: "FPM_OVP_COMPONENT",
+      resolved: { xmlLen: 7, feederHint: true, bopfHint: true, excerpt: "<UIBB/>" },
+    });
+    const transcript = () => fpmTranscript({ ver: FPM_VER, action: "app", outs: [NODE_TOP, NODE_UIBB] });
 
-    const { conn: connCompact, inner: innerCompact } = await connected(route);
+    const { conn: connCompact, inner: innerCompact } = await connectedFluid({ transcript });
     const { tools: toolsCompact } = await registered(connCompact);
     await invoke(toolsCompact, "abap_fpm_read", { mode: "app", config_id: "/BOBF/EPM_FPM_SADL_PD" });
 
-    const { conn: connFull, inner: innerFull } = await connected(route);
+    // See the "find" test above: reset the module-level ensure/package caches, and give this
+    // connection its own state-dir, so "full" also gets a cold deploy.
+    resetFluidEnsureState();
+    resetFluidPackageMemo();
+    await fs.rm(tmp, { recursive: true, force: true });
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), "abapsmith-fpm-tools-"));
+    const { conn: connFull, inner: innerFull } = await connectedFluid({ transcript });
     const { tools: toolsFull } = await registered(connFull);
     await invoke(toolsFull, "abap_fpm_read", { mode: "app", config_id: "/BOBF/EPM_FPM_SADL_PD", detail: "full" });
 
@@ -983,19 +1223,33 @@ describe("abap_fpm_read — detail is render-only: the bridge round trip is unaf
   });
 
   it("outline: detail 'compact' (default) and 'full' produce byte-identical HTTP requests", async () => {
-    const TRANSCRIPT =
-      wrapXmlStream("XML", REAL_OUTLINE_XML) +
-      "\n" +
-      `${FPM_LINE_PREFIX}META CONFIG_IDPAR=[] CONFIG_TYPEPAR=[] CONFIG_VARPAR=[] COMPONENT=[FPM_OVP_COMPONENT] DEVCLASS=[ZFPM_PKG]\n`;
-    const query: FpmOutlineQuery = { mode: "outline", configId: "BOFU_DEMO_SO_HDR_VIEW", configType: "00", configVar: "" };
-    const className = fpmBridgeClassName(query);
-    const route = bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" }));
+    const transcript = () =>
+      fpmTranscript({
+        ver: FPM_VER,
+        action: "outline",
+        outs: [
+          outlineOut({
+            configId: "BOFU_DEMO_SO_HDR_VIEW",
+            configType: "00",
+            xml: REAL_OUTLINE_XML,
+            component: "FPM_OVP_COMPONENT",
+            devclass: "ZFPM_PKG",
+          }),
+        ],
+      });
 
-    const { conn: connCompact, inner: innerCompact } = await connected(route);
+    const { conn: connCompact, inner: innerCompact } = await connectedFluid({ transcript });
     const { tools: toolsCompact } = await registered(connCompact);
     await invoke(toolsCompact, "abap_fpm_read", { mode: "outline", config_id: "BOFU_DEMO_SO_HDR_VIEW" });
 
-    const { conn: connFull, inner: innerFull } = await connected(route);
+    // See the "find" test above: reset the module-level ensure/package caches and give each
+    // subsequent connection its own state-dir, so every run gets a cold deploy and the call
+    // counts are comparable.
+    resetFluidEnsureState();
+    resetFluidPackageMemo();
+    await fs.rm(tmp, { recursive: true, force: true });
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), "abapsmith-fpm-tools-"));
+    const { conn: connFull, inner: innerFull } = await connectedFluid({ transcript });
     const { tools: toolsFull } = await registered(connFull);
     await invoke(toolsFull, "abap_fpm_read", {
       mode: "outline",
@@ -1005,7 +1259,11 @@ describe("abap_fpm_read — detail is render-only: the bridge round trip is unaf
 
     // xml_offset/xml_limit are render-side only, same invariant as detail — extend the
     // same fingerprint comparison rather than trusting a second, unrelated assertion to catch a regression.
-    const { conn: connWindowed, inner: innerWindowed } = await connected(route);
+    resetFluidEnsureState();
+    resetFluidPackageMemo();
+    await fs.rm(tmp, { recursive: true, force: true });
+    tmp = await fs.mkdtemp(path.join(os.tmpdir(), "abapsmith-fpm-tools-"));
+    const { conn: connWindowed, inner: innerWindowed } = await connectedFluid({ transcript });
     const { tools: toolsWindowed } = await registered(connWindowed);
     await invoke(toolsWindowed, "abap_fpm_read", {
       mode: "outline",
@@ -1027,24 +1285,16 @@ describe("abap_fpm_read — detail is render-only: the bridge round trip is unaf
 
 describe("abap_fpm_read — detail: compact vs full size ratio at realistic scale", () => {
   it("find: 200 rows (A4H-measured scale) — compact is substantially smaller than full", async () => {
-    const TRANSCRIPT = generateFindTranscript(200);
-    const query: FpmFindQuery = {
-      mode: "find",
-      configType: "00",
-      component: "FPM_OVP_COMPONENT",
-      queryPattern: undefined,
-      package: undefined,
-    };
-    const className = fpmBridgeClassName(query);
-    const route = bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" }));
+    const outs = generateFindRows(200);
+    const transcript = () => fpmTranscript({ ver: FPM_VER, action: "find", outs });
 
-    const { conn: connCompact } = await connected(route);
+    const { conn: connCompact } = await connectedFluid({ transcript });
     const { tools: toolsCompact } = await registered(connCompact, { maxResponseChars: 200_000 });
     const compactText = okText(
       await invoke(toolsCompact, "abap_fpm_read", { mode: "find", component: "FPM_OVP_COMPONENT" }),
     );
 
-    const { conn: connFull } = await connected(route);
+    const { conn: connFull } = await connectedFluid({ transcript });
     const { tools: toolsFull } = await registered(connFull, { maxResponseChars: 200_000 });
     const fullText = okText(
       await invoke(toolsFull, "abap_fpm_read", { mode: "find", component: "FPM_OVP_COMPONENT", detail: "full" }),
@@ -1055,24 +1305,22 @@ describe("abap_fpm_read — detail: compact vs full size ratio at realistic scal
     // Neither response was hard-clamped — the ratio below reflects the shapes, not a truncation artifact.
     expect(compactText).not.toContain("OUTPUT HARD-CLAMPED");
     expect(fullText).not.toContain("OUTPUT HARD-CLAMPED");
-    // Measured: compact=13103 chars, full=22353 chars, ratio=0.586 (~4173 vs ~7119 tokens).
-    // 0.7 leaves margin without being toothless.
+    // detail:"compact" hoists the constant config_type/config_var/component/devclass fields out of
+    // the row table; 0.7 leaves margin over the measured ratio without being toothless.
     expect(compactText.length).toBeLessThan(fullText.length * 0.7);
   });
 
   it("app: 34 nodes each with a ~300-char excerpt (A4H-measured scale) — compact is substantially smaller than full", async () => {
-    const TRANSCRIPT = generateAppTranscript(34, 300);
-    const query: FpmAppQuery = { mode: "app", configId: "/BOBF/EPM_FPM_SADL_PD", resolve: true };
-    const className = fpmBridgeClassName(query);
-    const route = bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" }));
+    const outs = generateAppNodes(34, 300);
+    const transcript = () => fpmTranscript({ ver: FPM_VER, action: "app", outs });
 
-    const { conn: connCompact } = await connected(route);
+    const { conn: connCompact } = await connectedFluid({ transcript });
     const { tools: toolsCompact } = await registered(connCompact, { maxResponseChars: 200_000 });
     const compactText = okText(
       await invoke(toolsCompact, "abap_fpm_read", { mode: "app", config_id: "/BOBF/EPM_FPM_SADL_PD" }),
     );
 
-    const { conn: connFull } = await connected(route);
+    const { conn: connFull } = await connectedFluid({ transcript });
     const { tools: toolsFull } = await registered(connFull, { maxResponseChars: 200_000 });
     const fullText = okText(
       await invoke(toolsFull, "abap_fpm_read", {
@@ -1086,8 +1334,7 @@ describe("abap_fpm_read — detail: compact vs full size ratio at realistic scal
     expect(fullText).toContain("detail: full");
     expect(compactText).not.toContain("OUTPUT HARD-CLAMPED");
     expect(fullText).not.toContain("OUTPUT HARD-CLAMPED");
-    // Measured: compact=5832 chars, full=18794 chars, ratio=0.310 (~1857 vs ~5985 tokens).
-    // Excerpts dominate the full payload; 0.6 leaves margin.
+    // Excerpts dominate the full payload and are entirely omitted in compact; 0.6 leaves margin.
     expect(compactText.length).toBeLessThan(fullText.length * 0.6);
   });
 });
@@ -1098,10 +1345,7 @@ describe("abap_fpm_read — detail: compact vs full size ratio at realistic scal
  * `outline` had no way to ask for less XML, at any size — 22,350
  * chars / ~7,406 tokens for one config on A4H, with no lever to shrink it.
  * `xml_offset`/`xml_limit` are the opt-in character window added to fix that
- * (`src/tools/fpm.ts`'s `buildOutlineResponse`, `FpmXmlWindow`). No outline
- * transcript generator existed before this file — `generateOutlineTranscript`
- * below is one, built the same way `wrapXmlStream`/`escapeForBridge` already
- * build the real fixture's shape (see the "mode: outline" describe above).
+ * (`src/tools/fpm.ts`'s `buildOutlineResponse`, `FpmXmlWindow`).
  */
 describe("abap_fpm_read — outline xml_offset/xml_limit", () => {
   /** Single-line synthetic XML at the same ~22,350-char scale as the real A4H measurement — real outline XML has no embedded newlines either. */
@@ -1114,30 +1358,26 @@ describe("abap_fpm_read — outline xml_offset/xml_limit", () => {
 
   const LARGE_XML = generateLargeXml(22_350);
 
-  function generateOutlineTranscript(xml: string): string {
-    return (
-      wrapXmlStream("XML", xml) +
-      "\n" +
-      `${FPM_LINE_PREFIX}META CONFIG_IDPAR=[] CONFIG_TYPEPAR=[] CONFIG_VARPAR=[] COMPONENT=[FPM_OVP_COMPONENT] DEVCLASS=[ZFPM_PKG]\n`
-    );
-  }
-
-  const OUTLINE_QUERY: FpmOutlineQuery = {
-    mode: "outline",
-    configId: "BOFU_DEMO_SO_HDR_VIEW",
-    configType: "00",
-    configVar: "",
-  };
-
   async function outlineTools(
     xml: string,
     maxResponseChars = 200_000,
   ): Promise<Map<string, { config: Record<string, unknown>; handler: (args: unknown) => Promise<CallToolResult> }>> {
-    const className = fpmBridgeClassName(OUTLINE_QUERY);
-    const TRANSCRIPT = generateOutlineTranscript(xml);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const { conn } = await connectedFluid({
+      transcript: () =>
+        fpmTranscript({
+          ver: FPM_VER,
+          action: "outline",
+          outs: [
+            outlineOut({
+              configId: "BOFU_DEMO_SO_HDR_VIEW",
+              configType: "00",
+              xml,
+              component: "FPM_OVP_COMPONENT",
+              devclass: "ZFPM_PKG",
+            }),
+          ],
+        }),
+    });
     const { tools } = await registered(conn, { maxResponseChars });
     return tools;
   }
@@ -1214,18 +1454,9 @@ describe("abap_fpm_read — outline xml_offset/xml_limit", () => {
   });
 
   it('mode "find": xml_offset/xml_limit are disclosed as ignored, not silently dropped', async () => {
-    const TRANSCRIPT = `${FPM_LINE_PREFIX}COUNT 0\n`;
-    const query: FpmFindQuery = {
-      mode: "find",
-      configType: "00",
-      component: "FPM_OVP_COMPONENT",
-      queryPattern: undefined,
-      package: undefined,
-    };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "find", outs: [] }),
+    });
     const { tools } = await registered(conn);
     const text = okText(
       await invoke(tools, "abap_fpm_read", { mode: "find", component: "FPM_OVP_COMPONENT", xml_limit: 100 }),
@@ -1235,12 +1466,9 @@ describe("abap_fpm_read — outline xml_offset/xml_limit", () => {
   });
 
   it('mode "app": xml_offset/xml_limit are disclosed as ignored, not silently dropped', async () => {
-    const TRANSCRIPT = `${FPM_LINE_PREFIX}COUNT 0\n`;
-    const query: FpmAppQuery = { mode: "app", configId: "/BOBF/EPM_FPM_SADL_PD", resolve: true };
-    const className = fpmBridgeClassName(query);
-    const { conn } = await connected(
-      bridgeHappyPath(className, () => resp(200, TRANSCRIPT, { "content-type": "text/plain" })),
-    );
+    const { conn } = await connectedFluid({
+      transcript: () => fpmTranscript({ ver: FPM_VER, action: "app", outs: [] }),
+    });
     const { tools } = await registered(conn);
     const text = okText(
       await invoke(tools, "abap_fpm_read", {

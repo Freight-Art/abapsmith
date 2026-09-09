@@ -23,9 +23,13 @@ Each `parameters[]` entry: `name` (string, required), `type` (enum `char` \|
 
 Notes: uses a real write session but leases a **read** slot from the
 connection pool — deliberate, since it doesn't hold an ABAP enqueue lock.
-Report mode generates a throwaway bridge class in a dedicated package; it
-cannot render interactive lists or ALV grids (headless only). Runs in a
-fresh session each time to avoid stale-class caching. The ABAP that runs
+Report mode generates a bridge class in `$ABAPSMITH_FLUID_API`, named after
+the report being run and rewritten only when its content changes; it
+cannot render interactive lists or ALV grids (headless only). Both `class`
+and `report` execution deploy a generated bridge, so with
+`ABAP_FLUID_API=false` `abap_run` stays registered but refuses at call time
+with `FLUID_API_DISABLED` (`deployBridge`, `src/adt/run.ts:1088-1101`). Runs
+in a fresh session each time to avoid stale-class caching. The ABAP that runs
 here executes under the connected technical user's SAP authorisations:
 `ABAP_ALLOW_PACKAGES`, `ABAP_ALLOW_NAME_PREFIXES` and `ABAP_ALLOW_TRANSPORTS`
 constrain only the writes this server itself issues, not what executed ABAP

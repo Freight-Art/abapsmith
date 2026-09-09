@@ -1,161 +1,106 @@
 /**
- * `TRAN/T` create bridge — offline. Nothing here touches SAP; the transport is
- * faked through `ConnectionOptions.httpClient`, repeating
- * `test/enhancement-bridge.test.ts`'s self-contained `RecordingClient`/`resp`/
- * `connected`/`objectHappyPath` harness (that file's own header explains why
- * each suite keeps its own small copy rather than sharing one heavier fake).
+ * `TRAN/T` create — offline, against the fluid `classic` tool. Nothing here
+ * touches SAP; the transport is faked through `ConnectionOptions.httpClient`,
+ * using the shared `test/helpers/fluid-classic-fake.ts` fake (which routes
+ * the fluid package/RT/body-class cold-deploy plumbing plus one per-call
+ * content-hashed invoker class), combined with a small local harness for the
+ * session/discovery/system-role plumbing every suite needs — same idiom as
+ * `test/fluid-dispatch.test.ts`.
  *
  * What these tests are FOR, beyond coverage: every parameter name and every
  * exception in the generated `RPY_TRANSACTION_INSERT` call is an ASSUMPTION —
  * the source it came from paraphrased that signature in prose instead of
- * pasting it. So these tests cannot prove
- * the call is RIGHT; only a live run can. What they can and do prove is that
- * the call is the one this module intends to make, that no caller string can
- * change its shape, and that a failure is never reported as a success.
+ * pasting it. So these tests cannot prove the call is RIGHT; only a live run
+ * can. What they can and do prove is that the call is the one this module
+ * intends to make, that no caller string can change its shape, and that a
+ * failure is never reported as a success.
+ *
+ * Since `abap-tran.ts`'s `create_transaction`/`delete_transaction` methods
+ * read every value at RUNTIME via `s('path')` off the JSON argument string
+ * (rather than having a caller's values baked into a freshly generated,
+ * per-call ABAP fragment the way the old per-operation bridge class did), the
+ * deployed class body is now a fixed, argument-independent string. Tests that
+ * used to inspect a generated fragment for a caller value now either scan
+ * `tranPart.source` (the static body, argument-independent) for structure —
+ * guard ordering, exception lists, the local/transport branch — or, where a
+ * caller value's presence on the wire actually matters, inspect the
+ * classicFake invoker's stored JSON-carrying source via `fake.sourceOf`.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
-import type {
-  HttpClient,
-  HttpClientOptions,
-  HttpClientResponse,
-} from "abap-adt-api/build/AdtHTTP.js";
-import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { SafetyGate, type EvaluateOptions, type Operation, type SafetyTarget } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
-import {
-  DDIC_BRIDGE_CLASS,
-  DDIC_BRIDGE_PACKAGE,
-  DDIC_ERR_PREFIX,
-  assertDdicTranscript,
-  ddicBridgeSource,
-  parseDdicTranscript,
-} from "../src/adt/ddic-bridge.js";
-import {
-  TRAN_DATA_LINES,
-  assertTransactionCreateTarget,
-  createTransaction,
-  transactionFragment,
-  type TransactionParams,
-} from "../src/adt/tran-create.js";
+import { DDIC_ERR_PREFIX, assertDdicTranscript, parseDdicTranscript } from "../src/adt/ddic-transcript.js";
+import { assertTransactionCreateTarget, createTransaction, type TransactionParams } from "../src/adt/tran-create.js";
+import { tranPart } from "../src/adt/fluid/builtin/classic/abap-tran.js";
 import { isLocalPackageName } from "../src/adt/transports.js";
-import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { canonicalArgsJson } from "../src/adt/fluid/invoke.js";
+import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 // ---------------------------------------------------------------------------
-// Fake transport — same shape as test/enhancement-bridge.test.ts
+// Fake transport — same shape as test/fluid-dispatch.test.ts
 // ---------------------------------------------------------------------------
 
-const cfg = (): Config =>
-  ConfigSchema.parse({
+const fluidState = useFluidState();
+
+type Route = (o: HttpClientOptions) => HttpClientResponse | undefined;
+
+class FakeAdt implements HttpClient {
+  readonly calls: HttpClientOptions[] = [];
+  constructor(private readonly route: Route) {}
+  async request(o: HttpClientOptions): Promise<HttpClientResponse> {
+    this.calls.push(o);
+    const res = this.route(o);
+    if (!res) throw new Error(`FakeAdt: unrouted request ${(o.method ?? "GET").toUpperCase()} ${o.url}`);
+    return res;
+  }
+}
+
+const resp = (status: number, body = "", headers: Record<string, unknown> = {}): HttpClientResponse =>
+  ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
+
+function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
+  if (o.url.includes("/compatibility/graph")) {
+    return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+  }
+  if (o.url.endsWith("/discovery")) return resp(200, "<service/>", { "content-type": "application/xml" });
+  if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
+  return undefined;
+}
+
+function cfg(overrides: Partial<Config> = {}): Config {
+  return ConfigSchema.parse({
     url: "http://sap.invalid:50000",
     user: "TESTUSER",
     password: "secret",
     sid: "TST",
     client: "001",
     readOnly: false,
+    fluidApi: true,
+    stateDir: fluidState.dir(),
+    ...overrides,
   });
-
-const resp = (
-  status: number,
-  body = "",
-  headers: Record<string, unknown> = {},
-  statusText = String(status),
-): HttpClientResponse => ({ status, statusText, body, headers }) as unknown as HttpClientResponse;
-
-class RecordingClient implements HttpClient {
-  calls: HttpClientOptions[] = [];
-  constructor(private readonly respond: (o: HttpClientOptions) => HttpClientResponse) {}
-  async request(o: HttpClientOptions): Promise<HttpClientResponse> {
-    this.calls.push(o);
-    return this.respond(o);
-  }
 }
 
-const SESSION_URL = "/sap/bc/adt/compatibility/graph";
-const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
-const BRIDGE = DDIC_BRIDGE_CLASS.createTransaction;
-const BRIDGE_SOURCE_URI = `${CLASS_COLLECTION}/${BRIDGE.toLowerCase()}/source/main`;
-
-const LOCK_XML = (handle = "H1") =>
-  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
-  `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
-  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
-  `</DATA></asx:values></asx:abap>`;
-
-/** GET-404 → POST-create → LOCK → PUT → UNLOCK for the bridge class itself. */
-function objectHappyPath(collectionUrl: string, name: string): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  const objUrl = `${collectionUrl}/${name.toLowerCase()}`;
-  const sourceUri = `${objUrl}/source/main`;
-  return (o: HttpClientOptions) => {
-    const qs = (o.qs ?? {}) as Record<string, string>;
-    const method = (o.method ?? "GET").toUpperCase();
-    if (o.url === objUrl && method === "GET" && !qs._action) {
-      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-    }
-    if (o.url === collectionUrl && method === "POST") return resp(200, "", {});
-    if (o.url === objUrl && qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-    if (o.url === objUrl && qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url === sourceUri && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    return undefined;
-  };
-}
-
-/** Session/discovery/activation/classrun plumbing shared by every test below. */
-function sharedRoute(
-  classrun: (o: HttpClientOptions) => HttpClientResponse | undefined,
-): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  return (o: HttpClientOptions) => {
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) return classrun(o);
-    if (o.url.includes(SESSION_URL)) {
-      return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
-    }
-    if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
-    if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
-    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-    return undefined;
-  };
-}
-
-function combine(
-  ...routes: Array<(o: HttpClientOptions) => HttpClientResponse | undefined>
-): (o: HttpClientOptions) => HttpClientResponse {
-  return (o: HttpClientOptions) => {
-    for (const r of routes) {
-      const hit = r(o);
-      if (hit) return hit;
-    }
-    throw new Error(`unrouted request: ${(o.method ?? "GET").toUpperCase()} ${o.url}`);
-  };
-}
-
-async function connected(
-  route: (o: HttpClientOptions) => HttpClientResponse,
-): Promise<{ conn: AbapConnection; inner: RecordingClient }> {
-  const inner = new RecordingClient(route);
+async function connected(route: Route): Promise<{ conn: AbapConnection; adt: FakeAdt }> {
+  const adt = new FakeAdt((r) => baseRoute(r) ?? route(r));
   const conn = new AbapConnection(cfg(), {
-    httpClient: inner,
+    httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
     log: () => {},
     breaker: new AuthCircuitBreaker(),
   });
   await conn.connect();
-  inner.calls.length = 0;
-  return { conn, inner };
-}
-
-/**
- * A bare classrun body — see `test/enhancement-bridge.test.ts`'s own note: a
- * classrun class's `out->write('TAG')` output is the whole line, unprefixed.
- * No `LIST> ` prefix here; that belongs to run.ts's report bridge.
- */
-function classrunOutput(lines: readonly string[]): (o: HttpClientOptions) => HttpClientResponse {
-  const body = lines.join("\n");
-  return () => resp(200, body, { "content-type": "text/plain" });
+  adt.calls.length = 0;
+  return { conn, adt };
 }
 
 const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
@@ -167,30 +112,37 @@ const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
   return e;
 };
 
+beforeEach(() => {
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
 // ---------------------------------------------------------------------------
 // Gates
 // ---------------------------------------------------------------------------
 
-/** Allows BOTH the bridge class ($TMP) and the transaction's own package (ZTM). */
+/** Allows BOTH the fluid classic tool's own deploy package and the transaction's own package (ZTM). */
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+    allowPackages: [FLUID_PACKAGE, "ZTM"],
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
 
 /**
- * Allows the bridge class in `$TMP` and NOTHING else. This is the gate that
- * isolates the SECOND gate (`assertBridgeMutation`): `deployBridge`'s own
- * checks pass under it — `ZCL_ZMCP_DDIC_CTRAN` really is a `$TMP` class — so
- * the only thing that can refuse a `TRAN/T` in package `ZTM` is the domain
- * gate `createTransaction` runs itself, before generating any ABAP.
+ * Allows the fluid classic tool's own deploy package and NOTHING else. This
+ * is the gate that isolates the SECOND gate (`assertBridgeMutation`):
+ * `dispatch`'s own checks pass under it — the classic tool's RT/body/invoker
+ * classes really do belong in `FLUID_PACKAGE` — so the only thing that can
+ * refuse a `TRAN/T` in package `ZTM` is the domain gate `createTransaction`
+ * runs itself, before dispatching anything.
  */
 const bridgeOnlyGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: [DDIC_BRIDGE_PACKAGE],
+    allowPackages: [FLUID_PACKAGE],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
@@ -210,48 +162,23 @@ const PARAMS: TransactionParams = {
   corrNr: CORR_NR,
 };
 
-const sourceFor = (p: TransactionParams = PARAMS): string =>
-  ddicBridgeSource(BRIDGE, TRAN_DATA_LINES, transactionFragment(p));
-
-/** Every `out->write( 'X' )` literal the fragment emits, in emission order. */
-function emittedTags(lines: readonly string[]): string[] {
-  const tags: string[] = [];
-  for (const line of lines) {
-    const m = /out->write\(\s*'([^']*)'\s*\)/.exec(line);
-    if (m?.[1]) tags.push(m[1]);
-  }
-  return tags;
-}
-
 // ---------------------------------------------------------------------------
-// 1 — generator/parser drift
+// 1 — the classic body's own transcript vocabulary
 // ---------------------------------------------------------------------------
 
-describe("generator/parser drift", () => {
-  it("every tag transactionFragment emits is one parseDdicTranscript recognises — asserted as a SET", () => {
-    const tags = emittedTags(transactionFragment(PARAMS));
-    expect(tags).toEqual(["TRAN-CREATED"]);
-    // The generator's own output, replayed as a transcript. A tag renamed on
-    // EITHER side (fragment or DDIC_TAGS) breaks this.
+describe("abap-tran.ts's transcript vocabulary", () => {
+  it("every tag create_transaction/delete_transaction emit is one parseDdicTranscript recognises", () => {
+    const tags = [...tranPart.source.matchAll(/line\(\s*'([^']+)'\s*\)/g)].map((m) => m[1]!);
+    expect(tags).toEqual(["TRAN-CREATED", "TRAN-DELETED", "TRAN-GONE"]);
     const parsed = parseDdicTranscript(tags.join("\n"));
-    expect(parsed.tags).toEqual(["TRAN-CREATED"]);
     expect(new Set(parsed.tags)).toEqual(new Set(tags));
     expect(parsed.errorLine).toBeUndefined();
   });
 
-  it("assertDdicTranscript is satisfied by the fragment's own success output", () => {
-    const tags = emittedTags(transactionFragment(PARAMS));
+  it("assertDdicTranscript is satisfied by create_transaction's own success output", () => {
     expect(() =>
-      assertDdicTranscript(parseDdicTranscript(tags.join("\n")), ["TRAN-CREATED"], "Creating transaction"),
+      assertDdicTranscript(parseDdicTranscript("TRAN-CREATED"), ["TRAN-CREATED"], "Creating transaction"),
     ).not.toThrow();
-  });
-
-  it("the fragment's failure branch writes a line parseDdicTranscript reads as an error, not a tag", () => {
-    const errLine = transactionFragment(PARAMS).find((l) => l.includes(DDIC_ERR_PREFIX));
-    expect(errLine).toBeTruthy();
-    const parsed = parseDdicTranscript(`${DDIC_ERR_PREFIX} RPY_TRANSACTION_INSERT failed, sy-subrc=2`);
-    expect(parsed.tags).toEqual([]);
-    expect(parsed.errorLine).toContain("sy-subrc=2");
   });
 });
 
@@ -282,8 +209,9 @@ describe("closed template — caller strings are refused, not escaped", () => {
   }
 
   // A description is FREE TEXT, so a quote and a period are legitimate there
-  // and get escaped/embedded, not refused — but a control character is refused
-  // outright (assertAbapText), because an ABAP literal cannot span lines.
+  // and get accepted (round-tripped through JSON, not embedded in an ABAP
+  // literal at deploy time) — but a control character is refused outright
+  // (assertAbapText), because the value still travels as one JSON string.
   it("refuses a description containing a newline with BAD_INPUT, before any network call", async () => {
     const err = await catchErr(
       createTransaction(offline, allowingGate(), { ...PARAMS, description: "line1\nline2" }),
@@ -291,19 +219,19 @@ describe("closed template — caller strings are refused, not escaped", () => {
     expect(err.code).toBe("BAD_INPUT");
   });
 
-  it("escapes — does not refuse — a quote or a period in the description, and keeps the literal closed", () => {
-    const source = sourceFor({ ...PARAMS, description: "Fritz's list. v2" });
-    expect(source).toContain("shorttext         = 'Fritz''s list. v2'");
+  it("accepts — does not refuse — a quote or a period in the description", async () => {
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn } = await connected(fake.route);
+    await expect(
+      createTransaction(conn, allowingGate(), { ...PARAMS, description: "Fritz's list. v2" }),
+    ).resolves.toBeDefined();
   });
 
   it("refuses a description longer than TSTCT-TTEXT's 37 characters — refused, never truncated", async () => {
     const tooLong = "X".repeat(38);
     const err = await catchErr(createTransaction(offline, allowingGate(), { ...PARAMS, description: tooLong }));
     expect(err.code).toBe("BAD_INPUT");
-    // The refusal is not a silent shortening: nothing 37 characters long
-    // derived from the input can appear anywhere.
     expect(err.message).toContain("37");
-    expect(() => transactionFragment({ ...PARAMS, description: tooLong })).toThrow();
   });
 
   it("refuses a tcode longer than TSTC-TCODE's 20 characters", async () => {
@@ -313,25 +241,10 @@ describe("closed template — caller strings are refused, not escaped", () => {
     expect(err.code).toBe("BAD_INPUT");
   });
 
-  /**
-   * The case that would be a real injection if the value were merely escaped
-   * rather than refused: a tcode that closes the ABAP literal and appends a
-   * statement. The proof is not just "it threw" — it is that NO SOURCE EXISTS.
-   */
-  it("refuses a tcode that would close the literal and append a statement — and produces no source at all", async () => {
+  it("refuses a tcode that would close an ABAP literal and append a statement, with zero network calls", async () => {
     const evil = `ZX'. LEAVE PROGRAM. "`;
     const err = await catchErr(createTransaction(offline, allowingGate(), { ...PARAMS, tcode: evil }));
     expect(err.code).toBe("BAD_INPUT");
-
-    let generated: string | undefined;
-    try {
-      generated = sourceFor({ ...PARAMS, tcode: evil });
-    } catch {
-      generated = undefined;
-    }
-    expect(generated).toBeUndefined();
-    // And, belt and braces: the clean source never contains that statement.
-    expect(sourceFor()).not.toContain("LEAVE PROGRAM");
   });
 
   it("refuses a non-string tcode rather than stringifying it", async () => {
@@ -346,49 +259,53 @@ describe("closed template — caller strings are refused, not escaped", () => {
 // 3 — the SECOND gate runs, and runs FIRST (zero-network)
 // ---------------------------------------------------------------------------
 
-describe("the second gate — the domain object, before any ABAP is generated", () => {
+describe("the second gate — the domain object, before any dispatch", () => {
   it("a gate that refuses TRAN/T in package ZTM makes createTransaction throw with ZERO requests made", async () => {
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
-    const { conn, inner } = await connected(route);
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn, adt } = await connected(fake.route);
 
     const err = await catchErr(createTransaction(conn, bridgeOnlyGate(), PARAMS));
     expect(err).toBeTruthy();
-    // Ordering, not just the throw: the bridge-class deploy would have been
-    // ALLOWED under this gate ($TMP is in its allowlist), so a single request
-    // here means the domain gate ran too late — or not at all.
-    expect(inner.calls.length).toBe(0);
-    expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(false);
+    // Ordering, not just the throw: the classic tool's own deploy would have
+    // been ALLOWED under this gate (FLUID_PACKAGE is in its allowlist), so a
+    // single request here means the domain gate ran too late — or not at all.
+    expect(adt.calls.length).toBe(0);
   });
 
   it("a readOnly gate refuses too, with zero requests made", async () => {
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
-    const { conn, inner } = await connected(route);
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn, adt } = await connected(fake.route);
     const readOnly = new SafetyGate({
       readOnly: true,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+      allowPackages: [FLUID_PACKAGE, "ZTM"],
       writesLockedOut: false,
     });
     const err = await catchErr(createTransaction(conn, readOnly, PARAMS));
     expect(err).toBeTruthy();
-    expect(inner.calls.length).toBe(0);
+    expect(adt.calls.length).toBe(0);
   });
 
   it("does NOT assert `activate` on the transaction — a transaction has no activation step", async () => {
     const seen: string[] = [];
     class RecordingGate extends SafetyGate {
-      override assert(op: Parameters<SafetyGate["assert"]>[0], obj?: Parameters<SafetyGate["assert"]>[1], opts?: Parameters<SafetyGate["assert"]>[2]): void {
+      override assert(
+        op: Parameters<SafetyGate["assert"]>[0],
+        obj?: Parameters<SafetyGate["assert"]>[1],
+        opts?: Parameters<SafetyGate["assert"]>[2],
+      ): void {
         if (obj?.type === "TRAN/T") seen.push(op);
         super.assert(op, obj, opts);
       }
     }
     const gate = new RecordingGate({
       readOnly: false,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+      allowPackages: [FLUID_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
       allowTransports: ["*"],
       writesLockedOut: false,
     });
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
-    const { conn } = await connected(route);
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn } = await connected(fake.route);
     await createTransaction(conn, gate, PARAMS);
     expect(seen).toEqual(["write"]);
   });
@@ -401,34 +318,36 @@ describe("the second gate — the domain object, before any ABAP is generated", 
 describe("the sy-subrc guard", () => {
   /**
    * RPY_TRANSACTION_INSERT reports every failure through classic `EXCEPTIONS`,
-   * i.e. `sy-subrc` — which no `CATCH cx_root` in the bridge scaffold will
-   * ever see. A fragment that wrote TRAN-CREATED unconditionally would report
-   * success for a call that did nothing. `already_exist` is the single most
-   * likely real-world outcome and it is a `sy-subrc`, not a dump.
+   * i.e. `sy-subrc` — which no `CATCH cx_root` will ever see. A body that
+   * wrote TRAN-CREATED unconditionally would report success for a call that
+   * did nothing. `already_exist` is the single most likely real-world outcome
+   * and it is a `sy-subrc`, not a dump.
    */
   it("generates `IF sy-subrc <> 0.` BETWEEN the CALL FUNCTION and the success tag", () => {
-    const source = sourceFor();
+    const source = tranPart.source;
     const call = source.indexOf("CALL FUNCTION 'RPY_TRANSACTION_INSERT'");
-    const guard = source.indexOf("sy-subrc <> 0");
-    const tag = source.indexOf("out->write( 'TRAN-CREATED' )");
+    const guard = source.indexOf("sy-subrc <> 0", call);
+    const tag = source.indexOf("line( 'TRAN-CREATED' )", call);
     expect(call).toBeGreaterThanOrEqual(0);
     expect(guard).toBeGreaterThan(call);
     expect(tag).toBeGreaterThan(guard);
   });
 
   it("the guard RETURNs before the tag, and reports sy-subrc in the error line", () => {
-    const lines = transactionFragment(PARAMS);
-    const guardIdx = lines.findIndex((l) => l.includes("sy-subrc <> 0"));
-    const returnIdx = lines.findIndex((l) => l.trim() === "RETURN.");
-    const tagIdx = lines.findIndex((l) => l.includes("out->write( 'TRAN-CREATED' )"));
+    const lines = tranPart.source.split("\n");
+    const guardIdx = lines.findIndex((l) => l.includes("sy-subrc <> 0") && l.includes("RPY_TRANSACTION_INSERT failed") === false);
+    const failIdx = lines.findIndex((l) => l.includes("RPY_TRANSACTION_INSERT failed"));
+    const returnIdx = lines.findIndex((l, i) => i > guardIdx && l.trim() === "RETURN.");
+    const tagIdx = lines.findIndex((l) => l.includes("line( 'TRAN-CREATED' )"));
     expect(guardIdx).toBeGreaterThanOrEqual(0);
-    expect(returnIdx).toBeGreaterThan(guardIdx);
+    expect(failIdx).toBeGreaterThan(guardIdx);
+    expect(returnIdx).toBeGreaterThan(failIdx);
     expect(tagIdx).toBeGreaterThan(returnIdx);
-    expect(lines.some((l) => l.includes(DDIC_ERR_PREFIX) && l.includes("sy-subrc"))).toBe(true);
+    expect(lines.some((l) => l.includes("fail(") && l.includes("sy-subrc"))).toBe(true);
   });
 
   it("declares every EXCEPTION the guard's sy-subrc values come from, including already_exist", () => {
-    const source = sourceFor();
+    const source = tranPart.source;
     for (const exc of [
       "cancelled = 1",
       "already_exist = 2",
@@ -451,29 +370,26 @@ describe("the sy-subrc guard", () => {
 
 describe("a failing transcript is a failure", () => {
   it("HTTP 200 with EMPTY classrun output throws CHECK_FAILED", async () => {
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput([])));
-    const { conn } = await connected(route);
+    const fake = classicFake({ action: "create_transaction", lines: () => [] });
+    const { conn } = await connected(fake.route);
     const err = await catchErr(createTransaction(conn, allowingGate(), PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
   });
 
   it("a ZMCP-DDIC-ERR> line throws CHECK_FAILED, quoting the server's own text", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput([`${DDIC_ERR_PREFIX} RPY_TRANSACTION_INSERT failed, sy-subrc=2, `])),
-    );
-    const { conn } = await connected(route);
+    const fake = classicFake({
+      action: "create_transaction",
+      lines: () => [`${DDIC_ERR_PREFIX} RPY_TRANSACTION_INSERT failed, sy-subrc=2, `],
+    });
+    const { conn } = await connected(fake.route);
     const err = await catchErr(createTransaction(conn, allowingGate(), PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
     expect(err.message).toContain("sy-subrc=2");
   });
 
   it("output carrying some OTHER tag is not success either", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["VIEW-PUT"])),
-    );
-    const { conn } = await connected(route);
+    const fake = classicFake({ action: "create_transaction", lines: () => ["VIEW-PUT"] });
+    const { conn } = await connected(fake.route);
     const err = await catchErr(createTransaction(conn, allowingGate(), PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
   });
@@ -487,14 +403,13 @@ describe("suppress_corr_insert", () => {
   /**
    * Leaving this parameter at its default is what makes the FM call
    * `RS_CORR_INSERT` itself and register the new transaction in TADIR /
-   * attach it to a transport — the capture confirms that call is in the FM's
+   * attach it to a transport — its absence confirms that call is in the FM's
    * own body. Passing it would skip that registration and leave a transaction
    * with no repository entry behind it.
    */
   it("is absent from the generated source", () => {
-    const source = sourceFor();
+    const source = tranPart.source;
     expect(source.toLowerCase()).not.toContain("suppress_corr_insert");
-    // ... and nothing else smuggles the same idea in.
     expect(source.toLowerCase()).not.toContain("corr_insert");
   });
 });
@@ -504,49 +419,55 @@ describe("suppress_corr_insert", () => {
 // ---------------------------------------------------------------------------
 
 describe("createTransaction happy path", () => {
-  it("writes, activates and runs the bridge; reports TRAN-CREATED", async () => {
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
-    const { conn, inner } = await connected(route);
+  it("deploys, activates and runs the classic tool; reports TRAN-CREATED", async () => {
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn, adt } = await connected(fake.route);
 
     const { transcript, run } = await createTransaction(conn, allowingGate(), PARAMS);
     expect(transcript.tags).toEqual(["TRAN-CREATED"]);
     expect(transcript.errorLine).toBeUndefined();
     expect(run.output).toContain("TRAN-CREATED");
 
-    const methods = inner.calls.map((c) => (c.method ?? "GET").toUpperCase());
+    const methods = adt.calls.map((c) => (c.method ?? "GET").toUpperCase());
     expect(methods).toContain("PUT");
-    expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
+    expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
   });
 
-  it("the source actually PUT over the wire carries the RPY_TRANSACTION_INSERT call, every parameter spelled out", async () => {
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
-    const { conn, inner } = await connected(route);
+  it("the invoker class's own JSON payload carries every caller value, unmangled", async () => {
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn } = await connected(fake.route);
     await createTransaction(conn, allowingGate(), PARAMS);
 
-    const put = inner.calls.find(
-      (c) => (c.method ?? "").toUpperCase() === "PUT" && c.url === BRIDGE_SOURCE_URI,
+    const invoker = fake.invoker();
+    expect(invoker).toBeTruthy();
+    const src = fake.sourceOf(invoker!);
+    expect(src).toBeTruthy();
+    // The JSON payload is chunked across `lv_json = lv_json && \`...\`.` lines
+    // (abapArgumentChunks), so a value can straddle a chunk boundary —
+    // reconstruct the whole payload before comparing.
+    const chunks = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]);
+    const payload = chunks.join("");
+    expect(payload).toBe(
+      canonicalArgsJson({
+        tcode: PARAMS.tcode,
+        program: PARAMS.program,
+        description: PARAMS.description,
+        package_name: PARAMS.packageName,
+        corr_nr: CORR_NR,
+      }),
     );
-    const body = String(put?.body);
-    expect(body).toContain("CALL FUNCTION 'RPY_TRANSACTION_INSERT'");
-    expect(body).toContain("EXPORTING transaction       = 'ZTM_CARRIERS'");
-    expect(body).toContain("program           = 'ZTM_CARRIER_LIST'");
-    expect(body).toContain("dynpro            = '1000'");
-    expect(body).toContain("language          = sy-langu");
-    expect(body).toContain("development_class = 'ZTM'");
-    expect(body).toContain(`transport_number  = '${CORR_NR}'`);
-    expect(body).toContain("transaction_type  = 'R'");
-    expect(body).toContain("shorttext         = 'Carrier list'");
-    expect(body).toContain("EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3");
+    expect(src).toContain("create_transaction");
   });
 
-  it("accepts a $TMP package (allowLocal) without widening anything else", () => {
-    const source = sourceFor({ ...PARAMS, packageName: "$TMP", corrNr: undefined });
-    expect(source).toContain("development_class = '$TMP'");
-  });
+  it("an identical repeat call issues no second invoker PUT", async () => {
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn, adt } = await connected(fake.route);
 
-  it("TRAN_DATA_LINES is empty — the fragment needs no locals", () => {
-    expect(TRAN_DATA_LINES).toEqual([]);
-    expect(sourceFor()).not.toContain("    DATA ");
+    await createTransaction(conn, allowingGate(), PARAMS);
+    const before = adt.calls.length;
+    await createTransaction(conn, allowingGate(), PARAMS);
+    const putsAfterSecond = adt.calls.slice(before).filter((c) => (c.method ?? "").toUpperCase() === "PUT");
+    expect(putsAfterSecond).toEqual([]);
   });
 });
 
@@ -557,17 +478,8 @@ describe("createTransaction happy path", () => {
 describe("scope — this module binds a transaction to a caller-supplied program", () => {
   const FORBIDDEN = /SE54|SE55|VIEW_MAINTENANCE|maintenance/i;
 
-  it("the generated source contains none of SE54 / SE55 / VIEW_MAINTENANCE / maintenance", () => {
-    expect(sourceFor()).not.toMatch(FORBIDDEN);
-    expect(transactionFragment(PARAMS).join("\n")).not.toMatch(FORBIDDEN);
-  });
-
-  it("no exported string of the module carries that vocabulary either", () => {
-    expect(TRAN_DATA_LINES.join("\n")).not.toMatch(FORBIDDEN);
-    for (const pkg of ["ZTM", "$TMP"]) {
-      const corrNr = pkg.startsWith("$") ? undefined : CORR_NR;
-      expect(sourceFor({ ...PARAMS, packageName: pkg, corrNr })).not.toMatch(FORBIDDEN);
-    }
+  it("the classic body's create/delete_transaction methods contain none of SE54 / SE55 / VIEW_MAINTENANCE / maintenance", () => {
+    expect(tranPart.source).not.toMatch(FORBIDDEN);
   });
 
   it("the module's own text — doc comments and error messages included — never mentions it", () => {
@@ -588,16 +500,12 @@ describe("scope — this module binds a transaction to a caller-supplied program
 // `view-create.ts`'s `corrNr` discipline for `RS_CORR_INSERT`'s `korrnum`.
 
 describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
-  it("emits transport_number carrying the exact corrNr, quoted, for a transportable package", () => {
-    const lines = transactionFragment(PARAMS);
-    expect(lines).toContain(`            transport_number  = '${CORR_NR}'`);
-    expect(lines.join("\n").toLowerCase()).not.toContain("suppress_corr_insert");
-  });
-
-  it("emits transport_number = space (unquoted) for a $TMP package, and still no suppress_corr_insert", () => {
-    const lines = transactionFragment({ ...PARAMS, packageName: "$TMP", corrNr: undefined });
-    expect(lines).toContain("            transport_number  = space");
-    expect(lines.join("\n").toLowerCase()).not.toContain("suppress_corr_insert");
+  it("threads transport_number from corr_nr for a non-local package, and space for a local one, at runtime", () => {
+    const source = tranPart.source;
+    expect(source).toContain("DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' )");
+    expect(source).toContain("lv_transport = space");
+    expect(source).toContain("lv_transport = lv_corr_nr");
+    expect(source.toLowerCase()).not.toContain("suppress_corr_insert");
   });
 
   it("assertTransactionCreateTarget: $TMP with no corrNr returns the validated name and throws nothing", () => {
@@ -610,25 +518,25 @@ describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
   });
 
   it("a transportable package with no corr_nr is TRANSPORT_ERROR, mentions corr_nr, with ZERO network calls", async () => {
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
-    const { conn, inner } = await connected(route);
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn, adt } = await connected(fake.route);
     const { corrNr: _drop, ...withoutCorr } = PARAMS;
     const err = await catchErr(createTransaction(conn, allowingGate(), withoutCorr as TransactionParams));
     expect(err.code).toBe("TRANSPORT_ERROR");
     expect(err.message).toContain("corr_nr");
-    expect(inner.calls.length).toBe(0);
+    expect(adt.calls.length).toBe(0);
   });
 
   it("a $TMP package given a corr_nr is BAD_INPUT, mentions corr_nr and the package, with ZERO network calls", async () => {
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
-    const { conn, inner } = await connected(route);
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn, adt } = await connected(fake.route);
     const err = await catchErr(
       createTransaction(conn, allowingGate(), { ...PARAMS, packageName: "$TMP", corrNr: CORR_NR }),
     );
     expect(err.code).toBe("BAD_INPUT");
     expect(err.message).toContain("corr_nr");
     expect(err.message).toContain("$TMP");
-    expect(inner.calls.length).toBe(0);
+    expect(adt.calls.length).toBe(0);
   });
 
   it("a malformed corr_nr on a transportable package is BAD_INPUT", async () => {
@@ -636,7 +544,6 @@ describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
       createTransaction(null as unknown as AbapConnection, allowingGate(), { ...PARAMS, corrNr: "not-a-request" }),
     );
     expect(err.code).toBe("BAD_INPUT");
-    expect(() => transactionFragment({ ...PARAMS, corrNr: "not-a-request" })).toThrow();
   });
 
   it("createTransaction passes the corr to the safety gate as { kind: 'transport', corrNr, source: 'named' } for a transportable package", async () => {
@@ -649,12 +556,13 @@ describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
     }
     const gate = new RecordingGate({
       readOnly: false,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, "ZTM"],
+      allowPackages: [FLUID_PACKAGE, "ZTM"],
+      allowNamePrefixes: ["*"],
       allowTransports: ["*"],
       writesLockedOut: false,
     });
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
-    const { conn } = await connected(route);
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn } = await connected(fake.route);
     await createTransaction(conn, gate, PARAMS);
     expect(seen).toEqual([{ corr: { kind: "transport", corrNr: CORR_NR, source: "named" } }]);
   });
@@ -669,11 +577,12 @@ describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
     }
     const gate = new RecordingGate({
       readOnly: false,
-      allowPackages: [DDIC_BRIDGE_PACKAGE, "$TMP"],
+      allowPackages: [FLUID_PACKAGE, "$TMP"],
+      allowNamePrefixes: ["*"],
       writesLockedOut: false,
     });
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput(["TRAN-CREATED"])));
-    const { conn } = await connected(route);
+    const fake = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const { conn } = await connected(fake.route);
     await createTransaction(conn, gate, { ...PARAMS, packageName: "$TMP", corrNr: undefined });
     expect(seen).toEqual([{}]);
   });

@@ -1,21 +1,35 @@
 /**
  * Enhancement/BAdI CREATE bridge.
  *
- * `./enhancement-templates.ts` provides the six ABAP FRAGMENT generators
- * (H50). This module writes and activates a throwaway `IF_OO_ADT_CLASSRUN`
- * bridge class carrying one fragment (same pattern as `./run.ts` and
- * `./bopf-runtime.ts`), runs it, and parses the tagged stdout the fragment
- * writes via `out->write(...)`.
+ * Five of the six operations here (`createEnhancementSpot`,
+ * `addBadiDefinition`, `addFilterDefinition`, `createBadiImplementation`,
+ * `setFilterValues`) run their ABAP-side step through `dispatch()`
+ * (`./fluid/dispatch.js`) against the static fluid body `ZCL_ZMCP_FLUID_ENH`
+ * (`./fluid/builtin/enh.js`) rather than a per-call generated bridge class —
+ * everything AROUND that call (identifier validation, gating, the H21
+ * marker-interface precondition, the post-op `activateObject`, and H23's
+ * joint spot+implementation reactivation) stays exactly as it was. Only
+ * `exerciseBadi` still writes, activates and runs a throwaway
+ * `IF_OO_ADT_CLASSRUN` bridge class carrying one `enhancement-templates.ts`
+ * fragment (same pattern as `./run.ts` and `./bopf-runtime.ts`) — it cannot
+ * move to the fluid model because it needs `DATA lo_badi TYPE REF TO
+ * <badi_name>`, a compile-time type built from a runtime string; see
+ * `./fluid/builtin/enh.ts`'s doc comment for the full reason.
  *
  * Every exported function gates twice: `gate.assertIntent` against an
- * `EnhancementIntent` (`../safety.ts`), AND `authorizeMutation`/
- * `gate.assert("activate", …)` against the bridge class itself — one gate
- * judges "may this class run", the other "is the enhancement mutation it
- * performs allowed". `exerciseBadi` gates with `op: "execute"` (`CALL BADI`
- * is execution, not a read).
+ * `EnhancementIntent` (`../safety.ts`), AND (for `exerciseBadi`)
+ * `authorizeMutation`/`gate.assert("activate", …)` against the bridge class
+ * itself — one gate judges "may this class run", the other "is the
+ * enhancement mutation it performs allowed". For the five dispatch()-routed
+ * operations, `dispatch()`'s own generic write-gate check runs in addition —
+ * see `runEnhAction`'s doc comment for why that can never refuse a call the
+ * existing intent-based gate has already approved. `exerciseBadi` gates with
+ * `op: "execute"` (`CALL BADI` is execution, not a read).
  *
- * All creates land in `$TMP` (`ENH_CREATE_PACKAGE` = `run.ts`'s
- * `BRIDGE_PACKAGE`) — fixtures 339/350.
+ * The user's ENHS/ENHO objects land in `$TMP` (`ENH_CREATE_PACKAGE`) —
+ * fixtures 339/350; abapsmith's own generated bridge classes (and the fluid
+ * API's own static/invoker classes) land in the fluid API's package
+ * (`ENH_BRIDGE_PACKAGE`).
  *
  * Known deviations/defect history, full evidence in
  * the git history:
@@ -34,7 +48,7 @@
  *    is `RETURNING`, not `IMPORTING` — two related bugs, fixed and
  *    live-reconfirmed (fixtures 867, 893).
  *  - `isActive` can read true while `adtcore:version` stays inactive after
- *    `epilogueFragment`'s inline save/activate (field report
+ *    the inline save/activate the ABAP body performs (field report
  *    ZTM_HW011B_IMPL); `createEnhancementSpot`, `addBadiDefinition`,
  *    `addFilterDefinition` and `createBadiImplementation` each perform an
  *    extra `activateObject` against the spot to close this gap.
@@ -68,20 +82,18 @@ import {
 } from "./activate.js";
 import {
   assertPlainName,
-  BRIDGE_PACKAGE,
   deployBridge,
   executeBridge,
   verifyBridgeActivation,
   type RunResult,
 } from "./run.js";
+import { FLUID_PACKAGE } from "./fluid/package.js";
 import { buildEnhancementUri, ENHOXH_COLLECTION, ENHSXS_COLLECTION } from "./enhancement.js";
+import { dispatch } from "./fluid/dispatch.js";
+import { enhManifest, enhSources } from "./fluid/builtin/enh.js";
+import { manifestVersion, type LoadedFluidTool } from "./fluid/manifest.js";
 import {
   assertEnhIdentifier,
-  createSpotFragment,
-  addBadiDefFragment,
-  addFilterDefFragment,
-  createImplFragment,
-  setFilterValuesFragment,
   exerciseFragment,
   markerInterfaceSource,
   type CreateSpotParams,
@@ -92,28 +104,51 @@ import {
   type ExerciseParams,
 } from "./enhancement-templates.js";
 
-/** Where every create operation lands — same value as `run.ts`'s `BRIDGE_PACKAGE`, re-exported under this module's own name. */
-export const ENH_CREATE_PACKAGE = BRIDGE_PACKAGE;
+/**
+ * abapsmith's own generated bridge classes — the fluid API owns them, so they live in its package.
+ * Live re-export, not `= FLUID_PACKAGE`: a module-scope alias is read before `./fluid/package.js`'s own body has
+ * run when the graph is entered at `dist/adt/fluid/package.js`, throwing a TDZ error under real Node ESM.
+ */
+export { FLUID_PACKAGE as ENH_BRIDGE_PACKAGE } from "./fluid/package.js";
+
+/**
+ * The user's own ENHS/ENHO objects and the H21 marker interface, whose names the caller
+ * supplies. Stays `$TMP`: these are the caller's content, not abapsmith's scaffolding, and
+ * must not land in the fluid API's private package.
+ */
+export const ENH_CREATE_PACKAGE = "$TMP";
 
 // ---------------------------------------------------------------------------
-// Fixed bridge-class names — one per operation, not per target object
+// Fixed bridge-class name — exerciseBadi's own per-call bridge
 // ---------------------------------------------------------------------------
 
 /**
- * Fixed names, not hashed per-target like `run.ts`/`bopf-runtime.ts` — these
- * are one-off actions with no stable target to hash on; `writeObject`
- * already skips the PUT when content is unchanged. Exported so
- * `test/enhancement-bridge.test.ts` can key fake-server routes on the real
- * names.
+ * Only `exerciseBadi` still generates and deploys its own per-call bridge —
+ * the other five operations this module used to name a bridge class for now
+ * run through `dispatch()` against the static fluid body `ZCL_ZMCP_FLUID_ENH`
+ * (`./fluid/builtin/enh.ts`) instead. Kept as an object (not a bare string)
+ * for source-compatibility with callers that still read `BRIDGE_CLASS.exercise`
+ * (`./fluid/dynamic-bridges.ts`'s `Object.values(ENH_BRIDGE_CLASS)`) and with
+ * `test/enhancement-bridge.test.ts`, which keys fake-server routes on it.
  */
 export const BRIDGE_CLASS = {
-  createSpot: "ZCL_ZMCP_ENH_CSPOT",
-  addBadiDef: "ZCL_ZMCP_ENH_ADEF",
-  addFilterDef: "ZCL_ZMCP_ENH_FDEF",
-  createImpl: "ZCL_ZMCP_ENH_CIMPL",
-  setFilterValues: "ZCL_ZMCP_ENH_FVAL",
   exercise: "ZCL_ZMCP_ENH_EXEC",
 } as const;
+
+/**
+ * The fluid `enh` tool as a `LoadedFluidTool`, for `dispatch()` — mirrors
+ * `./fluid/builtin/classic.ts`'s own `classicTool` export exactly, but
+ * `./fluid/builtin/enh.ts` (unlike `classic.ts`) exports only the raw
+ * `enhManifest`/`enhSources` pair, so the `LoadedFluidTool` wrapper is built
+ * here instead of there.
+ */
+const ENH_TOOL: LoadedFluidTool = {
+  manifest: enhManifest,
+  origin: "builtin",
+  sources: enhSources,
+  version: manifestVersion(enhManifest, enhSources),
+};
+const ENH_TOOLS: ReadonlyMap<string, LoadedFluidTool> = new Map([[enhManifest.id, ENH_TOOL]]);
 
 // ---------------------------------------------------------------------------
 // Bridge-class skeleton
@@ -161,80 +196,6 @@ ${body}
 
 ENDCLASS.
 `;
-}
-
-/** Locals every fragment in this file's DATA-section vocabulary might need — see fixtures 339/350/466. */
-const DATA_COMMON = ["lv_pkg TYPE devclass VALUE '$TMP'.", "lv_trkorr TYPE trkorr."] as const;
-const DATA_SPOT = ["lo_spot TYPE REF TO if_enh_spot_tool.", "lo_def TYPE REF TO cl_enh_tool_badi_def."] as const;
-const DATA_FILTER = ["ls_badi TYPE enh_badi_data.", "ls_filter TYPE enh_badi_filter."] as const;
-const DATA_IMPL_CREATE = [
-  "lo_enh TYPE REF TO if_enh_tool.",
-  "lo_impl TYPE REF TO cl_enh_tool_badi_impl.",
-  "ls_impl TYPE enh_badi_impl_data.",
-] as const;
-const DATA_FILTER_VALUES = [
-  "lo_tool TYPE REF TO if_enh_tool.",
-  "lo_obj TYPE REF TO if_enh_object.",
-  "lo_impl TYPE REF TO cl_enh_tool_badi_impl.",
-  "ls_impl TYPE enh_badi_impl_data.",
-  "ls_val TYPE enh_badiimpl_filter_value.",
-  "ls_root TYPE enh_badiimpl_filter_root.",
-  "ls_id TYPE LINE OF enh_badiimpl_filter_id_it.",
-] as const;
-
-// ---------------------------------------------------------------------------
-// Epilogue / acquisition — the two small closed-vocabulary generators every
-// create path shares. Parametrized only by a handful of CODE-CONTROLLED
-// handle-expression literals — never by caller input.
-// ---------------------------------------------------------------------------
-
-type HandleExpr = "lo_spot->if_enh_object~" | "lo_enh->if_enh_object~" | "lo_obj->";
-
-/**
- * `SAVE`/`ACTIVATE`/`UNLOCK`, run_dark throughout — verified live at fixtures
- * 339, 350 and 466 (three independent captures of this exact three-call
- * shape, differing only in the handle expression / `~` qualifier per fixture
- * 466's doc comment in `enhancement-templates.ts`).
- */
-function epilogueFragment(handle: HandleExpr): string[] {
-  return [
-    `${handle}save( EXPORTING run_dark = abap_true CHANGING devclass = lv_pkg trkorr = lv_trkorr ).`,
-    `${handle}activate( EXPORTING run_dark = abap_true CHANGING devclass = lv_pkg trkorr = lv_trkorr ).`,
-    `${handle}unlock( ).`,
-  ];
-}
-
-/**
- * Diagnostic-only defect-2 guard: reports whether the BAdI definition this
- * implementation binds to declares any filters, so `createBadiImplementation`
- * can warn about a filter-less impl on a filter-dependent multi-use BAdI
- * silently dispatching for any value. Never blocks, mutates, or fails the
- * surrounding create — wrapped in its own TRY/CATCH (swallowed) since
- * `bridgeSource`'s outer TRY/CATCH is fatal to the whole classrun. Lock
- * release is a second, separate nested TRY/CATCH so a failure mid-check
- * can't leave the spot locked. See archive for full rationale.
- */
-function badiFilterCheckFragment(spotName: string, badiName: string): string[] {
-  return [
-    "TRY.",
-    `    lo_spot = cl_enh_factory=>get_enhancement_spot( spot_name = ${assertQuotedLiteral(spotName)} lock = 'X' run_dark = abap_true ).`,
-    "    lo_def ?= lo_spot.",
-    `    ls_badi = lo_def->get_badi_def( badi_name = ${assertQuotedLiteral(badiName)} ).`,
-    "    IF ls_badi-filters IS NOT INITIAL.",
-    "      out->write( 'BADI-HAS-FILTERS' ).",
-    "    ELSE.",
-    "      out->write( 'BADI-NO-FILTERS' ).",
-    "    ENDIF.",
-    "  CATCH cx_root.",
-    "    out->write( 'BADI-FILTER-CHECK-INCONCLUSIVE' ).",
-    "ENDTRY.",
-    "IF lo_spot IS BOUND.",
-    "  TRY.",
-    "      lo_spot->if_enh_object~unlock( ).",
-    "    CATCH cx_root.",
-    "  ENDTRY.",
-    "ENDIF.",
-  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -338,8 +299,8 @@ export function assertEnhTranscript(result: EnhTranscriptResult, expectTags: rea
  * intent gate runs, including an execute gate immediately before
  * `executeBridge` (F8 fix — a fresh authorization token is required to
  * reach execution). `deployBridge`/`executeBridge` (`run.ts`) hold the
- * shared halves; this wraps them with the `$TMP` alias and enhancement-
- * specific wording.
+ * shared halves; this wraps them with the `ENH_BRIDGE_PACKAGE` alias and
+ * enhancement-specific wording.
  */
 async function writeActivateRunBridge(
   conn: AbapConnection,
@@ -347,16 +308,79 @@ async function writeActivateRunBridge(
   className: string,
   source: string,
   description: string,
+  action: string,
 ): Promise<RunResult> {
   const deployed = await deployBridge(conn, gate, {
     className,
     source,
     description,
-    packageName: ENH_CREATE_PACKAGE,
+    packageName: FLUID_PACKAGE,
+    caller: { tool: "abap_enh", action },
     what: `Activation of the generated enhancement bridge ${className}`,
     verify: (activation) => verifyBridgeActivation(activation, className, "enhancement bridge"),
   });
   return executeBridge(conn, gate, deployed);
+}
+
+/**
+ * Runs one `enh` fluid action through `dispatch()` and reshapes its result
+ * into this module's own `RunResult`/JSON-object idiom, so the five
+ * dispatch()-routed operations below can build an `EnhTranscriptResult` from
+ * it exactly as they used to build one from `writeActivateRunBridge`'s raw
+ * classrun output.
+ *
+ * `dispatch()` runs its own generic write-gate check (`assertTargetsAgainstGate`,
+ * `./fluid/dispatch.js`) against the action's declared `targets` before this
+ * ever executes, in addition to the caller's own `gate.assertIntent(intent,
+ * {op:"write"})` above it. That second check can never refuse a call the
+ * first one already approved: `enh`'s actions all target `ENH_CREATE_PACKAGE`
+ * ("$TMP"), which the transport-allowlist machinery skips entirely, and the
+ * untyped `safetyTarget` `assertTargetsAgainstGate` builds (no `type` field)
+ * never reaches `enhancementRules()`'s `isEnhancementType`-gated branch — the
+ * one place the existing intent-based gate is stricter than a plain
+ * write-gate check. So dispatch()'s check is a strict subset here, not an
+ * independent gate that could double-refuse.
+ *
+ * `enh`'s five mutate actions each declare an `object`-typed output, so
+ * `dispatch()` hands back exactly one JSON value in `fr.result` — never the
+ * array-of-string-lines shape `classic-call.ts`'s `object` narrowing expects
+ * for `classic`'s own actions.
+ */
+async function runEnhAction(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  action: string,
+  args: Record<string, unknown>,
+): Promise<{ result: Record<string, unknown>; run: RunResult }> {
+  const fr = await dispatch(
+    { conn, cfg: conn.cfg, gate, tools: ENH_TOOLS },
+    // `caller` names the MCP-facing identity (abap_enh + the operation the
+    // caller actually invoked, which is byte-identical to this fluid
+    // action name for all five reroutes) so a FLUID_API_DISABLED refusal
+    // names abap_enh, not the internal fluid tool id "enh" dispatch() runs
+    // this as under the hood.
+    { tool: enhManifest.id, action, args, caller: { tool: "abap_enh", action } },
+  );
+  if (typeof fr.result !== "object" || fr.result === null || Array.isArray(fr.result)) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      `enh.${action}: expected a JSON object result, got ${typeof fr.result}.`,
+      { tool: enhManifest.id, action, result: fr.result },
+    );
+  }
+  const result = fr.result as Record<string, unknown>;
+  const raw = JSON.stringify(result);
+  const run: RunResult = {
+    mode: "class",
+    object: enhManifest.entry,
+    output: raw,
+    lines: 1,
+    durationMs: fr.ms,
+    droppedLines: 0,
+    bodyBytes: raw.length,
+    outputComplete: !fr.truncated,
+  };
+  return { result, run };
 }
 
 // ---------------------------------------------------------------------------
@@ -509,22 +533,16 @@ export async function createEnhancementSpot(
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
 
-  // createSpotFragment never called save/activate/unlock on the new spot,
-  // so it was never persisted — a separate bug found via fixtures 899-914;
-  // fixed here to mirror every sibling operation. See archive.
-  const body = [
-    ...createSpotFragment({ spotName, description: params.description }),
-    ...epilogueFragment("lo_spot->if_enh_object~"),
-  ];
-  const source = bridgeSource(BRIDGE_CLASS.createSpot, [...DATA_COMMON, ...DATA_SPOT], body);
-  const run = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.createSpot,
-    source,
-    `abapsmith T15 create-enhancement-spot bridge (${spotName})`,
-  );
-  const transcript = parseEnhancementTranscript(run.output);
+  const { result, run } = await runEnhAction(conn, gate, "create_spot", {
+    spot_name: spotName,
+    description: params.description,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: "",
+  });
+  const transcript: EnhTranscriptResult = {
+    tags: result.created === true ? ["SPOT-OBJECT-CREATED"] : [],
+    raw: JSON.stringify(result),
+  };
   assertEnhTranscript(transcript, ["SPOT-OBJECT-CREATED"], `Creating enhancement spot ${spotName}`);
 
   // Closes the isActive-vs-adtcore:version gap (see header). Not
@@ -561,23 +579,19 @@ export async function addBadiDefinition(
   // H21 — before touching the spot at all.
   await ensureMarkerInterface(conn, gate, interfaceName);
 
-  const acquire = [
-    // Locked GET of the existing spot. `spot` is RETURNING, not IMPORTING
-    // (fixtures 486, 893). Locking inferred by symmetry with fixture 466 —
-    // see header, deviation (2).
-    `lo_spot = cl_enh_factory=>get_enhancement_spot( spot_name = ${assertQuotedLiteral(spotName)} lock = 'X' run_dark = abap_true ).`,
-    "lo_def ?= lo_spot.",
-  ];
-  const body = [...acquire, ...addBadiDefFragment({ ...params, badiName, interfaceName }), ...epilogueFragment("lo_spot->if_enh_object~")];
-  const source = bridgeSource(BRIDGE_CLASS.addBadiDef, [...DATA_COMMON, ...DATA_SPOT, ...DATA_FILTER], body);
-  const run = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.addBadiDef,
-    source,
-    `abapsmith T15 add-badi-def bridge (${badiName} on ${spotName})`,
-  );
-  const transcript = parseEnhancementTranscript(run.output);
+  const { result, run } = await runEnhAction(conn, gate, "add_badi_def", {
+    spot_name: spotName,
+    badi_name: badiName,
+    interface_name: interfaceName,
+    single_use: params.singleUse,
+    short_text: params.shortText,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: "",
+  });
+  const transcript: EnhTranscriptResult = {
+    tags: result.added === true ? ["BADI-DEF-ADDED"] : [],
+    raw: JSON.stringify(result),
+  };
   assertEnhTranscript(transcript, ["BADI-DEF-ADDED"], `Adding BAdI definition ${badiName} to spot ${spotName}`);
 
   // Closes the isActive-vs-adtcore:version gap (see header). Targets the
@@ -611,26 +625,24 @@ export async function addFilterDefinition(
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
 
-  const acquire = [
-    // `spot` is RETURNING, not IMPORTING — see addBadiDefinition's acquire
-    // comment above and this module's header, deviation (2).
-    `lo_spot = cl_enh_factory=>get_enhancement_spot( spot_name = ${assertQuotedLiteral(spotName)} lock = 'X' run_dark = abap_true ).`,
-    "lo_def ?= lo_spot.",
-  ];
-  const body = [...acquire, ...addFilterDefFragment({ ...params, badiName }), ...epilogueFragment("lo_spot->if_enh_object~")];
-  const source = bridgeSource(BRIDGE_CLASS.addFilterDef, [...DATA_COMMON, ...DATA_SPOT, ...DATA_FILTER], body);
-  const run = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.addFilterDef,
-    source,
-    `abapsmith T15 add-filter-def bridge (${params.filterName} on ${badiName})`,
-  );
-  const transcript = parseEnhancementTranscript(run.output);
+  const args: Record<string, unknown> = {
+    spot_name: spotName,
+    badi_name: badiName,
+    filter_name: params.filterName,
+    filter_type: params.filterType,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: "",
+  };
+  if (params.filterText !== undefined) args.filter_text = params.filterText;
+  const { result, run } = await runEnhAction(conn, gate, "add_filter_def", args);
+  const transcript: EnhTranscriptResult = {
+    tags: result.added === true ? ["FILTER-DEF-ADDED"] : [],
+    raw: JSON.stringify(result),
+  };
   assertEnhTranscript(transcript, ["FILTER-DEF-ADDED"], `Adding filter definition ${params.filterName} to ${badiName}`);
 
   // Closes the isActive-vs-adtcore:version gap (see header). Single-object,
-  // not H23's joint form: addFilterDefFragment only declares that the
+  // not H23's joint form: `add_filter_def` only declares that the
   // DEFINITION supports filtering (spot-level metadata) — AddFilterDefParams
   // carries no implementation identifier, so there is no second object to
   // name in a joint call. Same target as addBadiDefinition/createEnhancementSpot.
@@ -684,27 +696,24 @@ export async function createBadiImplementation(
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
 
-  const body = [
-    ...createImplFragment(params),
-    ...epilogueFragment("lo_enh->if_enh_object~"),
-    // Defect-2 guard (see badiFilterCheckFragment) — runs after success
-    // tags are written and can never turn a successful create into a
-    // failure.
-    ...badiFilterCheckFragment(spotName, badiName),
-  ];
-  const source = bridgeSource(
-    BRIDGE_CLASS.createImpl,
-    [...DATA_COMMON, ...DATA_SPOT, ...DATA_FILTER, ...DATA_IMPL_CREATE],
-    body,
-  );
-  const run = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.createImpl,
-    source,
-    `abapsmith T15 create-badi-impl bridge (${enhName})`,
-  );
-  const transcript = parseEnhancementTranscript(run.output);
+  const { result, run } = await runEnhAction(conn, gate, "create_impl", {
+    enh_name: enhName,
+    spot_name: spotName,
+    badi_name: badiName,
+    impl_name: params.implName,
+    impl_class: implClass,
+    active: params.active,
+    description: params.description,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: "",
+  });
+  const tags: EnhTag[] = [];
+  if (result.created === true) tags.push("ENHO-OBJECT-CREATED");
+  if (result.impl_added === true) tags.push("IMPL-ADDED");
+  if (result.filter_check === "has_filters") tags.push("BADI-HAS-FILTERS");
+  else if (result.filter_check === "no_filters") tags.push("BADI-NO-FILTERS");
+  else if (result.filter_check === "inconclusive") tags.push("BADI-FILTER-CHECK-INCONCLUSIVE");
+  const transcript: EnhTranscriptResult = { tags, raw: JSON.stringify(result) };
   assertEnhTranscript(transcript, ["ENHO-OBJECT-CREATED", "IMPL-ADDED"], `Creating BAdI implementation ${enhName}`);
 
   // Field report ZTM_HW011B_IMPL: the epilogue's inline SAVE/ACTIVATE/UNLOCK
@@ -748,23 +757,20 @@ export async function setFilterValues(
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
 
-  const acquire = [
-    // Fixture 466's exact acquisition — get-existing-and-lock, then cast
-    // twice. `enhancement` is RETURNING, not IMPORTING.
-    `lo_tool = cl_enh_factory=>get_enhancement( enhancement_id = ${assertQuotedLiteral(enhName)} lock = 'X' run_dark = abap_true ).`,
-    "lo_impl ?= lo_tool.",
-    "lo_obj ?= lo_tool.",
-  ];
-  const body = [...acquire, ...setFilterValuesFragment(params), ...epilogueFragment("lo_obj->")];
-  const source = bridgeSource(BRIDGE_CLASS.setFilterValues, [...DATA_COMMON, ...DATA_FILTER_VALUES], body);
-  const run = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.setFilterValues,
-    source,
-    `abapsmith T15 set-filter-values bridge (${enhName})`,
-  );
-  const transcript = parseEnhancementTranscript(run.output);
+  const { result, run } = await runEnhAction(conn, gate, "set_filter_values", {
+    enh_name: enhName,
+    impl_name: params.implName,
+    filter_name: params.filterName,
+    filter_type: params.filterType,
+    compare: params.compare,
+    value: params.value,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: "",
+  });
+  const transcript: EnhTranscriptResult = {
+    tags: result.replaced === true ? ["IMPL-REPLACED"] : [],
+    raw: JSON.stringify(result),
+  };
   assertEnhTranscript(transcript, ["IMPL-REPLACED"], `Setting filter values on implementation ${enhName}`);
 
   // H23: the inline implementation-level activate above is necessary but
@@ -823,6 +829,7 @@ export async function exerciseBadi(
     BRIDGE_CLASS.exercise,
     source,
     `abapsmith T15 exercise-badi bridge (${badiName})`,
+    "exercise",
   );
   const transcript = parseEnhancementTranscript(run.output);
   // H2/H7: NOT-BOUND means GET BADI produced an unbound handle — CALL BADI
@@ -842,19 +849,4 @@ export async function exerciseBadi(
   }
   assertEnhTranscript(transcript, ["EXERCISED"], `Exercising BAdI ${badiName}`);
   return { run, transcript };
-}
-
-// ---------------------------------------------------------------------------
-// Small internal helper — a validated identifier as an ABAP string literal
-// ---------------------------------------------------------------------------
-
-/**
- * `assertEnhIdentifier` already refused anything a bare identifier grammar
- * would reject (H50) — this only adds the surrounding quotes for the
- * `spot_name =`/`enhancement_id =` acquisition calls above, which are not
- * part of the closed `enhancement-templates.ts` set (they are the
- * choreography AROUND it) but embed caller-controlled text the same way.
- */
-function assertQuotedLiteral(identifier: string): string {
-  return `'${identifier}'`;
 }

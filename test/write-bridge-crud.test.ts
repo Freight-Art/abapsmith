@@ -24,10 +24,10 @@
  * disagreeing `package` reach the delete bridge" must fail with a thrown
  * `BAD_INPUT` never appearing (an `AssertionError`), not an import error.
  */
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
 import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
@@ -36,11 +36,14 @@ import { AbapError, isAbapError } from "../src/adt/errors.js";
 import { abapWrite } from "../src/tools/write.js";
 import { SafetyGate } from "../src/safety.js";
 import { SessionTransport } from "../src/adt/session-transport.js";
-import { DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
+import { CLASSIC_BODY_CLASS, CLASSIC_TOOL_ID } from "../src/adt/fluid/builtin/classic.js";
+import { FLUID_CONTRACT } from "../src/adt/fluid/manifest.js";
+import { invokerName } from "../src/adt/fluid/invoke.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
 import { Journal } from "../src/journal.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 import { searchResultsXml } from "./helpers/fake-adt.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 const MAX = 20_000;
 
@@ -94,6 +97,18 @@ class FakeAdt implements HttpClient {
   }
 }
 
+/**
+ * One registry for the whole file, matching the real system's own
+ * cold-cache-once behavior: whichever test dispatches the classic tool
+ * first pays for the `ZCL_ZMCP_FLUID_RT`/`ZCL_ZMCP_FLUID_CLASSIC` deploy,
+ * every later test in this file reuses it, and only the per-call invoker
+ * class is deployed fresh each time.
+ */
+const fluidState = useFluidState();
+afterAll(async () => {
+  await rm(fluidState.dir(), { recursive: true, force: true });
+});
+
 const cfg = (): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
@@ -102,6 +117,7 @@ const cfg = (): Config =>
     sid: "A4H",
     client: "001",
     readOnly: false,
+    stateDir: fluidState.dir(),
   });
 
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
@@ -139,39 +155,10 @@ const gate = () =>
   new SafetyGate({
     readOnly: false,
     allowPackages: ["*"],
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
-
-// ---------------------------------------------------------------------------
-// Bridge class deploy — the generated classrun's own class, shared by
-// create and delete: GET-404 → POST-create → LOCK → PUT → UNLOCK.
-// ---------------------------------------------------------------------------
-
-const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
-
-const bridgeDeployRoute = (bridgeClass: string): Route => {
-  const bridgeObjUrl = `${CLASS_COLLECTION}/${bridgeClass.toLowerCase()}`;
-  const bridgeSourceUri = `${bridgeObjUrl}/source/main`;
-  return (r) => {
-    if (r.url === bridgeObjUrl && r.method === "GET" && !r.qs._action) {
-      return resp(404, NOT_FOUND_XML(bridgeClass), OK_XML);
-    }
-    if (r.url === CLASS_COLLECTION && r.method === "POST") return resp(200, "", OK_TEXT);
-    if (r.url === bridgeObjUrl && r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
-    if (r.url === bridgeObjUrl && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-    if (r.url === bridgeSourceUri && r.method === "PUT") return resp(200, "", OK_TEXT);
-    return undefined;
-  };
-};
-
-const classrunRoute =
-  (tags: readonly string[]): Route =>
-  (r) => {
-    if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, tags.join("\n"), OK_TEXT);
-    if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-    return undefined;
-  };
 
 /** The VIT-bridge stub GET — used both for pre-delete package resolution and post-create/-delete verification. */
 const vitRoute =
@@ -234,7 +221,6 @@ const both =
 // about `abapCreateViaBridge`'s shared post-create notes is made on it.
 const TCODE = "ZMCPT01";
 const PROGRAM = "ZMCP_CARRIER_LIST";
-const TRAN_BRIDGE = DDIC_BRIDGE_CLASS.createTransaction;
 const TRAN_INPUT = {
   object: TCODE,
   type: "TRAN/T",
@@ -249,7 +235,6 @@ const TRAN_INPUT = {
 
 describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV create runs for every package", () => {
   const VIEW = "ZMCP_V_CARRIER";
-  const BRIDGE = DDIC_BRIDGE_CLASS.createView;
   const validInput = {
     object: VIEW,
     type: "VIEW/DV",
@@ -258,9 +243,17 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     view_fields: ["CARRIER_ID", "NAME"],
   };
 
-  /** Finds the classrun PUT that carries the generated ABAP (the one whose body calls RS_CORR_INSERT). */
-  const deployedSource = (adt: FakeAdt): string | undefined =>
-    adt.calls.map((c) => c.body).find((b) => b?.includes("RS_CORR_INSERT"));
+  /** The exact `create_view` args `view-create.ts` sends — content-addresses the invoker class, so this is the strongest proof a given corr_nr reached the ABAP. */
+  const viewArgs = (packageName: string, corrNr = ""): Record<string, unknown> => ({
+    view_name: VIEW,
+    base_table: "ZMCP_CARRIER",
+    fields: ["CARRIER_ID", "NAME"],
+    description: "Carriers",
+    package_name: packageName,
+    corr_nr: corrNr,
+  });
+  const viewInvoker = (packageName: string, corrNr = ""): string =>
+    invokerName(CLASSIC_TOOL_ID, "create_view", viewArgs(packageName, corrNr), FLUID_CONTRACT);
 
   /**
    * A `SessionTransport` that only validates a caller-NAMED request (Step 5's
@@ -303,9 +296,9 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
   }
 
   it("a transportable package WITH a valid corr_nr reaches the bridge and the create succeeds", async () => {
-    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const classic = classicFake({ action: "create_view", lines: () => ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"] });
     const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "ZTM");
-    const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const { conn, adt } = await connected(both(classic.route, vit));
     const { transport, trShow } = namedTransport();
     const result = await abapWrite(
       conn,
@@ -317,10 +310,10 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     );
     expect(result.text).toMatch(/created: true/);
     expect(result.text).toMatch(/verified: true/);
-    expect(result.text).toMatch(new RegExp(BRIDGE));
+    expect(result.text).toMatch(new RegExp(CLASSIC_BODY_CLASS));
     expect(result.text).toMatch(/transport: A4HK900117/);
     expect(trShow).toHaveBeenCalledTimes(1);
-    expect(deployedSource(adt)).toContain("A4HK900117");
+    expect(classic.invoker()).toBe(viewInvoker("ZTM", "A4HK900117"));
     expect(adt.calls.length).toBeGreaterThan(0);
   });
 
@@ -335,9 +328,9 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
   });
 
   it("a transportable package with NO corr_nr under the auto policy resolves a request and the bridge receives it", async () => {
-    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const classic = classicFake({ action: "create_view", lines: () => ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"] });
     const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "ZTM");
-    const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const { conn, adt } = await connected(both(classic.route, vit));
     const { transport, trCreate } = autoTransport();
     const result = await abapWrite(
       conn,
@@ -350,16 +343,16 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     expect(result.text).toMatch(/created: true/);
     expect(result.text).toMatch(/transport: A4HK900321/);
     expect(trCreate).toHaveBeenCalledTimes(1);
-    expect(deployedSource(adt)).toContain("A4HK900321");
+    expect(classic.invoker()).toBe(viewInvoker("ZTM", "A4HK900321"));
     // resolveForNewTransportable never classifies a not-yet-existing object, so the
     // synthesized view URI (classicViewUri) is never sent to CTS's classification check.
     expect(adt.calls.some((c) => c.url.includes("transportchecks"))).toBe(false);
   });
 
   it("a resolver refusal (a caller-named corr_nr outside a pinned allowlist) stops the write before the bridge is deployed", async () => {
-    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const classic = classicFake({ action: "create_view", lines: () => ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"] });
     const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "ZTM");
-    const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const { conn } = await connected(both(classic.route, vit));
     const transport = new SessionTransport({ allowTransports: ["A4HK900117"] });
     const e = await catchErr(
       abapWrite(
@@ -373,13 +366,15 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     );
     expect(e.code).toBe("TRANSPORT_ERROR");
     expect(String(e.message)).toMatch(/not permitted by ABAP_ALLOW_TRANSPORTS/);
-    expect(adt.calls.some((c) => c.url.toLowerCase().includes(BRIDGE.toLowerCase()) || (c.body ?? "").includes(BRIDGE))).toBe(false);
+    // The resolver refuses before dispatch ever runs — nothing the classic tool
+    // owns (RT, CLASSIC body, or an invoker) was ever created in the fake.
+    expect(classic.deployed().length).toBe(0);
   });
 
   it("$TMP reaches the bridge too — RS_CORR_INSERT registers it with korrnum = space, not a refusal", async () => {
-    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const classic = classicFake({ action: "create_view", lines: () => ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"] });
     const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "$TMP");
-    const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const { conn, adt } = await connected(both(classic.route, vit));
     const result = await abapWrite(conn, { ...validInput, package: "$TMP" }, MAX, gate());
     expect(result.text).toMatch(/created: true/);
     expect(result.text).toMatch(/package: \$TMP/);
@@ -387,9 +382,9 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
   });
 
   it("an OMITTED `package` defaults to $TMP inside abapCreateViaBridge and reaches the bridge just the same", async () => {
-    const classrun = classrunRoute(["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"]);
+    const classic = classicFake({ action: "create_view", lines: () => ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"] });
     const vit = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", "$TMP");
-    const { conn, adt } = await connected(both(bridgeDeployRoute(BRIDGE), classrun, vit));
+    const { conn, adt } = await connected(both(classic.route, vit));
     const result = await abapWrite(conn, { ...validInput }, MAX, gate());
     expect(result.text).toMatch(/created: true/);
     expect(result.text).toMatch(/package: \$TMP/);
@@ -449,11 +444,9 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
   });
 
   it("TRAN/T into a transportable package WITH a corr_nr reaches the bridge and the create succeeds", async () => {
-    const classrun = classrunRoute(["TRAN-CREATED"]);
+    const classic = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
     const vit = vitRoute("confirmed", "trant", TCODE, "TRAN/T", "ZTM");
-    const { conn, adt } = await connected(
-      both(programRoute(PROGRAM), bridgeDeployRoute(TRAN_BRIDGE), classrun, vit),
-    );
+    const { conn, adt } = await connected(both(programRoute(PROGRAM), classic.route, vit));
     const result = await abapWrite(
       conn,
       { ...TRAN_INPUT, package: "ZTM", corr_nr: "TR1K900123" },
@@ -468,11 +461,9 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
   // types — asserted here on TRAN/T; the describe above covers VIEW/DV's
   // create running for every package, not this note's exact wording.
   it("the create-response closing note states abapsmith can REACH this type via bridge (not that delete is proven), and that create is still not journalled", async () => {
-    const classrun = classrunRoute(["TRAN-CREATED"]);
+    const classic = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
     const vit = vitRoute("confirmed", "trant", TCODE, "TRAN/T", "$TMP");
-    const { conn } = await connected(
-      both(programRoute(PROGRAM), bridgeDeployRoute(TRAN_BRIDGE), classrun, vit),
-    );
+    const { conn } = await connected(both(programRoute(PROGRAM), classic.route, vit));
     const result = await abapWrite(conn, TRAN_INPUT, MAX, gate());
     expect(result.text).toMatch(/can reach/);
     expect(result.text).toMatch(/see the limits note above/);
@@ -483,7 +474,7 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
   });
 
   it("entryId===undefined (not journalled) + unregistered: the reachability claim is dropped when this create's own read-back found it unregistered, not made unconditionally", async () => {
-    const classrun = classrunRoute(["TRAN-CREATED"]);
+    const classic = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
     // No packageRef, but an enriched attribute (changedBy) so vitStubShowsExistence
     // still calls it `confirmed` — the same orphan shape live-observed on VIEW/DV;
     // TRAN/T's create runs the identical reachability logic over it.
@@ -497,9 +488,7 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
             OK_XML,
           )
         : undefined;
-    const { conn } = await connected(
-      both(programRoute(PROGRAM), bridgeDeployRoute(TRAN_BRIDGE), classrun, vit),
-    );
+    const { conn } = await connected(both(programRoute(PROGRAM), classic.route, vit));
     const result = await abapWrite(conn, TRAN_INPUT, MAX, gate());
     expect(result.text).not.toMatch(/CAN delete/);
     expect(result.text).not.toMatch(/can reach/);
@@ -543,7 +532,11 @@ describe("abapCreateViaBridge — reversal note keyed on this create's own regis
 
   /** bridge deploy + program resolution + classrun, shared by all three cases below. */
   const around = (vit: Route): Route =>
-    both(programRoute(PROGRAM), bridgeDeployRoute(TRAN_BRIDGE), classrunRoute(["TRAN-CREATED"]), vit);
+    both(
+      programRoute(PROGRAM),
+      classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] }).route,
+      vit,
+    );
 
   it("registered: read-back names a package — undo can REACH it through the same bridge (reachability, not a delete-success guarantee), and the note names THIS object's package, not a general type claim", async () => {
     await withJournal(async (journal) => {
@@ -618,10 +611,8 @@ describe("abapDeleteViaBridge — dispatch and create-only-field refusals", () =
   it("mode:'delete' on VIEW/DV no longer throws UNSUPPORTED — it dispatches to the view delete bridge and makes real requests", async () => {
     const found = vitRoute("confirmed", "viewdv", "ZMCP_V_CARRIER", "VIEW/DV", "ZTM");
     const gone = vitRoute("absent", "viewdv", "ZMCP_V_CARRIER", "VIEW/DV");
-    const classrun = classrunRoute(["VIEW-DELETED", "VIEW-GONE"]);
-    const { conn, adt } = await connected(
-      both(bridgeDeployRoute(DDIC_BRIDGE_CLASS.deleteView), classrun, (r) => found(r) ?? gone(r)),
-    );
+    const classic = classicFake({ action: "delete_view", lines: () => ["VIEW-DELETED", "VIEW-GONE"] });
+    const { conn, adt } = await connected(both(classic.route, (r) => found(r) ?? gone(r)));
     const result = await abapWrite(
       conn,
       { object: "ZMCP_V_CARRIER", type: "VIEW/DV", mode: "delete" },
@@ -635,10 +626,8 @@ describe("abapDeleteViaBridge — dispatch and create-only-field refusals", () =
   it("mode:'delete' on TRAN/T dispatches to the transaction delete bridge, not the view one", async () => {
     const found = vitRoute("confirmed", "trant", "ZMCPT01", "TRAN/T", "ZTM");
     const gone = vitRoute("absent", "trant", "ZMCPT01", "TRAN/T");
-    const classrun = classrunRoute(["TRAN-DELETED", "TRAN-GONE"]);
-    const { conn } = await connected(
-      both(bridgeDeployRoute(DDIC_BRIDGE_CLASS.deleteTransaction), classrun, (r) => found(r) ?? gone(r)),
-    );
+    const classic = classicFake({ action: "delete_transaction", lines: () => ["TRAN-DELETED", "TRAN-GONE"] });
+    const { conn } = await connected(both(classic.route, (r) => found(r) ?? gone(r)));
     const result = await abapWrite(
       conn,
       { object: "ZMCPT01", type: "TRAN/T", mode: "delete" },
@@ -646,7 +635,7 @@ describe("abapDeleteViaBridge — dispatch and create-only-field refusals", () =
       gate(),
     );
     expect(result.text).toMatch(/deleted:\s*true/);
-    expect(result.text).toMatch(new RegExp(DDIC_BRIDGE_CLASS.deleteTransaction));
+    expect(result.text).toMatch(new RegExp(CLASSIC_BODY_CLASS));
   });
 
   it("a VIEW/DV delete carrying a create-only field (base_table) is refused BAD_INPUT with ZERO requests on the wire", async () => {
@@ -686,10 +675,8 @@ describe("abapDeleteViaBridge — dispatch and create-only-field refusals", () =
     const search = searchRoute([
       { name: "ZMCP_V_CARRIER", type: "VIEW/DV", uri: vitBridgeUri("viewdv", "ZMCP_V_CARRIER") },
     ]);
-    const classrun = classrunRoute(["VIEW-DELETED", "VIEW-GONE"]);
-    const { conn } = await connected(
-      both(bridgeDeployRoute(DDIC_BRIDGE_CLASS.deleteView), classrun, found, stillThere, search),
-    );
+    const classic = classicFake({ action: "delete_view", lines: () => ["VIEW-DELETED", "VIEW-GONE"] });
+    const { conn } = await connected(both(classic.route, found, stillThere, search));
     const e = await catchErr(
       abapWrite(conn, { object: "ZMCP_V_CARRIER", type: "VIEW/DV", mode: "delete" }, MAX, gate()),
     );
@@ -700,10 +687,8 @@ describe("abapDeleteViaBridge — dispatch and create-only-field refusals", () =
   it("the delete-response notes no longer claim there is no delete endpoint for this type", async () => {
     const found = vitRoute("confirmed", "trant", "ZMCPT01", "TRAN/T", "ZTM");
     const gone = vitRoute("absent", "trant", "ZMCPT01", "TRAN/T");
-    const classrun = classrunRoute(["TRAN-DELETED", "TRAN-GONE"]);
-    const { conn } = await connected(
-      both(bridgeDeployRoute(DDIC_BRIDGE_CLASS.deleteTransaction), classrun, (r) => found(r) ?? gone(r)),
-    );
+    const classic = classicFake({ action: "delete_transaction", lines: () => ["TRAN-DELETED", "TRAN-GONE"] });
+    const { conn } = await connected(both(classic.route, (r) => found(r) ?? gone(r)));
     const result = await abapWrite(
       conn,
       { object: "ZMCPT01", type: "TRAN/T", mode: "delete" },
@@ -822,10 +807,8 @@ describe("abapDeleteViaBridge — package resolved from the server, not the call
   it("a caller's `package` that AGREES with the server is accepted and reaches the delete bridge", async () => {
     const found = vitRoute("confirmed", "viewdv", "ZMCP_V_CARRIER", "VIEW/DV", "ZTM");
     const gone = vitRoute("absent", "viewdv", "ZMCP_V_CARRIER", "VIEW/DV");
-    const classrun = classrunRoute(["VIEW-DELETED", "VIEW-GONE"]);
-    const { conn } = await connected(
-      both(bridgeDeployRoute(DDIC_BRIDGE_CLASS.deleteView), classrun, (r) => found(r) ?? gone(r)),
-    );
+    const classic = classicFake({ action: "delete_view", lines: () => ["VIEW-DELETED", "VIEW-GONE"] });
+    const { conn } = await connected(both(classic.route, (r) => found(r) ?? gone(r)));
     const result = await abapWrite(
       conn,
       { object: "ZMCP_V_CARRIER", type: "VIEW/DV", mode: "delete", package: "ZTM" },
@@ -845,10 +828,8 @@ describe("abapDeleteViaBridge — package resolved from the server, not the call
     // `e.code`, never an import error, so a revert cannot hide behind "the
     // test didn't even run".
     const found = vitRoute("confirmed", "viewdv", "ZMCP_V_CARRIER", "VIEW/DV", "ZTM");
-    const classrun = classrunRoute(["VIEW-DELETED", "VIEW-GONE"]);
-    const { conn, adt } = await connected(
-      both(bridgeDeployRoute(DDIC_BRIDGE_CLASS.deleteView), classrun, found),
-    );
+    const classic = classicFake({ action: "delete_view", lines: () => ["VIEW-DELETED", "VIEW-GONE"] });
+    const { conn, adt } = await connected(both(classic.route, found));
     const e = await catchErr(
       abapWrite(
         conn,

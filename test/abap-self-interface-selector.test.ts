@@ -15,7 +15,8 @@
  * The SAME prefix on a DIFFERENT declared type is valid ABAP and must NOT be
  * flagged: `lo_spot->if_enh_object~unlock( )` where `lo_spot` is declared
  * `TYPE REF TO if_enh_spot_tool` (a different interface) is verified live and
- * correct (src/adt/enhancement-bridge.ts, src/adt/enhancement-templates.ts).
+ * correct (src/adt/fluid/builtin/enh.ts, which is where that ABAP moved when
+ * `abap_enh` was rerouted through the fluid API).
  * Likewise a class implementing an interface — `lo_impl->if_enh_object_docu~`
  * where `lo_impl` is `TYPE REF TO cl_enh_tool_badi_impl` — is fine; the
  * declared type there is simply never equal to the prefix.
@@ -46,16 +47,15 @@ import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { SafetyGate } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
-import { packageFragment, PACKAGE_DATA_LINES, type PackageBridgeParams } from "../src/adt/package-create.js";
-import { ddicBridgeSource, DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
-import { classicViewFragment, type ClassicViewParams } from "../src/adt/view-create.js";
-import { transactionFragment, type TransactionParams } from "../src/adt/tran-create.js";
+import { packagePart } from "../src/adt/fluid/builtin/classic/abap-package.js";
+import { viewPart } from "../src/adt/fluid/builtin/classic/abap-view.js";
+import { tranPart } from "../src/adt/fluid/builtin/classic/abap-tran.js";
 import { exerciseFragment, type ExerciseParams } from "../src/adt/enhancement-templates.js";
 import {
   BRIDGE_CLASS,
+  ENH_BRIDGE_PACKAGE,
   ENH_CREATE_PACKAGE,
-  createEnhancementSpot,
-  createBadiImplementation,
+  exerciseBadi,
 } from "../src/adt/enhancement-bridge.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 
@@ -97,7 +97,14 @@ interface SelfInterfaceScan {
  * coverage of the emitted ABAP at all).
  */
 function scanForSelfInterfaceSelector(source: string): SelfInterfaceScan {
-  const declRe = /\b([A-Za-z_]\w*)\s+TYPE\s+REF\s+TO\s+([A-Za-z_][\w/]*)\s*\./gi;
+  // Terminator is `.` OR `,` — the classic fluid tool's static ABAP parts
+  // (src/adt/fluid/builtin/classic/*.ts) declare locals SAP's usual chained
+  // way, `DATA: a TYPE x, b TYPE REF TO y, c TYPE z.`, where every field but
+  // the last ends in a comma, not a period. A period-only terminator is
+  // blind to `lo_package TYPE REF TO if_package,` in exactly that shape —
+  // the live incident's own declaration, re-hidden by a different ABAP
+  // formatting convention than the old per-call fragment generators used.
+  const declRe = /\b([A-Za-z_]\w*)\s+TYPE\s+REF\s+TO\s+([A-Za-z_][\w/]*)\s*[.,]/gi;
   const declarations = new Map<string, string>(); // lowercase var -> declared interface, original case
   let declarationCount = 0;
   for (const m of source.matchAll(declRe)) {
@@ -186,6 +193,18 @@ describe("scanForSelfInterfaceSelector", () => {
     expect(scanForSelfInterfaceSelector(src).hits).toHaveLength(1);
   });
 
+  it("a comma-terminated field inside a 'DATA: a, b TYPE REF TO iface, c.' chain declaration is still caught — the exact shape src/adt/fluid/builtin/classic/abap-package.ts uses for lo_package", () => {
+    const src = [
+      "DATA: ls_data TYPE scompkdtln,",
+      "      lo_package TYPE REF TO if_package,",
+      "      ls_tdevc TYPE tdevc.",
+      "lo_package->if_package~save( ).",
+    ].join("\n");
+    const { hits } = scanForSelfInterfaceSelector(src);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ variable: "lo_package", interfaceName: "if_package" });
+  });
+
   it("counts declarations even when there is nothing to flag — proves the scan isn't just returning empty because it saw nothing", () => {
     const src = "DATA lo_x TYPE REF TO if_y.\nlo_x->save( ).";
     expect(scanForSelfInterfaceSelector(src).declarationCount).toBe(1);
@@ -196,36 +215,6 @@ describe("scanForSelfInterfaceSelector", () => {
 // 1 — the emitted ABAP: call the real generators, check what they produce
 // ---------------------------------------------------------------------------
 
-const PACKAGE_ROOT: PackageBridgeParams = {
-  packageName: "ZTM_ROOTPKG",
-  description: "Root package",
-  softwareComponent: "HOME",
-  corrNr: "A4HK900123",
-};
-
-const PACKAGE_SUB: PackageBridgeParams = {
-  ...PACKAGE_ROOT,
-  packageName: "ZTM_SUBPKG",
-  superPackage: "ZTM",
-};
-
-const VIEW_PARAMS: ClassicViewParams = {
-  viewName: "ZTM_V_CARRIER",
-  baseTable: "SCARR",
-  fields: ["CARRID", "CARRNAME"],
-  description: "Test view",
-  packageName: "ZTM",
-  corrNr: "A4HK900121",
-};
-
-const TRAN_PARAMS: TransactionParams = {
-  tcode: "ZTM_CARRIERS",
-  program: "SAPMZTM_CARRIERS",
-  description: "Test transaction",
-  packageName: "ZTM",
-  corrNr: "A4HK900121",
-};
-
 const EXERCISE_PARAMS: ExerciseParams = {
   badiName: "ZMCP_BADI",
   methodName: "DO_SOMETHING",
@@ -233,32 +222,32 @@ const EXERCISE_PARAMS: ExerciseParams = {
 };
 
 describe("emitted ABAP — pure fragment generators, called directly (no live connection needed)", () => {
-  it("packageFragment: root and sub-package shapes — the EXACT site of the live self-interface-selector bug", () => {
-    // ddicBridgeSource is what actually joins PACKAGE_DATA_LINES's `DATA
-    // lo_package TYPE REF TO if_package.` to packageFragment's body — the
-    // same assembly `createPackageViaBridge` sends over the wire (see
-    // test/package-create.test.ts's `sourceFor`). Fragment-only source has
-    // no DATA declarations at all (they live in PACKAGE_DATA_LINES).
-    const fullSource = (p: PackageBridgeParams): string =>
-      ddicBridgeSource(DDIC_BRIDGE_CLASS.createPackage, PACKAGE_DATA_LINES, packageFragment(p));
-    assertNoSelfInterfaceSelectorHits(fullSource(PACKAGE_ROOT), "packageFragment(root)");
-    assertNoSelfInterfaceSelectorHits(fullSource(PACKAGE_SUB), "packageFragment(sub)");
+  // packageFragment/classicViewFragment/transactionFragment (and the
+  // ddicBridgeSource/DDIC_BRIDGE_CLASS/PACKAGE_DATA_LINES assembly they used)
+  // are gone: S3 moved create_package/create_view/create_transaction onto
+  // the fluid `classic` tool, whose ABAP is one static `ClassicAbapPart`
+  // per operation family (src/adt/fluid/builtin/classic/*.ts) with no
+  // per-call assembly step — every caller value is read at runtime via
+  // scan()/s()/b()/n(), never spliced into source text, so there is no
+  // longer a per-call "emitted ABAP" distinct from the part's own literal
+  // `.source` string. That string is what actually ships now; scanning it
+  // directly is the direct replacement and remains the exact site of the
+  // live incident this file guards (`packagePart.source` below).
+  it("packagePart.source: root and sub-package create/delete — the EXACT site of the live self-interface-selector bug", () => {
+    assertNoSelfInterfaceSelectorHits(packagePart.source, "packagePart.source");
     // Not vacuous: lo_package really is declared TYPE REF TO if_package here.
-    const src = fullSource(PACKAGE_SUB);
-    expect(src).toContain("TYPE REF TO if_package");
-    expect(scanForSelfInterfaceSelector(src).declarationCount).toBeGreaterThan(0);
+    expect(packagePart.source).toContain("TYPE REF TO if_package");
+    expect(scanForSelfInterfaceSelector(packagePart.source).declarationCount).toBeGreaterThan(0);
   });
 
-  it("classicViewFragment: no TYPE REF TO in this generator at all — checked, nothing to guard", () => {
-    const src = classicViewFragment(VIEW_PARAMS).join("\n");
-    assertNoSelfInterfaceSelectorHits(src, "classicViewFragment");
-    expect(scanForSelfInterfaceSelector(src).declarationCount).toBe(0);
+  it("viewPart.source: no TYPE REF TO in this part at all — checked, nothing to guard", () => {
+    assertNoSelfInterfaceSelectorHits(viewPart.source, "viewPart.source");
+    expect(scanForSelfInterfaceSelector(viewPart.source).declarationCount).toBe(0);
   });
 
-  it("transactionFragment: no TYPE REF TO in this generator at all — checked, nothing to guard", () => {
-    const src = transactionFragment(TRAN_PARAMS).join("\n");
-    assertNoSelfInterfaceSelectorHits(src, "transactionFragment");
-    expect(scanForSelfInterfaceSelector(src).declarationCount).toBe(0);
+  it("tranPart.source: no TYPE REF TO in this part at all — checked, nothing to guard", () => {
+    assertNoSelfInterfaceSelectorHits(tranPart.source, "tranPart.source");
+    expect(scanForSelfInterfaceSelector(tranPart.source).declarationCount).toBe(0);
   });
 
   it("exerciseFragment: declares lo_badi TYPE REF TO <badiName> and calls lo_badi-><method> with NO interface prefix at all", () => {
@@ -270,12 +259,33 @@ describe("emitted ABAP — pure fragment generators, called directly (no live co
 });
 
 // ---------------------------------------------------------------------------
-// 1b — enhancement-bridge.ts: epilogueFragment/badiFilterCheckFragment aren't
-// exported (code-controlled handle literals, never caller input — see that
-// file's header), so the only way to see the REAL emitted ABAP for those is
-// the actual source PUT over the wire. Same offline fake-transport harness
-// test/enhancement-bridge.test.ts and test/package-create.test.ts already
-// use — genuinely a live generator's real output, not a hand-copied fixture.
+// 1b — the one enhancement path that still ASSEMBLES ABAP per call, captured
+// as the real source PUT over the wire.
+//
+// This used to cover createEnhancementSpot and createBadiImplementation,
+// because their epilogueFragment/badiFilterCheckFragment weren't exported and
+// the wire was the only way to see what they really emitted. S12 rerouted both
+// (and add_badi_def, add_filter_def, set_filter_values) through the fluid
+// `dispatch()`: their ABAP is now one static body string in
+// src/adt/fluid/builtin/enh.ts, deployed once rather than assembled per call.
+// Static text needs no wire capture to be read — the section-2 sweep below
+// reads that file straight off disk and applies the identical rule, which is
+// why those two tests are gone rather than rewritten against a fluid-deploy
+// fixture that would prove nothing extra.
+//
+// `exerciseBadi` is the remainder, and is deliberately still on a generated
+// bridge (the emitted ABAP varies with the caller's BAdI name, method and
+// parameter list, which the fluid runtime's scalar-JSON arguments cannot
+// carry). So it is exactly what this half exists for, and it is what is
+// captured here now. Same offline fake-transport harness
+// test/enhancement-bridge.test.ts and test/package-create.test.ts already use.
+//
+// Note the coverage this shifts: the deleted tests were also the file's
+// non-vacuity anchor for the legitimate different-interface shape
+// (`lo_spot->if_enh_object~`). The exercise bridge has no `->if_..~` call at
+// all, so that anchor could not move here; it moved to the sweep's
+// false-positive check in section 2, which now names
+// src/adt/fluid/builtin/enh.ts — the file those shapes actually moved into.
 // ---------------------------------------------------------------------------
 
 const cfg = (): Config =>
@@ -306,6 +316,15 @@ class RecordingClient implements HttpClient {
 
 const SESSION_URL = "/sap/bc/adt/compatibility/graph";
 const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
+
+const FLUID_PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const FLUID_PACKAGE_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${ENH_BRIDGE_PACKAGE}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
 
 const LOCK_XML = (handle = "H1") =>
   `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
@@ -342,6 +361,8 @@ function sharedRoute(
     if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
     if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+    if (o.url === FLUID_PKG_URI && (o.method ?? "GET").toUpperCase() === "GET")
+      return resp(200, FLUID_PACKAGE_XML, { "content-type": "application/xml" });
     return undefined;
   };
 }
@@ -382,7 +403,10 @@ const AFFECTS = { name: "ZCL_TARGET", packageName: "ZTARGET_PKG", masterSystem: 
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: [ENH_CREATE_PACKAGE],
+    allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE],
+    // $ is outside the default Z/Y customer namespace, same as
+    // test/fluid-package.test.ts's own gate() — needed for the bridge class's own deploy into ENH_BRIDGE_PACKAGE.
+    allowNamePrefixes: ["*"],
     writesLockedOut: false,
     allowEnhancements: true,
     enhanceTargets: "customer",
@@ -396,48 +420,28 @@ function sourcePutFor(inner: RecordingClient, className: string): string {
   return String(put?.body);
 }
 
-describe("emitted ABAP — enhancement-bridge.ts, captured off the wire (fake transport, same idiom as test/enhancement-bridge.test.ts)", () => {
-  it("createEnhancementSpot: the real PUT body (lo_spot->if_enh_object~... epilogue) is clean", async () => {
+describe("emitted ABAP — the exercise bridge, captured off the wire (fake transport, same idiom as test/enhancement-bridge.test.ts)", () => {
+  it("exerciseBadi: the real PUT body — assembled per call from the caller's BAdI name, method and parameters — is clean", async () => {
     const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createSpot),
-      sharedRoute(classrunOutput(["SPOT-OBJECT-CREATED"])),
+      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.exercise),
+      sharedRoute(classrunOutput(["EXERCISED"])),
     );
     const { conn, inner } = await connected(route);
-    await createEnhancementSpot(conn, allowingGate(), {
-      spotName: "ZMCP_SPOT",
-      description: "A spot",
-      affects: AFFECTS,
-    });
-    const src = sourcePutFor(inner, BRIDGE_CLASS.createSpot);
-    assertNoSelfInterfaceSelectorHits(src, "createEnhancementSpot PUT body");
-    // Not vacuous: the legitimate different-interface prefix really is in there.
-    expect(src).toContain("lo_spot->if_enh_object~");
+    await exerciseBadi(conn, allowingGate(), { ...EXERCISE_PARAMS, affects: AFFECTS });
+    const src = sourcePutFor(inner, BRIDGE_CLASS.exercise);
+    assertNoSelfInterfaceSelectorHits(src, "exerciseBadi PUT body");
+    // Not vacuous in the sense that matters for THIS scan: the body really does
+    // declare a TYPE REF TO whose name the scan would compare a `->x~` prefix
+    // against, so an empty hit list is a decision and not an empty input. It is
+    // deliberately NOT asserted to contain a legitimate `->if_..~` call: this
+    // bridge has none, and pretending otherwise would be a false anchor. The
+    // false-positive side is anchored in section 2 instead.
     expect(scanForSelfInterfaceSelector(src).declarationCount).toBeGreaterThan(0);
-  });
-
-  it("createBadiImplementation: the real PUT body (lo_enh->if_enh_object~... + lo_impl->if_enh_object_docu~... epilogues) is clean", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createImpl),
-      sharedRoute(classrunOutput(["ENHO-OBJECT-CREATED", "IMPL-ADDED"])),
-    );
-    const { conn, inner } = await connected(route);
-    await createBadiImplementation(conn, allowingGate(), {
-      enhName: "ZMCP_ENH_BADI",
-      spotName: "ZMCP_SPOT",
-      badiName: "ZMCP_BADI",
-      implName: "ZMCP_IMPL",
-      implClass: "ZCL_MCP_IMPL",
-      description: "Test implementation",
-      active: true,
-      affects: AFFECTS,
-    });
-    const src = sourcePutFor(inner, BRIDGE_CLASS.createImpl);
-    assertNoSelfInterfaceSelectorHits(src, "createBadiImplementation PUT body");
-    // Not vacuous: TWO distinct different-interface prefixes are really in there
-    // (the epilogue on lo_enh, and set_shorttext on lo_impl).
-    expect(src).toContain("lo_enh->if_enh_object~");
-    expect(src).toContain("lo_impl->if_enh_object_docu~");
-    expect(scanForSelfInterfaceSelector(src).declarationCount).toBeGreaterThan(0);
+    // And the caller's own values really did reach the emitted source — without
+    // this, a harness that silently PUT an empty or default body would still
+    // pass everything above.
+    expect(src).toContain(EXERCISE_PARAMS.badiName);
+    expect(src).toContain(EXERCISE_PARAMS.methodName);
   });
 });
 
@@ -495,13 +499,20 @@ describe("source sweep — every .ts under src/, read from disk", () => {
   });
 
   it("the sweep reaches the known-legitimate sites and does NOT flag them (false-positive check)", () => {
-    const enhBridge = readFileSync(join(SRC_DIR, "adt", "enhancement-bridge.ts"), "utf8");
-    const enhTemplates = readFileSync(join(SRC_DIR, "adt", "enhancement-templates.ts"), "utf8");
-    // Confirm the legitimate shapes are actually present in these files —
-    // otherwise a "not flagged" result would be meaningless (nothing to flag).
-    expect(enhBridge).toContain("lo_spot->if_enh_object~");
-    expect(enhTemplates).toContain("lo_impl->if_enh_object_docu~");
-    expect(scanForSelfInterfaceSelector(enhBridge).hits).toEqual([]);
-    expect(scanForSelfInterfaceSelector(enhTemplates).hits).toEqual([]);
+    // Both legitimate shapes used to live in `adt/enhancement-bridge.ts` and
+    // `adt/enhancement-templates.ts`. When `abap_enh`'s five create/modify
+    // entries were rerouted through the fluid `dispatch()`, that ABAP moved
+    // wholesale into the `enh` built-in's body class; neither of the two
+    // original files now holds a `->if_..~` call at all. This assertion follows
+    // the shape rather than the filename, and both anchors are asserted against
+    // the one file that has them — leaving either pointed at its old home would
+    // have turned this false-positive check into exactly the vacuous assertion
+    // it exists to prevent.
+    const enhBuiltin = readFileSync(join(SRC_DIR, "adt", "fluid", "builtin", "enh.ts"), "utf8");
+    // Confirm the legitimate shapes are actually present — otherwise a
+    // "not flagged" result would be meaningless (nothing to flag).
+    expect(enhBuiltin).toContain("lo_spot->if_enh_object~");
+    expect(enhBuiltin).toContain("lo_impl->if_enh_object_docu~");
+    expect(scanForSelfInterfaceSelector(enhBuiltin).hits).toEqual([]);
   });
 });

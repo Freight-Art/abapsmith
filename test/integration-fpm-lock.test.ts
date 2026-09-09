@@ -20,11 +20,12 @@
  * (`ABAP_MODE=edit`/`admin`, or legacy `ABAP_ALLOW_WRITE=true` — see
  * `test/helpers/live-write-gate.ts`) —
  * this suite takes real `ENQUEUE_E_WDY_CONFCOMP` locks and writes throwaway
- * `$TMP` bridge classes. Every artefact this file creates is `ZMCP_`-
- * prefixed and lives in `$TMP`; every test releases what it took in a
- * `try/finally`, and `afterAll` runs one more best-effort sweep for any
- * `ZMCP_LK_LIVE*` lock row left behind by an aborted run. Never touch an
- * object this suite did not create.
+ * bridge classes: most into `$TMP`, plus — via the real `runFpmReadTool`
+ * path the `mode:"locks"` test drives — some into `FLUID_PACKAGE`. Every
+ * artefact this file creates is `ZMCP_`-prefixed; every test releases what
+ * it took in a `try/finally`, and `afterAll` runs one more best-effort
+ * sweep for any `ZMCP_LK_LIVE*` lock row left behind by an aborted run.
+ * Never touch an object this suite did not create.
  *
  * Tests 2 and 4 deliberately reproduce broken/edge-case enqueue shapes
  * (a wildcard landmine, and an intentionally un-released lock).
@@ -44,15 +45,11 @@ import { activateObject, assertNoErrors } from "../src/adt/activate.js";
 import { runClass } from "../src/adt/run.js";
 import { liveSuiteSkipReason, skipForApplianceState } from "./live-appliance-state.js";
 import {
-  fpmLockKey,
-  buildLockedOperationSource,
-  fpmLockBridgeClassName,
-  parseLockTranscript,
   hasWildcardFill,
   parseGarg,
   FPM_LOCK_SCOPE,
-  type FpmLockedOperation,
 } from "../src/adt/fpm-lock.js";
+import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 
 loadEnvFile(); // so a .env in the repo root enables the live suite
 const notRun = liveSuiteSkipReason({ write: true });
@@ -60,9 +57,9 @@ const dw = notRun === undefined ? describe : describe.skip;
 // A collection-time skip is counted but never says why; state the reason once, greppably.
 if (notRun !== undefined) it("live A4H fpm-lock protocol: suite not run", (ctx) => skipForApplianceState(ctx, notRun));
 
-dw("live A4H fpm-lock protocol (write path, $TMP only)", () => {
+dw("live A4H fpm-lock protocol (write path, $TMP + the fluid package)", () => {
   let conn: AbapConnection;
-  const GATE = new SafetyGate({ readOnly: false, allowPackages: ["$TMP"] });
+  const GATE = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", FLUID_PACKAGE] });
   const breaker = new AuthCircuitBreaker();
   /**
    * Built lazily and ONLY for the `mode:"locks"` test, which is the one case
@@ -142,14 +139,6 @@ dw("live A4H fpm-lock protocol (write path, $TMP only)", () => {
     const runnable = await prepareBridge(className, source, description);
     const run = await runClass(conn, runnable);
     return run.output;
-  }
-
-  /** Runs the pinned `buildLockedOperationSource` protocol end to end and parses its transcript. */
-  async function runLockedOperation(op: FpmLockedOperation) {
-    const className = fpmLockBridgeClassName(op);
-    const source = buildLockedOperationSource(op, className);
-    const raw = await runBridge(className, source, `abapsmith fpm-lock live protocol test (${op.bodyLabel})`);
-    return parseLockTranscript(raw);
   }
 
   // ---------------------------------------------------------------------
@@ -252,73 +241,6 @@ ENDCLASS.
       process.stderr.write(`[fpm-lock live] ${label}: best-effort sweep failed: ${String(e)}\n`);
     }
   }
-
-  // =======================================================================
-  // 1. Full protocol round trip
-  // =======================================================================
-  it("full protocol round trip: acquire -> verify -> body -> release, live", async () => {
-    assertUsable();
-    const key = fpmLockKey({ configId: "ZMCP_LK_LIVE1", configType: "00" });
-    const op: FpmLockedOperation = {
-      key,
-      // Trivial, side-effect-free body — NOT a real config save. The
-      // surrounding generated protocol supplies `mo_out` (fpm-lock.ts
-      // mirrors fpm-runtime.ts's bridge-class structure, which exposes the
-      // classrun's out-writer to generated statements under that name).
-      // NB: the body may not contain the `LCK> ` transcript prefix (it must not
-      // be able to forge protocol lines) nor any of the control-flow tokens in
-      // FORBIDDEN_BODY_TOKENS — hence the `BODY>` prefix and the token-free
-      // marker text. Both restrictions are asserted offline in fpm-lock.test.ts.
-      body: `mo_out->write( |BODY> BODYECHO marker=[ROUNDTRIP1-OK]| ).`,
-      bodyLabel: "roundtrip1",
-    };
-
-    try {
-      const transcript = await runLockedOperation(op);
-
-      expect(transcript.selfOwnerId).toBeTruthy();
-      expect(transcript.acquire?.subrc).toBe(0);
-      expect(transcript.acquire?.foreignLock).toBe(false);
-      expect(transcript.acquire?.systemFailure).toBe(false);
-
-      const afterAcquire = transcript.phases.find((p) => p.phase === "after-acquire");
-      expect(afterAcquire?.rows).toHaveLength(1);
-      const row = afterAcquire!.rows[0];
-      expect(row.garg_view.configId).toBe(key.configId);
-      expect(row.garg_view.configType).toBe(key.configType);
-      expect(row.garg_view.configVar).toBe(key.configVar);
-      expect(row.garg_view.isWildcard).toBe(false);
-
-      expect(transcript.preSaveVerify?.passed).toBe(true);
-      expect(transcript.preSaveVerify?.mine).toBe(true);
-      expect(transcript.preSaveVerify?.wildcard).toBe(false);
-      expect(transcript.saveReached).toBe(true);
-      expect(transcript.release?.status).toBe("released");
-      expect(transcript.wildcardDetected).toBe(false);
-      expect(transcript.aborts).toHaveLength(0);
-
-      // ...and the release is verified by a re-read in THIS SAME classrun, not
-      // inferred from DEQUEUE's subrc (which is 0 even for a no-op). The
-      // `after-release` phase must be PRESENT with zero rows: present proves
-      // the re-read ran, zero proves the lock is gone. A missing phase is not
-      // the same as an empty one, which is why `reportedRows` is asserted too —
-      // it is the count SAP itself printed, independent of ROW-line survival.
-      const afterRelease = transcript.phases.find((p) => p.phase === "after-release");
-      expect(afterRelease).toBeDefined();
-      expect(afterRelease?.rows).toHaveLength(0);
-      expect(afterRelease?.reportedRows).toBe(0);
-
-      // One classrun, one lock lifetime: acquire, verify, body and release all
-      // appear in a single transcript, in order.
-      expect(transcript.phases.map((p) => p.phase)).toEqual([
-        "after-acquire",
-        "postbody",
-        "after-release",
-      ]);
-    } finally {
-      await bestEffortSweep("round-trip test");
-    }
-  }, 90_000);
 
   // =======================================================================
   // 2. Wildcard detector fires on a deliberately sloppy enqueue
@@ -445,40 +367,6 @@ ENDCLASS.
   }, 90_000);
 
   // =======================================================================
-  // 3. Release verification is real.
-  //
-  //    This is the one assertion the offline fake CANNOT make: it proves a
-  //    real re-read of SAP's own SEQG3 enqueue table came back empty after
-  //    DEQUEUE -- not merely that the code called DEQUEUE and trusted its
-  //    subrc, which the spike proved is worthless (0 for a real delete, 0
-  //    for a no-op, 0 for an empty table -- contract sec 1). A fake has no
-  //    real SEQG3 table behind it, so it cannot fail this check even if the
-  //    release logic were completely broken. Only a live re-read can.
-  // =======================================================================
-  it("release verification is real: a live re-read after release shows zero rows", async () => {
-    assertUsable();
-    const key = fpmLockKey({ configId: "ZMCP_LK_LIVE3", configType: "00" });
-    const op: FpmLockedOperation = {
-      key,
-      // "RELEASE-CHECK" would trip the `\bCHECK\b` guard; "CHECK" is a forbidden
-      // body token because a failing CHECK exits the block and skips the release.
-      body: `mo_out->write( |BODY> BODYECHO marker=[RELEASE-VERIFY]| ).`,
-      bodyLabel: "releasecheck",
-    };
-
-    try {
-      const transcript = await runLockedOperation(op);
-      expect(transcript.release?.status).toBe("released");
-
-      const afterRelease = transcript.phases.find((p) => p.phase === "after-release");
-      expect(afterRelease).toBeDefined();
-      expect(afterRelease?.rows).toHaveLength(0);
-    } finally {
-      await bestEffortSweep("release-verification test");
-    }
-  }, 90_000);
-
-  // =======================================================================
   // 4. Single observation, NOT a lock-lifetime guarantee.
   //
   //    It has been established that
@@ -589,109 +477,6 @@ ENDCLASS.
       expect(countMatch?.[1]).toBe("0");
     } finally {
       await bestEffortSweep("lock-lifetime test");
-    }
-  }, 90_000);
-
-  // =======================================================================
-  // 5. THE EXCEPTION PATH — the single most important test in this file.
-  //
-  //    An earlier cut of buildLockedOperationSource let an exception raised
-  //    by the caller's body unwind straight past the DEQUEUE, leaking the
-  //    lock: a fail-open, and the worst kind, because the happy path stayed
-  //    green and the leak only appeared when a save went wrong. The inner
-  //    TRY/CATCH turns that unwind into a fall-through so the release below
-  //    it is reached on EVERY path.
-  //
-  //    Only the wire can prove this: a fake has no ABAP runtime, so it can
-  //    neither raise CX_SY_ZERODIVIDE nor fail to run a DEQUEUE.
-  // =======================================================================
-  it("a body that raises still releases the lock (inner TRY/CATCH, no fail-open)", async () => {
-    assertUsable();
-    const key = fpmLockKey({ configId: "ZMCP_LK_LIVE5", configType: "00" });
-    const op: FpmLockedOperation = {
-      key,
-      // Divide by a variable zero: a genuine, unavoidable ABAP runtime
-      // exception (CX_SY_ZERODIVIDE). Deliberately NOT `RAISE EXCEPTION` --
-      // this is the shape a real save failure takes. The literal `1 / 0`
-      // would be caught at compile time instead.
-      body: [
-        `DATA lv_zero TYPE i VALUE 0.`,
-        `DATA lv_boom TYPE i.`,
-        `mo_out->write( |BODY> about to raise| ).`,
-        `lv_boom = 1 / lv_zero.`,
-        `mo_out->write( |BODY> UNREACHABLE { lv_boom }| ).`,
-      ].join("\n"),
-      bodyLabel: "excpath",
-    };
-
-    try {
-      const transcript = await runLockedOperation(op);
-
-      // The body was entered and then blew up...
-      expect(transcript.saveReached).toBe(true);
-      expect(transcript.aborts.join(" | ")).toMatch(/body-exception/);
-      expect(transcript.aborts.join(" | ")).toMatch(/CX_SY_ZERODIVIDE/);
-
-      // ...and the lock was STILL released, verified by re-read, not subrc.
-      expect(transcript.release?.status).toBe("released");
-      const afterRelease = transcript.phases.find((p) => p.phase === "after-release");
-      expect(afterRelease).toBeDefined();
-      expect(afterRelease?.rows).toHaveLength(0);
-      expect(afterRelease?.reportedRows).toBe(0);
-    } finally {
-      await bestEffortSweep("exception-path test");
-    }
-  }, 90_000);
-
-  // =======================================================================
-  // 6. E_WDY_CONFAPPL — the application-scope lock object.
-  //
-  //    FPM_LOCK_OBJECTS.application was carried over from the component lock
-  //    object BY ANALOGY: the spike never enqueued, dequeued or read it, and
-  //    in particular never captured a GARG, so the 0/32/34 segment layout was
-  //    an assumption. This test exercises it for real.
-  // =======================================================================
-  it("E_WDY_CONFAPPL: config_type 02 locks WDY_CONFIG_APPL with the assumed GARG layout", async () => {
-    assertUsable();
-    const key = fpmLockKey({ configId: "ZMCP_LK_LIVE7", configType: "02" });
-    const op: FpmLockedOperation = {
-      key,
-      body: `mo_out->write( |BODY> BODYECHO marker=[APPL-OK]| ).`,
-      bodyLabel: "appl1",
-    };
-
-    try {
-      const transcript = await runLockedOperation(op);
-
-      expect(transcript.acquire?.subrc).toBe(0);
-      expect(transcript.acquire?.foreignLock).toBe(false);
-
-      const afterAcquire = transcript.phases.find((p) => p.phase === "after-acquire");
-      expect(afterAcquire?.rows).toHaveLength(1);
-      const row = afterAcquire!.rows[0];
-
-      // The routing decision: config_type "02" must land on the APPLICATION
-      // lock object, not the component one.
-      expect(row.gname).toBe("WDY_CONFIG_APPL");
-      expect(row.gobj).toBe("E_WDY_CONFAPPL");
-
-      // The inferred GARG layout, now checked against a real row: config_id in
-      // [0,32), config_type in [32,34). If SAP laid this table out differently
-      // these slices would come back as something other than what we locked.
-      expect(row.garg_view.configId).toBe(key.configId);
-      expect(row.garg_view.configType).toBe("02");
-      expect(row.garg_view.isWildcard).toBe(false);
-
-      // Owner discrimination works on this lock object too.
-      expect(row.ownership).toBe("MINE");
-
-      expect(transcript.saveReached).toBe(true);
-      expect(transcript.release?.status).toBe("released");
-      const afterRelease = transcript.phases.find((p) => p.phase === "after-release");
-      expect(afterRelease?.reportedRows).toBe(0);
-      expect(transcript.aborts).toHaveLength(0);
-    } finally {
-      await bestEffortSweep("application-lock test");
     }
   }, 90_000);
 
@@ -808,226 +593,6 @@ ENDCLASS.
       await bestEffortSweep("foreign-lock mode:locks test");
     }
   }, 240_000);
-
-  // =======================================================================
-  // 8. CONTENTION — the real collision scenario, not just observing one.
-  //
-  //    The defect this guards against is not "a foreign lock can be
-  //    observed". It is: SAVE_COMP_
-  //    CONFIG_TO_DB committed a write even though the writing session's OWN
-  //    enqueue had been REFUSED with FOREIGN_LOCK (subrc=1). Test 7 above
-  //    OBSERVES a foreign lock from a third-party inspect; it never COLLIDES
-  //    with one. This test collides.
-  //
-  //    Session A holds a precise lock on ZMCP_LK_LIVE8. Session B then runs
-  //    the SHIPPED generated protocol (buildLockedOperationSource — not
-  //    hand-written ABAP) against the SAME key, so the code path under test
-  //    is exactly the one that ships.
-  //
-  //    The body carries an observable side effect: it writes a distinctive
-  //    marker. "The body did not run" is therefore proved three ways —
-  //    the marker is ABSENT from the raw output, no `BODY state=[begin]`
-  //    line exists, and the protocol emits an explicit
-  //    `GUARD reason=[enqueue-refused]` saying so in words.
-  //
-  //    Both classes are write+activated BEFORE the hold window opens
-  //    (prepareBridge), so the only thing that has to fit inside the window
-  //    is a bare classrun.
-  // =======================================================================
-  const HOLD8_CLASS = "ZCL_ZMCP_LK_HOLD8";
-  const HOLD8_SECONDS = 45;
-  const CONTENTION_ID = "ZMCP_LK_LIVE8";
-  /** Must not appear anywhere in session B's output. Its absence IS the assertion. */
-  const BODY8_MARKER = "CONTENTION8-BODY-RAN";
-  const hold8Source = `CLASS zcl_zmcp_lk_hold8 DEFINITION
-  PUBLIC FINAL
-  CREATE PUBLIC.
-  PUBLIC SECTION.
-    INTERFACES if_oo_adt_classrun.
-ENDCLASS.
-
-CLASS zcl_zmcp_lk_hold8 IMPLEMENTATION.
-  METHOD if_oo_adt_classrun~main.
-    " Session A. Takes a PRECISE lock (every X-flag set, exactly the shape
-    " fpm-lock.ts itself generates) on the key session B is about to ask for,
-    " and holds it across the WAIT so that B's ENQUEUE is genuinely refused
-    " rather than merely observed. Released explicitly below; the suite's
-    " sweeper is the backstop if this classrun dies before the DEQUEUE.
-    CALL FUNCTION 'ENQUEUE_E_WDY_CONFCOMP'
-      EXPORTING
-        config_id      = '${CONTENTION_ID}'
-        config_type    = '00'
-        config_var     = ''
-        x_config_id    = 'X'
-        x_config_type  = 'X'
-        x_config_var   = 'X'
-        _scope         = '${FPM_LOCK_SCOPE}'
-      EXCEPTIONS
-        foreign_lock   = 1
-        system_failure = 2
-        OTHERS         = 3.
-    out->write( |LCK8> ENQ subrc=[{ sy-subrc }]| ).
-    WAIT UP TO ${HOLD8_SECONDS} SECONDS.
-    CALL FUNCTION 'DEQUEUE_E_WDY_CONFCOMP'
-      EXPORTING
-        config_id     = '${CONTENTION_ID}'
-        config_type   = '00'
-        config_var    = ''
-        x_config_id   = 'X'
-        x_config_type = 'X'
-        x_config_var  = 'X'
-        _scope        = '${FPM_LOCK_SCOPE}'.
-    out->write( |LCK8> DONE| ).
-  ENDMETHOD.
-ENDCLASS.
-`;
-
-  it("contention: a REFUSED enqueue stops the protocol before the body", async () => {
-    assertUsable();
-    const base = loadConfig();
-    const cfg = { ...base, readOnly: false, allowPackages: ["$TMP"] };
-
-    const key = fpmLockKey({ configId: CONTENTION_ID, configType: "00" });
-    const op: FpmLockedOperation = {
-      key,
-      // An observable side effect. If the protocol ever runs the body despite
-      // a refused enqueue, this marker lands in the classrun output and the
-      // `not.toContain` below fails loudly. `BODY>` (not `LCK> `) because the
-      // body may not forge protocol lines.
-      body: `mo_out->write( |BODY> BODYECHO marker=[${BODY8_MARKER}]| ).`,
-      bodyLabel: "contention8",
-    };
-    const bClassName = fpmLockBridgeClassName(op);
-    const bSource = buildLockedOperationSource(op, bClassName);
-
-    // Sanity, offline: the marker really is in the source we are about to run,
-    // so its absence from the OUTPUT means "not executed" and not "not there".
-    expect(bSource).toContain(BODY8_MARKER);
-
-    // Prepared up front: write+activate must not eat into the hold window.
-    const holderRunnable = await prepareBridge(
-      HOLD8_CLASS,
-      hold8Source,
-      "abapsmith fpm-lock contention holder ($TMP)",
-    );
-    const bRunnable = await prepareBridge(
-      bClassName,
-      bSource,
-      "abapsmith fpm-lock contention victim ($TMP)",
-    );
-
-    pool ??= new AdtSessionPool({
-      cfg,
-      breaker,
-      log: () => {},
-      createConnection: (c, o) => new AbapConnection(c, { ...o, log: () => {} }),
-      prepareConnection: async (c) => {
-        await c.connect();
-      },
-    });
-    const deps: FpmToolDeps = {
-      pool,
-      safety: GATE,
-      ensureConnected: async () => {},
-      errorResult: (e: unknown) => ({
-        content: [{ type: "text" as const, text: `ERR ${String(e)}` }],
-        isError: true,
-      }),
-      cfg: { maxResponseChars: 200_000 },
-    };
-
-    // Session B: a genuinely separate SAP session. Both sessions log on as the
-    // same SAP user, so the refusal can only come from enqueue OWNERSHIP, not
-    // from a user-name mismatch.
-    const connB = new AbapConnection(cfg, { log: () => {}, breaker });
-    await connB.connect();
-
-    // Started but NOT awaited: session A holds the lock for HOLD8_SECONDS.
-    const holder = runClass(conn, holderRunnable);
-    holder.catch(() => {}); // never an unhandled rejection; awaited below
-
-    try {
-      // Well inside the window: the holder classrun only has to reach its
-      // ENQUEUE, which is its first statement.
-      await new Promise((r) => setTimeout(r, 6_000));
-
-      const runB = await runClass(connB, bRunnable);
-      const rawB = runB.output;
-
-      // ---- 1. our own enqueue was REFUSED ------------------------------
-      expect(rawB).toMatch(
-        /^LCK> ENQ fm=\[ENQUEUE_E_WDY_CONFCOMP\] subrc=\[1\] exc=\[foreign_lock\] scope=\[1\]$/m,
-      );
-
-      // ---- 2. the body did NOT run -------------------------------------
-      // (a) the side effect never happened...
-      expect(rawB).not.toContain(BODY8_MARKER);
-      // (b) ...and the protocol never even announced the body.
-      expect(rawB).not.toMatch(/^LCK> BODY /m);
-      // (c) nor did it reach the verify, the release or any row phase: on a
-      //     refused enqueue there is nothing held, so nothing to read back or
-      //     give back. A DEQ line here would mean we tried to release someone
-      //     else's lock.
-      expect(rawB).not.toMatch(/^LCK> VERIFY /m);
-      expect(rawB).not.toMatch(/^LCK> DEQ /m);
-      expect(rawB).not.toMatch(/^LCK> RELEASE /m);
-      expect(rawB).not.toMatch(/^LCK> ROW /m);
-      expect(rawB).not.toMatch(/^LCK> COUNT /m);
-
-      // ---- 3. it said so, in words, on the wire ------------------------
-      expect(rawB).toMatch(
-        /^LCK> GUARD reason=\[enqueue-refused\] detail=\[ENQUEUE_E_WDY_CONFCOMP subrc=1 \(foreign_lock\) - the body was not run and nothing was released\]$/m,
-      );
-
-      // ---- 4. and it reports the contention honestly to the caller ------
-      const transcript = parseLockTranscript(rawB);
-      expect(transcript.acquire?.subrc).toBe(1);
-      expect(transcript.acquire?.foreignLock).toBe(true);
-      expect(transcript.acquire?.systemFailure).toBe(false);
-      expect(transcript.saveReached).toBe(false);
-      expect(transcript.preSaveVerify).toBeUndefined();
-      expect(transcript.release).toBeUndefined();
-      expect(transcript.phases).toHaveLength(0);
-      expect(transcript.wildcardDetected).toBe(false);
-      expect(transcript.aborts).toEqual([
-        "enqueue-refused: ENQUEUE_E_WDY_CONFCOMP subrc=1 (foreign_lock) - the body was not run and nothing was released",
-      ]);
-      // The session was healthy and identified itself — it was refused THIS
-      // key, not broken. Without this, `saveReached: false` could just mean
-      // the classrun blew up before it got anywhere.
-      expect(transcript.selfOwnerId).toBeTruthy();
-
-      // ---- 5. B left no lock behind ------------------------------------
-      // Inspected from a THIRD session while A is still holding: exactly one
-      // row on this key. If B had acquired (or leaked) anything there would
-      // be two, and if B had somehow stolen it the owner would be B's.
-      const res = await runFpmReadTool(deps, {
-        mode: "locks",
-        config_id: CONTENTION_ID,
-        config_type: "00",
-      });
-      const text = (res.content as Array<{ type: string; text?: string }>)
-        .map((c) => c.text ?? "")
-        .join("\n");
-      expect(res.isError).toBeFalsy();
-      expect(text).toMatch(/^locks: 1$/m);
-      expect(text).toMatch(/WDY_CONFIG_DATA\s+ZMCP_LK_LIVE8\s+00\s+precise\s+FOREIGN/);
-
-      // ---- 6. session A was, in fact, the holder ------------------------
-      const holderOut = (await holder).output;
-      expect(holderOut).toMatch(/^LCK8> ENQ subrc=\[0\]$/m);
-      expect(holderOut).toMatch(/^LCK8> DONE$/m);
-
-      // ---- 7. nothing survives once A releases -------------------------
-      // A dedicated sweep, asserted rather than best-effort: zero rows means
-      // neither session left anything on either lock object.
-      expect(await sweepLocks()).toBe(0);
-    } finally {
-      await holder.catch(() => {});
-      await connB.shutdown("test-end").catch(() => {});
-      await bestEffortSweep("contention test");
-    }
-  }, 300_000);
 
   // =======================================================================
   // 9. The same sloppy-enqueue hazard on the OTHER lock object.

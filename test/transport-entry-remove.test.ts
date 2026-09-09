@@ -1,221 +1,120 @@
 /**
- * `src/adt/transport-entry-remove.ts` (the `TREN` DDIC bridge) plus the two
- * layers around it: `trFindEntryHolder` (`src/adt/transports.ts`) and
- * `abap_transport` operation `removeObject` (`src/tools/transport.ts`).
- * Offline throughout — no network, no live appliance.
+ * `src/adt/transport-entry-remove.ts` (the `TREN` classic-dispatch bridge)
+ * plus the two layers around it: `trFindEntryHolder` (`src/adt/transports.ts`)
+ * and `abap_transport` operation `removeObject` (`src/tools/transport.ts`).
  *
- * Bridge deploy/execute mechanics are exercised via the fake-`HttpClient`
- * harness from `test/view-delete.test.ts`; `trFindEntryHolder` and the tool
- * layer's cheap refusals are exercised via `fakeCtsConnection` and the
- * already-captured `transport-details-with-objects` fixture.
+ * Post-S3 architecture: there is no more per-operation `ZCL_ZMCP_DDIC_*`
+ * classrun bridge class. `removeTransportEntryViaBridge` now calls
+ * `runClassicAction` (`src/adt/classic-call.ts`), which routes through the
+ * fluid `classic` tool's single static body class `ZCL_ZMCP_FLUID_CLASSIC`
+ * (`src/adt/fluid/builtin/classic.ts`) via `dispatch`. The ABAP itself lives
+ * in `src/adt/fluid/builtin/classic/abap-transport.ts`'s `transportPart` —
+ * that is now the authoritative source for this file's structural
+ * regression-guard tests, not `transport-entry-remove.ts`'s own comments.
+ *
+ * Offline throughout except for the fluid deploy/classrun plumbing (a fake
+ * `HttpClient`, never a live appliance): bridge deploy/execute mechanics are
+ * exercised via `test/helpers/fluid-classic-fake.ts`'s `classicFake`;
+ * `trFindEntryHolder` and the tool layer's cheap refusals are exercised via
+ * `fakeCtsConnection` and the already-captured `transport-details-with-objects`
+ * fixture (request A4HK900117, whose task A4HK900118 holds one locked E071
+ * row for ZMCP_CTS_PROBE, R3TR PROG, wbtype PROG/P).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { promises as fsp } from "node:fs";
-import * as os from "node:os";
-import * as path from "node:path";
-import type {
-  HttpClient,
-  HttpClientOptions,
-  HttpClientResponse,
-} from "abap-adt-api/build/AdtHTTP.js";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { SafetyGate } from "../src/safety.js";
-import { ConfigSchema, type Config } from "../src/config.js";
+import { ConfigSchema } from "../src/config.js";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
+import { DDIC_ERR_PREFIX } from "../src/adt/ddic-transcript.js";
 import {
-  ABAP_SOURCE_LINE_MAX,
-  DDIC_BRIDGE_CLASS,
-  DDIC_ERR_PREFIX,
-  DDIC_TAGS,
-  ddicBridgeSource,
-  parseDdicTranscript,
-} from "../src/adt/ddic-bridge.js";
-import {
-  TRANSPORT_ENTRY_REMOVE_DATA_LINES,
   removeTransportEntryViaBridge,
-  transportEntryRemoveFragment,
   type TransportEntryRemoveParams,
 } from "../src/adt/transport-entry-remove.js";
-import { authorizeCeiling, trFindEntryHolder, type CeilingGate } from "../src/adt/transports.js";
+import { authorizeCeiling, trFindEntryHolder } from "../src/adt/transports.js";
 import { abapTransport, type TransportInput, type TransportJournalDeps } from "../src/tools/transport.js";
+import { transportPart } from "../src/adt/fluid/builtin/classic/abap-transport.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import { canonicalArgsJson } from "../src/adt/fluid/invoke.js";
 import { Journal, type JournalConfig, type JournalEntry } from "../src/journal.js";
 import { fakeCtsConnection, loadCtsFixture } from "./helpers/cts-fixtures.js";
-import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { searchResultsXml, type FakeObjectRef } from "./helpers/fake-adt.js";
+import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
-const MAX_CHARS = 60_000;
-
-// ---------------------------------------------------------------------------
-// A `TransportCeilingProof`, minted the only legal way, for direct calls to
-// `removeTransportEntryViaBridge` — mirrors test/transports-verify.test.ts.
-// ---------------------------------------------------------------------------
-
-const alwaysAllow: CeilingGate = { evaluate: () => ({ allowed: true, reason: "test: always allowed" }) };
-const proof = authorizeCeiling(alwaysAllow, "transport");
+const fluidState = useFluidState();
 
 // ---------------------------------------------------------------------------
-// Fake HttpClient harness for the classrun bridge — same shape as
-// test/view-delete.test.ts / test/package-delete.test.ts.
+// Fake HttpClient harness — mirrors test/package-delete.test.ts exactly.
 // ---------------------------------------------------------------------------
 
-const cfg = (): Config =>
-  ConfigSchema.parse({
-    url: "http://sap.invalid:50000",
-    user: "TESTUSER",
-    password: "secret",
-    sid: "TST",
-    client: "001",
-    readOnly: false,
-  });
+type Route = (o: HttpClientOptions) => HttpClientResponse | undefined;
 
-const resp = (
-  status: number,
-  body = "",
-  headers: Record<string, unknown> = {},
-  statusText = String(status),
-): HttpClientResponse => ({ status, statusText, body, headers }) as unknown as HttpClientResponse;
-
-class RecordingClient implements HttpClient {
-  calls: HttpClientOptions[] = [];
-  constructor(private readonly respond: (o: HttpClientOptions) => HttpClientResponse) {}
+class FakeAdt implements HttpClient {
+  readonly calls: HttpClientOptions[] = [];
+  constructor(private readonly route: Route) {}
   async request(o: HttpClientOptions): Promise<HttpClientResponse> {
     this.calls.push(o);
-    return this.respond(o);
+    const res = this.route(o);
+    if (!res) throw new Error(`FakeAdt: unrouted request ${(o.method ?? "GET").toUpperCase()} ${o.url}`);
+    return res;
   }
 }
 
-const SESSION_URL = "/sap/bc/adt/compatibility/graph";
-const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
-const TRANSPORT_REQUESTS = "/sap/bc/adt/cts/transportrequests";
-const BRIDGE = DDIC_BRIDGE_CLASS.removeTransportEntry;
+const resp = (status: number, body = "", headers: Record<string, unknown> = {}): HttpClientResponse =>
+  ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
 
-const LOCK_XML = (handle = "H1") =>
-  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
-  `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
-  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
-  `</DATA></asx:values></asx:abap>`;
+const OK_XML = { "content-type": "application/xml" };
 
-/** GET-404 -> POST-create -> LOCK -> PUT -> UNLOCK for the bridge class itself. */
-function objectHappyPath(collectionUrl: string, name: string): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  const objUrl = `${collectionUrl}/${name.toLowerCase()}`;
-  const sourceUri = `${objUrl}/source/main`;
-  return (o: HttpClientOptions) => {
-    const qs = (o.qs ?? {}) as Record<string, string>;
-    const method = (o.method ?? "GET").toUpperCase();
-    if (o.url === objUrl && method === "GET" && !qs._action) {
-      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-    }
-    if (o.url === collectionUrl && method === "POST") return resp(200, "", {});
-    if (o.url === objUrl && qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-    if (o.url === objUrl && qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url === sourceUri && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    return undefined;
-  };
+function baseRoute(o: HttpClientOptions): HttpClientResponse | undefined {
+  if (o.url.includes("/compatibility/graph")) {
+    return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
+  }
+  if (o.url.endsWith("/discovery")) return resp(200, "<service/>", OK_XML);
+  if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
+  return undefined;
 }
 
-/**
- * Same happy path as {@link objectHappyPath}, except the source PUT is left unrouted — so
- * `combine`'s fallback throws a plain `Error` there instead of an `AbapError`. Used to prove
- * `enrichRemovalRefusal` passes a non-`AbapError` straight through untouched.
- */
-function brokenPutRoute(
-  collectionUrl: string,
-  name: string,
-): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  const base = objectHappyPath(collectionUrl, name);
-  const sourceUri = `${collectionUrl}/${name.toLowerCase()}/source/main`;
-  return (o: HttpClientOptions) => {
-    if (o.url === sourceUri && (o.method ?? "GET").toUpperCase() === "PUT") return undefined;
-    return base(o);
-  };
-}
-
-/** Session/discovery/activation/classrun plumbing shared by every bridge test below. */
-function sharedRoute(
-  classrun: (o: HttpClientOptions) => HttpClientResponse | undefined,
-): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  return (o: HttpClientOptions) => {
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) return classrun(o);
-    if (o.url.includes(SESSION_URL)) {
-      return resp(200, "<graph/>", { "content-type": "application/xml", "x-csrf-token": "TOKEN123" });
-    }
-    if (o.url.includes("/datapreview/freestyle")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
-    if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", { "content-type": "application/xml" });
-    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-    return undefined;
-  };
-}
-
-/** A GET of one specific transport request, answered with a real captured fixture body. */
-function trShowRoute(trkorr: string, fixtureName: string): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  const fixture = loadCtsFixture(fixtureName);
-  const url = `${TRANSPORT_REQUESTS}/${trkorr}`;
-  return (o: HttpClientOptions) => {
-    const method = (o.method ?? "GET").toUpperCase();
-    if (o.url === url && method === "GET") return resp(fixture.meta.status, fixture.body, fixture.meta.responseHeaders);
-    return undefined;
-  };
-}
-
-const INFO_SEARCH_URL = "/sap/bc/adt/repository/informationsystem/search";
-
-/**
- * Fakes `searchExact`'s `informationsystem/search` quickSearch, for
- * `probeObjectOnSystem`. "hit" answers with one exact-name match, "empty"
- * with none, and "fail" throws (a network error), same shape as
- * objectHappyPath's 404 above.
- */
-function quickSearchRoute(mode: "hit" | "empty" | "fail"): (o: HttpClientOptions) => HttpClientResponse | undefined {
-  return (o: HttpClientOptions) => {
-    if (o.url !== INFO_SEARCH_URL) return undefined;
-    if (mode === "fail") {
-      const r = resp(500, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 500", "500", 500, undefined, o, r);
-    }
-    const ref =
-      mode === "hit"
-        ? `<adtcore:objectReference adtcore:uri="/sap/bc/adt/programs/programs/zmcp_cts_probe" ` +
-          `adtcore:type="PROG/P" adtcore:name="ZMCP_CTS_PROBE" adtcore:packageName="$TMP"/>`
-        : "";
-    const body =
-      `<?xml version="1.0" encoding="utf-8"?>` +
-      `<adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">${ref}</adtcore:objectReferences>`;
-    return resp(200, body, { "content-type": "application/xml" });
-  };
-}
-
-function combine(
-  ...routes: Array<(o: HttpClientOptions) => HttpClientResponse | undefined>
-): (o: HttpClientOptions) => HttpClientResponse {
-  return (o: HttpClientOptions) => {
-    for (const r of routes) {
-      const hit = r(o);
+function combine(...routes: Route[]): Route {
+  return (o) => {
+    for (const route of routes) {
+      const hit = route(o);
       if (hit) return hit;
     }
-    throw new Error(`unrouted request: ${(o.method ?? "GET").toUpperCase()} ${o.url}`);
+    return undefined;
   };
 }
 
-async function connected(
-  route: (o: HttpClientOptions) => HttpClientResponse,
-): Promise<{ conn: AbapConnection; inner: RecordingClient }> {
-  const inner = new RecordingClient(route);
+function cfg(overrides: Record<string, unknown> = {}) {
+  return ConfigSchema.parse({
+    url: "http://a4h.example:50000",
+    user: "TESTUSER",
+    password: "secret",
+    sid: "A4H",
+    client: "001",
+    readOnly: false,
+    fluidApi: true,
+    stateDir: fluidState.dir(),
+    ...overrides,
+  });
+}
+
+async function connected(route: Route) {
+  const adt = new FakeAdt((r) => baseRoute(r) ?? route(r));
   const conn = new AbapConnection(cfg(), {
-    httpClient: inner,
+    httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
     log: () => {},
     breaker: new AuthCircuitBreaker(),
   });
   await conn.connect();
-  inner.calls.length = 0;
-  return { conn, inner };
-}
-
-/** A bare classrun body — see test/package-delete.test.ts's identical helper. */
-function classrunOutput(lines: readonly string[]): (o: HttpClientOptions) => HttpClientResponse {
-  const body = lines.join("\n");
-  return () => resp(200, body, { "content-type": "text/plain" });
+  adt.calls.length = 0;
+  return { conn, adt };
 }
 
 const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
@@ -227,26 +126,71 @@ const catchErr = async (p: Promise<unknown>): Promise<AbapError> => {
   return e;
 };
 
-function catchSync(fn: () => unknown): AbapError {
-  try {
-    fn();
-  } catch (e) {
-    if (isAbapError(e)) return e;
-    throw e;
-  }
-  throw new Error("expected to throw");
+beforeEach(() => {
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
+// ---------------------------------------------------------------------------
+// Fixtures for the CTS network layer (trShow / repository search)
+// ---------------------------------------------------------------------------
+
+const TRANSPORT_REQUESTS = "/sap/bc/adt/cts/transportrequests";
+const SEARCH_PATH = "/sap/bc/adt/repository/informationsystem/search";
+
+const TRKORR = "A4HK900117";
+const HOLDER = "A4HK900118";
+const OBJECT = "ZMCP_CTS_PROBE";
+const PGMID = "R3TR";
+const OBJTYPE = "PROG";
+const WBTYPE = "PROG/P";
+const MAX_CHARS = 60_000;
+
+const PARAMS: TransportEntryRemoveParams = { trkorr: TRKORR, objectName: OBJECT };
+
+function trShowRoute(): Route {
+  const fx = loadCtsFixture("transport-details-with-objects");
+  return (o) => {
+    if ((o.method ?? "GET").toUpperCase() !== "GET") return undefined;
+    if (o.url !== `${TRANSPORT_REQUESTS}/${TRKORR}`) return undefined;
+    return resp(fx.meta.status, fx.body, fx.meta.responseHeaders as Record<string, unknown>);
+  };
 }
 
-/** Wide open: write, delete-ceiling and the bridge's own package all permitted. */
-const bridgeAdminGate = (): SafetyGate =>
-  new SafetyGate({ readOnly: false, allowPackages: ["*"], allowTransportDelete: true });
-
-const PARAMS: TransportEntryRemoveParams = { trkorr: "A4HK900545", objectName: "ZTMD_I26_P1" };
+function quickSearchRoute(mode: "hit" | "empty" | "fail"): Route {
+  return (o) => {
+    if (o.url !== SEARCH_PATH) return undefined;
+    if (mode === "fail") {
+      const r = resp(500, "", OK_XML);
+      throw new HttpClientException("Request failed with status code 500", "500", 500, undefined, o, r);
+    }
+    const refs: FakeObjectRef[] =
+      mode === "hit"
+        ? [{ name: OBJECT, type: WBTYPE, uri: `/sap/bc/adt/programs/programs/${OBJECT.toLowerCase()}` }]
+        : [];
+    return resp(200, searchResultsXml(refs), OK_XML);
+  };
+}
 
 // ---------------------------------------------------------------------------
-// Minimal local TransportInput builder (transport-tools.test.ts's own helper
-// is not exported — re-declared here rather than imported).
+// Gates
 // ---------------------------------------------------------------------------
+
+/** Wide open: fluid deploy package, "delete" ceiling, and the plain write ceiling all allowed. */
+function bridgeAdminGate(): SafetyGate {
+  return new SafetyGate({
+    readOnly: false,
+    allowPackages: [FLUID_PACKAGE],
+    allowNamePrefixes: ["*"],
+    allowTransports: ["*"],
+    allowTransportDelete: true,
+    writesLockedOut: false,
+  });
+}
+
+function proofFor(gate: SafetyGate) {
+  return authorizeCeiling(gate, "transport");
+}
 
 function transportInput(
   partial: Partial<TransportInput> & { operation: TransportInput["operation"] },
@@ -263,964 +207,649 @@ function transportInput(
 }
 
 // ---------------------------------------------------------------------------
-// 1 - fragment content: the two mandatory FMs, in the right shape
+// 1 — remove_transport_entry ABAP source: structural regression guard
+//
+// Cross-checked directly against src/adt/fluid/builtin/classic/abap-transport.ts
+// (transportPart.source), not against the TS bridge's own comments.
 // ---------------------------------------------------------------------------
 
-describe("transportEntryRemoveFragment ABAP shape", () => {
-  it("calls TRINT_READ_REQUEST to resolve the holder and TR_DELETE_COMM_OBJECT_KEYS to remove the row", () => {
-    const joined = transportEntryRemoveFragment(PARAMS).join("\n");
-    expect(joined).toContain("CALL FUNCTION 'TRINT_READ_REQUEST'");
-    expect(joined).toContain("CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'");
-    expect(joined).toContain("is_e071_delete");
-    expect(joined).toContain("iv_dialog_flag = space");
-    expect(joined).toContain("'A4HK900545'");
-    expect(joined).toContain("'ZTMD_I26_P1'");
+const TRANSPORT_METHOD = transportPart.source.slice(
+  transportPart.source.indexOf("METHOD remove_transport_entry."),
+);
+
+const norm = (s: string): string => s.replace(/\s+/g, " ").trim();
+
+describe("remove_transport_entry ABAP source — structural regression guard", () => {
+  it("is part of the transport_entry method list", () => {
+    expect(transportPart.methods).toContain("remove_transport_entry");
   });
 
-  it("is_e071_delete and cs_request are passed on the SAME statement as TR_DELETE_COMM_OBJECT_KEYS — either missing short-dumps on the server", () => {
-    const lines = transportEntryRemoveFragment(PARAMS);
-    const callIdx = lines.findIndex((l) => l.includes("CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'"));
-    expect(callIdx).toBeGreaterThanOrEqual(0);
-    const stmtEnd = lines.findIndex((l, i) => i >= callIdx && l.trim().endsWith("."));
-    const stmt = lines.slice(callIdx, stmtEnd + 1).join("\n");
-    expect(stmt).toContain("iv_dialog_flag = space");
-    expect(stmt).toContain("is_e071_delete = ls_e071");
-    expect(stmt).toContain("cs_request = ls_req");
+  it("calls exactly TRINT_READ_REQUEST then TR_DELETE_COMM_OBJECT_KEYS, in that order", () => {
+    const calls = [...TRANSPORT_METHOD.matchAll(/CALL FUNCTION '([A-Z_]+)'/g)].map((m) => m[1]);
+    expect(calls).toEqual(["TRINT_READ_REQUEST", "TR_DELETE_COMM_OBJECT_KEYS"]);
   });
 
-  it("a COMMIT WORK follows the delete loop, not the other way around", () => {
-    const lines = transportEntryRemoveFragment(PARAMS);
-    const callIdx = lines.findIndex((l) => l.includes("CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'"));
-    const commitIdx = lines.findIndex((l) => l.trim() === "COMMIT WORK AND WAIT.");
-    expect(callIdx).toBeGreaterThanOrEqual(0);
-    expect(commitIdx).toBeGreaterThan(callIdx);
+  it("both CALL FUNCTIONs are immediately followed by a subrc capture and an sy-message snapshot", () => {
+    const hits = [
+      ...TRANSPORT_METHOD.matchAll(
+        /EXCEPTIONS OTHERS = 1\.\s*lv_subrc = sy-subrc\.\s*MOVE-CORRESPONDING sy TO ls_msg\./g,
+      ),
+    ];
+    expect(hits.length).toBe(2);
   });
 
-  it("TRANSPORT_ENTRY_REMOVE_DATA_LINES declares the locals the fragment relies on", () => {
-    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("ls_e071 TYPE e071.");
-    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("lv_holder TYPE trkorr.");
+  it("guards both failures with 'IF lv_subrc <> 0.' — never a bare 'IF sy-subrc <> 0.'", () => {
+    expect((TRANSPORT_METHOD.match(/IF lv_subrc <> 0\./g) ?? []).length).toBe(2);
+    expect(TRANSPORT_METHOD).not.toMatch(/IF sy-subrc <> 0\./);
   });
 
-  it("TRANSPORT_ENTRY_REMOVE_DATA_LINES also declares lv_subrc/ls_msg/lv_msgtext/lv_readerr", () => {
-    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("lv_subrc TYPE sy-subrc.");
-    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("ls_msg TYPE symsg.");
-    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("lv_msgtext TYPE string.");
-    expect(TRANSPORT_ENTRY_REMOVE_DATA_LINES).toContain("lv_readerr TYPE string.");
+  it("both sy-message snapshots interpolate the same spaced msgty/msgid/msgno/v1-v4 fields", () => {
+    const hits = [
+      ...TRANSPORT_METHOD.matchAll(
+        /\{ ls_msg-msgty \} \{ ls_msg-msgid \} \{ ls_msg-msgno \} v1=\{ ls_msg-msgv1 \} v2=\{ ls_msg-msgv2 \} v3=\{ ls_msg-msgv3 \} v4=\{ ls_msg-msgv4 \}/g,
+      ),
+    ];
+    expect(hits.length).toBe(2);
+    // Only the TRINT_READ_REQUEST branch's snapshot is prefixed "msg=" inline (it builds
+    // lv_readerr directly); the TR_DELETE_COMM_OBJECT_KEYS branch builds lv_msgtext first,
+    // then references it as "msg={ lv_msgtext }" inside fail() further down.
+    expect(TRANSPORT_METHOD).toContain("msg={ ls_msg-msgty }");
+    expect(TRANSPORT_METHOD).toContain("msg={ lv_msgtext }");
   });
 
-  it("lv_subrc = sy-subrc. and MOVE-CORRESPONDING sy TO ls_msg. are the two lines immediately after BOTH 'EXCEPTIONS OTHERS = 1.' lines — out->write or anything else in between would clobber sy-* first", () => {
-    const lines = transportEntryRemoveFragment(PARAMS);
-    const exceptionsIdx = lines
-      .map((l, i) => (l === "    EXCEPTIONS OTHERS = 1." ? i : -1))
-      .filter((i) => i >= 0);
-    // One per CALL FUNCTION site: TRINT_READ_REQUEST and TR_DELETE_COMM_OBJECT_KEYS.
-    expect(exceptionsIdx).toHaveLength(2);
-    for (const idx of exceptionsIdx) {
-      expect(lines[idx + 1]).toBe("  lv_subrc = sy-subrc.");
-      expect(lines[idx + 2]).toBe("  MOVE-CORRESPONDING sy TO ls_msg.");
-    }
+  it("the duplicate-row guard (step 4) runs before the delete call (step 5)", () => {
+    const dupIdx = TRANSPORT_METHOD.indexOf("lv_n >= 2");
+    const deleteIdx = TRANSPORT_METHOD.indexOf("CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'");
+    expect(dupIdx).toBeGreaterThan(0);
+    expect(deleteIdx).toBeGreaterThan(dupIdx);
   });
 
-  it("no 'IF sy-subrc <> 0.' guard remains on either CALL FUNCTION — both guards read lv_subrc instead", () => {
-    const joined = transportEntryRemoveFragment(PARAMS).join("\n");
-    expect(joined).not.toContain("IF sy-subrc <> 0.");
-    expect(joined).toContain("IF lv_subrc <> 0.");
+  it("the duplicate-count inner loop filters on pgmid+object+obj_name together, not any one alone", () => {
+    expect(norm(TRANSPORT_METHOD)).toContain(
+      norm(
+        "LOOP AT lt_rows INTO ls_other WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object " +
+          "AND obj_name = ls_e071-obj_name.",
+      ),
+    );
   });
 
-  it("step 4's failure write reads lv_subrc and lv_msgtext, never the (by-then-clobbered) sy-subrc", () => {
-    const lines = transportEntryRemoveFragment(PARAMS);
-    const line = lines.find((l) => l.includes("TR_DELETE_COMM_OBJECT_KEYS failed for"));
-    expect(line).toBeDefined();
-    expect(line).toContain("sy-subrc={ lv_subrc }");
-    expect(line).toContain("msg={ lv_msgtext }");
-    expect(line).not.toContain("sy-subrc={ sy-subrc }");
+  it("the duplicate-E071 fail() interpolates six fields, guarded by lv_n >= 2, and returns immediately", () => {
+    expect(norm(TRANSPORT_METHOD)).toContain(
+      norm(
+        "IF lv_n >= 2. " +
+          "fail( |duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } " +
+          "on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }| ). " +
+          "RETURN. " +
+          "ENDIF.",
+      ),
+    );
   });
 
-  it("both step 2 refusal branches produce an errorLine that satisfies beforeAssert's own startsWith(\"no entry for\") predicate", () => {
-    const lines = transportEntryRemoveFragment(PARAMS);
-    const writeLines = lines.filter((l) => l.includes("out->write( |ZMCP-DDIC-ERR> no entry for"));
-    expect(writeLines).toHaveLength(2); // the IF branch and the ELSE branch
-    for (const line of writeLines) {
-      const literal = /\|(.*)\|/.exec(line)?.[1];
-      if (literal === undefined) throw new Error(`no |...| string literal found in: ${line}`);
-      expect(literal.startsWith(DDIC_ERR_PREFIX)).toBe(true);
-      // Run the exact same parser removeTransportEntryViaBridge's beforeAssert reads errorLine from.
-      const { errorLine } = parseDdicTranscript(literal);
-      expect(errorLine?.startsWith("no entry for")).toBe(true);
-    }
+  it("both 'no entry for' fail branches sit inside one IF lv_holder IS INITIAL guard, then RETURN", () => {
+    expect(norm(TRANSPORT_METHOD)).toContain(
+      norm(
+        "IF lv_holder IS INITIAL. " +
+          "IF lv_readerr IS INITIAL. " +
+          "fail( |no entry for { lv_object } on { lv_trkorr } or its tasks| ). " +
+          "ELSE. " +
+          "fail( |no entry for { lv_object } on { lv_trkorr } or its tasks; last TRINT_READ_REQUEST " +
+          "failure: { lv_readerr }| ). " +
+          "ENDIF. " +
+          "RETURN. " +
+          "ENDIF.",
+      ),
+    );
+  });
+
+  it("TREN-REMOVED and TREN-GONE are the only two plain single-quoted line() tags", () => {
+    const plain = [...TRANSPORT_METHOD.matchAll(/line\( '([^']+)' \)/g)].map((m) => m[1]);
+    expect(plain).toEqual(["TREN-REMOVED", "TREN-GONE"]);
+    // Every other line() call is interpolated (a |...| literal), not plain-quoted.
+    const interpolated = [...TRANSPORT_METHOD.matchAll(/line\( \|([^|]*)\| \)/g)];
+    expect(interpolated.length).toBeGreaterThan(0);
+  });
+
+  it("COMMIT WORK AND WAIT sits after TREN-REMOVED and before the post-commit re-select / TREN-GONE", () => {
+    const removedIdx = TRANSPORT_METHOD.indexOf("line( 'TREN-REMOVED' )");
+    const commitIdx = TRANSPORT_METHOD.indexOf("COMMIT WORK AND WAIT.");
+    const selectIdx = TRANSPORT_METHOD.indexOf("SELECT SINGLE trkorr FROM e071");
+    const goneIdx = TRANSPORT_METHOD.indexOf("line( 'TREN-GONE' )");
+    expect(removedIdx).toBeGreaterThan(0);
+    expect(commitIdx).toBeGreaterThan(removedIdx);
+    expect(selectIdx).toBeGreaterThan(commitIdx);
+    expect(goneIdx).toBeGreaterThan(selectIdx);
+  });
+
+  it("lv_trkorr is assigned exactly once — the candidate loop uses a separate lv_cursor variable", () => {
+    expect((TRANSPORT_METHOD.match(/lv_trkorr = s\( 'trkorr' \)\./g) ?? []).length).toBe(1);
+    expect(TRANSPORT_METHOD).toContain("LOOP AT lt_candidates INTO lv_cursor.");
+    expect(TRANSPORT_METHOD).not.toContain("LOOP AT lt_candidates INTO lv_trkorr.");
+  });
+
+  it("resolves candidates from the target itself plus its own tasks (strkorr = lv_trkorr)", () => {
+    expect(TRANSPORT_METHOD).toContain("APPEND lv_trkorr TO lt_candidates.");
+    expect(TRANSPORT_METHOD).toContain(
+      "SELECT trkorr FROM e070 INTO TABLE @lt_tasks WHERE strkorr = @lv_trkorr.",
+    );
+    expect(TRANSPORT_METHOD).toContain("APPEND LINES OF lt_tasks TO lt_candidates.");
   });
 });
 
 // ---------------------------------------------------------------------------
-// 2 - tag drift: every tag the fragment writes is a tag DDIC_TAGS declares
+// 2 — wire content: canonicalArgsJson
 // ---------------------------------------------------------------------------
 
-describe("transportEntryRemoveFragment only ever writes tags DDIC_TAGS declares", () => {
-  it("TREN-REMOVED and TREN-GONE, and nothing else — asserted as a set", () => {
-    const lines = transportEntryRemoveFragment(PARAMS);
-    const written = new Set(
-      lines
-        .map((l) => /out->write\(\s*'([A-Z-]+)'\s*\)/.exec(l)?.[1])
-        .filter((t): t is string => t !== undefined),
-    );
-    expect(written).toEqual(new Set(["TREN-REMOVED", "TREN-GONE"]));
-    for (const tag of written) {
-      expect(DDIC_TAGS as readonly string[]).toContain(tag);
-    }
+describe("removeTransportEntryViaBridge — wire content", () => {
+  it("deploys an invoker whose embedded JSON matches canonicalArgsJson({trkorr, object_name})", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`ZMCP-TREN-HOLDER ${HOLDER}`, `ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`, "TREN-REMOVED", "TREN-GONE"],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    await removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate));
+
+    const invoker = fake.invoker();
+    expect(invoker).toBeDefined();
+    const src = fake.sourceOf(invoker!);
+    expect(src).toBeDefined();
+    const payload = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join("");
+    expect(payload).toBe(canonicalArgsJson({ trkorr: TRKORR, object_name: OBJECT }));
   });
 });
 
 // ---------------------------------------------------------------------------
-// 3 - zero-network input refusals
+// 3 — removeTransportEntryViaBridge: zero-network input validation
 // ---------------------------------------------------------------------------
 
-describe("a malformed or injection-y trkorr/objectName is refused before any network call", () => {
-  const badTrkorrs = ["not-a-trkorr", "A4HK900545'; DELETE", "A4HK900545\nFOO", ""];
-  const badObjects = ["Z'FOO", "Z.FOO", "Z\nFOO", "Z FOO"];
+describe("removeTransportEntryViaBridge — input validation (zero network)", () => {
+  const offline = null as unknown as AbapConnection;
 
-  it.each(badTrkorrs)("transportEntryRemoveFragment refuses trkorr=%s with BAD_INPUT", (trkorr) => {
-    const err = catchSync(() => transportEntryRemoveFragment({ trkorr, objectName: "ZTMD_I26_P1" }));
-    expect(err.code).toBe("BAD_INPUT");
-  });
-
-  it.each(badObjects)("transportEntryRemoveFragment refuses objectName=%s with BAD_INPUT", (objectName) => {
-    const err = catchSync(() => transportEntryRemoveFragment({ trkorr: "A4HK900545", objectName }));
-    expect(err.code).toBe("BAD_INPUT");
-  });
-
-  it("removeTransportEntryViaBridge refuses the same bad values with BAD_INPUT and zero HTTP requests", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["TREN-REMOVED", "TREN-GONE"])),
-    );
-    const { conn, inner } = await connected(route);
-    for (const trkorr of badTrkorrs) {
-      const err = await catchErr(
-        removeTransportEntryViaBridge(conn, bridgeAdminGate(), { trkorr, objectName: "ZTMD_I26_P1" }, proof),
-      );
-      expect(err.code).toBe("BAD_INPUT");
-    }
-    for (const objectName of badObjects) {
-      const err = await catchErr(
-        removeTransportEntryViaBridge(conn, bridgeAdminGate(), { trkorr: "A4HK900545", objectName }, proof),
-      );
-      expect(err.code).toBe("BAD_INPUT");
-    }
-    expect(inner.calls.length).toBe(0);
-  });
-
-  it("trFindEntryHolder refuses a malformed trkorr with BAD_INPUT and zero requests", async () => {
-    const { conn, calls } = fakeCtsConnection([]);
-    for (const trkorr of badTrkorrs) {
-      const err = await catchErr(trFindEntryHolder(conn, trkorr, "ZMCP_CTS_PROBE"));
-      expect(err.code).toBe("BAD_INPUT");
-    }
-    expect(calls).toHaveLength(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4 - request-vs-task resolution: the whole point of trFindEntryHolder
-// ---------------------------------------------------------------------------
-
-describe("trFindEntryHolder resolves to the TASK that actually carries the entry, not the request", () => {
-  it("A4HK900117 carries ZMCP_CTS_PROBE only via its task A4HK900118 — the holder returned is the task", async () => {
-    const fixture = loadCtsFixture("transport-details-with-objects");
-    const { conn, calls } = fakeCtsConnection([fixture]);
-
-    const holder = await trFindEntryHolder(conn, "A4HK900117", "ZMCP_CTS_PROBE");
-
-    expect(holder.trkorr).toBe("A4HK900118");
-    expect(holder.onTask).toBe(true);
-    expect(holder.requested).toBe("A4HK900117");
-    expect(holder.rows.length).toBeGreaterThan(0);
-    expect(holder.rows.every((r) => r.name.toUpperCase() === "ZMCP_CTS_PROBE")).toBe(true);
-    expect(calls).toHaveLength(1); // trShow does exactly ONE network call
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 5 - row not found
-// ---------------------------------------------------------------------------
-
-describe("trFindEntryHolder throws NOT_FOUND when neither the request nor any of its tasks carry the entry", () => {
-  it("names both the transport and the object in the error", async () => {
-    const fixture = loadCtsFixture("transport-details-with-objects");
-    const { conn } = fakeCtsConnection([fixture]);
-
-    const err = await catchErr(trFindEntryHolder(conn, "A4HK900117", "ZNOPE_DOES_NOT_EXIST"));
-
-    expect(err.code).toBe("NOT_FOUND");
-    expect(err.message).toContain("A4HK900117");
-    expect(err.message).toContain("ZNOPE_DOES_NOT_EXIST");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 6 - tool-level refusals cost zero requests
-// ---------------------------------------------------------------------------
-
-describe("abap_transport operation: removeObject refuses cheaply, before any network call", () => {
-  it("no confirm -> BAD_INPUT, zero requests", async () => {
-    const { conn, calls } = fakeCtsConnection([]);
-    await expect(
-      abapTransport(
-        conn,
-        transportInput({ operation: "removeObject", transport: "A4HK900117", object: "ZMCP_CTS_PROBE" }),
-        MAX_CHARS,
-        bridgeAdminGate(),
-      ),
-    ).rejects.toMatchObject({ code: "BAD_INPUT" });
-    expect(calls).toHaveLength(0);
-  });
-
-  it("a mismatched confirm is BAD_INPUT, zero requests", async () => {
-    const { conn, calls } = fakeCtsConnection([]);
-    await expect(
-      abapTransport(
-        conn,
-        transportInput({
-          operation: "removeObject",
-          transport: "A4HK900117",
-          object: "ZMCP_CTS_PROBE",
-          confirm: "A4HK900118",
-        }),
-        MAX_CHARS,
-        bridgeAdminGate(),
-      ),
-    ).rejects.toMatchObject({ code: "BAD_INPUT" });
-    expect(calls).toHaveLength(0);
-  });
-
-  it("a read-only gate refuses with READ_ONLY, zero requests, even with a matching confirm", async () => {
-    const gate = new SafetyGate({ readOnly: true, allowPackages: [] });
-    const { conn, calls } = fakeCtsConnection([]);
-    await expect(
-      abapTransport(
-        conn,
-        transportInput({
-          operation: "removeObject",
-          transport: "A4HK900117",
-          object: "ZMCP_CTS_PROBE",
-          confirm: "A4HK900117",
-        }),
-        MAX_CHARS,
-        gate,
-      ),
-    ).rejects.toMatchObject({ code: "READ_ONLY" });
-    expect(calls).toHaveLength(0);
-  });
-
-  it("ordinary write access without the admin-only allowTransportDelete ceiling refuses with READ_ONLY, zero requests", async () => {
-    const gate = new SafetyGate({ readOnly: false, allowPackages: ["*"] });
-    const { conn, calls } = fakeCtsConnection([]);
-    await expect(
-      abapTransport(
-        conn,
-        transportInput({
-          operation: "removeObject",
-          transport: "A4HK900117",
-          object: "ZMCP_CTS_PROBE",
-          confirm: "A4HK900117",
-        }),
-        MAX_CHARS,
-        gate,
-      ),
-    ).rejects.toMatchObject({ code: "READ_ONLY" });
-    expect(calls).toHaveLength(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 7 - bridge happy path (removeTransportEntryViaBridge directly)
-// ---------------------------------------------------------------------------
-
-describe("removeTransportEntryViaBridge happy path", () => {
-  it("TREN-REMOVED, TREN-GONE resolves; holder and removed rows are parsed out of the transcript", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput([
-          "ZMCP-TREN-HOLDER A4HK900546",
-          "ZMCP-TREN-ROW R3TR PROG ZTMD_I26_P1",
-          "TREN-REMOVED",
-          "TREN-GONE",
-        ]),
-      ),
-    );
-    const { conn, inner } = await connected(route);
-
-    const result = await removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof);
-
-    expect(result.transcript.tags).toEqual(["TREN-REMOVED", "TREN-GONE"]);
-    expect(result.transcript.errorLine).toBeUndefined();
-    expect(result.holder).toBe("A4HK900546");
-    expect(result.removed).toEqual([{ pgmid: "R3TR", object: "PROG", name: "ZTMD_I26_P1" }]);
-
-    const sourceUri = `${CLASS_COLLECTION}/${BRIDGE.toLowerCase()}/source/main`;
-    const put = inner.calls.find((c) => (c.method ?? "").toUpperCase() === "PUT" && c.url === sourceUri);
-    expect(String(put?.body).toUpperCase()).toContain(BRIDGE);
-  });
-
-  it("without a ZMCP-TREN-HOLDER line, the holder falls back to the requested trkorr", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["TREN-REMOVED", "TREN-GONE"])),
-    );
-    const { conn } = await connected(route);
-
-    const result = await removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof);
-
-    expect(result.holder).toBe(PARAMS.trkorr);
-    expect(result.removed).toEqual([]);
-  });
-
-  it("the ABAP-side 'no entry for' refusal becomes a named NOT_FOUND, not a generic missing-tag CHECK_FAILED", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput([`ZMCP-DDIC-ERR> no entry for ${PARAMS.objectName} on ${PARAMS.trkorr} or its tasks`]),
-      ),
-    );
-    const { conn } = await connected(route);
-
-    const err = await catchErr(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof));
-
-    expect(err.code).toBe("NOT_FOUND");
-    expect(err.message).toContain(PARAMS.objectName);
-    expect(err.message).toContain(PARAMS.trkorr);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 8 - end-to-end: abap_transport removeObject drives trFindEntryHolder THEN
-//     the bridge, and reports the resolved (task) holder, not the request
-//     the caller named.
-// ---------------------------------------------------------------------------
-
-describe("abap_transport removeObject end-to-end happy path", () => {
-  it("resolves A4HK900117 -> task A4HK900118 via trFindEntryHolder, then removes via the bridge", async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput([
-          "ZMCP-TREN-HOLDER A4HK900118",
-          "ZMCP-TREN-ROW R3TR PROG ZMCP_CTS_PROBE",
-          "TREN-REMOVED",
-          "TREN-GONE",
-        ]),
-      ),
-    );
-    const { conn, inner } = await connected(route);
-
-    const res = await abapTransport(
-      conn,
-      transportInput({
-        operation: "removeObject",
-        transport: "A4HK900117",
-        object: "ZMCP_CTS_PROBE",
-        confirm: "A4HK900117",
-      }),
-      MAX_CHARS,
-      bridgeAdminGate(),
-    );
-
-    expect(res.text).toContain("holder: A4HK900118");
-    expect(res.text).toContain("transport: A4HK900117");
-    expect(res.text).toContain("removedCount: 1");
-    expect(res.text).toContain("gone: true");
-    expect(res.text).toMatch(/task/);
-
-    const getCall = inner.calls.find((c) => (c.method ?? "").toUpperCase() === "GET" && c.url === `${TRANSPORT_REQUESTS}/A4HK900117`);
-    expect(getCall).toBeTruthy();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 9 - journalling: the resolved holder, not the caller's number, is what
-//     gets journalled, and the before-image is a captured record of the
-//     removed row(s) rather than "unknown".
-// ---------------------------------------------------------------------------
-
-describe("abap_transport removeObject journalling", () => {
-  let tmp: string;
-  let warn: ReturnType<typeof vi.fn>;
-
-  beforeEach(async () => {
-    tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "abapsmith-tren-journal-"));
-    warn = vi.fn();
-  });
-
-  afterEach(async () => {
-    await fsp.rm(tmp, { recursive: true, force: true });
-  });
-
-  const jcfg = (): JournalConfig => ({
-    dir: tmp,
-    enabled: true,
-    maxEntries: 200,
-    maxAgeDays: 30,
-  });
-
-  const deps = (): TransportJournalDeps => ({
-    journal: new Journal(jcfg(), "A4H"),
-    cfg: { sid: "A4H", url: "http://a4h.example:50000", client: "001" },
-    warn: warn as unknown as (msg: string) => void,
-  });
-
-  const written = async (): Promise<JournalEntry[]> => new Journal(jcfg(), "A4H").list();
-
-  it("a successful removeObject journals one entry under the RESOLVED holder (a task), not the request the caller passed, with a captured before-image naming the removed row", async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput([
-          "ZMCP-TREN-HOLDER A4HK900118",
-          "ZMCP-TREN-ROW R3TR PROG ZMCP_CTS_PROBE",
-          "TREN-REMOVED",
-          "TREN-GONE",
-        ]),
-      ),
-    );
-    const { conn } = await connected(route);
-
-    const res = await abapTransport(
-      conn,
-      transportInput({
-        operation: "removeObject",
-        transport: "A4HK900117",
-        object: "ZMCP_CTS_PROBE",
-        confirm: "A4HK900117",
-      }),
-      MAX_CHARS,
-      bridgeAdminGate(),
-      deps(),
-    );
-    // No informationsystem/search route is scripted here, so the existence probe fails
-    // closed to "unknown" — journalling must still complete normally either way.
-    expect(res.text).toContain("objectOnSystem: unknown");
-
-    const entries = await written();
-    expect(entries).toHaveLength(1);
-    const e = entries[0]!;
-    expect(e.operation).toBe("transport-remove-object");
-    // The holder is a TASK of A4HK900117, not the request itself — the entry
-    // must be filed under the task, never the number the caller passed.
-    expect(e.object.name).toBe("A4HK900118");
-    expect(e.corrNr).toBe("A4HK900118");
-    expect(e.object.name).not.toBe("A4HK900117");
-    expect(e.outcome).toBe("succeeded");
-    expect(e.beforeCapture).toBe("captured");
-
-    const before = await new Journal(jcfg(), "A4H").beforeImage(e);
-    expect(before).toBeTruthy();
-    expect(before).toContain("ZMCP_CTS_PROBE");
-  });
-
-  it("when the bridge throws, the entry is still recorded and stays pending (unproven) — never succeeded — and the original error still reaches the caller", async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput(["ZMCP-DDIC-ERR> no entry for ZMCP_CTS_PROBE on A4HK900118 or its tasks"]),
-      ),
-    );
-    const { conn } = await connected(route);
-
+  it("rejects a malformed trkorr before any network call", async () => {
+    const gate = bridgeAdminGate();
     const err = await catchErr(
-      abapTransport(
-        conn,
-        transportInput({
-          operation: "removeObject",
-          transport: "A4HK900117",
-          object: "ZMCP_CTS_PROBE",
-          confirm: "A4HK900117",
-        }),
-        MAX_CHARS,
-        bridgeAdminGate(),
-        deps(),
+      removeTransportEntryViaBridge(offline, gate, { trkorr: "not-a-trkorr!", objectName: OBJECT }, proofFor(gate)),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("Not a transport request/task number");
+  });
+
+  it("rejects an empty trkorr", async () => {
+    const gate = bridgeAdminGate();
+    const err = await catchErr(
+      removeTransportEntryViaBridge(offline, gate, { trkorr: "", objectName: OBJECT }, proofFor(gate)),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+  });
+
+  it("rejects an object name over 40 characters", async () => {
+    const gate = bridgeAdminGate();
+    const long = "Z" + "A".repeat(45);
+    const err = await catchErr(
+      removeTransportEntryViaBridge(offline, gate, { trkorr: TRKORR, objectName: long }, proofFor(gate)),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("max 40 characters");
+  });
+
+  it("rejects an object name with an embedded quote/space", () => {
+    const gate = bridgeAdminGate();
+    return catchErr(
+      removeTransportEntryViaBridge(
+        offline,
+        gate,
+        { trkorr: TRKORR, objectName: "ZFOO' BAR" },
+        proofFor(gate),
       ),
-    );
-    expect(err.code).toBe("NOT_FOUND");
-    // NOT_FOUND is not the TR_DELETE_COMM_OBJECT_KEYS refusal enrichCommObjectKeysRefusal
-    // targets — it must reach the caller with no objectOnSystem grafted onto it.
-    expect(err.details.objectOnSystem).toBeUndefined();
-
-    const entries = await written();
-    expect(entries).toHaveLength(1);
-    const e = entries[0]!;
-    expect(e.operation).toBe("transport-remove-object");
-    expect(e.object.name).toBe("A4HK900118");
-    expect(e.outcome).toBe("pending");
-    expect(e.error).toBeUndefined();
-    expect(warn.mock.calls.map((c) => String(c[0])).join("\n")).toMatch(/stays `pending` on purpose/);
-
-    const before = await new Journal(jcfg(), "A4H").beforeImage(e);
-    expect(before).toBeTruthy();
-    expect(before).toContain("ZMCP_CTS_PROBE");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 10 - worst-case assembled-source line length, through ddicBridgeSource (it
-//      prepends 4 spaces on top of the fragment's own indentation).
-// ---------------------------------------------------------------------------
-
-describe("worst-case assembled-source line length stays within ABAP_SOURCE_LINE_MAX", () => {
-  function offendingLines(source: string): Array<{ line: number; length: number }> {
-    return source
-      .split("\n")
-      .map((text, i) => ({ line: i + 1, length: text.length }))
-      .filter((l) => l.length > ABAP_SOURCE_LINE_MAX);
-  }
-
-  it("transportEntryRemoveFragment, through ddicBridgeSource, at the longest legal object name (40 chars) and trkorr (fixed at 10 chars)", () => {
-    const worstCase: TransportEntryRemoveParams = {
-      trkorr: PARAMS.trkorr, // TRKORR_RE fixes the shape at 10 chars — there is no "longer" one
-      objectName: "Z" + "A".repeat(39), // assertEnhIdentifier's cap for this call is maxLength: 40
-    };
-    const source = ddicBridgeSource(
-      DDIC_BRIDGE_CLASS.removeTransportEntry,
-      TRANSPORT_ENTRY_REMOVE_DATA_LINES,
-      transportEntryRemoveFragment(worstCase),
-    );
-    expect(offendingLines(source)).toEqual([]);
-    // Step 4's duplicate-row check is only worth stress-testing for line length if it actually
-    // made it into the assembled source — ddicBridgeSource prepends 4 spaces on top of the
-    // fragment's own indentation, so this also pins the indent budget the check above relies on.
-    expect(source).toContain("Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name.");
-    expect(source).toContain(
-      "duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } " +
-        "on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }",
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 11 - the removeObject tool layer's objectOnSystem probe: does the object
-//      an E071 entry names still exist, settled BEFORE the bridge runs, and
-//      never allowed to block the removal itself.
-// ---------------------------------------------------------------------------
-
-describe("abap_transport removeObject — objectOnSystem probe", () => {
-  const removeInput = transportInput({
-    operation: "removeObject",
-    transport: "A4HK900117",
-    object: "ZMCP_CTS_PROBE",
-    confirm: "A4HK900117",
-  });
-
-  const bridgeSuccess = () =>
-    classrunOutput([
-      "ZMCP-TREN-HOLDER A4HK900118",
-      "ZMCP-TREN-ROW R3TR PROG ZMCP_CTS_PROBE",
-      "TREN-REMOVED",
-      "TREN-GONE",
-    ]);
-
-  it('the search fake reports a hit -> objectOnSystem: "present", plus the live-object note', async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      quickSearchRoute("hit"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(bridgeSuccess()),
-    );
-    const { conn } = await connected(route);
-
-    const res = await abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate());
-
-    expect(res.text).toContain("objectOnSystem: present");
-    expect(res.text).toContain("still exists on the system — removing this entry stripped CTS's lock");
-  });
-
-  it('the search fake reports no hit -> objectOnSystem: "absent", and no extra note', async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      quickSearchRoute("empty"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(bridgeSuccess()),
-    );
-    const { conn } = await connected(route);
-
-    const res = await abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate());
-
-    expect(res.text).toContain("objectOnSystem: absent");
-    expect(res.text).not.toMatch(/still exists on the system/);
-    expect(res.text).not.toMatch(/Could not settle whether/);
-  });
-
-  it('the search fake throws -> the removal still succeeds (the probe never blocks it), and objectOnSystem: "unknown" carries the caution note', async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      quickSearchRoute("fail"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(bridgeSuccess()),
-    );
-    const { conn } = await connected(route);
-
-    const res = await abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate());
-
-    expect(res.text).toContain("removedCount: 1"); // the removal itself is unaffected by the probe failing
-    expect(res.text).toContain("objectOnSystem: unknown");
-    expect(res.text).toContain(
-      'Could not settle whether ZMCP_CTS_PROBE still exists on the system — do not read this as "gone".',
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 12 - TR_DELETE_COMM_OBJECT_KEYS refusal enrichment: the tool layer names
-//      SE03/SE09/SE10 and threads objectOnSystem onto that ONE specific
-//      CHECK_FAILED shape, and leaves every other error byte for byte.
-// ---------------------------------------------------------------------------
-
-describe("abap_transport removeObject — TR_DELETE_COMM_OBJECT_KEYS refusal enrichment", () => {
-  const REFUSAL_LINE =
-    "ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for R3TR TABL ZMCP_CTS_PROBE, sy-subrc=1, msg=E1CTS042 v1=A4HK900118 v2= v3= v4=";
-
-  const removeInput = transportInput({
-    operation: "removeObject",
-    transport: "A4HK900117",
-    object: "ZMCP_CTS_PROBE",
-    confirm: "A4HK900117",
-  });
-
-  it("is enriched with details.objectOnSystem and a hint naming SE03 Unlock Objects (Expert Tool) and SE09/SE10 — the message stays byte for byte", async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      quickSearchRoute("hit"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["ZMCP-TREN-HOLDER A4HK900118", REFUSAL_LINE])),
-    );
-    const { conn } = await connected(route);
-
-    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
-
-    expect(err.code).toBe("CHECK_FAILED");
-    expect(err.message).toContain("msg=E1CTS042");
-    expect(err.details.objectOnSystem).toBe("present");
-    expect(err.hint).toContain("SE03");
-    expect(err.hint).toContain("Unlock Objects (Expert Tool)");
-    expect(err.hint).toMatch(/SE09\/SE10/);
-    // CHECK_FAILED's own retryability is "conditional" (no claim either way), and this generic
-    // branch passes the original (undefined) through rather than forcing terminal — contrast
-    // the TR 292 reclassification below, which deliberately DOES force terminal.
-    expect(err.retryable).toBeUndefined();
-  });
-
-  it("a NOT_FOUND refusal (the pre-existing 'no entry for' path) is rethrown byte for byte — no SE03 text, no objectOnSystem grafted on", async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      quickSearchRoute("hit"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput(["ZMCP-DDIC-ERR> no entry for ZMCP_CTS_PROBE on A4HK900118 or its tasks"]),
-      ),
-    );
-    const { conn } = await connected(route);
-
-    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
-
-    expect(err.code).toBe("NOT_FOUND");
-    expect(err.hint).toBeUndefined();
-    expect(err.details.objectOnSystem).toBeUndefined();
-  });
-
-  it("a CHECK_FAILED that does not name TR_DELETE_COMM_OBJECT_KEYS is also rethrown untouched — pins the enrichment's narrowness on the message check, not just the code", async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      quickSearchRoute("hit"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["ZMCP-TREN-HOLDER A4HK900118"])), // no success tags, no error line
-    );
-    const { conn } = await connected(route);
-
-    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
-
-    expect(err.code).toBe("CHECK_FAILED");
-    expect(err.message).not.toContain("TR_DELETE_COMM_OBJECT_KEYS");
-    expect(err.hint).toBeUndefined();
-    expect(err.details.objectOnSystem).toBeUndefined();
-  });
-});
-
-describe("transportEntryRemoveFragment step 4 (duplicate E071 row guard)", () => {
-  const fragment = transportEntryRemoveFragment(PARAMS);
-
-  it("the eight step comments are numbered 1-8, in order, with no gap or repeat", () => {
-    const steps = fragment
-      .map((line) => /^" Step (\d+):/.exec(line.trim()))
-      .filter((m): m is RegExpExecArray => m !== null)
-      .map((m) => Number(m[1]));
-
-    expect(steps).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-  });
-
-  it("step 4's header names the guard generically (pgmid+object+obj_name) — not a DDIC/TABL/CLAS-specific claim", () => {
-    const header = fragment.find((line) => line.trim().startsWith('" Step 4:'));
-
-    expect(header).toBeDefined();
-    expect(header).toContain("2+ E071 rows share pgmid+object+obj_name");
-  });
-
-  it("step 4 (the duplicate check) sits entirely before step 5's TR_DELETE_COMM_OBJECT_KEYS loop", () => {
-    const step4Idx = fragment.findIndex((line) => line.trim().startsWith('" Step 4:'));
-    const step5Idx = fragment.findIndex((line) => line.trim().startsWith('" Step 5:'));
-    const callIdx = fragment.findIndex((line) =>
-      line.includes("CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'"),
-    );
-
-    expect(step4Idx).toBeGreaterThanOrEqual(0);
-    expect(step5Idx).toBeGreaterThan(step4Idx);
-    expect(callIdx).toBeGreaterThan(step5Idx);
-  });
-
-  it("emits the ZMCP-DDIC-ERR> duplicate E071 entries template with all six runtime fields, then RETURNs, guarded by lv_n >= 2", () => {
-    const guardIdx = fragment.findIndex((line) => line.trim() === "IF lv_n >= 2.");
-
-    expect(guardIdx).toBeGreaterThanOrEqual(0);
-    expect(fragment[guardIdx + 1]).toContain(
-      "duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } " +
-        "on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }",
-    );
-    expect(fragment[guardIdx + 2]!.trim()).toBe("RETURN.");
-  });
-
-  it("the inner duplicate-count LOOP filters on pgmid+object+obj_name together, not obj_name alone", () => {
-    const source = fragment.join("\n");
-
-    expect(source).toContain("WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object");
-    expect(source).toContain("AND obj_name = ls_e071-obj_name.");
-  });
-});
-
-describe("both msg= sites render msgty/msgid/msgno with spaces between them", () => {
-  const fragment = transportEntryRemoveFragment(PARAMS);
-
-  it("TRINT_READ_REQUEST's lv_readerr assignment (step 1)", () => {
-    const line = fragment.find((l) => l.includes("lv_readerr ="));
-
-    expect(line).toBeDefined();
-    expect(line).toContain("msg={ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno }");
-    expect(line).not.toContain("msg={ls_msg-msgty}{ls_msg-msgid}{ls_msg-msgno}");
-  });
-
-  it("TR_DELETE_COMM_OBJECT_KEYS's lv_msgtext assignment (step 5) — this local holds the bare fields; the 'msg=' label is added later, where it's interpolated into the failure write", () => {
-    const line = fragment.find((l) => l.trim().startsWith("lv_msgtext ="));
-
-    expect(line).toBeDefined();
-    expect(line).toContain("{ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno }");
-    expect(line).not.toContain("{ls_msg-msgty}{ls_msg-msgid}{ls_msg-msgno}");
-
-    const useLine = fragment.find((l) => l.includes("msg={ lv_msgtext }"));
-    expect(useLine).toBeDefined();
-  });
-});
-
-describe("removeTransportEntryViaBridge beforeAssert — well-formed duplicate E071 line", () => {
-  const DUP_LINE =
-    "ZMCP-DDIC-ERR> duplicate E071 entries for R3TR PROG ZTMD_I26_P1 on A4HK900546: " +
-    "2 rows at AS4POS 0001,0002";
-
-  it("throws CTS_DUPLICATE_ENTRY with every field extracted independently and a hint pointing away from SE03 Unlock Objects", async () => {
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput([DUP_LINE])));
-    const { conn } = await connected(route);
-
-    const err = await catchErr(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof));
-
-    expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
-    expect(err.message).toContain("2 E071 rows share R3TR PROG ZTMD_I26_P1");
-    expect(err.message).toContain("AS4POS 0001, 0002");
-    expect(err.message).toContain("nothing was removed");
-
-    expect(err.details.trkorr).toBe(PARAMS.trkorr);
-    expect(err.details.objectName).toBe(PARAMS.objectName);
-    expect(err.details.holder).toBe("A4HK900546");
-    expect(err.details.pgmid).toBe("R3TR");
-    expect(err.details.object).toBe("PROG");
-    expect(typeof err.details.count).toBe("number");
-    expect(err.details.count).toBe(2);
-    expect(err.details.positions).toEqual(["0001", "0002"]);
-
-    expect(err.hint).toMatch(/Unlock Objects \(Expert Tool\)" does NOT fix this on its own/);
-    expect(err.hint).toMatch(/SE09\/SE10/);
-    expect(err.hint).toContain("release the request, which is irreversible");
-
-    expect(err.retryable).toBe(false);
-  });
-});
-
-describe("removeTransportEntryViaBridge beforeAssert — malformed duplicate E071 line", () => {
-  const MALFORMED = "ZMCP-DDIC-ERR> duplicate E071 entries for something the regex was never written to parse";
-
-  it("still throws CTS_DUPLICATE_ENTRY, quoting the raw line rather than inventing fields", async () => {
-    const route = combine(objectHappyPath(CLASS_COLLECTION, BRIDGE), sharedRoute(classrunOutput([MALFORMED])));
-    const { conn } = await connected(route);
-
-    const err = await catchErr(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof));
-
-    expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
-    expect(err.message).toContain("nothing was removed");
-    // parseDdicTranscript strips the ZMCP-DDIC-ERR> prefix before it ever reaches errorLine.
-    expect(err.message).toContain(
-      `Raw ABAP-side detail: ${MALFORMED.slice(DDIC_ERR_PREFIX.length).trim()}`,
-    );
-
-    expect(err.details.trkorr).toBe(PARAMS.trkorr);
-    expect(err.details.objectName).toBe(PARAMS.objectName);
-    expect(err.details.holder).toBeUndefined();
-    expect(err.details.pgmid).toBeUndefined();
-    expect(err.details.count).toBeUndefined();
-    expect(err.details.positions).toBeUndefined();
-
-    expect(err.retryable).toBe(false);
-  });
-});
-
-describe("beforeAssert's duplicate-E071 branch is narrow: other transcripts are unaffected", () => {
-  it("an unrelated ZMCP-DDIC-ERR> line still falls through to the generic CHECK_FAILED, not CTS_DUPLICATE_ENTRY", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["ZMCP-DDIC-ERR> some unrelated bridge fluke, sy-subrc=1"])),
-    );
-    const { conn } = await connected(route);
-
-    const err = await catchErr(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof));
-
-    expect(err.code).toBe("CHECK_FAILED");
-    expect(err.message).toContain("some unrelated bridge fluke, sy-subrc=1");
-    expect(err.details.pgmid).toBeUndefined();
-    expect(err.details.positions).toBeUndefined();
-  });
-
-  it("the pre-existing 'no entry for' line is still NOT_FOUND, unaffected by the new duplicate-E071 regex", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput([`ZMCP-DDIC-ERR> no entry for ${PARAMS.objectName} on ${PARAMS.trkorr} or its tasks`]),
-      ),
-    );
-    const { conn } = await connected(route);
-
-    const err = await catchErr(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof));
-
-    expect(err.code).toBe("NOT_FOUND");
-  });
-
-  it("a success transcript (TREN-REMOVED, TREN-GONE, no error line) resolves normally — beforeAssert never throws on undefined errorLine", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput([
-          "ZMCP-TREN-HOLDER A4HK900545",
-          "ZMCP-TREN-ROW R3TR PROG ZTMD_I26_P1",
-          "TREN-REMOVED",
-          "TREN-GONE",
-        ]),
-      ),
-    );
-    const { conn } = await connected(route);
-
-    await expect(removeTransportEntryViaBridge(conn, bridgeAdminGate(), PARAMS, proof)).resolves.toMatchObject({
-      transcript: { errorLine: undefined },
+    ).then((err) => {
+      expect(err.code).toBe("BAD_INPUT");
+      expect(err.message).toContain("not a valid ABAP object name");
     });
   });
 });
 
-describe("abap_transport removeObject — CTS_DUPLICATE_ENTRY refusal enrichment", () => {
-  const removeInput = transportInput({
-    operation: "removeObject",
-    transport: "A4HK900117",
-    object: "ZMCP_CTS_PROBE",
-    confirm: "A4HK900117",
+// ---------------------------------------------------------------------------
+// 4 — trFindEntryHolder (src/adt/transports.ts), via fakeCtsConnection
+// ---------------------------------------------------------------------------
+
+describe("trFindEntryHolder", () => {
+  it("resolves to the task holding the entry, not the parent request", async () => {
+    const { conn, calls } = fakeCtsConnection([loadCtsFixture("transport-details-with-objects")]);
+    const holder = await trFindEntryHolder(conn, TRKORR, OBJECT);
+    expect(holder.trkorr).toBe(HOLDER);
+    expect(holder.onTask).toBe(true);
+    expect(holder.requested).toBe(TRKORR);
+    expect(holder.rows).toEqual([
+      expect.objectContaining({ pgmid: PGMID, type: OBJTYPE, name: OBJECT, wbType: WBTYPE, locked: true }),
+    ]);
+    expect(calls.length).toBe(1);
   });
 
-  it("the bridge's own pre-check refusal passes through CTS_DUPLICATE_ENTRY with objectOnSystem attached; message and hint stay byte for byte", async () => {
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      quickSearchRoute("hit"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(
-        classrunOutput([
-          "ZMCP-TREN-HOLDER A4HK900118",
-          "ZMCP-DDIC-ERR> duplicate E071 entries for R3TR PROG ZMCP_CTS_PROBE on A4HK900118: 2 rows at AS4POS 0001,0002",
-        ]),
+  it("throws NOT_FOUND for an object absent from the request and its tasks", async () => {
+    const { conn } = fakeCtsConnection([loadCtsFixture("transport-details-with-objects")]);
+    const err = await catchErr(trFindEntryHolder(conn, TRKORR, "ZNOT_THERE"));
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.hint).toContain('operation "show"');
+  });
+
+  it("rejects a malformed trkorr before any network call", async () => {
+    const { conn, calls } = fakeCtsConnection([]);
+    const err = await catchErr(trFindEntryHolder(conn, "!!!not-valid!!!", OBJECT));
+    expect(err.code).toBe("BAD_INPUT");
+    expect(calls.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5 — abap_transport removeObject: cheap refusals (zero network)
+// ---------------------------------------------------------------------------
+
+describe("abap_transport removeObject — cheap refusals (zero network)", () => {
+  it("refuses with no confirm, naming the exact echo needed", async () => {
+    const { conn, calls } = fakeCtsConnection([]);
+    const err = await catchErr(
+      abapTransport(conn, transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT }), MAX_CHARS, bridgeAdminGate()),
+    );
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain(`confirm: "${TRKORR}"`);
+    expect(calls.length).toBe(0);
+  });
+
+  it("refuses a confirm that doesn't echo the transport number", async () => {
+    const { conn, calls } = fakeCtsConnection([]);
+    const err = await catchErr(
+      abapTransport(
+        conn,
+        transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: "WRONG000001" }),
+        MAX_CHARS,
+        bridgeAdminGate(),
       ),
     );
-    const { conn } = await connected(route);
+    expect(err.code).toBe("BAD_INPUT");
+    expect(calls.length).toBe(0);
+  });
 
-    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
+  it("refuses under a readOnly gate", async () => {
+    const { conn, calls } = fakeCtsConnection([]);
+    const readOnly = new SafetyGate({ readOnly: true, allowPackages: [] });
+    const err = await catchErr(
+      abapTransport(
+        conn,
+        transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR }),
+        MAX_CHARS,
+        readOnly,
+      ),
+    );
+    expect(err.code).toBe("READ_ONLY");
+    expect(calls.length).toBe(0);
+  });
 
+  it("refuses a write-enabled gate that lacks the admin-only allowTransportDelete ceiling", async () => {
+    const { conn, calls } = fakeCtsConnection([]);
+    const writeOnly = new SafetyGate({ readOnly: false, allowPackages: ["*"] });
+    const err = await catchErr(
+      abapTransport(
+        conn,
+        transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR }),
+        MAX_CHARS,
+        writeOnly,
+      ),
+    );
+    expect(err.code).toBe("READ_ONLY");
+    expect(err.hint).toContain("admin-mode transport-delete ceiling");
+    expect(calls.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6 — removeTransportEntryViaBridge: happy path + beforeAssert, via classicFake
+// ---------------------------------------------------------------------------
+
+describe("removeTransportEntryViaBridge — happy path", () => {
+  it("parses holder and removed rows from the ZMCP-TREN-* lines", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`ZMCP-TREN-HOLDER ${HOLDER}`, `ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`, "TREN-REMOVED", "TREN-GONE"],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const res = await removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate));
+    expect(res.holder).toBe(HOLDER);
+    expect(res.removed).toEqual([{ pgmid: PGMID, object: OBJTYPE, name: OBJECT }]);
+    expect(res.transcript.tags).toEqual(expect.arrayContaining(["TREN-REMOVED", "TREN-GONE"]));
+  });
+
+  it("falls back to the requested trkorr as holder when no HOLDER line is seen", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`, "TREN-REMOVED", "TREN-GONE"],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const res = await removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate));
+    expect(res.holder).toBe(TRKORR);
+  });
+
+  it("supports removing more than one row (batch)", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [
+        `ZMCP-TREN-HOLDER ${HOLDER}`,
+        `ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`,
+        `ZMCP-TREN-ROW ${PGMID} CLAS ${OBJECT}_CL`,
+        "TREN-REMOVED",
+        "TREN-GONE",
+      ],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const res = await removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate));
+    expect(res.removed).toHaveLength(2);
+  });
+});
+
+describe("removeTransportEntryViaBridge — beforeAssert branches", () => {
+  it('a "no entry for" line throws NOT_FOUND, naming trkorr and object', async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`${DDIC_ERR_PREFIX} no entry for ${OBJECT} on ${TRKORR} or its tasks`],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const err = await catchErr(removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate)));
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toContain(`No entry for ${OBJECT} on ${TRKORR}`);
+    expect(err.hint).toBeUndefined();
+  });
+
+  it("a well-formed duplicate-E071 line throws CTS_DUPLICATE_ENTRY, parsed fields distinct from the closure's own objectName/trkorr", async () => {
+    // Deliberately different object name in the regex-matched line than PARAMS.objectName,
+    // to prove details.objectName is the CLOSURE value (normalized input), not the parsed one.
+    const errLine = `duplicate E071 entries for ${PGMID} ${OBJTYPE} OTHEROBJ on ${HOLDER}: 2 rows at AS4POS 0001,0002`;
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`${DDIC_ERR_PREFIX} ${errLine}`],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const err = await catchErr(removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate)));
     expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
-    expect(err.message).toContain("2 E071 rows share R3TR PROG ZMCP_CTS_PROBE (AS4POS 0001, 0002)");
-    expect(err.details.objectOnSystem).toBe("present");
-    expect(err.details.trkorr).toBe("A4HK900118");
-    expect(err.details.objectName).toBe("ZMCP_CTS_PROBE");
-    expect(err.details.holder).toBe("A4HK900118");
-    expect(err.details.pgmid).toBe("R3TR");
-    expect(err.details.object).toBe("PROG");
+    expect(err.message).toBe(
+      `CTS refused to remove OTHEROBJ from ${HOLDER}: 2 E071 rows share ${PGMID} ${OBJTYPE} OTHEROBJ ` +
+        `(AS4POS 0001, 0002) — nothing was removed. Raw ABAP-side detail: ${errLine}`,
+    );
+    expect(err.details.objectName).toBe(OBJECT); // closure value, NOT the regex-parsed "OTHEROBJ"
+    expect(err.details.trkorr).toBe(TRKORR);
+    expect(err.details.holder).toBe(HOLDER);
     expect(err.details.count).toBe(2);
     expect(err.details.positions).toEqual(["0001", "0002"]);
-    expect(err.hint).toMatch(/Unlock Objects \(Expert Tool\)" does NOT fix this on its own/);
-    expect(err.retryable).toBe(false);
+    expect(err.hint).toContain("TRINT_DELETE_COMM_OBJECT_KEYS counts");
+    expect(err.hint).toContain("SE03's");
+    expect(err.hint).toContain("SE09/SE10");
   });
 
-  it("a late msg=E TR 292 CHECK_FAILED (TR_DELETE_COMM_OBJECT_KEYS itself refusing) is reclassified to CTS_DUPLICATE_ENTRY with the late hint appended, inventing no AS4POS values", async () => {
-    const failLine =
-      "ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for R3TR PROG ZMCP_CTS_PROBE, sy-subrc=1, " +
-      "msg=E TR 292 v1= v2= v3= v4=";
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      quickSearchRoute("hit"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["ZMCP-TREN-HOLDER A4HK900118", failLine])),
-    );
-    const { conn } = await connected(route);
-
-    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
-
+  it("a malformed duplicate-E071 line (regex doesn't match) still throws CTS_DUPLICATE_ENTRY, generically", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`${DDIC_ERR_PREFIX} duplicate E071 entries for something unparseable`],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const err = await catchErr(removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate)));
     expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
-    // assertDdicTranscript's message is built from errorLine, which already has the
-    // ZMCP-DDIC-ERR> prefix stripped off by parseDdicTranscript.
+    expect(err.details).toEqual({
+      trkorr: TRKORR,
+      objectName: OBJECT,
+      raw: expect.any(String),
+    });
+    expect(err.hint).toBeUndefined();
+  });
+
+  it("an unrelated ZMCP-DDIC-ERR> line falls through to the generic CHECK_FAILED", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`${DDIC_ERR_PREFIX} something else entirely went wrong`],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const err = await catchErr(removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate)));
+    expect(err.code).toBe("CHECK_FAILED");
     expect(err.message).toBe(
-      `Removing ZMCP_CTS_PROBE from A4HK900118 failed on the server: ${failLine.slice(DDIC_ERR_PREFIX.length).trim()}`,
+      `Removing ${OBJECT} from ${TRKORR} failed on the server: something else entirely went wrong`,
     );
-    expect(err.details.objectOnSystem).toBe("present");
+  });
+
+  it("a transcript missing TREN-GONE (truncated success) throws CHECK_FAILED naming the missing marker", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`ZMCP-TREN-HOLDER ${HOLDER}`, `ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`, "TREN-REMOVED"],
+    });
+    const { conn } = await connected(fake.route);
+    const gate = bridgeAdminGate();
+    const err = await catchErr(removeTransportEntryViaBridge(conn, gate, PARAMS, proofFor(gate)));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("TREN-GONE");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7 — abap_transport removeObject: end-to-end happy path + objectOnSystem probe
+// ---------------------------------------------------------------------------
+
+function happyLines(): readonly string[] {
+  return [`ZMCP-TREN-HOLDER ${HOLDER}`, `ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`, "TREN-REMOVED", "TREN-GONE"];
+}
+
+describe("abap_transport removeObject — end to end", () => {
+  it("removes the entry, reports the resolved holder, removed rows and gone:true", async () => {
+    const fake = classicFake({ action: "remove_transport_entry", lines: happyLines });
+    const combined = combine(trShowRoute(), quickSearchRoute("empty"), fake.route);
+    const { conn } = await connected(combined);
+    const gate = bridgeAdminGate();
+    const input = transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR });
+
+    const result = await abapTransport(conn, input, MAX_CHARS, gate);
+    expect(result.text).toContain("operation: removeObject");
+    expect(result.text).toContain(`transport: ${TRKORR}`);
+    expect(result.text).toContain(`holder: ${HOLDER}`);
+    expect(result.text).toContain(`object: ${OBJECT}`);
+    expect(result.text).toContain("removedCount: 1");
+    expect(result.text).toContain("gone: true");
+    expect(result.text).toContain(`${OBJECT} lived on ${HOLDER}, a task of the request you passed (${TRKORR})`);
+    expect(result.text).toContain(`Removed: ${PGMID} ${OBJTYPE} ${OBJECT}`);
+  });
+});
+
+describe("abap_transport removeObject — objectOnSystem probe", () => {
+  async function run(mode: "hit" | "empty" | "fail") {
+    const fake = classicFake({ action: "remove_transport_entry", lines: happyLines });
+    const combined = combine(trShowRoute(), quickSearchRoute(mode), fake.route);
+    const { conn } = await connected(combined);
+    const gate = bridgeAdminGate();
+    const input = transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR });
+    return abapTransport(conn, input, MAX_CHARS, gate);
+  }
+
+  it('"hit" -> present, with a live-object warning note; removal still succeeds', async () => {
+    const result = await run("hit");
+    expect(result.text).toContain("objectOnSystem: present");
+    expect(result.text).toContain("still exists on the system");
+    expect(result.text).toContain("gone: true");
+  });
+
+  it('"empty" -> absent, no extra note', async () => {
+    const result = await run("empty");
+    expect(result.text).toContain("objectOnSystem: absent");
+    expect(result.text).not.toContain("still exists on the system");
+    expect(result.text).not.toContain("Could not settle");
+  });
+
+  it('"fail" (search throws) -> unknown, with a could-not-settle note; removal still succeeds', async () => {
+    const result = await run("fail");
+    expect(result.text).toContain("objectOnSystem: unknown");
+    expect(result.text).toContain("Could not settle whether");
+    expect(result.text).toContain("gone: true");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8 — enrichRemovalRefusal (module-private; exercised only via abapTransport)
+// ---------------------------------------------------------------------------
+
+// Copied verbatim from src/tools/transport.ts's module-private constants, so
+// this file can assert exact hint text without exporting them. If the source
+// text changes, this copy must be updated deliberately.
+const COMM_OBJECT_KEYS_HINT =
+  "The entry and its CTS lock are still on the request — it cannot be deleted while they are. " +
+  'If the refusal names a lock or an owner, SE03\'s "Unlock Objects (Expert Tool)" is the tool ' +
+  "for that — it does nothing for the duplicate-row guard (TR 292), which counts E071 rows, " +
+  "not locks. Every remaining route is outside abapsmith and not guaranteed to succeed: edit " +
+  "the request's object list in SE09/SE10; or release the request (irreversible). " +
+  "The msg= fragment in the message above is the T100 message CTS itself raised — it may be " +
+  "blank (a function module that raises with a bare RAISE sets no message) — but quote it " +
+  "when reporting this failure.";
+
+const LATE_DUPLICATE_ENTRY_HINT =
+  "The request holds two or more E071 rows for this object (same PGMID+OBJECT+OBJ_NAME) — " +
+  "E071's key is TRKORR+AS4POS, not object identity, so a create and a delete of the same " +
+  "object under one request both get recorded, and TR_DELETE_COMM_OBJECT_KEYS refuses to pick " +
+  "one to drop. The entry and its lock are still on the request. Every remaining route is " +
+  "outside abapsmith and not guaranteed to succeed: edit the request's object list in " +
+  "SE09/SE10; or release the request (irreversible).";
+
+describe("abap_transport removeObject — enrichRemovalRefusal", () => {
+  async function runWith(errorLines: readonly string[]) {
+    const fake = classicFake({ action: "remove_transport_entry", lines: () => errorLines });
+    const combined = combine(trShowRoute(), quickSearchRoute("empty"), fake.route);
+    const { conn } = await connected(combined);
+    const gate = bridgeAdminGate();
+    const input = transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR });
+    return catchErr(abapTransport(conn, input, MAX_CHARS, gate));
+  }
+
+  it("a generic TR_DELETE_COMM_OBJECT_KEYS CHECK_FAILED gets objectOnSystem attached and the generic hint appended", async () => {
+    const errLine = `TR_DELETE_COMM_OBJECT_KEYS failed for ${PGMID} ${OBJTYPE} ${OBJECT}, sy-subrc=1, msg=E TR 123 v1= v2= v3= v4=`;
+    const err = await runWith([`ZMCP-TREN-HOLDER ${HOLDER}`, `${DDIC_ERR_PREFIX} ${errLine}`]);
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toBe(`Removing ${OBJECT} from ${HOLDER} failed on the server: ${errLine}`);
+    expect(err.details.objectOnSystem).toBe("absent");
+    expect(err.hint).toBe(COMM_OBJECT_KEYS_HINT);
+  });
+
+  it("a late msg=E TR 292 CHECK_FAILED is reclassified to CTS_DUPLICATE_ENTRY, message unchanged, hint replaced", async () => {
+    const errLine = `TR_DELETE_COMM_OBJECT_KEYS failed for ${PGMID} ${OBJTYPE} ${OBJECT}, sy-subrc=1, msg=E TR 292 v1= v2= v3= v4=`;
+    const err = await runWith([`ZMCP-TREN-HOLDER ${HOLDER}`, `${DDIC_ERR_PREFIX} ${errLine}`]);
+    expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
+    expect(err.message).toBe(`Removing ${OBJECT} from ${HOLDER} failed on the server: ${errLine}`);
+    expect(err.hint).toBe(LATE_DUPLICATE_ENTRY_HINT);
+    expect(err.details.objectOnSystem).toBe("absent");
     expect(err.details.positions).toBeUndefined();
     expect(err.details.pgmid).toBeUndefined();
-
-    // This reclassification path does NOT carry the SE03/"Unlock Objects" wording — that phrase
-    // only appears in the bridge's own pre-check hint and in COMM_OBJECT_KEYS_HINT. Deliberately
-    // not asserted here: LATE_DUPLICATE_ENTRY_HINT never mentions SE03 or "Unlock Objects".
-    expect(err.hint).not.toMatch(/AS4POS \d/);
-    expect(err.hint).toContain("two or more E071 rows for this object");
-    expect(err.hint).toMatch(/SE09\/SE10/);
-
-    expect(err.retryable).toBe(false);
   });
 
-  it("a deploy-time failure with an unrelated AbapError code (the bridge PUT itself failing, not a classrun refusal) is returned completely unchanged — no objectOnSystem, no hint grafted on", async () => {
-    // The PUT is deliberately left unrouted, so translateWriteFailure's generic fallback
-    // (session.ts) turns the harness's raw "unrouted request" throw into an ADT_ERROR-coded
-    // AbapError before it ever reaches enrichRemovalRefusal — every error-producing layer
-    // between here and there (putContent/translateWriteFailure/translateAdtError) normalises
-    // to AbapError, so a genuinely non-AbapError value never actually reaches that function
-    // through this public surface. What DOES exercise the "unrelated code" passthrough branch
-    // is this: a code that is neither CTS_DUPLICATE_ENTRY nor CHECK_FAILED at all.
-    const route = combine(
-      trShowRoute("A4HK900117", "transport-details-with-objects"),
-      quickSearchRoute("hit"),
-      brokenPutRoute(CLASS_COLLECTION, BRIDGE),
-      sharedRoute(classrunOutput(["TREN-REMOVED", "TREN-GONE"])),
+  it("the bridge's own well-formed CTS_DUPLICATE_ENTRY gets objectOnSystem attached but message/hint stay exactly unchanged", async () => {
+    const errLine = `duplicate E071 entries for ${PGMID} ${OBJTYPE} ${OBJECT} on ${HOLDER}: 2 rows at AS4POS 0001,0002`;
+    const err = await runWith([`ZMCP-TREN-HOLDER ${HOLDER}`, `${DDIC_ERR_PREFIX} ${errLine}`]);
+    expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
+    expect(err.message).toBe(
+      `CTS refused to remove ${OBJECT} from ${HOLDER}: 2 E071 rows share ${PGMID} ${OBJTYPE} ${OBJECT} ` +
+        `(AS4POS 0001, 0002) — nothing was removed. Raw ABAP-side detail: ${errLine}`,
     );
-    const { conn } = await connected(route);
+    expect(err.details.objectOnSystem).toBe("absent");
+    expect(err.hint).toContain("TRINT_DELETE_COMM_OBJECT_KEYS counts");
+    // No LATE_DUPLICATE_ENTRY_HINT text appended — passthrough branch keeps e.hint exactly.
+    expect(err.hint).not.toContain("E071's key is TRKORR+AS4POS, not object identity, so a create and a delete");
+  });
 
-    const err = await catchErr(abapTransport(conn, removeInput, MAX_CHARS, bridgeAdminGate()));
-
-    expect(err.code).toBe("ADT_ERROR");
-    expect(err.message).toMatch(/unrouted request/);
+  it('a NOT_FOUND refusal ("no entry for") passes through completely untouched — no objectOnSystem, no hint added', async () => {
+    const err = await runWith([`${DDIC_ERR_PREFIX} no entry for ${OBJECT} on ${HOLDER} or its tasks`]);
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.hint).toBeUndefined();
     expect(err.details.objectOnSystem).toBeUndefined();
+    expect(err.message).toContain(`No entry for ${OBJECT} on ${HOLDER}`);
+  });
+
+  it("a CHECK_FAILED not naming TR_DELETE_COMM_OBJECT_KEYS (missing expectTag) passes through completely untouched", async () => {
+    // TREN-REMOVED present, TREN-GONE missing -> missing-marker CHECK_FAILED, no FM name in the message.
+    const err = await runWith([`ZMCP-TREN-HOLDER ${HOLDER}`, `ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`, "TREN-REMOVED"]);
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.details.objectOnSystem).toBeUndefined();
+    expect(err.message).toContain("TREN-GONE");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9 — journalling (caller-driven removeObject)
+// ---------------------------------------------------------------------------
+
+describe("abap_transport removeObject — journalling", () => {
+  let tmp: string;
+  let warn: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    tmp = await mkdtemp(join(tmpdir(), "abapsmith-tr-entry-remove-journal-"));
+    warn = vi.fn();
+  });
+
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true });
+  });
+
+  const jcfg = (): JournalConfig => ({ dir: tmp, enabled: true, maxEntries: 200, maxAgeDays: 30 });
+  const FAKE_CFG = { sid: "A4H", url: "http://a4h.example:50000", client: "001" };
+  const deps = (): TransportJournalDeps => ({
+    journal: new Journal(jcfg(), "A4H"),
+    cfg: FAKE_CFG,
+    warn: warn as unknown as (msg: string) => void,
+  });
+  const written = async (): Promise<JournalEntry[]> => new Journal(jcfg(), "A4H").list();
+  const only = async (): Promise<JournalEntry> => {
+    const list = await written();
+    expect(list.length, "journal entries").toBe(1);
+    return list[0]!;
+  };
+
+  it("a successful removeObject journals one succeeded entry under the resolved holder, with a before-image", async () => {
+    const fake = classicFake({ action: "remove_transport_entry", lines: happyLines });
+    const combined = combine(trShowRoute(), quickSearchRoute("empty"), fake.route);
+    const { conn } = await connected(combined);
+    const gate = bridgeAdminGate();
+    const input = transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR });
+
+    await abapTransport(conn, input, MAX_CHARS, gate, deps());
+
+    const entry = await only();
+    expect(entry.outcome).toBe("succeeded");
+    expect(entry.corrNr).toBe(HOLDER);
+    expect(entry.object.name).toBe(HOLDER);
+    expect(entry.beforeCapture).toBe("captured");
+    expect(entry.tool).toBe("abap_transport removeObject");
+
+    const blob = await new Journal(jcfg(), "A4H").beforeImage(entry);
+    expect(blob).toBeTruthy();
+    expect(blob).toContain(OBJECT);
+    expect(blob).toContain(HOLDER);
+    expect(blob).toContain(PGMID);
+    // removeObjectBeforeImage's rows include only pgmid/type/name/locked — not wbType/uri.
+    expect(blob).not.toContain(WBTYPE);
+  });
+
+  it("a thrown bridge error still journals under the resolved holder, stays pending, and warns", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`ZMCP-TREN-HOLDER ${HOLDER}`, `${DDIC_ERR_PREFIX} no entry for ${OBJECT} on ${HOLDER} or its tasks`],
+    });
+    const combined = combine(trShowRoute(), quickSearchRoute("empty"), fake.route);
+    const { conn } = await connected(combined);
+    const gate = bridgeAdminGate();
+    const input = transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR });
+
+    const err = await catchErr(abapTransport(conn, input, MAX_CHARS, gate, deps()));
+    expect(err.code).toBe("NOT_FOUND");
+
+    const entry = await only();
+    expect(entry.outcome).toBe("pending");
+    expect(entry.corrNr).toBe(HOLDER);
+    expect(warn.mock.calls.some((c) => String(c[0]).includes("stays `pending` on purpose"))).toBe(true);
   });
 });

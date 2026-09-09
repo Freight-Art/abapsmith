@@ -33,7 +33,8 @@ import {
   isBridgeOnlyCreateType,
   NON_WRITABLE_TYPES,
 } from "../adt/capabilities.js";
-import { DDIC_BRIDGE_CLASS, type DdicTranscript } from "../adt/ddic-bridge.js";
+import { CLASSIC_BODY_CLASS } from "../adt/fluid/builtin/classic.js";
+import { type DdicTranscript } from "../adt/ddic-bridge.js";
 import { discardedDescriptorValues, type DiscardedValue } from "../adt/descriptor-fidelity.js";
 import {
   assertSecondaryIndexTarget,
@@ -2969,7 +2970,7 @@ async function abapCreatePackage(
   if (verifyOutcome.status === "confirmed-absent") {
     throw new AbapError(
       "CHECK_FAILED",
-      `${DDIC_BRIDGE_CLASS.createPackage} reported success (the transcript carries ` +
+      `${CLASSIC_BODY_CLASS} reported success (the transcript carries ` +
         `${bridgeRes.transcript.tags.join(", ")}) but a follow-up repository search returned no ` +
         `hit for ${target.name} (${verifyOutcome.uri}, via ${verifyOutcome.via}) — the same ` +
         "false-success shape VIEW/DV was once reproduced against live for (see " +
@@ -3013,7 +3014,7 @@ async function abapCreatePackage(
       package_type: input.package_type?.trim() || "development",
       transport: transportHeaderText(transportInfo),
       verified,
-      bridge_class: DDIC_BRIDGE_CLASS.createPackage,
+      bridge_class: CLASSIC_BODY_CLASS,
       markers: bridgeRes.transcript.tags.join(" "),
       tdevc: bridgeRes.tdevc
         ? `DEVCLASS=${bridgeRes.tdevc.devclass} PARENTCL=${bridgeRes.tdevc.parentcl} ` +
@@ -3023,9 +3024,10 @@ async function abapCreatePackage(
     },
     notes: [
       transportNote(transportInfo, gate.config?.abapMode),
-      "Created by running a generated ZCL_ZMCP_DDIC_CPKG classrun bridge, not over ADT REST: " +
-        "CL_PACKAGE_FACTORY=>CREATE_NEW_PACKAGE, then lo_package->save(i_transport_request=...) " +
-        "— SE21's own backend. See src/adt/package-create.ts and src/adt/ddic-bridge.ts.",
+      "Created by running the classic fluid tool's body class " + CLASSIC_BODY_CLASS +
+        ", not over ADT REST: CL_PACKAGE_FACTORY=>CREATE_NEW_PACKAGE, then " +
+        "lo_package->save(i_transport_request=...) — SE21's own backend. See " +
+        "src/adt/package-create.ts and src/adt/classic-call.ts.",
       verifyNote,
       ...tdevcDiscrepancies(bridgeRes.tdevc, {
         softwareComponent,
@@ -3355,7 +3357,7 @@ async function abapCreateViaBridge(
     // See this function's doc comment for the live-observed defect and fix. Whether the
     // COMMIT WORK fix closes the gap is NOT assumed here — the read-back below decides,
     // live, on every call.
-    bridgeClass = DDIC_BRIDGE_CLASS.createView;
+    bridgeClass = CLASSIC_BODY_CLASS;
     const named = normalizeCorrNr(input.corr_nr);
     const localPkg = isLocalPackageName(packageName);
     let corrNr: string | undefined;
@@ -3493,7 +3495,7 @@ async function abapCreateViaBridge(
       );
     }
 
-    bridgeClass = DDIC_BRIDGE_CLASS.createTransaction;
+    bridgeClass = CLASSIC_BODY_CLASS;
     const corrNr = normalizeCorrNr(input.corr_nr);
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
@@ -3558,8 +3560,8 @@ async function abapCreateViaBridge(
       journal: entryId !== undefined ? entryId : "off (not journalled — see notes)",
     },
     notes: [
-      `Created by running a generated ${bridgeClass} classrun bridge, not over ADT REST: ` +
-        `${cap?.bridgeCreate?.via ?? "see src/adt/ddic-bridge.ts"}`,
+      `Created by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST: ` +
+        `${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
       verifyNote,
       bridgeReversalNote(entryId, beforeCapture, registration, label, type, target.name),
@@ -3718,13 +3720,13 @@ async function abapDeleteViaBridge(
   let bridgeClass: string;
 
   if (type === "VIEW/DV") {
-    bridgeClass = DDIC_BRIDGE_CLASS.deleteView;
+    bridgeClass = CLASSIC_BODY_CLASS;
     // `resolved`, not `packageName`: both bridges now require the branded `ServerPackage`
     // (src/adt/resolved-package.ts) so the compiler, not just this function, refuses a
     // caller-supplied or re-derived string at this boundary.
     deleted = await deleteClassicViewViaBridge(conn, gate, { viewName: target.name, packageName: resolved });
   } else {
-    bridgeClass = DDIC_BRIDGE_CLASS.deleteTransaction;
+    bridgeClass = CLASSIC_BODY_CLASS;
     deleted = await deleteTransactionViaBridge(conn, gate, { tcode: target.name, packageName: resolved });
   }
 
@@ -3773,8 +3775,9 @@ async function abapDeleteViaBridge(
       journal: "off (not journalled — see notes)",
     },
     notes: [
-      `Deleted by running a generated ${bridgeClass} classrun bridge, not over ADT REST — ${type} ` +
-        "has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).",
+      `Deleted by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST — ` +
+        `${type} has no writable ADT collection at all (see this type's REGISTRY entry in ` +
+        "src/adt/capabilities.ts).",
       verifyNote,
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot " +
         "restore this object. To bring it back, create it again with a fresh abap_write call.",
@@ -3927,12 +3930,12 @@ async function abapCreateIndexViaBridge(
       created: true,
       verified: false,
       detail,
-      bridge_class: DDIC_BRIDGE_CLASS.createIndex,
+      bridge_class: CLASSIC_BODY_CLASS,
       markers: created.transcript.tags.join(" "),
       journal: "off (never journalled — see notes)",
     },
     notes: [
-      `Created by running a generated ${DDIC_BRIDGE_CLASS.createIndex} classrun bridge, not over ` +
+      `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ` +
         `ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
       "NOT independently verified: a secondary index has no ADT resource of its own to read back " +
@@ -4071,12 +4074,12 @@ async function abapDeleteIndexViaBridge(
       mode: "delete-bridge",
       deleted: true,
       verified: false,
-      bridge_class: DDIC_BRIDGE_CLASS.deleteIndex,
+      bridge_class: CLASSIC_BODY_CLASS,
       markers: deleted.transcript.tags.join(" "),
       journal: "off (not journalled — see notes)",
     },
     notes: [
-      `Deleted by running a generated ${DDIC_BRIDGE_CLASS.deleteIndex} classrun bridge, not over ` +
+      `Deleted by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ` +
         `ADT REST — ${type} has no writable ADT collection at all (see this type's REGISTRY entry ` +
         "in src/adt/capabilities.ts).",
       "NOT independently verified: a secondary index has no ADT resource of its own to read back " +

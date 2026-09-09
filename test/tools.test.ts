@@ -209,7 +209,17 @@ vi.mock("../src/adt/resolve.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/adt/resolve.js")>()),
   resolveObject: adt.resolveObject,
 }));
-vi.mock("../src/adt/run.js", () => ({
+// Spreads the real module first and overrides only the network-touching
+// functions. It used to be a bare factory listing exactly what the tool layer
+// imported, which meant every new constant added to `run.ts` broke collection
+// of this whole file with "No <X> export is defined on the mock" — as
+// `BRIDGE_CLASS_PREFIX` did once `src/adt/fluid/dynamic-bridges.ts` started
+// reading it to attribute `ZCL_ZMCP_RUN_*` classes. Re-typing each such
+// constant into the mock would have worked too, and would have let the copy
+// drift away from the original silently; taking them from the original cannot.
+// The functions below stay faked, so nothing here reaches the network.
+vi.mock("../src/adt/run.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/adt/run.js")>()),
   runClass: adt.runClass,
   runReport: adt.runReport,
   bridgeClassName: adt.bridgeClassName,
@@ -218,7 +228,8 @@ vi.mock("../src/adt/run.js", () => ({
   // `abap_run` gates the generated bridge class before running a report — the
   // bridge is an object CREATED below the tool layer, so the gate has to see it
   // here or it escapes the package allowlist entirely. The tool imports this
-  // constant, so the mock has to carry it.
+  // constant, so the mock has to carry it. Kept as an explicit override rather
+  // than inherited from the original: the fixtures below assert against `$TMP`.
   BRIDGE_PACKAGE: "$TMP",
 }));
 
@@ -1732,7 +1743,7 @@ describe("abap_run", () => {
   });
 
   /**
-   * Running a report CREATES the bridge class, in $TMP, from inside
+   * Running a report CREATES the bridge class, in $ABAPSMITH_FLUID_API, from inside
    * `runReport` — below the tool layer, where the safety gate is out of scope.
    * An operator who allowlisted only `ZFOO_*` would otherwise get an object
    * written to a package they never authorised.
@@ -1882,6 +1893,7 @@ describe("tool surface", () => {
       "abap_debug_vars",
       "abap_dumps",
       "abap_enh",
+      "abap_fluid",
       "abap_fpm_read",
       "abap_img",
       "abap_img_edit",

@@ -112,6 +112,139 @@
  * **13**. This entry must be deleted (and the ceiling dropped) if the suite ever
  * stops connecting for real.
  *
+ * ### Ceiling bump: the fluid API runtime live suite
+ *
+ * `integration-fluid-runtime.test.ts` joined as a FOURTEENTH entry, under the
+ * same clause as the five entries above: a genuine SEVENTH permanent member,
+ * same category as `integration.test.ts` / `integration-undo.test.ts` /
+ * `integration-fpm-lock.test.ts` / `integration-class-includes.test.ts` /
+ * `integration-lock-handle.test.ts`. It is a live suite (self-gated on
+ * `VITEST_LIVE=1` **and** `ABAP_URL` **and** write access, independently of
+ * vitest.config.ts's `LIVE_INTEGRATION_TESTS`, which does now name it) that
+ * deploys and activates the fluid API's own runtime class,
+ * `ZCL_ZMCP_FLUID_RT`, into `$ABAPSMITH_FLUID_API` on the real appliance, and
+ * runs `dispatch()` against it for real — a successful `ping` round trip and a
+ * deliberately failing `fail` action — plus a read-mode case asserting
+ * `dispatch()` refuses before any request when write access is not
+ * configured. There is no fake in the file to route a probe through, and the
+ * real system answers the T000 probe itself. `ALLOWLIST_SIZE_AT_LANDING`
+ * still stays **8**; `ALLOWLIST_CEILING` is now **14**. This entry must be
+ * deleted (and the ceiling dropped) if the suite ever stops connecting for
+ * real.
+ * ### Ceiling bump: the fluid-package deployment/relocation live suite
+ *
+ * `integration-fluid-run.test.ts` joined as a FIFTEENTH entry, under the same
+ * clause as the five entries above: a genuine EIGHTH permanent member, same
+ * category as `integration.test.ts` / `integration-undo.test.ts` /
+ * `integration-fpm-lock.test.ts` / `integration-class-includes.test.ts` /
+ * `integration-lock-handle.test.ts`. It is a live suite (self-gated on
+ * `ABAP_URL` plus write access via `liveSuiteSkipReason({ write: true })` from
+ * `test/live-appliance-state.ts`, and named in vitest.config.ts's
+ * `LIVE_INTEGRATION_TESTS`) that proves, live, that the `abap_run` bridge
+ * class is deployed into and runs from the fluid API's own package
+ * `$ABAPSMITH_FLUID_API` (created on first use) rather than the legacy
+ * `$TMP`, and that a bridge found stranded in `$TMP` is relocated
+ * (delete-then-recreate, since ABAP objects cannot change package) into that
+ * package on next use — both confirmed by an independent ADT read-back of
+ * the class's package, not by trusting the deploy path's own return value.
+ * There is no fake in the file to route a probe through, and the real system
+ * answers the T000 probe itself. `ALLOWLIST_SIZE_AT_LANDING` still stays
+ * **8** — the historical fact does not move — and `ALLOWLIST_CEILING` is now
+ * **15**. This entry must be deleted (and the ceiling dropped) if the suite
+ * ever stops connecting for real.
+ *
+ * ### Ceiling bump: the classic fluid tool live suite
+ *
+ * `integration-fluid-classic.test.ts` joined as a SIXTEENTH entry, under the
+ * same clause as the six entries above: a genuine NINTH permanent member,
+ * same category as `integration.test.ts` / `integration-undo.test.ts` /
+ * `integration-fpm-lock.test.ts` / `integration-class-includes.test.ts` /
+ * `integration-lock-handle.test.ts` / `integration-fluid-runtime.test.ts` /
+ * `integration-fluid-run.test.ts`. It is a live suite (self-gated on
+ * `ABAP_URL` plus write access via `liveSuiteSkipReason({ write: true })`,
+ * and named in vitest.config.ts's `LIVE_INTEGRATION_TESTS`) that deploys and
+ * activates the builtin `classic` fluid tool's body class,
+ * `ZCL_ZMCP_FLUID_CLASSIC`, into `$ABAPSMITH_FLUID_API` on the real
+ * appliance, and round-trips a create/delete of a throwaway `$TMP`
+ * transaction through it, asserting the `exists` action reports
+ * ABSENT/EXISTS/ABSENT at each step. There is no fake in the file to route a
+ * probe through, and the real system answers the T000 probe itself.
+ * `ALLOWLIST_SIZE_AT_LANDING` still stays **8**; `ALLOWLIST_CEILING` is now
+ * **16**. This entry must be deleted (and the ceiling dropped) if the suite
+ * ever stops connecting for real.
+ *
+ * ### Ceiling bump: the core fluid tool + retired-bridge reaper live suite
+ *
+ * `integration-fluid-core.test.ts` joined as a SEVENTEENTH entry, under the
+ * same clause as the seven entries above: a genuine TENTH permanent member,
+ * same category as `integration.test.ts` / `integration-undo.test.ts` /
+ * `integration-fpm-lock.test.ts` / `integration-class-includes.test.ts` /
+ * `integration-lock-handle.test.ts` / `integration-fluid-runtime.test.ts` /
+ * `integration-fluid-run.test.ts` / `integration-fluid-classic.test.ts`. It
+ * is a live suite (self-gated on `ABAP_URL` plus write access via
+ * `liveSuiteSkipReason({ write: true })`, and named in vitest.config.ts's
+ * `LIVE_INTEGRATION_TESTS`) that deploys and activates the builtin `core`
+ * fluid tool's body class, `ZCL_ZMCP_FLUID_CORE`, into
+ * `$ABAPSMITH_FLUID_API` on the real appliance, and round-trips its
+ * select/describe_fm/call_fm actions against real DDIC tables and function
+ * modules, and separately probes/reaps the closed `RETIRED_BRIDGE_CLASSES`
+ * list for real. There is no fake in the file to route a probe through, and
+ * the real system answers the T000 probe itself. `ALLOWLIST_SIZE_AT_LANDING`
+ * still stays **8**; `ALLOWLIST_CEILING` is now **17**. This entry must be
+ * deleted (and the ceiling dropped) if the suite ever stops connecting for
+ * real.
+ *
+ * ### Ceiling bump: the fluid-describe renderer suite
+ *
+ * `fluid-describe.test.ts` joined as a TWENTY-THIRD entry. Like
+ * `object-gate-config-equivalence.test.ts` / `pool-cross-process-object-gate.test.ts`
+ * above, it is a DIFFERENT permanent shape from the live suites: not a live
+ * suite with no fake, but a suite that is structurally incapable of ever
+ * reaching the probe in the first place. It is a pure OFFLINE suite over the
+ * three renderers in `src/adt/fluid/describe.ts` (`buildFluidDescription`,
+ * `buildFluidDescribe`, `buildFluidInfoBlock`), exercised only against
+ * hand-built `FluidToolSet` fixtures, and it never opens a connection: no
+ * `AbapConnection`, no pool lease, no `HttpClient`, and no fake ADT server
+ * anywhere in the file. It constructs its `SafetyGate` directly (from
+ * `../src/safety.js`) rather than deriving one from a probed connection, so
+ * `buildFluidInfoBlock`'s systemRole/productive/writesLockedOut/roleProbeFailure
+ * reporting is asserted off that gate's own `.config` — set explicitly by the
+ * test — never off what a real T000 probe would answer. It is flagged only
+ * because it must import `safety.js` (for that direct `SafetyGate`
+ * construction) and `manifest.js` (for its fixtures) to make real assertions
+ * — imports past what the mechanical config-only exemption allows (vitest +
+ * node:* + `../src/config.js` only) — the same reason
+ * `object-gate-config-equivalence.test.ts` sits on this list despite also
+ * never opening a connection. `ALLOWLIST_SIZE_AT_LANDING` still stays **8**;
+ * `ALLOWLIST_CEILING` is now **23**. This entry must be deleted (and the
+ * ceiling dropped) if the file is ever restructured to fit inside the
+ * config-only predicate instead.
+ *
+ * ### Ceiling bump: the fluid plugin runtime-dependency live suite
+ *
+ * `integration-fluid-plugin.test.ts` joined as a TWENTY-FOURTH entry, under
+ * the same clause as the live-suite entries above: another genuine permanent
+ * member, same category as `integration.test.ts` / `integration-undo.test.ts`
+ * / `integration-fpm-lock.test.ts` / `integration-class-includes.test.ts` /
+ * `integration-lock-handle.test.ts` / `integration-fluid-runtime.test.ts` /
+ * `integration-fluid-run.test.ts` / `integration-fluid-classic.test.ts` /
+ * `integration-fluid-core.test.ts`. It is a live suite (self-gated on
+ * `ABAP_URL` plus write access via `liveSuiteSkipReason({ write: true })`,
+ * and named in vitest.config.ts's `LIVE_INTEGRATION_TESTS`) that deletes the
+ * fluid API's own runtime class, `ZCL_ZMCP_FLUID_RT`, out-of-band on the real
+ * appliance, loads the checked-in `hello` fixture plugin through an isolated
+ * (symlinked) root so it is immune to whatever else lives under
+ * `test/fixtures/fluid-plugins/`, and dispatches the plugin's `ping` action
+ * through the real `abap_fluid` MCP tool handler — pinning that a PLUGIN
+ * call redeploys the runtime class it can never declare in its own manifest
+ * (the loader's namespace guard forbids it) rather than dumping, and leaves
+ * the runtime deployed afterward for the other live suites sharing this
+ * appliance. There is no fake in the file to route a probe through, and the
+ * real system answers the T000 probe itself. `ALLOWLIST_SIZE_AT_LANDING`
+ * still stays **8**; `ALLOWLIST_CEILING` is now **24**. This entry must be
+ * deleted (and the ceiling dropped) if the suite ever stops connecting for
+ * real.
+ *
  * ## The config-only exemption (separate from the allow-list)
  *
  * A suite whose SUBJECT is config resolution — env string in, resolved value
@@ -149,7 +282,7 @@ const CONFIG_BUILDERS_AT_LANDING = 17;
  * accommodate unrepaired debt — that is what `PROBE_ALLOWLIST.length <=
  * builders.length` and the shrink-to-THREE target below still guard against.
  */
-const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 5; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle
+const ALLOWLIST_CEILING = ALLOWLIST_SIZE_AT_LANDING + 16; // +1 integration-fpm-lock, +1 integration-class-includes, +1 object-gate-config-equivalence, +1 pool-cross-process-object-gate, +1 integration-lock-handle, +1 integration-fluid-runtime, +1 integration-fluid-run, +1 integration-fluid-tool, +1 integration-fluid-img, +1 integration-fluid-classic, +1 integration-fluid-core, +1 integration-fluid-ui, +1 integration-fluid-fpm, +1 integration-fluid-enh, +1 fluid-describe, +1 integration-fluid-plugin
 
 // ---------------------------------------------------------------------------
 // The scan
@@ -407,6 +540,26 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "or datapreview anywhere in this file.",
   },
   {
+    file: "fluid-describe.test.ts",
+    why:
+      "Offline suite for the three PURE renderers in src/adt/fluid/describe.ts — " +
+      "buildFluidDescription, buildFluidDescribe, buildFluidInfoBlock — exercised only against " +
+      "hand-built FluidToolSet fixtures; no fake ADT server, no HttpClient, no built-in tool ids. " +
+      "It calls ConfigSchema.parse() (via its local cfg() helper) purely to build the Config " +
+      "argument those renderers read plain fields off of (flag/package/contract/abapMode/" +
+      "readOnly) — never to open a connection. It also constructs a SafetyGate directly (from " +
+      "../src/safety.js, not from a probed connection) so buildFluidInfoBlock's " +
+      "systemRole/productive/writesLockedOut/roleProbeFailure reporting can be asserted off that " +
+      "gate's own .config, which the test sets explicitly; no assertion here ever depends on what " +
+      "a real T000 probe would answer. It never calls AbapConnection, createServer, .connect(, " +
+      ".withRead( or .withWrite( — confirmed by grep. Its other imports (manifest.js, " +
+      "plugin-loader.js, describe.js) are pure type/fixture surfaces, the same reason " +
+      "object-gate-config-equivalence.test.ts sits on this list above despite also never opening " +
+      "a connection: importing anything beyond src/config.js disqualifies it from the narrow " +
+      "config-only exemption (vitest + node:* + ../src/config.js only), even though that " +
+      "exemption's premise — no reachable connection surface — holds here just as it does there.",
+  },
+  {
     file: "integration-lock-handle.test.ts",
     why:
       "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
@@ -422,6 +575,177 @@ const PROBE_ALLOWLIST: { file: string; why: string }[] = [
       "out and every PUT assertion in the file would go RED, loudly. There is no fake to route, " +
       "and faking one would replace the server behaviour — real lock/unlock semantics on the " +
       "wire — the suite exists to observe.",
+  },
+  {
+    file: "integration-fluid-runtime.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts, with the same extra belt as the latter two: it " +
+      "self-gates on VITEST_LIVE=1 as well as ABAP_URL and write access " +
+      "(liveWriteConfigured(), test/helpers/live-write-gate.ts), INDEPENDENTLY of " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS (which does now name it). It builds its config " +
+      "with loadConfig() and, against the real A4H appliance, deploys and activates the fluid " +
+      "API's own runtime class, ZCL_ZMCP_FLUID_RT, into $ABAPSMITH_FLUID_API, then runs " +
+      "dispatch() for real — a successful ping round trip and a deliberately failing fail action " +
+      "— plus a separate read-mode block asserting dispatch() refuses with FLUID_API_DISABLED " +
+      "before any request when write access is not configured. The real system answers the T000 " +
+      "probe itself, so the guard's failure mode (a fake leaving the verdict `inconclusive` while " +
+      "the suite stays green) cannot arise: an inconclusive verdict here would lock writes out and " +
+      "every deploy/dispatch assertion in the file would go RED, loudly. There is no fake in the " +
+      "file to route a probe through, and faking one would replace the server behaviour — real " +
+      "ABAP deploy/activate and console-protocol execution on the wire — the suite exists to " +
+      "observe.",
+  },
+  {
+    file: "integration-fluid-run.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts. Gated on ABAP_URL plus write access " +
+      "(ABAP_MODE=edit/admin, or legacy ABAP_ALLOW_WRITE) via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It proves, live, " +
+      "that the abap_run bridge class deploys into and runs from the fluid API's own package " +
+      "$ABAPSMITH_FLUID_API rather than the legacy $TMP, and that a bridge found stranded in " +
+      "$TMP is relocated into that package on next use — both confirmed by an independent ADT " +
+      "read-back of the class's package, not by trusting the deploy path's own return value. " +
+      "There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-tool.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "drives the abap_fluid MCP TOOL HANDLER (registerFluidTool()) against the real A4H " +
+      "appliance — a captured registerTool() handler invoked directly, the same shape a real " +
+      "MCP client call takes — through list/describe/status/verify/run/repair/remove, deploying, " +
+      "pinging, deleting, and redeploying the fluid runtime class ZCL_ZMCP_FLUID_RT for real. The " +
+      "real system answers the T000 probe itself, so the guard's failure mode (a fake leaving the " +
+      "verdict `inconclusive` while the suite stays green) cannot arise: an inconclusive verdict " +
+      "here would lock writes out and every run/repair/remove assertion in the file would go RED, " +
+      "loudly. There is no fake in the file to route a probe through, and faking one would replace " +
+      "the server behaviour — real ABAP deploy/activate/delete and console-protocol execution on " +
+      "the wire — the suite exists to observe.",
+  },
+  {
+    file: "integration-fluid-img.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It proves, live, " +
+      "that the fluid API's img tool deploys ZCL_ZMCP_FLUID_IMG and dispatch()'s preview action " +
+      "runs a real DDIC probe against T005, returning a transcript that parses cleanly under " +
+      "parseImgWriteTranscript. There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-classic.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It deploys and " +
+      "activates the builtin classic fluid tool's body class, ZCL_ZMCP_FLUID_CLASSIC, into " +
+      "$ABAPSMITH_FLUID_API, confirmed by an independent ADT read-back of the class's package " +
+      "and activation state, and round-trips a create/delete of a throwaway $TMP transaction " +
+      "through it, asserting the exists action reports ABSENT/EXISTS/ABSENT at each step. There " +
+      "is no fake to route.",
+  },
+  {
+    file: "integration-fluid-core.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts / integration-fluid-classic.test.ts. Gated on ABAP_URL " +
+      "plus write access via liveSuiteSkipReason({ write: true }) from " +
+      "test/live-appliance-state.ts, and named in vitest.config.ts's LIVE_INTEGRATION_TESTS. It " +
+      "builds its config with loadConfig() and talks to the real A4H appliance, which answers " +
+      "the T000 probe itself. It deploys and activates the builtin core fluid tool's body " +
+      "class, ZCL_ZMCP_FLUID_CORE, into $ABAPSMITH_FLUID_API, and round-trips its " +
+      "select/describe_fm/call_fm actions against real DDIC tables (T005) and function modules " +
+      "(RFC_SYSTEM_INFO, CONVERSION_EXIT_ALPHA_INPUT), and separately probes and reaps the " +
+      "closed RETIRED_BRIDGE_CLASSES list for real. There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-ui.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It deploys and " +
+      "activates the builtin ui fluid tool's body class, ZCL_ZMCP_FLUID_UI, into " +
+      "$ABAPSMITH_FLUID_API, resolves a real classic dynpro via TSTC and RPY_DYNPRO_READ by " +
+      "both tcode and explicit program+dynpro, and asserts a nonexistent tcode is reported as a " +
+      "genuine FLUID_ACTION_FAILED failure, not silent success. There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-fpm.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts / integration-fluid-ui.test.ts. Gated on ABAP_URL plus " +
+      "write access via liveSuiteSkipReason({ write: true }) from " +
+      "test/live-appliance-state.ts, and named in vitest.config.ts's LIVE_INTEGRATION_TESTS. It " +
+      "builds its config with loadConfig() and talks to the real A4H appliance, which answers " +
+      "the T000 probe itself. It deploys and activates the builtin fpm fluid tool's body class, " +
+      "ZCL_ZMCP_FLUID_FPM, into $ABAPSMITH_FLUID_API, dispatches a broad find() wildcard query " +
+      "and asserts the result is a well-formed array (a bare appliance is unlikely to hold any " +
+      "real FPM/FBI config, so this deliberately does not assert non-empty rows), and asserts " +
+      "outline/app given a config_id that cannot exist are each reported as genuine " +
+      "FLUID_ACTION_FAILED failures, not silent success. There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-enh.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts / integration-fluid-ui.test.ts / " +
+      "integration-fluid-fpm.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It deploys and " +
+      "activates the builtin enh fluid tool's body class, ZCL_ZMCP_FLUID_ENH, into " +
+      "$ABAPSMITH_FLUID_API, creates a throwaway marker interface directly in " +
+      "$ABAPSMITH_FLUID_API, dispatches create_spot and add_badi_def to create a real BAdI " +
+      "enhancement spot and definition, independently reads both back over ADT, and asserts an " +
+      "honest FLUID_ACTION_FAILED for add_badi_def against a spot that was never created. " +
+      "There is no fake to route.",
+  },
+  {
+    file: "integration-fluid-plugin.test.ts",
+    why:
+      "LIVE suite, same idiom as integration.test.ts / integration-undo.test.ts / " +
+      "integration-fpm-lock.test.ts / integration-class-includes.test.ts / " +
+      "integration-lock-handle.test.ts / integration-fluid-runtime.test.ts / " +
+      "integration-fluid-run.test.ts. Gated on ABAP_URL plus write access via " +
+      "liveSuiteSkipReason({ write: true }) from test/live-appliance-state.ts, and named in " +
+      "vitest.config.ts's LIVE_INTEGRATION_TESTS. It builds its config with loadConfig() and " +
+      "talks to the real A4H appliance, which answers the T000 probe itself. It deletes " +
+      "ZCL_ZMCP_FLUID_RT out-of-band first, loads the checked-in `hello` fixture plugin through " +
+      "an isolated symlinked root (immune to whatever else test/fixtures/fluid-plugins/ holds), " +
+      "and dispatches the plugin's ping action through the real abap_fluid MCP tool handler — " +
+      "pinning that a PLUGIN call redeploys the runtime class it can never declare in its own " +
+      "manifest (the loader's namespace guard forbids it) via ensureFluidRuntimeFor(), rather " +
+      "than dumping, and confirms an independent ADT read-back shows the class present " +
+      "afterward. There is no fake to route.",
   },
 ];
 

@@ -628,9 +628,16 @@ describe("runReport safety gate (F7)", () => {
       writesLockedOut: false,
     });
 
-  /** Same, but with `$TMP` allowed — the control for the test above it. */
+  /** Same, but with `$TMP` and the bridge package allowed — the control for the test above it. */
   const allowingGate = (): SafetyGate =>
-    new SafetyGate({ readOnly: false, allowPackages: ["$TMP"], writesLockedOut: false });
+    new SafetyGate({
+      readOnly: false,
+      allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
+      // $ is outside the default Z/Y customer namespace, same as
+      // test/fluid-package.test.ts's own gate() — needed for the cold-path create of $ABAPSMITH_FLUID_API.
+      allowNamePrefixes: ["*"],
+      writesLockedOut: false,
+    });
 
   /**
    * The class does not exist yet, which is the normal first-run case: the GET
@@ -651,7 +658,7 @@ describe("runReport safety gate (F7)", () => {
       }
       return resp(200, "<ok/>", { "content-type": "application/xml" });
     });
-    const conn = new AbapConnection(cfg(), {
+    const conn = new AbapConnection(ConfigSchema.parse({ ...cfg(), readOnly: false }), {
       httpClient: inner,
       log: () => {},
       breaker: new AuthCircuitBreaker(),
@@ -669,9 +676,10 @@ describe("runReport safety gate (F7)", () => {
     expect(isAbapError(err)).toBe(true);
     expect((err as { code: string }).code).toBe("SAFETY_DENIED");
 
-    // The refusal must land BEFORE anything mutates the system. Resolving the
-    // target costs a GET (that is what gives the gate the real package), but no
-    // lock, no PUT and no activation may reach the wire.
+    // The refusal must land before anything mutates the system. Resolving
+    // the write target legitimately costs a GET — that's what gives the gate
+    // the real package to judge — but no lock, no PUT, and no activation may
+    // reach the wire.
     const mutations = inner.calls.filter(
       (c) => c.method === "PUT" || c.method === "POST" || String(c.url).includes("_action=LOCK"),
     );
@@ -682,8 +690,8 @@ describe("runReport safety gate (F7)", () => {
     const { conn } = await bridgeMissing();
 
     // Proves the refusal above is the PACKAGE rule firing and not merely that
-    // this fake never lets `runReport` reach the wire: with $TMP allowed the
-    // call gets past the gate and fails later, on the fake's own responses.
+    // this fake never lets `runReport` reach the wire: with $ABAPSMITH_FLUID_API
+    // allowed the call gets past the gate and fails later, on the fake's own responses.
     const err = await runReport(conn, "ZMCP_PROBE_REP", allowingGate()).catch((e: unknown) => e);
 
     expect((err as { code?: string } | undefined)?.code).not.toBe("SAFETY_DENIED");
@@ -744,7 +752,14 @@ describe("runReport — activation refusal", () => {
   };
 
   const allowingGate = (): SafetyGate =>
-    new SafetyGate({ readOnly: false, allowPackages: ["$TMP"], writesLockedOut: false });
+    new SafetyGate({
+      readOnly: false,
+      allowPackages: ["$TMP", "$ABAPSMITH_FLUID_API"],
+      // $ is outside the default Z/Y customer namespace, same as
+      // test/fluid-package.test.ts's own gate() — needed for the cold-path create of $ABAPSMITH_FLUID_API.
+      allowNamePrefixes: ["*"],
+      writesLockedOut: false,
+    });
 
   it("reports a CHECK_FAILED run, carrying the backend's own message, and never executes", async () => {
     const { conn, inner } = await bridgeActivationRefused();

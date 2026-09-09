@@ -4,26 +4,66 @@ Why some decisions look odd from the outside. Each entry states the rejected
 alternative and what decided it. See also [Safety and concurrency
 design](safety-and-concurrency.md) for the session- and auth-level notes.
 
-## Nothing is installed on the ABAP system
+## Installed objects live in a local package, not a transport
 
-**Instead of:** shipping a `Z` ICF service or ABAP-side helper package that the
-server calls.
+**Instead of:** shipping a `Z` ICF service or transportable ABAP-side helper
+package that the server calls — or leaving every object type ADT can't reach
+permanently unreachable.
 
-A server-side component would reach object types ADT cannot, and other tools in
-this space do exactly that. It also means an installation, a transport, a
-version-skew problem between the Node and ABAP sides, and a change to the
-system you're trying to be careful with.
+abapsmith installs persistent, versioned ABAP classes — the fluid API's static
+body classes (see `doc/TOOLS/abap-fluid.md`; `abap_fluid op=list` enumerates
+every one currently loaded) plus a per-call invoker class for each distinct
+call — in the local package `$ABAPSMITH_FLUID_API`, created on first use of a
+function that needs one (`src/adt/fluid/package.ts:14`, `:57-70`;
+`src/adt/fluid/dispatch.ts:302-322`). The package is non-transportable
+(`softwareComponent: "LOCAL"`) and sits under superpackage `$TMP`.
 
-This server installs nothing. Where ADT's REST surface has no endpoint —
-report execution, BOPF runtime, FPM configuration reads, some enhancement
-operations — it generates a **throwaway `$TMP` classrun bridge**
-(`IF_OO_ADT_CLASSRUN`), runs it, and reads its list output. The bridge is an
-ordinary object in the same namespace and package the safety gate already
-governs, so it inherits every existing control instead of needing new ones.
+The boundary moved rather than disappeared: instead of a shipped, transportable
+package on one side or an unreachable capability on the other, there is now a
+small, named, versioned, removable set of local objects. No transport is
+created or required — the package can't hold one. No ICF service is registered,
+no RFC destination created, no background job scheduled. Only objects under
+abapsmith's own reserved name prefixes (`ZCL_ZMCP_`, `ZIF_ZMCP_`,
+`src/adt/fluid/package.ts:23`) are ever written, and only inside a `$`-prefixed
+local package, which the existing safety gate already governs by its own name-
+and package-allowlist rules. The cost is honest: an installation step, a
+version-skew surface between the Node and ABAP sides that the contract version
+and the manifest version check exist to catch, and objects that accumulate —
+invoker classes are never deleted automatically.
 
-The cost is honest: bridge execution is slower than a native endpoint, cold
-execution slower still, and anything the bridge cannot express is simply
-unreachable.
+Two levers bound it. `ABAP_FLUID_API=false` (default is on) stops any generated
+bridge from deploying or running in `$ABAPSMITH_FLUID_API` — and with it the
+package's own first-use creation — refused as `FLUID_API_DISABLED` at the
+shared `deployBridge`/`dispatch` chokepoint (`src/adt/run.ts:1088-1101`,
+`src/adt/fluid/dispatch.ts:227-228`); plain writes gated by
+`canWrite`/`!cfg.readOnly` still go through. `abap_fluid(op="remove")` deletes
+what's already there, but only the objects — it never deletes the
+`$ABAPSMITH_FLUID_API` package itself (`src/tools/fluid.ts:804-807`):
+abapsmith's own package-delete route has to deploy a helper class into a
+package before it can delete it, and the generated ABAP refuses to delete a
+non-empty package, so deleting this package from inside itself can't work — the
+operator drops the empty package by hand. Same for `$ZMCP_HELPERS`, the other
+package abapsmith created — no code path deletes it either. `$TMP` is
+different: SAP's own standard local package, not abapsmith's; only the leftover
+`ZCL_ZMCP_*` objects inside it are abapsmith's concern. See
+`doc/FLUID-API/README.md` and `doc/TOOLS/abap-fluid.md` for what gets installed
+and how removal is scoped.
+
+Where ADT's REST surface has no endpoint, abapsmith runs its own ABAP in
+`$ABAPSMITH_FLUID_API` and reads the framed output, in one of two shapes. FPM
+configuration reads, `abap_ui` screen discovery, IMG customizing writes and the
+enhancement create family dispatch against a **static body class** reused
+across calls, rewritten only when its content changes, reached through an
+invoker class named by a hash of `{tool, action, args, contract}`
+(`src/adt/fluid/invoke.ts:51-54`) — invokers are content-addressed and
+accumulate, one per distinct argument shape. Report execution, BOPF runtime,
+`abap_ui press`, `abap_enh exercise` and `abap_fpm_read mode:"locks"` still
+generate a **per-call classrun bridge** (`IF_OO_ADT_CLASSRUN`) named from what
+they run, so identical calls reuse a class and distinct ones add another.
+Either way the generated object is an ordinary one in the namespace and package
+the safety gate already governs, so it inherits every existing control instead
+of needing new ones; `abap_fluid(op="status")` lists both kinds. Nothing is a
+throwaway `$TMP` classrun torn down after the call any more.
 
 ## Tool schemas are treated as a budget
 

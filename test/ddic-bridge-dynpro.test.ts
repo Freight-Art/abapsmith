@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import {
   ABAP_SOURCE_LINE_MAX,
-  DDIC_BRIDGE_CLASS,
   DDIC_ERR_PREFIX,
   DDIC_TAGS,
   assertDdicTranscript,
@@ -17,6 +16,7 @@ import {
   parseDdicTranscript,
   type DdicTranscript,
 } from "../src/adt/ddic-bridge.js";
+import { CLASSIC_BODY_CLASS, classicManifest } from "../src/adt/fluid/builtin/classic.js";
 
 const REAL_LINE = "Sending of dynpro SAPLSTRD 0352 not possible: No window system type specified";
 
@@ -217,8 +217,14 @@ describe("registration", () => {
     );
   });
 
-  it("DDIC_BRIDGE_CLASS carries the two new delete bridge class names", () => {
-    expect(DDIC_BRIDGE_CLASS.deleteView).toBe("ZCL_ZMCP_DDIC_DVIEW");
-    expect(DDIC_BRIDGE_CLASS.deleteTransaction).toBe("ZCL_ZMCP_DDIC_DTRAN");
+  // DDIC_BRIDGE_CLASS (a per-operation ZCL_ZMCP_DDIC_DVIEW/DTRAN pair) is gone
+  // — S3 moved view/transaction delete onto the fluid `classic` tool's
+  // delete_view/delete_transaction actions, dispatched through the single
+  // static ZCL_ZMCP_FLUID_CLASSIC body class. This pins that replacement.
+  it("the classic fluid tool registers delete_view and delete_transaction actions, dispatched through one static body class", () => {
+    const names = classicManifest.actions.map((a) => a.name);
+    expect(names).toEqual(expect.arrayContaining(["delete_view", "delete_transaction"]));
+    expect(classicManifest.entry).toBe(CLASSIC_BODY_CLASS);
+    expect(CLASSIC_BODY_CLASS).toBe("ZCL_ZMCP_FLUID_CLASSIC");
   });
 });

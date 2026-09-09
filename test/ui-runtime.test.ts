@@ -54,9 +54,7 @@ import {
   PROGRAM_MAX,
   TCODE_MAX,
   UI_BRIDGE_CLASS_PREFIX,
-  UI_FKEY_ROW_CAP,
   UI_LINE_PREFIX,
-  UI_STATUS_LOOP_CAP,
   uiBridgeClassName,
   uiBridgeSource,
   type UiPressQuery,
@@ -751,168 +749,6 @@ describe("uiBridgeSource — general shape", () => {
   });
 });
 
-describe("uiBridgeSource — screen mode", () => {
-  it("by tcode: resolves via TSTC and classifies cinfo, reads RPY_DYNPRO_READ and RS_CUA_GET_STATUS", () => {
-    const q: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode: "SE38" } };
-    const src = uiBridgeSource(q, uiBridgeClassName(q));
-    expect(src).toContain("FROM tstc");
-    expect(src).toContain("WHERE tcode = 'SE38'");
-    expect(src).toContain("CALL FUNCTION 'RPY_DYNPRO_READ'");
-    expect(src).toContain("CALL FUNCTION 'RS_CUA_GET_STATUS'");
-    expect(src).toContain(`${UI_LINE_PREFIX}TCODE tcode=[SE38]`);
-  });
-
-  it("GUI status: fetches via RS_CUA_INTERNAL_FETCH (not a blank-STATUS RS_CUA_GET_STATUS call), then loops RS_CUA_GET_STATUS once per enumerated status with an explicit STATUS", () => {
-    const q: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode: "SE38" } };
-    const src = uiBridgeSource(q, uiBridgeClassName(q));
-
-    expect(src).toContain("CALL FUNCTION 'RS_CUA_INTERNAL_FETCH'");
-    // The RS_CUA_INTERNAL_FETCH call must not itself carry a STATUS parameter
-    // — that FM enumerates every status via its `sta` TABLES output instead.
-    const fetchCallIdx = src.indexOf("CALL FUNCTION 'RS_CUA_INTERNAL_FETCH'");
-    const fetchCallEnd = src.indexOf(".\n", src.indexOf("OTHERS", fetchCallIdx));
-    const fetchCallBlock = src.slice(fetchCallIdx, fetchCallEnd);
-    expect(fetchCallBlock).not.toMatch(/\bstatus\s*=/i);
-
-    // The per-status RS_CUA_GET_STATUS call must bind an explicit STATUS —
-    // this is the exact defect being fixed: a blank STATUS returns
-    // sy-subrc=2 (NOT_FOUND_STATUS) on every real transaction tested live.
-    expect(src).toMatch(/status\s*=\s*lv_status/);
-    // The live-validated block goes through an intermediate GUI_STATUS
-    // variable rather than passing RSMPE_STAT-CODE (CHAR40) directly:
-    // RS_CUA_GET_STATUS's STATUS parameter is untyped (TYPE ANY), so the
-    // formal type the caller passes is what the FM actually sees, and only
-    // the GUI_STATUS form has been executed against a live system.
-    expect(src).toContain("DATA lv_status TYPE gui_status.");
-    expect(src).toContain("lv_status = ls_sta-code.");
-    // Enumeration count gates the loop.
-    expect(src).toContain(`IF lv_status_done >= ${UI_STATUS_LOOP_CAP}.`);
-  });
-
-  it("FUNCTION/FKEY lines use a fixed narrow projection, NOT flatten_any (a full RTTI dump of these two high-volume tables measured ~600 rows / ~7,000 key=[value] pairs on a real program)", () => {
-    const q: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode: "SE38" } };
-    const src = uiBridgeSource(q, uiBridgeClassName(q));
-
-    expect(src).toContain(
-      `mo_out->write( |${UI_LINE_PREFIX}FUNCTION code=[{ ls_fun-code }] text=[{ ls_fun-fun_text }] type=[{ ls_fun-type }]| ).`,
-    );
-    expect(src).not.toContain(`FUNCTION { flatten_any( ls_fun ) }`);
-
-    expect(src).toContain(
-      `mo_out->write( |${UI_LINE_PREFIX}FKEY status=[{ lv_status }] code=[{ ls_fkey-code }] text=[{ ls_fkey-text }] quickinfo=[{ ls_fkey-quickinfo }]| ).`,
-    );
-    expect(src).not.toContain(`FKEY { flatten_any( ls_fkey ) }`);
-
-    // STATUS/HEADER/FIELD/FLOW stay full flatten_any dumps — low volume, and
-    // the exact component names for those rows were never independently
-    // confirmed, so the bridge still reports whatever the ABAP system gives.
-    expect(src).toContain(`STATUS { flatten_any( ls_sta ) }`);
-  });
-
-  it("drops FKEY rows with an empty function code (unassigned function-key slots are pure noise)", () => {
-    const q: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode: "SE38" } };
-    const src = uiBridgeSource(q, uiBridgeClassName(q));
-    expect(src).toContain("IF ls_fkey-code IS NOT INITIAL.");
-    // The write + counter increment must be inside that guard, not before it.
-    const guardIdx = src.indexOf("IF ls_fkey-code IS NOT INITIAL.");
-    const afterGuard = src.slice(guardIdx, guardIdx + 400);
-    expect(afterGuard).toContain("FKEY status=[{ lv_status }]");
-    expect(afterGuard).toContain("lv_fkeys_total = lv_fkeys_total + 1.");
-  });
-
-  it("caps total FKEY emission at UI_FKEY_ROW_CAP and reports emitted/capped via FKEY_CAP — the fix for SAPLSVIM's header-said-778-body-had-442 defect", () => {
-    const q: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode: "SE38" } };
-    const src = uiBridgeSource(q, uiBridgeClassName(q));
-
-    expect(src).toContain("DATA lv_fkeys_capped TYPE abap_bool VALUE abap_false.");
-    expect(src).toContain(`IF lv_fkeys_total < ${UI_FKEY_ROW_CAP}.`);
-    expect(src).toContain("lv_fkeys_capped = abap_true.");
-    expect(src).toContain(
-      `mo_out->write( |${UI_LINE_PREFIX}FKEY_CAP emitted=[{ lv_fkeys_total }] capped=[{ lv_fkeys_capped }]| ).`,
-    );
-
-    // COUNT_FKEYS must come from the SAME lv_fkeys_total that FKEY_CAP
-    // reports as `emitted` — the whole point of this cap is that the header
-    // count can never again overstate the body (SAPLSVIM: header said
-    // fkeysCount=778, body actually delivered 442 FKEY rows).
-    expect(src).toContain(`mo_out->write( |${UI_LINE_PREFIX}COUNT_FKEYS { lv_fkeys_total }| ).`);
-
-    // lv_fkeys_total must only increment on an actual emit (inside the cap
-    // guard's THEN branch), never in the ELSE branch where the cap fires —
-    // otherwise COUNT_FKEYS would count encountered rows, not emitted ones.
-    const elseIdx = src.indexOf("ELSE.\n                  lv_fkeys_capped = abap_true.");
-    expect(elseIdx).toBeGreaterThan(-1);
-    const elseBlock = src.slice(elseIdx, src.indexOf("ENDIF.", elseIdx));
-    expect(elseBlock).not.toContain("lv_fkeys_total = lv_fkeys_total + 1.");
-  });
-
-  it("UI_FKEY_ROW_CAP is small enough to actually serve its purpose: worst-case FKEY emission must fit well inside the response budget (INVARIANT)", () => {
-    // Every other cap test interpolates UI_FKEY_ROW_CAP into its own
-    // expectation, so they all pass for ANY value — including a value large
-    // enough that the cap does nothing. They verify the wiring; this verifies
-    // the cap is worth having. Raising UI_FKEY_ROW_CAP to a number that
-    // defeats it must fail HERE, loudly, rather than sail through green.
-    //
-    // The numbers are the ones in UI_FKEY_ROW_CAP's own doc comment, so the
-    // documented rationale and the enforced invariant cannot drift apart:
-    //   - an emitted FKEY line runs ~80 characters, measured from real output
-    //     (`UI> FKEY status=[LISTE_ALV] code=[ONLI] text=[...] quickinfo=[...]`)
-    //   - the response budget is cfg.maxResponseChars, default 60,000
-    //     (src/config.ts — `ABAP_MAX_RESPONSE_CHARS ?? 60_000`)
-    //   - FIELDS, FLOW LOGIC and FUNCTION CODES share that same budget, and
-    //     FUNCTION CODES alone measured 176 rows live on SAPLSETB, so FKEYS
-    //     must stay under HALF of it or it will crowd them out — which is the
-    //     exact live defect this cap exists to prevent (SAPLSVIM: header
-    //     reported fkeysCount=778, body delivered 442, tail silently dropped).
-    const FKEY_LINE_CHARS = 80;
-    const DEFAULT_MAX_RESPONSE_CHARS = 60_000;
-    const worstCase = UI_FKEY_ROW_CAP * FKEY_LINE_CHARS;
-
-    expect(worstCase).toBeLessThanOrEqual(DEFAULT_MAX_RESPONSE_CHARS / 2);
-  });
-
-  it("does NOT abandon the status loop when the FKEY row cap fires — STATUS_LOOP's done/total keep describing statuses walked, a fact independent of rows emitted", () => {
-    const q: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode: "SE38" } };
-    const src = uiBridgeSource(q, uiBridgeClassName(q));
-
-    // The ONLY `EXIT.` inside the per-status LOOP AT lt_sta is the one
-    // guarded by the UI_STATUS_LOOP_CAP check — the FKEY row cap sets its
-    // own flag (lv_fkeys_capped) and continues, it never EXITs the outer
-    // status loop. This is the deliberate choice documented on
-    // UI_FKEY_ROW_CAP / lv_fkeys_capped: "statuses walked" and "rows
-    // emitted" are kept as two separate, independently honest facts.
-    const loopStart = src.indexOf("LOOP AT lt_sta INTO ls_sta.");
-    const loopEnd = src.indexOf("ENDLOOP.", src.indexOf("STATUS_LOOP done="));
-    const loopBody = src.slice(loopStart, loopEnd);
-    const exitCount = (loopBody.match(/\bEXIT\.\n/g) ?? []).length;
-    expect(exitCount).toBe(1);
-    expect(src).toContain(`IF lv_status_done >= ${UI_STATUS_LOOP_CAP}.\n            lv_status_capped = abap_true.\n            EXIT.`);
-  });
-
-  it("treats RS_CUA_INTERNAL_FETCH sy-subrc=1 (NOT_FOUND) as a normal outcome, not an error: it is routed through UI_LINE_PREFIX, never ERR_LINE_PREFIX", () => {
-    const q: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode: "SE38" } };
-    const src = uiBridgeSource(q, uiBridgeClassName(q));
-    expect(src).toContain("IF sy-subrc = 1.");
-    expect(src).toContain(`${UI_LINE_PREFIX}NOCUA program=[{ lv_program }]`);
-  });
-
-  it("by program/dynpro: sets lv_program/lv_dynpro directly, no TSTC lookup", () => {
-    const q: UiScreenQuery = { mode: "screen", target: { by: "program", program: "SAPMSSY0", dynpro: "100" } };
-    const src = uiBridgeSource(q, uiBridgeClassName(q));
-    expect(src).not.toContain("FROM tstc");
-    expect(src).toContain("lv_program = 'SAPMSSY0'.");
-    // dynpro "100" must have been normalised to "0100" before interpolation.
-    expect(src).toContain("lv_dynpro = '0100'.");
-  });
-
-  it("never emits BDCDATA/CALL TRANSACTION machinery (read-only mode)", () => {
-    const q: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode: "SE38" } };
-    const src = uiBridgeSource(q, uiBridgeClassName(q));
-    expect(src).not.toContain("CALL TRANSACTION");
-    expect(src).not.toContain("BDCDATA");
-  });
-});
-
 // ---------------------------------------------------------------------------
 // 9. parseUiTranscript — the 00/344 stall decoding, the tool's core discovery loop
 // ---------------------------------------------------------------------------
@@ -1092,71 +928,44 @@ describe("parseUiTranscript — screen mode FIELD/FLOW/STATUS/FKEY rows and coun
     expect(byStatus("STATUS_B")).toEqual(["CANC"]);
   });
 
-  it("parses STATUS_LOOP into a structured {done,total,capped}, uncapped case", () => {
-    const raw = `${UI_LINE_PREFIX}STATUS_LOOP done=[3] total=[3] capped=[ ]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.statusLoop).toEqual({ done: 3, total: 3, capped: false });
-  });
-
-  it("parses STATUS_LOOP with capped=[X] as capped: true — the tool must be able to detect and disclose truncation", () => {
-    const raw = `${UI_LINE_PREFIX}STATUS_LOOP done=[${UI_STATUS_LOOP_CAP}] total=[45] capped=[X]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.statusLoop).toEqual({ done: UI_STATUS_LOOP_CAP, total: 45, capped: true });
-  });
-
-  it("parses FKEY_CAP into a structured {emitted,capped}, uncapped case", () => {
-    const raw = `${UI_LINE_PREFIX}FKEY_CAP emitted=[3] capped=[ ]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.fkeyCap).toEqual({ emitted: 3, capped: false });
-  });
-
-  it("parses FKEY_CAP with capped=[X] as capped: true — the tool must be able to detect and disclose row truncation the same way it does for STATUS_LOOP", () => {
-    const raw = `${UI_LINE_PREFIX}FKEY_CAP emitted=[${UI_FKEY_ROW_CAP}] capped=[X]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.fkeyCap).toEqual({ emitted: UI_FKEY_ROW_CAP, capped: true });
-  });
-
-  it("fkeysCount (from COUNT_FKEYS) equals fkeyCap.emitted and the actual number of FKEY rows parsed — the header can never again overstate the body", () => {
-    const raw =
-      `${UI_LINE_PREFIX}COUNT_FKEYS 2\n` +
-      `${UI_LINE_PREFIX}FKEY status=[SAVE] code=[F3] text=[Back] quickinfo=[Back to previous screen]\n` +
-      `${UI_LINE_PREFIX}FKEY status=[SAVE] code=[F15] text=[Exit] quickinfo=[Exit]\n` +
-      `${UI_LINE_PREFIX}FKEY_CAP emitted=[2] capped=[ ]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.fkeysCount).toBe(2);
-    expect(result.fkeyCap).toEqual({ emitted: 2, capped: false });
-    expect(result.fkeys).toHaveLength(result.fkeysCount as number);
-    expect(result.fkeys).toHaveLength(result.fkeyCap!.emitted);
-  });
-
-  it("both STATUS_LOOP and FKEY_CAP can be capped on the same transcript (SAPLSVIM trips both live) — the two facts are independent and both must survive parsing", () => {
-    const raw =
-      `${UI_LINE_PREFIX}COUNT_FKEYS ${UI_FKEY_ROW_CAP}\n` +
-      `${UI_LINE_PREFIX}FKEY_CAP emitted=[${UI_FKEY_ROW_CAP}] capped=[X]\n` +
-      `${UI_LINE_PREFIX}STATUS_LOOP done=[${UI_STATUS_LOOP_CAP}] total=[59] capped=[X]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.statusLoop).toEqual({ done: UI_STATUS_LOOP_CAP, total: 59, capped: true });
-    expect(result.fkeyCap).toEqual({ emitted: UI_FKEY_ROW_CAP, capped: true });
-    expect(result.fkeysCount).toBe(UI_FKEY_ROW_CAP);
-  });
-
-  it("a transcript with more FKEY rows than UI_FKEY_ROW_CAP is handled coherently (defensive: the generator should never produce this by construction, but the parser must not choke or silently misreport if it ever did)", () => {
-    const overCapCount = UI_FKEY_ROW_CAP + 5;
+  it("a screen with more than 30 statuses comes back with every status's FKEY rows, not just the first 30", () => {
+    const statusCount = 35;
     const fkeyLines = Array.from(
-      { length: overCapCount },
+      { length: statusCount },
+      (_, i) => `${UI_LINE_PREFIX}FKEY status=[STATUS_${i}] code=[F1] text=[t${i}] quickinfo=[q${i}]\n`,
+    ).join("");
+    const raw = `${UI_LINE_PREFIX}COUNT_FKEYS ${statusCount}\n${fkeyLines}`;
+    const result = parseUiTranscript(raw);
+    const distinctStatuses = new Set(result.fkeys.map((r) => r.status));
+    expect(distinctStatuses.size).toBe(statusCount);
+    expect(result.fkeys).toHaveLength(statusCount);
+    expect(result.fkeysCount).toBe(statusCount);
+  });
+
+  it("a screen with more than 350 FKEY rows comes back with every row, none dropped", () => {
+    const rowCount = 355;
+    const fkeyLines = Array.from(
+      { length: rowCount },
       (_, i) => `${UI_LINE_PREFIX}FKEY status=[SAVE] code=[F${i}] text=[t${i}] quickinfo=[q${i}]\n`,
     ).join("");
-    const raw = `${UI_LINE_PREFIX}COUNT_FKEYS ${overCapCount}\n${fkeyLines}${UI_LINE_PREFIX}FKEY_CAP emitted=[${overCapCount}] capped=[ ]\n`;
+    const raw = `${UI_LINE_PREFIX}COUNT_FKEYS ${rowCount}\n${fkeyLines}`;
     const result = parseUiTranscript(raw);
-    // The parser itself never enforces the cap — it faithfully reports
-    // whatever the transcript actually contains, so a caller can tell
-    // "the ABAP-side guarantee held" (fkeysCount === fkeys.length) from
-    // "the header disagrees with the body" (the SAPLSVIM defect this whole
-    // fix exists to prevent) rather than one of those facts going missing.
-    expect(result.fkeys).toHaveLength(overCapCount);
-    expect(result.fkeysCount).toBe(overCapCount);
-    expect(result.fkeyCap).toEqual({ emitted: overCapCount, capped: false });
+    expect(result.fkeys).toHaveLength(rowCount);
+    expect(result.fkeysCount).toBe(rowCount);
     expect(result.fkeysCount).toBe(result.fkeys.length);
+  });
+
+  it("a stray legacy STATUS_LOOP/FKEY_CAP line (from a stale deployed bridge class) is ignored, not read back as a cap disclosure", () => {
+    const raw =
+      `${UI_LINE_PREFIX}COUNT_FKEYS 1\n` +
+      `${UI_LINE_PREFIX}FKEY status=[SAVE] code=[F3] text=[Back] quickinfo=[Back to previous screen]\n` +
+      `${UI_LINE_PREFIX}FKEY_CAP emitted=[350] capped=[X]\n` +
+      `${UI_LINE_PREFIX}STATUS_LOOP done=[30] total=[59] capped=[X]\n`;
+    const result = parseUiTranscript(raw);
+    expect((result as Record<string, unknown>).fkeyCap).toBeUndefined();
+    expect((result as Record<string, unknown>).statusLoop).toBeUndefined();
+    expect(result.fkeys).toHaveLength(1);
+    expect(result.fkeysCount).toBe(1);
   });
 
   it("parses NOCUA as a normal outcome (no GUI status defined), separate from statusList/functions/fkeys which stay empty", () => {
@@ -1260,12 +1069,15 @@ describe("uiBridgeSource — every TABLES-bound variable is declared as an inter
   const isInternalTable = (declaredType: string) =>
     /\bTABLE\s+OF\b/i.test(declaredType) || /_TAB$/i.test(declaredType);
 
+  // Screen mode's RPY_DYNPRO_READ/RS_CUA_INTERNAL_FETCH/RS_CUA_GET_STATUS
+  // TABLES calls no longer generate through this module — that ABAP now
+  // lives in src/adt/fluid/builtin/ui.ts's static ZCL_ZMCP_FLUID_UI body
+  // (dispatched via fluid/dispatch.ts), covered by
+  // test/fluid-builtin-ui.test.ts. `uiBridgeSource` generates `press` only;
+  // `pressBody`'s CALL TRANSACTION has no TABLES section at all, so this
+  // invariant has nothing press-specific to bind against today — kept as
+  // future-proofing should press ever gain a TABLES-bound CALL FUNCTION.
   const queries = [
-    { label: "screen by tcode", q: { mode: "screen", target: { by: "tcode", tcode: "SE16" } } },
-    {
-      label: "screen by program/dynpro",
-      q: { mode: "screen", target: { by: "program", program: "SAPLSETB", dynpro: "0230" } },
-    },
     {
       label: "press",
       q: {
@@ -1285,7 +1097,7 @@ describe("uiBridgeSource — every TABLES-bound variable is declared as an inter
 
   for (const { label, q } of queries) {
     it(`${label}: every TABLES binding resolves to a declared internal table`, () => {
-      const src = uiBridgeSource(q as never, "ZCL_ZMCP_UI_TEST");
+      const src = uiBridgeSource(q as UiPressQuery, "ZCL_ZMCP_UI_TEST");
       const { declarations, tablesBindings } = analyse(src);
 
       for (const { param, variable, fn } of tablesBindings) {
@@ -1306,80 +1118,6 @@ describe("uiBridgeSource — every TABLES-bound variable is declared as an inter
       }
     });
   }
-
-  it("actually finds TABLES bindings to check (a guard that silently checks nothing is worse than none)", () => {
-    const src = uiBridgeSource(
-      { mode: "screen", target: { by: "tcode", tcode: "SE16" } } as never,
-      "ZCL_ZMCP_UI_TEST",
-    );
-    const { tablesBindings } = analyse(src);
-    // RPY_DYNPRO_READ contributes flow_logic + fields_list. RS_CUA_INTERNAL_FETCH
-    // contributes sta/fun/men/mtx/act/but/pfk/set/doc/tit/biv (every TABLES
-    // parameter in its signature except BIV is required — see the module
-    // header on why a blank-STATUS RS_CUA_GET_STATUS call was replaced by
-    // this two-step fetch). The per-status RS_CUA_GET_STATUS loop contributes
-    // fkeys (status_list is gone: enumeration now comes from `sta`, not from
-    // a blank-STATUS RS_CUA_GET_STATUS call). If the generator stops emitting
-    // these, this test must fail rather than quietly pass over an empty list.
-    expect(tablesBindings.map((b) => b.variable.toLowerCase()).sort()).toEqual([
-      "lt_act",
-      "lt_biv",
-      "lt_but",
-      "lt_doc",
-      "lt_fields_list",
-      "lt_fkeys",
-      "lt_flow_logic",
-      "lt_fun",
-      "lt_men",
-      "lt_mtx",
-      "lt_pfk",
-      "lt_set",
-      "lt_sta",
-      "lt_tit",
-    ]);
-  });
-
-  it("every RS_CUA_INTERNAL_FETCH TABLES variable is declared TYPE STANDARD TABLE OF its RTTI-confirmed row structure (RSMPE_*)", () => {
-    const src = uiBridgeSource(
-      { mode: "screen", target: { by: "tcode", tcode: "SE16" } } as never,
-      "ZCL_ZMCP_UI_TEST",
-    );
-    const { declarations } = analyse(src);
-    const expected: Record<string, string> = {
-      LT_STA: "rsmpe_stat",
-      LT_FUN: "rsmpe_funt",
-      LT_MEN: "rsmpe_men",
-      LT_MTX: "rsmpe_mnlt",
-      LT_ACT: "rsmpe_act",
-      LT_BUT: "rsmpe_but",
-      LT_PFK: "rsmpe_pfk",
-      LT_SET: "rsmpe_staf",
-      LT_DOC: "rsmpe_atrt",
-      LT_TIT: "rsmpe_titt",
-      LT_BIV: "rsmpe_buts",
-    };
-    for (const [variable, struct] of Object.entries(expected)) {
-      const declaredType = declarations.get(variable);
-      expect(declaredType, `${variable} must have a DATA declaration`).toBeDefined();
-      expect(
-        declaredType,
-        `${variable} must be declared 'TYPE STANDARD TABLE OF ${struct}' — a bare 'TYPE ${struct}' would be ` +
-          "the exact TABLES-types-the-row-not-the-table trap that already broke this module once.",
-      ).toMatch(new RegExp(`^STANDARD TABLE OF ${struct}$`, "i"));
-    }
-  });
-
-  it("caps the per-status RS_CUA_GET_STATUS loop at UI_STATUS_LOOP_CAP and reports done/total/capped via STATUS_LOOP", () => {
-    const src = uiBridgeSource(
-      { mode: "screen", target: { by: "tcode", tcode: "SE16" } } as never,
-      "ZCL_ZMCP_UI_TEST",
-    );
-    expect(src).toContain(`IF lv_status_done >= ${UI_STATUS_LOOP_CAP}.`);
-    expect(src).toContain("lv_status_capped = abap_true.");
-    expect(src).toContain(
-      `mo_out->write( |${UI_LINE_PREFIX}STATUS_LOOP done=[{ lv_status_done }] total=[{ lines( lt_sta ) }] capped=[{ lv_status_capped }]| ).`,
-    );
-  });
 
   it("the analyser rejects a structure bound to TABLES (negative control on the test itself)", () => {
     // Proves the invariant above would actually have caught the shipped bug,

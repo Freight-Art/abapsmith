@@ -1,0 +1,1047 @@
+/**
+ * `abap_fluid` — the MCP tool registrar in `src/tools/fluid.ts`.
+ *
+ * Zero-network ops (bare call, list, describe) are exercised against a
+ * booby-trapped `pool`/`ensureConnected` that throw if touched, proving they
+ * never leave the process. `status` now runs a best-effort read probe for
+ * retired bridge classes (`probeRetiredBridges`, via `renderStatus` in
+ * `src/tools/fluid.ts`), so it is a genuine network op and is not exercised
+ * against that booby-trapped pool here. `run` is exercised end-to-end
+ * against a real (fake) `AbapConnection`, reusing
+ * `test/fluid-dispatch.test.ts`'s dynamic, content-hash-agnostic class store
+ * (the invoker class name is derived from the args hash and cannot be known
+ * ahead of time). Registration gating is checked the same way
+ * `test/data-preview-gates.test.ts` checks `abap_data_preview`: a real
+ * `createServer` + an in-memory MCP client's `tools/list`.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { promises as fs } from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+
+import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
+import { AbapConnection } from "../src/adt/connection.js";
+import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
+import { ConfigSchema, type Config } from "../src/config.js";
+import { SafetyGate } from "../src/safety.js";
+import { Journal } from "../src/journal.js";
+import type { SessionPool } from "../src/adt/pool.js";
+import { createServer, errorResult, type AbapsmithServer } from "../src/server.js";
+import { AbapError } from "../src/adt/errors.js";
+import { registerFluidTool, type FluidToolDeps } from "../src/tools/fluid.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import {
+  manifestVersion,
+  type FluidActionSpec,
+  type FluidManifest,
+  type LoadedFluidTool,
+} from "../src/adt/fluid/manifest.js";
+import type { FluidToolSet } from "../src/adt/fluid/plugin-loader.js";
+
+// --- fake ADT wiring (mirrors test/fluid-ensure.test.ts / test/fluid-dispatch.test.ts) ---
+
+interface Recorded {
+  label: string;
+  method: string;
+  url: string;
+  qs: Record<string, string>;
+  body?: string;
+}
+
+type Route = (r: Recorded) => HttpClientResponse | undefined;
+
+class FakeAdt implements HttpClient {
+  readonly calls: Recorded[] = [];
+  constructor(private readonly route: Route) {}
+  async request(o: HttpClientOptions): Promise<HttpClientResponse> {
+    const method = (o.method ?? "GET").toUpperCase();
+    const qs = (o.qs ?? {}) as Record<string, string>;
+    const label = qs._action ? `${qs._action} ${o.url}` : `${method} ${o.url}`;
+    const rec: Recorded = { label, method, url: o.url, qs, body: o.body };
+    this.calls.push(rec);
+    const res = this.route(rec);
+    if (!res) throw new Error(`FakeAdt: unrouted request ${label}`);
+    return res;
+  }
+}
+
+const resp = (status: number, body = "", headers: Record<string, unknown> = {}): HttpClientResponse =>
+  ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
+
+const OK_TEXT = { "content-type": "text/plain" };
+const OK_XML = { "content-type": "application/xml" };
+const LOGIN_HEADERS = { "content-type": "application/xml", "x-csrf-token": "TOKEN123" };
+
+function baseRoute(r: Recorded): HttpClientResponse | undefined {
+  if (r.url.includes("/compatibility/graph")) return resp(200, "<graph/>", LOGIN_HEADERS);
+  if (r.url.endsWith("/discovery")) return resp(200, "<service/>", OK_XML);
+  if (r.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
+  return undefined;
+}
+
+async function connected(route: Route): Promise<{ conn: AbapConnection; adt: FakeAdt }> {
+  const adt = new FakeAdt((r) => baseRoute(r) ?? route(r));
+  const conn = new AbapConnection(cfg(), {
+    httpClient: routeSystemRoleProbe(adt, { answer: "nonproductive" }),
+    log: () => {},
+    breaker: new AuthCircuitBreaker(),
+  });
+  await conn.connect();
+  adt.calls.length = 0;
+  return { conn, adt };
+}
+
+// --- run-op dynamic class store (copied idiom from test/fluid-dispatch.test.ts: the invoker
+// class name is content-hash derived, so a static pre-declared store cannot work here) ---
+
+const LOCK_XML = (handle = "H1") =>
+  `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
+  `<LOCK_HANDLE>${handle}</LOCK_HANDLE><CORRNR/><CORRUSER/><CORRTEXT/>` +
+  `<IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/><MODIFICATION_SUPPORT/>` +
+  `</DATA></asx:values></asx:abap>`;
+
+const CLS_COLLECTION = "/sap/bc/adt/oo/classes";
+const PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const PACKAGES = "/sap/bc/adt/packages";
+const CLASSRUN_BASE = "/sap/bc/adt/oo/classrun/";
+
+const notFoundXml = (name: string): string =>
+  `<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">` +
+  `<namespace id="com.sap.adt"/><type id="ExceptionResourceNotFound"/>` +
+  `<message lang="EN">${name} does not exist</message><properties/></exc:exception>`;
+
+const PACKAGE_XML = (name: string): string =>
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${name}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${name}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage/>` +
+  `</pak:package>`;
+
+function classDocXml(
+  className: string,
+  opts: { rootVersion?: string; mainVersion?: string; packageName?: string } = {},
+): string {
+  const root = opts.rootVersion ?? "active";
+  const main = opts.mainVersion ?? root;
+  const pkg = opts.packageName ?? "$TMP";
+  const ver = (v: string) => ` adtcore:version="${v}"`;
+  const inc = (type: string, version: string) =>
+    `<class:include class:includeType="${type}" ` +
+    `abapsource:sourceUri="${type === "main" ? "source/main" : `includes/${type}`}" ` +
+    `adtcore:name="" adtcore:type="CLAS/I"${ver(version)}/>`;
+  return (
+    `<?xml version="1.0" encoding="utf-8"?>` +
+    `<class:abapClass adtcore:name="${className}" adtcore:type="CLAS/OC"${ver(root)} ` +
+    `xmlns:class="http://www.sap.com/adt/oo/classes" xmlns:adtcore="http://www.sap.com/adt/core" ` +
+    `xmlns:abapsource="http://www.sap.com/adt/abapsource">` +
+    `<adtcore:packageRef adtcore:name="${pkg}"/>` +
+    inc("definitions", "active") +
+    inc("implementations", "active") +
+    inc("macros", "active") +
+    inc("main", main) +
+    `</class:abapClass>`
+  );
+}
+
+interface ObjState {
+  exists: boolean;
+  packageName: string;
+  source?: string;
+  active: boolean;
+}
+
+function nameFromClassUrl(url: string): string | undefined {
+  const prefix = "/sap/bc/adt/oo/classes/";
+  if (!url.startsWith(prefix)) return undefined;
+  const rest = url.slice(prefix.length);
+  if (rest.endsWith("/source/main")) return rest.slice(0, -"/source/main".length).toUpperCase();
+  if (rest.includes("/")) return undefined;
+  return rest.toUpperCase();
+}
+
+function dynamicFluidRoute(opts: { transcript: () => string }): Route {
+  const store = new Map<string, ObjState>();
+  const at = (name: string): ObjState => {
+    let st = store.get(name);
+    if (!st) {
+      st = { exists: false, packageName: "$TMP", active: false };
+      store.set(name, st);
+    }
+    return st;
+  };
+
+  return (r) => {
+    if (r.url === PKG_URI && r.method === "GET") return resp(200, PACKAGE_XML(FLUID_PACKAGE), OK_XML);
+    if (r.url === PACKAGES && r.method === "POST") return resp(200, "", OK_TEXT);
+
+    if (r.url === CLS_COLLECTION && r.method === "POST") {
+      const m = /adtcore:name="([^"]+)"/.exec(r.body ?? "");
+      const name = (m?.[1] ?? "").toUpperCase();
+      const prior = store.get(name);
+      store.set(name, { exists: true, packageName: FLUID_PACKAGE, source: prior?.source, active: false });
+      return resp(200, "", OK_TEXT);
+    }
+
+    if (r.url === "/sap/bc/adt/activation" && r.method === "POST") {
+      const m = /adtcore:name="([^"]+)"/.exec(r.body ?? "");
+      const name = (m?.[1] ?? "").toUpperCase();
+      const st = store.get(name);
+      if (st) st.active = true;
+      return resp(200, "", OK_TEXT);
+    }
+
+    if (r.url.startsWith(CLASSRUN_BASE) && r.method === "POST") {
+      return resp(200, opts.transcript(), OK_TEXT);
+    }
+
+    const name = nameFromClassUrl(r.url);
+    if (name !== undefined) {
+      const st = at(name);
+      const isSrc = r.url.endsWith("/source/main");
+      if (!isSrc && r.method === "GET" && !r.qs._action) {
+        if (!st.exists) return resp(404, notFoundXml(name), OK_XML);
+        return resp(
+          200,
+          classDocXml(name, { packageName: st.packageName, mainVersion: st.active ? "active" : "inactive" }),
+          OK_XML,
+        );
+      }
+      if (isSrc && r.method === "GET") {
+        if (!st.exists || st.source === undefined) return resp(404, notFoundXml(name), OK_XML);
+        return resp(200, st.source, OK_TEXT);
+      }
+      if (!isSrc && r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
+      if (!isSrc && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
+      if (isSrc && r.method === "PUT") {
+        st.source = r.body ?? "";
+        st.exists = true;
+        st.active = false;
+        return resp(200, "", OK_TEXT);
+      }
+    }
+    return undefined;
+  };
+}
+
+function frameLine(name: string, payload: unknown): string {
+  return `ZMCP-H>${name} ${JSON.stringify(payload)}`;
+}
+
+function buildTranscript(opts: { id: string; ver: string; action: string; outs?: readonly unknown[] }): string {
+  const lines: string[] = [];
+  lines.push(frameLine("BEGIN", { id: opts.id, ver: opts.ver, action: opts.action, contract: "1.0" }));
+  for (const v of opts.outs ?? [{}]) lines.push(frameLine("OUT", v));
+  lines.push(frameLine("END", { rc: 0, outBytes: 0, truncated: false, ms: 1 }));
+  return lines.join("\n") + "\n";
+}
+
+// --- config / gate / tool-set fixtures ---
+
+let tmp: string;
+
+beforeEach(async () => {
+  tmp = await fs.mkdtemp(path.join(os.tmpdir(), "abapsmith-fluid-tool-"));
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
+afterEach(async () => {
+  await fs.rm(tmp, { recursive: true, force: true });
+});
+
+function cfg(overrides: Partial<Config> = {}): Config {
+  return ConfigSchema.parse({
+    url: "http://sap.invalid:50000",
+    user: "DEVELOPER",
+    password: "secret",
+    sid: "A4H",
+    client: "001",
+    readOnly: false,
+    fluidApi: true,
+    stateDir: tmp,
+    ...overrides,
+  });
+}
+
+const gate = (): SafetyGate =>
+  new SafetyGate({ readOnly: false, allowPackages: ["*"], allowNamePrefixes: ["*"] });
+
+const RUN_ACTION: FluidActionSpec = {
+  name: "run",
+  category: "execute",
+  description: "runs the demo action",
+  input: { type: "object", properties: { note: { type: "string" } } },
+  output: { type: "object" },
+};
+
+function makeTool(opts: { id: string; className: string; actions?: readonly FluidActionSpec[] }): LoadedFluidTool {
+  const cls = opts.className.toLowerCase();
+  const source = `CLASS ${cls} DEFINITION PUBLIC.\nENDCLASS.\nCLASS ${cls} IMPLEMENTATION.\nENDCLASS.`;
+  const manifest: FluidManifest = {
+    contract: "1.0",
+    id: opts.id,
+    title: `${opts.id} tool`,
+    description: `test fixture for ${opts.id}`,
+    objects: [{ name: opts.className, type: "CLAS/OC", description: "demo class", source: { text: source } }],
+    entry: opts.className,
+    actions: opts.actions ?? [RUN_ACTION],
+  };
+  const sources = new Map([[opts.className, source]]);
+  return { manifest, origin: "builtin", sources, version: manifestVersion(manifest, sources) };
+}
+
+function toolSetOf(...tools: readonly LoadedFluidTool[]): FluidToolSet {
+  return {
+    tools: new Map(tools.map((t) => [t.manifest.id, t])),
+    refused: [],
+    warnings: [],
+  };
+}
+
+/** Like `makeTool`, but with N manifest objects instead of one — for proving
+ * `runRemove` leases per object rather than per call. */
+function makeManyObjectTool(id: string, objectNames: readonly string[]): LoadedFluidTool {
+  const sources = new Map<string, string>();
+  const objects = objectNames.map((name) => {
+    const cls = name.toLowerCase();
+    const source = `CLASS ${cls} DEFINITION PUBLIC.\nENDCLASS.\nCLASS ${cls} IMPLEMENTATION.\nENDCLASS.`;
+    sources.set(name, source);
+    return { name, type: "CLAS/OC" as const, description: `member of ${id}`, source: { text: source } };
+  });
+  const manifest: FluidManifest = {
+    contract: "1.0",
+    id,
+    title: `${id} tool`,
+    description: `test fixture for ${id}`,
+    objects,
+    entry: (objectNames[0] ?? "") as string,
+    actions: [RUN_ACTION],
+  };
+  return { manifest, origin: "builtin", sources, version: manifestVersion(manifest, sources) };
+}
+
+// --- fakeMcp()/registered()/invoke() triad (test/bopf-show-partial-view-caveat.test.ts) ---
+
+type RegisteredTool = { handler: (args: unknown) => Promise<CallToolResult>; config: unknown };
+
+function fakeMcp(): { mcp: McpServer; tools: Map<string, RegisteredTool> } {
+  const tools = new Map<string, RegisteredTool>();
+  const mcp = {
+    registerTool: (name: string, config: unknown, handler: (args: unknown) => Promise<CallToolResult>) => {
+      tools.set(name, { handler, config });
+      return {} as unknown;
+    },
+  } as unknown as McpServer;
+  return { mcp, tools };
+}
+
+/** Throws if a zero-network op ever reaches the pool or tries to connect. */
+function boobyPool(): SessionPool {
+  return {
+    withRead: () => {
+      throw new Error("NETWORK LEAKED: pool.withRead was called by a supposedly zero-network op");
+    },
+    withWrite: () => {
+      throw new Error("NETWORK LEAKED: pool.withWrite was called by a supposedly zero-network op");
+    },
+    reserveDebug: () => {
+      throw new Error("reserveDebug: not used by abap_fluid zero-network ops");
+    },
+  } as unknown as SessionPool;
+}
+
+const boobyEnsureConnected = async (): Promise<void> => {
+  throw new Error("NETWORK LEAKED: ensureConnected was called by a supposedly zero-network op");
+};
+
+/** `journal` is required on `FluidToolDeps` (see test/journal-contract.test.ts); this default is
+ * disabled so it never touches disk unless a test opts in with its own `journal`. */
+const disabledJournal = new Journal(
+  { dir: path.join(os.tmpdir(), "abapsmith-fluid-tool-unused"), enabled: false, maxEntries: 1, maxAgeDays: 1 },
+  "TST",
+);
+
+function registered(deps: Partial<FluidToolDeps> & Pick<FluidToolDeps, "toolSet">): Map<string, RegisteredTool> {
+  const { mcp, tools } = fakeMcp();
+  const full: FluidToolDeps = {
+    pool: deps.pool ?? boobyPool(),
+    cfg: deps.cfg ?? cfg(),
+    safety: deps.safety ?? gate(),
+    ensureConnected: deps.ensureConnected ?? boobyEnsureConnected,
+    errorResult,
+    toolSet: deps.toolSet,
+    journal: deps.journal ?? disabledJournal,
+    ...(deps.warn ? { warn: deps.warn } : {}),
+  };
+  registerFluidTool(mcp, full);
+  return tools;
+}
+
+async function invoke(tools: Map<string, RegisteredTool>, args: unknown): Promise<CallToolResult> {
+  const entry = tools.get("abap_fluid");
+  if (!entry) throw new Error('"abap_fluid" was never registered');
+  return entry.handler(args);
+}
+
+function okText(result: CallToolResult): string {
+  expect(result.isError).toBeFalsy();
+  const part = result.content[0];
+  if (!part || part.type !== "text") throw new Error("expected a text content part");
+  return part.text;
+}
+
+function errorPayload(result: CallToolResult): Record<string, unknown> {
+  expect(result.isError).toBe(true);
+  const part = result.content[0];
+  if (!part || part.type !== "text") throw new Error("expected a text content part");
+  return JSON.parse(part.text) as Record<string, unknown>;
+}
+
+// ============================================================================
+// 1. bare call — catalogue, zero HTTP, ends with a NEXT: line
+// ============================================================================
+
+describe("abap_fluid — bare call (no op/tool/action)", () => {
+  it("returns the catalogue with loaded tool ids and a trailing NEXT: line, touching no network", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" }));
+    const tools = registered({ toolSet });
+
+    const text = okText(await invoke(tools, {}));
+
+    expect(text).toContain("demo");
+    const lines = text.split("\n").filter((l) => l.length > 0);
+    expect(lines[lines.length - 1]).toMatch(/^NEXT:/);
+  });
+
+  it("names the disabled reason instead of the catalogue when the fluid flag is off, touching no network", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" }));
+    const tools = registered({ toolSet, cfg: cfg({ fluidApi: false }) });
+
+    const payload = errorPayload(await invoke(tools, {}));
+    expect(payload.error).toBe("FLUID_API_DISABLED");
+  });
+
+  it("reports flag, package, abap mode, read-only, system role, and every loaded tool's id/version/actions, touching no network", async () => {
+    const toolA = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO", actions: [{ ...RUN_ACTION, name: "spin_a" }] });
+    const toolB = makeTool({ id: "alpha", className: "ZCL_ZMCP_ALPHA", actions: [{ ...RUN_ACTION, name: "spin_b" }] });
+    const safety = new SafetyGate({
+      readOnly: false,
+      allowPackages: ["*"],
+      allowNamePrefixes: ["*"],
+      systemRole: "development",
+    });
+    const tools = registered({ toolSet: toolSetOf(toolA, toolB), safety });
+
+    const text = okText(await invoke(tools, {}));
+
+    expect(text).toContain("flag_ABAP_FLUID_API: true");
+    expect(text).toContain(FLUID_PACKAGE);
+    expect(text).toContain("abapMode: (unset)");
+    expect(text).toContain("readOnly: false");
+    expect(text).toContain("systemRole: development");
+    expect(text).toContain(toolA.manifest.id);
+    expect(text).toContain(toolA.version);
+    expect(text).toContain("spin_a");
+    expect(text).toContain(toolB.manifest.id);
+    expect(text).toContain(toolB.version);
+    expect(text).toContain("spin_b");
+  });
+
+  it("surfaces a refused plugin's path, id, code, and reason, touching no network", async () => {
+    const toolSet: FluidToolSet = {
+      tools: new Map(),
+      refused: [
+        {
+          path: "/plugins/broken-widget",
+          id: "brokenwidget",
+          code: "FLUID_MANIFEST_INVALID",
+          reason: "manifest.json is missing the required `actions` array",
+        },
+      ],
+      warnings: [],
+    };
+    const tools = registered({ toolSet });
+
+    const text = okText(await invoke(tools, {}));
+
+    expect(text).toContain("REFUSED PLUGINS");
+    expect(text).toContain("/plugins/broken-widget");
+    expect(text).toContain("brokenwidget");
+    expect(text).toContain("FLUID_MANIFEST_INVALID");
+    expect(text).toContain("manifest.json is missing the required `actions` array");
+  });
+
+  it("with the fluid API disabled, refuses before the info block is ever built, touching no network", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "sentinel", className: "ZCL_ZMCP_SENTINEL" }));
+    const tools = registered({ toolSet, cfg: cfg({ fluidApi: false }) });
+
+    const result = await invoke(tools, {});
+    const payload = errorPayload(result);
+
+    expect(payload.error).toBe("FLUID_API_DISABLED");
+    const raw = JSON.stringify(result);
+    expect(raw).not.toContain("CATALOGUE");
+    expect(raw).not.toContain("tools_loaded");
+    expect(raw).not.toContain("sentinel");
+  });
+});
+
+// ============================================================================
+// 2. list — zero HTTP
+// ============================================================================
+
+describe("abap_fluid — op: list", () => {
+  it("lists every loaded tool with origin/version and action:category pairs, touching no network", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" }));
+    const tools = registered({ toolSet });
+
+    const text = okText(await invoke(tools, { op: "list" }));
+
+    expect(text).toContain("demo");
+    expect(text).toContain("builtin");
+    expect(text).toContain("run:execute");
+  });
+
+  it("issues zero HTTP requests, proven by a pool that throws on any lease attempt", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" }));
+    const tools = registered({ toolSet, pool: boobyPool() });
+
+    const text = okText(await invoke(tools, { op: "list" }));
+
+    expect(text).toContain("demo");
+  });
+});
+
+// ============================================================================
+// 3. describe — with and without `tool`
+// ============================================================================
+
+describe("abap_fluid — op: describe", () => {
+  it("with `tool`: renders objects, entry, and per-action input/output schema, touching no network", async () => {
+    const tool = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" });
+    const tools = registered({ toolSet: toolSetOf(tool) });
+
+    const text = okText(await invoke(tools, { op: "describe", tool: "demo" }));
+
+    expect(text).toContain("ZCL_ZMCP_DEMO");
+    expect(text).toContain("[entry]");
+    expect(text).toContain("run");
+    expect(text).toContain('"note"');
+  });
+
+  it("without `tool`: describes every loaded tool, carrying schemas, touching no network", async () => {
+    const toolA = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" });
+    const toolB = makeTool({ id: "alpha", className: "ZCL_ZMCP_ALPHA" });
+    const tools = registered({ toolSet: toolSetOf(toolA, toolB) });
+
+    const text = okText(await invoke(tools, { op: "describe" }));
+
+    expect(text).toContain(toolA.manifest.id);
+    expect(text).toContain(toolA.version);
+    expect(text).toContain(toolB.manifest.id);
+    expect(text).toContain(toolB.version);
+    expect(text).toContain("OBJECTS:");
+    expect(text).toContain(JSON.stringify(RUN_ACTION.input));
+  });
+
+  it("issues zero HTTP requests, proven by a pool that throws on any lease attempt", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" }));
+    const tools = registered({ toolSet, pool: boobyPool() });
+
+    const text = okText(await invoke(tools, { op: "describe" }));
+
+    expect(text).toContain("demo");
+  });
+});
+
+// ============================================================================
+// 4. run — the default op, routed to dispatch() end-to-end
+// ============================================================================
+
+describe("abap_fluid — op: run (default)", () => {
+  it("tool+action with no `op` defaults to run and actually dispatches the action", async () => {
+    const tool = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" });
+    const route = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: "demo", ver: tool.version, action: "run", outs: [{ note: "hi" }] }),
+    });
+    const { conn } = await connected(route);
+    const pool: SessionPool = {
+      withRead: (_op: string, fn: (c: AbapConnection) => Promise<unknown>) => fn(conn),
+      withWrite: (op: string, _uri: string | undefined, fn: (c: AbapConnection) => Promise<unknown>) => {
+        withWriteCalls.push(op);
+        return fn(conn);
+      },
+      reserveDebug: () => {
+        throw new Error("reserveDebug: not used by abap_fluid run");
+      },
+    } as unknown as SessionPool;
+    const withWriteCalls: string[] = [];
+    let ensureConnectedCalls = 0;
+    const tools = registered({
+      toolSet: toolSetOf(tool),
+      pool,
+      ensureConnected: async () => {
+        ensureConnectedCalls += 1;
+      },
+    });
+
+    const text = okText(await invoke(tools, { tool: "demo", action: "run", args: {} }));
+
+    expect(ensureConnectedCalls).toBe(1);
+    expect(withWriteCalls).toContain("abap_fluid.run");
+    expect(text).toContain('"note": "hi"');
+  });
+
+  it("`op` omitted with `tool`+`action` present takes the run path's own write lease, not verify/repair/remove's", async () => {
+    const writeOps: string[] = [];
+    const pool: SessionPool = {
+      withRead: () => {
+        throw new Error("unexpected withRead for a tool+action call with no `op`");
+      },
+      withWrite: (op: string) => {
+        writeOps.push(op);
+        return Promise.reject(new Error(`STOP: write lease taken for ${op}`));
+      },
+      reserveDebug: () => {
+        throw new Error("reserveDebug: not used here");
+      },
+    } as unknown as SessionPool;
+    const tools = registered({
+      toolSet: toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" })),
+      pool,
+      ensureConnected: async () => {},
+    });
+
+    await invoke(tools, { tool: "demo", action: "run", args: {} });
+
+    expect(writeOps).toEqual(["abap_fluid.run"]);
+  });
+});
+
+// ============================================================================
+// 5. remove without confirm — refuses zero-HTTP, naming confirm:"remove"
+// ============================================================================
+
+describe("abap_fluid — op: remove", () => {
+  it('without confirm: refuses, naming confirm:"remove" as required, touching no network', async () => {
+    const tools = registered({ toolSet: toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" })) });
+
+    const payload = errorPayload(await invoke(tools, { op: "remove", tool: "demo" }));
+
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message)).toContain('confirm: "remove"');
+  });
+
+  it('a wrong confirm string is refused the same way, touching no network', async () => {
+    const tools = registered({ toolSet: toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" })) });
+
+    const payload = errorPayload(await invoke(tools, { op: "remove", tool: "demo", confirm: "yes" }));
+
+    expect(payload.error).toBe("BAD_INPUT");
+  });
+});
+
+// ============================================================================
+// 6. run with tool but no action — refuses, naming `action`
+// ============================================================================
+
+describe("abap_fluid — op: run input validation", () => {
+  it("tool without action refuses, naming `action` as the missing field, touching no network", async () => {
+    const tools = registered({ toolSet: toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" })) });
+
+    const payload = errorPayload(await invoke(tools, { op: "run", tool: "demo" }));
+
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message)).toContain("action");
+  });
+
+  it("action without tool refuses, naming `tool` as the missing field, touching no network", async () => {
+    const tools = registered({ toolSet: toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" })) });
+
+    const payload = errorPayload(await invoke(tools, { action: "run" }));
+
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message)).toContain("tool");
+  });
+});
+
+// ============================================================================
+// 7. registration gating — canUseFluidApi, flag-off vs writable+flag-on
+// ============================================================================
+
+/** A transport that must never be reached — `tools/list` costs zero requests. */
+class ForbiddenClient implements Partial<HttpClient> {
+  request(_o: HttpClientOptions): Promise<HttpClientResponse> {
+    throw new Error("NETWORK CALL LEAKED: listing tools must not touch the wire");
+  }
+}
+
+async function toolNames(config: Config): Promise<Set<string>> {
+  const srv: AbapsmithServer = createServer(config, {
+    httpClient: routeSystemRoleProbe(new ForbiddenClient() as unknown as HttpClient, { answer: "nonproductive" }),
+    log: () => {},
+    breaker: new AuthCircuitBreaker(),
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test", version: "0.0.0" });
+  await Promise.all([client.connect(clientTransport), srv.mcp.connect(serverTransport)]);
+  const { tools } = await client.listTools();
+  await client.close();
+  return new Set(tools.map((t) => t.name));
+}
+
+describe("abap_fluid — registration gating (server.ts, toolCapabilities.canUseFluidApi)", () => {
+  it("is ABSENT from tools/list on a read-only server, even with the flag on (its default)", async () => {
+    const names = await toolNames(
+      ConfigSchema.parse({
+        url: "http://sap.invalid:50000",
+        user: "U",
+        password: "p",
+        sid: "A4H",
+        client: "001",
+        // readOnly defaults to true — deliberately not overridden here.
+      }),
+    );
+    expect(names.has("abap_fluid")).toBe(false);
+  });
+
+  it("is ABSENT from tools/list on a writable server once ABAP_FLUID_API is explicitly off", async () => {
+    const names = await toolNames(
+      ConfigSchema.parse({
+        url: "http://sap.invalid:50000",
+        user: "U",
+        password: "p",
+        sid: "A4H",
+        client: "001",
+        readOnly: false,
+        allowPackages: ["*"],
+        fluidApi: false,
+      }),
+    );
+    expect(names.has("abap_write")).toBe(true);
+    expect(names.has("abap_fluid")).toBe(false);
+  });
+
+  it("IS present on a writable server with the flag on (the default)", async () => {
+    const names = await toolNames(
+      ConfigSchema.parse({
+        url: "http://sap.invalid:50000",
+        user: "U",
+        password: "p",
+        sid: "A4H",
+        client: "001",
+        readOnly: false,
+        allowPackages: ["*"],
+      }),
+    );
+    expect(names.has("abap_fluid")).toBe(true);
+  });
+});
+
+// ============================================================================
+// 8. response budget clamping — small maxResponseChars
+// ============================================================================
+
+describe("abap_fluid — response budget clamping", () => {
+  it("op: list clamps to a small maxResponseChars via buildResponse's own truncation notice, not a hand-rolled cut", async () => {
+    const many = Array.from({ length: 40 }, (_, i) =>
+      makeTool({
+        id: `demo${i}`,
+        className: `ZCL_ZMCP_DEMO${i}`,
+        actions: [RUN_ACTION, { ...RUN_ACTION, name: "other", description: "a second action, for width" }],
+      }),
+    );
+    const tools = registered({ toolSet: toolSetOf(...many), cfg: cfg({ maxResponseChars: 400 }) });
+
+    const text = okText(await invoke(tools, { op: "list" }));
+
+    expect(text.length).toBeLessThanOrEqual(400 + 600); // notice itself costs some room; not an unbounded blob
+    expect(text).toMatch(/capped at 400 chars/);
+  });
+});
+
+// ============================================================================
+// 9. registered MCP description — built from the tool set, not a static string
+// ============================================================================
+
+describe("abap_fluid — registered tool description", () => {
+  it("names a loaded tool's id and its action names, not a static description", async () => {
+    const tool = makeTool({
+      id: "widgetmaker",
+      className: "ZCL_ZMCP_WIDGETMAKER",
+      actions: [{ ...RUN_ACTION, name: "spin_up" }],
+    });
+    const tools = registered({ toolSet: toolSetOf(tool) });
+
+    const entry = tools.get("abap_fluid");
+    if (!entry) throw new Error('"abap_fluid" was never registered');
+    const description = (entry.config as { description?: string }).description ?? "";
+
+    expect(description).toContain("widgetmaker");
+    expect(description).toContain("spin_up");
+  });
+});
+
+// ============================================================================
+// 10. remove — one connection lease per deleted object, not one for the batch
+// ============================================================================
+
+describe("abap_fluid — op: remove lease discipline", () => {
+  it("takes one write lease per deleted object, exceeding LOGON_ENDPOINT_LIFETIME_CEILING (5)", async () => {
+    const names = Array.from({ length: 7 }, (_, i) => `ZCL_ZMCP_MANY${i}`);
+    const tool = makeManyObjectTool("many", names);
+    const writeOps: string[] = [];
+    const pool: SessionPool = {
+      withRead: (_op: string, fn: (c: AbapConnection) => Promise<unknown>) => fn(undefined as unknown as AbapConnection),
+      withWrite: (op: string) => {
+        writeOps.push(op);
+        return Promise.reject(new AbapError("NOT_FOUND", "fixture: withWrite stub, no real delete attempted", {}));
+      },
+      reserveDebug: () => {
+        throw new Error("reserveDebug: not used by abap_fluid remove");
+      },
+    } as unknown as SessionPool;
+    const tools = registered({
+      toolSet: toolSetOf(tool),
+      pool,
+      ensureConnected: async () => {},
+    });
+
+    okText(await invoke(tools, { op: "remove", tool: "many", confirm: "remove" }));
+
+    expect(writeOps.length).toBe(7);
+    expect(writeOps.every((op) => op === "abap_fluid.remove")).toBe(true);
+  });
+});
+
+// ============================================================================
+// 11. repair with `tool` — the invoker probe degrades instead of discarding
+// the already-committed ensure/redeploy work (src/tools/fluid.ts, runRepair)
+// ============================================================================
+
+describe("abap_fluid — op: repair with `tool`, invoker probe degradation", () => {
+  it(
+    "does not throw when the abap_fluid.repair.probe-invokers read lease rejects, still reports the " +
+      "successful ensure/redeploy work, names the STALE INVOKERS probe as unavailable with the error " +
+      "text, and takes no prune write lease",
+    async () => {
+      const tool = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" });
+      const { conn } = await connected(dynamicFluidRoute({ transcript: () => "" }));
+      const probeErr = new Error("boom: invoker probe connection lost");
+      const withWriteOps: string[] = [];
+      const withReadOps: string[] = [];
+      const pool: SessionPool = {
+        withRead: (op: string, _fn: (c: AbapConnection) => Promise<unknown>) => {
+          withReadOps.push(op);
+          if (op === "abap_fluid.repair.probe-invokers") return Promise.reject(probeErr);
+          return Promise.reject(new Error(`unexpected withRead op: ${op}`));
+        },
+        withWrite: (op: string, _uri: string | undefined, fn: (c: AbapConnection) => Promise<unknown>) => {
+          withWriteOps.push(op);
+          if (op === "abap_fluid.repair") return fn(conn);
+          return Promise.reject(new Error(`unexpected withWrite op: ${op}`));
+        },
+        reserveDebug: () => {
+          throw new Error("reserveDebug: not used by abap_fluid repair");
+        },
+      } as unknown as SessionPool;
+      const tools = registered({
+        toolSet: toolSetOf(tool),
+        pool,
+        ensureConnected: async () => {},
+      });
+
+      const result = await invoke(tools, { op: "repair", tool: "demo" });
+
+      expect(result.isError).toBeFalsy();
+      const text = okText(result);
+      expect(text).toContain(`--- ${tool.manifest.id} ---`);
+      expect(text).toContain("deployed: true");
+      expect(text).toContain("--- STALE INVOKERS ---");
+      expect(text).toContain(`(probe unavailable: ${probeErr.message})`);
+      expect(withReadOps).toContain("abap_fluid.repair.probe-invokers");
+      expect(withWriteOps).not.toContain("abap_fluid.repair.prune-invoker");
+    },
+  );
+
+  it(
+    "still returns an error result when the ensure/redeploy write lease itself fails, proving the " +
+      "probe degradation is scoped to the probe and does not swallow a real write failure",
+    async () => {
+      const tool = makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" });
+      const writeErr = new AbapError("SESSION_DEAD", "boom: ensure write lease rejected", {});
+      const pool: SessionPool = {
+        withRead: () => {
+          throw new Error("unexpected withRead: the ensure write lease must fail before any probe is attempted");
+        },
+        withWrite: (op: string) => {
+          if (op === "abap_fluid.repair") return Promise.reject(writeErr);
+          return Promise.reject(new Error(`unexpected withWrite op: ${op}`));
+        },
+        reserveDebug: () => {
+          throw new Error("reserveDebug: not used by abap_fluid repair");
+        },
+      } as unknown as SessionPool;
+      const tools = registered({
+        toolSet: toolSetOf(tool),
+        pool,
+        ensureConnected: async () => {},
+      });
+
+      const payload = errorPayload(await invoke(tools, { op: "repair", tool: "demo" }));
+
+      expect(String(payload.message)).toContain("boom: ensure write lease rejected");
+    },
+  );
+});
+
+// ============================================================================
+// 12. repair — one write lease PER TOOL, and each leased connection retired
+// before its lease is released (src/tools/fluid.ts, runRepair)
+// ============================================================================
+
+/**
+ * What this proves: `runRepair` takes one fresh `abap_fluid.repair` write lease
+ * per target tool — not one lease shared across the batch — and calls
+ * `conn.markDead()` on each leased connection INSIDE that tool's own lease,
+ * before it is released.
+ *
+ * The real failure it guards against is a repair batch that wedges partway
+ * through, leaving some tools repaired and the rest not. Each link of that was
+ * read in this tree before the test was written:
+ *
+ *  - `ensureOneObject`'s "legacy" and "broken" branches (`src/adt/fluid/ensure.ts:379`
+ *    and `:421`) repair by DELETE-then-recreate, and pass `reviveOnDeadSession
+ *    = true` into `deployAndVerify` (`ensure.ts:403`, `:447`) precisely because
+ *    an ADT delete tears the ABAP session down server-side.
+ *  - That revive (`writeAndActivateOnce`, `ensure.ts:253`-`:267`) swallows the
+ *    `SESSION_DEAD` and calls `conn.connect()` on the SAME connection object.
+ *    So the pool never learns anything died: `AdtSessionPool.isSlotDead`
+ *    (`src/adt/pool.ts:661`) is a pure read of `conn.isDead`, which the
+ *    successful `connect()` has already cleared (`connection.ts:875`, backed by
+ *    a `death` record only `connectUnderLock()` clears).
+ *  - Every one of those revives is charged against the per-INSTANCE, never-reset
+ *    `logonEndpointRequestCount` (`src/adt/connection.ts:441`, charged at `:801`,
+ *    refused at `:779`) whose ceiling `LOGON_ENDPOINT_LIFETIME_CEILING` is 5
+ *    (`connection.ts:219`). A connection healed that way looks perfectly alive
+ *    at release time, so `AdtSessionPool.tryTake` (`pool.ts:794`, warmest-first)
+ *    hands the very same object to the next tool's lease with its spent budget
+ *    intact — and a long enough batch dies with "Refused logon-endpoint request
+ *    #6" somewhere in the middle. Splitting the loop into one `withWrite` per
+ *    tool does NOT fix that on its own; only the explicit `markDead()` does,
+ *    because `releaseSlot` (`pool.ts:1123`) drops any slot `isSlotDead` reports
+ *    on release, so the next tool starts on a genuinely fresh connection.
+ *
+ * Three tools, not two, so the assertion is "one lease per tool" rather than
+ * "two by coincidence".
+ *
+ * What this does NOT prove:
+ *  - That any repair here took the delete path at all. The fixture's objects are
+ *    absent, so every tool goes down the plain "absent" deploy branch — no
+ *    delete, no revive, nothing charged. That is deliberate: whether a given
+ *    tool needs the delete path is a per-system fact abapsmith cannot know
+ *    before it starts, so the lease-and-retire discipline has to hold
+ *    unconditionally, and this test asserts it unconditionally.
+ *  - That the pool actually honours `markDead` by dropping the slot. That is
+ *    `AdtSessionPool`'s own contract and belongs to its tests; here the fake
+ *    pool stands in for it and the assertion stops at "`runRepair` emitted the
+ *    signal, once, inside the lease".
+ */
+describe("abap_fluid — op: repair lease discipline", () => {
+  it("takes one write lease per tool and marks each leased connection dead before releasing it", async () => {
+    const targets = [
+      makeTool({ id: "r-one", className: "ZCL_ZMCP_R1" }),
+      makeTool({ id: "r-two", className: "ZCL_ZMCP_R2" }),
+      makeTool({ id: "r-three", className: "ZCL_ZMCP_R3" }),
+    ];
+    // One shared fake-ADT route (so every connection sees one object store) but a
+    // SEPARATE `AbapConnection` per lease — which is exactly what the real pool
+    // hands out once the previous slot has been dropped as dead on release. A
+    // single shared connection could not model this at all: `markDead()` on the
+    // first tool would make every later request throw `SESSION_DEAD`.
+    const route = dynamicFluidRoute({ transcript: () => "" });
+    const ensureConns: AbapConnection[] = [];
+    for (const _t of targets) ensureConns.push((await connected(route)).conn);
+    // `op:"repair"` with no `tool` also runs the retired-bridge reap, which takes
+    // its own `abap_fluid.repair.probe` lease. That one must NOT be retired, so it
+    // gets a connection of its own and is asserted still alive at the end.
+    const reapConn = (await connected(route)).conn;
+
+    // Ordering is the point, so lease open/close and markDead go into ONE log.
+    const events: string[] = [];
+    ensureConns.forEach((c, i) => {
+      const realMarkDead = c.markDead.bind(c);
+      vi.spyOn(c, "markDead").mockImplementation((reason: string, generation?: number) => {
+        events.push(`markDead#${i}`);
+        realMarkDead(reason, generation);
+      });
+    });
+
+    const writeOps: string[] = [];
+    let repairLeases = 0;
+    const pool: SessionPool = {
+      withRead: (op: string) => Promise.reject(new Error(`unexpected withRead op: ${op}`)),
+      withWrite: async (op: string, _uri: string | undefined, fn: (c: AbapConnection) => Promise<unknown>) => {
+        writeOps.push(op);
+        if (op === "abap_fluid.repair") {
+          const i = repairLeases++;
+          const conn = ensureConns[i];
+          if (!conn) throw new Error(`runRepair took more abap_fluid.repair leases (${i + 1}) than it has tools`);
+          events.push(`open#${i}`);
+          try {
+            return await fn(conn);
+          } finally {
+            // `isDead` (connection.ts:875) is the public signal `markDead` sets, and
+            // the only one `AdtSessionPool.isSlotDead` reads — recording it HERE,
+            // at release, is what pins "dead before the slot goes back".
+            events.push(`close#${i}:dead=${conn.isDead}`);
+          }
+        }
+        if (op === "abap_fluid.repair.probe") return fn(reapConn);
+        throw new Error(`unexpected withWrite op: ${op}`);
+      },
+      reserveDebug: () => {
+        throw new Error("reserveDebug: not used by abap_fluid repair");
+      },
+    } as unknown as SessionPool;
+
+    const tools = registered({ toolSet: toolSetOf(...targets), pool, ensureConnected: async () => {} });
+
+    const text = okText(await invoke(tools, { op: "repair" }));
+
+    expect(text).toContain("tools_repaired: 3");
+    // One lease per tool. The pre-split shape took exactly one for the batch.
+    expect(writeOps.filter((op) => op === "abap_fluid.repair")).toEqual([
+      "abap_fluid.repair",
+      "abap_fluid.repair",
+      "abap_fluid.repair",
+    ]);
+    // Exactly one markDead per lease, strictly between that lease's open and
+    // close: a batch-wide lease collapses this to a single open/close pair, and a
+    // markDead hoisted out of the loop would land after the last close.
+    expect(events).toEqual([
+      "open#0",
+      "markDead#0",
+      "close#0:dead=true",
+      "open#1",
+      "markDead#1",
+      "close#1:dead=true",
+      "open#2",
+      "markDead#2",
+      "close#2:dead=true",
+    ]);
+    // No connection carries its logon-ceiling budget forward: each is dead by the
+    // time the next tool's lease opens.
+    for (const c of ensureConns) expect(c.isDead).toBe(true);
+    // The reap probe borrows a connection but does not ensure on it, so repair
+    // must not retire it — this is scoped retirement, not "kill everything".
+    expect(reapConn.isDead).toBe(false);
+  });
+});

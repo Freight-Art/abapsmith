@@ -4,7 +4,7 @@
  *
  *   screen  discovery: given a tcode or program+dynpro, return the screen's
  *           fields, flow logic, and GUI status. Read-only in effect (writes
- *           only a throwaway $TMP bridge class, like abap_fpm_read).
+ *           only a throwaway bridge class into FLUID_PACKAGE, like abap_fpm_read).
  *   press   execute a batch-input script against a transaction. COMMITS —
  *           CALL TRANSACTION ... MODE 'N' UPDATE 'S' has no dry run and
  *           ROLLBACK WORK cannot reach back across the boundary. Gated by
@@ -40,7 +40,6 @@ import { AbapError } from "../adt/errors.js";
 import {
   runUiBridge,
   uiBridgeClassName,
-  UI_FKEY_ROW_CAP,
   type UiBdcField,
   type UiBdcScreen,
   type UiBridgeResult,
@@ -49,11 +48,13 @@ import {
   type UiScreenQuery,
   type UiScreenTarget,
 } from "../adt/ui-runtime.js";
+import { uiManifest } from "../adt/fluid/builtin/ui.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, textTable } from "../compact.js";
 import { safetyTarget, type SafetyGate } from "../safety.js";
 import { withJournalledMutation, systemKey, type Journal } from "../journal.js";
+import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 
 // ---------------------------------------------------------------------------
 // Input schema
@@ -294,20 +295,20 @@ function assertPressEnabled(cfg: UiToolDeps["cfg"]): void {
 
 /**
  * ui-runtime's pressBody() runs CALL TRANSACTION unconditionally with no
- * CINFO check (only screenBody() reads it) — left alone, a report tcode
- * would just run the report and ignore the scripted BDCDATA. This closes
- * that gap: an extra screen-mode precheck call reads TSTC-CINFO before
- * every press. An unrecognised CINFO value is refused too, conservatively.
+ * CINFO check (only the screen action's ABAP reads it) — left alone, a
+ * report tcode would just run the report and ignore the scripted BDCDATA.
+ * This closes that gap: an extra screen-mode precheck call reads TSTC-CINFO
+ * before every press. An unrecognised CINFO value is refused too,
+ * conservatively.
  */
 async function assertBdcApplies(deps: UiToolDeps, tcode: string): Promise<void> {
   const precheckQuery: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode } };
-  const precheckClass = uiBridgeClassName(precheckQuery);
   deps.safety.assert(
     "write",
-    { name: precheckClass, packageName: "$TMP", type: "CLAS/OC" },
+    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
-  const precheck = await deps.pool.withWrite("abap_ui", precheckClass, (conn) =>
+  const precheck = await deps.pool.withWrite("abap_ui", uiManifest.entry, (conn) =>
     runUiBridge(conn, precheckQuery, deps.safety),
   );
   const kind = precheck.transcript.tcode;
@@ -377,18 +378,6 @@ function buildScreenResponse(query: UiScreenQuery, result: UiBridgeResult, maxCh
   if (t.noCua) {
     notes.push(`No GUI status defined for program ${t.noCua.program} — this is normal, not an error.`);
   }
-  if (t.statusLoop?.capped) {
-    notes.push(
-      `GUI status button lookup was capped at ${t.statusLoop.done} of ${t.statusLoop.total} statuses — ` +
-        "FUNCTION KEYS below is an INCOMPLETE list, not the full set.",
-    );
-  }
-  if (t.fkeyCap?.capped) {
-    notes.push(
-      `FUNCTION KEYS was capped at ${UI_FKEY_ROW_CAP} rows — this is an INCOMPLETE list of the buttons found.`,
-    );
-  }
-
   return buildResponse({
     header: {
       mode: "screen",
@@ -401,11 +390,6 @@ function buildScreenResponse(query: UiScreenQuery, result: UiBridgeResult, maxCh
       statusCount: t.statusCount,
       functionsCount: t.functionsCount,
       fkeysCount: t.fkeysCount,
-      statusLoopDone: t.statusLoop?.done,
-      statusLoopTotal: t.statusLoop?.total,
-      statusLoopCapped: t.statusLoop?.capped,
-      fkeyCapEmitted: t.fkeyCap?.emitted,
-      fkeyCapCapped: t.fkeyCap?.capped,
       bridgeClass: result.bridgeClass,
       bridgeRefreshed: result.bridgeRefreshed,
     },
@@ -479,14 +463,17 @@ function buildPressResponse(query: UiPressQuery, result: UiBridgeResult, maxChar
 async function runScreenTool(deps: UiToolDeps, input: UiInput): Promise<CallToolResult> {
   const query = buildScreenQuery(input);
 
-  // Cheap, zero-network preflight — mirrors abap_fpm_read: bridge class name is a pure function of the query.
-  const bridgeClass = uiBridgeClassName(query);
+  // Cheap, zero-network preflight — screen dispatches against the fixed fluid body class, not a per-query generated one.
   deps.safety.assert("read");
-  deps.safety.assert("write", { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" }, { phase: "preflight" });
+  deps.safety.assert(
+    "write",
+    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+    { phase: "preflight" },
+  );
 
   await deps.ensureConnected();
 
-  const result = await deps.pool.withWrite("abap_ui", bridgeClass, (conn) =>
+  const result = await deps.pool.withWrite("abap_ui", uiManifest.entry, (conn) =>
     runUiBridge(conn, query, deps.safety),
   );
   return ok(buildScreenResponse(query, result, deps.cfg.maxResponseChars));
@@ -513,7 +500,7 @@ async function runPressTool(deps: UiToolDeps, input: UiInput): Promise<CallToolR
   await assertBdcApplies(deps, query.tcode);
 
   const bridgeClass = uiBridgeClassName(query);
-  deps.safety.assert("write", { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" }, { phase: "preflight" });
+  deps.safety.assert("write", { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" }, { phase: "preflight" });
 
   // Journal every press with the BDCDATA script (deliberately not skipped,
   // unlike other bridge-based writes elsewhere — a known gap). JournalOperation

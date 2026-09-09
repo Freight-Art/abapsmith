@@ -63,11 +63,16 @@ on that deployment, the same way any other bridge-backed tool is.
    the same row also succeeded and added no second key row. Still
    unproven from here: every failure path on either CTS FM
    (`INSERT_FAILED`, `ENQUEUE_FAILED`, an authority or lock refusal).
-3. **Every generated helper class goes into `$ZMCP_HELPERS`, never
-   `$TMP`.** This is a dedicated, non-transportable local package created
-   on first use (super-package `$TMP`, but `$TMP` itself is never a
-   landing spot). If it cannot be created, the call is refused with a
-   clear error — there is no silent fallback to `$TMP`.
+3. **Every generated helper class goes into `$ABAPSMITH_FLUID_API`, never
+   `$TMP`.** This is the fluid API's own local package, created on first
+   use (super-package `$TMP`, but `$TMP` itself is never a landing spot).
+   If it cannot be created, the call is refused with a clear error —
+   there is no silent fallback to `$TMP`. `upsert`, `delete`, and
+   `create_request` still generate their own statically typed bridge
+   classes; `preview` no longer generates a bespoke probe of its own — it
+   deploys the shared fluid `img` body class plus a small, content-addressed
+   invoker that a repeat call with the same arguments reuses rather than
+   regenerating — see "Mechanism" below.
 
 ## Mechanism
 
@@ -82,11 +87,12 @@ table name is printed upper-cased, the way SAP itself spells it, in the
 line alike — the `confirm` comparison is case-insensitive regardless, so
 nothing about arming a write changes with this.
 
-- **`preview`** — resolves the target and runs `ZCL_ZMCP_IMG_WPROBE`, a
-  generated helper that reads the table's client-dependence (`T000`), its
-  delivery class and every column of the table — key and non-key alike, in
-  one `DD03L` select ordered by position — and the current values
-  of the requested rows. Makes no change. It now runs the same plan
+- **`preview`** — resolves the target and runs the built-in fluid tool
+  `img`, action `preview` (body class `ZCL_ZMCP_FLUID_IMG`, deployed into
+  `$ABAPSMITH_FLUID_API`), which reads the table's client-dependence
+  (`T000`), its delivery class and every column of the table — key and
+  non-key alike, in one `DD03L` select ordered by position — and the
+  current values of the requested rows. Makes no change. It now runs the same plan
   validation `upsert`/`delete` enforce for real, so a row `preview`
   accepts is a row the armed call will accept too, and vice versa — the
   one exception is `corr_nr`/`confirm`, which `preview` still only reports
@@ -123,10 +129,7 @@ nothing about arming a write changes with this.
   equal the resolved base table name — not the activity id, not the view
   name — to arm the call; without it, nothing is written. If the client
   requires a recorded change, `corr_nr` (a customizing request or task
-  number) is required too. Once armed, `ZCL_ZMCP_IMG_WAPPLY` runs: per
-  row, read the before-image, record the CTS entry (if `corr_nr` given),
-  `MODIFY`/`DELETE`, `COMMIT WORK AND WAIT`, then re-read the after-image.
-  A successful armed call discloses that CTS entry directly, under a
+  number) is required too. A successful armed call discloses that CTS entry directly, under a
   `TRANSPORT ENTRY RECORDED` section, instead of leaving a caller to look
   up `E071K` separately — there is no tool in this server that reads
   `E071K` directly; `abap_data_preview` takes a bare `{table, object,
@@ -136,10 +139,17 @@ nothing about arming a write changes with this.
   client and key together (e.g. `001ZTMD`). If the bridge transcript
   carried no `IMGW> CLIENT` line, `tabkey` renders unprefixed (the key
   portion alone) and a note says so, rather than fabricating a client.
+  Once armed, the fluid `img` tool's shared `apply` action runs
+  (`ZCL_ZMCP_FLUID_IMG`, dispatched through `runImgApply` in
+  `src/adt/img-write.ts`): per row, read the before-image, record the CTS
+  entry (if `corr_nr` given), `MODIFY`/`DELETE`, `COMMIT WORK AND WAIT`,
+  then re-read the after-image. This ported the behavior of a since-retired
+  per-call `ZCL_ZMCP_IMG_WAPPLY` generator unchanged; it is described here
+  for what actually runs now.
   If the generated class fails to activate, none of that runs: the call
   returns `CHECK_FAILED` with the activation errors, the class name in
   `details.bridgeClass`, and `details.bridgeLeftBehind: true`. The class
-  stays in `$ZMCP_HELPERS`, inactive — harmless, and safe to delete, but
+  stays in `$ABAPSMITH_FLUID_API`, inactive — harmless, and safe to delete, but
   not cleaned up automatically. No journal entry is written for a failed
   activation, since the journal only records an apply that actually ran on
   the wire, so there is no before-image and nothing to reconcile: nothing
@@ -166,14 +176,19 @@ nothing about arming a write changes with this.
   now declared `WITH DEFAULT KEY` — the sixth live verification run
   (2026-09-06) confirms the fix: the same armed `upsert` that filed a
   real transport entry through both CTS calls hit no such conflict.
-- **`create_request`** — generates `ZCL_ZMCP_CTS_WREQ`, which calls
+- **`create_request`** — the fluid `img` tool's shared `create_request`
+  action (`ZCL_ZMCP_FLUID_IMG`, dispatched through
+  `runCreateCustomizingRequest` in `src/adt/img-write.ts`) calls
   `TR_INSERT_REQUEST_WITH_TASKS` to create a type-`W` (customizing)
   request, passing `IT_USERS` with one row so the request gets a task.
+  This ported a since-retired per-call `ZCL_ZMCP_CTS_WREQ` generator's
+  behavior unchanged, including the history below.
   `IT_USERS`' row type, `SCTS_USER`, is a structure with exactly two
   fields — `USER` (`TR_AS4USER`) and `TYPE` (`TRFUNCTION`), measured from
-  DD40L/DD03L — not a plain user-name table; a second live run that
-  passed a bare `sy-uname` failed to activate the bridge (`"SY-UNAME" and
-  the row type of "LT_USERS" are incompatible`). The row now fills that
+  DD40L/DD03L — not a plain user-name table; a second live run (against
+  that retired generator) that passed a bare `sy-uname` failed to
+  activate the bridge (`"SY-UNAME" and the row type of "LT_USERS" are
+  incompatible`). The row now fills that
   structure (`USER` = `sy-uname`, `TYPE` = `'Q'`, the customizing task
   type), and the response carries the created task's number and its type
   (`taskType`) alongside the request number. The sixth live verification
@@ -309,12 +324,16 @@ this system use.
 - Does not maintain any table outside the fixed delivery-class set
   (`C`/`G`/`E`); a SAP-delivered or system table is refused by name.
 - **Cannot actually write a client-independent (cross-client) table**,
-  `allow_cross_client: true` notwithstanding: the generated
-  `ZCL_ZMCP_IMG_WAPPLY` unconditionally sets the table's client field from
-  `sy-mandt`, and a genuinely client-independent table has no client field
-  for it to set — the class fails to activate. `allow_cross_client` only
-  clears the policy refusal; it does not make the write possible. Maintain
-  a client-independent table by hand (SM30/SM34) instead.
+  `allow_cross_client: true` notwithstanding: the shared `apply` action
+  (`ZCL_ZMCP_FLUID_IMG`) explicitly refuses, before touching any row, when
+  the declared client field is not a component of the table — which a
+  genuinely client-independent table never has. (A now-retired per-call
+  `ZCL_ZMCP_IMG_WAPPLY` generator used to hit the same outcome by accident,
+  as an activation failure from unconditionally setting a client field
+  that didn't exist; the shared class makes the same refusal explicit and
+  disclosed instead.) `allow_cross_client` only clears the policy refusal;
+  it does not make the write possible. Maintain a client-independent table
+  by hand (SM30/SM34) instead.
 
 ## Known limitations
 

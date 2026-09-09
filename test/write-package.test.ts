@@ -25,7 +25,7 @@
  * honoured any field we sent. Those are live questions and this file has no
  * standing to answer them.
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,8 +54,9 @@ import { SafetyGate } from "../src/safety.js";
 import { SessionTransport } from "../src/adt/session-transport.js";
 import type { TrRequirement } from "../src/adt/transports.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
-import { DDIC_BRIDGE_CLASS, DDIC_BRIDGE_PACKAGE } from "../src/adt/ddic-bridge.js";
+import { DDIC_BRIDGE_PACKAGE } from "../src/adt/ddic-bridge.js";
 import { PKG_CONTENT_PREFIX } from "../src/adt/package-delete.js";
+import { classicFake, useFluidState, type ClassicFake } from "./helpers/fluid-classic-fake.js";
 
 const PKG = "ZSD_ORDER";
 const PKG_URI = "/sap/bc/adt/packages/zsd_order";
@@ -128,6 +129,11 @@ class FakeAdt implements HttpClient {
   }
 }
 
+const fluidState = useFluidState();
+afterAll(async () => {
+  await rm(fluidState.dir(), { recursive: true, force: true });
+});
+
 const cfg = (): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
@@ -136,6 +142,7 @@ const cfg = (): Config =>
     sid: "A4H",
     client: "001",
     readOnly: false,
+    stateDir: fluidState.dir(),
   });
 
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
@@ -585,15 +592,11 @@ describe("abap_write (tool layer) — DEVC/K software_component guard", () => {
 // ---------------------------------------------------------------------------
 // deleteObject — DEVC/K via the classrun bridge
 // ---------------------------------------------------------------------------
-// Reimplements test/package-create.test.ts's bridge-faking pattern locally
-// (deploy the generated class, then classrun it) rather than importing it —
-// this file may only touch write-package.test.ts.
+// Routes through the fluid `classic` tool's own fake (test/helpers/
+// fluid-classic-fake.ts) rather than hand-rolling the deploy/classrun
+// choreography locally.
 
-const DELETE_BRIDGE_CLASS = DDIC_BRIDGE_CLASS.deletePackage;
 const CLASSES_COLLECTION = "/sap/bc/adt/oo/classes";
-const DELETE_BRIDGE_URI = `${CLASSES_COLLECTION}/${DELETE_BRIDGE_CLASS.toLowerCase()}`;
-const DELETE_BRIDGE_SOURCE_URI = `${DELETE_BRIDGE_URI}/source/main`;
-const DELETE_BRIDGE_CLASSRUN_URI = `/sap/bc/adt/oo/classrun/${DELETE_BRIDGE_CLASS}`;
 
 const BRIDGE_LOCK_XML =
   `<asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><DATA>` +
@@ -607,26 +610,6 @@ const packageExistsRoute: Route = (r) => {
   return undefined;
 };
 
-/** GET-404 → POST-create → LOCK → PUT → UNLOCK → activate for the bridge class itself. */
-const bridgeDeployRoute: Route = (r) => {
-  if (r.url === DELETE_BRIDGE_URI && r.method === "GET" && !r.qs._action)
-    return resp(404, NOT_FOUND_XML, OK_XML);
-  if (r.url === CLASSES_COLLECTION && r.method === "POST") return resp(200, "", {});
-  if (r.url === DELETE_BRIDGE_URI && r.qs._action === "LOCK") return resp(200, BRIDGE_LOCK_XML, OK_XML);
-  if (r.url === DELETE_BRIDGE_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-  if (r.url === DELETE_BRIDGE_SOURCE_URI && r.method === "PUT") return resp(200, "", OK_TEXT);
-  if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-  return undefined;
-};
-
-/** Classrun executes the deployed bridge class and answers with a transcript body. */
-const bridgeClassrunRoute =
-  (transcript: string): Route =>
-  (r) => {
-    if (r.url === DELETE_BRIDGE_CLASSRUN_URI) return resp(200, transcript, OK_TEXT);
-    return undefined;
-  };
-
 function combineRoutes(...routes: Route[]): Route {
   return (r) => {
     for (const route of routes) {
@@ -637,13 +620,17 @@ function combineRoutes(...routes: Route[]): Route {
   };
 }
 
-const SUCCESS_TRANSCRIPT = ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"].join("\n");
+const SUCCESS_LINES = ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"];
 
-/** Allows both the bridge class's home ($TMP) and the package actually being deleted. */
+const deleteBridge = (lines: readonly string[] = SUCCESS_LINES): ClassicFake =>
+  classicFake({ action: "delete_package", lines: () => lines });
+
+/** Allows both the bridge class's home (DDIC_BRIDGE_PACKAGE) and the package actually being deleted. */
 const bridgeGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
     allowPackages: [DDIC_BRIDGE_PACKAGE, PKG],
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
@@ -651,9 +638,8 @@ const bridgeGate = (): SafetyGate =>
 describe("deleteObject — DEVC/K via the classrun bridge", () => {
   it("deletes an empty package through the bridge, never locking or DELETEing the package's own URI", async () => {
     const gate = bridgeGate();
-    const { conn, adt } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
-    );
+    const classic = deleteBridge();
+    const { conn, adt } = await connected(combineRoutes(packageExistsRoute, classic.route));
 
     const res = await deleteObject(conn, await authDelete(conn, { type: "DEVC/K", name: PKG }, gate), {
       onBeforeImage: async () => {},
@@ -667,8 +653,12 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
     expect(adt.calls.filter((c) => c.url === PKG_URI && c.method === "DELETE")).toHaveLength(0);
     expect(adt.calls.filter((c) => c.url === PKG_URI && c.qs._action === "LOCK")).toHaveLength(0);
     // The classrun bridge endpoints WERE hit.
-    expect(adt.calls.some((c) => c.url === DELETE_BRIDGE_CLASSRUN_URI)).toBe(true);
-    expect(adt.calls.some((c) => c.url === DELETE_BRIDGE_SOURCE_URI && c.method === "PUT")).toBe(true);
+    const invoker = classic.invoker();
+    expect(invoker).toBeDefined();
+    expect(adt.calls.some((c) => c.url === `/sap/bc/adt/oo/classrun/${invoker}`)).toBe(true);
+    expect(
+      adt.calls.some((c) => c.url === `${CLASSES_COLLECTION}/${invoker!.toLowerCase()}/source/main` && c.method === "PUT"),
+    ).toBe(true);
   });
 
   // The whole reason `bridgeGate` exists (see its doc comment on
@@ -678,22 +668,19 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
   // transport, no `opts.gate` — is sufficient for the delete to go through.
   it("bridgeGate alone is sufficient with no transport manager wired", async () => {
     const gate = bridgeGate();
-    const { conn, adt } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
-    );
+    const classic = deleteBridge();
+    const { conn, adt } = await connected(combineRoutes(packageExistsRoute, classic.route));
 
     const target = await authDelete(conn, { type: "DEVC/K", name: PKG }, gate);
     const res = await deleteObject(conn, target, { onBeforeImage: async () => {}, bridgeGate: gate });
 
     expect(res.deleted).toBe(true);
-    expect(adt.calls.some((c) => c.url === DELETE_BRIDGE_CLASSRUN_URI)).toBe(true);
+    expect(adt.calls.some((c) => c.url === `/sap/bc/adt/oo/classrun/${classic.invoker()}`)).toBe(true);
   });
 
   it("records an honest before-image: fires before any bridge request, reports the package as having existed", async () => {
     const gate = bridgeGate();
-    const { conn, adt } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
-    );
+    const { conn, adt } = await connected(combineRoutes(packageExistsRoute, deleteBridge().route));
 
     let firedAtCallCount = -1;
     let seenExisted: boolean | undefined;
@@ -712,14 +699,14 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
     // Nothing bridge-related was requested yet at the moment the hook ran.
     const beforeHook = adt.calls.slice(0, firedAtCallCount);
     expect(beforeHook.some((c) => c.url.startsWith(CLASSES_COLLECTION))).toBe(false);
-    expect(beforeHook.some((c) => c.url === DELETE_BRIDGE_CLASSRUN_URI)).toBe(false);
+    expect(beforeHook.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(false);
   });
 
   it("a non-empty package's refusal reaches deleteObject's caller unwrapped, naming its contents", async () => {
     const gate = bridgeGate();
     const contentTranscript = `${PKG_CONTENT_PREFIX} KIND=OBJECT PGMID=R3TR OBJECT=PROG NAME=ZFOO`;
     const { conn } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(contentTranscript)),
+      combineRoutes(packageExistsRoute, deleteBridge([contentTranscript]).route),
     );
 
     const err = await catchErr(
@@ -800,11 +787,11 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
     const gate = new SafetyGate({
       readOnly: false,
       allowPackages: [PKG, DDIC_BRIDGE_PACKAGE],
+      allowNamePrefixes: ["*"],
       allowTransports: [trkorr],
     });
-    const { conn, adt } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
-    );
+    const classic = deleteBridge();
+    const { conn, adt } = await connected(combineRoutes(packageExistsRoute, classic.route));
 
     const target = await authDelete(conn, { type: "DEVC/K", name: PKG }, gate);
     const res = await deleteObject(conn, target, {
@@ -815,7 +802,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
     });
 
     expect(res.deleted).toBe(true);
-    expect(adt.calls.some((c) => c.url === DELETE_BRIDGE_CLASSRUN_URI)).toBe(true);
+    expect(adt.calls.some((c) => c.url === `/sap/bc/adt/oo/classrun/${classic.invoker()}`)).toBe(true);
   });
 
   // Regression guard for the property that must NOT be lost while fixing the
@@ -854,7 +841,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
       const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
       const gate = bridgeGate();
       const { conn } = await connected(
-        combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+        combineRoutes(packageExistsRoute, deleteBridge().route),
       );
 
       const res = await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate, journal);
@@ -894,7 +881,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
         return undefined;
       };
       const { conn } = await connected(
-        combineRoutes(flakyMetadataRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+        combineRoutes(flakyMetadataRoute, deleteBridge().route),
       );
 
       const res = await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate, journal);
@@ -922,7 +909,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
       const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
       const gate = bridgeGate();
       const { conn, adt } = await connected(
-        combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+        combineRoutes(packageExistsRoute, deleteBridge().route),
       );
 
       await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate, journal);
@@ -950,7 +937,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
       const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
       const gate = bridgeGate();
       const { conn } = await connected(
-        combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+        combineRoutes(packageExistsRoute, deleteBridge().route),
       );
 
       await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate, journal);
@@ -977,10 +964,11 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
     const gate = new SafetyGate({
       readOnly: false,
       allowPackages: [PKG, DDIC_BRIDGE_PACKAGE],
+      allowNamePrefixes: ["*"],
       allowTransports: [trkorr],
     });
     const { conn } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+      combineRoutes(packageExistsRoute, deleteBridge().route),
     );
 
     const res = await abapWrite(
@@ -1010,7 +998,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
     });
     const gate = bridgeGate();
     const { conn } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+      combineRoutes(packageExistsRoute, deleteBridge().route),
     );
 
     const res = await abapWrite(
@@ -1037,7 +1025,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
   it("a successful DEVC/K delete's response carries a markers line naming the transcript tags", async () => {
     const gate = bridgeGate();
     const { conn } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+      combineRoutes(packageExistsRoute, deleteBridge().route),
     );
 
     const res = await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate);
@@ -1052,7 +1040,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
   it("the delete note ties `deleted: true` to PKG-GONE, not just a clean return", async () => {
     const gate = bridgeGate();
     const { conn } = await connected(
-      combineRoutes(packageExistsRoute, bridgeDeployRoute, bridgeClassrunRoute(SUCCESS_TRANSCRIPT)),
+      combineRoutes(packageExistsRoute, deleteBridge().route),
     );
 
     const res = await abapWrite(conn, { object: PKG, type: "DEVC/K", mode: "delete" }, 20_000, gate);

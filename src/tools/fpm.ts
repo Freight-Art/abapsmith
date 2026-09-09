@@ -1,10 +1,10 @@
 /**
  * `abap_fpm_read` — reads SAP FPM/FBI screen configs. No ADT read endpoint
  * exists for this content (every write verb 405s — see `src/adt/fpm-runtime.ts`).
- * Like `abap_bopf_test`, it works by generating/activating a throwaway
- * `IF_OO_ADT_CLASSRUN` bridge class in $TMP, so despite being read-only in
- * effect it goes through `pool.withWrite` and is gated as a write on the
- * bridge class name.
+ * find/outline/app dispatch through the fluid `fpm` tool's static body class
+ * (`fpmManifest.entry`, a fixed name in `$ABAPSMITH_FLUID_API`); `locks` still
+ * generates/activates a per-call bridge class there (`fpm-lock.ts`). Either
+ * way it goes through `pool.withWrite` and is gated as a write on the class name.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -12,7 +12,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import { AbapError } from "../adt/errors.js";
 import {
-  fpmBridgeClassName,
+  assertConfigId,
   runFpmRead,
   type FpmAppQuery,
   type FpmBridgeQuery,
@@ -20,6 +20,7 @@ import {
   type FpmOutlineQuery,
   type FpmReadResult,
 } from "../adt/fpm-runtime.js";
+import { fpmManifest } from "../adt/fluid/builtin/fpm.js";
 import {
   assertLockConfigType,
   fpmLockBridgeClassName,
@@ -31,6 +32,7 @@ import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, textTable, CHARS_PER_TOKEN } from "../compact.js";
 import type { SafetyGate } from "../safety.js";
+import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 
 export const fpmReadInputSchema = {
   mode: z
@@ -73,13 +75,13 @@ export const fpmReadInputSchema = {
 export const FpmReadInput = z.object(fpmReadInputSchema);
 export type FpmReadInput = z.infer<typeof FpmReadInput>;
 
-/** Never passed to {@link buildQuery}/{@link fpmBridgeClassName} — must not affect the ABAP round trip. */
+/** Never passed to {@link buildQuery} — must not affect the ABAP round trip. */
 type FpmDetail = "compact" | "full";
 
 /**
  * Render-side character window over outline's XML body. Same invariant as
- * {@link FpmDetail}: never passed to {@link buildQuery}/{@link fpmBridgeClassName}
- * — mode "outline" only, applied AFTER the bridge returns the full XML.
+ * {@link FpmDetail}: never passed to {@link buildQuery} — mode "outline"
+ * only, applied AFTER the bridge returns the full XML.
  */
 interface FpmXmlWindow {
   readonly offset?: number;
@@ -134,7 +136,7 @@ function buildQuery(input: FpmReadInput): FpmBridgeQuery {
     }
     const q: FpmOutlineQuery = {
       mode: "outline",
-      configId: input.config_id,
+      configId: assertConfigId(input.config_id),
       configType: input.config_type ?? "00",
       configVar: input.config_var ?? "",
     };
@@ -144,7 +146,7 @@ function buildQuery(input: FpmReadInput): FpmBridgeQuery {
   if (!input.config_id || !input.config_id.trim()) {
     throw new AbapError("BAD_INPUT", 'mode "app" requires config_id.', { mode: input.mode });
   }
-  const q: FpmAppQuery = { mode: "app", configId: input.config_id, resolve: input.resolve ?? true };
+  const q: FpmAppQuery = { mode: "app", configId: assertConfigId(input.config_id), resolve: input.resolve ?? true };
   return q;
 }
 
@@ -202,11 +204,12 @@ function buildFindResponse(
   }
 
   const notes = detail === "compact" ? [COMPACT_COVERAGE_NOTE] : [...FIDELITY_NOTES];
-  if (t.count !== undefined && t.count >= 200) {
+  // The server-side SELECT has no row cap; the only way rows can go missing is transport-level
+  // truncation, already surfaced via outputComplete below.
+  if (!result.outputComplete) {
     notes.push(
-      `The server-side SELECT is capped at 200 rows; it matched ${t.count} row(s) on config_type/` +
-        "component/query BEFORE any package filter was applied here — there may be more configs " +
-        "than are shown. Narrow component/query to be sure nothing is missing.",
+      "The bridge's output was cut off before every matching row could be returned — there may be " +
+        "more configs than are shown. Narrow component/query/package to be sure nothing is missing.",
     );
   }
   if (t.diagnostics.length) {
@@ -582,7 +585,7 @@ const FPM_TOOL_DESCRIPTION =
   "component/config_id pattern/package. outline: one configuration's XML plus delta/package " +
   "metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints " +
   "(resolve, default true). locks: enqueue lock holders. Read-only; every call deploys a " +
-  "throwaway $TMP bridge class.";
+  "throwaway bridge class into abapsmith's own package.";
 
 export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as FpmReadInput;
@@ -597,7 +600,7 @@ export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<
     deps.safety.assert("read");
     deps.safety.assert(
       "write",
-      { name: lockBridgeClass, packageName: "$TMP", type: "CLAS/OC" },
+      { name: lockBridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
       { phase: "preflight" },
     );
 
@@ -613,12 +616,13 @@ export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<
 
   const query = buildQuery(input);
 
-  // Bridge class name is a pure function of the query (mirrors abap_bopf_test), so a refused/malformed request costs no network round trip.
-  const bridgeClass = fpmBridgeClassName(query);
+  // find/outline/app all run through the same static fluid body class — unlike the old per-query
+  // generated bridge, this is a fixed constant, not a function of the query.
+  const bridgeClass = fpmManifest.entry;
   deps.safety.assert("read");
   deps.safety.assert(
     "write",
-    { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" },
+    { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
 

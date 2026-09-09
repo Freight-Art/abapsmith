@@ -22,7 +22,8 @@ operation=removeObject` (admin-only ceiling, same as `delete`, plus
 holds exactly one E071 row for the object's PGMID+OBJECT+OBJ_NAME. It does
 not use ADT's Transport Organizer `removeobject` link (see below) — instead
 it reaches CTS's own backend the way `tran-delete`/`view-delete` do, through
-a generated `$TMP` classrun calling `TRINT_READ_REQUEST` to find the row(s)
+the fluid API's persistent body class `ZCL_ZMCP_FLUID_CLASSIC` in
+`$ABAPSMITH_FLUID_API`, calling `TRINT_READ_REQUEST` to find the row(s)
 and `TR_DELETE_COMM_OBJECT_KEYS` (`is_e071_delete`, `iv_dialog_flag = space`)
 to remove them, then `COMMIT WORK`.
 
@@ -76,7 +77,7 @@ controls, not a promised fix abapsmith can verify.
 Still missing: the ADT `removeobject` link's own verb and body remain
 unverified and are not used — a guessed mutating CTS call is not something to
 ship. There is still no way to *unlock* an entry without removing it — no
-equivalent of `lockobject`'s inverse exists. And the classrun route's guard
+equivalent of `lockobject`'s inverse exists. And the removal route's guard
 is generic on pgmid+object+obj_name rather than tied to any one object
 type; it has not been exercised against every object type CTS can lock.
 

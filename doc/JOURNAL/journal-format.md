@@ -94,9 +94,12 @@ reasoning). `abap_bopf_edit operation:"activate"` on its own writes nothing
 to the BO's model (it only calls the activation service), so it stays
 unjournalled the same way `abap_write`'s own no-op paths do.
 
-FPM tools write through generated classruns on the server — real mutations,
-but not ones abapsmith performed by PUTting source it controls, so there is
-no before/after image to record and no undo path.
+`abap_fpm_read`'s `locks` mode — the one FPM path that mutates anything, and
+it mutates SAP's enqueue table rather than an ADT object — writes through a
+generated classrun on the server: a real mutation, but not one abapsmith
+performed by PUTting source it controls, so there is no before/after image to
+record and no undo path. The read modes dispatch against the reused fluid
+`fpm` body class and mutate nothing.
 
 Activation is recorded as history, never for undo. A batch activation writes
 one entry **per object**, not one entry for the call, because
@@ -109,10 +112,11 @@ rather than only where undo is attempted.
 
 `abap_enh` journals 9 of its 11 operations — every one that creates or
 mutates a real `ENHO/XH`/`ENHO/XHH`/`ENHS/XS` object: `write_description`,
-`set_impl_active`, `delete` (which never route through the classrun bridge),
-plus `create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`,
-`set_filter_values`, and `create_hook` (which do). The remaining two are
-legitimately unjournalled, not gaps: `discover_hook_anchors` is read-only —
+`set_impl_active`, `delete` (direct ADT PUT/DELETE) and `create_hook` (a
+direct ADT POST), plus `create_spot`, `add_badi_def`, `add_filter_def`,
+`create_impl`, and `set_filter_values` (dispatched against the reused fluid
+body class `ZCL_ZMCP_FLUID_ENH`). The remaining two are legitimately
+unjournalled, not gaps: `discover_hook_anchors` is read-only —
 nothing to record; `exercise` runs an existing BAdI's method for
 diagnostic/testing purposes and mutates no ADT object of its own — the same
 footing as `abap_run`, never journalled either.

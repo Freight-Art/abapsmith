@@ -12,7 +12,7 @@
  * package), and the `corr_nr` refusal's remediation text. Same
  * fake-`HttpClient` idiom as test/write-bridge-crud.test.ts.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
@@ -20,9 +20,11 @@ import { ConfigSchema, type Config } from "../src/config.js";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import { abapWrite } from "../src/tools/write.js";
 import { SafetyGate } from "../src/safety.js";
-import { DDIC_BRIDGE_CLASS } from "../src/adt/ddic-bridge.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { resetFluidPackageMemo } from "../src/adt/fluid/package.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 const MAX = 20_000;
 
@@ -73,6 +75,14 @@ class FakeAdt implements HttpClient {
   }
 }
 
+let fluidState: ReturnType<typeof useFluidState>;
+
+beforeEach(() => {
+  fluidState = useFluidState();
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
 const cfg = (): Config =>
   ConfigSchema.parse({
     url: "http://sap.invalid:50000",
@@ -81,6 +91,7 @@ const cfg = (): Config =>
     sid: "A4H",
     client: "001",
     readOnly: false,
+    stateDir: fluidState.dir(),
   });
 
 function baseRoute(r: Recorded): HttpClientResponse | undefined {
@@ -116,34 +127,16 @@ const gate = () =>
   new SafetyGate({
     readOnly: false,
     allowPackages: ["*"],
+    // $ is outside the default Z/Y customer namespace, same as
+    // test/fluid-package.test.ts's own gate() — needed for the cold-path create of FLUID_PACKAGE.
+    allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
   });
 
-const CLASS_COLLECTION = "/sap/bc/adt/oo/classes";
-
-const bridgeDeployRoute = (bridgeClass: string): Route => {
-  const bridgeObjUrl = `${CLASS_COLLECTION}/${bridgeClass.toLowerCase()}`;
-  const bridgeSourceUri = `${bridgeObjUrl}/source/main`;
-  return (r) => {
-    if (r.url === bridgeObjUrl && r.method === "GET" && !r.qs._action) {
-      return resp(404, NOT_FOUND_XML(bridgeClass), OK_XML);
-    }
-    if (r.url === CLASS_COLLECTION && r.method === "POST") return resp(200, "", OK_TEXT);
-    if (r.url === bridgeObjUrl && r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
-    if (r.url === bridgeObjUrl && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
-    if (r.url === bridgeSourceUri && r.method === "PUT") return resp(200, "", OK_TEXT);
-    return undefined;
-  };
-};
-
-const classrunRoute =
-  (tags: readonly string[]): Route =>
-  (r) => {
-    if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, tags.join("\n"), OK_TEXT);
-    if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-    return undefined;
-  };
+/** Adapts a {@link ClassicFake}'s route (typed over raw `HttpClientOptions`) into this file's `Recorded`-based `Route` — `Recorded` carries every field the fake reads (method, url, qs, body). */
+const asRoute = (fake: { route: (o: HttpClientOptions) => HttpClientResponse | undefined }): Route =>
+  (r) => fake.route(r as unknown as HttpClientOptions);
 
 /** The VIT-bridge stub GET — used both for pre-delete package resolution and post-delete verification. */
 const vitRoute =
@@ -172,14 +165,13 @@ const both =
   };
 
 const VIEW = "ZMCP_V_CARRIER";
-const VIEW_BRIDGE = DDIC_BRIDGE_CLASS.deleteView;
 
 /** VIEW/DV delete: confirmed present on the resolution read, gone on the post-delete verify read. */
 const deleteView = async (packageName: string) => {
   const found = vitRoute("confirmed", "viewdv", VIEW, "VIEW/DV", packageName);
   const gone = vitRoute("absent", "viewdv", VIEW, "VIEW/DV");
-  const classrun = classrunRoute(["VIEW-DELETED", "VIEW-GONE"]);
-  const { conn, adt } = await connected(both(bridgeDeployRoute(VIEW_BRIDGE), classrun, (r) => found(r) ?? gone(r)));
+  const fake = classicFake({ action: "delete_view", lines: () => ["VIEW-DELETED", "VIEW-GONE"] });
+  const { conn, adt } = await connected(both(asRoute(fake), (r) => found(r) ?? gone(r)));
   const result = await abapWrite(conn, { object: VIEW, type: "VIEW/DV", mode: "delete" }, MAX, gate());
   return { result, adt };
 };

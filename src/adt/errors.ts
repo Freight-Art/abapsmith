@@ -280,7 +280,41 @@ export type AbapErrorCode =
    * from ADT); the hint carries an excerpt of what arrived, to avoid a
    * hint-free dead end.
    */
-  | "SERVICE_METADATA_UNPARSEABLE";
+  | "SERVICE_METADATA_UNPARSEABLE"
+  // ---- Fluid API ----
+  /**
+   * The fluid API is off (`ABAP_FLUID_API` unset/false) or the connected
+   * system is read-only, covered by one code because the caller's next move
+   * is identical either way. `details.reason` discriminates `"flag"` from
+   * `"read-only"`.
+   */
+  | "FLUID_API_DISABLED"
+  /** `ABAP_FLUID_PLUGINS` (the path list) and `ABAP_ALLOW_FLUID_PLUGINS` (the allow flag) are both required; either missing means no plugin loads. */
+  | "FLUID_PLUGINS_DISABLED"
+  /**
+   * `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` is off and either a plugin action
+   * declared `category: "mutate"` (refused before dispatch) or the
+   * plugin's ABAP source itself contains a database write or COMMIT
+   * WORK/ROLLBACK WORK statement (refused at load time). Built-in tools
+   * unaffected either way.
+   */
+  | "FLUID_PLUGIN_MUTATE_DISABLED"
+  /**
+   * The target ABAP object is owned by something outside this fluid run:
+   * it already exists and isn't owned by this fluid run, or its provenance
+   * marker names an abapsmith version strictly newer than this build's
+   * (classified `newer`, never overwritten; `details.installed_version`,
+   * `.our_version`, `.hint`), or two loaded fluid tools — built-in or
+   * plugin — declare the same object name, refusing the second claimant at
+   * load time and naming both tool ids.
+   */
+  | "FLUID_OBJECT_CONFLICT"
+  /** The fluid manifest on disk failed validation. */
+  | "FLUID_MANIFEST_INVALID"
+  /** The ABAP-side action reported failure for its own reasons. */
+  | "FLUID_ACTION_FAILED"
+  /** The deployed ABAP side sent a response shape this client doesn't understand. */
+  | "FLUID_PROTOCOL_ERROR";
 
 /**
  * `terminal` — no input the caller can supply satisfies this code.
@@ -344,6 +378,13 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   SERVICE_METADATA_DENIED: "terminal", // an authorization gap, not a bad argument
   SERVICE_METADATA_NOT_FOUND: "conditional",
   SERVICE_METADATA_UNPARSEABLE: "conditional",
+  FLUID_API_DISABLED: "terminal", // the flag is off or the system refuses writes; no argument changes either
+  FLUID_PLUGINS_DISABLED: "terminal", // the flag is off; no argument enables it
+  FLUID_PLUGIN_MUTATE_DISABLED: "terminal", // the flag is off; no argument enables it
+  FLUID_OBJECT_CONFLICT: "terminal", // the ABAP name is owned by something else; retrying rewrites nothing
+  FLUID_MANIFEST_INVALID: "terminal", // the manifest on disk is wrong; the call's arguments cannot fix it
+  FLUID_ACTION_FAILED: "terminal", // the ABAP action itself reported the failure; abapsmith cannot judge a retry's safety
+  FLUID_PROTOCOL_ERROR: "terminal", // the deployed ABAP is not speaking the contract; a redeploy, not a retry
 };
 
 /** `undefined` for `conditional` — no claim either way. */
