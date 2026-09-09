@@ -213,11 +213,11 @@ const CORE_METHODS = `  METHOD run.
             rv_value = rv_value && lv_uc.
             lv_off = lv_off + 4.
           WHEN OTHERS.
-            rv_value = rv_value && lv_esc.
+            rv_value = rv_value && substring( val = iv_json off = lv_off len = 1 ).
         ENDCASE.
         lv_off = lv_off + 1.
       ELSE.
-        rv_value = rv_value && lv_ch.
+        rv_value = rv_value && substring( val = iv_json off = lv_off len = 1 ).
         lv_off = lv_off + 1.
       ENDIF.
     ENDWHILE.

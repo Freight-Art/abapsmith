@@ -118,7 +118,7 @@ describe("fluidRuntimeTool.version", () => {
   // Pinned literal: a deliberate source edit changes this hash on purpose, and
   // the test must be updated deliberately alongside it — not silently pass.
   it("is pinned to the deployed runtime source's current hash", () => {
-    expect(fluidRuntimeTool.version).toBe("134ccf5b");
+    expect(fluidRuntimeTool.version).toBe("21df24c0");
   });
 });
 
@@ -251,6 +251,32 @@ describe("out()/out_chunk() control-channel injection guard (fix 6)", () => {
     const source = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS) ?? "";
     const body = methodBody(source, "has_break");
     expect(body).toContain("IF iv_json CA cl_abap_char_utilities=>cr_lf.");
+  });
+});
+
+describe("read_string() blank-preserving character append (fix 7)", () => {
+  // ABAP's `&&` trims the trailing blanks of a fixed-length c operand before
+  // concatenating; a `c LENGTH 1` holding a literal blank contributes nothing.
+  // read_string's unescaped-character and WHEN OTHERS branches used to append
+  // lv_ch/lv_esc (both `c LENGTH 1`, declared to hold exactly one byte read
+  // out of iv_json — a legitimate blank included) that way, silently dropping
+  // every blank byte read out of a JSON string. Both branches must instead
+  // re-slice the single character out of iv_json as a string-typed
+  // substring( ) operand, which && does not trim. lv_cr (also c LENGTH 1) is
+  // exempt: it always holds the non-blank CR byte, so its own && append
+  // (the WHEN 'r' escape) is untouched by this fix.
+  it("no longer appends lv_ch or lv_esc via && (only substring(...) of iv_json)", () => {
+    const source = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS) ?? "";
+    const body = methodBody(source, "read_string");
+    expect(body).not.toMatch(/&&\s*lv_ch\b/);
+    expect(body).not.toMatch(/&&\s*lv_esc\b/);
+  });
+
+  it("appends the unescaped character and the WHEN OTHERS escape via substring( iv_json ) instead", () => {
+    const source = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS) ?? "";
+    const body = methodBody(source, "read_string");
+    const occurrences = body.match(/rv_value = rv_value && substring\( val = iv_json off = lv_off len = 1 \)\./g) ?? [];
+    expect(occurrences).toHaveLength(2);
   });
 });
 
