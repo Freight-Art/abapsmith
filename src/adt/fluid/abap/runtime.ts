@@ -483,6 +483,7 @@ export const fluidRuntimeManifest: FluidManifest = {
   id: "rt",
   title: "Fluid API runtime",
   description: "Console protocol runtime shared by generated fluid tools",
+  internal: true,
   objects: [
     {
       name: FLUID_RUNTIME_CLASS,

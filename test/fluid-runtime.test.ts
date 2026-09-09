@@ -24,6 +24,10 @@ describe("fluidRuntimeManifest", () => {
   it("has an id matching the fluid tool id pattern", () => {
     expect(fluidRuntimeManifest.id).toMatch(/^[a-z][a-z0-9_]{0,11}$/);
   });
+
+  it("is marked internal: it is framework plumbing shared by generated tools, not itself a tool callers should be routed to", () => {
+    expect(fluidRuntimeManifest.internal).toBe(true);
+  });
 });
 
 describe("fluidRuntimeSources", () => {

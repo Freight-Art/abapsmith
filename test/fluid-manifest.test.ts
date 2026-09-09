@@ -66,6 +66,22 @@ describe("FluidManifestSchema — acceptance", () => {
   });
 });
 
+describe("FluidManifestSchema — internal field (additive, optional)", () => {
+  it("parses a manifest with internal: true and round-trips it", () => {
+    const result = FluidManifestSchema.safeParse(minimalManifest({ internal: true }));
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.internal).toBe(true);
+  });
+
+  it("leaves internal absent (not defaulted to false) when the manifest never declares it", () => {
+    const result = FluidManifestSchema.safeParse(minimalManifest());
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.internal).toBeUndefined();
+  });
+});
+
 describe("FluidManifestSchema — rejections", () => {
   it("rejects a malformed contract string", () => {
     const result = FluidManifestSchema.safeParse(minimalManifest({ contract: "v1" }));
@@ -326,6 +342,14 @@ describe("manifestVersion", () => {
   it("is unchanged when only manifest.title changes", () => {
     const retitled: FluidManifest = { ...manifest, title: "A completely different title" };
     expect(manifestVersion(retitled, sources)).toBe(manifestVersion(manifest, sources));
+  });
+
+  // Not a red-proof — manifestVersion never read `internal` (it doesn't exist
+  // as a field it walks at all, additive or otherwise) — but this pins the
+  // deploy-hash-stability claim `internal` is documented to make.
+  it("is unchanged when internal is set, since manifestVersion never reads it", () => {
+    const flagged: FluidManifest = { ...manifest, internal: true };
+    expect(manifestVersion(flagged, sources)).toBe(manifestVersion(manifest, sources));
   });
 
   // A source text that spells out the separator can otherwise forge an
