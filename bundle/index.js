@@ -3675,7 +3675,7 @@ var require_lib = __commonJS({
           var changed = false;
           for (var i = 0; i < len; i++) {
             var k = keys[i];
-            var ok22 = u[k];
+            var ok23 = u[k];
             var domainResult = domain2.validate(k, appendContext(c, k, domain2, k));
             if ((0, Either_1.isLeft)(domainResult)) {
               changed = true;
@@ -3683,12 +3683,12 @@ var require_lib = __commonJS({
               var vk = domainResult.right;
               changed = changed || vk !== k;
               k = vk;
-              var codomainResult = codomain.validate(ok22, appendContext(c, k, codomain, ok22));
+              var codomainResult = codomain.validate(ok23, appendContext(c, k, codomain, ok23));
               if ((0, Either_1.isLeft)(codomainResult)) {
                 pushAll(errors, codomainResult.left);
               } else {
                 var vok = codomainResult.right;
-                changed = changed || vok !== ok22;
+                changed = changed || vok !== ok23;
                 a[k] = vok;
               }
             }
@@ -5234,34 +5234,34 @@ var require_utilities = __commonJS({
     exports2.xmlArrayType = xmlArrayType;
     var extractXmlArray = (x) => x ? (0, exports2.isArray)(x) ? x : [x] : [];
     exports2.extractXmlArray = extractXmlArray;
-    function xmlNode2(xml3, ...path6) {
+    function xmlNode2(xml3, ...path8) {
       let current = xml3;
-      path6.some((key) => {
+      path8.some((key) => {
         if ((0, exports2.isObject)(current))
           current = current[key];
         return !current;
       });
       return current;
     }
-    function xmlFlatArray(xml3, ...path6) {
+    function xmlFlatArray(xml3, ...path8) {
       if (!xml3)
         return [];
-      if (path6.length === 0) {
+      if (path8.length === 0) {
         if ((0, exports2.isArray)(xml3))
           return xml3;
         else
           return [xml3];
       }
       if ((0, exports2.isArray)(xml3))
-        return xml3.reduce((arr, x) => [...arr, ...xmlFlatArray(x, ...path6)], []);
+        return xml3.reduce((arr, x) => [...arr, ...xmlFlatArray(x, ...path8)], []);
       if ((0, exports2.isObject)(xml3)) {
-        const [idx, ...rest] = path6;
+        const [idx, ...rest] = path8;
         return xmlFlatArray(xml3[idx], ...rest);
       }
       return [];
     }
-    function xmlArray2(xml3, ...path6) {
-      const node2 = xmlNode2(xml3, ...path6);
+    function xmlArray2(xml3, ...path8) {
+      const node2 = xmlNode2(xml3, ...path8);
       if (node2) {
         if ((0, exports2.isArray)(node2))
           return node2;
@@ -5270,10 +5270,10 @@ var require_utilities = __commonJS({
       }
       return [];
     }
-    var ok22 = Object.keys;
-    var xmlRoot = (o) => o[ok22(o).filter((k) => k !== "?xml")[0]];
+    var ok23 = Object.keys;
+    var xmlRoot = (o) => o[ok23(o).filter((k) => k !== "?xml")[0]];
     exports2.xmlRoot = xmlRoot;
-    var stripNs = (x) => x && ok22(x).reduce((obj, key) => {
+    var stripNs = (x) => x && ok23(x).reduce((obj, key) => {
       const nk = key.split(":").slice(1).join(":") || key;
       if (nk in obj)
         obj[key] = key;
@@ -5283,12 +5283,12 @@ var require_utilities = __commonJS({
     }, {});
     exports2.stripNs = stripNs;
     var stripAttrPrefix = (x) => x.replace(/^@_/, "");
-    var xmlNodeAttr2 = (n) => n && ok22(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var xmlNodeAttr2 = (n) => n && ok23(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
     exports2.xmlNodeAttr = xmlNodeAttr2;
-    var typedNodeAttr = (n) => n && ok22(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var typedNodeAttr = (n) => n && ok23(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
@@ -12897,21 +12897,21 @@ var require_src = __commonJS({
       }
       return type;
     };
-    var errorMessageSimple = function(expectedType, path6, error51, options) {
+    var errorMessageSimple = function(expectedType, path8, error51, options) {
       return [
         "Expecting " + truncateType(expectedType, options),
-        path6 === "" ? "" : "at " + path6,
+        path8 === "" ? "" : "at " + path8,
         "but instead got: " + jsToString(error51.value),
         error51.message ? "(" + error51.message + ")" : ""
       ].filter(Boolean).join(" ");
     };
-    var errorMessageUnion = function(expectedTypes, path6, value, options) {
+    var errorMessageUnion = function(expectedTypes, path8, value, options) {
       return [
         "Expecting one of:\n",
         expectedTypes.map(function(type) {
           return "    " + truncateType(type, options);
         }).join("\n"),
-        path6 === "" ? "\n" : "\nat " + path6 + " ",
+        path8 === "" ? "\n" : "\nat " + path8 + " ",
         "but instead got: " + jsToString(value)
       ].filter(Boolean).join("");
     };
@@ -12920,7 +12920,7 @@ var require_src = __commonJS({
         return A.lookup(n + 1, ctx);
       }));
     };
-    var formatValidationErrorOfUnion = function(path6, errors, options) {
+    var formatValidationErrorOfUnion = function(path8, errors, options) {
       var expectedTypes = pipeable_1.pipe(errors, A.map(getValidationContext), A.map(findExpectedType), A.compact);
       var value = pipeable_1.pipe(expectedTypes, A.head, O.map(function(v) {
         return v.actual;
@@ -12931,26 +12931,26 @@ var require_src = __commonJS({
         var type = _a3.type;
         return type.name;
       });
-      return expected.length > 0 ? O.some(errorMessageUnion(expected, path6, value, options)) : O.none;
+      return expected.length > 0 ? O.some(errorMessageUnion(expected, path8, value, options)) : O.none;
     };
-    var formatValidationCommonError = function(path6, error51, options) {
+    var formatValidationCommonError = function(path8, error51, options) {
       return pipeable_1.pipe(error51, getErrorFromCtx, O.map(function(errorContext) {
-        return errorMessageSimple(errorContext.type.name, path6, error51, options);
+        return errorMessageSimple(errorContext.type.name, path8, error51, options);
       }));
     };
     var groupByKey = NEA.groupBy(function(error51) {
       return pipeable_1.pipe(error51.context, utils_1.takeUntil(isUnionType), keyPath);
     });
-    var format = function(path6, errors, options) {
-      return NEA.tail(errors).length > 0 ? formatValidationErrorOfUnion(path6, errors, options) : formatValidationCommonError(path6, NEA.head(errors), options);
+    var format = function(path8, errors, options) {
+      return NEA.tail(errors).length > 0 ? formatValidationErrorOfUnion(path8, errors, options) : formatValidationCommonError(path8, NEA.head(errors), options);
     };
     var formatValidationError = function(error51, options) {
       return formatValidationCommonError(keyPath(error51.context), error51, options);
     };
     exports2.formatValidationError = formatValidationError;
     var formatValidationErrors = function(errors, options) {
-      return pipeable_1.pipe(errors, groupByKey, R.mapWithIndex(function(path6, errors2) {
-        return format(path6, errors2, options);
+      return pipeable_1.pipe(errors, groupByKey, R.mapWithIndex(function(path8, errors2) {
+        return format(path8, errors2, options);
       }), R.compact, R.toArray, A.map(function(_a3) {
         var _key = _a3[0], error51 = _a3[1];
         return error51;
@@ -22013,11 +22013,11 @@ var require_mime_types = __commonJS({
       }
       return exts[0];
     }
-    function lookup(path6) {
-      if (!path6 || typeof path6 !== "string") {
+    function lookup(path8) {
+      if (!path8 || typeof path8 !== "string") {
         return false;
       }
-      var extension2 = extname("x." + path6).toLowerCase().substr(1);
+      var extension2 = extname("x." + path8).toLowerCase().substr(1);
       if (!extension2) {
         return false;
       }
@@ -23122,11 +23122,11 @@ var require_form_data = __commonJS({
     "use strict";
     var CombinedStream = require_combined_stream();
     var util2 = __require("util");
-    var path6 = __require("path");
+    var path8 = __require("path");
     var http3 = __require("http");
     var https4 = __require("https");
     var parseUrl2 = __require("url").parse;
-    var fs3 = __require("fs");
+    var fs4 = __require("fs");
     var Stream = __require("stream").Stream;
     var crypto = __require("crypto");
     var mime = require_mime_types();
@@ -23196,12 +23196,12 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs3.stat(value.path, function(err, stat) {
+          fs4.stat(value.path, function(err, stat2) {
             if (err) {
               callback(err);
               return;
             }
-            var fileSize = stat.size - (value.start ? value.start : 0);
+            var fileSize = stat2.size - (value.start ? value.start : 0);
             callback(null, fileSize);
           });
         }
@@ -23253,11 +23253,11 @@ var require_form_data = __commonJS({
     FormData2.prototype._getContentDisposition = function(value, options) {
       var filename;
       if (typeof options.filepath === "string") {
-        filename = path6.normalize(options.filepath).replace(/\\/g, "/");
+        filename = path8.normalize(options.filepath).replace(/\\/g, "/");
       } else if (options.filename || value && (value.name || value.path)) {
-        filename = path6.basename(options.filename || value && (value.name || value.path));
+        filename = path8.basename(options.filename || value && (value.name || value.path));
       } else if (value && value.readable && hasOwn(value, "httpVersion")) {
-        filename = path6.basename(value.client._httpMessage.path || "");
+        filename = path8.basename(value.client._httpMessage.path || "");
       }
       if (filename) {
         return 'filename="' + escapeHeaderParam(filename) + '"';
@@ -24093,12 +24093,12 @@ var require_promisify = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     function promisify(fn) {
       return function(req, opts) {
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve5, reject) => {
           fn.call(this, req, opts, (err, rtn) => {
             if (err) {
               reject(err);
             } else {
-              resolve3(rtn);
+              resolve5(rtn);
             }
           });
         });
@@ -24302,7 +24302,7 @@ var require_parse_proxy_response = __commonJS({
     var debug_1 = __importDefault(require_src2());
     var debug = debug_1.default("https-proxy-agent:parse-proxy-response");
     function parseProxyResponse(socket) {
-      return new Promise((resolve3, reject) => {
+      return new Promise((resolve5, reject) => {
         let buffersLength = 0;
         const buffers = [];
         function read() {
@@ -24342,7 +24342,7 @@ var require_parse_proxy_response = __commonJS({
           const firstLine = buffered.toString("ascii", 0, buffered.indexOf("\r\n"));
           const statusCode = +firstLine.split(" ")[1];
           debug("got proxy server response: %o", firstLine);
-          resolve3({
+          resolve5({
             statusCode,
             buffered
           });
@@ -24363,11 +24363,11 @@ var require_agent = __commonJS({
     "use strict";
     var __awaiter = exports2 && exports2.__awaiter || function(thisArg, _arguments, P, generator) {
       function adopt(value) {
-        return value instanceof P ? value : new P(function(resolve3) {
-          resolve3(value);
+        return value instanceof P ? value : new P(function(resolve5) {
+          resolve5(value);
         });
       }
-      return new (P || (P = Promise))(function(resolve3, reject) {
+      return new (P || (P = Promise))(function(resolve5, reject) {
         function fulfilled(value) {
           try {
             step(generator.next(value));
@@ -24383,7 +24383,7 @@ var require_agent = __commonJS({
           }
         }
         function step(result) {
-          result.done ? resolve3(result.value) : adopt(result.value).then(fulfilled, rejected);
+          result.done ? resolve5(result.value) : adopt(result.value).then(fulfilled, rejected);
         }
         step((generator = generator.apply(thisArg, _arguments || [])).next());
       });
@@ -24974,8 +24974,8 @@ var require_follow_redirects = __commonJS({
       }
       return parsed;
     }
-    function resolveUrl(relative, base) {
-      return useNativeURL ? new URL3(relative, base) : parseUrl2(url2.resolve(base, relative));
+    function resolveUrl(relative2, base) {
+      return useNativeURL ? new URL3(relative2, base) : parseUrl2(url2.resolve(base, relative2));
     }
     function validateUrl(input) {
       if (/^\[/.test(input.hostname) && !/^\[[:0-9a-f]+\]$/i.test(input.hostname)) {
@@ -25079,7 +25079,7 @@ var require_axios = __commonJS({
     var https4 = __require("https");
     var http22 = __require("http2");
     var util2 = __require("util");
-    var path6 = __require("path");
+    var path8 = __require("path");
     var followRedirects = require_follow_redirects();
     var zlib = __require("zlib");
     var stream = __require("stream");
@@ -25149,7 +25149,7 @@ var require_axios = __commonJS({
     var isNumber = typeOfTest("number");
     var isObject2 = (thing) => thing !== null && typeof thing === "object";
     var isBoolean = (thing) => thing === true || thing === false;
-    var isPlainObject3 = (val) => {
+    var isPlainObject6 = (val) => {
       if (!isObject2(val)) {
         return false;
       }
@@ -25264,9 +25264,9 @@ var require_axios = __commonJS({
         }
         const targetKey = caseless && typeof key === "string" && findKey(result, key) || key;
         const existing = hasOwnProperty(result, targetKey) ? result[targetKey] : void 0;
-        if (isPlainObject3(existing) && isPlainObject3(val)) {
+        if (isPlainObject6(existing) && isPlainObject6(val)) {
           result[targetKey] = merge2(existing, val);
-        } else if (isPlainObject3(val)) {
+        } else if (isPlainObject6(val)) {
           result[targetKey] = merge2({}, val);
         } else if (isArray(val)) {
           result[targetKey] = val.slice();
@@ -25531,7 +25531,7 @@ var require_axios = __commonJS({
       isNumber,
       isBoolean,
       isObject: isObject2,
-      isPlainObject: isPlainObject3,
+      isPlainObject: isPlainObject6,
       isEmptyObject,
       isReadableStream,
       isRequest,
@@ -25712,7 +25712,7 @@ var require_axios = __commonJS({
       const parameters = /* @__PURE__ */ Object.create(null);
       const str5 = String(value);
       let start = 0;
-      let quoted6 = false;
+      let quoted2 = false;
       let escaped = false;
       function parseParameter(end) {
         const part = trimOWS(str5.slice(start, end));
@@ -25733,16 +25733,16 @@ var require_axios = __commonJS({
       }
       for (let i = 0; i < str5.length; i++) {
         const code = str5.charCodeAt(i);
-        if (quoted6) {
+        if (quoted2) {
           if (escaped) {
             escaped = false;
           } else if (code === 92) {
             escaped = true;
           } else if (code === 34) {
-            quoted6 = false;
+            quoted2 = false;
           }
         } else if (code === 34) {
-          quoted6 = true;
+          quoted2 = true;
         } else if (code === 44 || code === 59) {
           parseParameter(i);
           start = i + 1;
@@ -26147,9 +26147,9 @@ var require_axios = __commonJS({
     function removeBrackets(key) {
       return utils$1.endsWith(key, "[]") ? key.slice(0, -2) : key;
     }
-    function renderKey(path7, key, dots) {
-      if (!path7) return key;
-      return path7.concat(key).map(function each(token, i) {
+    function renderKey(path9, key, dots) {
+      if (!path9) return key;
+      return path9.concat(key).map(function each(token, i) {
         token = removeBrackets(token);
         return !dots && i ? "[" + token + "]" : token;
       }).join(dots ? "." : "");
@@ -26227,13 +26227,13 @@ var require_axios = __commonJS({
           return currentValue;
         });
       }
-      function defaultVisitor(value, key, path7) {
+      function defaultVisitor(value, key, path9) {
         let arr = value;
         if (utils$1.isReactNative(formData) && utils$1.isReactNativeBlob(value)) {
-          formData.append(renderKey(path7, key, dots), convertValue(value));
+          formData.append(renderKey(path9, key, dots), convertValue(value));
           return false;
         }
-        if (value && !path7 && typeof value === "object") {
+        if (value && !path9 && typeof value === "object") {
           if (utils$1.endsWith(key, "{}")) {
             key = metaTokens ? key : key.slice(0, -2);
             value = stringifyWithDepthLimit(value, 1);
@@ -26252,7 +26252,7 @@ var require_axios = __commonJS({
         if (isVisitable(value)) {
           return true;
         }
-        formData.append(renderKey(path7, key, dots), convertValue(value));
+        formData.append(renderKey(path9, key, dots), convertValue(value));
         return false;
       }
       const exposedHelpers = Object.assign(predicates, {
@@ -26260,17 +26260,17 @@ var require_axios = __commonJS({
         convertValue,
         isVisitable
       });
-      function build(value, path7, depth = 0) {
+      function build(value, path9, depth = 0) {
         if (utils$1.isUndefined(value)) return;
         throwIfMaxDepthExceeded(depth);
         if (stack.indexOf(value) !== -1) {
-          throw new Error("Circular reference detected in " + path7.join("."));
+          throw new Error("Circular reference detected in " + path9.join("."));
         }
         stack.push(value);
         utils$1.forEach(value, function each(el, key) {
-          const result = !(utils$1.isUndefined(el) || el === null) && visitor.call(formData, el, utils$1.isString(key) ? key.trim() : key, path7, exposedHelpers);
+          const result = !(utils$1.isUndefined(el) || el === null) && visitor.call(formData, el, utils$1.isString(key) ? key.trim() : key, path9, exposedHelpers);
           if (result === true) {
-            build(el, path7 ? path7.concat(key) : [key], depth + 1);
+            build(el, path9 ? path9.concat(key) : [key], depth + 1);
           }
         });
         stack.pop();
@@ -26459,7 +26459,7 @@ var require_axios = __commonJS({
     };
     function toURLEncodedForm(data, options) {
       return toFormData(data, new platform.classes.URLSearchParams(), {
-        visitor: function(value, key, path7, helpers) {
+        visitor: function(value, key, path9, helpers) {
           if (platform.isNode && utils$1.isBuffer(value)) {
             this.append(key, value.toString("base64"));
             return false;
@@ -26476,14 +26476,14 @@ var require_axios = __commonJS({
       }
     }
     function parsePropPath(name) {
-      const path7 = [];
+      const path9 = [];
       const pattern = /[^.[\]]+|\[([^.[\]]*)]/g;
       let match;
       while ((match = pattern.exec(name)) !== null) {
-        throwIfDepthExceeded(path7.length);
-        path7.push(match[0] === "[]" ? "" : match[1] || match[0]);
+        throwIfDepthExceeded(path9.length);
+        path9.push(match[0] === "[]" ? "" : match[1] || match[0]);
       }
-      return path7;
+      return path9;
     }
     function arrayToObject(arr) {
       const obj = {};
@@ -26498,12 +26498,12 @@ var require_axios = __commonJS({
       return obj;
     }
     function formDataToJSON(formData) {
-      function buildPath(path7, value, target, index) {
+      function buildPath(path9, value, target, index) {
         throwIfDepthExceeded(index);
-        let name = path7[index++];
+        let name = path9[index++];
         if (name === "__proto__") return true;
         const isNumericKey = Number.isFinite(+name);
-        const isLast = index >= path7.length;
+        const isLast = index >= path9.length;
         name = !name && utils$1.isArray(target) ? target.length : name;
         if (isLast) {
           if (utils$1.hasOwnProp(target, name)) {
@@ -26516,7 +26516,7 @@ var require_axios = __commonJS({
         if (!utils$1.hasOwnProp(target, name) || !utils$1.isObject(target[name])) {
           target[name] = [];
         }
-        const result = buildPath(path7, value, target[name], index);
+        const result = buildPath(path9, value, target[name], index);
         if (result && utils$1.isArray(target[name])) {
           target[name] = arrayToObject(target[name]);
         }
@@ -26669,10 +26669,10 @@ var require_axios = __commonJS({
         this.__CANCEL__ = true;
       }
     };
-    function settle(resolve3, reject, response) {
+    function settle(resolve5, reject, response) {
       const validateStatus = response.config.validateStatus;
       if (!response.status || !validateStatus || validateStatus(response.status)) {
-        resolve3(response);
+        resolve5(response);
       } else {
         reject(new AxiosError("Request failed with status code " + response.status, response.status >= 400 && response.status < 500 ? AxiosError.ERR_BAD_REQUEST : AxiosError.ERR_BAD_RESPONSE, response.config, response.request, response));
       }
@@ -27798,7 +27798,7 @@ var require_axios = __commonJS({
     }
     var isHttpAdapterSupported = typeof process !== "undefined" && utils$1.kindOf(process) === "process";
     var wrapAsync = (asyncExecutor) => {
-      return new Promise((resolve3, reject) => {
+      return new Promise((resolve5, reject) => {
         let onDone;
         let isDone;
         const done = (value, isRejected) => {
@@ -27808,7 +27808,7 @@ var require_axios = __commonJS({
         };
         const _resolve = (value) => {
           done(value);
-          resolve3(value);
+          resolve5(value);
         };
         const _reject = (reason) => {
           done(reason, true);
@@ -27869,7 +27869,7 @@ var require_axios = __commonJS({
       }
     };
     var httpAdapter = isHttpAdapterSupported && function httpAdapter2(config2) {
-      return wrapAsync(async function dispatchHttpRequest(resolve3, reject, onDone) {
+      return wrapAsync(async function dispatchHttpRequest(resolve5, reject, onDone) {
         const own2 = (key) => utils$1.getSafeProp(config2, key);
         const transitional = own2("transitional") || transitionalDefaults;
         let data = own2("data");
@@ -27986,7 +27986,7 @@ var require_axios = __commonJS({
           }
           let convertedData;
           if (method !== "GET") {
-            return settle(resolve3, reject, {
+            return settle(resolve5, reject, {
               status: 405,
               statusText: "method not allowed",
               headers: {},
@@ -28008,7 +28008,7 @@ var require_axios = __commonJS({
           } else if (responseType === "stream") {
             convertedData = stream.Readable.from(convertedData);
           }
-          return settle(resolve3, reject, {
+          return settle(resolve5, reject, {
             data: convertedData,
             status: 200,
             statusText: "OK",
@@ -28127,8 +28127,8 @@ var require_axios = __commonJS({
           const allowedSocketPaths = own2("allowedSocketPaths");
           if (allowedSocketPaths != null) {
             const allowed = Array.isArray(allowedSocketPaths) ? allowedSocketPaths : [allowedSocketPaths];
-            const resolvedSocket = path6.resolve(socketPath);
-            const isAllowed = allowed.some((entry) => typeof entry === "string" && path6.resolve(entry) === resolvedSocket);
+            const resolvedSocket = path8.resolve(socketPath);
+            const isAllowed = allowed.some((entry) => typeof entry === "string" && path8.resolve(entry) === resolvedSocket);
             if (!isAllowed) {
               return reject(new AxiosError(`socketPath "${socketPath}" is not permitted by allowedSocketPaths`, AxiosError.ERR_BAD_OPTION_VALUE, config2));
             }
@@ -28280,7 +28280,7 @@ var require_axios = __commonJS({
               });
             }
             response.data = responseStream;
-            settle(resolve3, reject, response);
+            settle(resolve5, reject, response);
           } else {
             const responseBuffer = [];
             let totalResponseBytes = 0;
@@ -28318,7 +28318,7 @@ var require_axios = __commonJS({
               } catch (err) {
                 return reject(AxiosError.from(err, null, config2, response.request, response));
               }
-              settle(resolve3, reject, response);
+              settle(resolve5, reject, response);
             });
           }
           abortEmitter.once("abort", (err) => {
@@ -28427,14 +28427,14 @@ var require_axios = __commonJS({
     var cookies = platform.hasStandardBrowserEnv ? (
       // Standard browser envs support document.cookie
       {
-        write(name, value, expires, path7, domain2, secure, sameSite) {
+        write(name, value, expires, path9, domain2, secure, sameSite) {
           if (typeof document === "undefined") return;
           const cookie = [`${name}=${encodeURIComponent(value)}`];
           if (utils$1.isNumber(expires)) {
             cookie.push(`expires=${new Date(expires).toUTCString()}`);
           }
-          if (utils$1.isString(path7)) {
-            cookie.push(`path=${path7}`);
+          if (utils$1.isString(path9)) {
+            cookie.push(`path=${path9}`);
           }
           if (utils$1.isString(domain2)) {
             cookie.push(`domain=${domain2}`);
@@ -28655,7 +28655,7 @@ var require_axios = __commonJS({
     }
     var isXHRAdapterSupported = typeof XMLHttpRequest !== "undefined";
     var xhrAdapter = isXHRAdapterSupported && function(config2) {
-      return new Promise(function dispatchXhrRequest(resolve3, reject) {
+      return new Promise(function dispatchXhrRequest(resolve5, reject) {
         const _config = resolveConfig(config2);
         let requestData = _config.data;
         const requestHeaders = AxiosHeaders.from(_config.headers).normalize();
@@ -28691,7 +28691,7 @@ var require_axios = __commonJS({
             request
           };
           settle(function _resolve(value) {
-            resolve3(value);
+            resolve5(value);
             done();
           }, function _reject(err) {
             reject(err);
@@ -29201,8 +29201,8 @@ var require_axios = __commonJS({
             }
           }
           !isStreamResponse && unsubscribe && unsubscribe();
-          return await new Promise((resolve3, reject) => {
-            settle(resolve3, reject, {
+          return await new Promise((resolve5, reject) => {
+            settle(resolve5, reject, {
               data: responseData,
               headers: AxiosHeaders.from(response.headers),
               status: response.status,
@@ -29640,8 +29640,8 @@ var require_axios = __commonJS({
           throw new TypeError("executor must be a function.");
         }
         let resolvePromise;
-        this.promise = new Promise(function promiseExecutor(resolve3) {
-          resolvePromise = resolve3;
+        this.promise = new Promise(function promiseExecutor(resolve5) {
+          resolvePromise = resolve5;
         });
         const token = this;
         this.promise.then((cancel) => {
@@ -29654,9 +29654,9 @@ var require_axios = __commonJS({
         });
         this.promise.then = (onfulfilled) => {
           let _resolve;
-          const promise2 = new Promise((resolve3) => {
-            token.subscribe(resolve3);
-            _resolve = resolve3;
+          const promise2 = new Promise((resolve5) => {
+            token.subscribe(resolve5);
+            _resolve = resolve5;
           }).then(onfulfilled);
           promise2.cancel = function reject() {
             token.unsubscribe(_resolve);
@@ -31273,22 +31273,22 @@ var require_cds = __commonJS({
       const children = (0, utilities_1.xmlArray)(raw, "abapsource:elementInfo").map(parseDdicElement);
       return { type, name, properties, children };
     }
-    async function ddicElement(h, path6, getTargetForAssociation = false, getExtensionViews = true, getSecondaryObjects = true) {
+    async function ddicElement(h, path8, getTargetForAssociation = false, getExtensionViews = true, getSecondaryObjects = true) {
       const headers = { Accept: "application/vnd.sap.adt.elementinfo+xml" };
       const qs = (0, utilities_1.formatQS)({
         getTargetForAssociation,
         getExtensionViews,
         getSecondaryObjects,
-        path: path6
+        path: path8
       });
       const uri = `/sap/bc/adt/ddic/ddl/elementinfo?${qs}`;
       const response = await h.request(uri, { headers });
       const raw = (0, utilities_1.fullParse)(response.body);
       return parseDdicElement(raw["abapsource:elementInfo"]);
     }
-    async function ddicRepositoryAccess(h, path6) {
+    async function ddicRepositoryAccess(h, path8) {
       const headers = { Accept: "application/*" };
-      const qs = (0, utilities_1.isArray)(path6) ? (0, utilities_1.formatQS)({ requestScope: "all", path: path6 }) : `datasource=${encodeURIComponent(path6)}`;
+      const qs = (0, utilities_1.isArray)(path8) ? (0, utilities_1.formatQS)({ requestScope: "all", path: path8 }) : `datasource=${encodeURIComponent(path8)}`;
       const url2 = `/sap/bc/adt/ddic/ddl/ddicrepositoryaccess?${qs}`;
       const response = await h.request(url2, { headers });
       const raw = (0, utilities_1.fullParse)(response.body);
@@ -35694,8 +35694,8 @@ var require_AdtClient = __commonJS({
        *   - any path ending with `/source/main`  (programs, includes, FMs, …)
        *   - class include paths: `/oo/classes/<name>/includes/<include>`
        */
-      static isMainInclude(path6) {
-        const stripped = path6.replace(/\/+$/, "");
+      static isMainInclude(path8) {
+        const stripped = path8.replace(/\/+$/, "");
         if (stripped.endsWith("/source/main"))
           return true;
         if (/\/oo\/classes\/[^/]+\/includes\/[^/]+$/.test(stripped))
@@ -36149,11 +36149,11 @@ var require_AdtClient = __commonJS({
       annotationDefinitions() {
         return (0, api_1.annotationDefinitions)(this.h);
       }
-      ddicElement(path6, getTargetForAssociation = false, getExtensionViews = true, getSecondaryObjects = true) {
-        return (0, api_1.ddicElement)(this.h, path6, getTargetForAssociation, getExtensionViews, getSecondaryObjects);
+      ddicElement(path8, getTargetForAssociation = false, getExtensionViews = true, getSecondaryObjects = true) {
+        return (0, api_1.ddicElement)(this.h, path8, getTargetForAssociation, getExtensionViews, getSecondaryObjects);
       }
-      ddicRepositoryAccess(path6) {
-        return (0, api_1.ddicRepositoryAccess)(this.h, path6);
+      ddicRepositoryAccess(path8) {
+        return (0, api_1.ddicRepositoryAccess)(this.h, path8);
       }
       publishServiceBinding(name, version2) {
         return (0, api_1.publishServiceBinding)(this.h, name, version2);
@@ -36498,8 +36498,8 @@ var require_build = __commonJS({
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports2, module) {
-    var fs3 = __require("fs");
-    var path6 = __require("path");
+    var fs4 = __require("fs");
+    var path8 = __require("path");
     var os2 = __require("os");
     var crypto = __require("crypto");
     var TIPS = [
@@ -36630,7 +36630,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs3.existsSync(filepath)) {
+            if (fs4.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -36638,15 +36638,15 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path6.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path8.resolve(process.cwd(), ".env.vault");
       }
-      if (fs3.existsSync(possibleVaultPath)) {
+      if (fs4.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path6.join(os2.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path8.join(os2.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = parseBoolean(process.env.DOTENV_CONFIG_DEBUG || options && options.debug);
@@ -36663,7 +36663,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path6.resolve(process.cwd(), ".env");
+      const dotenvPath = path8.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       let processEnv = process.env;
       if (options && options.processEnv != null) {
@@ -36691,13 +36691,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path7 of optionPaths) {
+      for (const path9 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs3.readFileSync(path7, { encoding }));
+          const parsed = DotenvModule.parse(fs4.readFileSync(path9, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`failed to load ${path7} ${e.message}`);
+            _debug(`failed to load ${path9} ${e.message}`);
           }
           lastError = e;
         }
@@ -36710,8 +36710,8 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path6.relative(process.cwd(), filePath);
-            shortPaths.push(relative);
+            const relative2 = path8.relative(process.cwd(), filePath);
+            shortPaths.push(relative2);
           } catch (e) {
             if (debug) {
               _debug(`failed to load ${filePath} ${e.message}`);
@@ -39765,7 +39765,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref2];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve3.call(this, root, ref2);
+      let _sch = resolve5.call(this, root, ref2);
       if (_sch === void 0) {
         const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref2];
         const { schemaId } = this.opts;
@@ -39792,7 +39792,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve3(root, ref2) {
+    function resolve5(root, ref2) {
       let sch;
       while (typeof (sch = this.refs[ref2]) == "string")
         ref2 = sch;
@@ -40010,8 +40010,8 @@ var require_utils2 = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path6) {
-      let input = path6;
+    function removeDotSegments(path8) {
+      let input = path8;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -40263,8 +40263,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path6, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path6 && path6 !== "/" ? path6 : void 0;
+        const [path8, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path8 && path8 !== "/" ? path8 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -40423,55 +40423,55 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve3(baseURI, relativeURI, options) {
+    function resolve5(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse4(baseURI, schemelessOptions), parse4(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative, options, skipNormalization) {
+    function resolveComponent(base, relative2, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse4(serialize(base, options), options);
-        relative = parse4(serialize(relative, options), options);
+        relative2 = parse4(serialize(relative2, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative.scheme) {
-        target.scheme = relative.scheme;
-        target.userinfo = relative.userinfo;
-        target.host = relative.host;
-        target.port = relative.port;
-        target.path = removeDotSegments(relative.path || "");
-        target.query = relative.query;
+      if (!options.tolerant && relative2.scheme) {
+        target.scheme = relative2.scheme;
+        target.userinfo = relative2.userinfo;
+        target.host = relative2.host;
+        target.port = relative2.port;
+        target.path = removeDotSegments(relative2.path || "");
+        target.query = relative2.query;
       } else {
-        if (relative.userinfo !== void 0 || relative.host !== void 0 || relative.port !== void 0) {
-          target.userinfo = relative.userinfo;
-          target.host = relative.host;
-          target.port = relative.port;
-          target.path = removeDotSegments(relative.path || "");
-          target.query = relative.query;
+        if (relative2.userinfo !== void 0 || relative2.host !== void 0 || relative2.port !== void 0) {
+          target.userinfo = relative2.userinfo;
+          target.host = relative2.host;
+          target.port = relative2.port;
+          target.path = removeDotSegments(relative2.path || "");
+          target.query = relative2.query;
         } else {
-          if (!relative.path) {
+          if (!relative2.path) {
             target.path = base.path;
-            if (relative.query !== void 0) {
-              target.query = relative.query;
+            if (relative2.query !== void 0) {
+              target.query = relative2.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative.path[0] === "/") {
-              target.path = removeDotSegments(relative.path);
+            if (relative2.path[0] === "/") {
+              target.path = removeDotSegments(relative2.path);
             } else {
               if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative.path;
+                target.path = "/" + relative2.path;
               } else if (!base.path) {
-                target.path = relative.path;
+                target.path = relative2.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative2.path;
               }
               target.path = removeDotSegments(target.path);
             }
-            target.query = relative.query;
+            target.query = relative2.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -40479,7 +40479,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative.fragment;
+      target.fragment = relative2.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -40687,7 +40687,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve3,
+      resolve: resolve5,
       resolveComponent,
       equal,
       serialize,
@@ -43663,12 +43663,12 @@ var require_dist2 = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list5, fs3, exportName) {
+    function addFormats(ajv, list5, fs4, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list5)
-        ajv.addFormat(f, fs3[f]);
+        ajv.addFormat(f, fs4[f]);
     }
     module.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -43749,7 +43749,21 @@ var RETRYABILITY = {
   SERVICE_METADATA_DENIED: "terminal",
   // an authorization gap, not a bad argument
   SERVICE_METADATA_NOT_FOUND: "conditional",
-  SERVICE_METADATA_UNPARSEABLE: "conditional"
+  SERVICE_METADATA_UNPARSEABLE: "conditional",
+  FLUID_API_DISABLED: "terminal",
+  // the flag is off or the system refuses writes; no argument changes either
+  FLUID_PLUGINS_DISABLED: "terminal",
+  // the flag is off; no argument enables it
+  FLUID_PLUGIN_MUTATE_DISABLED: "terminal",
+  // the flag is off; no argument enables it
+  FLUID_OBJECT_CONFLICT: "terminal",
+  // the ABAP name is owned by something else; retrying rewrites nothing
+  FLUID_MANIFEST_INVALID: "terminal",
+  // the manifest on disk is wrong; the call's arguments cannot fix it
+  FLUID_ACTION_FAILED: "terminal",
+  // the ABAP action itself reported the failure; abapsmith cannot judge a retry's safety
+  FLUID_PROTOCOL_ERROR: "terminal"
+  // the deployed ABAP is not speaking the contract; a redeploy, not a retry
 };
 function defaultRetryable(code) {
   const r = RETRYABILITY[code];
@@ -43866,8 +43880,8 @@ function redactPair(pair) {
 function redactPairs(text3, separators) {
   return text3.split(separators).map((token, i) => i % 2 === 0 ? redactPair(token) : token).join("");
 }
-function redactUrlForCapture(path6) {
-  const text3 = typeof path6 === "string" ? path6 : String(path6 ?? "");
+function redactUrlForCapture(path8) {
+  const text3 = typeof path8 === "string" ? path8 : String(path8 ?? "");
   const hashIdx = text3.indexOf("#");
   const beforeHash = hashIdx < 0 ? text3 : text3.slice(0, hashIdx);
   const fragment = hashIdx < 0 ? void 0 : text3.slice(hashIdx + 1);
@@ -44368,8 +44382,8 @@ function sessionDeadError(kind, ctx) {
     "Every lock the session held is already released. The connection re-establishes a session on the next request \u2014 retry the operation once. This is NOT an authentication failure and does not count against the logon-attempt budget."
   );
 }
-var defaultSleep = (ms) => new Promise((resolve3) => {
-  const t = setTimeout(resolve3, ms);
+var defaultSleep = (ms) => new Promise((resolve5) => {
+  const t = setTimeout(resolve5, ms);
   t?.unref?.();
 });
 var UNLOCK_NOT_A_LEAK = /* @__PURE__ */ new Set(["SESSION_DEAD", "NOT_FOUND", "LOCKED"]);
@@ -44840,7 +44854,7 @@ function lockTimeoutError(lockPath, waitMs, holder) {
   );
 }
 function sleep(ms) {
-  return new Promise((resolve3) => setTimeout(resolve3, ms));
+  return new Promise((resolve5) => setTimeout(resolve5, ms));
 }
 async function readHolder(lockPath) {
   try {
@@ -45158,9 +45172,9 @@ function coerceLatchFile(parsed) {
   return { version: AUTH_LATCH_VERSION, entries };
 }
 function readLatchFile(latchPath, bypassCache = false) {
-  let stat;
+  let stat2;
   try {
-    stat = statSync2(latchPath);
+    stat2 = statSync2(latchPath);
   } catch {
     latchCache = void 0;
     return void 0;
@@ -45174,7 +45188,7 @@ function readLatchFile(latchPath, bypassCache = false) {
     }
   }
   const cached2 = latchCache;
-  if (!bypassCache && cached2 && cached2.latchPath === latchPath && cached2.mtimeMs === stat.mtimeMs && cached2.size === stat.size) {
+  if (!bypassCache && cached2 && cached2.latchPath === latchPath && cached2.mtimeMs === stat2.mtimeMs && cached2.size === stat2.size) {
     return cached2.file;
   }
   let file2;
@@ -45190,7 +45204,7 @@ function readLatchFile(latchPath, bypassCache = false) {
     latchCache = void 0;
     return void 0;
   }
-  latchCache = { latchPath, mtimeMs: stat.mtimeMs, size: stat.size, file: file2 };
+  latchCache = { latchPath, mtimeMs: stat2.mtimeMs, size: stat2.size, file: file2 };
   return file2;
 }
 function mutateLatchFile(latchPath, mutate) {
@@ -45985,9 +45999,6 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
   }
 };
 
-// src/config.ts
-var import_dotenv = __toESM(require_main(), 1);
-
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -46754,10 +46765,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path6) {
-  if (!path6)
+function getElementAtPath(obj, path8) {
+  if (!path8)
     return obj;
-  return path6.reduce((acc, key) => acc?.[key], obj);
+  return path8.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -47166,11 +47177,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path6, issues) {
+function prefixIssues(path8, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path6);
+    iss.path.unshift(path8);
     return iss;
   });
 }
@@ -47317,16 +47328,16 @@ function flattenError(error51, mapper = (issue3) => issue3.message) {
 }
 function formatError(error51, mapper = (issue3) => issue3.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path6 = []) => {
+  const processError = (error52, path8 = []) => {
     for (const issue3 of error52.issues) {
       if (issue3.code === "invalid_union" && issue3.errors.length) {
-        issue3.errors.map((issues) => processError({ issues }, [...path6, ...issue3.path]));
+        issue3.errors.map((issues) => processError({ issues }, [...path8, ...issue3.path]));
       } else if (issue3.code === "invalid_key") {
-        processError({ issues: issue3.issues }, [...path6, ...issue3.path]);
+        processError({ issues: issue3.issues }, [...path8, ...issue3.path]);
       } else if (issue3.code === "invalid_element") {
-        processError({ issues: issue3.issues }, [...path6, ...issue3.path]);
+        processError({ issues: issue3.issues }, [...path8, ...issue3.path]);
       } else {
-        const fullpath = [...path6, ...issue3.path];
+        const fullpath = [...path8, ...issue3.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue3));
         } else {
@@ -47353,17 +47364,17 @@ function formatError(error51, mapper = (issue3) => issue3.message) {
 }
 function treeifyError(error51, mapper = (issue3) => issue3.message) {
   const result = { errors: [] };
-  const processError = (error52, path6 = []) => {
+  const processError = (error52, path8 = []) => {
     var _a3, _b;
     for (const issue3 of error52.issues) {
       if (issue3.code === "invalid_union" && issue3.errors.length) {
-        issue3.errors.map((issues) => processError({ issues }, [...path6, ...issue3.path]));
+        issue3.errors.map((issues) => processError({ issues }, [...path8, ...issue3.path]));
       } else if (issue3.code === "invalid_key") {
-        processError({ issues: issue3.issues }, [...path6, ...issue3.path]);
+        processError({ issues: issue3.issues }, [...path8, ...issue3.path]);
       } else if (issue3.code === "invalid_element") {
-        processError({ issues: issue3.issues }, [...path6, ...issue3.path]);
+        processError({ issues: issue3.issues }, [...path8, ...issue3.path]);
       } else {
-        const fullpath = [...path6, ...issue3.path];
+        const fullpath = [...path8, ...issue3.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue3));
           continue;
@@ -47395,8 +47406,8 @@ function treeifyError(error51, mapper = (issue3) => issue3.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path6 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path6) {
+  const path8 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path8) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -57073,11 +57084,11 @@ function _xor(Class2, options, params) {
   });
 }
 // @__NO_SIDE_EFFECTS__
-function _discriminatedUnion(Class2, discriminator3, options, params) {
+function _discriminatedUnion(Class2, discriminator2, options, params) {
   return new Class2({
     type: "union",
     options,
-    discriminator: discriminator3,
+    discriminator: discriminator2,
     ...normalizeParams(params)
   });
 }
@@ -59442,11 +59453,11 @@ var ZodDiscriminatedUnion = /* @__PURE__ */ $constructor("ZodDiscriminatedUnion"
   ZodUnion.init(inst, def);
   $ZodDiscriminatedUnion.init(inst, def);
 });
-function discriminatedUnion(discriminator3, options, params) {
+function discriminatedUnion(discriminator2, options, params) {
   return new ZodDiscriminatedUnion({
     type: "union",
     options,
-    discriminator: discriminator3,
+    discriminator: discriminator2,
     ...util_exports.normalizeParams(params)
   });
 }
@@ -60088,13 +60099,13 @@ function resolveRef(ref2, ctx) {
   if (!ref2.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path6 = ref2.slice(1).split("/").filter(Boolean);
-  if (path6.length === 0) {
+  const path8 = ref2.slice(1).split("/").filter(Boolean);
+  if (path8.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path6[0] === defsKey) {
-    const key = path6[1];
+  if (path8[0] === defsKey) {
+    const key = path8[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref2}`);
     }
@@ -60501,6 +60512,7007 @@ function date4(params) {
 
 // node_modules/zod/v4/classic/external.js
 config(en_default());
+
+// src/compact.ts
+import { createHash as createHash2 } from "node:crypto";
+var CHARS_PER_TOKEN = 3.14;
+var DEFAULT_MAX_TOKENS = 15e3;
+var DEFAULT_MAX_CHARS = Math.floor(DEFAULT_MAX_TOKENS * CHARS_PER_TOKEN);
+function estimateTokens(text3) {
+  return Math.ceil(text3.length / CHARS_PER_TOKEN);
+}
+function contentHash(content) {
+  const normalised = content.replace(/\r\n/g, "\n");
+  return "sha256:" + createHash2("sha256").update(normalised, "utf8").digest("hex").slice(0, 32);
+}
+var PARTIAL_ETAG_PREFIX = "partial:";
+function isPartialEtag(etag) {
+  return etag.trim().toLowerCase().startsWith(PARTIAL_ETAG_PREFIX);
+}
+function markEtagPartial(etag) {
+  return isPartialEtag(etag) ? etag : `${PARTIAL_ETAG_PREFIX}${etag}`;
+}
+function stripPartialEtag(etag) {
+  const e = etag.trim();
+  return isPartialEtag(e) ? e.substring(PARTIAL_ETAG_PREFIX.length) : etag;
+}
+function canonicalSource(s) {
+  return s.replace(/\r\n/g, "\n").split("\n").map((line) => line.replace(/[ \t]+$/, "")).join("\n").replace(/\n+$/, "");
+}
+var canonicalEtag = (s) => contentHash(canonicalSource(s));
+function renderHeader(header) {
+  if (!header) return "";
+  const lines = [];
+  for (const [k, v] of Object.entries(header)) {
+    if (v === void 0 || v === null || v === "") continue;
+    lines.push(`${k}: ${v}`);
+  }
+  return lines.join("\n");
+}
+var BODY_RESERVE_SHARE = 0.5;
+function hardClamp(text3, maxChars) {
+  if (text3.length <= maxChars) return text3;
+  const original = text3.length;
+  const marker = (emitted2) => `
+--- OUTPUT HARD-CLAMPED ---
+${emitted2} of ${original} characters emitted (hard cap ${maxChars}). The rest was dropped mid-text.`;
+  let emitted = Math.max(0, maxChars - marker(original).length);
+  while (emitted > 0 && emitted + marker(emitted).length > maxChars) emitted--;
+  const clamped = text3.slice(0, emitted) + marker(emitted);
+  return clamped.length <= maxChars ? clamped : clamped.slice(0, maxChars);
+}
+function keepLines(text3, budget) {
+  if (budget >= text3.length) return { kept: text3, cutChars: 0 };
+  if (budget <= 0) return { kept: "", cutChars: text3.length };
+  const out = [];
+  let left = budget;
+  for (const line of text3.split("\n")) {
+    if (left - (line.length + 1) < 0) break;
+    out.push(line);
+    left -= line.length + 1;
+  }
+  const kept = out.join("\n");
+  return { kept, cutChars: text3.length - kept.length };
+}
+function buildResponse(parts) {
+  const maxChars = parts.maxChars ?? DEFAULT_MAX_CHARS;
+  const header = renderHeader(parts.header);
+  const sectionBlocks = (parts.sections ?? []).filter((s) => s.content.trim().length > 0).map((s) => `--- ${s.title} ---
+${s.content.trimEnd()}`);
+  const sectionsFull = sectionBlocks.join("\n\n");
+  const notes = (parts.notes ?? []).map((n) => `NOTE: ${n}`).join("\n");
+  const bodyRaw = parts.body ?? "";
+  const bodyLines = bodyRaw.length ? bodyRaw.replace(/\r\n/g, "\n").split("\n") : [];
+  const totalLines = parts.bodyTotalLines ?? bodyLines.length;
+  const label = parts.bodyLabel ?? "BODY";
+  const offset = parts.bodyOffset ?? 1;
+  const assemble = (sectionBlock, bodyBlock, notice2) => [header, notes, sectionBlock, bodyBlock, notice2].filter((s) => s && s.trim().length > 0).join("\n\n");
+  const remainingAfter = (kept) => Math.max(0, totalLines - (offset - 1) - kept);
+  const nextChunkLine = (kept) => {
+    const remaining = remainingAfter(kept);
+    if (remaining === 0) return "- This is the last chunk.";
+    if (parts.pagingParam) {
+      return `- Fetch the next chunk with ${parts.pagingParam}=${offset + kept} (${remaining} line(s) not shown).`;
+    }
+    return `- ${remaining} line(s) are not shown and this tool has NO offset/paging parameter \u2014 passing one would be rejected. Narrow the request instead (see the hints above).`;
+  };
+  const notice = (title, kept, sectionsCut2) => [
+    `--- ${title} ---`,
+    kept > 0 ? `Returned lines ${offset}..${offset + kept - 1} of ${totalLines} (response capped at ${maxChars} chars / ~${Math.floor(maxChars / CHARS_PER_TOKEN)} tokens).` : `Returned 0 of ${totalLines} line(s) \u2014 the body did not fit (response capped at ${maxChars} chars / ~${Math.floor(maxChars / CHARS_PER_TOKEN)} tokens).`,
+    ...sectionsCut2 ? [
+      `Prologue sections were ALSO cut: ${sectionsCut2.keptChars} of ${sectionsCut2.totalChars} characters kept in ${sectionsCut2.keptSections} of ${sectionBlocks.length} section(s).`
+    ] : [],
+    ...(parts.hints ?? []).map((h) => `- ${h}`),
+    nextChunkLine(kept)
+  ].join("\n");
+  const windowed = bodyLines.length < totalLines;
+  const fastNotice = windowed ? notice("WINDOW", bodyLines.length) : "";
+  const full = assemble(
+    sectionsFull,
+    bodyLines.length ? `--- ${label} ---
+${bodyRaw.trimEnd()}` : "",
+    fastNotice
+  );
+  if (full.length <= maxChars) {
+    return {
+      text: full,
+      truncated: windowed,
+      hasMore: remainingAfter(bodyLines.length) > 0,
+      estimatedTokens: estimateTokens(full),
+      returnedLines: bodyLines.length || void 0,
+      totalLines: totalLines || void 0,
+      chars: full.length,
+      sectionsTruncated: false
+    };
+  }
+  const worstOf = (a, b) => a.length >= b.length ? a : b;
+  const worstNoticeFor = (cut) => worstOf(notice("TRUNCATED", 0, cut), notice("TRUNCATED", totalLines, cut));
+  const worstNotice = worstNoticeFor(
+    sectionBlocks.length ? { keptChars: sectionsFull.length, totalChars: sectionsFull.length, keptSections: sectionBlocks.length } : void 0
+  );
+  const overheadNoSections = assemble("", `--- ${label} ---
+`, worstNotice).length;
+  const remainingBudget = Math.max(0, maxChars - overheadNoSections);
+  const bodyReserve = Math.min(bodyRaw.length, Math.floor(remainingBudget * BODY_RESERVE_SHARE));
+  const sectionsBudget = Math.max(0, remainingBudget - bodyReserve);
+  const sectionsFit = keepLines(sectionsFull, sectionsBudget);
+  const sectionsCut = sectionsFit.cutChars > 0 ? {
+    keptChars: sectionsFit.kept.length,
+    totalChars: sectionsFull.length,
+    keptSections: sectionsFit.kept ? sectionsFit.kept.split("\n").filter((l) => /^--- .* ---$/.test(l)).length : 0
+  } : void 0;
+  const bodyOverhead = assemble(
+    sectionsFit.kept,
+    `--- ${label} ---
+`,
+    worstNoticeFor(sectionsCut)
+  ).length;
+  const bodyFit = keepLines(bodyRaw.replace(/\r\n/g, "\n").trimEnd(), maxChars - bodyOverhead);
+  const keptLines = bodyFit.kept ? bodyFit.kept.split("\n") : [];
+  const text3 = hardClamp(
+    assemble(
+      sectionsFit.kept,
+      keptLines.length ? `--- ${label} ---
+${bodyFit.kept}` : "",
+      notice("TRUNCATED", keptLines.length, sectionsCut)
+    ),
+    maxChars
+  );
+  return {
+    text: text3,
+    truncated: true,
+    hasMore: remainingAfter(keptLines.length) > 0,
+    estimatedTokens: estimateTokens(text3),
+    returnedLines: keptLines.length,
+    totalLines,
+    chars: text3.length,
+    sectionsTruncated: Boolean(sectionsCut)
+  };
+}
+function countLines(text3) {
+  return text3 === "" ? 0 : text3.replace(/\r\n/g, "\n").split("\n").length;
+}
+function sliceLines(source, offset = 1, limit) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  const start = Math.max(0, offset - 1);
+  const end = limit ? start + limit : lines.length;
+  return {
+    text: lines.slice(start, end).join("\n"),
+    offset: start + 1,
+    total: countLines(source)
+  };
+}
+function textTable(rows, columns) {
+  if (rows.length === 0) return "";
+  const widths = columns.map(
+    (c) => Math.max(c.length, ...rows.map((r) => (r[c] ?? "").length))
+  );
+  const line = (cells) => cells.map((c, i) => c.padEnd(widths[i] ?? 0)).join("  ").trimEnd();
+  return [line(columns), line(widths.map((w) => "-".repeat(w))), ...rows.map((r) => line(columns.map((c) => r[c] ?? "")))].join("\n");
+}
+
+// src/adt/fluid/manifest.ts
+var FLUID_CONTRACT = "1.0";
+var FLUID_CONTRACT_MAJOR = 1;
+function isPlainObject2(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+var SCHEMA_TYPES = ["object", "array", "string", "number", "integer", "boolean"];
+function validateFluidSchema(schema, where2) {
+  const messages = [];
+  if (!isPlainObject2(schema)) {
+    messages.push(`${where2}: must be a plain object`);
+    return messages;
+  }
+  if (schema["type"] !== void 0) {
+    const t = schema["type"];
+    if (typeof t !== "string" || !SCHEMA_TYPES.includes(t)) {
+      messages.push(`${where2}.type: must be one of ${SCHEMA_TYPES.join(", ")}`);
+    }
+  }
+  if (schema["properties"] !== void 0) {
+    if (!isPlainObject2(schema["properties"])) {
+      messages.push(`${where2}.properties: must be an object`);
+    } else {
+      for (const [key, value] of Object.entries(schema["properties"])) {
+        messages.push(...validateFluidSchema(value, `${where2}.properties.${key}`));
+      }
+    }
+  }
+  if (schema["required"] !== void 0) {
+    const req = schema["required"];
+    if (!Array.isArray(req) || !req.every((x) => typeof x === "string")) {
+      messages.push(`${where2}.required: must be an array of strings`);
+    }
+  }
+  if (schema["items"] !== void 0) {
+    messages.push(...validateFluidSchema(schema["items"], `${where2}.items`));
+  }
+  if (schema["enum"] !== void 0) {
+    const en = schema["enum"];
+    const isMember = (x) => typeof x === "string" || typeof x === "number" || typeof x === "boolean";
+    if (!Array.isArray(en) || en.length === 0 || !en.every(isMember)) {
+      messages.push(`${where2}.enum: must be a non-empty array of strings, numbers or booleans`);
+    }
+  }
+  if (schema["maxLength"] !== void 0) {
+    const ml = schema["maxLength"];
+    if (typeof ml !== "number" || !Number.isInteger(ml) || ml < 0) {
+      messages.push(`${where2}.maxLength: must be a non-negative integer`);
+    }
+  }
+  if (schema["minimum"] !== void 0) {
+    const min = schema["minimum"];
+    if (typeof min !== "number" || !Number.isFinite(min)) {
+      messages.push(`${where2}.minimum: must be a finite number`);
+    }
+  }
+  if (schema["maximum"] !== void 0) {
+    const max = schema["maximum"];
+    if (typeof max !== "number" || !Number.isFinite(max)) {
+      messages.push(`${where2}.maximum: must be a finite number`);
+    }
+  }
+  if (schema["description"] !== void 0 && typeof schema["description"] !== "string") {
+    messages.push(`${where2}.description: must be a string`);
+  }
+  return messages;
+}
+function validateAgainstSchema(value, schema, where2) {
+  const messages = [];
+  if (schema.enum !== void 0 && !schema.enum.some((member) => member === value)) {
+    messages.push(`${where2}: must be one of ${JSON.stringify(schema.enum)}`);
+  }
+  switch (schema.type) {
+    case "object": {
+      if (!isPlainObject2(value)) {
+        messages.push(`${where2}: must be an object`);
+        break;
+      }
+      for (const key of schema.required ?? []) {
+        if (value[key] === void 0) {
+          messages.push(`${where2}.${key}: required`);
+        }
+      }
+      if (schema.properties) {
+        for (const [key, propSchema] of Object.entries(schema.properties)) {
+          if (value[key] !== void 0) {
+            messages.push(...validateAgainstSchema(value[key], propSchema, `${where2}.${key}`));
+          }
+        }
+      }
+      break;
+    }
+    case "array": {
+      if (!Array.isArray(value)) {
+        messages.push(`${where2}: must be an array`);
+        break;
+      }
+      if (schema.items) {
+        const itemSchema = schema.items;
+        value.forEach((item, i) => {
+          messages.push(...validateAgainstSchema(item, itemSchema, `${where2}[${i}]`));
+        });
+      }
+      break;
+    }
+    case "string": {
+      if (typeof value !== "string") {
+        messages.push(`${where2}: must be a string`);
+        break;
+      }
+      if (schema.maxLength !== void 0 && value.length > schema.maxLength) {
+        messages.push(`${where2}: exceeds maxLength ${schema.maxLength}`);
+      }
+      break;
+    }
+    case "number":
+    case "integer": {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        messages.push(`${where2}: must be a number`);
+        break;
+      }
+      if (schema.type === "integer" && !Number.isInteger(value)) {
+        messages.push(`${where2}: must be an integer`);
+      }
+      if (schema.minimum !== void 0 && value < schema.minimum) {
+        messages.push(`${where2}: below minimum ${schema.minimum}`);
+      }
+      if (schema.maximum !== void 0 && value > schema.maximum) {
+        messages.push(`${where2}: above maximum ${schema.maximum}`);
+      }
+      break;
+    }
+    case "boolean": {
+      if (typeof value !== "boolean") {
+        messages.push(`${where2}: must be a boolean`);
+      }
+      break;
+    }
+    case void 0:
+      break;
+  }
+  return messages;
+}
+var CONTRACT_RE = /^\d+\.\d+$/;
+var ID_RE = /^[a-z][a-z0-9_]{0,11}$/;
+var ACTION_NAME_RE = /^[a-z][a-z0-9_]{0,29}$/;
+var FluidObjectSourceSchema = external_exports.union([external_exports.object({ text: external_exports.string() }), external_exports.object({ file: external_exports.string() })]);
+var FluidObjectSpecSchema = external_exports.object({
+  name: external_exports.string().min(1).max(30),
+  type: external_exports.enum(["CLAS/OC", "INTF/OI"]),
+  description: external_exports.string().max(60),
+  source: FluidObjectSourceSchema
+});
+var FluidTargetsSchema = external_exports.object({
+  object: external_exports.string().optional(),
+  package: external_exports.string().optional(),
+  transport: external_exports.string().optional(),
+  corr: external_exports.literal("local").optional()
+});
+var FluidJsonSchemaSchema = external_exports.custom(isPlainObject2, {
+  message: "must be a plain JSON-Schema-like object"
+});
+var FluidActionSpecSchema = external_exports.object({
+  name: external_exports.string().regex(ACTION_NAME_RE),
+  category: external_exports.enum(["read", "execute", "mutate"]),
+  description: external_exports.string().min(1),
+  input: FluidJsonSchemaSchema,
+  output: FluidJsonSchemaSchema,
+  targets: FluidTargetsSchema.optional()
+});
+var FluidManifestObjectSchema = external_exports.object({
+  contract: external_exports.string().regex(CONTRACT_RE),
+  id: external_exports.string().regex(ID_RE),
+  title: external_exports.string().min(1),
+  description: external_exports.string().min(1),
+  objects: external_exports.array(FluidObjectSpecSchema).min(1),
+  entry: external_exports.string().min(1),
+  actions: external_exports.array(FluidActionSpecSchema).min(1),
+  // Additive: absent/false means routable, so contract stays "1.0".
+  internal: external_exports.boolean().optional()
+});
+var FluidManifestSchema = FluidManifestObjectSchema.superRefine(
+  (manifest, ctx) => {
+    const names = /* @__PURE__ */ new Set();
+    for (const obj of manifest.objects) {
+      if (names.has(obj.name)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `duplicate object name: ${obj.name}`,
+          path: ["objects"]
+        });
+      }
+      names.add(obj.name);
+    }
+    if (!names.has(manifest.entry)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `entry "${manifest.entry}" is not present in objects`,
+        path: ["entry"]
+      });
+    }
+    manifest.actions.forEach((action, i) => {
+      for (const msg of validateFluidSchema(action.input, `actions[${i}].input`)) {
+        ctx.addIssue({ code: "custom", message: msg, path: ["actions", i, "input"] });
+      }
+      for (const msg of validateFluidSchema(action.output, `actions[${i}].output`)) {
+        ctx.addIssue({ code: "custom", message: msg, path: ["actions", i, "output"] });
+      }
+    });
+  }
+);
+function versionPart(s) {
+  return `${s.length}:${s}`;
+}
+function manifestVersion(manifest, sources) {
+  const parts = [versionPart(manifest.contract)];
+  for (const obj of manifest.objects) {
+    parts.push(
+      versionPart(obj.type),
+      versionPart(obj.name),
+      versionPart(canonicalEtag(sources.get(obj.name) ?? ""))
+    );
+  }
+  return contentHash(parts.join("")).replace(/^sha256:/, "").slice(0, 8);
+}
+
+// src/adt/fluid/abap/runtime.ts
+var FLUID_RUNTIME_CLASS = "ZCL_ZMCP_FLUID_RT";
+var FLUID_RUNTIME_SOURCE = `CLASS zcl_zmcp_fluid_rt DEFINITION
+  PUBLIC FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CONSTANTS c_prefix TYPE string VALUE 'ZMCP-H>'.
+
+    CLASS-METHODS attach
+      IMPORTING io_out      TYPE REF TO if_oo_adt_classrun_out
+                iv_ver      TYPE string
+                iv_contract TYPE string.
+
+    CLASS-METHODS begin
+      IMPORTING iv_id     TYPE string
+                iv_action TYPE string.
+
+    CLASS-METHODS out
+      IMPORTING iv_json TYPE string.
+
+    CLASS-METHODS out_chunk
+      IMPORTING iv_json TYPE string.
+
+    CLASS-METHODS err
+      IMPORTING iv_kind  TYPE string
+                iv_step  TYPE string
+                iv_text  TYPE string
+                iv_subrc TYPE i            OPTIONAL
+                iv_msgid TYPE string       OPTIONAL
+                iv_msgno TYPE i            OPTIONAL
+                it_msgv  TYPE string_table OPTIONAL.
+
+    CLASS-METHODS end
+      IMPORTING iv_rc        TYPE i
+                iv_truncated TYPE abap_bool DEFAULT abap_false.
+
+    CLASS-METHODS failed
+      RETURNING VALUE(rv_failed) TYPE abap_bool.
+
+    CLASS-METHODS esc
+      IMPORTING iv_text        TYPE string
+      RETURNING VALUE(rv_text) TYPE string.
+
+    CLASS-METHODS scan
+      IMPORTING iv_json TYPE string.
+
+    CLASS-METHODS s
+      IMPORTING iv_path TYPE string
+      RETURNING VALUE(rv_value) TYPE string.
+
+    CLASS-METHODS b
+      IMPORTING iv_path TYPE string
+      RETURNING VALUE(rv_value) TYPE abap_bool.
+
+    CLASS-METHODS n
+      IMPORTING iv_path TYPE string
+      RETURNING VALUE(rv_count) TYPE i.
+
+    CLASS-METHODS run
+      IMPORTING iv_action TYPE string
+                iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    CONSTANTS c_line_max TYPE i VALUE 800.
+
+    TYPES: BEGIN OF ty_arg,
+             path  TYPE string,
+             value TYPE string,
+           END OF ty_arg.
+
+    CLASS-DATA go_out      TYPE REF TO if_oo_adt_classrun_out.
+    CLASS-DATA gv_ver      TYPE string.
+    CLASS-DATA gv_contract TYPE string.
+    CLASS-DATA gv_begun    TYPE abap_bool.
+    CLASS-DATA gv_ended    TYPE abap_bool.
+    CLASS-DATA gv_open     TYPE abap_bool.
+    CLASS-DATA gv_bytes    TYPE i.
+    CLASS-DATA gv_errors   TYPE i.
+    CLASS-DATA gv_t0       TYPE i.
+    CLASS-DATA gt_arg      TYPE SORTED TABLE OF ty_arg WITH UNIQUE KEY path.
+
+    CLASS-METHODS emit
+      IMPORTING iv_line TYPE string.
+
+    CLASS-METHODS split
+      IMPORTING iv_json  TYPE string
+                iv_frame TYPE string DEFAULT 'OUTE'.
+
+    CLASS-METHODS has_break
+      IMPORTING iv_json        TYPE string
+      RETURNING VALUE(rv_yes)  TYPE abap_bool.
+
+    CLASS-METHODS read_string
+      IMPORTING iv_json TYPE string
+      CHANGING  cv_off  TYPE i
+      RETURNING VALUE(rv_value) TYPE string.
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_rt IMPLEMENTATION.
+
+  METHOD attach.
+    go_out      = io_out.
+    gv_ver      = iv_ver.
+    gv_contract = iv_contract.
+    " a body class may re-attach itself mid-run (the invoker already opened the
+    " frame); only initialise per-run state when no frame is currently open, so
+    " a re-attach can neither let a second BEGIN onto the wire nor zero out an
+    " error already recorded (which would turn a failed run into a COMMIT).
+    IF gv_begun = abap_false OR gv_ended = abap_true.
+      gv_begun  = abap_false.
+      gv_ended  = abap_false.
+      gv_open   = abap_false.
+      gv_bytes  = 0.
+      gv_errors = 0.
+      GET RUN TIME FIELD gv_t0.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD emit.
+    IF go_out IS BOUND.
+      go_out->write( iv_line ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD esc.
+    DATA lv_crlf TYPE c LENGTH 2.
+    DATA lv_cr   TYPE c LENGTH 1.
+    rv_text = iv_text.
+    REPLACE ALL OCCURRENCES OF '\\' IN rv_text WITH '\\\\'.
+    REPLACE ALL OCCURRENCES OF '"' IN rv_text WITH '\\"'.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN rv_text WITH '\\n'.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline IN rv_text WITH '\\n'.
+    lv_crlf = cl_abap_char_utilities=>cr_lf.
+    lv_cr = lv_crlf(1).
+    REPLACE ALL OCCURRENCES OF lv_cr IN rv_text WITH '\\r'.
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab IN rv_text WITH '\\t'.
+  ENDMETHOD.
+
+  METHOD begin.
+    DATA lv_json TYPE string.
+    " the invoker opens the frame before it enters its TRY, so a body class
+    " that throws before its own begin( ) still yields ERR after a BEGIN.
+    IF gv_begun = abap_true.
+      RETURN.
+    ENDIF.
+    gv_begun = abap_true.
+    lv_json = |\\{"id":"{ esc( iv_id ) }","ver":"{ esc( gv_ver ) }"|.
+    lv_json = lv_json && |,"action":"{ esc( iv_action ) }"|.
+    lv_json = lv_json && |,"contract":"{ esc( gv_contract ) }"\\}|.
+    emit( |{ c_prefix }BEGIN { lv_json }| ).
+  ENDMETHOD.
+
+  METHOD has_break.
+    IF iv_json CA cl_abap_char_utilities=>cr_lf.
+      rv_yes = abap_true.
+    ELSE.
+      rv_yes = abap_false.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD split.
+    DATA lv_off   TYPE i.
+    DATA lv_len   TYPE i.
+    DATA lv_take  TYPE i.
+    DATA lv_full  TYPE i.
+    DATA lv_part  TYPE string.
+    DATA lv_frame TYPE string.
+    lv_len = strlen( iv_json ).
+    lv_off = 0.
+    WHILE lv_off < lv_len.
+      lv_take = lv_len - lv_off.
+      IF lv_take > c_line_max.
+        lv_take = c_line_max.
+      ENDIF.
+      lv_full = lv_take.
+      " a console line's trailing blanks are not reliably preserved, so never
+      " end a fragment on one; the next fragment carries it instead. an
+      " all-blank window has no non-blank char to back off to, so take it whole.
+      WHILE lv_take > 1 AND substring( val = iv_json off = lv_off + lv_take - 1 len = 1 ) = \` \`.
+        lv_take = lv_take - 1.
+      ENDWHILE.
+      IF lv_take = 1 AND substring( val = iv_json off = lv_off len = 1 ) = \` \`.
+        lv_take = lv_full.
+      ENDIF.
+      IF lv_off + lv_take >= lv_len.
+        lv_frame = iv_frame.
+      ELSE.
+        lv_frame = 'OUTC'.
+      ENDIF.
+      lv_part = substring( val = iv_json off = lv_off len = lv_take ).
+      emit( |{ c_prefix }{ lv_frame } { lv_part }| ).
+      lv_off = lv_off + lv_take.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD out.
+    DATA lv_len TYPE i.
+    IF has_break( iv_json ) = abap_true.
+      err( iv_kind = 'message' iv_step = 'out'
+           iv_text = 'action output contains a raw CR or LF and was suppressed' ).
+      RETURN.
+    ENDIF.
+    lv_len = strlen( iv_json ).
+    gv_bytes = gv_bytes + lv_len.
+    IF lv_len > c_line_max.
+      split( iv_json ).
+      gv_open = abap_false.
+    ELSEIF gv_open = abap_true.
+      emit( |{ c_prefix }OUTE { iv_json }| ).
+      gv_open = abap_false.
+    ELSE.
+      emit( |{ c_prefix }OUT { iv_json }| ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD out_chunk.
+    IF has_break( iv_json ) = abap_true.
+      err( iv_kind = 'message' iv_step = 'out_chunk'
+           iv_text = 'action output contains a raw CR or LF and was suppressed' ).
+      RETURN.
+    ENDIF.
+    gv_bytes = gv_bytes + strlen( iv_json ).
+    gv_open = abap_true.
+    split( iv_json = iv_json iv_frame = 'OUTC' ).
+  ENDMETHOD.
+
+  METHOD err.
+    DATA lv_json TYPE string.
+    DATA lv_msgv TYPE string.
+    DATA lv_kind TYPE string.
+    gv_errors = gv_errors + 1.
+    lv_kind = iv_kind.
+    TRANSLATE lv_kind TO LOWER CASE.
+    IF lv_kind <> 'subrc' AND lv_kind <> 'exception' AND lv_kind <> 'message'.
+      lv_kind = 'exception'.
+    ENDIF.
+    lv_json = |\\{"kind":"{ esc( lv_kind ) }","step":"{ esc( iv_step ) }"|.
+    IF iv_subrc IS SUPPLIED.
+      lv_json = lv_json && |,"subrc":{ iv_subrc }|.
+    ENDIF.
+    IF iv_msgid IS NOT INITIAL.
+      lv_json = lv_json && |,"msgid":"{ esc( iv_msgid ) }"|.
+    ENDIF.
+    IF iv_msgno IS SUPPLIED.
+      lv_json = lv_json && |,"msgno":{ iv_msgno }|.
+    ENDIF.
+    LOOP AT it_msgv INTO DATA(lv_v).
+      IF sy-tabix > 1.
+        lv_msgv = lv_msgv && ','.
+      ENDIF.
+      lv_msgv = lv_msgv && |"{ esc( lv_v ) }"|.
+    ENDLOOP.
+    IF lv_msgv IS NOT INITIAL.
+      lv_json = lv_json && |,"msgv":[{ lv_msgv }]|.
+    ENDIF.
+    lv_json = lv_json && |,"text":"{ esc( iv_text ) }"\\}|.
+    emit( |{ c_prefix }ERR { lv_json }| ).
+  ENDMETHOD.
+
+  METHOD end.
+    DATA lv_now   TYPE i.
+    DATA lv_ms    TYPE i.
+    DATA lv_rc    TYPE i.
+    DATA lv_trunc TYPE string.
+    IF gv_ended = abap_true.
+      RETURN.
+    ENDIF.
+    gv_ended = abap_true.
+    GET RUN TIME FIELD lv_now.
+    lv_ms = ( lv_now - gv_t0 ) / 1000.
+    IF lv_ms < 0.
+      lv_ms = 0.
+    ENDIF.
+    lv_rc = iv_rc.
+    IF lv_rc = 0 AND gv_errors > 0.
+      lv_rc = 8.
+    ENDIF.
+    IF iv_truncated = abap_true.
+      lv_trunc = 'true'.
+    ELSE.
+      lv_trunc = 'false'.
+    ENDIF.
+    emit( |{ c_prefix }END \\{"rc":{ lv_rc },"outBytes":{ gv_bytes },"truncated":{ lv_trunc },"ms":{ lv_ms }\\}| ).
+  ENDMETHOD.
+
+  METHOD failed.
+    rv_failed = boolc( gv_errors > 0 ).
+  ENDMETHOD.
+
+  METHOD scan.
+    DATA lv_len   TYPE i.
+    DATA lv_off   TYPE i.
+    DATA lv_ch    TYPE c LENGTH 1.
+    DATA lv_key   TYPE string.
+    DATA lv_val   TYPE string.
+    DATA lv_idx   TYPE i.
+    DATA lv_start TYPE i.
+    DATA ls_arg   TYPE ty_arg.
+
+    CLEAR gt_arg.
+    lv_len = strlen( iv_json ).
+    IF lv_len < 2.
+      RETURN.
+    ENDIF.
+    lv_off = 1.
+    WHILE lv_off < lv_len.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '}'.
+        RETURN.
+      ENDIF.
+      lv_key = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+      lv_off = lv_off + 1.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '"'.
+        lv_val = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+        CLEAR ls_arg.
+        ls_arg-path = lv_key.
+        ls_arg-value = lv_val.
+        INSERT ls_arg INTO TABLE gt_arg.
+      ELSEIF lv_ch = '['.
+        lv_off = lv_off + 1.
+        lv_idx = 0.
+        lv_ch = iv_json+lv_off(1).
+        IF lv_ch <> ']'.
+          WHILE lv_off < lv_len.
+            lv_val = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+            CLEAR ls_arg.
+            ls_arg-path = |{ lv_key }/{ lv_idx }|.
+            ls_arg-value = lv_val.
+            INSERT ls_arg INTO TABLE gt_arg.
+            lv_idx = lv_idx + 1.
+            lv_ch = iv_json+lv_off(1).
+            IF lv_ch = ','.
+              lv_off = lv_off + 1.
+            ELSE.
+              EXIT.
+            ENDIF.
+          ENDWHILE.
+        ENDIF.
+        lv_off = lv_off + 1.
+      ELSE.
+        lv_start = lv_off.
+        WHILE lv_off < lv_len.
+          lv_ch = iv_json+lv_off(1).
+          IF lv_ch = ',' OR lv_ch = '}'.
+            EXIT.
+          ENDIF.
+          lv_off = lv_off + 1.
+        ENDWHILE.
+        lv_val = substring( val = iv_json off = lv_start len = lv_off - lv_start ).
+        CLEAR ls_arg.
+        ls_arg-path = lv_key.
+        ls_arg-value = lv_val.
+        INSERT ls_arg INTO TABLE gt_arg.
+      ENDIF.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = ','.
+        lv_off = lv_off + 1.
+      ELSE.
+        RETURN.
+      ENDIF.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD read_string.
+    DATA lv_len  TYPE i.
+    DATA lv_off  TYPE i.
+    DATA lv_ch   TYPE c LENGTH 1.
+    DATA lv_esc  TYPE c LENGTH 1.
+    DATA lv_hex  TYPE c LENGTH 4.
+    DATA lv_x2   TYPE x LENGTH 2.
+    DATA lv_xstr TYPE xstring.
+    DATA lv_uc   TYPE string.
+    DATA lv_crlf TYPE c LENGTH 2.
+    DATA lv_cr   TYPE c LENGTH 1.
+
+    lv_crlf = cl_abap_char_utilities=>cr_lf.
+    lv_cr = lv_crlf(1).
+    lv_len = strlen( iv_json ).
+    lv_off = cv_off + 1.
+    CLEAR rv_value.
+    WHILE lv_off < lv_len.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '"'.
+        lv_off = lv_off + 1.
+        EXIT.
+      ELSEIF lv_ch = '\\'.
+        lv_off = lv_off + 1.
+        lv_esc = iv_json+lv_off(1).
+        CASE lv_esc.
+          WHEN '"'.
+            rv_value = rv_value && '"'.
+          WHEN '\\'.
+            rv_value = rv_value && '\\'.
+          WHEN '/'.
+            rv_value = rv_value && '/'.
+          WHEN 'b'.
+            rv_value = rv_value && cl_abap_char_utilities=>backspace.
+          WHEN 'f'.
+            rv_value = rv_value && cl_abap_char_utilities=>form_feed.
+          WHEN 'n'.
+            rv_value = rv_value && cl_abap_char_utilities=>newline.
+          WHEN 'r'.
+            rv_value = rv_value && lv_cr.
+          WHEN 't'.
+            rv_value = rv_value && cl_abap_char_utilities=>horizontal_tab.
+          WHEN 'u'.
+            lv_hex = substring( val = iv_json off = lv_off + 1 len = 4 ).
+            lv_x2 = lv_hex.
+            lv_xstr = lv_x2.
+            CLEAR lv_uc.
+            TRY.
+                cl_abap_conv_in_ce=>create( input = lv_xstr encoding = 'UTF-16BE' )->read( IMPORTING data = lv_uc ).
+              CATCH cx_root.
+                lv_uc = '?'.
+            ENDTRY.
+            rv_value = rv_value && lv_uc.
+            lv_off = lv_off + 4.
+          WHEN OTHERS.
+            rv_value = rv_value && lv_esc.
+        ENDCASE.
+        lv_off = lv_off + 1.
+      ELSE.
+        rv_value = rv_value && lv_ch.
+        lv_off = lv_off + 1.
+      ENDIF.
+    ENDWHILE.
+    cv_off = lv_off.
+  ENDMETHOD.
+
+  METHOD s.
+    DATA ls_arg TYPE ty_arg.
+    CLEAR rv_value.
+    READ TABLE gt_arg INTO ls_arg WITH TABLE KEY path = iv_path.
+    IF sy-subrc = 0.
+      rv_value = ls_arg-value.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD b.
+    rv_value = boolc( s( iv_path ) = 'true' ).
+  ENDMETHOD.
+
+  METHOD n.
+    DATA lv_pattern TYPE string.
+    CLEAR rv_count.
+    lv_pattern = |{ iv_path }/*|.
+    LOOP AT gt_arg TRANSPORTING NO FIELDS WHERE path CP lv_pattern.
+      rv_count = rv_count + 1.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD run.
+    DATA lv_rc TYPE i.
+    begin( iv_id = 'rt' iv_action = iv_action ).
+    CASE iv_action.
+      WHEN 'ping'.
+        out( |\\{"pong":true,"ver":"{ esc( gv_ver ) }"\\}| ).
+      WHEN 'fail'.
+        err( iv_kind = 'exception'
+             iv_step = 'fail'
+             iv_text = 'the fail action always reports this error' ).
+        lv_rc = 4.
+      WHEN OTHERS.
+        err( iv_kind = 'exception'
+             iv_step = 'dispatch'
+             iv_text = |unknown action { iv_action }| ).
+        lv_rc = 4.
+    ENDCASE.
+    end( lv_rc ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var fluidRuntimeManifest = {
+  contract: FLUID_CONTRACT,
+  id: "rt",
+  title: "Fluid API runtime",
+  description: "Console protocol runtime shared by generated fluid tools",
+  internal: true,
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      description: "abapsmith fluid API console protocol runtime",
+      source: { text: FLUID_RUNTIME_SOURCE }
+    }
+  ],
+  entry: FLUID_RUNTIME_CLASS,
+  actions: [
+    {
+      name: "ping",
+      category: "read",
+      description: "Proves the round trip and echoes the deployed version.",
+      input: { type: "object", properties: {} },
+      output: {
+        type: "object",
+        properties: { pong: { type: "boolean" }, ver: { type: "string" } },
+        required: ["pong", "ver"]
+      }
+    },
+    {
+      name: "fail",
+      category: "read",
+      description: "Always reports an error frame, so the error path can be verified end to end.",
+      input: { type: "object", properties: {} },
+      output: { type: "object", properties: {} }
+    }
+  ]
+};
+var fluidRuntimeSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, FLUID_RUNTIME_SOURCE]
+]);
+var fluidRuntimeTool = {
+  manifest: fluidRuntimeManifest,
+  origin: "builtin",
+  sources: fluidRuntimeSources,
+  version: manifestVersion(fluidRuntimeManifest, fluidRuntimeSources)
+};
+
+// src/adt/ddic-transcript.ts
+var ABAP_SOURCE_LINE_MAX = 255;
+var DDIC_ERR_PREFIX = "ZMCP-DDIC-ERR>";
+var DDIC_TAGS = [
+  "VIEW-PUT",
+  "VIEW-REGISTERED",
+  "VIEW-ACTIVATED",
+  "TRAN-CREATED",
+  "PKG-CREATED",
+  "PKG-PARENT-SET",
+  "PKG-CONFIRMED",
+  // package-delete bridge:
+  "PKG-EMPTY",
+  "PKG-DELETED",
+  "PKG-GONE",
+  // view-delete / transaction-delete bridges:
+  "VIEW-DELETED",
+  "VIEW-GONE",
+  "TRAN-DELETED",
+  "TRAN-GONE",
+  // transport-entry-remove bridge:
+  "TREN-REMOVED",
+  "TREN-GONE",
+  // index-create / index-delete bridges (TABL/DI, DD_INDEX_INTERFACE):
+  "INDEX-CREATED",
+  "INDEX-ACTIVE",
+  "INDEX-FIELDS",
+  "INDEX-DELETED",
+  "INDEX-GONE",
+  // FM reported ACTFAILED on delete but the post-commit DD12V/DD17S read-back found the index gone anyway — live 2026-09-05.
+  "INDEX-DELETED-ACTFAILED"
+];
+function parseDdicTranscript(raw) {
+  const tags = [];
+  let errorLine;
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith(DDIC_ERR_PREFIX)) {
+      errorLine = trimmed.slice(DDIC_ERR_PREFIX.length).trim();
+      continue;
+    }
+    const tag = DDIC_TAGS.find((t) => trimmed === t);
+    if (tag) tags.push(tag);
+  }
+  return { tags, errorLine, raw };
+}
+function isHeadlessDynproFailure(errorLine) {
+  if (!errorLine) return false;
+  const lower = errorLine.toLowerCase();
+  return lower.includes("sending of dynpro") && lower.includes("no window system type specified");
+}
+var HEADLESS_DYNPRO_HINT = "The generated bridge class hit an interactive SAP dialog screen, which a headless IF_OO_ADT_CLASSRUN execution has no window system to display, so it aborted before the operation completed. The usual cause is a CTS transport-request prompt raised because no request number was supplied: pass corr_nr.";
+var PARTIAL_SUCCESS_HINT = "Do NOT simply retry this call: what is named above already exists, so a retry will collide with an object the caller did not know it had created. Establish the object's current state first and either continue from there or remove it, then create it again.";
+function assertDdicTranscript(result, expectTags, what, opts) {
+  if (result.errorLine) {
+    const dynproHint = isHeadlessDynproFailure(result.errorLine) ? HEADLESS_DYNPRO_HINT : void 0;
+    const firedCompleted = result.tags.filter((t) => opts?.completed?.[t] !== void 0);
+    let message = `${what} failed on the server: ${result.errorLine}`;
+    const details = { raw: result.raw };
+    let hint = dynproHint;
+    if (firedCompleted.length > 0) {
+      const done = firedCompleted.map((t) => opts.completed[t]);
+      const sep2 = /[.!?:]\s*$/.test(message) ? " " : ". ";
+      message += `${sep2}PARTIAL SUCCESS, NOT A NO-OP: this is a multi-step operation and earlier steps already took effect on the server and were NOT rolled back \u2014 ${done.join("; ")}.`;
+      details.partial = true;
+      details.completed = firedCompleted;
+      const prefix = [PARTIAL_SUCCESS_HINT, opts?.partialHint].filter((s) => s !== void 0).join(" ");
+      hint = [prefix, dynproHint].filter((s) => s !== void 0).join(" ");
+    }
+    throw new AbapError("CHECK_FAILED", message, details, hint);
+  }
+  const missing = expectTags.filter((t) => !result.tags.includes(t));
+  if (missing.length > 0) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `${what} did not report success \u2014 expected marker${missing.length > 1 ? "s" : ""} ${missing.join(", ")} in the classrun output, got: ${result.raw || "(empty)"}`,
+      { raw: result.raw, missing }
+    );
+  }
+}
+
+// src/adt/fluid/builtin/classic/abap-core.ts
+var CLASS_NAME = "zcl_zmcp_fluid_classic";
+var CORE_METHODS = `  METHOD run.
+    CLEAR gt_arg.
+    gv_failed = abap_false.
+    TRY.
+        scan( iv_json ).
+        CASE iv_action.
+{{CASE_ARMS}}
+          WHEN OTHERS.
+            fail( |unknown action { iv_action }| ).
+        ENDCASE.
+      CATCH cx_root INTO DATA(lx_err).
+        fail( lx_err->get_text( ) ).
+    ENDTRY.
+    IF gv_failed = abap_true.
+      ROLLBACK WORK.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD scan.
+    DATA lv_len   TYPE i.
+    DATA lv_off   TYPE i.
+    DATA lv_ch    TYPE c LENGTH 1.
+    DATA lv_key   TYPE string.
+    DATA lv_val   TYPE string.
+    DATA lv_idx   TYPE i.
+    DATA lv_start TYPE i.
+    DATA ls_arg   TYPE ty_arg.
+
+    lv_len = strlen( iv_json ).
+    IF lv_len < 2.
+      RETURN.
+    ENDIF.
+    lv_off = 1.
+    WHILE lv_off < lv_len.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '}'.
+        RETURN.
+      ENDIF.
+      lv_key = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+      lv_off = lv_off + 1.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '"'.
+        lv_val = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+        CLEAR ls_arg.
+        ls_arg-path = lv_key.
+        ls_arg-value = lv_val.
+        INSERT ls_arg INTO TABLE gt_arg.
+      ELSEIF lv_ch = '['.
+        lv_off = lv_off + 1.
+        lv_idx = 0.
+        lv_ch = iv_json+lv_off(1).
+        IF lv_ch <> ']'.
+          WHILE lv_off < lv_len.
+            lv_val = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+            CLEAR ls_arg.
+            ls_arg-path = |{ lv_key }/{ lv_idx }|.
+            ls_arg-value = lv_val.
+            INSERT ls_arg INTO TABLE gt_arg.
+            lv_idx = lv_idx + 1.
+            lv_ch = iv_json+lv_off(1).
+            IF lv_ch = ','.
+              lv_off = lv_off + 1.
+            ELSE.
+              EXIT.
+            ENDIF.
+          ENDWHILE.
+        ENDIF.
+        lv_off = lv_off + 1.
+      ELSE.
+        lv_start = lv_off.
+        WHILE lv_off < lv_len.
+          lv_ch = iv_json+lv_off(1).
+          IF lv_ch = ',' OR lv_ch = '}'.
+            EXIT.
+          ENDIF.
+          lv_off = lv_off + 1.
+        ENDWHILE.
+        lv_val = substring( val = iv_json off = lv_start len = lv_off - lv_start ).
+        CLEAR ls_arg.
+        ls_arg-path = lv_key.
+        ls_arg-value = lv_val.
+        INSERT ls_arg INTO TABLE gt_arg.
+      ENDIF.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = ','.
+        lv_off = lv_off + 1.
+      ELSE.
+        RETURN.
+      ENDIF.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD read_string.
+    DATA lv_len  TYPE i.
+    DATA lv_off  TYPE i.
+    DATA lv_ch   TYPE c LENGTH 1.
+    DATA lv_esc  TYPE c LENGTH 1.
+    DATA lv_hex  TYPE c LENGTH 4.
+    DATA lv_x2   TYPE x LENGTH 2.
+    DATA lv_xstr TYPE xstring.
+    DATA lv_uc   TYPE string.
+    DATA lv_crlf TYPE c LENGTH 2.
+    DATA lv_cr   TYPE c LENGTH 1.
+
+    lv_crlf = cl_abap_char_utilities=>cr_lf.
+    lv_cr = lv_crlf(1).
+    lv_len = strlen( iv_json ).
+    lv_off = cv_off + 1.
+    CLEAR rv_value.
+    WHILE lv_off < lv_len.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '"'.
+        lv_off = lv_off + 1.
+        EXIT.
+      ELSEIF lv_ch = '\\'.
+        lv_off = lv_off + 1.
+        lv_esc = iv_json+lv_off(1).
+        CASE lv_esc.
+          WHEN '"'.
+            rv_value = rv_value && '"'.
+          WHEN '\\'.
+            rv_value = rv_value && '\\'.
+          WHEN '/'.
+            rv_value = rv_value && '/'.
+          WHEN 'b'.
+            rv_value = rv_value && cl_abap_char_utilities=>backspace.
+          WHEN 'f'.
+            rv_value = rv_value && cl_abap_char_utilities=>form_feed.
+          WHEN 'n'.
+            rv_value = rv_value && cl_abap_char_utilities=>newline.
+          WHEN 'r'.
+            rv_value = rv_value && lv_cr.
+          WHEN 't'.
+            rv_value = rv_value && cl_abap_char_utilities=>horizontal_tab.
+          WHEN 'u'.
+            lv_hex = substring( val = iv_json off = lv_off + 1 len = 4 ).
+            lv_x2 = lv_hex.
+            lv_xstr = lv_x2.
+            CLEAR lv_uc.
+            TRY.
+                cl_abap_conv_in_ce=>create( input = lv_xstr encoding = 'UTF-16BE' )->read( IMPORTING data = lv_uc ).
+              CATCH cx_root.
+                lv_uc = '?'.
+            ENDTRY.
+            rv_value = rv_value && lv_uc.
+            lv_off = lv_off + 4.
+          WHEN OTHERS.
+            rv_value = rv_value && lv_esc.
+        ENDCASE.
+        lv_off = lv_off + 1.
+      ELSE.
+        rv_value = rv_value && lv_ch.
+        lv_off = lv_off + 1.
+      ENDIF.
+    ENDWHILE.
+    cv_off = lv_off.
+  ENDMETHOD.
+
+  METHOD s.
+    DATA ls_arg TYPE ty_arg.
+    CLEAR rv_value.
+    READ TABLE gt_arg INTO ls_arg WITH TABLE KEY path = iv_path.
+    IF sy-subrc = 0.
+      rv_value = ls_arg-value.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD b.
+    rv_value = boolc( s( iv_path ) = 'true' ).
+  ENDMETHOD.
+
+  METHOD n.
+    DATA lv_pattern TYPE string.
+    CLEAR rv_count.
+    lv_pattern = |{ iv_path }/*|.
+    LOOP AT gt_arg TRANSPORTING NO FIELDS WHERE path CP lv_pattern.
+      rv_count = rv_count + 1.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD line.
+    zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( iv_text ) }"| ).
+  ENDMETHOD.
+
+  METHOD fail.
+    gv_failed = abap_true.
+    line( |ZMCP-DDIC-ERR> { iv_text }| ).
+  ENDMETHOD.`;
+function classicBodySource(parts) {
+  const allMethods = parts.flatMap((p) => p.methods);
+  const methodDecls = allMethods.map((m) => `    CLASS-METHODS ${m}.`).join("\n");
+  const caseArms = allMethods.map((m) => `        WHEN '${m}'.
+          ${m}( ).`).join("\n");
+  const bodies = parts.map((p) => p.source).join("\n\n");
+  const coreMethods = CORE_METHODS.replace("{{CASE_ARMS}}", caseArms);
+  const source = `CLASS ${CLASS_NAME} DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    TYPES: BEGIN OF ty_arg,
+             path  TYPE string,
+             value TYPE string,
+           END OF ty_arg.
+    CLASS-DATA gt_arg    TYPE SORTED TABLE OF ty_arg WITH UNIQUE KEY path.
+    CLASS-DATA gv_failed TYPE abap_bool.
+
+    CLASS-METHODS scan
+      IMPORTING
+        iv_json TYPE string.
+    CLASS-METHODS read_string
+      IMPORTING
+        iv_json TYPE string
+      CHANGING
+        cv_off  TYPE i
+      RETURNING
+        VALUE(rv_value) TYPE string.
+    CLASS-METHODS s
+      IMPORTING
+        iv_path TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE string.
+    CLASS-METHODS b
+      IMPORTING
+        iv_path TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE abap_bool.
+    CLASS-METHODS n
+      IMPORTING
+        iv_path TYPE string
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    CLASS-METHODS line
+      IMPORTING
+        iv_text TYPE string.
+    CLASS-METHODS fail
+      IMPORTING
+        iv_text TYPE string.
+${methodDecls}
+ENDCLASS.
+
+
+CLASS ${CLASS_NAME} IMPLEMENTATION.
+
+${coreMethods}
+
+${bodies}
+
+ENDCLASS.
+`;
+  source.split("\n").forEach((line, i) => {
+    if (line.length > ABAP_SOURCE_LINE_MAX) {
+      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated classic body source line ${i + 1} is ${line.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
+        { line: i + 1, length: line.length, excerpt }
+      );
+    }
+  });
+  return source;
+}
+
+// src/adt/fluid/builtin/classic/abap-view.ts
+var SOURCE = `  METHOD create_view.
+    DATA lv_view TYPE dd25l-viewname.
+    lv_view = s( 'view_name' ).
+    DATA(lv_table) = s( 'base_table' ).
+    DATA(lv_desc) = s( 'description' ).
+    DATA lv_package TYPE devclass.
+    lv_package = s( 'package_name' ).
+    DATA(lv_corr) = s( 'corr_nr' ).
+    DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' ).
+    DATA(lv_object) = |VIEW{ lv_view WIDTH = 40 ALIGN = LEFT }|.
+
+    DATA ls_dd25v TYPE dd25v.
+    DATA ls_dd26v TYPE dd26v.
+    DATA lt_dd26v TYPE STANDARD TABLE OF dd26v.
+    DATA ls_dd27p TYPE dd27p.
+    DATA lt_dd27p TYPE STANDARD TABLE OF dd27p.
+    DATA lv_rc TYPE sy-subrc.
+    DATA lv_n TYPE i.
+    DATA lv_i TYPE i.
+    DATA lv_field TYPE string.
+    DATA lv_korrnum TYPE trkorr.
+
+    IF lv_local = abap_true.
+      lv_korrnum = space.
+    ELSE.
+      lv_korrnum = lv_corr.
+    ENDIF.
+
+    CALL FUNCTION 'RS_CORR_INSERT'
+      EXPORTING object = lv_object
+                object_class = 'DICT'
+                devclass = lv_package
+                master_language = sy-langu
+                mode = 'INSERT'
+                global_lock = 'X'
+                korrnum = lv_korrnum
+                suppress_dialog = 'X'
+      EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.
+    IF sy-subrc <> 0.
+      fail( |RS_CORR_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'VIEW-REGISTERED' ).
+
+    CLEAR ls_dd25v.
+    ls_dd25v-viewname   = lv_view.
+    ls_dd25v-aggtype    = 'V'.
+    ls_dd25v-roottab    = lv_table.
+    ls_dd25v-viewclass  = 'D'.
+    ls_dd25v-viewgrant  = 'R'.
+    ls_dd25v-ddlanguage = sy-langu.
+    ls_dd25v-ddtext     = lv_desc.
+
+    CLEAR lt_dd26v.
+    CLEAR ls_dd26v.
+    ls_dd26v-viewname = lv_view.
+    ls_dd26v-tabname  = lv_table.
+    ls_dd26v-tabpos   = '0001'.
+    APPEND ls_dd26v TO lt_dd26v.
+
+    CLEAR lt_dd27p.
+    lv_n = n( 'fields' ).
+    DO lv_n TIMES.
+      lv_i = sy-index.
+      lv_field = s( |fields/{ lv_i - 1 }| ).
+      CLEAR ls_dd27p.
+      ls_dd27p-viewname  = lv_view.
+      ls_dd27p-objpos    = |{ lv_i WIDTH = 4 PAD = '0' ALIGN = RIGHT }|.
+      ls_dd27p-viewfield = lv_field.
+      ls_dd27p-tabname   = lv_table.
+      ls_dd27p-fieldname = lv_field.
+      APPEND ls_dd27p TO lt_dd27p.
+    ENDDO.
+
+    CALL FUNCTION 'DDIF_VIEW_PUT'
+      EXPORTING name = lv_view
+                dd25v_wa = ls_dd25v
+      TABLES    dd26v_tab = lt_dd26v
+                dd27p_tab = lt_dd27p
+      EXCEPTIONS view_not_found = 1 name_inconsistent = 2 view_inconsistent = 3
+                 put_failure = 4 put_refused = 5 OTHERS = 6.
+    IF sy-subrc <> 0.
+      fail( |DDIF_VIEW_PUT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'VIEW-PUT' ).
+
+    COMMIT WORK.
+
+    CALL FUNCTION 'DDIF_VIEW_ACTIVATE'
+      EXPORTING name = lv_view
+      IMPORTING rc = lv_rc
+      EXCEPTIONS not_found = 1 put_failure = 2 OTHERS = 3.
+    IF sy-subrc = 0 AND lv_rc > 4.
+      sy-subrc = lv_rc.
+    ENDIF.
+    IF sy-subrc <> 0.
+      fail( |DDIF_VIEW_ACTIVATE failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'VIEW-ACTIVATED' ).
+
+    COMMIT WORK.
+  ENDMETHOD.
+
+  METHOD delete_view.
+    DATA lv_view TYPE dd25l-viewname.
+    lv_view = s( 'view_name' ).
+
+    DATA ls_dd25l TYPE dd25l.
+    DATA lv_dd25l_exists TYPE abap_bool.
+    DATA lv_dd25l_count TYPE i.
+    DATA lv_tadir_count TYPE i.
+
+    " Step 1: confirm there is something left to delete. A DD25L row is the
+    " normal case; also tolerate DD25L already gone but a TADIR row still
+    " present - a previous delete that crashed after DD_OBJ_DEL durably
+    " committed but before TR_TADIR_INTERFACE ran - so a retry can finish
+    " the job instead of being refused forever as "does not exist".
+    SELECT SINGLE * FROM dd25l INTO @ls_dd25l WHERE viewname = @lv_view.
+    lv_dd25l_exists = xsdbool( sy-subrc = 0 ).
+    IF lv_dd25l_exists = abap_false.
+      SELECT COUNT( * ) FROM tadir INTO @lv_tadir_count
+        WHERE pgmid = 'R3TR' AND object = 'VIEW' AND obj_name = @lv_view.
+      IF lv_tadir_count = 0.
+        fail( |view { lv_view } does not exist| ).
+        RETURN.
+      ENDIF.
+      line( |ZMCP-DDIC-NOTE> resuming a partial delete of { lv_view }: DD25L is already gone, | &&
+        |TADIR row remains - finishing the TADIR cleanup only, not repeating DD_OBJ_DEL| ).
+    ENDIF.
+
+    " Steps 2-3 (skipped when DD25L is already gone - resuming a half-
+    " finished delete): delete the active version, then any inactive one
+    " (no inactive row is normal). Each CALL FUNCTION is wrapped in its own
+    " TRY/CATCH cx_root: an uncaught class-based exception from inside a
+    " statically-named CALL FUNCTION can only originate from the callee's
+    " own implementation, and previously propagated all the way to run's
+    " generic catch-all, reporting only the exception's generic text with
+    " no indication of which step raised it - each CATCH here labels the
+    " step with a distinct, greppable delete_view/... string.
+    " del_state = 'A' and del_state = 'N' both use prid = -1 - proven live
+    " on 2026-09-04 and again on 2026-09-08, when instrumentation added
+    " here turned an unattributable CX_SY_DYN_CALL_ILLEGAL_TYPE into a
+    " precise diagnosis: both DD_OBJ_DEL calls completed, and the failure
+    " was entirely in the next step, TR_TADIR_INTERFACE (see Step 4) - not
+    " in DD_OBJ_DEL as a since-disproven prid=0 experiment had assumed.
+    IF lv_dd25l_exists = abap_true.
+      TRY.
+          CALL FUNCTION 'DD_OBJ_DEL'
+            EXPORTING
+              object_name = lv_view
+              object_type = 'VIEW'
+              del_state   = 'A'
+              prid        = -1
+            EXCEPTIONS
+              OTHERS      = 1.
+        CATCH cx_root INTO DATA(lx_del_a).
+          fail( |delete_view/dd_obj_del_A raised { lx_del_a->get_text( ) }| ).
+          RETURN.
+      ENDTRY.
+      IF sy-subrc <> 0.
+        fail( |DD_OBJ_DEL failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+        RETURN.
+      ENDIF.
+
+      TRY.
+          CALL FUNCTION 'DD_OBJ_DEL'
+            EXPORTING
+              object_name = lv_view
+              object_type = 'VIEW'
+              del_state   = 'N'
+              prid        = -1
+            EXCEPTIONS
+              OTHERS      = 1.
+        CATCH cx_root INTO DATA(lx_del_n).
+          fail( |delete_view/dd_obj_del_N raised { lx_del_n->get_text( ) }| ).
+          RETURN.
+      ENDTRY.
+    ENDIF.
+    line( 'VIEW-DELETED' ).
+
+    " Step 4: remove the TADIR row (wi_test_modus = space, or this no-ops).
+    " Live on 2026-09-08, passing lv_view (TYPE dd25l-viewname) directly as
+    " WI_TADIR_OBJ_NAME raised: "The function call of TR_TADIR_INTERFACE
+    " failed; a field may have been assigned to the parameter
+    " WI_TADIR_OBJ_NAME whose type is not compatible with this parameter."
+    " The fix is to pass a local typed from the parameter's own field
+    " (tadir-obj_name) instead of lv_view's unrelated dd25l-viewname type.
+    " What is NOT established offline: whether the two fields differ in
+    " width, or the rejection came from something else about how the
+    " parameter is typed (e.g. a generic/structure-bound interface that
+    " checks the actual type at the call boundary even though the FM name
+    " here is static) - this repo has no DDIC catalogue to check either
+    " field against, and an earlier draft of this comment asserted both
+    " fields were CHAR30 and the same width - that claim was unfounded and
+    " has been withdrawn. The IF below does not depend on knowing the
+    " answer: it compares the typed local back against
+    " lv_view and fails loudly on any mismatch, so if truncation (or any
+    " other silent corruption of the value) does occur, the tool refuses
+    " instead of deleting the wrong TADIR row.
+    DATA lv_tadir_obj TYPE tadir-obj_name.
+    lv_tadir_obj = lv_view.
+    IF lv_tadir_obj <> lv_view.
+      fail( |delete_view/tadir_obj_name_guard: { lv_view } does not fit tadir-obj_name without truncation - | &&
+        |refusing to risk deleting the wrong TADIR row| ).
+      RETURN.
+    ENDIF.
+
+    TRY.
+        CALL FUNCTION 'TR_TADIR_INTERFACE'
+          EXPORTING
+            wi_test_modus         = space
+            wi_tadir_pgmid        = 'R3TR'
+            wi_tadir_object       = 'VIEW'
+            wi_tadir_obj_name     = lv_tadir_obj
+            wi_delete_tadir_entry = 'X'
+          EXCEPTIONS
+            OTHERS                = 1.
+      CATCH cx_root INTO DATA(lx_tadir).
+        fail( |delete_view/tr_tadir_interface raised { lx_tadir->get_text( ) }| ).
+        RETURN.
+    ENDTRY.
+
+    " Step 5: commit.
+    COMMIT WORK.
+
+    " Step 6: re-read DD25L, then TADIR, before declaring the view gone.
+    SELECT COUNT( * ) FROM dd25l INTO @lv_dd25l_count WHERE viewname = @lv_view.
+    IF lv_dd25l_count <> 0.
+      fail( |delete of { lv_view } reported no error but DD25L still has a row| ).
+      RETURN.
+    ENDIF.
+    SELECT COUNT( * ) FROM tadir INTO @lv_tadir_count
+      WHERE pgmid = 'R3TR' AND object = 'VIEW' AND obj_name = @lv_view.
+    IF lv_tadir_count <> 0.
+      fail( |{ lv_view }'s DD25L rows are gone but its TADIR row remains; | &&
+        |the DD25L delete worked; likely cause is an object lock from an open transport request (TR022)| ).
+      RETURN.
+    ENDIF.
+    line( 'VIEW-GONE' ).
+  ENDMETHOD.`;
+var viewPart = { methods: ["create_view", "delete_view"], source: SOURCE };
+
+// src/adt/fluid/builtin/classic/abap-tran.ts
+var SOURCE2 = `  METHOD create_transaction.
+    DATA lv_tcode TYPE tstc-tcode.
+    lv_tcode = s( 'tcode' ).
+    DATA lv_program TYPE tstc-pgmna.
+    lv_program = s( 'program' ).
+    DATA lv_description TYPE tstct-ttext.
+    lv_description = s( 'description' ).
+    DATA lv_package TYPE devclass.
+    lv_package = s( 'package_name' ).
+    DATA(lv_corr_nr) = s( 'corr_nr' ).
+    DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' ).
+    DATA lv_transport TYPE trkorr.
+    IF lv_local = abap_true.
+      lv_transport = space.
+    ELSE.
+      lv_transport = lv_corr_nr.
+    ENDIF.
+
+    CALL FUNCTION 'RPY_TRANSACTION_INSERT'
+      EXPORTING transaction       = lv_tcode
+                program           = lv_program
+                dynpro            = '1000'
+                language          = sy-langu
+                development_class = lv_package
+                transport_number  = lv_transport
+                transaction_type  = 'R'
+                shorttext         = lv_description
+      EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3
+                 name_not_allowed = 4 name_conflict = 5 illegal_type = 6
+                 object_inconsistent = 7 db_access_error = 8 OTHERS = 9.
+    IF sy-subrc <> 0.
+      fail( |RPY_TRANSACTION_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'TRAN-CREATED' ).
+
+    COMMIT WORK.
+  ENDMETHOD.
+
+  METHOD delete_transaction.
+    DATA ls_tstc TYPE tstc.
+    DATA lv_tcode TYPE tstc-tcode.
+    lv_tcode = s( 'tcode' ).
+
+    " Step 1: confirm the transaction exists.
+    SELECT SINGLE * FROM tstc INTO @ls_tstc WHERE tcode = @lv_tcode.
+    IF sy-subrc <> 0.
+      fail( |transaction { lv_tcode } does not exist| ).
+      RETURN.
+    ENDIF.
+
+    " Step 2: delete via RPY_TRANSACTION_DELETE.
+    CALL FUNCTION 'RPY_TRANSACTION_DELETE'
+      EXPORTING transaction = lv_tcode
+      EXCEPTIONS OTHERS = 1.
+    IF sy-subrc <> 0.
+      fail( |RPY_TRANSACTION_DELETE failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    line( 'TRAN-DELETED' ).
+
+    " Step 3: commit.
+    COMMIT WORK.
+
+    " Step 4: prove absence.
+    SELECT SINGLE * FROM tstc INTO @ls_tstc WHERE tcode = @lv_tcode.
+    IF sy-subrc = 0.
+      fail( |delete of { lv_tcode } reported no error but the TSTC row still exists| ).
+      RETURN.
+    ENDIF.
+    line( 'TRAN-GONE' ).
+  ENDMETHOD.`;
+var tranPart = { methods: ["create_transaction", "delete_transaction"], source: SOURCE2 };
+
+// src/adt/fluid/builtin/classic/abap-index.ts
+var CREATE_INDEX = `  METHOD create_index.
+    DATA lv_index_name TYPE dd12v-indexname.
+    lv_index_name = s( 'index_name' ).
+    DATA lv_base_table TYPE tabname.
+    lv_base_table = s( 'base_table' ).
+    DATA lv_description TYPE dd12v-ddtext.
+    lv_description = s( 'description' ).
+    DATA(lv_corr_nr) = s( 'corr_nr' ).
+    DATA(lv_unique) = b( 'unique' ).
+    DATA lv_no_transp_request TYPE abap_bool.
+    DATA lv_transport_number TYPE trkorr.
+    DATA lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.
+    DATA lv_actfailed TYPE ddrefstruc-flag.
+    DATA lv_dd12v_count TYPE i.
+    DATA lv_dd12v_any TYPE i.
+    DATA lv_dd17s_count TYPE i.
+    DATA lv_client_field TYPE dd03l-fieldname.
+    DATA lv_field_count TYPE i.
+    DATA lv_i TYPE i.
+
+    IF lv_corr_nr IS INITIAL.
+      lv_no_transp_request = abap_true.
+    ELSE.
+      lv_transport_number = lv_corr_nr.
+    ENDIF.
+
+    lv_field_count = n( 'fields' ).
+    DO lv_field_count TIMES.
+      lv_i = sy-index.
+      APPEND VALUE #( name = s( |fields/{ lv_i - 1 }| ) ) TO lt_fields.
+    ENDDO.
+
+    " a unique secondary index on a client-dependent table must carry the client field, or
+    " activation fails; confirmed live 2026-09-05 (round 2) as the cause of the ACTFAILED seen in
+    " round 1 on a unique index over a client-dependent table.
+    IF lv_unique = abap_true.
+      SELECT SINGLE fieldname FROM dd03l INTO @lv_client_field
+        WHERE tabname = @lv_base_table AND as4local = 'A' AND datatype = 'CLNT'.
+      IF sy-subrc = 0 AND lv_client_field IS NOT INITIAL.
+        READ TABLE lt_fields TRANSPORTING NO FIELDS WITH KEY name = lv_client_field.
+        IF sy-subrc <> 0.
+          fail( |unique index { lv_index_name } on { lv_base_table } omits the client field { lv_client_field }| ).
+          RETURN.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    CALL FUNCTION 'DD_INDEX_INTERFACE'
+      EXPORTING
+        table_name          = lv_base_table
+        index_name          = lv_index_name
+        action              = 'I'
+        shorttext           = lv_description
+        activate            = 'X'
+        unique              = lv_unique
+        no_transp_request   = lv_no_transp_request
+        transport_number    = lv_transport_number
+      IMPORTING
+        actfailed = lv_actfailed
+      TABLES
+        index_fields = lt_fields
+      EXCEPTIONS
+        cancelled = 1
+        already_exist = 2
+        permission_error = 3
+        name_not_allowed = 4
+        db_access_error = 5
+        basetab_error = 6
+        not_exist = 7
+        OTHERS = 8.
+    IF sy-subrc <> 0.
+      fail( |DD_INDEX_INTERFACE insert failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+
+    " DD_INDEX_INTERFACE exports no activation log; the cheapest evidence of what a failed
+    " activation left behind is a DD12V row count with no AS4LOCAL filter at all.
+    IF lv_actfailed = 'X'.
+      SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_any
+        WHERE sqltab = @lv_base_table AND indexname = @lv_index_name.
+      fail( |DD_INDEX_INTERFACE insert reported ACTFAILED = 'X' for { lv_index_name } on { lv_base_table }; |
+         && |DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_any }| ).
+      RETURN.
+    ENDIF.
+    line( 'INDEX-CREATED' ).
+
+    COMMIT WORK.
+
+    " Compared to 0, not <> 1 \u2014 DD12V carries DDLANGUAGE, so more than one row is possible.
+    SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count
+      WHERE sqltab = @lv_base_table AND indexname = @lv_index_name AND as4local = 'A'.
+    IF lv_dd12v_count = 0.
+      fail( |{ lv_index_name } on { lv_base_table } not found active (AS4LOCAL = 'A') in DD12V after commit| ).
+      RETURN.
+    ENDIF.
+    line( 'INDEX-ACTIVE' ).
+
+    " Compared with <, not <> \u2014 a floor, not an exact match, since DD17S has not been established
+    " to hold exactly one row per index field.
+    SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count
+      WHERE sqltab = @lv_base_table AND indexname = @lv_index_name.
+    IF lv_dd17s_count < lv_field_count.
+      fail( |expected at least { lv_field_count } DD17S field row(s) for { lv_index_name } on { lv_base_table }, |
+         && |got { lv_dd17s_count }| ).
+      RETURN.
+    ENDIF.
+    line( 'INDEX-FIELDS' ).
+  ENDMETHOD.`;
+var DELETE_INDEX = `  METHOD delete_index.
+    DATA lv_index_name TYPE dd12v-indexname.
+    lv_index_name = s( 'index_name' ).
+    DATA lv_base_table TYPE tabname.
+    lv_base_table = s( 'base_table' ).
+    DATA(lv_corr_nr) = s( 'corr_nr' ).
+    DATA lv_no_transp_request TYPE abap_bool.
+    DATA lv_transport_number TYPE trkorr.
+    DATA lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.
+    DATA lv_actfailed TYPE ddrefstruc-flag.
+    DATA lv_dd12v_count TYPE i.
+    DATA lv_dd12v_active TYPE i.
+    DATA lv_dd17s_count TYPE i.
+    DATA lv_msg TYPE string.
+
+    IF lv_corr_nr IS INITIAL.
+      lv_no_transp_request = abap_true.
+    ELSE.
+      lv_transport_number = lv_corr_nr.
+    ENDIF.
+
+    " a delete of a pair that never existed is a refusal, not a no-op. DD12V carries DDLANGUAGE,
+    " so an index with no short text in the executing language could read as absent here \u2014
+    " refusing instead of deleting.
+    SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count
+      WHERE sqltab = @lv_base_table AND indexname = @lv_index_name.
+    IF lv_dd12v_count = 0.
+      fail( |index { lv_index_name } on { lv_base_table } does not exist| ).
+      RETURN.
+    ENDIF.
+
+    " DD_INDEX_INTERFACE requires INDEX_FIELDS for every ACTION, content or not; omitting it
+    " failed live on 2026-09-05 with "the mandatory parameter INDEX_FIELDS was not filled".
+    CALL FUNCTION 'DD_INDEX_INTERFACE'
+      EXPORTING
+        table_name          = lv_base_table
+        index_name          = lv_index_name
+        action              = 'D'
+        activate            = 'X'
+        no_transp_request   = lv_no_transp_request
+        transport_number    = lv_transport_number
+      IMPORTING
+        actfailed = lv_actfailed
+      TABLES
+        index_fields = lt_fields
+      EXCEPTIONS
+        cancelled = 1
+        already_exist = 2
+        permission_error = 3
+        name_not_allowed = 4
+        db_access_error = 5
+        basetab_error = 6
+        not_exist = 7
+        OTHERS = 8.
+    IF sy-subrc <> 0.
+      fail( |DD_INDEX_INTERFACE delete failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+
+    " unconditional even when ACTFAILED = 'X'. Live 2026-09-05: on both a non-unique and a unique
+    " index, ACTFAILED = 'X' fired while the DD12V row was already gone, meaning the catalog
+    " change had already taken effect before this classrun's own commit point. ACTFAILED alone no
+    " longer decides anything below; it only flags the read-back as worth a note.
+    COMMIT WORK.
+
+    " read back all three signals before deciding \u2014 same discipline as the create side, now
+    " applied to ACTFAILED too instead of trusting it as fatal.
+    SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count
+      WHERE sqltab = @lv_base_table AND indexname = @lv_index_name.
+    SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_active
+      WHERE sqltab = @lv_base_table AND indexname = @lv_index_name AND as4local = 'A'.
+    SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count
+      WHERE sqltab = @lv_base_table AND indexname = @lv_index_name.
+
+    " the read-back decides, not ACTFAILED. All-zero is success even when ACTFAILED = 'X' fired
+    " (live 2026-09-05: the FM's own failure report lagged behind a catalog change that had
+    " already committed); any row surviving is still a real failure either way. Each message is
+    " built into lv_msg across several short lines and written once \u2014 never split across line()
+    " calls, since parseDdicTranscript keeps only the LAST ZMCP-DDIC-ERR> line.
+    IF lv_dd12v_count <> 0 OR lv_dd12v_active <> 0 OR lv_dd17s_count <> 0.
+      lv_msg = |delete of { lv_index_name } on { lv_base_table } left rows behind after commit |.
+      lv_msg = lv_msg && |(DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, |.
+      lv_msg = lv_msg && |DD17S: { lv_dd17s_count }); DD_INDEX_INTERFACE delete ACTFAILED = '{ lv_actfailed }'|.
+      fail( lv_msg ).
+      RETURN.
+    ENDIF.
+    IF lv_actfailed = 'X'.
+      lv_msg = |ZMCP-DDIC-NOTE> DD_INDEX_INTERFACE delete reported ACTFAILED = 'X' for { lv_index_name } on |
+             && |{ lv_base_table }, |.
+      lv_msg = lv_msg && |but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, |.
+      lv_msg = lv_msg && |DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }) \u2014 treating as deleted|.
+      line( lv_msg ).
+      line( 'INDEX-DELETED-ACTFAILED' ).
+    ENDIF.
+    line( 'INDEX-DELETED' ).
+    line( 'INDEX-GONE' ).
+  ENDMETHOD.`;
+var indexPart = {
+  methods: ["create_index", "delete_index"],
+  source: `${CREATE_INDEX}
+
+${DELETE_INDEX}`
+};
+
+// src/adt/fluid/builtin/classic/abap-package.ts
+var packagePart = {
+  methods: ["create_package", "delete_package"],
+  source: `  METHOD create_package.
+    DATA: ls_data     TYPE scompkdtln,
+          lo_package   TYPE REF TO if_package,
+          ls_tdevc     TYPE tdevc,
+          lv_packtype  TYPE scompkdtln-packtype VALUE 'D'.
+    DATA lv_package TYPE devclass.
+    lv_package = s( 'package_name' ).
+    DATA(lv_description) = s( 'description' ).
+    DATA(lv_software_component) = s( 'software_component' ).
+    DATA lv_corr_nr TYPE trkorr.
+    lv_corr_nr = s( 'corr_nr' ).
+    DATA lv_super TYPE devclass.
+    lv_super = s( 'super_package' ).
+    DATA(lv_package_type) = s( 'package_type' ).
+
+    " package_type: only "development" (SCOMPKDTLN-PACKTYPE 'D') is exposed by this bridge.
+    IF lv_package_type IS NOT INITIAL AND lv_package_type <> 'development'.
+      fail( |package_type { lv_package_type } is not supported, only development is exposed| ).
+      RETURN.
+    ENDIF.
+
+    " --- Constraints proven live on A4H. Do not "simplify" these. ---
+    " 2. SCOMPKDTLN has NO DEVLAYER field and no usable COMPONENT field - setting
+    "    either fails the syntax check.
+    " 3. SCOMPKDTLN-PDEVCLASS is the TRANSPORT LAYER, not the superpackage. Setting
+    "    it to a package name silently truncates to 4 characters and short-dumps
+    "    with LAYER_INVALID. It is never set here; the transport layer is left to
+    "    the transport route configured for the software component.
+    " 4. SUPERPACKAGE_IN_TDEVC looks right but is output-only on create - passing it
+    "    leaves PARENTCL blank. The parent is attached in a SECOND step below.
+    ls_data-devclass = lv_package.
+    ls_data-ctext    = lv_description.
+    ls_data-as4user  = sy-uname.
+    ls_data-dlvunit  = lv_software_component.
+    ls_data-korrflag = 'X'.
+    ls_data-packtype = lv_packtype.
+
+    " CREATE_NEW_PACKAGE / SAVE / SET_CHANGEABLE raise CLASSIC (non-cx_root)
+    " exceptions, invisible to the CATCH cx_root around this whole method
+    " (see ddic-bridge.ts) - CALL METHOD ... EXCEPTIONS OTHERS = 1 is the
+    " only way to attach EXCEPTIONS at all; functional-call syntax cannot.
+    CALL METHOD cl_package_factory=>create_new_package
+      EXPORTING
+        i_reuse_deleted_object = abap_true
+      IMPORTING
+        e_package               = lo_package
+      CHANGING
+        c_package_data           = ls_data
+      EXCEPTIONS
+        OTHERS                   = 1.
+    IF sy-subrc <> 0.
+      fail( |Creating package failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+
+    CALL METHOD lo_package->save
+      EXPORTING
+        i_transport_request = lv_corr_nr
+      EXCEPTIONS
+        OTHERS               = 1.
+    IF sy-subrc <> 0.
+      fail( |Saving package failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+
+    " i_changeable is transcribed from the IF_PACKAGE signature and is NOT
+    " verified live by this change - see this file's header. A wrong name
+    " fails the generated class's OWN syntax check at bridge activation,
+    " before any mutation runs.
+    CALL METHOD lo_package->set_changeable
+      EXPORTING
+        i_changeable = abap_false
+      EXCEPTIONS
+        OTHERS       = 1.
+    IF sy-subrc <> 0.
+      fail( |Making package not changeable failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    COMMIT WORK.
+    line( 'PKG-CREATED' ).
+
+    IF lv_super IS NOT INITIAL.
+      " Step 2 - the parent CANNOT be set on create (constraint 4 above); the package
+      " is re-loaded and attached here. LOAD_PACKAGE / SET_CHANGEABLE / SAVE /
+      " SET_SUPER_PACKAGE_NAME all raise CLASSIC exceptions - see this file's header.
+      CALL METHOD cl_package_factory=>load_package
+        EXPORTING
+          i_package_name = lv_package
+        IMPORTING
+          e_package      = lo_package
+        EXCEPTIONS
+          OTHERS         = 1.
+      IF sy-subrc <> 0.
+        fail( |Loading package failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+        RETURN.
+      ENDIF.
+
+      " i_changeable - see the unverified-parameter-name note above.
+      CALL METHOD lo_package->set_changeable
+        EXPORTING
+          i_changeable = abap_true
+        EXCEPTIONS
+          OTHERS       = 1.
+      IF sy-subrc <> 0.
+        fail( |Making package changeable failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+        RETURN.
+      ENDIF.
+
+      " i_super_package_name is transcribed from the IF_PACKAGE signature and is
+      " NOT verified live by this change - see this file's header. A wrong name
+      " fails the generated class's OWN syntax check at bridge activation, before
+      " any mutation runs.
+      CALL METHOD lo_package->set_super_package_name
+        EXPORTING
+          i_super_package_name = lv_super
+        EXCEPTIONS
+          OTHERS                = 1.
+      IF sy-subrc <> 0.
+        fail( |Attaching super package failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+        RETURN.
+      ENDIF.
+
+      CALL METHOD lo_package->save
+        EXCEPTIONS
+          OTHERS = 1.
+      IF sy-subrc <> 0.
+        fail( |Saving package failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+        RETURN.
+      ENDIF.
+
+      CALL METHOD lo_package->set_changeable
+        EXPORTING
+          i_changeable = abap_false
+        EXCEPTIONS
+          OTHERS       = 1.
+      IF sy-subrc <> 0.
+        fail( |Making package not changeable failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+        RETURN.
+      ENDIF.
+      COMMIT WORK.
+      line( 'PKG-PARENT-SET' ).
+    ENDIF.
+
+    " A tag alone is not proof: the classrun could report success for a row that
+    " was rolled back. Re-read TDEVC and refuse to write PKG-CONFIRMED unless the
+    " row is actually there. (This is still the bridge's own stdout -
+    " src/tools/write.ts additionally verifies out-of-band.)
+    "
+    " DLVUNIT and KORRFLAG are reported as EVIDENCE, not judged here. Two
+    " reasons. (a) Any RETURN below this point fires AFTER the create already
+    " happened, and this bridge does not self-delete on a discrepancy: a hard
+    " failure here would leave the package behind while telling the caller the
+    " operation failed - strictly worse than handing back the row and letting the TypeScript layer
+    " say what it means. (b) The KORRFLAG value TDEVC carries for a
+    " transportable package is transcribed from the reporter's run, not
+    " independently confirmed, so a mismatch is not reliably a defect. The
+    " comparison lives in createPackageViaBridge's caller instead, where it is a
+    " loud note rather than a verdict.
+    SELECT SINGLE * FROM tdevc INTO @ls_tdevc WHERE devclass = @lv_package.
+    IF sy-subrc <> 0.
+      fail( |TDEVC has no row for { lv_package } after create| ).
+      RETURN.
+    ENDIF.
+    line( |ZMCP-PKG-TDEVC> DEVCLASS={ ls_tdevc-devclass } PARENTCL={ ls_tdevc-parentcl } DLVUNIT={ ls_tdevc-dlvunit } KORRFLAG={ ls_tdevc-korrflag }| ).
+    line( 'PKG-CONFIRMED' ).
+  ENDMETHOD.
+
+  METHOD delete_package.
+    DATA: ls_tdevc          TYPE tdevc,
+          lt_subpkg         TYPE STANDARD TABLE OF tdevc WITH EMPTY KEY,
+          ls_subpkg         TYPE tdevc,
+          lt_tadir          TYPE STANDARD TABLE OF tadir WITH EMPTY KEY,
+          ls_tadir          TYPE tadir,
+          lo_package        TYPE REF TO if_package,
+          lv_content_count  TYPE i.
+    DATA lv_package TYPE devclass.
+    lv_package = s( 'package_name' ).
+    DATA lv_corr_nr TYPE trkorr.
+    lv_corr_nr = s( 'corr_nr' ).
+
+    " Step 1 - confirm the package exists; refuse honestly if it does not,
+    " rather than treating a delete of a never-existed name as a no-op.
+    SELECT SINGLE * FROM tdevc INTO @ls_tdevc WHERE devclass = @lv_package.
+    IF sy-subrc <> 0.
+      fail( |package { lv_package } does not exist| ).
+      RETURN.
+    ENDIF.
+
+    " Step 2 - gather emptiness evidence first: sub-packages (TDEVC-PARENTCL)
+    " and objects (TADIR-DEVCLASS).
+    SELECT * FROM tdevc INTO TABLE @lt_subpkg WHERE parentcl = @lv_package.
+    LOOP AT lt_subpkg INTO ls_subpkg.
+      lv_content_count = lv_content_count + 1.
+      line( |ZMCP-PKG-CONTENT> KIND=SUBPKG PGMID=R3TR OBJECT=DEVC NAME={ ls_subpkg-devclass }| ).
+    ENDLOOP.
+
+    SELECT * FROM tadir INTO TABLE @lt_tadir WHERE devclass = @lv_package.
+    LOOP AT lt_tadir INTO ls_tadir.
+      " The package's own R3TR DEVC row in TADIR is filtered here, in the
+      " LOOP, rather than in the SQL WHERE clause, deliberately.
+      IF ls_tadir-pgmid = 'R3TR' AND ls_tadir-object = 'DEVC' AND ls_tadir-obj_name = lv_package.
+        CONTINUE.
+      ENDIF.
+      lv_content_count = lv_content_count + 1.
+      line( |ZMCP-PKG-CONTENT> KIND=OBJECT PGMID={ ls_tadir-pgmid } OBJECT={ ls_tadir-object } NAME={ ls_tadir-obj_name }| ).
+    ENDLOOP.
+
+    " Step 3 - delete is only attempted on a provably empty package; any
+    " content found above stops here before CL_PACKAGE_FACTORY is touched.
+    IF lv_content_count > 0.
+      RETURN.
+    ENDIF.
+    line( 'PKG-EMPTY' ).
+
+    " Step 4 - LOAD_PACKAGE mirrors ./package-create.ts; SAVE takes
+    " i_transport_request only when a transport was supplied.
+    " LOAD_PACKAGE / SET_CHANGEABLE / DELETE / SAVE all raise CLASSIC
+    " (non-cx_root) exceptions, invisible to the CATCH cx_root wrapping this
+    " whole method (see ddic-bridge.ts). CALL METHOD ... EXCEPTIONS OTHERS = 1
+    " is the only way to attach EXCEPTIONS to a method call - functional-call
+    " syntax (e.g. the old \`lo_package->delete( ).\`) cannot carry one at all.
+    " A locked package short-dumped through set_changeable live before this
+    " guard existed and destroyed the whole tagged transcript.
+    CALL METHOD cl_package_factory=>load_package
+      EXPORTING
+        i_package_name = lv_package
+      IMPORTING
+        e_package      = lo_package
+      EXCEPTIONS
+        OTHERS         = 1.
+    IF sy-subrc <> 0.
+      fail( |Loading package failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+
+    " i_changeable is transcribed from the IF_PACKAGE signature and is NOT
+    " verified live by this change. If the name is wrong, the generated
+    " class fails ITS OWN SYNTAX CHECK at bridge activation - caught by
+    " deployBridge/verifyBridgeActivation BEFORE any mutation runs. Loud,
+    " and safe: nothing is created or deleted on a bad name here.
+    CALL METHOD lo_package->set_changeable
+      EXPORTING
+        i_changeable = abap_true
+      EXCEPTIONS
+        OTHERS       = 1.
+    IF sy-subrc <> 0.
+      fail( |Making package changeable failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+
+    CALL METHOD lo_package->delete
+      EXCEPTIONS
+        OTHERS = 1.
+    IF sy-subrc <> 0.
+      fail( |Deleting package failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+
+    IF lv_corr_nr IS INITIAL.
+      CALL METHOD lo_package->save
+        EXCEPTIONS
+          OTHERS = 1.
+    ELSE.
+      CALL METHOD lo_package->save
+        EXPORTING
+          i_transport_request = lv_corr_nr
+        EXCEPTIONS
+          OTHERS               = 1.
+    ENDIF.
+    IF sy-subrc <> 0.
+      fail( |Saving package failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      RETURN.
+    ENDIF.
+    COMMIT WORK.
+    line( 'PKG-DELETED' ).
+
+    " Step 5 - re-read TDEVC because a clean return from IF_PACKAGE~DELETE is
+    " not trusted (unverified live); only then write PKG-GONE.
+    SELECT SINGLE * FROM tdevc INTO @ls_tdevc WHERE devclass = @lv_package.
+    IF sy-subrc = 0.
+      fail( |delete of { lv_package } reported no error but the TDEVC row still exists| ).
+      RETURN.
+    ENDIF.
+    line( 'PKG-GONE' ).
+  ENDMETHOD.`
+};
+
+// src/adt/fluid/builtin/classic/abap-transport.ts
+var transportPart = {
+  methods: ["remove_transport_entry"],
+  source: `  METHOD remove_transport_entry.
+    DATA lv_trkorr TYPE trkorr.
+    lv_trkorr = s( 'trkorr' ).
+    DATA lv_object TYPE e071-obj_name.
+    lv_object = s( 'object_name' ).
+    DATA: ls_req        TYPE trwbo_request,
+          ls_e071       TYPE e071,
+          lt_rows       TYPE STANDARD TABLE OF e071 WITH EMPTY KEY,
+          lt_candidates TYPE STANDARD TABLE OF trkorr WITH EMPTY KEY,
+          lt_tasks      TYPE STANDARD TABLE OF trkorr WITH EMPTY KEY,
+          lv_cursor     TYPE trkorr,
+          lv_holder     TYPE trkorr,
+          lv_check      TYPE trkorr,
+          lv_subrc      TYPE sy-subrc,
+          ls_msg        TYPE symsg,
+          lv_msgtext    TYPE string,
+          lv_readerr    TYPE string,
+          ls_other      TYPE e071,
+          lv_n          TYPE i,
+          lv_positions  TYPE string.
+
+    " Step 1: resolve which of trkorr or its tasks holds the entry.
+    APPEND lv_trkorr TO lt_candidates.
+    SELECT trkorr FROM e070 INTO TABLE @lt_tasks WHERE strkorr = @lv_trkorr.
+    APPEND LINES OF lt_tasks TO lt_candidates.
+    CLEAR lv_holder.
+    LOOP AT lt_candidates INTO lv_cursor.
+      CLEAR ls_req.
+      ls_req-h-trkorr = lv_cursor.
+      CALL FUNCTION 'TRINT_READ_REQUEST'
+        EXPORTING iv_read_e070 = 'X' iv_read_e07t = 'X' iv_read_e070c = 'X' iv_read_e070m = 'X'
+                  iv_read_objs_keys = 'X' iv_read_attributes = 'X'
+        CHANGING  cs_request = ls_req
+        EXCEPTIONS OTHERS = 1.
+      lv_subrc = sy-subrc.
+      MOVE-CORRESPONDING sy TO ls_msg.
+      IF lv_subrc <> 0.
+        lv_readerr = |{ lv_cursor } sy-subrc={ lv_subrc } msg={ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.
+        CONTINUE.
+      ENDIF.
+      CLEAR lt_rows.
+      LOOP AT ls_req-objects INTO ls_e071 WHERE obj_name = lv_object.
+        APPEND ls_e071 TO lt_rows.
+      ENDLOOP.
+      IF lines( lt_rows ) > 0.
+        lv_holder = lv_cursor.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+    " Step 2: refuse if no candidate carried the entry.
+    IF lv_holder IS INITIAL.
+      IF lv_readerr IS INITIAL.
+        fail( |no entry for { lv_object } on { lv_trkorr } or its tasks| ).
+      ELSE.
+        fail( |no entry for { lv_object } on { lv_trkorr } or its tasks; last TRINT_READ_REQUEST failure: { lv_readerr }| ).
+      ENDIF.
+      RETURN.
+    ENDIF.
+
+    " Step 3: name the resolved holder.
+    line( |ZMCP-TREN-HOLDER { lv_holder }| ).
+
+    " Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name.
+    LOOP AT lt_rows INTO ls_e071.
+      lv_n = 0.
+      CLEAR lv_positions.
+      LOOP AT lt_rows INTO ls_other WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object
+                                      AND obj_name = ls_e071-obj_name.
+        lv_n = lv_n + 1.
+        IF lv_positions IS INITIAL.
+          lv_positions = |{ ls_other-as4pos }|.
+        ELSE.
+          lv_positions = |{ lv_positions },{ ls_other-as4pos }|.
+        ENDIF.
+      ENDLOOP.
+      IF lv_n >= 2.
+        fail( |duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }| ).
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    " Step 5: remove every collected row.
+    LOOP AT lt_rows INTO ls_e071.
+      CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'
+        EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071
+        CHANGING cs_request = ls_req
+        EXCEPTIONS OTHERS = 1.
+      lv_subrc = sy-subrc.
+      MOVE-CORRESPONDING sy TO ls_msg.
+      IF lv_subrc <> 0.
+        lv_msgtext = |{ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.
+        fail( |TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }, sy-subrc={ lv_subrc }, msg={ lv_msgtext }| ).
+        RETURN.
+      ENDIF.
+      line( |ZMCP-TREN-ROW { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }| ).
+    ENDLOOP.
+
+    " Step 6: one success tag for the whole batch.
+    line( 'TREN-REMOVED' ).
+
+    " Step 7: commit.
+    COMMIT WORK AND WAIT.
+
+    " Step 8: prove absence.
+    SELECT SINGLE trkorr FROM e071 INTO @lv_check WHERE trkorr = @lv_holder AND obj_name = @lv_object.
+    IF sy-subrc = 0.
+      fail( |removal of { lv_object } reported no error but a row is still there| ).
+      RETURN.
+    ENDIF.
+    line( 'TREN-GONE' ).
+  ENDMETHOD.`
+};
+
+// src/adt/fluid/builtin/classic/abap-exists.ts
+var existsPart = {
+  methods: ["exists"],
+  source: `  METHOD exists.
+    DATA(lv_kind) = s( 'kind' ).
+    DATA(lv_name) = s( 'name' ).
+    DATA(lv_base_table) = s( 'base_table' ).
+    DATA lv_count TYPE i.
+    DATA lv_viewname TYPE dd25l-viewname.
+    DATA lv_tcode TYPE tstc-tcode.
+    DATA lv_devclass TYPE tdevc-devclass.
+    DATA lv_indexname TYPE dd12v-indexname.
+    DATA lv_sqltab TYPE tabname.
+
+    CASE lv_kind.
+      WHEN 'view'.
+        lv_viewname = lv_name.
+        SELECT COUNT( * ) FROM dd25l INTO @lv_count WHERE viewname = @lv_viewname.
+      WHEN 'transaction'.
+        lv_tcode = lv_name.
+        SELECT COUNT( * ) FROM tstc INTO @lv_count WHERE tcode = @lv_tcode.
+      WHEN 'package'.
+        lv_devclass = lv_name.
+        SELECT COUNT( * ) FROM tdevc INTO @lv_count WHERE devclass = @lv_devclass.
+      WHEN 'index'.
+        lv_indexname = lv_name.
+        lv_sqltab = lv_base_table.
+        SELECT COUNT( * ) FROM dd12v INTO @lv_count
+          WHERE sqltab = @lv_sqltab AND indexname = @lv_indexname AND as4local = 'A'.
+      WHEN OTHERS.
+        fail( |unknown kind { lv_kind }| ).
+        RETURN.
+    ENDCASE.
+
+    IF lv_count > 0.
+      line( 'EXISTS' ).
+    ELSE.
+      line( 'ABSENT' ).
+    ENDIF.
+  ENDMETHOD.`
+};
+
+// src/adt/fluid/builtin/classic.ts
+var CLASSIC_TOOL_ID = "classic";
+var CLASSIC_BODY_CLASS = "ZCL_ZMCP_FLUID_CLASSIC";
+var RUNTIME_SOURCE = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var CLASSIC_SOURCE = classicBodySource([viewPart, tranPart, indexPart, packagePart, transportPart, existsPart]);
+var classicManifest = {
+  contract: FLUID_CONTRACT,
+  id: CLASSIC_TOOL_ID,
+  title: "Classic DDIC/CTS bridge",
+  description: "Classic-UI DDIC and CTS mutations (view, transaction, index, package, transport entry).",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT.description,
+      source: { text: RUNTIME_SOURCE }
+    },
+    {
+      name: CLASSIC_BODY_CLASS,
+      type: "CLAS/OC",
+      description: "fluid: classic DDIC/CTS mutations (view/tran/index/pkg)",
+      source: { text: CLASSIC_SOURCE }
+    }
+  ],
+  entry: CLASSIC_BODY_CLASS,
+  actions: [
+    {
+      name: "create_view",
+      category: "mutate",
+      description: "Creates and activates a database view over one base table.",
+      input: {
+        type: "object",
+        required: ["view_name", "base_table", "fields", "description", "package_name", "corr_nr"],
+        properties: {
+          view_name: { type: "string", maxLength: 30, description: "The view name (DD25L-VIEWNAME)." },
+          base_table: { type: "string", maxLength: 30, description: "The single base table the view projects." },
+          fields: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: "Field names to project from the base table, in order."
+          },
+          description: { type: "string", maxLength: 60, description: "Short text (DD25V-DDTEXT)." },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/view_name", package: "/package_name", transport: "/corr_nr" }
+    },
+    {
+      name: "delete_view",
+      category: "mutate",
+      description: "Deletes a database view, active and inactive versions, and its TADIR row.",
+      input: {
+        type: "object",
+        required: ["view_name", "package_name"],
+        properties: {
+          view_name: { type: "string", maxLength: 30, description: "The view name to delete." },
+          package_name: { type: "string", maxLength: 30, description: "The view's current package, for the gate." }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/view_name", package: "/package_name", corr: "local" }
+    },
+    {
+      name: "create_transaction",
+      category: "mutate",
+      description: "Registers a dialog transaction code against a report and dynpro 1000.",
+      input: {
+        type: "object",
+        required: ["tcode", "program", "description", "package_name", "corr_nr"],
+        properties: {
+          tcode: { type: "string", maxLength: 20, description: "The transaction code to create." },
+          program: { type: "string", maxLength: 40, description: "The report the tcode starts." },
+          description: { type: "string", maxLength: 60, description: "Short text." },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/tcode", package: "/package_name", transport: "/corr_nr" }
+    },
+    {
+      name: "delete_transaction",
+      category: "mutate",
+      description: "Deletes a dialog transaction code and confirms the TSTC row is gone.",
+      input: {
+        type: "object",
+        required: ["tcode", "package_name"],
+        properties: {
+          tcode: { type: "string", maxLength: 20, description: "The transaction code to delete." },
+          package_name: { type: "string", maxLength: 30, description: "The tcode's current package, for the gate." }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/tcode", package: "/package_name", corr: "local" }
+    },
+    {
+      name: "create_index",
+      category: "mutate",
+      description: "Creates and activates a secondary index on one base table.",
+      input: {
+        type: "object",
+        required: ["index_name", "base_table", "fields", "description", "package_name", "corr_nr"],
+        properties: {
+          index_name: { type: "string", maxLength: 3, description: "The 3-character index id (DD12V-INDEXNAME)." },
+          base_table: { type: "string", maxLength: 30, description: "The table the index is created on." },
+          fields: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: "Field names in the index, in order."
+          },
+          description: { type: "string", maxLength: 60, description: "Short text." },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          },
+          unique: { type: "boolean", description: "Whether the index enforces uniqueness." }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/base_table", package: "/package_name", transport: "/corr_nr" }
+    },
+    {
+      name: "delete_index",
+      category: "mutate",
+      description: "Deletes a secondary index and confirms no catalog rows remain.",
+      input: {
+        type: "object",
+        required: ["index_name", "base_table", "package_name", "corr_nr"],
+        properties: {
+          index_name: { type: "string", maxLength: 3, description: "The 3-character index id to delete." },
+          base_table: { type: "string", maxLength: 30, description: "The table the index is on." },
+          package_name: { type: "string", maxLength: 30, description: "The index's package, for the gate." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/base_table", package: "/package_name", transport: "/corr_nr" }
+    },
+    {
+      name: "create_package",
+      category: "mutate",
+      description: "Creates a development package and optionally attaches it under a super package.",
+      input: {
+        type: "object",
+        required: ["package_name", "description", "software_component", "corr_nr", "super_package"],
+        properties: {
+          package_name: { type: "string", maxLength: 30, description: "The package (devclass) to create." },
+          description: { type: "string", maxLength: 60, description: "Short text." },
+          software_component: { type: "string", maxLength: 30, description: "Delivery unit (TDEVC-DLVUNIT)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          },
+          super_package: {
+            type: "string",
+            maxLength: 30,
+            description: "Parent package. Empty string for a root package."
+          },
+          package_type: {
+            type: "string",
+            maxLength: 20,
+            description: 'Only "development" is supported; omit for the default.'
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/package_name", package: "/super_package", transport: "/corr_nr" }
+    },
+    {
+      name: "delete_package",
+      category: "mutate",
+      description: "Deletes a package after confirming it holds no sub-packages or objects.",
+      input: {
+        type: "object",
+        required: ["package_name", "corr_nr"],
+        properties: {
+          package_name: { type: "string", maxLength: 30, description: "The package (devclass) to delete." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/package_name", package: "/package_name", transport: "/corr_nr" }
+    },
+    {
+      name: "remove_transport_entry",
+      category: "mutate",
+      description: "Removes one object's E071 entry from a transport request or one of its tasks.",
+      input: {
+        type: "object",
+        required: ["trkorr", "object_name"],
+        properties: {
+          trkorr: { type: "string", maxLength: 10, description: "The transport request holding the entry." },
+          object_name: { type: "string", maxLength: 40, description: "The object name (E071-OBJ_NAME) to remove." }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." }
+    },
+    {
+      name: "exists",
+      category: "read",
+      description: "Checks whether a view, transaction, package or index currently exists.",
+      input: {
+        type: "object",
+        required: ["kind", "name"],
+        properties: {
+          kind: {
+            type: "string",
+            enum: ["view", "transaction", "package", "index"],
+            description: "Which catalog to check."
+          },
+          name: { type: "string", maxLength: 30, description: "The object name to look up." },
+          base_table: { type: "string", maxLength: 30, description: 'Required only when kind is "index".' }
+        }
+      },
+      output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
+      targets: { object: "/name" }
+    }
+  ]
+};
+var classicSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE],
+  [CLASSIC_BODY_CLASS, CLASSIC_SOURCE]
+]);
+var classicTool = {
+  manifest: classicManifest,
+  origin: "builtin",
+  sources: classicSources,
+  version: manifestVersion(classicManifest, classicSources)
+};
+
+// src/adt/fluid/builtin/core/abap-core.ts
+var CLASS_NAME2 = "zcl_zmcp_fluid_core";
+var CORE_METHODS2 = `  METHOD run.
+    CLEAR gt_arg.
+    gv_failed = abap_false.
+    gv_step = iv_action.
+    TRY.
+        scan( iv_json ).
+        CASE iv_action.
+{{CASE_ARMS}}
+          WHEN OTHERS.
+            fail( |unknown action { iv_action }| ).
+        ENDCASE.
+      CATCH cx_root INTO DATA(lx_err).
+        fail( lx_err->get_text( ) ).
+    ENDTRY.
+    IF gv_failed = abap_true.
+      ROLLBACK WORK.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD scan.
+    DATA lv_len   TYPE i.
+    DATA lv_off   TYPE i.
+    DATA lv_ch    TYPE c LENGTH 1.
+    DATA lv_key   TYPE string.
+    DATA lv_val   TYPE string.
+    DATA lv_idx   TYPE i.
+    DATA lv_start TYPE i.
+    DATA lv_sub   TYPE string.
+    DATA ls_arg   TYPE ty_arg.
+
+    lv_len = strlen( iv_json ).
+    IF lv_len < 2.
+      RETURN.
+    ENDIF.
+    lv_off = 1.
+    WHILE lv_off < lv_len.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '}'.
+        RETURN.
+      ENDIF.
+      lv_key = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+      lv_off = lv_off + 1.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '"'.
+        lv_val = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+        CLEAR ls_arg.
+        ls_arg-path = lv_key.
+        ls_arg-value = lv_val.
+        INSERT ls_arg INTO TABLE gt_arg.
+      ELSEIF lv_ch = '['.
+        lv_off = lv_off + 1.
+        lv_idx = 0.
+        lv_ch = iv_json+lv_off(1).
+        IF lv_ch <> ']'.
+          WHILE lv_off < lv_len.
+            lv_val = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+            CLEAR ls_arg.
+            ls_arg-path = |{ lv_key }/{ lv_idx }|.
+            ls_arg-value = lv_val.
+            INSERT ls_arg INTO TABLE gt_arg.
+            lv_idx = lv_idx + 1.
+            lv_ch = iv_json+lv_off(1).
+            IF lv_ch = ','.
+              lv_off = lv_off + 1.
+            ELSE.
+              EXIT.
+            ENDIF.
+          ENDWHILE.
+        ENDIF.
+        lv_off = lv_off + 1.
+      ELSEIF lv_ch = '{'.
+        lv_off = lv_off + 1.
+        lv_ch = iv_json+lv_off(1).
+        IF lv_ch <> '}'.
+          WHILE lv_off < lv_len.
+            lv_sub = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+            lv_off = lv_off + 1.
+            lv_ch = iv_json+lv_off(1).
+            IF lv_ch = '"'.
+              lv_val = read_string( EXPORTING iv_json = iv_json CHANGING cv_off = lv_off ).
+            ELSE.
+              lv_start = lv_off.
+              WHILE lv_off < lv_len.
+                lv_ch = iv_json+lv_off(1).
+                IF lv_ch = ',' OR lv_ch = '}'.
+                  EXIT.
+                ENDIF.
+                lv_off = lv_off + 1.
+              ENDWHILE.
+              lv_val = substring( val = iv_json off = lv_start len = lv_off - lv_start ).
+            ENDIF.
+            CLEAR ls_arg.
+            ls_arg-path = |{ lv_key }/{ lv_sub }|.
+            ls_arg-value = lv_val.
+            INSERT ls_arg INTO TABLE gt_arg.
+            lv_ch = iv_json+lv_off(1).
+            IF lv_ch = ','.
+              lv_off = lv_off + 1.
+            ELSE.
+              EXIT.
+            ENDIF.
+          ENDWHILE.
+        ENDIF.
+        lv_off = lv_off + 1.
+      ELSE.
+        lv_start = lv_off.
+        WHILE lv_off < lv_len.
+          lv_ch = iv_json+lv_off(1).
+          IF lv_ch = ',' OR lv_ch = '}'.
+            EXIT.
+          ENDIF.
+          lv_off = lv_off + 1.
+        ENDWHILE.
+        lv_val = substring( val = iv_json off = lv_start len = lv_off - lv_start ).
+        CLEAR ls_arg.
+        ls_arg-path = lv_key.
+        ls_arg-value = lv_val.
+        INSERT ls_arg INTO TABLE gt_arg.
+      ENDIF.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = ','.
+        lv_off = lv_off + 1.
+      ELSE.
+        RETURN.
+      ENDIF.
+    ENDWHILE.
+  ENDMETHOD.
+
+  METHOD read_string.
+    DATA lv_len  TYPE i.
+    DATA lv_off  TYPE i.
+    DATA lv_ch   TYPE c LENGTH 1.
+    DATA lv_esc  TYPE c LENGTH 1.
+    DATA lv_hex  TYPE c LENGTH 4.
+    DATA lv_x2   TYPE x LENGTH 2.
+    DATA lv_xstr TYPE xstring.
+    DATA lv_uc   TYPE string.
+    DATA lv_crlf TYPE c LENGTH 2.
+    DATA lv_cr   TYPE c LENGTH 1.
+
+    lv_crlf = cl_abap_char_utilities=>cr_lf.
+    lv_cr = lv_crlf(1).
+    lv_len = strlen( iv_json ).
+    lv_off = cv_off + 1.
+    CLEAR rv_value.
+    WHILE lv_off < lv_len.
+      lv_ch = iv_json+lv_off(1).
+      IF lv_ch = '"'.
+        lv_off = lv_off + 1.
+        EXIT.
+      ELSEIF lv_ch = '\\'.
+        lv_off = lv_off + 1.
+        lv_esc = iv_json+lv_off(1).
+        CASE lv_esc.
+          WHEN '"'.
+            rv_value = rv_value && '"'.
+          WHEN '\\'.
+            rv_value = rv_value && '\\'.
+          WHEN '/'.
+            rv_value = rv_value && '/'.
+          WHEN 'b'.
+            rv_value = rv_value && cl_abap_char_utilities=>backspace.
+          WHEN 'f'.
+            rv_value = rv_value && cl_abap_char_utilities=>form_feed.
+          WHEN 'n'.
+            rv_value = rv_value && cl_abap_char_utilities=>newline.
+          WHEN 'r'.
+            rv_value = rv_value && lv_cr.
+          WHEN 't'.
+            rv_value = rv_value && cl_abap_char_utilities=>horizontal_tab.
+          WHEN 'u'.
+            lv_hex = substring( val = iv_json off = lv_off + 1 len = 4 ).
+            lv_x2 = lv_hex.
+            lv_xstr = lv_x2.
+            CLEAR lv_uc.
+            TRY.
+                cl_abap_conv_in_ce=>create( input = lv_xstr encoding = 'UTF-16BE' )->read( IMPORTING data = lv_uc ).
+              CATCH cx_root.
+                lv_uc = '?'.
+            ENDTRY.
+            rv_value = rv_value && lv_uc.
+            lv_off = lv_off + 4.
+          WHEN OTHERS.
+            rv_value = rv_value && lv_esc.
+        ENDCASE.
+        lv_off = lv_off + 1.
+      ELSE.
+        rv_value = rv_value && lv_ch.
+        lv_off = lv_off + 1.
+      ENDIF.
+    ENDWHILE.
+    cv_off = lv_off.
+  ENDMETHOD.
+
+  METHOD s.
+    DATA ls_arg TYPE ty_arg.
+    CLEAR rv_value.
+    READ TABLE gt_arg INTO ls_arg WITH TABLE KEY path = iv_path.
+    IF sy-subrc = 0.
+      rv_value = ls_arg-value.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD b.
+    rv_value = boolc( s( iv_path ) = 'true' ).
+  ENDMETHOD.
+
+  METHOD n.
+    DATA lv_pattern TYPE string.
+    CLEAR rv_count.
+    lv_pattern = |{ iv_path }/*|.
+    LOOP AT gt_arg TRANSPORTING NO FIELDS WHERE path CP lv_pattern.
+      rv_count = rv_count + 1.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD num.
+    DATA lv_raw TYPE string.
+    CLEAR rv_value.
+    lv_raw = s( iv_path ).
+    IF lv_raw IS INITIAL.
+      RETURN.
+    ENDIF.
+    TRY.
+        rv_value = lv_raw.
+      CATCH cx_root.
+        CLEAR rv_value.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD keys.
+    DATA lv_pattern TYPE string.
+    DATA lv_plen    TYPE i.
+    FIELD-SYMBOLS <ls_arg> TYPE ty_arg.
+    CLEAR rt_keys.
+    lv_pattern = |{ iv_prefix }/*|.
+    lv_plen = strlen( iv_prefix ) + 1.
+    LOOP AT gt_arg ASSIGNING <ls_arg> WHERE path CP lv_pattern.
+      APPEND substring( val = <ls_arg>-path off = lv_plen ) TO rt_keys.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD str.
+    CLEAR rv_text.
+    TRY.
+        rv_text = iv_value.
+      CATCH cx_root.
+        CLEAR rv_text.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD to_json.
+    DATA lo_type   TYPE REF TO cl_abap_typedescr.
+    DATA lo_struct TYPE REF TO cl_abap_structdescr.
+    DATA lv_first  TYPE abap_bool.
+    DATA ls_comp   TYPE abap_compdescr.
+    DATA lv_cname  TYPE string.
+    FIELD-SYMBOLS <lv_any> TYPE any.
+    FIELD-SYMBOLS <lt_any> TYPE ANY TABLE.
+
+    CLEAR rv_json.
+    lo_type = cl_abap_typedescr=>describe_by_data( iv_data ).
+    CASE lo_type->kind.
+      WHEN cl_abap_typedescr=>kind_elem.
+        rv_json = |"{ zcl_zmcp_fluid_rt=>esc( str( iv_data ) ) }"|.
+      WHEN cl_abap_typedescr=>kind_struct.
+        lo_struct ?= lo_type.
+        rv_json = '{'.
+        lv_first = abap_true.
+        LOOP AT lo_struct->components INTO ls_comp.
+          ASSIGN COMPONENT ls_comp-name OF STRUCTURE iv_data TO <lv_any>.
+          IF sy-subrc <> 0.
+            CONTINUE.
+          ENDIF.
+          IF lv_first = abap_false.
+            rv_json = rv_json && ','.
+          ENDIF.
+          lv_first = abap_false.
+          lv_cname = ls_comp-name.
+          rv_json = rv_json && |"{ zcl_zmcp_fluid_rt=>esc( lv_cname ) }":| && to_json( <lv_any> ).
+        ENDLOOP.
+        rv_json = rv_json && '}'.
+      WHEN cl_abap_typedescr=>kind_table.
+        ASSIGN iv_data TO <lt_any>.
+        rv_json = '['.
+        lv_first = abap_true.
+        LOOP AT <lt_any> ASSIGNING <lv_any>.
+          IF lv_first = abap_false.
+            rv_json = rv_json && ','.
+          ENDIF.
+          lv_first = abap_false.
+          rv_json = rv_json && to_json( <lv_any> ).
+        ENDLOOP.
+        rv_json = rv_json && ']'.
+      WHEN OTHERS.
+        rv_json = 'null'.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD fm_params.
+    DATA lv_func TYPE rs38l-name.
+    DATA ls_par  TYPE ty_par.
+    CLEAR rt_par.
+    lv_func = iv_func.
+    SELECT paramtype, parameter, structure, optional, defaultval
+      FROM fupararef
+      INTO TABLE @DATA(lt_raw)
+      WHERE funcname = @lv_func
+        AND r3state  = 'A'
+      ORDER BY paramtype, pposition.
+    LOOP AT lt_raw INTO DATA(ls_raw).
+      CLEAR ls_par.
+      ls_par-name     = ls_raw-parameter.
+      ls_par-ptype    = ls_raw-paramtype.
+      ls_par-typename = ls_raw-structure.
+      ls_par-optional = boolc( ls_raw-optional = 'X' ).
+      ls_par-defval   = ls_raw-defaultval.
+      APPEND ls_par TO rt_par.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD fail.
+    gv_failed = abap_true.
+    zcl_zmcp_fluid_rt=>err( iv_kind = 'action'
+                            iv_step = gv_step
+                            iv_text = iv_text ).
+  ENDMETHOD.
+
+  METHOD concrete_type.
+    " CREATE DATA TYPE (...) cannot instantiate a generic ABAP type
+    " (FUPARAREF sometimes gives one, e.g. CLIKE for a generically typed FM
+    " parameter) - only a concrete type works. Substitute a concrete
+    " character/byte stand-in for the well-known generic names; anything
+    " else is a real (non-generic) type name and passes through untouched.
+    DATA lv_upper TYPE string.
+    lv_upper = to_upper( iv_type ).
+    CASE lv_upper.
+      WHEN 'ANY' OR 'DATA' OR 'SIMPLE' OR 'CLIKE' OR 'CSEQUENCE' OR 'C'.
+        rv_type = 'string'.
+      WHEN 'XSEQUENCE' OR 'X'.
+        rv_type = 'xstring'.
+      WHEN OTHERS.
+        rv_type = iv_type.
+    ENDCASE.
+  ENDMETHOD.`;
+function coreBodySource(parts) {
+  const allActions = parts.flatMap((p) => p.actions);
+  const methodDecls = allActions.map((a) => `    CLASS-METHODS ${a.method}.`).join("\n");
+  const caseArms = allActions.map((a) => `        WHEN '${a.action}'.
+          ${a.method}( ).`).join("\n");
+  const bodies = parts.map((p) => p.source).join("\n\n");
+  const coreMethods = CORE_METHODS2.replace("{{CASE_ARMS}}", caseArms);
+  const source = `CLASS ${CLASS_NAME2} DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    TYPES: BEGIN OF ty_arg,
+             path  TYPE string,
+             value TYPE string,
+           END OF ty_arg.
+    TYPES: BEGIN OF ty_par,
+             name     TYPE string,
+             ptype    TYPE string,
+             typename TYPE string,
+             optional TYPE abap_bool,
+             defval   TYPE string,
+           END OF ty_par.
+    TYPES ty_par_tab TYPE STANDARD TABLE OF ty_par WITH DEFAULT KEY.
+
+    CLASS-DATA gt_arg    TYPE SORTED TABLE OF ty_arg WITH UNIQUE KEY path.
+    CLASS-DATA gv_failed TYPE abap_bool.
+    CLASS-DATA gv_step   TYPE string.
+
+    CLASS-METHODS scan
+      IMPORTING
+        iv_json TYPE string.
+    CLASS-METHODS read_string
+      IMPORTING
+        iv_json TYPE string
+      CHANGING
+        cv_off  TYPE i
+      RETURNING
+        VALUE(rv_value) TYPE string.
+    CLASS-METHODS s
+      IMPORTING
+        iv_path TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE string.
+    CLASS-METHODS b
+      IMPORTING
+        iv_path TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE abap_bool.
+    CLASS-METHODS num
+      IMPORTING
+        iv_path TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE i.
+    CLASS-METHODS n
+      IMPORTING
+        iv_path TYPE string
+      RETURNING
+        VALUE(rv_count) TYPE i.
+    CLASS-METHODS keys
+      IMPORTING
+        iv_prefix TYPE string
+      RETURNING
+        VALUE(rt_keys) TYPE string_table.
+    CLASS-METHODS str
+      IMPORTING
+        iv_value TYPE any
+      RETURNING
+        VALUE(rv_text) TYPE string.
+    CLASS-METHODS to_json
+      IMPORTING
+        iv_data TYPE any
+      RETURNING
+        VALUE(rv_json) TYPE string.
+    CLASS-METHODS fm_params
+      IMPORTING
+        iv_func TYPE string
+      RETURNING
+        VALUE(rt_par) TYPE ty_par_tab.
+    CLASS-METHODS fail
+      IMPORTING
+        iv_text TYPE string.
+    CLASS-METHODS concrete_type
+      IMPORTING
+        iv_type TYPE string
+      RETURNING
+        VALUE(rv_type) TYPE string.
+${methodDecls}
+ENDCLASS.
+
+
+CLASS ${CLASS_NAME2} IMPLEMENTATION.
+
+${coreMethods}
+
+${bodies}
+
+ENDCLASS.
+`;
+  source.split("\n").forEach((line, i) => {
+    if (line.length > ABAP_SOURCE_LINE_MAX) {
+      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated core body source line ${i + 1} is ${line.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
+        { line: i + 1, length: line.length, excerpt }
+      );
+    }
+  });
+  return source;
+}
+
+// src/adt/fluid/builtin/core/abap-select.ts
+var selectPart = {
+  actions: [{ action: "select", method: "do_select" }],
+  source: `  METHOD do_select.
+    DATA lv_table  TYPE string.
+    DATA lv_where  TYPE string.
+    DATA lv_max    TYPE i.
+    DATA lv_cnt    TYPE i.
+    DATA lv_idx    TYPE i.
+    DATA lv_fld    TYPE string.
+    DATA lt_fields TYPE string_table.
+    DATA lv_flds   TYPE string.
+    DATA lv_json   TYPE string.
+    DATA lv_first  TYPE abap_bool.
+    DATA lo_type   TYPE REF TO cl_abap_typedescr.
+    DATA lo_struct TYPE REF TO cl_abap_structdescr.
+    DATA ls_comp   TYPE abap_compdescr.
+    DATA lr_tab    TYPE REF TO data.
+    FIELD-SYMBOLS <lt_rows> TYPE STANDARD TABLE.
+    FIELD-SYMBOLS <ls_row>  TYPE any.
+    FIELD-SYMBOLS <lv_any>  TYPE any.
+
+    lv_table = to_upper( s( 'table' ) ).
+    lv_where = s( 'where' ).
+    lv_max   = num( 'max_rows' ).
+    IF lv_table IS INITIAL.
+      fail( 'table is required' ).
+      RETURN.
+    ENDIF.
+
+    cl_abap_typedescr=>describe_by_name(
+      EXPORTING  p_name         = lv_table
+      RECEIVING  p_descr_ref    = lo_type
+      EXCEPTIONS type_not_found = 1
+                 OTHERS         = 2 ).
+    IF sy-subrc <> 0.
+      fail( |unknown table or view { lv_table }| ).
+      RETURN.
+    ENDIF.
+    IF lo_type->kind <> cl_abap_typedescr=>kind_struct.
+      fail( |{ lv_table } is not a flat table or view| ).
+      RETURN.
+    ENDIF.
+    lo_struct ?= lo_type.
+
+    lv_cnt = n( 'fields' ).
+    IF lv_cnt = 0.
+      LOOP AT lo_struct->components INTO ls_comp.
+        APPEND ls_comp-name TO lt_fields.
+      ENDLOOP.
+      lv_flds = '*'.
+    ELSE.
+      lv_idx = 0.
+      WHILE lv_idx < lv_cnt.
+        lv_fld = to_upper( s( |fields/{ lv_idx }| ) ).
+        READ TABLE lo_struct->components TRANSPORTING NO FIELDS WITH KEY name = lv_fld.
+        IF sy-subrc <> 0.
+          fail( |{ lv_table } has no field { lv_fld }| ).
+          RETURN.
+        ENDIF.
+        APPEND lv_fld TO lt_fields.
+        IF lv_flds IS INITIAL.
+          lv_flds = lv_fld.
+        ELSE.
+          lv_flds = |{ lv_flds },{ lv_fld }|.
+        ENDIF.
+        lv_idx = lv_idx + 1.
+      ENDWHILE.
+    ENDIF.
+
+    CREATE DATA lr_tab TYPE STANDARD TABLE OF (lv_table).
+    ASSIGN lr_tab->* TO <lt_rows>.
+
+    TRY.
+        IF lv_where IS INITIAL.
+          SELECT (lv_flds) FROM (lv_table) INTO CORRESPONDING FIELDS OF TABLE @<lt_rows> UP TO @lv_max ROWS.
+        ELSE.
+          SELECT (lv_flds) FROM (lv_table) INTO CORRESPONDING FIELDS OF TABLE @<lt_rows> UP TO @lv_max ROWS WHERE (lv_where).
+        ENDIF.
+      CATCH cx_root INTO DATA(lx_sel).
+        fail( |select on { lv_table } failed: { lx_sel->get_text( ) }| ).
+        RETURN.
+    ENDTRY.
+
+    LOOP AT <lt_rows> ASSIGNING <ls_row>.
+      lv_json = '{'.
+      lv_first = abap_true.
+      LOOP AT lt_fields INTO lv_fld.
+        ASSIGN COMPONENT lv_fld OF STRUCTURE <ls_row> TO <lv_any>.
+        IF sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
+        IF lv_first = abap_false.
+          lv_json = lv_json && ','.
+        ENDIF.
+        lv_first = abap_false.
+        lv_json = lv_json && |"{ zcl_zmcp_fluid_rt=>esc( lv_fld ) }":| && to_json( <lv_any> ).
+      ENDLOOP.
+      lv_json = lv_json && '}'.
+      zcl_zmcp_fluid_rt=>out( lv_json ).
+    ENDLOOP.
+  ENDMETHOD.`
+};
+
+// src/adt/fluid/builtin/core/abap-fm.ts
+var fmPart = {
+  actions: [
+    { action: "describe_fm", method: "do_describe_fm" },
+    { action: "call_fm", method: "do_call_fm" }
+  ],
+  source: `  METHOD do_describe_fm.
+    DATA lv_name  TYPE string.
+    DATA lv_func  TYPE rs38l-name.
+    DATA lt_par   TYPE ty_par_tab.
+    DATA ls_par   TYPE ty_par.
+    DATA lv_json  TYPE string.
+    DATA lv_props TYPE string.
+    DATA lv_req   TYPE string.
+    DATA lv_exc   TYPE string.
+    DATA lv_kind  TYPE string.
+    DATA lv_first TYPE abap_bool.
+    DATA lv_pfirst TYPE abap_bool.
+    DATA lv_rfirst TYPE abap_bool.
+    DATA lv_efirst TYPE abap_bool.
+
+    lv_name = to_upper( s( 'name' ) ).
+    IF lv_name IS INITIAL.
+      fail( 'name is required' ).
+      RETURN.
+    ENDIF.
+    lv_func = lv_name.
+    SELECT SINGLE funcname FROM tfdir INTO @DATA(lv_chk) WHERE funcname = @lv_func.
+    IF sy-subrc <> 0.
+      fail( |unknown function module { lv_name }| ).
+      RETURN.
+    ENDIF.
+
+    lt_par = fm_params( lv_name ).
+
+    lv_json = |\\{"name":"{ zcl_zmcp_fluid_rt=>esc( lv_name ) }","parameters":[|.
+    lv_first = abap_true.
+    lv_props = ''.
+    lv_pfirst = abap_true.
+    lv_req = ''.
+    lv_rfirst = abap_true.
+    lv_exc = ''.
+    lv_efirst = abap_true.
+
+    LOOP AT lt_par INTO ls_par.
+      CASE ls_par-ptype.
+        WHEN 'I'.
+          lv_kind = 'in'.
+        WHEN 'E'.
+          lv_kind = 'out'.
+        WHEN 'C'.
+          lv_kind = 'changing'.
+        WHEN 'T'.
+          lv_kind = 'tables'.
+        WHEN OTHERS.
+          lv_kind = 'exception'.
+      ENDCASE.
+
+      IF ls_par-ptype = 'X'.
+        IF lv_efirst = abap_false.
+          lv_exc = lv_exc && ','.
+        ENDIF.
+        lv_efirst = abap_false.
+        lv_exc = lv_exc && |"{ zcl_zmcp_fluid_rt=>esc( ls_par-name ) }"|.
+        CONTINUE.
+      ENDIF.
+
+      IF lv_first = abap_false.
+        lv_json = lv_json && ','.
+      ENDIF.
+      lv_first = abap_false.
+      lv_json = lv_json && |\\{"kind":"{ lv_kind }",| .
+      lv_json = lv_json && |"name":"{ zcl_zmcp_fluid_rt=>esc( ls_par-name ) }",|.
+      lv_json = lv_json && |"type":"{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }",|.
+      lv_json = lv_json && |"optional":"{ ls_par-optional }",|.
+      lv_json = lv_json && |"default":"{ zcl_zmcp_fluid_rt=>esc( ls_par-defval ) }"\\}|.
+
+      IF ls_par-ptype = 'I' OR ls_par-ptype = 'C'.
+        IF lv_pfirst = abap_false.
+          lv_props = lv_props && ','.
+        ENDIF.
+        lv_pfirst = abap_false.
+        lv_props = lv_props && |"{ zcl_zmcp_fluid_rt=>esc( ls_par-name ) }":|.
+        lv_props = lv_props && |\\{"type":"string","description":"{ lv_kind }, type |.
+        lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }"\\}|.
+        IF ls_par-optional = abap_false.
+          IF lv_rfirst = abap_false.
+            lv_req = lv_req && ','.
+          ENDIF.
+          lv_rfirst = abap_false.
+          lv_req = lv_req && |"{ zcl_zmcp_fluid_rt=>esc( ls_par-name ) }"|.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    lv_json = lv_json && |],"exceptions":[{ lv_exc }],|.
+    lv_json = lv_json && |"params_schema":\\{"type":"object","properties":\\{{ lv_props }\\},|.
+    lv_json = lv_json && |"required":[{ lv_req }]\\}\\}|.
+    zcl_zmcp_fluid_rt=>out( lv_json ).
+  ENDMETHOD.
+
+  METHOD do_call_fm.
+    DATA lv_name  TYPE string.
+    DATA lv_func  TYPE rs38l-name.
+    DATA lt_par   TYPE ty_par_tab.
+    DATA ls_par   TYPE ty_par.
+    DATA lt_keys  TYPE string_table.
+    DATA lv_key   TYPE string.
+    DATA lv_val   TYPE string.
+    DATA lt_ptab  TYPE abap_func_parmbind_tab.
+    DATA ls_ptab  TYPE abap_func_parmbind.
+    DATA lt_etab  TYPE abap_func_excpbind_tab.
+    DATA ls_etab  TYPE abap_func_excpbind.
+    DATA lr_data  TYPE REF TO data.
+    DATA lv_type  TYPE string.
+    DATA lv_json  TYPE string.
+    DATA lv_kind  TYPE string.
+    DATA lv_pname TYPE string.
+    DATA lv_tname TYPE string.
+    FIELD-SYMBOLS <lv_any> TYPE any.
+
+    lv_name = to_upper( s( 'name' ) ).
+    IF lv_name IS INITIAL.
+      fail( 'name is required' ).
+      RETURN.
+    ENDIF.
+    lv_func = lv_name.
+    SELECT SINGLE funcname FROM tfdir INTO @DATA(lv_chk) WHERE funcname = @lv_func.
+    IF sy-subrc <> 0.
+      fail( |unknown function module { lv_name }| ).
+      RETURN.
+    ENDIF.
+
+    lt_par = fm_params( lv_name ).
+    lt_keys = keys( 'params' ).
+
+    LOOP AT lt_keys INTO lv_key.
+      lv_key = to_upper( lv_key ).
+      READ TABLE lt_par INTO ls_par WITH KEY name = lv_key.
+      IF sy-subrc <> 0 OR ( ls_par-ptype <> 'I' AND ls_par-ptype <> 'C' ).
+        fail( |{ lv_name } has no input parameter { lv_key }| ).
+        RETURN.
+      ENDIF.
+      IF ls_par-typename IS INITIAL.
+        fail( |parameter { lv_key } of { lv_name } is untyped; core.call_fm cannot bind it| ).
+        RETURN.
+      ENDIF.
+      lv_tname = ls_par-typename.
+      lv_type = concrete_type( lv_tname ).
+      TRY.
+          CREATE DATA lr_data TYPE (lv_type).
+        CATCH cx_root.
+          fail( |cannot create a value of type { lv_type } for parameter { lv_key }| ).
+          RETURN.
+      ENDTRY.
+      ASSIGN lr_data->* TO <lv_any>.
+      lv_val = s( |params/{ lv_key }| ).
+      TRY.
+          <lv_any> = lv_val.
+        CATCH cx_root.
+          fail( |value for { lv_key } does not fit type { lv_type }| ).
+          RETURN.
+      ENDTRY.
+      CLEAR ls_ptab.
+      ls_ptab-name = lv_key.
+      IF ls_par-ptype = 'I'.
+        ls_ptab-kind = abap_func_exporting.
+      ELSE.
+        ls_ptab-kind = abap_func_changing.
+      ENDIF.
+      ls_ptab-value = lr_data.
+      INSERT ls_ptab INTO TABLE lt_ptab.
+    ENDLOOP.
+
+    LOOP AT lt_par INTO ls_par.
+      IF ls_par-ptype <> 'E' AND ls_par-ptype <> 'T'.
+        CONTINUE.
+      ENDIF.
+      IF ls_par-typename IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      READ TABLE lt_ptab TRANSPORTING NO FIELDS WITH KEY name = ls_par-name.
+      IF sy-subrc = 0.
+        CONTINUE.
+      ENDIF.
+      lv_tname = ls_par-typename.
+      lv_type = concrete_type( lv_tname ).
+      TRY.
+          IF ls_par-ptype = 'T'.
+            CREATE DATA lr_data TYPE STANDARD TABLE OF (lv_type).
+          ELSE.
+            CREATE DATA lr_data TYPE (lv_type).
+          ENDIF.
+        CATCH cx_root.
+          CONTINUE.
+      ENDTRY.
+      CLEAR ls_ptab.
+      ls_ptab-name = ls_par-name.
+      IF ls_par-ptype = 'T'.
+        ls_ptab-kind = abap_func_tables.
+      ELSE.
+        ls_ptab-kind = abap_func_importing.
+      ENDIF.
+      ls_ptab-value = lr_data.
+      INSERT ls_ptab INTO TABLE lt_ptab.
+    ENDLOOP.
+
+    CLEAR ls_etab.
+    ls_etab-name = 'OTHERS'.
+    ls_etab-value = 1.
+    INSERT ls_etab INTO TABLE lt_etab.
+
+    TRY.
+        CALL FUNCTION lv_name
+          PARAMETER-TABLE lt_ptab
+          EXCEPTION-TABLE lt_etab.
+      CATCH cx_root INTO DATA(lx_call).
+        fail( |{ lv_name } raised { lx_call->get_text( ) }| ).
+        RETURN.
+    ENDTRY.
+    IF sy-subrc <> 0.
+      fail( |{ lv_name } returned exception subrc { sy-subrc }| ).
+      RETURN.
+    ENDIF.
+
+    IF b( 'commit' ) = abap_true.
+      COMMIT WORK AND WAIT.
+    ENDIF.
+
+    LOOP AT lt_ptab INTO ls_ptab.
+      IF ls_ptab-kind = abap_func_exporting.
+        CONTINUE.
+      ENDIF.
+      CASE ls_ptab-kind.
+        WHEN abap_func_importing.
+          lv_kind = 'out'.
+        WHEN abap_func_changing.
+          lv_kind = 'changing'.
+        WHEN OTHERS.
+          lv_kind = 'tables'.
+      ENDCASE.
+      ASSIGN ls_ptab-value->* TO <lv_any>.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      lv_pname = ls_ptab-name.
+      lv_json = |\\{"name":"{ zcl_zmcp_fluid_rt=>esc( lv_pname ) }",|.
+      lv_json = lv_json && |"kind":"{ lv_kind }","value":| && to_json( <lv_any> ) && '}'.
+      zcl_zmcp_fluid_rt=>out( lv_json ).
+    ENDLOOP.
+  ENDMETHOD.`
+};
+
+// src/adt/fluid/builtin/core.ts
+var CORE_TOOL_ID = "core";
+var CORE_BODY_CLASS = "ZCL_ZMCP_FLUID_CORE";
+var RUNTIME_SOURCE2 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE2 === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT2 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT2 === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var CORE_SOURCE = coreBodySource([selectPart, fmPart]);
+var coreManifest = {
+  contract: FLUID_CONTRACT,
+  id: CORE_TOOL_ID,
+  title: "Core read/execute bridge",
+  description: "Table select, function-module interface description, and function-module call.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT2.description,
+      source: { text: RUNTIME_SOURCE2 }
+    },
+    {
+      name: CORE_BODY_CLASS,
+      type: "CLAS/OC",
+      description: "fluid: table select, FM describe and FM call",
+      source: { text: CORE_SOURCE }
+    }
+  ],
+  entry: CORE_BODY_CLASS,
+  actions: [
+    {
+      name: "select",
+      category: "read",
+      description: "Reads rows from one table or view. Judged by the data-preview policy.",
+      input: {
+        type: "object",
+        required: ["table"],
+        properties: {
+          table: { type: "string", maxLength: 30, description: "The table or view to read." },
+          fields: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: "Field names to project, in order. Omit for every field."
+          },
+          where: {
+            type: "string",
+            description: "An Open SQL WHERE condition, evaluated dynamically against that one table."
+          },
+          max_rows: {
+            type: "integer",
+            minimum: 0,
+            description: "Row limit. Omitted or 0 means no limit \u2014 abapsmith imposes no default and no ceiling."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: "One row per element; every column value is a JSON string."
+      },
+      targets: { object: "/table" }
+    },
+    {
+      name: "describe_fm",
+      category: "read",
+      description: "Describes a function module's importing/exporting/changing/tables/exception interface.",
+      input: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", maxLength: 30, description: "The function module name." }
+        }
+      },
+      output: {
+        type: "object",
+        required: ["name", "parameters", "exceptions", "params_schema"],
+        properties: {
+          name: { type: "string" },
+          parameters: { type: "array", items: { type: "object" } },
+          exceptions: { type: "array", items: { type: "string" } },
+          params_schema: { type: "object" }
+        }
+      },
+      targets: { object: "/name" }
+    },
+    {
+      name: "call_fm",
+      category: "execute",
+      description: "Calls a function module in the caller's own system, under the caller's own authorizations.",
+      input: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", maxLength: 30, description: "The function module to call." },
+          params: {
+            type: "object",
+            description: "Parameter name -> value, every value a string. See core.describe_fm's params_schema."
+          },
+          commit: {
+            type: "boolean",
+            description: 'COMMIT WORK AND WAIT after the call. Requires confirm: "core.call_fm".'
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "object" },
+        description: "One returned parameter per element: name, kind, value."
+      }
+    }
+  ]
+};
+var coreSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE2],
+  [CORE_BODY_CLASS, CORE_SOURCE]
+]);
+var coreTool = {
+  manifest: coreManifest,
+  origin: "builtin",
+  sources: coreSources,
+  version: manifestVersion(coreManifest, coreSources)
+};
+function isNonEmptyString(v) {
+  return typeof v === "string" && v.length > 0;
+}
+async function guardCoreAction(deps, req) {
+  if (req.tool !== CORE_TOOL_ID) return;
+  if (req.action === "select") {
+    const args = req.args;
+    const table = typeof args === "object" && args !== null && !Array.isArray(args) ? args["table"] : void 0;
+    if (!isNonEmptyString(table)) return;
+    deps.gate.assertDataPreview(table);
+    if (!deps.cfg.allowDataPreview) {
+      throw new AbapError(
+        "SAFETY_DENIED",
+        `core.select reads table data, which is off by default. Set ABAP_ALLOW_DATA_PREVIEW=true to allow it.`,
+        { tool: req.tool, action: req.action, rule: "ABAP_ALLOW_DATA_PREVIEW" }
+      );
+    }
+    return;
+  }
+  if (req.action === "call_fm") {
+    if (!deps.cfg.allowFluidCallFm) {
+      throw new AbapError(
+        "SAFETY_DENIED",
+        `core.call_fm calls an arbitrary function module and is off by default. Set ABAP_ALLOW_FLUID_CALL_FM=true to allow it.`,
+        { tool: req.tool, action: req.action, rule: "ABAP_ALLOW_FLUID_CALL_FM" }
+      );
+    }
+    const args = req.args;
+    const commit = typeof args === "object" && args !== null && !Array.isArray(args) ? args["commit"] : void 0;
+    if (commit === true) {
+      const expectedConfirm = `${req.tool}.${req.action}`;
+      if (req.confirm !== expectedConfirm) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${req.tool}.${req.action} mutates state and requires confirm: ${JSON.stringify(expectedConfirm)} (got ${req.confirm === void 0 ? "nothing" : JSON.stringify(req.confirm)}).`,
+          { field: "confirm", expected: expectedConfirm, got: req.confirm }
+        );
+      }
+    }
+    return;
+  }
+}
+
+// src/adt/fluid/builtin/enh.ts
+var RUNTIME_SOURCE3 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE3 === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT3 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT3 === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var ENH_SOURCE = `CLASS zcl_zmcp_fluid_enh DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
+
+  METHOD run.
+    DATA: lv_pkg     TYPE devclass,
+          lv_trkorr  TYPE trkorr,
+          lo_spot    TYPE REF TO if_enh_spot_tool,
+          lo_def     TYPE REF TO cl_enh_tool_badi_def,
+          ls_badi    TYPE enh_badi_data,
+          ls_filter  TYPE enh_badi_filter,
+          lo_enh     TYPE REF TO if_enh_tool,
+          lo_impl    TYPE REF TO cl_enh_tool_badi_impl,
+          ls_impl    TYPE enh_badi_impl_data,
+          lo_tool    TYPE REF TO if_enh_tool,
+          lo_obj     TYPE REF TO if_enh_object,
+          ls_val     TYPE enh_badiimpl_filter_value,
+          ls_root    TYPE enh_badiimpl_filter_root,
+          ls_id      TYPE LINE OF enh_badiimpl_filter_id_it,
+          lv_filter_check TYPE string.
+
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'enh' iv_action = iv_action ).
+    zcl_zmcp_fluid_rt=>scan( iv_json ).
+
+    " package_name/corr_nr are required on every mutating action (see the
+    " enh manifest's input schema), so there is no $TMP/space fallback here:
+    " dispatch's own schema check (BAD_INPUT) and the target-resolution gate
+    " both already refuse the call before this ABAP body ever runs if either
+    " is absent. A silent local-package fallback here would only mask that
+    " class of bug instead of surfacing it - callers that want $TMP must
+    " pass package_name: "$TMP" explicitly, same as classic.ts. TRANSLATE
+    " guards against a lowercase devclass slipping past the gate's allowlist
+    " check unnoticed. corr_nr legitimately IS an empty string for a $
+    " (local) package, so it is only copied into lv_trkorr when non-initial.
+    lv_pkg = zcl_zmcp_fluid_rt=>s( 'package_name' ).
+    TRANSLATE lv_pkg TO UPPER CASE.
+    DATA(lv_corr_arg) = zcl_zmcp_fluid_rt=>s( 'corr_nr' ).
+    IF lv_corr_arg IS NOT INITIAL.
+      lv_trkorr = lv_corr_arg.
+    ENDIF.
+
+    TRY.
+        CASE iv_action.
+          WHEN 'create_spot'.
+            DATA(lv_spot_name) = zcl_zmcp_fluid_rt=>s( 'spot_name' ).
+            DATA(lv_description) = zcl_zmcp_fluid_rt=>s( 'description' ).
+            IF lv_spot_name IS INITIAL OR lv_description IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'spot_name and description are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            cl_enh_factory=>create_enhancement_spot(
+              EXPORTING spot_name = CONV #( lv_spot_name )
+                        tooltype  = cl_enh_tool_badi_def=>tooltype
+                        dark      = abap_true
+              IMPORTING spot      = lo_spot
+              CHANGING  trkorr    = lv_trkorr
+                        devclass  = lv_pkg ).
+            lo_def ?= lo_spot.
+            lo_spot->if_enh_object_docu~set_shorttext( CONV #( lv_description ) ).
+            lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~unlock( ).
+            zcl_zmcp_fluid_rt=>out( '{"created":true}' ).
+
+          WHEN 'add_badi_def'.
+            lv_spot_name = zcl_zmcp_fluid_rt=>s( 'spot_name' ).
+            DATA(lv_badi_name) = zcl_zmcp_fluid_rt=>s( 'badi_name' ).
+            DATA(lv_interface_name) = zcl_zmcp_fluid_rt=>s( 'interface_name' ).
+            DATA(lv_short_text) = zcl_zmcp_fluid_rt=>s( 'short_text' ).
+            IF lv_spot_name IS INITIAL OR lv_badi_name IS INITIAL
+                OR lv_interface_name IS INITIAL OR lv_short_text IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'spot_name, badi_name, interface_name and short_text are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            lo_spot = cl_enh_factory=>get_enhancement_spot(
+              spot_name = CONV #( lv_spot_name ) lock = 'X' run_dark = abap_true ).
+            lo_def ?= lo_spot.
+            CLEAR ls_badi.
+            ls_badi-badi_name = lv_badi_name.
+            ls_badi-interface_name = lv_interface_name.
+            ls_badi-single_use = zcl_zmcp_fluid_rt=>b( 'single_use' ).
+            ls_badi-badi_shorttext = lv_short_text.
+            ls_badi-context_mode = 'N'.
+            lo_def->add_badi_def( im_badi_def = ls_badi ).
+            lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~unlock( ).
+            zcl_zmcp_fluid_rt=>out( '{"added":true}' ).
+
+          WHEN 'add_filter_def'.
+            lv_spot_name = zcl_zmcp_fluid_rt=>s( 'spot_name' ).
+            lv_badi_name = zcl_zmcp_fluid_rt=>s( 'badi_name' ).
+            DATA(lv_filter_name) = zcl_zmcp_fluid_rt=>s( 'filter_name' ).
+            DATA(lv_filter_type) = zcl_zmcp_fluid_rt=>s( 'filter_type' ).
+            DATA(lv_filter_text) = zcl_zmcp_fluid_rt=>s( 'filter_text' ).
+            IF lv_spot_name IS INITIAL OR lv_badi_name IS INITIAL
+                OR lv_filter_name IS INITIAL OR lv_filter_type IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'spot_name, badi_name, filter_name and filter_type are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            lo_spot = cl_enh_factory=>get_enhancement_spot(
+              spot_name = CONV #( lv_spot_name ) lock = 'X' run_dark = abap_true ).
+            lo_def ?= lo_spot.
+            ls_badi = lo_def->get_badi_def( badi_name = CONV #( lv_badi_name ) ).
+            lo_def->delete_badi_def( badi_name = CONV #( lv_badi_name ) ).
+            CLEAR ls_filter.
+            ls_filter-filter_name = lv_filter_name.
+            ls_filter-filter_type = lv_filter_type.
+            ls_filter-filtertext = lv_filter_text.
+            APPEND ls_filter TO ls_badi-filters.
+            lo_def->add_badi_def( im_badi_def = ls_badi ).
+            lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_spot->if_enh_object~unlock( ).
+            zcl_zmcp_fluid_rt=>out( '{"added":true}' ).
+
+          WHEN 'create_impl'.
+            DATA(lv_enh_name) = zcl_zmcp_fluid_rt=>s( 'enh_name' ).
+            lv_spot_name = zcl_zmcp_fluid_rt=>s( 'spot_name' ).
+            lv_badi_name = zcl_zmcp_fluid_rt=>s( 'badi_name' ).
+            DATA(lv_impl_name) = zcl_zmcp_fluid_rt=>s( 'impl_name' ).
+            DATA(lv_impl_class) = zcl_zmcp_fluid_rt=>s( 'impl_class' ).
+            lv_description = zcl_zmcp_fluid_rt=>s( 'description' ).
+            DATA(lv_active) = zcl_zmcp_fluid_rt=>b( 'active' ).
+            IF lv_enh_name IS INITIAL OR lv_spot_name IS INITIAL OR lv_badi_name IS INITIAL
+                OR lv_impl_name IS INITIAL OR lv_impl_class IS INITIAL OR lv_description IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'enh_name, spot_name, badi_name, impl_name, impl_class and description are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            cl_enh_factory=>create_enhancement(
+              EXPORTING enhname     = CONV #( lv_enh_name )
+                        enhtype     = 'IMPL'
+                        enhtooltype = cl_enh_tool_badi_impl=>tooltype
+                        dark        = abap_true
+              IMPORTING enhancement = lo_enh
+              CHANGING  trkorr      = lv_trkorr
+                        devclass    = lv_pkg ).
+            lo_impl ?= lo_enh.
+            lo_impl->set_spot_name( CONV #( lv_spot_name ) ).
+            lo_impl->if_enh_object_docu~set_shorttext( CONV #( lv_description ) ).
+            CLEAR ls_impl.
+            ls_impl-spot_name = lv_spot_name.
+            ls_impl-badi_name = lv_badi_name.
+            ls_impl-impl_name = lv_impl_name.
+            ls_impl-impl_class = lv_impl_class.
+            ls_impl-active = lv_active.
+            lo_impl->add_implementation( im_implementation = ls_impl ).
+            lo_enh->if_enh_object~save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_enh->if_enh_object~activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_enh->if_enh_object~unlock( ).
+
+            " Diagnostic only, mirrors legacy badiFilterCheckFragment: never fails create_impl.
+            CLEAR: lv_filter_check, lo_spot, lo_def, ls_badi.
+            TRY.
+                lo_spot = cl_enh_factory=>get_enhancement_spot(
+                  spot_name = CONV #( lv_spot_name ) lock = 'X' run_dark = abap_true ).
+                lo_def ?= lo_spot.
+                ls_badi = lo_def->get_badi_def( badi_name = CONV #( lv_badi_name ) ).
+                IF ls_badi-filters IS NOT INITIAL.
+                  lv_filter_check = 'has_filters'.
+                ELSE.
+                  lv_filter_check = 'no_filters'.
+                ENDIF.
+              CATCH cx_root.
+                lv_filter_check = 'inconclusive'.
+            ENDTRY.
+            IF lo_spot IS BOUND.
+              TRY.
+                  lo_spot->if_enh_object~unlock( ).
+                CATCH cx_root.
+              ENDTRY.
+            ENDIF.
+
+            DATA(lv_impl_json) = |\\{"created":true,"impl_added":true,"filter_check":"| &&
+              zcl_zmcp_fluid_rt=>esc( lv_filter_check ) && |"\\}|.
+            zcl_zmcp_fluid_rt=>out( lv_impl_json ).
+
+          WHEN 'set_filter_values'.
+            lv_enh_name = zcl_zmcp_fluid_rt=>s( 'enh_name' ).
+            lv_impl_name = zcl_zmcp_fluid_rt=>s( 'impl_name' ).
+            lv_filter_name = zcl_zmcp_fluid_rt=>s( 'filter_name' ).
+            lv_filter_type = zcl_zmcp_fluid_rt=>s( 'filter_type' ).
+            DATA(lv_compare_raw) = zcl_zmcp_fluid_rt=>s( 'compare' ).
+            DATA(lv_value) = zcl_zmcp_fluid_rt=>s( 'value' ).
+            IF lv_enh_name IS INITIAL OR lv_impl_name IS INITIAL OR lv_filter_name IS INITIAL
+                OR lv_filter_type IS INITIAL OR lv_compare_raw IS INITIAL.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'enh_name, impl_name, filter_name, filter_type, compare and value are required' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            DATA(lv_compare) = lv_compare_raw.
+            CASE lv_compare_raw.
+              WHEN 'EQ'. lv_compare = '='.
+              WHEN 'NE'. lv_compare = '<>'.
+              WHEN 'LT'. lv_compare = '<'.
+              WHEN 'LE'. lv_compare = '<='.
+              WHEN 'GT'. lv_compare = '>'.
+              WHEN 'GE'. lv_compare = '>='.
+            ENDCASE.
+            IF lv_compare <> '=' AND lv_compare <> '<>' AND lv_compare <> '<'
+                AND lv_compare <> '<=' AND lv_compare <> '>' AND lv_compare <> '>='.
+              zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+                iv_text = 'compare must be one of = <> < <= > >= or EQ/NE/LT/LE/GT/GE' ).
+              zcl_zmcp_fluid_rt=>end( 1 ).
+              RETURN.
+            ENDIF.
+
+            lo_tool = cl_enh_factory=>get_enhancement(
+              enhancement_id = CONV #( lv_enh_name ) lock = 'X' run_dark = abap_true ).
+            lo_impl ?= lo_tool.
+            lo_obj ?= lo_tool.
+            ls_impl = lo_impl->get_implementation( impl_name = CONV #( lv_impl_name ) ).
+            lo_impl->delete_implementation( impl_name = CONV #( lv_impl_name ) ).
+            CLEAR: ls_impl-filters, ls_impl-filter_values, ls_impl-filter_root, ls_impl-filter_tree.
+            CLEAR ls_val.
+            ls_val-id = 1.
+            ls_val-filter_name = lv_filter_name.
+            ls_val-filter_type = lv_filter_type.
+            ls_val-compare = lv_compare.
+            ls_val-filter_char_value1 = lv_value.
+            APPEND ls_val TO ls_impl-filter_values.
+            CLEAR ls_id.
+            ls_id-id = 1.
+            CLEAR ls_root.
+            ls_root-root = 1.
+            APPEND ls_id TO ls_root-filters.
+            APPEND ls_root TO ls_impl-filter_root.
+            lo_impl->add_implementation( im_implementation = ls_impl ).
+            lo_obj->save( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_obj->activate( EXPORTING run_dark = abap_true
+              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            lo_obj->unlock( ).
+            zcl_zmcp_fluid_rt=>out( '{"replaced":true}' ).
+
+          " There is deliberately no WHEN 'exercise'. arm here. Legacy's
+          " exerciseFragment (see enhancement-templates.ts) binds a BAdI
+          " handle by declaring DATA lo_badi TYPE REF TO <badi_name> - a
+          " compile-time type built from a runtime string. That works for
+          " legacy because it generates one fresh, per-call bridge class per
+          " badi_name and compiles the literal type name straight into it.
+          " This class is deployed once and shared by every call, so it has
+          " no badi_name to compile in; the only ways to bind and call a
+          " handle whose type is known only at runtime - an instance
+          " reference immediately followed by a parenthesized, computed
+          " method name, the same via a class reference, or a CALL METHOD
+          " whose method name is itself a parenthesized variable - are all
+          " dynamic dispatch, and reviewFluidAbap's "dynamic-call-method"
+          " rule forbids every one of them from ever being deployed through
+          " this tool. So "exercise a BAdI handle from a static fluid body"
+          " is not a missing feature to add later: it is provably
+          " unimplementable under this tool's own static-review contract.
+          " Exercising a BAdI implementation remains a job for the legacy
+          " (non-fluid) abap_enh tool, whose generated bridge class can
+          " still write that TYPE REF TO literally because it is
+          " regenerated per call.
+
+          WHEN OTHERS.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+              iv_text = |unknown action "{ iv_action }"| ).
+            zcl_zmcp_fluid_rt=>end( 1 ).
+            RETURN.
+        ENDCASE.
+
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = iv_action iv_text = lx_err->get_text( ) ).
+        zcl_zmcp_fluid_rt=>end( 1 ).
+        RETURN.
+    ENDTRY.
+
+    zcl_zmcp_fluid_rt=>end( 0 ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var enhManifest = {
+  contract: FLUID_CONTRACT,
+  id: "enh",
+  title: "Enhancement spots",
+  description: "Creates and edits classic BAdI enhancement spots and implementations.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT3.description,
+      source: { text: RUNTIME_SOURCE3 }
+    },
+    {
+      name: "ZCL_ZMCP_FLUID_ENH",
+      type: "CLAS/OC",
+      description: "fluid: BAdI enhancement spot/implementation operations",
+      source: { text: ENH_SOURCE }
+    }
+  ],
+  entry: "ZCL_ZMCP_FLUID_ENH",
+  actions: [
+    {
+      name: "create_spot",
+      category: "mutate",
+      description: "Creates, saves, activates and unlocks a new BAdI enhancement spot.",
+      targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
+      input: {
+        type: "object",
+        required: ["spot_name", "description", "package_name", "corr_nr"],
+        properties: {
+          spot_name: { type: "string", maxLength: 30, description: "New spot's ENHNAME." },
+          description: { type: "string", maxLength: 60, description: "Root object short text." },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: {
+        type: "object",
+        required: ["created"],
+        properties: { created: { type: "boolean" } }
+      }
+    },
+    {
+      name: "add_badi_def",
+      category: "mutate",
+      description: "Adds a BAdI definition to an existing spot. Assumes the marker interface named by interface_name already exists (INTERFACES if_badi_interface) - callers must create it first.",
+      targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
+      input: {
+        type: "object",
+        required: ["spot_name", "badi_name", "interface_name", "single_use", "short_text", "package_name", "corr_nr"],
+        properties: {
+          spot_name: { type: "string", maxLength: 30 },
+          badi_name: { type: "string", maxLength: 30 },
+          interface_name: { type: "string", maxLength: 30, description: "Pre-existing marker interface." },
+          single_use: { type: "boolean" },
+          short_text: { type: "string", maxLength: 60 },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: {
+        type: "object",
+        required: ["added"],
+        properties: { added: { type: "boolean" } }
+      }
+    },
+    {
+      name: "add_filter_def",
+      category: "mutate",
+      description: "Adds a filter definition to an existing BAdI definition on a spot.",
+      targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
+      input: {
+        type: "object",
+        required: ["spot_name", "badi_name", "filter_name", "filter_type", "package_name", "corr_nr"],
+        properties: {
+          spot_name: { type: "string", maxLength: 30 },
+          badi_name: { type: "string", maxLength: 30 },
+          filter_name: { type: "string", maxLength: 30 },
+          filter_type: { type: "string", maxLength: 1, description: "Single-letter domain filter type code." },
+          filter_text: { type: "string", maxLength: 60 },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: {
+        type: "object",
+        required: ["added"],
+        properties: { added: { type: "boolean" } }
+      }
+    },
+    {
+      name: "create_impl",
+      category: "mutate",
+      description: "Creates a BAdI implementation object bound to a spot, saves/activates/unlocks it, then reports (best-effort, never fails the create) whether the target BAdI has filters defined.",
+      targets: { object: "/enh_name", package: "/package_name", transport: "/corr_nr" },
+      input: {
+        type: "object",
+        required: [
+          "enh_name",
+          "spot_name",
+          "badi_name",
+          "impl_name",
+          "impl_class",
+          "active",
+          "description",
+          "package_name",
+          "corr_nr"
+        ],
+        properties: {
+          enh_name: { type: "string", maxLength: 30, description: "New implementation's ENHNAME." },
+          spot_name: { type: "string", maxLength: 30 },
+          badi_name: { type: "string", maxLength: 30 },
+          impl_name: { type: "string", maxLength: 30 },
+          impl_class: { type: "string", maxLength: 30, description: "Implementing class, e.g. a BAdI handler." },
+          active: { type: "boolean" },
+          description: { type: "string", maxLength: 60 },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: {
+        type: "object",
+        required: ["created", "impl_added", "filter_check"],
+        properties: {
+          created: { type: "boolean" },
+          impl_added: { type: "boolean" },
+          filter_check: { type: "string", enum: ["has_filters", "no_filters", "inconclusive"] }
+        }
+      }
+    },
+    {
+      name: "set_filter_values",
+      category: "mutate",
+      description: "Replaces a BAdI implementation's filter value with a single row (id 1) matching one filter_name, then saves/activates/unlocks via the implementation's if_enh_object handle. Does not perform legacy's joint spot+implementation ADT reactivation - callers that need that stronger guarantee must still request it over ADT REST afterward.",
+      targets: { object: "/enh_name", package: "/package_name", transport: "/corr_nr" },
+      input: {
+        type: "object",
+        required: [
+          "enh_name",
+          "impl_name",
+          "filter_name",
+          "filter_type",
+          "compare",
+          "value",
+          "package_name",
+          "corr_nr"
+        ],
+        properties: {
+          enh_name: { type: "string", maxLength: 30, description: "Implementation's ENHNAME." },
+          impl_name: { type: "string", maxLength: 30 },
+          filter_name: { type: "string", maxLength: 30 },
+          filter_type: { type: "string", maxLength: 1 },
+          compare: { type: "string", maxLength: 2, description: "= <> < <= > >= or EQ/NE/LT/LE/GT/GE." },
+          value: { type: "string", maxLength: 255 },
+          package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Empty string for a $ (local) package."
+          }
+        }
+      },
+      output: {
+        type: "object",
+        required: ["replaced"],
+        properties: { replaced: { type: "boolean" } }
+      }
+    }
+  ]
+};
+var enhSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE3],
+  ["ZCL_ZMCP_FLUID_ENH", ENH_SOURCE]
+]);
+
+// src/adt/fluid/builtin/fpm.ts
+var CONFIG_ID_LEN = 32;
+var RUNTIME_SOURCE4 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE4 === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT4 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT4 === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var FPM_SOURCE = `CLASS zcl_zmcp_fluid_fpm DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    CLASS-METHODS find.
+    CLASS-METHODS outline.
+    CLASS-METHODS app.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
+
+  METHOD run.
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'fpm' iv_action = iv_action ).
+
+    TRY.
+        zcl_zmcp_fluid_rt=>scan( iv_json ).
+        CASE iv_action.
+          WHEN 'find'.
+            find( ).
+          WHEN 'outline'.
+            outline( ).
+          WHEN 'app'.
+            app( ).
+          WHEN OTHERS.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+              iv_text = |unknown action "{ iv_action }"| ).
+        ENDCASE.
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = iv_action iv_text = lx_err->get_text( ) ).
+    ENDTRY.
+
+    IF zcl_zmcp_fluid_rt=>failed( ) = abap_true.
+      zcl_zmcp_fluid_rt=>end( 1 ).
+    ELSE.
+      zcl_zmcp_fluid_rt=>end( 0 ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD find.
+    DATA(lv_config_type) = zcl_zmcp_fluid_rt=>s( 'config_type' ).
+    IF lv_config_type IS INITIAL.
+      lv_config_type = '00'.
+    ENDIF.
+    DATA(lv_component) = zcl_zmcp_fluid_rt=>s( 'component' ).
+    DATA(lv_query)      = zcl_zmcp_fluid_rt=>s( 'query' ).
+    DATA(lv_package)    = zcl_zmcp_fluid_rt=>s( 'package' ).
+
+    IF lv_config_type = '02' AND lv_component IS NOT INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = 'component does not apply to application configs (config_type 02)' ).
+      RETURN.
+    ENDIF.
+
+    DATA(lv_has_component) = xsdbool( lv_component IS NOT INITIAL ).
+    DATA(lv_has_query)     = xsdbool( lv_query IS NOT INITIAL ).
+    DATA(lv_has_package)   = xsdbool( lv_package IS NOT INITIAL ).
+
+    DATA(lv_pattern) = lv_query.
+    REPLACE ALL OCCURRENCES OF '_' IN lv_pattern WITH '#_'.
+    REPLACE ALL OCCURRENCES OF '*' IN lv_pattern WITH '%'.
+
+    IF lv_config_type = '02'.
+      SELECT config_id, config_type, config_var
+        FROM wdy_config_appl
+        WHERE config_type = @lv_config_type
+          AND ( @lv_has_query = @abap_false OR config_id LIKE @lv_pattern ESCAPE '#' )
+        INTO TABLE @DATA(lt_appl).
+      LOOP AT lt_appl INTO DATA(ls_appl).
+        DATA(lv_desc) = ||.
+        SELECT SINGLE description FROM wdy_config_appt
+          WHERE config_id = @ls_appl-config_id AND config_type = @ls_appl-config_type
+            AND config_var = @ls_appl-config_var AND langu = @sy-langu
+          INTO @lv_desc.
+        DATA lv_key40 TYPE c LENGTH 40.
+        CLEAR lv_key40.
+        lv_key40(32)   = ls_appl-config_id.
+        lv_key40+32(2) = ls_appl-config_type.
+        lv_key40+34(6) = ls_appl-config_var.
+        DATA(lv_devclass) = ||.
+        SELECT SINGLE devclass FROM tadir
+          WHERE pgmid = 'R3TR' AND object = 'WDCA' AND obj_name = @lv_key40
+          INTO @lv_devclass.
+        IF lv_has_package = abap_true AND lv_devclass <> lv_package.
+          CONTINUE.
+        ENDIF.
+        " esc() takes TYPE string by reference; a DDIC-typed struct field must
+        " be materialised into a string first, or activation fails.
+        DATA(lv_aid)   = |{ ls_appl-config_id }|.
+        DATA(lv_atype) = |{ ls_appl-config_type }|.
+        DATA(lv_avar)  = |{ ls_appl-config_var }|.
+        zcl_zmcp_fluid_rt=>out(
+          |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_aid ) }",| &&
+          |"config_type":"{ zcl_zmcp_fluid_rt=>esc( lv_atype ) }",| &&
+          |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_avar ) }","component":"",| &&
+          |"description":"{ zcl_zmcp_fluid_rt=>esc( lv_desc ) }",| &&
+          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass ) }"\\}| ).
+      ENDLOOP.
+    ELSE.
+      SELECT config_id, config_type, config_var, component
+        FROM wdy_config_data
+        WHERE config_type = @lv_config_type
+          AND ( @lv_has_component = @abap_false OR component = @lv_component )
+          AND ( @lv_has_query = @abap_false OR config_id LIKE @lv_pattern ESCAPE '#' )
+        INTO TABLE @DATA(lt_data).
+      LOOP AT lt_data INTO DATA(ls_data).
+        DATA(lv_desc2) = ||.
+        SELECT SINGLE description FROM wdy_config_datt
+          WHERE config_id = @ls_data-config_id AND config_type = @ls_data-config_type
+            AND config_var = @ls_data-config_var AND langu = @sy-langu
+          INTO @lv_desc2.
+        DATA lv_key40b TYPE c LENGTH 40.
+        CLEAR lv_key40b.
+        lv_key40b(32)   = ls_data-config_id.
+        lv_key40b+32(2) = ls_data-config_type.
+        lv_key40b+34(6) = ls_data-config_var.
+        DATA(lv_devclass2) = ||.
+        SELECT SINGLE devclass FROM tadir
+          WHERE pgmid = 'R3TR' AND object = 'WDCC' AND obj_name = @lv_key40b
+          INTO @lv_devclass2.
+        IF lv_has_package = abap_true AND lv_devclass2 <> lv_package.
+          CONTINUE.
+        ENDIF.
+        DATA(lv_did)   = |{ ls_data-config_id }|.
+        DATA(lv_dtype) = |{ ls_data-config_type }|.
+        DATA(lv_dvar)  = |{ ls_data-config_var }|.
+        DATA(lv_dcomp) = |{ ls_data-component }|.
+        zcl_zmcp_fluid_rt=>out(
+          |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_did ) }",| &&
+          |"config_type":"{ zcl_zmcp_fluid_rt=>esc( lv_dtype ) }",| &&
+          |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_dvar ) }",| &&
+          |"component":"{ zcl_zmcp_fluid_rt=>esc( lv_dcomp ) }",| &&
+          |"description":"{ zcl_zmcp_fluid_rt=>esc( lv_desc2 ) }",| &&
+          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass2 ) }"\\}| ).
+      ENDLOOP.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD outline.
+    DATA(lv_config_id) = zcl_zmcp_fluid_rt=>s( 'config_id' ).
+    DATA(lv_config_type) = zcl_zmcp_fluid_rt=>s( 'config_type' ).
+    IF lv_config_type IS INITIAL.
+      lv_config_type = '00'.
+    ENDIF.
+    DATA(lv_config_var) = zcl_zmcp_fluid_rt=>s( 'config_var' ).
+
+    IF lv_config_id IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'config_id is required' ).
+      RETURN.
+    ENDIF.
+
+    DATA lv_key40 TYPE c LENGTH 40.
+    CLEAR lv_key40.
+    lv_key40(32)   = lv_config_id.
+    lv_key40+32(2) = lv_config_type.
+    lv_key40+34(6) = lv_config_var.
+
+    DATA(lv_xml)            = ||.
+    DATA(lv_config_idpar)   = ||.
+    DATA(lv_config_typepar) = ||.
+    DATA(lv_config_varpar)  = ||.
+    DATA(lv_component)      = ||.
+    DATA(lv_devclass)       = ||.
+
+    IF lv_config_type = '02'.
+      DATA lv_xc TYPE xstring.
+      CLEAR lv_xc.
+      SELECT SINGLE xcontent FROM wdy_config_appl
+        WHERE config_id = @lv_config_id AND config_type = '02' AND config_var = @lv_config_var
+        INTO @lv_xc.
+      IF sy-subrc <> 0.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'subrc' iv_step = 'select' iv_subrc = sy-subrc
+          iv_text = 'wdy_config_appl: no matching row for the given key' ).
+        RETURN.
+      ENDIF.
+      IF lv_xc IS NOT INITIAL.
+        DATA(lo_conv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_xc ).
+        lo_conv->read( IMPORTING data = lv_xml ).
+      ENDIF.
+      lv_config_idpar = 'N/A - application config, delta tracking not implemented'.
+      SELECT SINGLE devclass FROM tadir
+        WHERE pgmid = 'R3TR' AND object = 'WDCA' AND obj_name = @lv_key40
+        INTO @lv_devclass.
+    ELSE.
+      DATA ls_key TYPE wdy_config_key.
+      CLEAR ls_key.
+      ls_key-config_id   = lv_config_id.
+      ls_key-config_type = lv_config_type.
+      ls_key-config_var  = lv_config_var.
+      DATA lv_xc2 TYPE xstring.
+      CLEAR lv_xc2.
+      DATA(ls_ocd) = VALUE wdy_config_data( ).
+      TRY.
+          cl_wdr_cfg_persistence_utils=>read_comp_config_from_db(
+            EXPORTING config_key           = ls_key
+            IMPORTING xml_xcontent         = lv_xc2
+                      original_config_data = ls_ocd ).
+        CATCH cx_root INTO DATA(lx1).
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'read_comp_config_from_db'
+            iv_text = lx1->get_text( ) ).
+          RETURN.
+      ENDTRY.
+      IF lv_xc2 IS NOT INITIAL.
+        DATA(lo_conv2) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_xc2 ).
+        lo_conv2->read( IMPORTING data = lv_xml ).
+      ENDIF.
+      lv_config_idpar   = ls_ocd-config_idpar.
+      lv_config_typepar = ls_ocd-config_typepar.
+      lv_config_varpar  = ls_ocd-config_varpar.
+      lv_component      = ls_ocd-component.
+      SELECT SINGLE devclass FROM tadir
+        WHERE pgmid = 'R3TR' AND object = 'WDCC' AND obj_name = @lv_key40
+        INTO @lv_devclass.
+    ENDIF.
+
+    DATA(lv_json) =
+      |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_config_id ) }",| &&
+      |"config_type":"{ zcl_zmcp_fluid_rt=>esc( lv_config_type ) }",| &&
+      |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_config_var ) }",| &&
+      |"xml":"{ zcl_zmcp_fluid_rt=>esc( lv_xml ) }","meta":\\{| &&
+      |"config_idpar":"{ zcl_zmcp_fluid_rt=>esc( lv_config_idpar ) }",| &&
+      |"config_typepar":"{ zcl_zmcp_fluid_rt=>esc( lv_config_typepar ) }",| &&
+      |"config_varpar":"{ zcl_zmcp_fluid_rt=>esc( lv_config_varpar ) }",| &&
+      |"component":"{ zcl_zmcp_fluid_rt=>esc( lv_component ) }",| &&
+      |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass ) }"\\}\\}|.
+    zcl_zmcp_fluid_rt=>out_chunk( lv_json ).
+    zcl_zmcp_fluid_rt=>out( '' ).
+  ENDMETHOD.
+
+  METHOD app.
+    DATA(lv_config_id) = zcl_zmcp_fluid_rt=>s( 'config_id' ).
+    DATA(lv_resolve)    = zcl_zmcp_fluid_rt=>b( 'resolve' ).
+
+    IF lv_config_id IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'config_id is required' ).
+      RETURN.
+    ENDIF.
+
+    DATA lo_as TYPE REF TO cl_fpm_cfg_hrchy_brwsr_assist.
+    CREATE OBJECT lo_as.
+    lo_as->mv_mode = 2.
+    lo_as->init_affixes( ).
+    lo_as->ms_config_key-config_id   = lv_config_id.
+    lo_as->ms_config_key-config_type = '02'.
+    TRY.
+        lo_as->load_configuration( lo_as->mc_level-conf ).
+      CATCH cx_root INTO DATA(lx_load).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'load_configuration'
+          iv_text = lx_load->get_text( ) ).
+        RETURN.
+    ENDTRY.
+
+    LOOP AT lo_as->mt_node_table INTO DATA(ls_node).
+      DATA(lv_resolved_json) = ||.
+      " esc()/out() take TYPE string by reference; every DDIC-typed node field
+      " used below is materialised into a string first, or activation fails.
+      DATA(lv_npath)   = |{ ls_node-node_path }|.
+      DATA(lv_nparent) = |{ ls_node-parent_node_path }|.
+      DATA(lv_nname)   = |{ ls_node-node_name }|.
+      DATA(lv_ndesc)   = |{ ls_node-description }|.
+      DATA(lv_ncomp)   = |{ ls_node-component_name }|.
+      DATA(lv_niv)     = |{ ls_node-interface_view }|.
+      DATA(lv_ncfgid)  = |{ ls_node-config_id }|.
+      DATA(lv_ncfgtyp) = |{ ls_node-config_type }|.
+      DATA(lv_ncfgvar) = |{ ls_node-config_var }|.
+      DATA(lv_ntarget) = |{ ls_node-target_config_id }|.
+      DATA(lv_ntop)  = COND string( WHEN ls_node-is_top_node = abap_true THEN 'true' ELSE 'false' ).
+      DATA(lv_ncfg)  = COND string( WHEN ls_node-is_configurable = abap_true THEN 'true' ELSE 'false' ).
+      DATA(lv_ncust) = COND string( WHEN ls_node-is_customized = abap_true THEN 'true' ELSE 'false' ).
+      DATA(lv_nenh)  = COND string( WHEN ls_node-is_enhanced = abap_true THEN 'true' ELSE 'false' ).
+      DATA(lv_nfree) = COND string( WHEN ls_node-is_freestyle_uibb = abap_true THEN 'true' ELSE 'false' ).
+      DATA(lv_nleaf) = COND string( WHEN ls_node-is_leaf = abap_true THEN 'true' ELSE 'false' ).
+
+      IF lv_resolve = abap_true AND ls_node-component_name IS NOT INITIAL
+          AND ls_node-is_configurable = abap_true.
+        DATA ls_rkey TYPE wdy_config_key.
+        CLEAR ls_rkey.
+        ls_rkey-config_id   = ls_node-config_id.
+        ls_rkey-config_type = ls_node-config_type.
+        ls_rkey-config_var  = ls_node-config_var.
+        DATA lv_rxc TYPE xstring.
+        CLEAR lv_rxc.
+        DATA(lv_resolve_err) = ||.
+        TRY.
+            cl_wdr_cfg_persistence_utils=>read_comp_config_from_db(
+              EXPORTING config_key   = ls_rkey
+              IMPORTING xml_xcontent = lv_rxc ).
+          CATCH cx_root INTO DATA(lxr).
+            lv_resolve_err = lxr->get_text( ).
+        ENDTRY.
+        IF lv_resolve_err IS NOT INITIAL.
+          lv_resolved_json = |,"resolve_error":"{ zcl_zmcp_fluid_rt=>esc( lv_resolve_err ) }"|.
+        ELSE.
+          DATA(lv_rtxt) = ||.
+          IF lv_rxc IS NOT INITIAL.
+            DATA(lo_rconv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_rxc ).
+            lo_rconv->read( IMPORTING data = lv_rtxt ).
+          ENDIF.
+          DATA(lv_feeder) = abap_false.
+          DATA(lv_bopf)   = abap_false.
+          IF lv_rtxt CS 'FEEDER'.
+            lv_feeder = abap_true.
+          ENDIF.
+          IF lv_rtxt CS '/BOBF/' OR lv_rtxt CS 'BOPF' OR lv_rtxt CS 'BO_KEY'.
+            lv_bopf = abap_true.
+          ENDIF.
+          DATA(lv_excerpt) = substring( val = lv_rtxt len = nmin( val1 = strlen( lv_rtxt ) val2 = 300 ) ).
+          DATA(lv_feeder_s) = COND string( WHEN lv_feeder = abap_true THEN 'true' ELSE 'false' ).
+          DATA(lv_bopf_s)   = COND string( WHEN lv_bopf = abap_true THEN 'true' ELSE 'false' ).
+          lv_resolved_json =
+            |,"resolved":\\{"xml_len":{ strlen( lv_rtxt ) },| &&
+            |"feeder_hint":{ lv_feeder_s },"bopf_hint":{ lv_bopf_s },| &&
+            |"excerpt":"{ zcl_zmcp_fluid_rt=>esc( lv_excerpt ) }"\\}|.
+        ENDIF.
+      ENDIF.
+
+      zcl_zmcp_fluid_rt=>out(
+        |\\{"node_path":"{ zcl_zmcp_fluid_rt=>esc( lv_npath ) }",| &&
+        |"parent_path":"{ zcl_zmcp_fluid_rt=>esc( lv_nparent ) }",| &&
+        |"is_top_node":{ lv_ntop },| &&
+        |"node_name":"{ zcl_zmcp_fluid_rt=>esc( lv_nname ) }",| &&
+        |"description":"{ zcl_zmcp_fluid_rt=>esc( lv_ndesc ) }",| &&
+        |"component_name":"{ zcl_zmcp_fluid_rt=>esc( lv_ncomp ) }",| &&
+        |"interface_view":"{ zcl_zmcp_fluid_rt=>esc( lv_niv ) }",| &&
+        |"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_ncfgid ) }",| &&
+        |"config_type":"{ zcl_zmcp_fluid_rt=>esc( lv_ncfgtyp ) }",| &&
+        |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_ncfgvar ) }",| &&
+        |"target_config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_ntarget ) }",| &&
+        |"is_configurable":{ lv_ncfg },| &&
+        |"is_customized":{ lv_ncust },| &&
+        |"is_enhanced":{ lv_nenh },| &&
+        |"is_freestyle_uibb":{ lv_nfree },| &&
+        |"is_leaf":{ lv_nleaf }| &&
+        lv_resolved_json && |\\}| ).
+    ENDLOOP.
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var fpmManifest = {
+  contract: FLUID_CONTRACT,
+  id: "fpm",
+  title: "FPM",
+  description: "Reads FPM/FBI screen configuration data: component/app config search, config XML, and app UIBB hierarchy.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      description: RUNTIME_OBJECT4.description,
+      source: { text: RUNTIME_SOURCE4 }
+    },
+    {
+      name: "ZCL_ZMCP_FLUID_FPM",
+      type: "CLAS/OC",
+      description: "fluid: reads FPM/FBI screen configuration data",
+      source: { text: FPM_SOURCE }
+    }
+  ],
+  entry: "ZCL_ZMCP_FLUID_FPM",
+  actions: [
+    {
+      name: "find",
+      category: "read",
+      description: "Searches WDY_CONFIG_DATA (component-scope) or WDY_CONFIG_APPL (application-scope) for configs.",
+      input: {
+        type: "object",
+        properties: {
+          config_type: {
+            type: "string",
+            maxLength: 2,
+            description: "NUMC2: '00' component-scope (default) or '02' application-scope."
+          },
+          component: {
+            type: "string",
+            maxLength: 30,
+            description: "Component-scope only; filters WDY_CONFIG_DATA-COMPONENT."
+          },
+          query: {
+            type: "string",
+            maxLength: 40,
+            description: "config_id LIKE pattern; '*' is a wildcard. Letters/digits/underscore/slash only."
+          },
+          package: {
+            type: "string",
+            maxLength: 30,
+            description: "Devclass filter, cross-referenced per row via TADIR (object WDCC/WDCA)."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        description: "Every matching config row; abapsmith imposes no row cap here.",
+        items: {
+          type: "object",
+          required: ["config_id", "config_type", "config_var", "component", "description", "devclass"],
+          properties: {
+            config_id: { type: "string", maxLength: CONFIG_ID_LEN },
+            config_type: { type: "string", maxLength: 2 },
+            config_var: { type: "string", maxLength: 6 },
+            component: { type: "string" },
+            description: { type: "string" },
+            devclass: { type: "string" }
+          }
+        }
+      }
+    },
+    {
+      name: "outline",
+      category: "read",
+      description: "Reads one config's XML plus its delta/package metadata.",
+      input: {
+        type: "object",
+        required: ["config_id"],
+        properties: {
+          config_id: { type: "string", maxLength: CONFIG_ID_LEN },
+          config_type: {
+            type: "string",
+            maxLength: 2,
+            description: "NUMC2: '00' component-scope (default) or '02' application-scope."
+          },
+          config_var: { type: "string", maxLength: 6 }
+        }
+      },
+      output: {
+        type: "object",
+        required: ["config_id", "config_type", "config_var", "xml", "meta"],
+        properties: {
+          config_id: { type: "string" },
+          config_type: { type: "string" },
+          config_var: { type: "string" },
+          xml: { type: "string", description: "Decoded UTF-8 config XML; empty when the config has none." },
+          meta: {
+            type: "object",
+            required: ["config_idpar", "config_typepar", "config_varpar", "component", "devclass"],
+            properties: {
+              config_idpar: { type: "string" },
+              config_typepar: { type: "string" },
+              config_varpar: { type: "string" },
+              component: { type: "string" },
+              devclass: { type: "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      name: "app",
+      category: "read",
+      description: "Walks an application config's UIBB node hierarchy via CL_FPM_CFG_HRCHY_BRWSR_ASSIST.",
+      input: {
+        type: "object",
+        required: ["config_id"],
+        properties: {
+          config_id: { type: "string", maxLength: CONFIG_ID_LEN },
+          resolve: {
+            type: "boolean",
+            description: "Also read each configurable node's own config XML for FEEDER/BOPF hints."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        description: "One entry per node in the hierarchy.",
+        items: {
+          type: "object",
+          required: [
+            "node_path",
+            "parent_path",
+            "is_top_node",
+            "node_name",
+            "description",
+            "component_name",
+            "interface_view",
+            "config_id",
+            "config_type",
+            "config_var",
+            "target_config_id",
+            "is_configurable",
+            "is_customized",
+            "is_enhanced",
+            "is_freestyle_uibb",
+            "is_leaf"
+          ],
+          properties: {
+            node_path: { type: "string" },
+            parent_path: { type: "string" },
+            is_top_node: { type: "boolean" },
+            node_name: { type: "string" },
+            description: { type: "string" },
+            component_name: { type: "string" },
+            interface_view: { type: "string" },
+            config_id: { type: "string" },
+            config_type: { type: "string" },
+            config_var: { type: "string" },
+            target_config_id: { type: "string" },
+            is_configurable: { type: "boolean" },
+            is_customized: { type: "boolean" },
+            is_enhanced: { type: "boolean" },
+            is_freestyle_uibb: { type: "boolean" },
+            is_leaf: { type: "boolean" },
+            resolved: {
+              type: "object",
+              description: "Present only when resolve=true and this node was successfully re-read.",
+              properties: {
+                xml_len: { type: "integer" },
+                feeder_hint: { type: "boolean" },
+                bopf_hint: { type: "boolean" },
+                excerpt: { type: "string", maxLength: 300 }
+              }
+            },
+            resolve_error: {
+              type: "string",
+              description: "Present only when resolve=true and this node's re-read raised an exception."
+            }
+          }
+        }
+      }
+    }
+  ]
+};
+var fpmSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE4],
+  ["ZCL_ZMCP_FLUID_FPM", FPM_SOURCE]
+]);
+
+// src/adt/fluid/builtin/img.ts
+var RUNTIME_SOURCE5 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE5 === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT5 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT5 === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var IMG_SOURCE = `CLASS zcl_zmcp_fluid_img DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    TYPES: BEGIN OF ty_node,
+             path  TYPE string,
+             value TYPE string,
+           END OF ty_node.
+
+    TYPES ty_strings TYPE STANDARD TABLE OF string WITH DEFAULT KEY.
+
+    CLASS-DATA gt_node TYPE STANDARD TABLE OF ty_node WITH DEFAULT KEY.
+
+    CLASS-METHODS parse_json
+      IMPORTING
+        iv_json TYPE string
+      RAISING
+        cx_sxml_error.
+
+    CLASS-METHODS jget
+      IMPORTING
+        iv_path         TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE string.
+
+    CLASS-METHODS path_exists
+      IMPORTING
+        iv_path         TYPE string
+      RETURNING
+        VALUE(rv_found) TYPE abap_bool.
+
+    CLASS-METHODS path_has_prefix
+      IMPORTING
+        iv_prefix       TYPE string
+      RETURNING
+        VALUE(rv_found) TYPE abap_bool.
+
+    CLASS-METHODS count_scalar_array
+      IMPORTING
+        iv_path         TYPE string
+      RETURNING
+        VALUE(rv_count) TYPE i.
+
+    CLASS-METHODS count_object_array
+      IMPORTING
+        iv_path         TYPE string
+      RETURNING
+        VALUE(rv_count) TYPE i.
+
+    CLASS-METHODS probe
+      IMPORTING
+        iv_table     TYPE string
+        iv_key_count TYPE i
+        iv_row_count TYPE i
+      RETURNING
+        VALUE(rv_ok) TYPE abap_bool.
+
+    CLASS-METHODS is_ddic_name
+      IMPORTING
+        iv_name      TYPE string
+      RETURNING
+        VALUE(rv_ok) TYPE abap_bool.
+
+    CLASS-METHODS is_user_name
+      IMPORTING
+        iv_name      TYPE string
+      RETURNING
+        VALUE(rv_ok) TYPE abap_bool.
+
+    CLASS-METHODS create_request
+      IMPORTING
+        iv_description TYPE string
+        iv_owner       TYPE string
+      RETURNING
+        VALUE(rv_ok)   TYPE abap_bool.
+
+    CLASS-METHODS values_field_names
+      IMPORTING
+        iv_prefix       TYPE string
+      RETURNING
+        VALUE(rt_names) TYPE ty_strings.
+
+    CLASS-METHODS apply
+      IMPORTING
+        iv_table        TYPE string
+        iv_client_field TYPE string
+        iv_key_count    TYPE i
+        iv_row_count    TYPE i
+        iv_op           TYPE string
+        iv_corr         TYPE string
+        iv_view         TYPE string
+        iv_master_type  TYPE string
+        iv_exp_delclass TYPE string
+        iv_exp_clidep   TYPE abap_bool
+      RETURNING
+        VALUE(rv_ok)    TYPE abap_bool.
+
+    CLASS-METHODS cts_record
+      IMPORTING
+        iv_table       TYPE string
+        iv_corr        TYPE string
+        iv_row         TYPE i
+        iv_view        TYPE string
+        iv_master_type TYPE string
+        iv_tabkey      TYPE string
+      RETURNING
+        VALUE(rv_ok)   TYPE abap_bool.
+
+    CLASS-METHODS emit
+      IMPORTING
+        iv_line TYPE string.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
+
+  METHOD run.
+    DATA lx_json         TYPE REF TO cx_root.
+    DATA lv_table        TYPE string.
+    DATA lv_key_count    TYPE i.
+    DATA lv_row_count    TYPE i.
+    DATA lv_probe_ok     TYPE abap_bool.
+    DATA lv_description  TYPE string.
+    DATA lv_owner        TYPE string.
+    DATA lv_request_ok   TYPE abap_bool.
+    DATA lv_client_field TYPE string.
+    DATA lv_op           TYPE string.
+    DATA lv_corr         TYPE string.
+    DATA lv_view         TYPE string.
+    DATA lv_master_type  TYPE string.
+    DATA lv_exp_delclass TYPE string.
+    DATA lv_exp_clidep_s TYPE string.
+    DATA lv_exp_clidep   TYPE abap_bool.
+    DATA lv_apply_ok     TYPE abap_bool.
+
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'img' iv_action = iv_action ).
+
+    CASE iv_action.
+      WHEN 'preview'.
+        TRY.
+            parse_json( iv_json ).
+          CATCH cx_root INTO lx_json.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = lx_json->get_text( ) ).
+            zcl_zmcp_fluid_rt=>end( 1 ).
+            RETURN.
+        ENDTRY.
+
+        lv_table     = jget( 'table' ).
+        lv_key_count = count_scalar_array( 'keyFields' ).
+        lv_row_count = count_object_array( 'rows' ).
+
+        IF lv_table IS INITIAL.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'table is required' ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        IF lv_key_count = 0.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = 'keyFields must have at least one entry' ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        IF lv_row_count = 0.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = 'rows must have at least one entry' ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        lv_probe_ok = probe( iv_table = lv_table iv_key_count = lv_key_count
+          iv_row_count = lv_row_count ).
+
+        IF lv_probe_ok = abap_false.
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        zcl_zmcp_fluid_rt=>end( 0 ).
+
+      WHEN 'create_request'.
+        zcl_zmcp_fluid_rt=>scan( iv_json ).
+        lv_description = zcl_zmcp_fluid_rt=>s( 'description' ).
+        lv_owner       = zcl_zmcp_fluid_rt=>s( 'owner' ).
+
+        IF lv_description IS INITIAL.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = 'description is required' ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        IF lv_owner IS NOT INITIAL AND is_user_name( lv_owner ) = abap_false.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |invalid owner "{ lv_owner }"| ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        lv_request_ok = create_request( iv_description = lv_description iv_owner = lv_owner ).
+
+        IF lv_request_ok = abap_false.
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        zcl_zmcp_fluid_rt=>end( 0 ).
+
+      WHEN 'apply'.
+        TRY.
+            parse_json( iv_json ).
+          CATCH cx_root INTO lx_json.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = lx_json->get_text( ) ).
+            zcl_zmcp_fluid_rt=>end( 1 ).
+            RETURN.
+        ENDTRY.
+
+        lv_table        = jget( 'table' ).
+        lv_client_field = jget( 'clientField' ).
+        lv_key_count    = count_scalar_array( 'keyFields' ).
+        lv_row_count    = count_object_array( 'rows' ).
+        lv_op           = jget( 'op' ).
+        lv_corr         = jget( 'corrNr' ).
+        lv_view         = jget( 'view' ).
+        lv_master_type  = jget( 'masterType' ).
+        lv_exp_delclass = jget( 'expectedDeliveryClass' ).
+        lv_exp_clidep_s = jget( 'expectedClientDependent' ).
+        lv_exp_clidep   = boolc( lv_exp_clidep_s = 'true' ).
+
+        IF lv_table IS INITIAL OR lv_client_field IS INITIAL OR lv_key_count = 0
+            OR lv_row_count = 0 OR lv_op IS INITIAL OR lv_view IS INITIAL OR lv_master_type IS INITIAL
+            OR lv_exp_delclass IS INITIAL.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = 'table, clientField, keyFields, rows, op, view, masterType and ' &&
+              'expectedDeliveryClass are required' ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        IF lv_op <> 'upsert' AND lv_op <> 'delete'.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |op must be "upsert" or "delete", got "{ lv_op }"| ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        IF lv_master_type <> 'VDAT' AND lv_master_type <> 'CDAT'.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |masterType must be "VDAT" or "CDAT", got "{ lv_master_type }"| ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        lv_apply_ok = apply( iv_table = lv_table iv_client_field = lv_client_field
+          iv_key_count = lv_key_count iv_row_count = lv_row_count
+          iv_op = lv_op iv_corr = lv_corr iv_view = lv_view iv_master_type = lv_master_type
+          iv_exp_delclass = lv_exp_delclass iv_exp_clidep = lv_exp_clidep ).
+
+        IF lv_apply_ok = abap_false.
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        zcl_zmcp_fluid_rt=>end( 0 ).
+
+      WHEN OTHERS.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+          iv_text = |unknown action "{ iv_action }"| ).
+        zcl_zmcp_fluid_rt=>end( 1 ).
+        RETURN.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD parse_json.
+    TYPES: BEGIN OF ty_ctx,
+             kind  TYPE c LENGTH 1,
+             count TYPE i,
+           END OF ty_ctx.
+
+    DATA lt_path        TYPE STANDARD TABLE OF string WITH DEFAULT KEY.
+    DATA lt_ctx         TYPE STANDARD TABLE OF ty_ctx WITH DEFAULT KEY.
+    DATA lv_path        TYPE string.
+    DATA lv_parent_path TYPE string.
+    DATA lv_seg         TYPE string.
+    DATA lv_kind        TYPE c LENGTH 1.
+    DATA lv_name        TYPE string.
+
+    CLEAR gt_node.
+
+    DATA(lo_reader) = cl_sxml_string_reader=>create( cl_abap_codepage=>convert_to( iv_json ) ).
+
+    DO.
+      DATA(lo_node) = lo_reader->read_next_node( ).
+      IF lo_node IS NOT BOUND.
+        EXIT.
+      ENDIF.
+
+      CASE lo_node->type.
+        WHEN if_sxml_node=>co_nt_element_open.
+          DATA(lo_open) = CAST if_sxml_open_element( lo_node ).
+          CLEAR lv_name.
+          LOOP AT lo_open->get_attributes( ) INTO DATA(lo_attr).
+            IF lo_attr->qname-name = 'name'.
+              lv_name = lo_attr->get_value( ).
+            ENDIF.
+          ENDLOOP.
+
+          IF lines( lt_ctx ) = 0.
+            CLEAR lv_seg.
+          ELSE.
+            ASSIGN lt_ctx[ lines( lt_ctx ) ] TO FIELD-SYMBOL(<ls_parent>).
+            IF <ls_parent>-kind = 'A'.
+              lv_seg = |{ <ls_parent>-count }|.
+              <ls_parent>-count = <ls_parent>-count + 1.
+            ELSE.
+              lv_seg = lv_name.
+            ENDIF.
+          ENDIF.
+
+          IF lines( lt_path ) = 0.
+            lv_path = lv_seg.
+          ELSE.
+            lv_parent_path = lt_path[ lines( lt_path ) ].
+            IF lv_seg IS INITIAL.
+              lv_path = lv_parent_path.
+            ELSEIF lv_parent_path IS INITIAL.
+              lv_path = lv_seg.
+            ELSE.
+              lv_path = |{ lv_parent_path }/{ lv_seg }|.
+            ENDIF.
+          ENDIF.
+          APPEND lv_path TO lt_path.
+
+          IF lo_open->qname-name = 'object'.
+            lv_kind = 'O'.
+          ELSEIF lo_open->qname-name = 'array'.
+            lv_kind = 'A'.
+          ELSE.
+            lv_kind = 'V'.
+          ENDIF.
+          APPEND VALUE ty_ctx( kind = lv_kind count = 0 ) TO lt_ctx.
+
+        WHEN if_sxml_node=>co_nt_value.
+          DATA(lo_val) = CAST if_sxml_value_node( lo_node ).
+          APPEND VALUE ty_node( path = lt_path[ lines( lt_path ) ] value = lo_val->get_value( ) ) TO gt_node.
+
+        WHEN if_sxml_node=>co_nt_element_close.
+          DELETE lt_path INDEX lines( lt_path ).
+          DELETE lt_ctx INDEX lines( lt_ctx ).
+
+        WHEN OTHERS.
+          " no JSON data on any other node type (e.g. a processing instruction)
+      ENDCASE.
+    ENDDO.
+  ENDMETHOD.
+
+  METHOD jget.
+    READ TABLE gt_node INTO DATA(ls_node) WITH KEY path = iv_path.
+    IF sy-subrc = 0.
+      rv_value = ls_node-value.
+    ELSE.
+      CLEAR rv_value.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD path_exists.
+    READ TABLE gt_node TRANSPORTING NO FIELDS WITH KEY path = iv_path.
+    rv_found = boolc( sy-subrc = 0 ).
+  ENDMETHOD.
+
+  METHOD path_has_prefix.
+    DATA lv_plen TYPE i.
+    lv_plen = strlen( iv_prefix ).
+    rv_found = abap_false.
+    LOOP AT gt_node INTO DATA(ls_node).
+      IF strlen( ls_node-path ) > lv_plen AND ls_node-path(lv_plen) = iv_prefix.
+        rv_found = abap_true.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD count_scalar_array.
+    DATA lv_i TYPE i.
+    rv_count = 0.
+    DO 1001 TIMES.
+      lv_i = sy-index - 1.
+      IF path_exists( |{ iv_path }/{ lv_i }| ) = abap_false.
+        EXIT.
+      ENDIF.
+      rv_count = rv_count + 1.
+    ENDDO.
+  ENDMETHOD.
+
+  METHOD count_object_array.
+    DATA lv_i TYPE i.
+    rv_count = 0.
+    DO 1001 TIMES.
+      lv_i = sy-index - 1.
+      IF path_has_prefix( |{ iv_path }/{ lv_i }/| ) = abap_false.
+        EXIT.
+      ENDIF.
+      rv_count = rv_count + 1.
+    ENDDO.
+  ENDMETHOD.
+
+  METHOD values_field_names.
+    DATA lv_plen TYPE i.
+    lv_plen = strlen( iv_prefix ).
+    CLEAR rt_names.
+    LOOP AT gt_node INTO DATA(ls_node).
+      IF strlen( ls_node-path ) > lv_plen AND ls_node-path(lv_plen) = iv_prefix.
+        APPEND ls_node-path+lv_plen TO rt_names.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD probe.
+    DATA lv_table_upper TYPE tabname.
+    DATA lv_table_lower TYPE string.
+    DATA lv_mandt        TYPE mandt.
+    DATA lv_cccategory   TYPE t000-cccategory.
+    DATA lv_cccoractiv   TYPE t000-cccoractiv.
+    DATA lv_delclass     TYPE dd02l-contflag.
+    DATA lv_clidep       TYPE dd02l-clidep.
+    DATA lt_fld          TYPE STANDARD TABLE OF dd03l WITH DEFAULT KEY.
+    DATA ls_fld          TYPE dd03l.
+    DATA lr_wa           TYPE REF TO data.
+    FIELD-SYMBOLS <fs_wa> TYPE any.
+    DATA lo_descr        TYPE REF TO cl_abap_typedescr.
+    DATA lo_struct       TYPE REF TO cl_abap_structdescr.
+    DATA ls_comp         TYPE abap_componentdescr.
+    DATA lt_comp         TYPE cl_abap_structdescr=>component_table.
+    FIELD-SYMBOLS <fs_val> TYPE any.
+    DATA lv_fval         TYPE string.
+    DATA lx_sel          TYPE REF TO cx_root.
+    DATA lv_ri           TYPE i.
+    DATA lv_row_ok       TYPE abap_bool.
+    DATA lv_kf           TYPE i.
+    DATA lv_fld_name     TYPE string.
+    DATA lv_fld_val      TYPE string.
+    DATA lt_where        TYPE STANDARD TABLE OF string WITH DEFAULT KEY.
+    DATA lv_subrc        TYPE sy-subrc.
+
+    rv_ok = abap_true.
+
+    lv_table_upper = to_upper( iv_table ).
+    lv_table_lower = to_lower( iv_table ).
+
+    IF is_ddic_name( iv_table ) = abap_false.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = |invalid table name "{ iv_table }"| ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+
+    SELECT SINGLE mandt, cccategory, cccoractiv FROM t000
+      INTO (@lv_mandt, @lv_cccategory, @lv_cccoractiv)
+      WHERE mandt = @sy-mandt.
+    IF sy-subrc <> 0.
+      emit( |ZMCP-DDIC-ERR> T000 read failed for client { sy-mandt }| ).
+      RETURN.
+    ENDIF.
+    emit( |IMGW> CLIENT mandt=[{ lv_mandt }] cccategory=[{ lv_cccategory }] cccoractiv=[{ lv_cccoractiv }]| ).
+    IF lv_cccoractiv = '2'.
+      emit( |ZMCP-DDIC-ERR> T000-CCCORACTIV = 2 for client { sy-mandt }: client-dependent customizing | &&
+        |changes are blocked outright in this client.| ).
+      RETURN.
+    ENDIF.
+
+    SELECT SINGLE contflag, clidep FROM dd02l
+      INTO (@lv_delclass, @lv_clidep)
+      WHERE tabname = @lv_table_upper AND as4local = 'A'.
+    IF sy-subrc <> 0.
+      emit( |ZMCP-DDIC-ERR> DD02L read failed for { lv_table_lower }| ).
+      RETURN.
+    ENDIF.
+    emit( |IMGW> TABLE table=[{ lv_table_lower }] delclass=[{ lv_delclass }] clidep=[{ lv_clidep }]| ).
+
+    SELECT position, fieldname, keyflag, datatype, leng, rollname FROM dd03l
+      INTO CORRESPONDING FIELDS OF TABLE @lt_fld
+      WHERE tabname = @lv_table_upper AND as4local = 'A'
+      ORDER BY position.
+    IF sy-subrc <> 0.
+      emit( |ZMCP-DDIC-ERR> DD03L returned no fields for { lv_table_lower }| ).
+      RETURN.
+    ENDIF.
+    LOOP AT lt_fld INTO ls_fld.
+      IF ls_fld-fieldname(1) = '.'.
+        CONTINUE.
+      ENDIF.
+      emit( |IMGW> FLD table=[{ lv_table_lower }] field=[{ ls_fld-fieldname }] key=[{ ls_fld-keyflag }] | &&
+        |type=[{ ls_fld-datatype }] len=[{ ls_fld-leng }] rollname=[{ ls_fld-rollname }]| ).
+    ENDLOOP.
+
+    DO iv_key_count TIMES.
+      lv_kf = sy-index - 1.
+      lv_fld_name = jget( |keyFields/{ lv_kf }| ).
+      IF is_ddic_name( lv_fld_name ) = abap_false.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+          iv_text = |invalid key field name "{ lv_fld_name }"| ).
+        rv_ok = abap_false.
+        RETURN.
+      ENDIF.
+    ENDDO.
+
+    DO iv_row_count TIMES.
+      lv_ri = sy-index - 1.
+      REFRESH lt_where.
+      DO iv_key_count TIMES.
+        lv_kf = sy-index - 1.
+        lv_fld_name = jget( |keyFields/{ lv_kf }| ).
+        lv_fld_val = jget( |rows/{ lv_ri }/{ lv_fld_name }| ).
+        REPLACE ALL OCCURRENCES OF '''' IN lv_fld_val WITH ''''''.
+        IF lv_kf > 0.
+          APPEND 'AND' TO lt_where.
+        ENDIF.
+        APPEND |{ to_lower( lv_fld_name ) } = '{ lv_fld_val }'| TO lt_where.
+      ENDDO.
+
+      lv_row_ok = abap_true.
+      lv_subrc = 4.
+      CLEAR lr_wa.
+      TRY.
+          CREATE DATA lr_wa TYPE (lv_table_upper).
+          ASSIGN lr_wa->* TO <fs_wa>.
+          SELECT SINGLE * FROM (lv_table_upper) INTO @<fs_wa> WHERE (lt_where).
+          lv_subrc = sy-subrc.
+        CATCH cx_root INTO lx_sel.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'row'
+            iv_text = |row { lv_ri + 1 }: { lx_sel->get_text( ) }| ).
+          lv_row_ok = abap_false.
+      ENDTRY.
+
+      IF lv_row_ok = abap_false.
+        CONTINUE.
+      ENDIF.
+
+      IF lv_subrc <> 0.
+        emit( |IMGW> BABSENT row=[{ lv_ri + 1 }]| ).
+      ELSE.
+        lo_descr = cl_abap_typedescr=>describe_by_data( <fs_wa> ).
+        lo_struct = CAST cl_abap_structdescr( lo_descr ).
+        lt_comp = lo_struct->get_components( ).
+        LOOP AT lt_comp INTO ls_comp.
+          ASSIGN COMPONENT ls_comp-name OF STRUCTURE <fs_wa> TO <fs_val>.
+          IF sy-subrc <> 0.
+            CONTINUE.
+          ENDIF.
+          lv_fval = |{ <fs_val> }|.
+          emit( |IMGW> BVAL row=[{ lv_ri + 1 }] field=[{ ls_comp-name }] len=[{ strlen( lv_fval ) }] | &&
+            |value=[{ lv_fval }]| ).
+        ENDLOOP.
+      ENDIF.
+    ENDDO.
+
+    emit( |IMGW> PROBED rows=[{ iv_row_count }]| ).
+  ENDMETHOD.
+
+  METHOD is_ddic_name.
+    DATA lv_len TYPE i.
+    lv_len = strlen( iv_name ).
+    rv_ok = boolc( lv_len > 0 AND lv_len <= 30 AND
+      iv_name co 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_/' ).
+  ENDMETHOD.
+
+  METHOD is_user_name.
+    DATA lv_len TYPE i.
+    lv_len = strlen( iv_name ).
+    rv_ok = boolc( lv_len > 0 AND lv_len <= 12 AND
+      iv_name co 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' ).
+  ENDMETHOD.
+
+  METHOD create_request.
+    DATA ls_request_header TYPE trwbo_request_header.
+    DATA lt_task_headers   TYPE trwbo_request_headers.
+    DATA ls_task_header    TYPE trwbo_request_header.
+    DATA lt_users          TYPE scts_users.
+    DATA ls_user           TYPE scts_user.
+    DATA lv_msg            TYPE string.
+    DATA lv_exc            TYPE string.
+    DATA lv_text           TYPE as4text.
+
+    rv_ok = abap_true.
+    lv_text = iv_description.
+
+    ls_user-user = sy-uname.
+    ls_user-type = 'Q'.
+    INSERT ls_user INTO TABLE lt_users.
+
+    IF iv_owner IS NOT INITIAL.
+      CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
+        EXPORTING
+          iv_type           = 'W'
+          iv_text           = lv_text
+          iv_owner          = iv_owner
+          it_users          = lt_users
+        IMPORTING
+          es_request_header = ls_request_header
+          et_task_headers   = lt_task_headers
+        EXCEPTIONS
+          insert_failed     = 1
+          enqueue_failed    = 2
+          OTHERS            = 3.
+    ELSE.
+      CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
+        EXPORTING
+          iv_type           = 'W'
+          iv_text           = lv_text
+          it_users          = lt_users
+        IMPORTING
+          es_request_header = ls_request_header
+          et_task_headers   = lt_task_headers
+        EXCEPTIONS
+          insert_failed     = 1
+          enqueue_failed    = 2
+          OTHERS            = 3.
+    ENDIF.
+
+    IF sy-subrc <> 0.
+      CASE sy-subrc.
+        WHEN 1.
+          lv_exc = 'INSERT_FAILED'.
+        WHEN 2.
+          lv_exc = 'ENQUEUE_FAILED'.
+        WHEN OTHERS.
+          lv_exc = 'OTHERS'.
+      ENDCASE.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.
+      emit( |CTSW> ERROR exception=[{ lv_exc }] len=[{ strlen( lv_msg ) }] value=[{ lv_msg }]| ).
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'create_request'
+        iv_text = |{ lv_exc }: { lv_msg }| ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+
+    IF ls_request_header-trkorr IS INITIAL.
+      emit( |CTSW> ERROR exception=[NO_REQUEST] len=[0] value=[]| ).
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'create_request'
+        iv_text = 'no request number returned' ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+
+    emit( |CTSW> REQUEST len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).
+
+    READ TABLE lt_task_headers INTO ls_task_header INDEX 1.
+    IF sy-subrc <> 0.
+      emit( |CTSW> WARN code=[NO_TASK] len=[{ strlen( ls_request_header-trkorr ) }] | &&
+        |value=[{ ls_request_header-trkorr }]| ).
+    ELSE.
+      emit( |CTSW> TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]| ).
+      emit( |CTSW> TASKTYPE len=[{ strlen( ls_task_header-trfunction ) }] | &&
+        |value=[{ ls_task_header-trfunction }]| ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD apply.
+    DATA lv_table_upper   TYPE tabname.
+    DATA lv_table_lower   TYPE string.
+    DATA lv_mandt         TYPE mandt.
+    DATA lv_cccategory    TYPE t000-cccategory.
+    DATA lv_cccoractiv    TYPE t000-cccoractiv.
+    DATA lv_delclass      TYPE dd02l-contflag.
+    DATA lv_clidep        TYPE dd02l-clidep.
+    DATA lr_wa            TYPE REF TO data.
+    FIELD-SYMBOLS <fs_wa> TYPE any.
+    DATA lo_descr         TYPE REF TO cl_abap_typedescr.
+    DATA lo_struct        TYPE REF TO cl_abap_structdescr.
+    DATA ls_comp          TYPE abap_componentdescr.
+    DATA lt_comp          TYPE cl_abap_structdescr=>component_table.
+    DATA lt_key_comp      TYPE cl_abap_structdescr=>component_table.
+    FIELD-SYMBOLS <fs_val> TYPE any.
+    DATA lv_fval          TYPE string.
+    DATA lx_sel           TYPE REF TO cx_root.
+    DATA lv_ri            TYPE i.
+    DATA lv_row_ok        TYPE abap_bool.
+    DATA lv_kf            TYPE i.
+    DATA lv_fld_name      TYPE string.
+    DATA lv_fld_val       TYPE string.
+    DATA lt_where         TYPE STANDARD TABLE OF string WITH DEFAULT KEY.
+    DATA lv_subrc         TYPE sy-subrc.
+    DATA lo_key_struct    TYPE REF TO cl_abap_structdescr.
+    DATA lr_key           TYPE REF TO data.
+    FIELD-SYMBOLS <fs_key> TYPE any.
+    FIELD-SYMBOLS <key_c>  TYPE c.
+    DATA lv_tabkey        TYPE string.
+    DATA lv_cts_ok        TYPE abap_bool.
+    DATA lt_val_names     TYPE ty_strings.
+    DATA lv_val_name      TYPE string.
+
+    rv_ok = abap_true.
+
+    IF is_ddic_name( iv_table ) = abap_false.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = |invalid table name "{ iv_table }"| ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+
+    IF is_ddic_name( iv_client_field ) = abap_false.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = |invalid client field name "{ iv_client_field }"| ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+
+    DO iv_key_count TIMES.
+      lv_kf = sy-index - 1.
+      lv_fld_name = jget( |keyFields/{ lv_kf }| ).
+      IF is_ddic_name( lv_fld_name ) = abap_false.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+          iv_text = |invalid key field name "{ lv_fld_name }"| ).
+        rv_ok = abap_false.
+        RETURN.
+      ENDIF.
+    ENDDO.
+
+    lv_table_upper = to_upper( iv_table ).
+    lv_table_lower = to_lower( iv_table ).
+
+    SELECT SINGLE mandt, cccategory, cccoractiv FROM t000
+      INTO (@lv_mandt, @lv_cccategory, @lv_cccoractiv)
+      WHERE mandt = @sy-mandt.
+    IF sy-subrc <> 0.
+      emit( |ZMCP-DDIC-ERR> T000 read failed for client { sy-mandt }| ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+    emit( |IMGW> CLIENT mandt=[{ lv_mandt }] cccategory=[{ lv_cccategory }] cccoractiv=[{ lv_cccoractiv }]| ).
+    IF lv_cccoractiv = '2'.
+      emit( |ZMCP-DDIC-ERR> T000-CCCORACTIV = 2 for client { sy-mandt }: client-dependent customizing | &&
+        |changes are blocked outright in this client.| ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+
+    SELECT SINGLE contflag, clidep FROM dd02l
+      INTO (@lv_delclass, @lv_clidep)
+      WHERE tabname = @lv_table_upper AND as4local = 'A'.
+    IF sy-subrc <> 0.
+      emit( |ZMCP-DDIC-ERR> DD02L read failed for { lv_table_lower }| ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+
+    IF lv_delclass <> iv_exp_delclass OR boolc( lv_clidep = 'X' ) <> iv_exp_clidep.
+      emit( |ZMCP-DDIC-ERR> DD02L for { lv_table_lower } changed since the probe | &&
+        |(delclass=[{ lv_delclass }] clidep=[{ lv_clidep }]): re-probe before applying.| ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        CREATE DATA lr_wa TYPE (lv_table_upper).
+        ASSIGN lr_wa->* TO <fs_wa>.
+        lo_descr = cl_abap_typedescr=>describe_by_data( <fs_wa> ).
+        lo_struct = CAST cl_abap_structdescr( lo_descr ).
+        lt_comp = lo_struct->get_components( ).
+      CATCH cx_root INTO lx_sel.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'apply'
+          iv_text = |failed to describe table { lv_table_lower }: { lx_sel->get_text( ) }| ).
+        rv_ok = abap_false.
+        RETURN.
+    ENDTRY.
+
+    REFRESH lt_key_comp.
+    DO iv_key_count TIMES.
+      lv_kf = sy-index - 1.
+      lv_fld_name = to_upper( jget( |keyFields/{ lv_kf }| ) ).
+      READ TABLE lt_comp INTO ls_comp WITH KEY name = lv_fld_name.
+      IF sy-subrc <> 0.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'apply'
+          iv_text = |key field "{ lv_fld_name }" not found on { lv_table_lower }| ).
+        rv_ok = abap_false.
+        RETURN.
+      ENDIF.
+      APPEND ls_comp TO lt_key_comp.
+    ENDDO.
+
+    READ TABLE lt_comp INTO ls_comp WITH KEY name = to_upper( iv_client_field ).
+    IF sy-subrc <> 0.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'apply'
+        iv_text = |client field "{ iv_client_field }" not found on { lv_table_lower } \u2014 this table has no | &&
+          |such component, so it cannot be client-stamped. A table shaped this way is client-independent | &&
+          |and cannot be written through this tool at all; maintain it by hand (SM30/SM34) instead.| ).
+      rv_ok = abap_false.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        lo_key_struct = cl_abap_structdescr=>create( lt_key_comp ).
+        CREATE DATA lr_key TYPE HANDLE lo_key_struct.
+        ASSIGN lr_key->* TO <fs_key>.
+        ASSIGN <fs_key> TO <key_c> CASTING TYPE c.
+      CATCH cx_root INTO lx_sel.
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'apply'
+          iv_text = |failed to build key structure for { lv_table_lower }: { lx_sel->get_text( ) }| ).
+        rv_ok = abap_false.
+        RETURN.
+    ENDTRY.
+
+    DO iv_row_count TIMES.
+      lv_ri = sy-index - 1.
+
+      REFRESH lt_where.
+      DO iv_key_count TIMES.
+        lv_kf = sy-index - 1.
+        lv_fld_name = jget( |keyFields/{ lv_kf }| ).
+        lv_fld_val = jget( |rows/{ lv_ri }/key/{ lv_fld_name }| ).
+
+        ASSIGN COMPONENT to_upper( lv_fld_name ) OF STRUCTURE <fs_key> TO <fs_val>.
+        IF sy-subrc = 0.
+          <fs_val> = lv_fld_val.
+        ENDIF.
+
+        REPLACE ALL OCCURRENCES OF '''' IN lv_fld_val WITH ''''''.
+        IF lv_kf > 0.
+          APPEND 'AND' TO lt_where.
+        ENDIF.
+        APPEND |{ to_lower( lv_fld_name ) } = '{ lv_fld_val }'| TO lt_where.
+      ENDDO.
+      lv_tabkey = |{ sy-mandt }{ <key_c> }|.
+
+      lv_row_ok = abap_true.
+      lv_subrc = 4.
+      CLEAR lr_wa.
+      TRY.
+          CREATE DATA lr_wa TYPE (lv_table_upper).
+          ASSIGN lr_wa->* TO <fs_wa>.
+          SELECT SINGLE * FROM (lv_table_upper) INTO @<fs_wa> WHERE (lt_where).
+          lv_subrc = sy-subrc.
+        CATCH cx_root INTO lx_sel.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'row'
+            iv_text = |row { lv_ri + 1 }: { lx_sel->get_text( ) }| ).
+          lv_row_ok = abap_false.
+      ENDTRY.
+
+      IF lv_row_ok = abap_false.
+        rv_ok = abap_false.
+        RETURN.
+      ENDIF.
+
+      IF lv_subrc <> 0.
+        emit( |IMGW> BABSENT row=[{ lv_ri + 1 }]| ).
+        CLEAR <fs_wa>.
+      ELSE.
+        lo_descr = cl_abap_typedescr=>describe_by_data( <fs_wa> ).
+        lo_struct = CAST cl_abap_structdescr( lo_descr ).
+        lt_comp = lo_struct->get_components( ).
+        LOOP AT lt_comp INTO ls_comp.
+          ASSIGN COMPONENT ls_comp-name OF STRUCTURE <fs_wa> TO <fs_val>.
+          IF sy-subrc <> 0.
+            CONTINUE.
+          ENDIF.
+          lv_fval = |{ <fs_val> }|.
+          emit( |IMGW> BVAL row=[{ lv_ri + 1 }] field=[{ ls_comp-name }] len=[{ strlen( lv_fval ) }] | &&
+            |value=[{ lv_fval }]| ).
+        ENDLOOP.
+      ENDIF.
+
+      IF iv_corr IS NOT INITIAL.
+        lv_cts_ok = cts_record( iv_table = lv_table_lower iv_corr = iv_corr iv_row = lv_ri + 1
+          iv_view = iv_view iv_master_type = iv_master_type iv_tabkey = lv_tabkey ).
+        IF lv_cts_ok = abap_false.
+          rv_ok = abap_false.
+          RETURN.
+        ENDIF.
+      ENDIF.
+
+      ASSIGN COMPONENT to_upper( iv_client_field ) OF STRUCTURE <fs_wa> TO <fs_val>.
+      IF sy-subrc = 0.
+        <fs_val> = sy-mandt.
+      ENDIF.
+
+      IF iv_op = 'upsert'.
+        IF lv_subrc <> 0.
+          DO iv_key_count TIMES.
+            lv_kf = sy-index - 1.
+            lv_fld_name = jget( |keyFields/{ lv_kf }| ).
+            lv_fld_val = jget( |rows/{ lv_ri }/key/{ lv_fld_name }| ).
+            ASSIGN COMPONENT to_upper( lv_fld_name ) OF STRUCTURE <fs_wa> TO <fs_val>.
+            IF sy-subrc = 0.
+              <fs_val> = lv_fld_val.
+            ENDIF.
+          ENDDO.
+        ENDIF.
+
+        lt_val_names = values_field_names( |rows/{ lv_ri }/values/| ).
+        LOOP AT lt_val_names INTO lv_val_name.
+          IF to_upper( lv_val_name ) = to_upper( iv_client_field ).
+            CONTINUE.
+          ENDIF.
+          ASSIGN COMPONENT to_upper( lv_val_name ) OF STRUCTURE <fs_wa> TO <fs_val>.
+          IF sy-subrc <> 0.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'row'
+              iv_text = |row { lv_ri + 1 }: { lv_table_lower } has no field "{ lv_val_name }"| ).
+            rv_ok = abap_false.
+            RETURN.
+          ENDIF.
+          <fs_val> = jget( |rows/{ lv_ri }/values/{ lv_val_name }| ).
+        ENDLOOP.
+
+        TRY.
+            MODIFY (lv_table_upper) FROM <fs_wa>.
+            lv_subrc = sy-subrc.
+          CATCH cx_root INTO lx_sel.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'row'
+              iv_text = |row { lv_ri + 1 }: { lx_sel->get_text( ) }| ).
+            rv_ok = abap_false.
+            RETURN.
+        ENDTRY.
+        IF lv_subrc <> 0.
+          emit( |ZMCP-DDIC-ERR> MODIFY failed for row { lv_ri + 1 } on { lv_table_lower }, | &&
+            |sy-subrc={ lv_subrc }| ).
+          rv_ok = abap_false.
+          RETURN.
+        ENDIF.
+        emit( |IMGW> WROTE row=[{ lv_ri + 1 }]| ).
+
+      ELSE.
+        DO iv_key_count TIMES.
+          lv_kf = sy-index - 1.
+          lv_fld_name = jget( |keyFields/{ lv_kf }| ).
+          lv_fld_val = jget( |rows/{ lv_ri }/key/{ lv_fld_name }| ).
+          ASSIGN COMPONENT to_upper( lv_fld_name ) OF STRUCTURE <fs_wa> TO <fs_val>.
+          IF sy-subrc = 0.
+            <fs_val> = lv_fld_val.
+          ENDIF.
+        ENDDO.
+
+        TRY.
+            DELETE (lv_table_upper) FROM <fs_wa>.
+            lv_subrc = sy-subrc.
+          CATCH cx_root INTO lx_sel.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'row'
+              iv_text = |row { lv_ri + 1 }: { lx_sel->get_text( ) }| ).
+            rv_ok = abap_false.
+            RETURN.
+        ENDTRY.
+        IF lv_subrc <> 0.
+          emit( |ZMCP-DDIC-ERR> DELETE failed for row { lv_ri + 1 } on { lv_table_lower }, | &&
+            |sy-subrc={ lv_subrc }| ).
+          rv_ok = abap_false.
+          RETURN.
+        ENDIF.
+        emit( |IMGW> WROTE row=[{ lv_ri + 1 }]| ).
+      ENDIF.
+    ENDDO.
+
+    COMMIT WORK AND WAIT.
+
+    DO iv_row_count TIMES.
+      lv_ri = sy-index - 1.
+      REFRESH lt_where.
+      DO iv_key_count TIMES.
+        lv_kf = sy-index - 1.
+        lv_fld_name = jget( |keyFields/{ lv_kf }| ).
+        lv_fld_val = jget( |rows/{ lv_ri }/key/{ lv_fld_name }| ).
+        REPLACE ALL OCCURRENCES OF '''' IN lv_fld_val WITH ''''''.
+        IF lv_kf > 0.
+          APPEND 'AND' TO lt_where.
+        ENDIF.
+        APPEND |{ to_lower( lv_fld_name ) } = '{ lv_fld_val }'| TO lt_where.
+      ENDDO.
+
+      CLEAR lr_wa.
+      lv_row_ok = abap_true.
+      lv_subrc = 4.
+      TRY.
+          CREATE DATA lr_wa TYPE (lv_table_upper).
+          ASSIGN lr_wa->* TO <fs_wa>.
+          SELECT SINGLE * FROM (lv_table_upper) INTO @<fs_wa> WHERE (lt_where).
+          lv_subrc = sy-subrc.
+        CATCH cx_root INTO lx_sel.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'row'
+            iv_text = |row { lv_ri + 1 } (after-image): { lx_sel->get_text( ) }| ).
+          lv_row_ok = abap_false.
+      ENDTRY.
+
+      IF lv_row_ok = abap_false.
+        CONTINUE.
+      ENDIF.
+
+      IF lv_subrc <> 0.
+        emit( |IMGW> AABSENT row=[{ lv_ri + 1 }]| ).
+      ELSE.
+        lo_descr = cl_abap_typedescr=>describe_by_data( <fs_wa> ).
+        lo_struct = CAST cl_abap_structdescr( lo_descr ).
+        lt_comp = lo_struct->get_components( ).
+        LOOP AT lt_comp INTO ls_comp.
+          ASSIGN COMPONENT ls_comp-name OF STRUCTURE <fs_wa> TO <fs_val>.
+          IF sy-subrc <> 0.
+            CONTINUE.
+          ENDIF.
+          lv_fval = |{ <fs_val> }|.
+          emit( |IMGW> AVAL row=[{ lv_ri + 1 }] field=[{ ls_comp-name }] len=[{ strlen( lv_fval ) }] | &&
+            |value=[{ lv_fval }]| ).
+        ENDLOOP.
+      ENDIF.
+    ENDDO.
+
+    emit( |IMGW> APPLIED rows=[{ iv_row_count }]| ).
+  ENDMETHOD.
+
+  METHOD cts_record.
+    DATA ls_ko200      TYPE ko200.
+    DATA lt_ko200      TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.
+    DATA ls_e071k      TYPE e071k.
+    DATA lt_e071k      TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.
+    DATA lv_we_order   TYPE trkorr.
+    DATA lv_we_task    TYPE trkorr.
+    DATA lx_cts        TYPE REF TO cx_root.
+    DATA lo_exc_type   TYPE REF TO cl_abap_typedescr.
+    DATA lv_exc_class  TYPE string.
+    DATA lv_exc_text   TYPE string.
+    DATA lv_view_upper TYPE string.
+    DATA lv_msg        TYPE string.
+
+    rv_ok = abap_true.
+    lv_view_upper = to_upper( iv_view ).
+
+    ls_ko200-pgmid    = 'R3TR'.
+    ls_ko200-object   = iv_master_type.
+    ls_ko200-obj_name = lv_view_upper.
+    ls_ko200-objfunc  = 'K'.
+    APPEND ls_ko200 TO lt_ko200.
+
+    ls_e071k-pgmid      = 'R3TR'.
+    ls_e071k-object     = 'TABU'.
+    ls_e071k-objname    = to_upper( iv_table ).
+    ls_e071k-mastertype = iv_master_type.
+    ls_e071k-mastername = lv_view_upper.
+    ls_e071k-viewname   = lv_view_upper.
+    ls_e071k-objfunc    = ' '.
+    ls_e071k-tabkey     = iv_tabkey.
+    APPEND ls_e071k TO lt_e071k.
+
+    TRY.
+        CALL FUNCTION 'TR_OBJECTS_CHECK'
+          EXPORTING
+            iv_no_standard_editor   = 'X'
+            iv_no_show_option       = 'X'
+          TABLES
+            wt_ko200                = lt_ko200
+            wt_e071k                = lt_e071k
+          EXCEPTIONS
+            cancel_edit_other_error = 1
+            show_only_other_error   = 2
+            OTHERS                  = 3.
+        IF sy-subrc <> 0.
+          MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.
+          emit( |ZMCP-DDIC-ERR> TR_OBJECTS_CHECK failed for row { iv_row } on { iv_table }, | &&
+            |sy-subrc={ sy-subrc }| ).
+          rv_ok = abap_false.
+          RETURN.
+        ENDIF.
+
+        CALL FUNCTION 'TR_OBJECTS_INSERT'
+          EXPORTING
+            iv_no_standard_editor   = 'X'
+            iv_no_show_option       = 'X'
+            wi_order                = iv_corr
+          IMPORTING
+            we_order                = lv_we_order
+            we_task                 = lv_we_task
+          TABLES
+            wt_ko200                = lt_ko200
+            wt_e071k                = lt_e071k
+          EXCEPTIONS
+            cancel_edit_other_error = 1
+            show_only_other_error   = 2
+            OTHERS                  = 3.
+        IF sy-subrc <> 0.
+          MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.
+          emit( |ZMCP-DDIC-ERR> TR_OBJECTS_INSERT failed for row { iv_row } on { iv_table }, | &&
+            |sy-subrc={ sy-subrc }| ).
+          rv_ok = abap_false.
+          RETURN.
+        ENDIF.
+
+      CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts.
+        lo_exc_type = cl_abap_typedescr=>describe_by_object_ref( lx_cts ).
+        lv_exc_class = lo_exc_type->get_relative_name( ).
+        lv_exc_text = lx_cts->get_text( ).
+        emit( |IMGW> ERROR class=[{ lv_exc_class }] len=[{ strlen( lv_exc_text ) }] value=[{ lv_exc_text }]| ).
+        rv_ok = abap_false.
+        RETURN.
+      CATCH cx_root INTO lx_cts.
+        lo_exc_type = cl_abap_typedescr=>describe_by_object_ref( lx_cts ).
+        lv_exc_class = lo_exc_type->get_relative_name( ).
+        lv_exc_text = lx_cts->get_text( ).
+        emit( |IMGW> ERROR class=[{ lv_exc_class }] len=[{ strlen( lv_exc_text ) }] value=[{ lv_exc_text }]| ).
+        rv_ok = abap_false.
+        RETURN.
+    ENDTRY.
+
+    emit( |IMGW> TRKEY row=[{ iv_row }] trkorr=[{ iv_corr }] order_len=[{ strlen( lv_we_order ) }] | &&
+      |order=[{ lv_we_order }] task_len=[{ strlen( lv_we_task ) }] task=[{ lv_we_task }] | &&
+      |len=[{ strlen( iv_tabkey ) }] value=[{ iv_tabkey }]| ).
+  ENDMETHOD.
+
+  METHOD emit.
+    zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( iv_line ) }"| ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var imgManifest = {
+  contract: FLUID_CONTRACT,
+  id: "img",
+  title: "IMG write",
+  description: "Previews and writes an IMG (SPRO customizing) table's rows, and creates the customizing transport requests to record those writes in.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT5.description,
+      source: { text: RUNTIME_SOURCE5 }
+    },
+    {
+      name: "ZCL_ZMCP_FLUID_IMG",
+      type: "CLAS/OC",
+      description: "fluid: previews and writes an IMG table's rows",
+      source: { text: IMG_SOURCE }
+    }
+  ],
+  entry: "ZCL_ZMCP_FLUID_IMG",
+  actions: [
+    {
+      name: "preview",
+      category: "read",
+      description: "Reads the client's customizing flags (T000), the table's DDIC header (DD02L) and field catalog (DD03L), and the current before-image of each named row; writes nothing.",
+      targets: { object: "/table" },
+      input: {
+        type: "object",
+        required: ["table", "keyFields", "rows"],
+        properties: {
+          table: { type: "string", maxLength: 30, description: "The DDIC table name to preview, e.g. T001." },
+          keyFields: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: "The table's key field names, excluding the client field, in the order used to look up each row."
+          },
+          rows: {
+            type: "array",
+            items: { type: "object" },
+            description: "One entry per row; each is a flat map of key field name to key value."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "string" },
+        description: "One IMGW>/ZMCP-DDIC-ERR> transcript line per element."
+      }
+    },
+    {
+      name: "create_request",
+      category: "mutate",
+      description: "Creates a customizing (type W) transport request via TR_INSERT_REQUEST_WITH_TASKS, with a type-Q task recorded for the logon user.",
+      input: {
+        type: "object",
+        required: ["description"],
+        properties: {
+          description: {
+            type: "string",
+            maxLength: 60,
+            description: "Short text (AS4TEXT) for the new request."
+          },
+          owner: {
+            type: "string",
+            maxLength: 12,
+            description: "Request owner; defaults to the logon user when omitted."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "string" },
+        description: "One CTSW> transcript line per element."
+      },
+      // Empty on purpose, not omitted: a customizing (type W) request is not filed against any
+      // package (see img-edit.ts's own module doc comment on why create_request lives here rather
+      // than under abap_transport), and the request number this mints does not exist until
+      // TR_INSERT_REQUEST_WITH_TASKS returns it, so there is no object name to point at either.
+      // `{}` still routes this "mutate" action through assertTargetsAgainstGate (dispatch.ts) rather
+      // than skipping gate.assert entirely (`if (!targets) return`) — it gets the productive-system/
+      // write-lockout/read-only ceilings, and, with no package known, falls to the package
+      // allowlist's fail-closed "unknown package" branch unless ABAP_ALLOW_PACKAGES is wildcarded.
+      targets: {}
+    },
+    {
+      name: "apply",
+      category: "mutate",
+      description: "Re-reads DD02L to guard against drift since the probe, then upserts or deletes the named rows via a dynamic MODIFY/DELETE, recording each in the given transport when corrNr is supplied, and dumps a before- and after-image of every row around a COMMIT WORK AND WAIT.",
+      // `transport: "/corrNr"` is declared for documentation and future-proofing, but it does NOT
+      // arm the SafetyGate's transport allowlist (safety.ts step 10): that check only runs inside
+      // `needsTransport`, which requires a KNOWN package, and this action declares no `package`
+      // pointer — the probe never reads TADIR-DEVCLASS, so no plan field carries the table's real
+      // package. Adding one would mean a new network read this slice does not make. Residual gap,
+      // not fixed here: report to the slice owner rather than pretend this pointer enforces
+      // anything by itself.
+      targets: { object: "/table", transport: "/corrNr" },
+      input: {
+        type: "object",
+        required: [
+          "table",
+          "clientField",
+          "keyFields",
+          "rows",
+          "op",
+          "expectedDeliveryClass",
+          "expectedClientDependent",
+          "view",
+          "masterType"
+        ],
+        properties: {
+          table: { type: "string", maxLength: 30, description: "The DDIC table name to write, e.g. T005." },
+          clientField: {
+            type: "string",
+            maxLength: 30,
+            description: "The table's client field name; always set from sy-mandt, never from row data."
+          },
+          keyFields: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: "The table's key field names, excluding the client field, in the order used to look up each row."
+          },
+          rows: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["key", "values"],
+              properties: {
+                key: { type: "object", description: "Key field name to key value, for every keyFields entry." },
+                values: { type: "object", description: "Non-key field name to new value, for an upsert." }
+              }
+            },
+            description: "One entry per row to upsert or delete."
+          },
+          op: { type: "string", enum: ["upsert", "delete"], description: "Whether to upsert or delete every row." },
+          corrNr: {
+            type: "string",
+            description: "Transport request/task number; when supplied, every row is recorded against it via the CTS."
+          },
+          expectedDeliveryClass: {
+            type: "string",
+            maxLength: 1,
+            description: "DD02L-CONTFLAG as read at probe time; the apply aborts if a live re-read disagrees."
+          },
+          expectedClientDependent: {
+            type: "boolean",
+            description: "DD02L-CLIDEP as read at probe time; the apply aborts if a live re-read disagrees."
+          },
+          view: {
+            type: "string",
+            description: "The maintenance view/object recording this write in the CTS (KO200-OBJ_NAME, E071K-MASTERNAME/VIEWNAME)."
+          },
+          masterType: {
+            type: "string",
+            enum: ["VDAT", "CDAT"],
+            description: "KO200/E071K-OBJECT/MASTERTYPE: VDAT for a maintenance view, CDAT for a customizing object."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "string" },
+        description: "One IMGW>/ZMCP-DDIC-ERR> transcript line per element."
+      }
+    }
+  ]
+};
+var imgSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE5],
+  ["ZCL_ZMCP_FLUID_IMG", IMG_SOURCE]
+]);
+
+// src/adt/fluid/builtin/run.ts
+var RUNTIME_SOURCE6 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE6 === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT6 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT6 === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUN_SOURCE = `CLASS zcl_zmcp_fluid_run DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_run IMPLEMENTATION.
+
+  METHOD run.
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'run' iv_action = iv_action ).
+
+    IF iv_action <> 'report'.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+        iv_text = |unknown action "{ iv_action }"| ).
+      zcl_zmcp_fluid_rt=>end( 1 ).
+      RETURN.
+    ENDIF.
+
+    zcl_zmcp_fluid_rt=>scan( iv_json ).
+    DATA(lv_report)  = zcl_zmcp_fluid_rt=>s( 'report' ).
+    DATA(lv_variant) = zcl_zmcp_fluid_rt=>s( 'variant' ).
+
+    IF lv_report IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = 'report is required' ).
+      zcl_zmcp_fluid_rt=>end( 1 ).
+      RETURN.
+    ENDIF.
+
+    TYPES ty_txt_line TYPE c LENGTH 1023.
+    DATA: lt_list TYPE TABLE OF abaplist,
+          lt_txt  TYPE TABLE OF ty_txt_line,
+          lv_step TYPE string VALUE 'submit'.
+
+    TRY.
+        IF lv_variant IS NOT INITIAL.
+          SUBMIT (lv_report) USING SELECTION-SET lv_variant AND RETURN EXPORTING LIST TO MEMORY.
+        ELSE.
+          SUBMIT (lv_report) AND RETURN EXPORTING LIST TO MEMORY.
+        ENDIF.
+
+        IF sy-subrc <> 0.
+          " Not fatal: a report ending via MESSAGE/LEAVE can set sy-subrc <> 0
+          " while still leaving a good list in memory (bridgeClassSource, src/adt/run.ts).
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'subrc' iv_step = lv_step
+            iv_text = |SUBMIT { lv_report } set sy-subrc = { sy-subrc }| ).
+        ENDIF.
+
+        lv_step = 'capture'.
+
+        CALL FUNCTION 'LIST_FROM_MEMORY'
+          TABLES
+            listobject = lt_list
+          EXCEPTIONS
+            not_found  = 1
+            OTHERS     = 2.
+        IF sy-subrc <> 0.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'subrc' iv_step = lv_step
+            iv_text = |LIST_FROM_MEMORY sy-subrc = { sy-subrc }| ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        CALL FUNCTION 'LIST_TO_ASCI'
+          EXPORTING
+            list_index = -1
+          TABLES
+            listobject = lt_list
+            listasci   = lt_txt
+          EXCEPTIONS
+            empty_list         = 1
+            list_index_invalid = 2
+            OTHERS             = 3.
+        IF sy-subrc <> 0.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'subrc' iv_step = lv_step
+            iv_text = |LIST_TO_ASCI sy-subrc = { sy-subrc }| ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+      CATCH cx_root INTO DATA(lx_run).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = lv_step iv_text = lx_run->get_text( ) ).
+        zcl_zmcp_fluid_rt=>end( 1 ).
+        RETURN.
+    ENDTRY.
+
+    LOOP AT lt_txt INTO DATA(lv_line).
+      zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( lv_line ) }"| ).
+    ENDLOOP.
+
+    zcl_zmcp_fluid_rt=>end( 0 ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var runManifest = {
+  contract: FLUID_CONTRACT,
+  id: "run",
+  title: "Run",
+  description: "Runs a classic ABAP report and captures its list output.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT6.description,
+      source: { text: RUNTIME_SOURCE6 }
+    },
+    {
+      name: "ZCL_ZMCP_FLUID_RUN",
+      type: "CLAS/OC",
+      description: "fluid: runs a classic ABAP report, captures its list",
+      source: { text: RUN_SOURCE }
+    }
+  ],
+  entry: "ZCL_ZMCP_FLUID_RUN",
+  actions: [
+    {
+      name: "report",
+      category: "execute",
+      description: "Runs a classic ABAP report (optionally with a selection variant) and returns its captured list output, one line per element.",
+      input: {
+        type: "object",
+        required: ["report"],
+        properties: {
+          report: { type: "string", maxLength: 30, description: "The PROG name to SUBMIT." },
+          variant: { type: "string", maxLength: 14, description: "An existing selection-screen variant name." }
+        }
+      },
+      output: {
+        type: "array",
+        items: { type: "string" },
+        description: "One captured list line per element."
+      }
+    }
+  ]
+};
+var runSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE6],
+  ["ZCL_ZMCP_FLUID_RUN", RUN_SOURCE]
+]);
+
+// src/adt/fluid/builtin/ui.ts
+var RUNTIME_SOURCE7 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE7 === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT7 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT7 === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var UI_SOURCE = `CLASS zcl_zmcp_fluid_ui DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    CLASS-METHODS row_json
+      IMPORTING
+        iv_data        TYPE any
+      RETURNING
+        VALUE(rv_json) TYPE string.
+
+    " Same RTTI walk as row_json, minus the FNAM name-extraction/wrapping -
+    " used for header/flow/status rows, none of which carry an FNAM component.
+    CLASS-METHODS flatten_json
+      IMPORTING
+        iv_data        TYPE any
+      RETURNING
+        VALUE(rv_json) TYPE string.
+
+    " GUI status/buttons walk (RS_CUA_INTERNAL_FETCH + per-status
+    " RS_CUA_GET_STATUS), keyed by program alone. Returns a comma-prefixed
+    " run of "key":value pairs to append to the enclosing object, or the
+    " empty string when there is nothing to report (see METHOD cua_json).
+    CLASS-METHODS cua_json
+      IMPORTING
+        iv_program     TYPE syrepid
+        iv_prog_s      TYPE string
+      RETURNING
+        VALUE(rv_json) TYPE string.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
+
+  METHOD run.
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'ui' iv_action = iv_action ).
+
+    IF iv_action <> 'screen'.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+        iv_text = |unknown action "{ iv_action }"| ).
+      zcl_zmcp_fluid_rt=>end( 1 ).
+      RETURN.
+    ENDIF.
+
+    zcl_zmcp_fluid_rt=>scan( iv_json ).
+    DATA(lv_tcode)   = zcl_zmcp_fluid_rt=>s( 'tcode' ).
+    DATA(lv_prog_in) = zcl_zmcp_fluid_rt=>s( 'program' ).
+    DATA(lv_dyn_in)  = zcl_zmcp_fluid_rt=>s( 'dynpro' ).
+
+    DATA lv_step       TYPE string VALUE 'args'.
+    DATA lv_program    TYPE syrepid.
+    DATA lv_dynpro     TYPE sydynnr.
+    DATA lv_have_tcode TYPE abap_bool.
+    DATA lv_cinfo_raw  TYPE tstc-cinfo.
+    DATA lv_cinfo      TYPE string.
+    DATA lv_kind       TYPE string.
+    CLEAR: lv_program, lv_dynpro, lv_have_tcode, lv_cinfo_raw, lv_cinfo, lv_kind.
+
+    TRY.
+        IF lv_tcode IS NOT INITIAL.
+          lv_step = 'tstc'.
+          SELECT SINGLE pgmna, dypno, cinfo FROM tstc
+            WHERE tcode = @lv_tcode
+            INTO (@lv_program, @lv_dynpro, @lv_cinfo_raw).
+          IF sy-subrc <> 0.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'subrc' iv_step = lv_step
+              iv_text = |TSTC lookup failed for tcode { lv_tcode }| iv_subrc = sy-subrc ).
+            zcl_zmcp_fluid_rt=>end( 1 ).
+            RETURN.
+          ENDIF.
+          lv_have_tcode = abap_true.
+          lv_cinfo = |{ lv_cinfo_raw }|.
+          CASE lv_cinfo_raw.
+            WHEN '00'.
+              lv_kind = 'dialog transaction (classic dynpro; batch input / press applies)'.
+            WHEN '80'.
+              lv_kind = 'report transaction (SUBMIT-driven; batch input does NOT apply)'.
+            WHEN OTHERS.
+              lv_kind = 'unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies'.
+          ENDCASE.
+        ELSEIF lv_prog_in IS NOT INITIAL AND lv_dyn_in IS NOT INITIAL.
+          " dynpro arrives as caller-supplied JSON at runtime rather than a
+          " baked ABAP literal, so its digit shape is checked here instead of
+          " being left to NUMC's own silently-truncating conversion.
+          IF lv_dyn_in CO '0123456789' AND strlen( lv_dyn_in ) BETWEEN 1 AND 4.
+            lv_program = lv_prog_in.
+            lv_dynpro  = lv_dyn_in.
+          ELSE.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = lv_step
+              iv_text = |dynpro "{ lv_dyn_in }" must be 1-4 digits| ).
+            zcl_zmcp_fluid_rt=>end( 1 ).
+            RETURN.
+          ENDIF.
+        ELSE.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = lv_step
+            iv_text = 'either tcode, or program and dynpro, is required' ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        " lv_program (syrepid) and lv_dynpro (sydynnr) are non-string flat
+        " types; ZCL_ZMCP_FLUID_RT=>esc's iv_text is TYPE string passed by
+        " reference (the IMPORTING default), which requires an exact type
+        " match rather than an implicit conversion, so both are materialised
+        " into genuine string locals here before being escaped below.
+        DATA lv_prog_s TYPE string.
+        DATA lv_dyn_s  TYPE string.
+        lv_prog_s = |{ lv_program }|.
+        lv_dyn_s  = |{ lv_dynpro }|.
+
+        lv_step = 'read'.
+        DATA ls_header      TYPE rpy_dyhead.
+        DATA lt_fields_list TYPE TABLE OF d021s.
+        DATA lt_flow_logic  TYPE TABLE OF rpy_dyflow.
+        CLEAR: ls_header, lt_fields_list, lt_flow_logic.
+        CALL FUNCTION 'RPY_DYNPRO_READ'
+          EXPORTING
+            progname = lv_program
+            dynnr    = lv_dynpro
+          IMPORTING
+            header   = ls_header
+          TABLES
+            flow_logic  = lt_flow_logic
+            fields_list = lt_fields_list
+          EXCEPTIONS
+            cancelled        = 1
+            not_found        = 2
+            permission_error = 3
+            OTHERS           = 4.
+        IF sy-subrc <> 0.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'subrc' iv_step = lv_step
+            iv_text = |RPY_DYNPRO_READ failed for { lv_program } { lv_dynpro }| iv_subrc = sy-subrc ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        DATA lv_out TYPE string.
+        lv_out = '{'.
+        IF lv_have_tcode = abap_true.
+          lv_out = lv_out && |"tcode":{"tcode":"{ zcl_zmcp_fluid_rt=>esc( lv_tcode ) }"|.
+          lv_out = lv_out && |,"program":"{ zcl_zmcp_fluid_rt=>esc( lv_prog_s ) }"|.
+          lv_out = lv_out && |,"dynpro":"{ zcl_zmcp_fluid_rt=>esc( lv_dyn_s ) }"|.
+          lv_out = lv_out && |,"cinfo":"{ zcl_zmcp_fluid_rt=>esc( lv_cinfo ) }"|.
+          lv_out = lv_out && |,"kind":"{ zcl_zmcp_fluid_rt=>esc( lv_kind ) }"|.
+          IF lv_cinfo_raw = '00'.
+            lv_out = lv_out && ',"bdcApplies":true'.
+          ELSEIF lv_cinfo_raw = '80'.
+            lv_out = lv_out && ',"bdcApplies":false'.
+          ENDIF.
+          lv_out = lv_out && '},'.
+        ENDIF.
+        lv_out = lv_out && |"program":"{ zcl_zmcp_fluid_rt=>esc( lv_prog_s ) }"|.
+        lv_out = lv_out && |,"dynpro":"{ zcl_zmcp_fluid_rt=>esc( lv_dyn_s ) }"|.
+        lv_out = lv_out && |,"header":{ flatten_json( ls_header ) }|.
+
+        lv_out = lv_out && ',"fields":['.
+        LOOP AT lt_fields_list INTO DATA(ls_field).
+          IF sy-tabix > 1.
+            lv_out = lv_out && ','.
+          ENDIF.
+          lv_out = lv_out && row_json( ls_field ).
+        ENDLOOP.
+        lv_out = lv_out && ']'.
+
+        lv_out = lv_out && |,"flowCount":{ lines( lt_flow_logic ) }|.
+        lv_out = lv_out && ',"flow":['.
+        LOOP AT lt_flow_logic INTO DATA(ls_flow).
+          IF sy-tabix > 1.
+            lv_out = lv_out && ','.
+          ENDIF.
+          lv_out = lv_out && flatten_json( ls_flow ).
+        ENDLOOP.
+        lv_out = lv_out && ']'.
+
+        lv_out = lv_out && cua_json( iv_program = lv_program iv_prog_s = lv_prog_s ).
+        lv_out = lv_out && '}'.
+        zcl_zmcp_fluid_rt=>out( lv_out ).
+
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = lv_step iv_text = lx_err->get_text( ) ).
+        zcl_zmcp_fluid_rt=>end( 1 ).
+        RETURN.
+    ENDTRY.
+
+    zcl_zmcp_fluid_rt=>end( 0 ).
+  ENDMETHOD.
+
+  METHOD row_json.
+    " D021S component names are not hard-relied on beyond FNAM (the field
+    " name) - see ui-runtime.ts's module header on why the rest are dumped
+    " generically via RTTI rather than addressed by name.
+    DATA lv_name  TYPE string.
+    DATA lv_parts TYPE string.
+    DATA lv_val   TYPE string.
+    DATA(lo_type) = cl_abap_typedescr=>describe_by_data( iv_data ).
+    IF lo_type->kind = cl_abap_typedescr=>kind_struct.
+      DATA(lo_struct) = CAST cl_abap_structdescr( lo_type ).
+      LOOP AT lo_struct->components INTO DATA(ls_comp).
+        ASSIGN COMPONENT ls_comp-name OF STRUCTURE iv_data TO FIELD-SYMBOL(<fs>).
+        IF sy-subrc = 0.
+          CLEAR lv_val.
+          TRY.
+              lv_val = |{ <fs> }|.
+            CATCH cx_root.
+              CLEAR lv_val.
+          ENDTRY.
+          IF ls_comp-name = 'FNAM'.
+            lv_name = lv_val.
+          ENDIF.
+          IF lv_parts IS NOT INITIAL.
+            lv_parts = lv_parts && ','.
+          ENDIF.
+          lv_parts = lv_parts &&
+            |"{ to_lower( ls_comp-name ) }":"{ zcl_zmcp_fluid_rt=>esc( lv_val ) }"|.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    rv_json = |\\{"name":"{ zcl_zmcp_fluid_rt=>esc( lv_name ) }"|.
+    IF lv_parts IS NOT INITIAL.
+      rv_json = rv_json && |,{ lv_parts }|.
+    ENDIF.
+    rv_json = rv_json && '}'.
+  ENDMETHOD.
+
+  METHOD flatten_json.
+    DATA lv_parts TYPE string.
+    DATA lv_val   TYPE string.
+    DATA(lo_type) = cl_abap_typedescr=>describe_by_data( iv_data ).
+    IF lo_type->kind = cl_abap_typedescr=>kind_struct.
+      DATA(lo_struct) = CAST cl_abap_structdescr( lo_type ).
+      LOOP AT lo_struct->components INTO DATA(ls_comp).
+        ASSIGN COMPONENT ls_comp-name OF STRUCTURE iv_data TO FIELD-SYMBOL(<fs>).
+        IF sy-subrc = 0.
+          CLEAR lv_val.
+          TRY.
+              lv_val = |{ <fs> }|.
+            CATCH cx_root.
+              CLEAR lv_val.
+          ENDTRY.
+          IF lv_parts IS NOT INITIAL.
+            lv_parts = lv_parts && ','.
+          ENDIF.
+          lv_parts = lv_parts &&
+            |"{ to_lower( ls_comp-name ) }":"{ zcl_zmcp_fluid_rt=>esc( lv_val ) }"|.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+    rv_json = |\\{{ lv_parts }}|.
+  ENDMETHOD.
+
+  METHOD cua_json.
+    DATA lt_sta   TYPE STANDARD TABLE OF rsmpe_stat.
+    DATA lt_fun   TYPE STANDARD TABLE OF rsmpe_funt.
+    DATA lt_men   TYPE STANDARD TABLE OF rsmpe_men.
+    DATA lt_mtx   TYPE STANDARD TABLE OF rsmpe_mnlt.
+    DATA lt_act   TYPE STANDARD TABLE OF rsmpe_act.
+    DATA lt_but   TYPE STANDARD TABLE OF rsmpe_but.
+    DATA lt_pfk   TYPE STANDARD TABLE OF rsmpe_pfk.
+    DATA lt_set   TYPE STANDARD TABLE OF rsmpe_staf.
+    DATA lt_doc   TYPE STANDARD TABLE OF rsmpe_atrt.
+    DATA lt_tit   TYPE STANDARD TABLE OF rsmpe_titt.
+    DATA lt_biv   TYPE STANDARD TABLE OF rsmpe_buts.
+    DATA lt_fkeys TYPE STANDARD TABLE OF rseul_keys.
+    CLEAR: lt_sta, lt_fun, lt_men, lt_mtx, lt_act, lt_but, lt_pfk, lt_set, lt_doc, lt_tit, lt_biv, lt_fkeys.
+    CLEAR rv_json.
+    CALL FUNCTION 'RS_CUA_INTERNAL_FETCH'
+      EXPORTING
+        program = iv_program
+      TABLES
+        sta = lt_sta
+        fun = lt_fun
+        men = lt_men
+        mtx = lt_mtx
+        act = lt_act
+        but = lt_but
+        pfk = lt_pfk
+        set = lt_set
+        doc = lt_doc
+        tit = lt_tit
+        biv = lt_biv
+      EXCEPTIONS
+        not_found       = 1
+        unknown_version = 2
+        OTHERS          = 3.
+    IF sy-subrc = 1.
+      " NOT_FOUND is a normal outcome (program has no GUI status), not a fault.
+      rv_json = |,"noCua":{"program":"{ zcl_zmcp_fluid_rt=>esc( iv_prog_s ) }"|.
+      rv_json = rv_json && ',"note":"no GUI status defined for this program"}'.
+      RETURN.
+    ELSEIF sy-subrc <> 0.
+      " Any other RS_CUA_INTERNAL_FETCH failure is treated as absent CUA data
+      " rather than a fault: every field this method contributes is optional,
+      " and err() would fail the whole screen read for what is secondary
+      " status/button information alongside an otherwise complete result.
+      RETURN.
+    ENDIF.
+
+    rv_json = |,"statusCount":{ lines( lt_sta ) }|.
+    rv_json = rv_json && ',"statusList":['.
+    LOOP AT lt_sta INTO DATA(ls_sta).
+      IF sy-tabix > 1.
+        rv_json = rv_json && ','.
+      ENDIF.
+      rv_json = rv_json && flatten_json( ls_sta ).
+    ENDLOOP.
+    rv_json = rv_json && ']'.
+
+    rv_json = rv_json && |,"functionsCount":{ lines( lt_fun ) }|.
+    rv_json = rv_json && ',"functions":['.
+    LOOP AT lt_fun INTO DATA(ls_fun).
+      IF sy-tabix > 1.
+        rv_json = rv_json && ','.
+      ENDIF.
+      rv_json = rv_json && |{"code":"{ zcl_zmcp_fluid_rt=>esc( ls_fun-code ) }"|.
+      rv_json = rv_json && |,"text":"{ zcl_zmcp_fluid_rt=>esc( ls_fun-fun_text ) }"|.
+      rv_json = rv_json && |,"type":"{ zcl_zmcp_fluid_rt=>esc( ls_fun-type ) }"}|.
+    ENDLOOP.
+    rv_json = rv_json && ']'.
+
+    DATA lv_fkeys_total TYPE i VALUE 0.
+    DATA lv_status      TYPE gui_status.
+    DATA lv_fkeys_json  TYPE string.
+    CLEAR lv_fkeys_json.
+    LOOP AT lt_sta INTO ls_sta.
+      lv_status = ls_sta-code.
+      CLEAR lt_fkeys.
+      CALL FUNCTION 'RS_CUA_GET_STATUS'
+        EXPORTING
+          program = iv_program
+          status  = lv_status
+        TABLES
+          fkeys = lt_fkeys
+        EXCEPTIONS
+          not_found_program = 1
+          not_found_status  = 2
+          recursive_menues  = 3
+          empty_list        = 4
+          not_found_menu    = 5
+          OTHERS            = 6.
+      IF sy-subrc = 0.
+        LOOP AT lt_fkeys INTO DATA(ls_fkey).
+          IF ls_fkey-code IS NOT INITIAL.
+            IF lv_fkeys_json IS NOT INITIAL.
+              lv_fkeys_json = lv_fkeys_json && ','.
+            ENDIF.
+            lv_fkeys_json = lv_fkeys_json && |{"status":"{ zcl_zmcp_fluid_rt=>esc( lv_status ) }"|.
+            lv_fkeys_json = lv_fkeys_json && |,"code":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-code ) }"|.
+            lv_fkeys_json = lv_fkeys_json && |,"text":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-text ) }"|.
+            lv_fkeys_json = lv_fkeys_json &&
+              |,"quickinfo":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-quickinfo ) }"}|.
+            lv_fkeys_total = lv_fkeys_total + 1.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+    ENDLOOP.
+
+    rv_json = rv_json && |,"fkeysCount":{ lv_fkeys_total }|.
+    rv_json = rv_json && |,"fkeys":[{ lv_fkeys_json }]|.
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var uiManifest = {
+  contract: FLUID_CONTRACT,
+  id: "ui",
+  title: "UI",
+  description: "Reads a classic dynpro's field list, resolved by tcode or by program+dynpro.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      // same live object as the rt tool's; derived so the two descriptions can't drift apart
+      description: RUNTIME_OBJECT7.description,
+      source: { text: RUNTIME_SOURCE7 }
+    },
+    {
+      name: "ZCL_ZMCP_FLUID_UI",
+      type: "CLAS/OC",
+      description: "fluid: reads a dynpro's field list via RPY_DYNPRO_READ",
+      source: { text: UI_SOURCE }
+    }
+  ],
+  entry: "ZCL_ZMCP_FLUID_UI",
+  actions: [
+    {
+      name: "screen",
+      category: "read",
+      description: "Resolves a screen by tcode (via TSTC) or by explicit program+dynpro, and reads its field list via RPY_DYNPRO_READ. Give tcode, or both program and dynpro - not both forms.",
+      input: {
+        type: "object",
+        properties: {
+          tcode: {
+            type: "string",
+            maxLength: 20,
+            description: "Transaction code to resolve via TSTC. Takes precedence over program/dynpro."
+          },
+          program: {
+            type: "string",
+            maxLength: 40,
+            description: "Explicit ABAP program name. Requires dynpro; ignored if tcode is given."
+          },
+          dynpro: {
+            type: "string",
+            maxLength: 4,
+            description: "Explicit dynpro number, 1-4 digits. Requires program; ignored if tcode is given."
+          }
+        }
+      },
+      output: {
+        type: "object",
+        required: ["program", "dynpro", "fields"],
+        properties: {
+          tcode: {
+            type: "object",
+            required: ["tcode", "program", "dynpro", "cinfo", "kind"],
+            description: "Only present when resolved by tcode. TSTC-derived transaction metadata.",
+            properties: {
+              tcode: { type: "string", description: "The caller-supplied tcode, as given." },
+              program: { type: "string", description: "TSTC-PGMNA for this tcode." },
+              dynpro: { type: "string", description: "TSTC-DYPNO for this tcode." },
+              cinfo: { type: "string", description: "TSTC-CINFO, raw." },
+              kind: { type: "string", description: "Human-readable classification of cinfo." },
+              bdcApplies: {
+                type: "boolean",
+                description: "true for cinfo '00', false for '80', absent otherwise (unconfirmed)."
+              }
+            }
+          },
+          program: { type: "string", maxLength: 40, description: "The resolved ABAP program name." },
+          dynpro: { type: "string", maxLength: 4, description: "The resolved dynpro number." },
+          header: {
+            type: "object",
+            description: "RPY_DYHEAD, dumped generically as lowercased-component-name:value pairs."
+          },
+          fields: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["name"],
+              properties: {
+                name: { type: "string", description: "The field's D021S-FNAM name." }
+              },
+              description: "One D021S row per field, dumped generically alongside the derived name."
+            },
+            description: "The dynpro's field list, in RPY_DYNPRO_READ's own order."
+          },
+          flowCount: { type: "integer", description: "Row count of the flow logic table." },
+          flow: {
+            type: "array",
+            items: { type: "object", description: "One RPY_DYFLOW row, dumped generically." },
+            description: "The dynpro's flow logic, in RPY_DYNPRO_READ's own order."
+          },
+          statusCount: { type: "integer", description: "Row count of the program's GUI statuses." },
+          statusList: {
+            type: "array",
+            items: { type: "object", description: "One RSMPE_STAT row, dumped generically." },
+            description: "The program's GUI statuses, from RS_CUA_INTERNAL_FETCH."
+          },
+          functionsCount: { type: "integer", description: "Row count of functions." },
+          functions: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["code", "text", "type"],
+              properties: {
+                code: { type: "string" },
+                text: { type: "string" },
+                type: { type: "string" }
+              },
+              description: "One RSMPE_FUNT row, as a fixed {code, text, type} projection."
+            },
+            description: "Program-wide function codes, not tied to one status."
+          },
+          fkeysCount: { type: "integer", description: "Total FKEY rows emitted, across all statuses." },
+          fkeys: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["status", "code", "text", "quickinfo"],
+              properties: {
+                status: { type: "string" },
+                code: { type: "string" },
+                text: { type: "string" },
+                quickinfo: { type: "string" }
+              },
+              description: "One RSEUL_KEYS row from RS_CUA_GET_STATUS, empty-code rows dropped."
+            },
+            description: "Union of per-status buttons across every status."
+          },
+          noCua: {
+            type: "object",
+            required: ["program", "note"],
+            description: "Present when RS_CUA_INTERNAL_FETCH reports no GUI status for this program.",
+            properties: {
+              program: { type: "string" },
+              note: { type: "string" }
+            }
+          }
+        }
+      }
+    }
+  ]
+};
+var uiSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE7],
+  ["ZCL_ZMCP_FLUID_UI", UI_SOURCE]
+]);
+
+// src/adt/fluid/builtin/index.ts
+var BUILTIN_FLUID_TOOLS = [
+  { manifest: classicManifest, sources: classicSources },
+  { manifest: coreManifest, sources: coreSources },
+  { manifest: enhManifest, sources: enhSources },
+  { manifest: fpmManifest, sources: fpmSources },
+  { manifest: imgManifest, sources: imgSources },
+  { manifest: fluidRuntimeManifest, sources: fluidRuntimeSources },
+  { manifest: runManifest, sources: runSources },
+  { manifest: uiManifest, sources: uiSources }
+];
+
+// src/adt/fluid/plugin-loader.ts
+import * as fs2 from "node:fs/promises";
+import * as path3 from "node:path";
+
+// src/adt/fluid/static-review.ts
+var FLUID_ABAP_LINE_MAX = 255;
+var CALL_SYSTEM_RE = /\bCALL\s+'SYSTEM'/i;
+var EXEC_SQL_RE = /\bEXEC\s+SQL\b/i;
+var INSERT_REPORT_RE = /\bINSERT\s+REPORT\b/i;
+var GENERATE_SUBROUTINE_POOL_RE = /\bGENERATE\s+SUBROUTINE\s+POOL\b/i;
+var CALL_FUNCTION_RE = /\bCALL\s+FUNCTION\b/i;
+var DESTINATION_RE = /\bDESTINATION\b/i;
+var SUBMIT_RE = /\bSUBMIT\b/i;
+var VIA_JOB_RE = /\bVIA\s+JOB\b/i;
+var CALL_METHOD_RE = /\bCALL\s+METHOD\b/i;
+var CALL_METHOD_DIRECT_DYNAMIC_RE = /\bCALL\s+METHOD\s*\(/i;
+var ARROW_PAREN_RE = /(?:->|=>)\s*\(/;
+var SHIPPED_RULES = [
+  { name: "call-system", test: (s) => CALL_SYSTEM_RE.test(s) },
+  { name: "exec-sql", test: (s) => EXEC_SQL_RE.test(s) },
+  { name: "insert-report", test: (s) => INSERT_REPORT_RE.test(s) },
+  { name: "generate-subroutine-pool", test: (s) => GENERATE_SUBROUTINE_POOL_RE.test(s) },
+  {
+    name: "call-function-destination",
+    test: (s) => CALL_FUNCTION_RE.test(s) && DESTINATION_RE.test(s)
+  },
+  { name: "submit-via-job", test: (s) => SUBMIT_RE.test(s) && VIA_JOB_RE.test(s) },
+  {
+    name: "dynamic-call-method",
+    test: (s) => CALL_METHOD_RE.test(s) && (CALL_METHOD_DIRECT_DYNAMIC_RE.test(s) || ARROW_PAREN_RE.test(s))
+  }
+];
+var FLUID_SHIPPED_PROHIBITIONS = SHIPPED_RULES.map((r) => r.name);
+function escapeRegExpLiteral(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function buildPhraseRule(phrase) {
+  const segments = phrase.split(/(\s+)/);
+  const pattern = segments.map((seg) => /^\s+$/.test(seg) ? "\\s+" : escapeRegExpLiteral(seg)).join("");
+  const leading = /^\w/.test(phrase) ? "\\b" : "";
+  const trailing = /\w$/.test(phrase) ? "\\b" : "";
+  const re = new RegExp(leading + pattern + trailing, "i");
+  return { name: `extra:${phrase}`, test: (s) => re.test(s) };
+}
+function blankCommentLine(line) {
+  return line.startsWith("*") ? "" : line;
+}
+function splitStatements(blankedLines) {
+  const joined = blankedLines.join("\n");
+  const lineStarts2 = [];
+  let acc = 0;
+  for (const l of blankedLines) {
+    lineStarts2.push(acc);
+    acc += l.length + 1;
+  }
+  const cleaned = [];
+  const raws = [];
+  let state = "normal";
+  let stmtStart = 0;
+  for (let i = 0; i < joined.length; i++) {
+    const ch = joined.charAt(i);
+    if (state === "comment") {
+      cleaned.push(ch === "\n" ? ch : " ");
+      if (ch === "\n") state = "normal";
+      continue;
+    }
+    if (state === "string") {
+      cleaned.push(ch);
+      if (ch === "'") {
+        if (joined.charAt(i + 1) === "'") {
+          i++;
+          cleaned.push(joined.charAt(i));
+          continue;
+        }
+        state = "normal";
+      }
+      continue;
+    }
+    if (state === "template") {
+      cleaned.push(ch);
+      if (ch === "\\") {
+        const next = joined.charAt(i + 1);
+        if (next !== "") {
+          i++;
+          cleaned.push(next);
+        }
+        continue;
+      }
+      if (ch === "|") state = "normal";
+      continue;
+    }
+    if (ch === "'") {
+      state = "string";
+      cleaned.push(ch);
+      continue;
+    }
+    if (ch === "|") {
+      state = "template";
+      cleaned.push(ch);
+      continue;
+    }
+    if (ch === '"') {
+      state = "comment";
+      cleaned.push(" ");
+      continue;
+    }
+    if (ch === ".") {
+      raws.push({ raw: cleaned.slice(stmtStart, i).join(""), startOffset: stmtStart });
+      stmtStart = i + 1;
+    }
+    cleaned.push(ch);
+  }
+  const tail = cleaned.slice(stmtStart).join("");
+  if (tail.trim().length > 0) {
+    raws.push({ raw: tail, startOffset: stmtStart });
+  }
+  const statements = [];
+  let lineCursor = 0;
+  for (const { raw, startOffset } of raws) {
+    const firstNonWs = raw.search(/\S/);
+    if (firstNonWs < 0) continue;
+    const normalized = raw.replace(/\s+/g, " ").trim();
+    if (normalized.length === 0) continue;
+    const target = startOffset + firstNonWs;
+    while (lineCursor + 1 < lineStarts2.length && (lineStarts2[lineCursor + 1] ?? Infinity) <= target) {
+      lineCursor++;
+    }
+    statements.push({ normalized, startLine: lineCursor + 1 });
+  }
+  return statements;
+}
+var ITAB_NAME_RE = /^(lt_|it_|gt_|ct_|mt_)/i;
+var COMMIT_ROLLBACK_RE = /^(COMMIT|ROLLBACK)\s+WORK\b/i;
+var UPDATE_STMT_RE = /^UPDATE\s+\S/i;
+var DELETE_FROM_RE = /^DELETE\s+FROM\s+\S/i;
+var INSERT_NATIVE_SQL_RE = /^INSERT\s+INTO\s+\S+\s+VALUES\b/i;
+var INSERT_INTO_ITAB_RE = /\bINTO\s+(?:TABLE\s+)?\S+/i;
+var INSERT_DB_FROM_RE = /^INSERT\s+\S+\s+FROM\b/i;
+var MODIFY_SCREEN_RE = /^MODIFY\s+SCREEN\b/i;
+var MODIFY_TARGET_RE = /^MODIFY\s+(?:TABLE\s+)?(\S+)/i;
+function classifiesAsDbWrite(statement) {
+  if (UPDATE_STMT_RE.test(statement)) return true;
+  if (DELETE_FROM_RE.test(statement)) return true;
+  if (INSERT_NATIVE_SQL_RE.test(statement)) return true;
+  if (INSERT_INTO_ITAB_RE.test(statement)) return false;
+  if (INSERT_DB_FROM_RE.test(statement)) return true;
+  if (MODIFY_SCREEN_RE.test(statement)) return false;
+  const modifyTarget = MODIFY_TARGET_RE.exec(statement);
+  if (modifyTarget) {
+    const target = modifyTarget[1];
+    return target !== void 0 && !ITAB_NAME_RE.test(target);
+  }
+  return false;
+}
+function scanFluidCapabilities(objectName, source) {
+  const blankedLines = source.split(/\r\n|\r|\n/).map(blankCommentLine);
+  const statements = splitStatements(blankedLines);
+  const findings = [];
+  for (const stmt of statements) {
+    let capability;
+    if (classifiesAsDbWrite(stmt.normalized)) {
+      capability = "db-write";
+    } else if (COMMIT_ROLLBACK_RE.test(stmt.normalized)) {
+      capability = "commit-rollback";
+    } else if (CALL_FUNCTION_RE.test(stmt.normalized)) {
+      capability = "call-function";
+    }
+    if (capability !== void 0) {
+      findings.push({
+        object: objectName,
+        line: stmt.startLine,
+        capability,
+        text: truncateText(stmt.normalized, ECHO_LINE_MAX)
+      });
+    }
+  }
+  return findings;
+}
+function reviewFluidAbap(objectName, source, extraProhibitions) {
+  const lines = source.split(/\r\n|\r|\n/);
+  const findings = [];
+  lines.forEach((line, idx) => {
+    if (line.length > FLUID_ABAP_LINE_MAX) {
+      findings.push({
+        object: objectName,
+        line: idx + 1,
+        rule: "line-length",
+        text: truncateText(line.trim(), ECHO_LINE_MAX)
+      });
+    }
+  });
+  const blankedLines = lines.map(blankCommentLine);
+  const statements = splitStatements(blankedLines);
+  const rules = [
+    ...SHIPPED_RULES,
+    ...(extraProhibitions ?? []).map(buildPhraseRule)
+  ];
+  for (const stmt of statements) {
+    for (const rule of rules) {
+      if (rule.test(stmt.normalized)) {
+        findings.push({
+          object: objectName,
+          line: stmt.startLine,
+          rule: rule.name,
+          text: truncateText(stmt.normalized, ECHO_LINE_MAX)
+        });
+      }
+    }
+  }
+  findings.sort((a, b) => a.line - b.line);
+  return findings;
+}
+
+// src/adt/fluid/plugin-loader.ts
+var MANIFEST_FILE = "fluid-plugin.json";
+function namespaceRe(pluginId) {
+  const id = pluginId.toUpperCase();
+  return new RegExp(`^(ZCL_ZMCP_X_${id}(_[A-Z0-9_]+)?|ZIF_ZMCP_X_${id})$`, "i");
+}
+async function listPluginDirs(root) {
+  let entries;
+  try {
+    entries = await fs2.readdir(root, { withFileTypes: true });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+  const names = entries.map((e) => e.name).sort();
+  const dirs = [];
+  for (const name of names) {
+    const candidate = path3.join(root, name);
+    let real;
+    try {
+      const stat2 = await fs2.stat(candidate);
+      if (!stat2.isDirectory()) continue;
+      real = await fs2.realpath(candidate);
+    } catch {
+      continue;
+    }
+    try {
+      await fs2.access(path3.join(real, MANIFEST_FILE));
+      dirs.push(real);
+    } catch {
+    }
+  }
+  return { dirs };
+}
+function isPlainObject3(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+async function loadPlugin(dir, knownIds, claimedObjects, cfg) {
+  const refuse2 = (reason, id2) => ({
+    refusal: { path: dir, id: id2, code: "FLUID_MANIFEST_INVALID", reason }
+  });
+  const refuseAs = (code, reason, id2, rule) => ({
+    refusal: rule !== void 0 ? { path: dir, id: id2, code, reason, rule } : { path: dir, id: id2, code, reason }
+  });
+  let raw;
+  try {
+    raw = await fs2.readFile(path3.join(dir, MANIFEST_FILE), "utf8");
+  } catch (err) {
+    return refuse2(`cannot read ${MANIFEST_FILE}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return refuse2(`${MANIFEST_FILE} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const result = FluidManifestSchema.safeParse(parsed);
+  if (!result.success) {
+    const declaredId = isPlainObject3(parsed) && typeof parsed["id"] === "string" ? parsed["id"] : void 0;
+    return refuse2(
+      `${MANIFEST_FILE} failed schema validation: ${result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+      declaredId
+    );
+  }
+  const manifest = result.data;
+  const id = manifest.id;
+  const [major, minor] = manifest.contract.split(".").map(Number);
+  if (major !== FLUID_CONTRACT_MAJOR) {
+    return refuse2(`unknown contract major "${manifest.contract}" (this build supports ${FLUID_CONTRACT_MAJOR}.x)`, id);
+  }
+  let warning;
+  const [, expectedMinor] = FLUID_CONTRACT.split(".").map(Number);
+  if (minor !== expectedMinor) {
+    warning = `plugin "${id}" declares contract ${manifest.contract}, this build ships ${FLUID_CONTRACT}`;
+  }
+  if (knownIds.has(id)) {
+    return refuse2(`id "${id}" collides with an already-loaded tool of the same id`, id);
+  }
+  const ns = namespaceRe(id);
+  for (const obj of manifest.objects) {
+    if (!ns.test(obj.name)) {
+      return refuse2(
+        `object "${obj.name}" is outside this plugin's own namespace (expected ZCL_ZMCP_X_${id.toUpperCase()}[_SUFFIX] or ZIF_ZMCP_X_${id.toUpperCase()})`,
+        id
+      );
+    }
+    const owner = claimedObjects.get(obj.name);
+    if (owner !== void 0) {
+      return refuseAs(
+        "FLUID_OBJECT_CONFLICT",
+        `object "${obj.name}" is already claimed by tool "${owner}"; refusing tool "${id}"`,
+        id
+      );
+    }
+  }
+  const sources = /* @__PURE__ */ new Map();
+  for (const obj of manifest.objects) {
+    if ("text" in obj.source) {
+      return refuse2(`object "${obj.name}" uses {"text": ...}, which is reserved for built-ins; a plugin must use {"file": ...}`, id);
+    }
+    const file2 = obj.source.file;
+    if (path3.isAbsolute(file2)) {
+      return refuse2(`object "${obj.name}" source.file "${file2}" is an absolute path, which is refused`, id);
+    }
+    if (file2.split(/[/\\]/).includes("..")) {
+      return refuse2(`object "${obj.name}" source.file "${file2}" contains a ".." segment, which is refused`, id);
+    }
+    const candidate = path3.resolve(dir, file2);
+    let realCandidate;
+    try {
+      realCandidate = await fs2.realpath(candidate);
+    } catch (err) {
+      return refuse2(`object "${obj.name}" source.file "${file2}" cannot be resolved: ${err instanceof Error ? err.message : String(err)}`, id);
+    }
+    const relFromDir = path3.relative(dir, realCandidate);
+    if (relFromDir.startsWith("..") || path3.isAbsolute(relFromDir)) {
+      return refuse2(`object "${obj.name}" source.file "${file2}" resolves outside the plugin directory`, id);
+    }
+    let text3;
+    try {
+      text3 = await fs2.readFile(realCandidate, "utf8");
+    } catch (err) {
+      return refuse2(`object "${obj.name}" source.file "${file2}" could not be read: ${err instanceof Error ? err.message : String(err)}`, id);
+    }
+    sources.set(obj.name, text3);
+  }
+  for (const obj of manifest.objects) {
+    const source = sources.get(obj.name) ?? "";
+    const findings = reviewFluidAbap(obj.name, source);
+    const first = findings[0];
+    if (first !== void 0) {
+      return refuse2(
+        `static review refused object "${first.object}" at line ${first.line}, rule "${first.rule}"`,
+        id
+      );
+    }
+  }
+  let mutateHit;
+  let callFmHit;
+  for (const obj of manifest.objects) {
+    const source = sources.get(obj.name) ?? "";
+    const file2 = "file" in obj.source ? obj.source.file : "";
+    for (const finding of scanFluidCapabilities(obj.name, source)) {
+      if (mutateHit === void 0 && (finding.capability === "db-write" || finding.capability === "commit-rollback")) {
+        mutateHit = { object: obj.name, file: file2, line: finding.line };
+      }
+      if (callFmHit === void 0 && finding.capability === "call-function") {
+        callFmHit = { object: obj.name, file: file2, line: finding.line };
+      }
+    }
+  }
+  if (mutateHit !== void 0 && !cfg.allowFluidPluginMutate) {
+    return refuseAs(
+      "FLUID_PLUGIN_MUTATE_DISABLED",
+      `object "${mutateHit.object}" (${mutateHit.file}:${mutateHit.line}) contains a database write or COMMIT WORK/ROLLBACK WORK statement; ABAP_ALLOW_FLUID_PLUGIN_MUTATE is off`,
+      id
+    );
+  }
+  if (callFmHit !== void 0 && !cfg.allowFluidCallFm) {
+    return refuseAs(
+      "SAFETY_DENIED",
+      `object "${callFmHit.object}" (${callFmHit.file}:${callFmHit.line}) contains CALL FUNCTION; ABAP_ALLOW_FLUID_CALL_FM is off`,
+      id,
+      "ABAP_ALLOW_FLUID_CALL_FM"
+    );
+  }
+  const tool = {
+    manifest,
+    origin: "plugin",
+    dir,
+    sources,
+    version: manifestVersion(manifest, sources)
+  };
+  return warning !== void 0 ? { tool, warning } : { tool };
+}
+async function loadFluidTools(cfg, builtins) {
+  const tools = /* @__PURE__ */ new Map();
+  const refused = [];
+  const warnings = [];
+  const claimedObjects = /* @__PURE__ */ new Map();
+  for (const builtin of builtins ?? []) {
+    tools.set(builtin.manifest.id, {
+      manifest: builtin.manifest,
+      origin: "builtin",
+      sources: builtin.sources,
+      version: manifestVersion(builtin.manifest, builtin.sources)
+    });
+    for (const obj of builtin.manifest.objects) {
+      claimedObjects.set(obj.name, builtin.manifest.id);
+    }
+  }
+  for (const rawRoot of cfg.fluidPlugins) {
+    const root = path3.resolve(rawRoot);
+    const listed = await listPluginDirs(root);
+    if ("error" in listed) {
+      refused.push({
+        path: root,
+        code: "BAD_INPUT",
+        reason: `cannot read plugin root "${root}": ${listed.error}`
+      });
+      continue;
+    }
+    for (const dir of listed.dirs) {
+      if (!cfg.allowFluidPlugins) {
+        refused.push({ path: dir, code: "FLUID_PLUGINS_DISABLED", reason: "ABAP_ALLOW_FLUID_PLUGINS is off" });
+        continue;
+      }
+      const result = await loadPlugin(dir, new Set(tools.keys()), claimedObjects, cfg);
+      if (result.tool) {
+        tools.set(result.tool.manifest.id, result.tool);
+        for (const obj of result.tool.manifest.objects) {
+          claimedObjects.set(obj.name, result.tool.manifest.id);
+        }
+        if (result.warning) warnings.push(result.warning);
+      } else if (result.refusal) {
+        refused.push(result.refusal);
+      }
+    }
+  }
+  return { tools, refused, warnings };
+}
+
+// src/config.ts
+var import_dotenv = __toESM(require_main(), 1);
 
 // node_modules/fast-xml-parser/src/util.js
 var nameStartChar = ":A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD";
@@ -62554,16 +69566,16 @@ var MatcherView = class {
    * @returns {string|undefined}
    */
   getCurrentTag() {
-    const path6 = this._matcher.path;
-    return path6.length > 0 ? path6[path6.length - 1].tag : void 0;
+    const path8 = this._matcher.path;
+    return path8.length > 0 ? path8[path8.length - 1].tag : void 0;
   }
   /**
    * Get current namespace.
    * @returns {string|undefined}
    */
   getCurrentNamespace() {
-    const path6 = this._matcher.path;
-    return path6.length > 0 ? path6[path6.length - 1].namespace : void 0;
+    const path8 = this._matcher.path;
+    return path8.length > 0 ? path8[path8.length - 1].namespace : void 0;
   }
   /**
    * Get current node's attribute value.
@@ -62571,9 +69583,9 @@ var MatcherView = class {
    * @returns {*}
    */
   getAttrValue(attrName) {
-    const path6 = this._matcher.path;
-    if (path6.length === 0) return void 0;
-    return path6[path6.length - 1].values?.[attrName];
+    const path8 = this._matcher.path;
+    if (path8.length === 0) return void 0;
+    return path8[path8.length - 1].values?.[attrName];
   }
   /**
    * Check if current node has an attribute.
@@ -62581,9 +69593,9 @@ var MatcherView = class {
    * @returns {boolean}
    */
   hasAttr(attrName) {
-    const path6 = this._matcher.path;
-    if (path6.length === 0) return false;
-    const current = path6[path6.length - 1];
+    const path8 = this._matcher.path;
+    if (path8.length === 0) return false;
+    const current = path8[path8.length - 1];
     return current.values !== void 0 && attrName in current.values;
   }
   /**
@@ -62609,18 +69621,18 @@ var MatcherView = class {
    * @returns {number}
    */
   getPosition() {
-    const path6 = this._matcher.path;
-    if (path6.length === 0) return -1;
-    return path6[path6.length - 1].position ?? 0;
+    const path8 = this._matcher.path;
+    if (path8.length === 0) return -1;
+    return path8[path8.length - 1].position ?? 0;
   }
   /**
    * Get current node's repeat counter (occurrence count of this tag name).
    * @returns {number}
    */
   getCounter() {
-    const path6 = this._matcher.path;
-    if (path6.length === 0) return -1;
-    return path6[path6.length - 1].counter ?? 0;
+    const path8 = this._matcher.path;
+    if (path8.length === 0) return -1;
+    return path8[path8.length - 1].counter ?? 0;
   }
   /**
    * Get current node's sibling index (alias for getPosition).
@@ -64944,17 +71956,17 @@ async function trCreate(conn, input, authorized) {
   } catch (e) {
     throw ctsError(e, "trCreate");
   }
-  const path6 = raw.trim();
-  const trkorr = (path6.split("/").pop() ?? "").trim().toUpperCase();
+  const path8 = raw.trim();
+  const trkorr = (path8.split("/").pop() ?? "").trim().toUpperCase();
   if (!isTrkorr(trkorr)) {
     throw new AbapError(
       "TRANSPORT_ERROR",
-      `Transport creation returned an unrecognised response: ${JSON.stringify(path6)}`,
-      { operation: "trCreate", body: path6 },
+      `Transport creation returned an unrecognised response: ${JSON.stringify(path8)}`,
+      { operation: "trCreate", body: path8 },
       "Expected a path like /com.sap.cts/object_record/A4HK900121."
     );
   }
-  return { trkorr, path: path6 };
+  return { trkorr, path: path8 };
 }
 async function trShow(conn, trkorr) {
   const number4 = assertTrkorr(trkorr, "trShow");
@@ -65303,183 +72315,6 @@ async function trRelease(conn, trkorr, proof) {
     actualStatusText: request.statusText,
     request
   };
-}
-
-// src/compact.ts
-import { createHash as createHash2 } from "node:crypto";
-var CHARS_PER_TOKEN = 3.14;
-var DEFAULT_MAX_TOKENS = 15e3;
-var DEFAULT_MAX_CHARS = Math.floor(DEFAULT_MAX_TOKENS * CHARS_PER_TOKEN);
-function estimateTokens(text3) {
-  return Math.ceil(text3.length / CHARS_PER_TOKEN);
-}
-function contentHash(content) {
-  const normalised = content.replace(/\r\n/g, "\n");
-  return "sha256:" + createHash2("sha256").update(normalised, "utf8").digest("hex").slice(0, 32);
-}
-var PARTIAL_ETAG_PREFIX = "partial:";
-function isPartialEtag(etag) {
-  return etag.trim().toLowerCase().startsWith(PARTIAL_ETAG_PREFIX);
-}
-function markEtagPartial(etag) {
-  return isPartialEtag(etag) ? etag : `${PARTIAL_ETAG_PREFIX}${etag}`;
-}
-function stripPartialEtag(etag) {
-  const e = etag.trim();
-  return isPartialEtag(e) ? e.substring(PARTIAL_ETAG_PREFIX.length) : etag;
-}
-function canonicalSource(s) {
-  return s.replace(/\r\n/g, "\n").split("\n").map((line) => line.replace(/[ \t]+$/, "")).join("\n").replace(/\n+$/, "");
-}
-function renderHeader(header) {
-  if (!header) return "";
-  const lines = [];
-  for (const [k, v] of Object.entries(header)) {
-    if (v === void 0 || v === null || v === "") continue;
-    lines.push(`${k}: ${v}`);
-  }
-  return lines.join("\n");
-}
-var BODY_RESERVE_SHARE = 0.5;
-function hardClamp(text3, maxChars) {
-  if (text3.length <= maxChars) return text3;
-  const original = text3.length;
-  const marker = (emitted2) => `
---- OUTPUT HARD-CLAMPED ---
-${emitted2} of ${original} characters emitted (hard cap ${maxChars}). The rest was dropped mid-text.`;
-  let emitted = Math.max(0, maxChars - marker(original).length);
-  while (emitted > 0 && emitted + marker(emitted).length > maxChars) emitted--;
-  const clamped = text3.slice(0, emitted) + marker(emitted);
-  return clamped.length <= maxChars ? clamped : clamped.slice(0, maxChars);
-}
-function keepLines(text3, budget) {
-  if (budget >= text3.length) return { kept: text3, cutChars: 0 };
-  if (budget <= 0) return { kept: "", cutChars: text3.length };
-  const out = [];
-  let left = budget;
-  for (const line of text3.split("\n")) {
-    if (left - (line.length + 1) < 0) break;
-    out.push(line);
-    left -= line.length + 1;
-  }
-  const kept = out.join("\n");
-  return { kept, cutChars: text3.length - kept.length };
-}
-function buildResponse(parts) {
-  const maxChars = parts.maxChars ?? DEFAULT_MAX_CHARS;
-  const header = renderHeader(parts.header);
-  const sectionBlocks = (parts.sections ?? []).filter((s) => s.content.trim().length > 0).map((s) => `--- ${s.title} ---
-${s.content.trimEnd()}`);
-  const sectionsFull = sectionBlocks.join("\n\n");
-  const notes = (parts.notes ?? []).map((n) => `NOTE: ${n}`).join("\n");
-  const bodyRaw = parts.body ?? "";
-  const bodyLines = bodyRaw.length ? bodyRaw.replace(/\r\n/g, "\n").split("\n") : [];
-  const totalLines = parts.bodyTotalLines ?? bodyLines.length;
-  const label = parts.bodyLabel ?? "BODY";
-  const offset = parts.bodyOffset ?? 1;
-  const assemble = (sectionBlock, bodyBlock, notice2) => [header, notes, sectionBlock, bodyBlock, notice2].filter((s) => s && s.trim().length > 0).join("\n\n");
-  const remainingAfter = (kept) => Math.max(0, totalLines - (offset - 1) - kept);
-  const nextChunkLine = (kept) => {
-    const remaining = remainingAfter(kept);
-    if (remaining === 0) return "- This is the last chunk.";
-    if (parts.pagingParam) {
-      return `- Fetch the next chunk with ${parts.pagingParam}=${offset + kept} (${remaining} line(s) not shown).`;
-    }
-    return `- ${remaining} line(s) are not shown and this tool has NO offset/paging parameter \u2014 passing one would be rejected. Narrow the request instead (see the hints above).`;
-  };
-  const notice = (title, kept, sectionsCut2) => [
-    `--- ${title} ---`,
-    kept > 0 ? `Returned lines ${offset}..${offset + kept - 1} of ${totalLines} (response capped at ${maxChars} chars / ~${Math.floor(maxChars / CHARS_PER_TOKEN)} tokens).` : `Returned 0 of ${totalLines} line(s) \u2014 the body did not fit (response capped at ${maxChars} chars / ~${Math.floor(maxChars / CHARS_PER_TOKEN)} tokens).`,
-    ...sectionsCut2 ? [
-      `Prologue sections were ALSO cut: ${sectionsCut2.keptChars} of ${sectionsCut2.totalChars} characters kept in ${sectionsCut2.keptSections} of ${sectionBlocks.length} section(s).`
-    ] : [],
-    ...(parts.hints ?? []).map((h) => `- ${h}`),
-    nextChunkLine(kept)
-  ].join("\n");
-  const windowed = bodyLines.length < totalLines;
-  const fastNotice = windowed ? notice("WINDOW", bodyLines.length) : "";
-  const full = assemble(
-    sectionsFull,
-    bodyLines.length ? `--- ${label} ---
-${bodyRaw.trimEnd()}` : "",
-    fastNotice
-  );
-  if (full.length <= maxChars) {
-    return {
-      text: full,
-      truncated: windowed,
-      hasMore: remainingAfter(bodyLines.length) > 0,
-      estimatedTokens: estimateTokens(full),
-      returnedLines: bodyLines.length || void 0,
-      totalLines: totalLines || void 0,
-      chars: full.length,
-      sectionsTruncated: false
-    };
-  }
-  const worstOf = (a, b) => a.length >= b.length ? a : b;
-  const worstNoticeFor = (cut) => worstOf(notice("TRUNCATED", 0, cut), notice("TRUNCATED", totalLines, cut));
-  const worstNotice = worstNoticeFor(
-    sectionBlocks.length ? { keptChars: sectionsFull.length, totalChars: sectionsFull.length, keptSections: sectionBlocks.length } : void 0
-  );
-  const overheadNoSections = assemble("", `--- ${label} ---
-`, worstNotice).length;
-  const remainingBudget = Math.max(0, maxChars - overheadNoSections);
-  const bodyReserve = Math.min(bodyRaw.length, Math.floor(remainingBudget * BODY_RESERVE_SHARE));
-  const sectionsBudget = Math.max(0, remainingBudget - bodyReserve);
-  const sectionsFit = keepLines(sectionsFull, sectionsBudget);
-  const sectionsCut = sectionsFit.cutChars > 0 ? {
-    keptChars: sectionsFit.kept.length,
-    totalChars: sectionsFull.length,
-    keptSections: sectionsFit.kept ? sectionsFit.kept.split("\n").filter((l) => /^--- .* ---$/.test(l)).length : 0
-  } : void 0;
-  const bodyOverhead = assemble(
-    sectionsFit.kept,
-    `--- ${label} ---
-`,
-    worstNoticeFor(sectionsCut)
-  ).length;
-  const bodyFit = keepLines(bodyRaw.replace(/\r\n/g, "\n").trimEnd(), maxChars - bodyOverhead);
-  const keptLines = bodyFit.kept ? bodyFit.kept.split("\n") : [];
-  const text3 = hardClamp(
-    assemble(
-      sectionsFit.kept,
-      keptLines.length ? `--- ${label} ---
-${bodyFit.kept}` : "",
-      notice("TRUNCATED", keptLines.length, sectionsCut)
-    ),
-    maxChars
-  );
-  return {
-    text: text3,
-    truncated: true,
-    hasMore: remainingAfter(keptLines.length) > 0,
-    estimatedTokens: estimateTokens(text3),
-    returnedLines: keptLines.length,
-    totalLines,
-    chars: text3.length,
-    sectionsTruncated: Boolean(sectionsCut)
-  };
-}
-function countLines(text3) {
-  return text3 === "" ? 0 : text3.replace(/\r\n/g, "\n").split("\n").length;
-}
-function sliceLines(source, offset = 1, limit) {
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
-  const start = Math.max(0, offset - 1);
-  const end = limit ? start + limit : lines.length;
-  return {
-    text: lines.slice(start, end).join("\n"),
-    offset: start + 1,
-    total: countLines(source)
-  };
-}
-function textTable(rows, columns) {
-  if (rows.length === 0) return "";
-  const widths = columns.map(
-    (c) => Math.max(c.length, ...rows.map((r) => (r[c] ?? "").length))
-  );
-  const line = (cells) => cells.map((c, i) => c.padEnd(widths[i] ?? 0)).join("  ").trimEnd();
-  return [line(columns), line(widths.map((w) => "-".repeat(w))), ...rows.map((r) => line(columns.map((c) => r[c] ?? "")))].join("\n");
 }
 
 // src/mode.ts
@@ -65895,7 +72730,7 @@ function renderTableType(body, name) {
   const builtIn = row2.builtInType ?? {};
   const builtInType = xmlText(builtIn.dataType) ?? "";
   const builtInLen = xmlNum(builtIn.length) ?? 0;
-  const access = xmlText(tt.accessType) || "standard";
+  const access2 = xmlText(tt.accessType) || "standard";
   const pk = tt.primaryKey ?? {};
   const pkKind = xmlText(pk.kind) ?? "";
   const pkDef = xmlText(pk.definition) ?? "";
@@ -65906,7 +72741,7 @@ function renderTableType(body, name) {
   const ddl = [
     `define table type ${name.toLowerCase()} {`,
     `  row type   : ${rowTypeText};`,
-    `  table kind : ${access};`,
+    `  table kind : ${access2};`,
     `  key        : ${keyText};`,
     `}`
   ].join("\n");
@@ -65916,7 +72751,7 @@ function renderTableType(body, name) {
     meta: {
       description: String(tt["@_description"] ?? "") || void 0,
       rowType: rowTypeText,
-      accessType: access
+      accessType: access2
     },
     notes: [],
     // Hash the raw resource bytes, not a derived rendering — see resourceEtag in src/tools/read.ts.
@@ -66661,22 +73496,22 @@ function buildUri(spec, name, parent) {
   return spec.path.replace("{name}", encodeURIComponent(name.toLowerCase())).replace("{parent}", encodeURIComponent((parent ?? "").toLowerCase()));
 }
 function specFromUri(uri) {
-  let path6 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
+  let path8 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
   let include;
-  const ci = /^(.*\/oo\/classes\/[^/]+)\/includes\/([^/]+)$/i.exec(path6);
+  const ci = /^(.*\/oo\/classes\/[^/]+)\/includes\/([^/]+)$/i.exec(path8);
   if (ci) {
     include = assertClassInclude(decodeURIComponent(ci[2]), uri);
-    path6 = ci[1];
+    path8 = ci[1];
   }
-  let m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/fmodules\/([^/]+)$/i.exec(path6);
+  let m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/fmodules\/([^/]+)$/i.exec(path8);
   if (m) return { spec: BY_TYPE.get("FUGR/FF"), name: dec(m[2]), parent: dec(m[1]) };
-  m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/includes\/([^/]+)$/i.exec(path6);
+  m = /^\/sap\/bc\/adt\/functions\/groups\/([^/]+)\/includes\/([^/]+)$/i.exec(path8);
   if (m) return { spec: BY_TYPE.get("FUGR/I"), name: dec(m[2]), parent: dec(m[1]) };
   for (const spec of TYPES) {
     if (spec.parentPath) continue;
     const prefix = spec.path.replace("/{name}", "");
     const re = new RegExp(`^${escapeRe(prefix)}/([^/]+)$`, "i");
-    const hit = re.exec(path6);
+    const hit = re.exec(path8);
     if (!hit) continue;
     const name = dec(hit[1]);
     if (include) {
@@ -66708,16 +73543,16 @@ var TWO_SEGMENT_KINDS = [
   { type: "FUGR/I", mid: "includes" }
 ];
 function classifyUnmatchedAdtPath(uri) {
-  const path6 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
+  const path8 = uri.replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "").replace(/\/source\/main.*$/, "");
   for (const { re, what } of NOT_AN_OBJECT) {
-    if (re.test(path6)) return { kind: "not-an-object", what };
+    if (re.test(path8)) return { kind: "not-an-object", what };
   }
   for (const { type, mid } of TWO_SEGMENT_KINDS) {
     const re = new RegExp(
       `^\\/sap\\/bc\\/adt\\/functions\\/groups\\/([^/]+)\\/${mid}\\/([^/]+)\\/([^/]+)(?:\\/([^/]+))?$`,
       "i"
     );
-    const m = re.exec(path6);
+    const m = re.exec(path8);
     if (m) {
       return {
         kind: "sub-object",
@@ -66733,7 +73568,7 @@ function classifyUnmatchedAdtPath(uri) {
     if (spec.parentPath) continue;
     const prefix = spec.path.replace("/{name}", "");
     const re = new RegExp(`^${escapeRe(prefix)}/([^/]+)/([^/]+)(?:/([^/]+))?$`, "i");
-    const m = re.exec(path6);
+    const m = re.exec(path8);
     if (!m) continue;
     return {
       kind: "sub-object",
@@ -67423,12 +74258,12 @@ var REGISTRY = {
     label: "Table secondary index",
     bridgeCreate: {
       adtRest: `Probed live on A4H 2026-09-05: GET /sap/bc/adt/ddic/tables/t000/indexes 404s, and PUT /sap/bc/adt/ddic/tables/t000/indexes/z01 404s for any body and any content type \u2014 there is no writable (or even readable) index collection under a table. The table XML itself (application/vnd.sap.adt.tables.v2+xml) carries exactly one index-related link, rel="http://www.sap.com/adt/relations/indexes" pointing at /sap/bc/adt/vit/wb/object_type/tabldt/object_name/<TABLE>#view=INDX with type="application/vnd.sap.sapgui" \u2014 a GUI handoff (SE11's Indexes tab), not a REST resource. No discovery collection mentions indexes either.`,
-      via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_CINDX). Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates \u2014 non-unique Z01 and unique Z02 with MANDT \u2014 and each again returned all three markers; the round-3 delete-path defect below never touched create.",
+      via: "DD_INDEX_INTERFACE (function group SDBT, package SDIC), ACTION='I', called from the fluid `classic` tool's `create_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V (AS4LOCAL='A') and DD17S after COMMIT WORK, not by ACTFAILED alone \u2014 the same read-back-after-commit discipline VIEW/DV and TRAN/T use in place of an ADT read. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. Proven live on A4H 2026-09-05, local $TMP package: a NON-UNIQUE single-field index created through this bridge came back INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS from that genuine post-commit DD12V/DD17S re-read. Round 3 (same date) re-ran both creates \u2014 non-unique Z01 and unique Z02 with MANDT \u2014 and each again returned all three markers; the round-3 delete-path defect below never touched create.",
       limits: "Changing or updating an existing index is not supported: the bridge creates and deletes only, the same as VIEW/DV and TRAN/T \u2014 drop the index (bridgeDelete) and recreate it instead. There is no abap_read route for TABL/DI, per adtRest above. A unique create over two non-client fields of a client-dependent table returned ACTFAILED='X' live on A4H 2026-09-05; the client-field cause, then only suspected, is now CONFIRMED live (A4H, second round, 2026-09-05): a unique create that included the base table's client field (MANDT) returned INDEX-CREATED / INDEX-ACTIVE / INDEX-FIELDS, and the identical create omitting MANDT was refused BAD_INPUT by the DD03L (DATATYPE='CLNT') guard before DD_INDEX_INTERFACE was ever called \u2014 raw line \"unique index Z02 on ZTMD_I28_T omits the client field MANDT\", hint \"Add ZTMD_I28_T's client field to index_fields, or create Z02 without index_unique.\" The package is not the caller's to choose: an index is DDIC content of its base table and belongs to the base table's package, so abap_write reads the base table's own ADT resource and gates on THAT package \u2014 a caller-supplied `package` is only ever checked for agreement, never trusted. The transport pairing itself mirrors VIEW/DV's: a `$` package sets NO_TRANSP_REQUEST='X' and refuses a caller-supplied corr_nr, a transportable package REQUIRES corr_nr, passed through as TRANSPORT_NUMBER \u2014 unexercised live in either direction. The create is not journalled \u2014 there is no ADT resource to capture a before-image from, and none existed before this create by definition \u2014 so reversal is `mode: \"delete\"`, not undo."
     },
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
-      via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from a generated IF_OO_ADT_CLASSRUN bridge (ZCL_ZMCP_DDIC_DINDX). Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of ZCL_ZMCP_DDIC_DINDX) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above had therefore never executed live before round 4. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the non-unique Z01 and the unique-with-client-field Z02 were each deleted with INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 returned NOT_FOUND from the DD12V pre-check, and the deployed ZCL_ZMCP_DDIC_DINDX body read back with the new read-back variable and no line over 255. So the ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both deletes while all three read-backs came back empty, so what the flag itself means is still not established, only that it does not mean the rows survived.",
+      via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from the fluid `classic` tool's `delete_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of the bridge that was then ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of the then-ZCL_ZMCP_DDIC_DINDX bridge) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above had therefore never executed live before round 4. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the non-unique Z01 and the unique-with-client-field Z02 were each deleted with INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 returned NOT_FOUND from the DD12V pre-check, and the deployed then-ZCL_ZMCP_DDIC_DINDX body read back with the new read-back variable and no line over 255. So the ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both deletes while all three read-backs came back empty, so what the flag itself means is still not established, only that it does not mean the rows survived.",
       limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and abap_data_preview was confirmed live to carry no WHERE filter, so a targeted DD12V check was not practical."
     }
   }
@@ -67690,7 +74525,7 @@ function isInvocationTarget(type) {
   if (!type) return false;
   return INVOCATION_TARGET_TYPES.has(type.trim().toUpperCase());
 }
-function join4(base, extra) {
+function join5(base, extra) {
   return extra ? `${base} ${extra}` : base;
 }
 function packagePattern(pattern) {
@@ -68324,7 +75159,7 @@ var SafetyGate = class {
       if (allowTransports.length === 0) {
         return {
           allowed: false,
-          reason: `${obj.name} is in package ${obj.packageName}, which needs a transport request, but ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused. $TMP writes are unaffected.`,
+          reason: `${obj.name} is in package ${obj.packageName}, which needs a transport request, but ABAP_ALLOW_TRANSPORTS is explicitly empty \u2014 every transportable write is refused. Local ($-prefixed) packages are unaffected.`,
           rule: "transport allowlist (fail closed)",
           code: "SAFETY_DENIED"
         };
@@ -68332,7 +75167,7 @@ var SafetyGate = class {
       if (corr.kind === "local") {
         return {
           allowed: true,
-          reason: join4(
+          reason: join5(
             `${obj.name} resolved to a local (non-transportable) write; the transport allowlist does not apply.`,
             enhancementReason
           )
@@ -68341,8 +75176,8 @@ var SafetyGate = class {
       const normalized = allowTransports.map((t) => t.trim().toUpperCase());
       if (!normalized.includes("*") && corr.kind === "transport") {
         const requested = corr.corrNr.trim().toUpperCase();
-        const ok22 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
-        if (!ok22) {
+        const ok23 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
+        if (!ok23) {
           return {
             allowed: false,
             reason: `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}].`,
@@ -68354,7 +75189,7 @@ var SafetyGate = class {
     }
     return {
       allowed: true,
-      reason: join4(
+      reason: join5(
         packageKnown ? isPackageCreate ? `Superpackage ${container} is allowlisted.` : `Package ${container} is allowlisted.` : "Package check deferred.",
         enhancementReason
       )
@@ -68589,18 +75424,20 @@ var SafetyGate = class {
    *
    * `evaluate()` is URI-shaped — it judges a resolved object's name, package,
    * type — but ADT REST refuses to create enhancement spots/definitions
-   * directly, so this feature generates a throwaway `IF_OO_ADT_CLASSRUN`
-   * class and POSTs it to `/sap/bc/adt/oo/classrun/…`. The only object with
-   * a URI on that route is a `$TMP` helper that passes every rule trivially;
-   * the real enhancement/spot/target are ABAP-source string arguments no
-   * URI-shaped gate can see. So this gates the INTENT, before generation —
-   * before-execution would be too late, since by then the identifiers are
-   * already concatenated into a blob of ABAP this gate cannot read.
+   * directly, so this feature runs its ABAP through the fluid API: the reused
+   * `ZCL_ZMCP_FLUID_ENH` body plus a content-addressed `ZCL_ZMCP_I_<hash8>`
+   * invoker, both in `$ABAPSMITH_FLUID_API`. The only objects with a URI on
+   * that route are those two helpers, which pass every rule trivially; the
+   * real enhancement/spot/target are opaque JSON arguments no URI-shaped gate
+   * can read. So this gates the INTENT, before generation — before-execution
+   * would be too late, since by then the identifiers are already buried in an
+   * argument blob this gate cannot judge.
    *
    * Narrows one route, does not close the channel: `abap_run`'s classrun
    * path (`src/adt/run.ts`, `src/adt/bopf-runtime.ts`) still generates and
-   * executes arbitrary ABAP via the same ungated `$TMP`-bridge mechanism —
-   * pre-existing, out of scope here, tracked separately.
+   * executes arbitrary ABAP via an ungated per-call bridge deployed to the
+   * same `$ABAPSMITH_FLUID_API` package — pre-existing, out of scope here,
+   * tracked separately.
    *
    * Deny by default: with no `ABAP_ALLOW_ENHANCEMENTS`, `ABAP_ENHANCE_TARGETS`,
    * or `ABAP_ENHANCE_TARGET_PACKAGES`, every intent is refused.
@@ -68826,10 +75663,10 @@ var SafetyGate = class {
 
 // src/config.ts
 var dotenvLoaded = false;
-function loadEnvFile(path6) {
+function loadEnvFile(path8) {
   if (dotenvLoaded) return;
   dotenvLoaded = true;
-  (0, import_dotenv.config)(path6 ? { path: path6, quiet: true } : { quiet: true });
+  (0, import_dotenv.config)(path8 ? { path: path8, quiet: true } : { quiet: true });
 }
 function stripUrlCredentials(url2) {
   if (typeof url2 !== "string" || !url2.includes("@")) return url2;
@@ -69153,9 +75990,11 @@ var ConfigSchema = external_exports.object({
    * flag together — neither alone reaches `press`, and this flag can only
    * narrow admin further, never substitute for it.
    *
-   * `screen` mode (discovery) is NOT gated by this flag — it only deploys a
-   * throwaway `$TMP` bridge class (like `abap_fpm_read`), gated by ordinary
-   * write capability instead.
+   * `screen` mode (discovery) is NOT gated by this flag — it only dispatches
+   * against the reused fluid body class `ZCL_ZMCP_FLUID_UI` and a
+   * content-addressed invoker in `$ABAPSMITH_FLUID_API` (exactly as
+   * `abap_fpm_read`'s read modes do), gated by ordinary write capability
+   * instead.
    */
   allowUiPress: external_exports.boolean().default(false),
   /**
@@ -69387,7 +76226,28 @@ var ConfigSchema = external_exports.object({
    * CONNECTED`). `false`/`0`/`no`/`off` opts out for an operator who must
    * not have the server touch SAP at startup at all.
    */
-  startupProbe: boolishRejectDefaultTrue
+  startupProbe: boolishRejectDefaultTrue,
+  /**
+   * Master switch for the fluid API surface. ON by default — this is why the
+   * env var is `ABAP_FLUID_API`, not an `ABAP_ALLOW_*` name: an `ALLOW` name
+   * that defaults to on is a contradiction, and it would land the flag in
+   * `RECOGNISED_ABAP_ALLOW_ENV_VARS`, which is the list of out-of-band
+   * ceilings. `false`/`0`/`no`/`off` opts out. Same shape as
+   * `crossProcessDebugLock`/`crossProcessObjectLock`/`startupProbe` above.
+   */
+  fluidApi: boolishRejectDefaultTrue,
+  /**
+   * Fluid plugin paths to load. `[]` by default (no plugins). Split on `,`
+   * only, not `splitList`'s `[,;\s]+` — a plugin path may itself contain a
+   * space.
+   */
+  fluidPlugins: external_exports.array(external_exports.string()).default([]),
+  /** Ceiling for loading any `fluidPlugins` entry at all. Off by default. */
+  allowFluidPlugins: external_exports.boolean().default(false),
+  /** Ceiling for a loaded fluid plugin mutating state. NOT implied by `allowFluidPlugins`. Off by default. */
+  allowFluidPluginMutate: external_exports.boolean().default(false),
+  /** Ceiling for a fluid plugin calling a remote-enabled function module. Off by default. */
+  allowFluidCallFm: external_exports.boolean().default(false)
 });
 function boolFromEnv(v) {
   if (v === void 0) return false;
@@ -69399,6 +76259,10 @@ function boolOverrideFromEnv(v) {
 function splitList(v) {
   if (!v) return [];
   return v.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean);
+}
+function splitPathList(v) {
+  if (!v) return [];
+  return v.split(",").map((s) => s.trim()).filter(Boolean);
 }
 function normaliseTransportEntry(raw) {
   const trimmed = raw.trim();
@@ -69413,6 +76277,9 @@ var RECOGNISED_ABAP_ALLOW_ENV_VARS = Object.freeze([
   "ABAP_ALLOW_DUMP_VARIABLES",
   "ABAP_ALLOW_ENHANCEMENTS",
   "ABAP_ALLOW_ENHANCEMENT_DELETE",
+  "ABAP_ALLOW_FLUID_CALL_FM",
+  "ABAP_ALLOW_FLUID_PLUGINS",
+  "ABAP_ALLOW_FLUID_PLUGIN_MUTATE",
   "ABAP_ALLOW_NAME_PREFIXES",
   "ABAP_ALLOW_PACKAGES",
   "ABAP_ALLOW_RAW_ADT_WRITES",
@@ -69463,8 +76330,8 @@ function loadConfig(opts = {}) {
     if (legalValues.includes(rawEnhanceTargets)) {
       enhanceTargetsOverride = rawEnhanceTargets;
     } else {
-      const quoted6 = ENHANCE_TARGETS_VALUES.map((v) => JSON.stringify(v));
-      enhanceTargetsIssue = `ABAP_ENHANCE_TARGETS=${JSON.stringify(rawEnhanceTargets)} is not a recognised value. Valid values are ${quoted6.slice(0, -1).join(", ")}, or ${quoted6[quoted6.length - 1]}.`;
+      const quoted2 = ENHANCE_TARGETS_VALUES.map((v) => JSON.stringify(v));
+      enhanceTargetsIssue = `ABAP_ENHANCE_TARGETS=${JSON.stringify(rawEnhanceTargets)} is not a recognised value. Valid values are ${quoted2.slice(0, -1).join(", ")}, or ${quoted2[quoted2.length - 1]}.`;
     }
   }
   const passwordIsSet = env.ABAP_PASSWORD !== void 0 && env.ABAP_PASSWORD.trim() !== "";
@@ -69493,6 +76360,10 @@ function loadConfig(opts = {}) {
   );
   const allowDumpVariables = boolFromEnv(env.ABAP_ALLOW_DUMP_VARIABLES);
   const allowUiPress = boolFromEnv(env.ABAP_ALLOW_UI_PRESS);
+  const fluidPlugins = splitPathList(env.ABAP_FLUID_PLUGINS);
+  const allowFluidPlugins = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGINS);
+  const allowFluidPluginMutate = boolFromEnv(env.ABAP_ALLOW_FLUID_PLUGIN_MUTATE);
+  const allowFluidCallFm = boolFromEnv(env.ABAP_ALLOW_FLUID_CALL_FM);
   const modeOverrides = {
     ...env.ABAP_ALLOW_PACKAGES !== void 0 ? { allowPackages: configuredPackages } : {},
     ...env.ABAP_ALLOW_NAME_PREFIXES !== void 0 ? { allowNamePrefixes: namePrefixes } : {},
@@ -69569,6 +76440,10 @@ function loadConfig(opts = {}) {
     // comments on allowDumpVariables/allowUiPress.
     allowDumpVariables,
     allowUiPress,
+    fluidPlugins,
+    allowFluidPlugins,
+    allowFluidPluginMutate,
+    allowFluidCallFm,
     dataPreviewDenyTables,
     // Bare fields below: each has a zod `.default()`/`.max()` that is the
     // single source of truth, so out-of-range/invalid input reaches the
@@ -69598,7 +76473,8 @@ function loadConfig(opts = {}) {
     // (src/adt/object-gate.ts) — a `??` default here would quietly break that.
     crossProcessObjectLock: env.ABAP_CROSS_PROCESS_OBJECT_LOCK,
     objectLockWaitMs: env.ABAP_OBJECT_LOCK_WAIT_MS,
-    startupProbe: env.ABAP_STARTUP_PROBE
+    startupProbe: env.ABAP_STARTUP_PROBE,
+    fluidApi: env.ABAP_FLUID_API
   });
   if (!parsed.success || abapModeIssue !== void 0 || enhanceTargetsIssue !== void 0 || credentialIssue !== void 0) {
     const zodIssues = parsed.success ? [] : parsed.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`);
@@ -69776,7 +76652,8 @@ function resolveStaticCapabilities(cfg) {
     // No `canWrite &&` here, or below — see canPreviewData/canReadDumpVariables
     // doc comments: requiring writes to read would invert the control.
     canPreviewData: cfg.allowDataPreview,
-    canReadDumpVariables: cfg.allowDumpVariables
+    canReadDumpVariables: cfg.allowDumpVariables,
+    canUseFluidApi: cfg.fluidApi && !cfg.readOnly && cfg.abapMode !== "read"
   };
 }
 function redactConfigSecrets(cfg) {
@@ -69813,6 +76690,11 @@ function redactConfigSecrets(cfg) {
     dataPreviewDenyTables: cfg.dataPreviewDenyTables,
     allowDumpVariables: cfg.allowDumpVariables,
     allowUiPress: cfg.allowUiPress,
+    fluidApi: cfg.fluidApi,
+    fluidPlugins: cfg.fluidPlugins,
+    allowFluidPlugins: cfg.allowFluidPlugins,
+    allowFluidPluginMutate: cfg.allowFluidPluginMutate,
+    allowFluidCallFm: cfg.allowFluidCallFm,
     originSystems: cfg.originSystems,
     maxResponseChars: cfg.maxResponseChars,
     stateDir: cfg.stateDir,
@@ -69976,8 +76858,8 @@ function trimSegment(s) {
   const t = s.trim();
   return /^\.+$/.test(t) ? t : t.replace(/[\s.]+$/, "");
 }
-function terminalSegments(path6) {
-  const parts = path6.split("/").map(trimSegment).filter((p) => p !== "");
+function terminalSegments(path8) {
+  const parts = path8.split("/").map(trimSegment).filter((p) => p !== "");
   const out = [];
   const literal2 = parts[parts.length - 1];
   if (literal2 !== void 0) out.push(literal2);
@@ -70002,8 +76884,8 @@ function candidatePaths(url2) {
   return [...forms];
 }
 function deniedPathSegment(url2) {
-  for (const path6 of candidatePaths(url2)) {
-    for (const segment of terminalSegments(path6)) {
+  for (const path8 of candidatePaths(url2)) {
+    for (const segment of terminalSegments(path8)) {
       if (DENIED_RELEASE_SEGMENTS.includes(segment)) return segment;
     }
   }
@@ -70243,37 +77125,37 @@ function isSapClientKey(key) {
   const k = key.toLowerCase().replace(/[-_]/g, "");
   return k === "sapclient";
 }
-function assertValidAdtPath(path6) {
-  if (typeof path6 !== "string" || path6.trim().length === 0) {
-    throw new Error(`buildUrl: path must be a non-empty string \u2014 got ${JSON.stringify(path6)}.`);
+function assertValidAdtPath(path8) {
+  if (typeof path8 !== "string" || path8.trim().length === 0) {
+    throw new Error(`buildUrl: path must be a non-empty string \u2014 got ${JSON.stringify(path8)}.`);
   }
-  if (/^[A-Za-z][A-Za-z0-9+.\-]*:/.test(path6) || path6.startsWith("//")) {
+  if (/^[A-Za-z][A-Za-z0-9+.\-]*:/.test(path8) || path8.startsWith("//")) {
     throw new Error(
-      `buildUrl: path must not be an absolute URL \u2014 got "${path6}". This module only ever builds paths relative to the ADT server; scheme/host selection happens at the HTTP-client layer, never here.`
+      `buildUrl: path must not be an absolute URL \u2014 got "${path8}". This module only ever builds paths relative to the ADT server; scheme/host selection happens at the HTTP-client layer, never here.`
     );
   }
-  if (path6.includes("?")) {
+  if (path8.includes("?")) {
     throw new Error(
-      `buildUrl: path must not contain a query string \u2014 got "${path6}". Query params must go through the params argument so they are encoded by buildQuery, not hand-concatenated onto path.`
+      `buildUrl: path must not contain a query string \u2014 got "${path8}". Query params must go through the params argument so they are encoded by buildQuery, not hand-concatenated onto path.`
     );
   }
-  if (path6.includes("#")) {
+  if (path8.includes("#")) {
     throw new Error(
-      `buildUrl: path must not contain a fragment \u2014 got "${path6}". A "#start=N" fragment belongs in the uri query VALUE (see withStartFragment), not in path itself.`
+      `buildUrl: path must not contain a fragment \u2014 got "${path8}". A "#start=N" fragment belongs in the uri query VALUE (see withStartFragment), not in path itself.`
     );
   }
-  if (/[\\\s\x00-\x1f\x7f]/.test(path6)) {
+  if (/[\\\s\x00-\x1f\x7f]/.test(path8)) {
     throw new Error(
-      `buildUrl: path must not contain a backslash, whitespace or control character \u2014 got "${path6}".`
+      `buildUrl: path must not contain a backslash, whitespace or control character \u2014 got "${path8}".`
     );
   }
-  let normalised = path6.startsWith("/") ? path6 : `/${path6}`;
+  let normalised = path8.startsWith("/") ? path8 : `/${path8}`;
   while (normalised.length > 1 && normalised.endsWith("/")) {
     normalised = normalised.slice(0, -1);
   }
   const segments = normalised.split("/");
   if (segments.some((s) => s === "." || s === "..")) {
-    throw new Error(`buildUrl: path must not contain a traversal segment ("." or "..") \u2014 got "${path6}".`);
+    throw new Error(`buildUrl: path must not contain a traversal segment ("." or "..") \u2014 got "${path8}".`);
   }
   if (normalised !== "/sap/bc/adt" && !normalised.startsWith("/sap/bc/adt/")) {
     throw new Error(
@@ -70282,8 +77164,8 @@ function assertValidAdtPath(path6) {
   }
   return normalised;
 }
-function buildUrl(path6, params) {
-  const normalised = assertValidAdtPath(path6);
+function buildUrl(path8, params) {
+  const normalised = assertValidAdtPath(path8);
   return params ? `${normalised}${buildQuery(params)}` : normalised;
 }
 function breakpointsPostUrl(query = {}) {
@@ -71245,21 +78127,21 @@ function collectExceptionClassNames(properties) {
   }
   return out;
 }
-function parseAdtError(body, status, path6) {
+function parseAdtError(body, status, path8) {
   const bodyExcerpt = truncateDiagnosticBody(body);
   const trimmed = body.trim();
   if (!trimmed) {
-    return { status, message: `HTTP ${status}`, path: path6, bodyExcerpt };
+    return { status, message: `HTTP ${status}`, path: path8, bodyExcerpt };
   }
   let parsed;
   try {
     parsed = parser.parse(body);
   } catch {
-    return { status, message: truncateText(trimmed, MESSAGE_EXCERPT_MAX), path: path6, bodyExcerpt };
+    return { status, message: truncateText(trimmed, MESSAGE_EXCERPT_MAX), path: path8, bodyExcerpt };
   }
   const root = parsed.exception;
   if (!root || typeof root !== "object") {
-    return { status, message: truncateText(trimmed, MESSAGE_EXCERPT_MAX), path: path6, bodyExcerpt };
+    return { status, message: truncateText(trimmed, MESSAGE_EXCERPT_MAX), path: path8, bodyExcerpt };
   }
   const properties = {};
   const propertiesNode = root.properties;
@@ -71275,7 +78157,7 @@ function parseAdtError(body, status, path6) {
     subtype: properties["com.sap.adt.communicationFramework.subType"],
     abapType,
     message,
-    path: path6,
+    path: path8,
     bodyExcerpt,
     ...exceptionClassNames.length ? { exceptionClassNames } : {}
   };
@@ -71390,15 +78272,15 @@ ${httpRequest}\r
   return `${parts.join("")}--${boundary}--\r
 `;
 }
-function decodeBatchPart(result, path6, parse4) {
+function decodeBatchPart(result, path8, parse4) {
   if (result.status >= 400) {
-    return { ok: false, error: parseAdtError(result.body, result.status, path6) };
+    return { ok: false, error: parseAdtError(result.body, result.status, path8) };
   }
   try {
     return { ok: true, value: parse4(result.body) };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: { status: result.status, message, path: path6, bodyExcerpt: truncateDiagnosticBody(result.body) } };
+    return { ok: false, error: { status: result.status, message, path: path8, bodyExcerpt: truncateDiagnosticBody(result.body) } };
   }
 }
 var DebugClient = class {
@@ -71914,7 +78796,7 @@ function normalizeNodeHeaders(h) {
 }
 function createRawHttpRequestFn(opts = {}) {
   const { httpsAgent } = opts;
-  return (req) => new Promise((resolve3, reject) => {
+  return (req) => new Promise((resolve5, reject) => {
     try {
       assertHttpPathAllowed(req.method, req.url);
     } catch (e) {
@@ -71962,7 +78844,7 @@ function createRawHttpRequestFn(opts = {}) {
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
         res.on("end", () => {
-          resolve3({
+          resolve5({
             status: res.statusCode ?? 0,
             headers: normalizeNodeHeaders(res.headers),
             body: Buffer.concat(chunks).toString("utf8")
@@ -72072,19 +78954,19 @@ function mergeCookieHeader(existing, setCookie) {
   }
   return [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
 }
-function joinUrl(baseUrl, path6) {
+function joinUrl(baseUrl, path8) {
   const base = baseUrl.replace(/\/+$/, "");
-  const p = path6.startsWith("/") ? path6 : `/${path6}`;
+  const p = path8.startsWith("/") ? path8 : `/${path8}`;
   return base + p;
 }
-function buildUrlWithQuery(baseUrl, path6, qs) {
-  const url2 = joinUrl(baseUrl, path6);
+function buildUrlWithQuery(baseUrl, path8, qs) {
+  const url2 = joinUrl(baseUrl, path8);
   if (!qs || Object.keys(qs).length === 0) return url2;
   const search = new URLSearchParams(qs).toString();
   return `${url2}?${search}`;
 }
-function adtErrorFromException(e, path6) {
-  captureErrorBody("adtErrorFromException", path6, e);
+function adtErrorFromException(e, path8) {
+  captureErrorBody("adtErrorFromException", path8, e);
   const info = adtExceptionInfo(e);
   const message = info?.message || describeUnknownError(e);
   const rawBody = info?.response?.body ?? "";
@@ -72094,7 +78976,7 @@ function adtErrorFromException(e, path6) {
     subtype: info?.properties["com.sap.adt.communicationFramework.subType"] || void 0,
     abapType: info?.type,
     message,
-    path: path6,
+    path: path8,
     bodyExcerpt: truncateDiagnosticBody(rawBody || message),
     ...exceptionClassNames.length ? { exceptionClassNames } : {}
   };
@@ -72384,12 +79266,12 @@ var DebugLongPollClient = class {
    * CSRF-stale-token retry (see the file's layering note); a 401 or ICF
    * logon-failure body trips the shared breaker instead.
    */
-  listen(path6, opts = {}) {
+  listen(path8, opts = {}) {
     if (this.inFlight) {
       throw new AbapError(
         "LOCKED",
         "A long-poll is already in flight on this DebugLongPollClient; concurrent listen() calls on one client would share (and corrupt) a single stateful ADT session.",
-        { path: path6 },
+        { path: path8 },
         // Deliberately not "…or use a separate terminalId": SAP rejects a
         // second global-scope listener for the same identity with
         // 409/conflictDetected, keyed on (terminalId, ideId); switching to
@@ -72399,7 +79281,7 @@ var DebugLongPollClient = class {
         "Await or abort() the outstanding LongPollHandle first, or use a separate DebugLongPollClient for a different endpoint \u2014 a second concurrent poll with the SAME identity is not cancelled by SAP, it is accepted and can wedge both polls for many minutes with no established recovery, so refusing it here rather than risking that is safer."
       );
     }
-    const url2 = buildUrlWithQuery(this.baseUrl, path6, opts.qs);
+    const url2 = buildUrlWithQuery(this.baseUrl, path8, opts.qs);
     const controller = new AbortController();
     let aborted2 = false;
     const abort = () => {
@@ -72418,7 +79300,7 @@ var DebugLongPollClient = class {
       resolveArmed = res;
     });
     this.inFlight = true;
-    const result = this.run(url2, opts.headers, controller.signal, path6, resolveArmed).finally(
+    const result = this.run(url2, opts.headers, controller.signal, path8, resolveArmed).finally(
       () => clearTimeout(timer)
     );
     void result.catch(() => {
@@ -72432,7 +79314,7 @@ var DebugLongPollClient = class {
       }
     };
   }
-  async run(url2, extraHeaders, signal, path6, resolveArmed) {
+  async run(url2, extraHeaders, signal, path8, resolveArmed) {
     let armedSignalled = false;
     let isProbe = false;
     let sawResponse = false;
@@ -72474,7 +79356,7 @@ var DebugLongPollClient = class {
             throw new AbapError(
               "TRANSPORT_ERROR",
               "Long-poll cancelled before it produced a result.",
-              { path: path6 },
+              { path: path8 },
               "Expected on deliberate abort(); if unexpected, check the caller's own timeout."
             );
           }
@@ -72490,7 +79372,7 @@ var DebugLongPollClient = class {
           const cancelled = () => new AbapError(
             "TRANSPORT_ERROR",
             "Long-poll cancelled before it produced a result.",
-            { path: path6 },
+            { path: path8 },
             "Cancelled while refreshing the CSRF token. Expected on deliberate abort(); if unexpected, check the caller's own timeout."
           );
           try {
@@ -72518,19 +79400,19 @@ var DebugLongPollClient = class {
           } catch (e) {
             if (e instanceof AbapError) throw e;
             if ("thrown" in cookieFailure) {
-              throw translateDebugError(adtErrorFromException(cookieFailure.thrown, path6));
+              throw translateDebugError(adtErrorFromException(cookieFailure.thrown, path8));
             }
             if (signal.aborted || isAbortError(e)) throw cancelled();
-            throw translateDebugError(adtErrorFromException(e, path6));
+            throw translateDebugError(adtErrorFromException(e, path8));
           }
           if ("thrown" in cookieFailure) {
-            throw translateDebugError(adtErrorFromException(cookieFailure.thrown, path6));
+            throw translateDebugError(adtErrorFromException(cookieFailure.thrown, path8));
           }
           if (signal.aborted) throw cancelled();
           continue;
         }
         if (raw.status >= 400) {
-          throw translateDebugError(parseAdtError(raw.body, raw.status, path6));
+          throw translateDebugError(parseAdtError(raw.body, raw.status, path8));
         }
         return raw;
       }
@@ -72575,12 +79457,12 @@ function terminationEvidenceFrom(e) {
 var TERMINATE_STEP_DEADLINE_MS = 1500;
 var TERMINATE_TOTAL_DEADLINE_MS = 4e3;
 function settleWithin(p, ms) {
-  return new Promise((resolve3) => {
+  return new Promise((resolve5) => {
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      resolve3({ ok: false, reason: "timeout" });
+      resolve5({ ok: false, reason: "timeout" });
     }, ms);
     if (typeof timer.unref === "function") timer.unref();
     p.then(
@@ -72588,13 +79470,13 @@ function settleWithin(p, ms) {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        resolve3({ ok: true, value });
+        resolve5({ ok: true, value });
       },
       (error51) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        resolve3({ ok: false, reason: "error", error: error51 });
+        resolve5({ ok: false, reason: "error", error: error51 });
       }
     );
   });
@@ -73856,8 +80738,8 @@ function getErrorMap2() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path6, errorMaps, issueData } = params;
-  const fullPath = [...path6, ...issueData.path || []];
+  const { data, path: path8, errorMaps, issueData } = params;
+  const fullPath = [...path8, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -73972,11 +80854,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path6, key) {
+  constructor(parent, value, path8, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path6;
+    this._path = path8;
     this._key = key;
   }
   get path() {
@@ -76216,14 +83098,14 @@ var ZodDiscriminatedUnion2 = class _ZodDiscriminatedUnion extends ZodType2 {
       });
       return INVALID;
     }
-    const discriminator3 = this.discriminator;
-    const discriminatorValue = ctx.data[discriminator3];
+    const discriminator2 = this.discriminator;
+    const discriminatorValue = ctx.data[discriminator2];
     const option = this.optionsMap.get(discriminatorValue);
     if (!option) {
       addIssueToContext(ctx, {
         code: ZodIssueCode2.invalid_union_discriminator,
         options: Array.from(this.optionsMap.keys()),
-        path: [discriminator3]
+        path: [discriminator2]
       });
       return INVALID;
     }
@@ -76258,23 +83140,23 @@ var ZodDiscriminatedUnion2 = class _ZodDiscriminatedUnion extends ZodType2 {
    * @param types an array of object schemas
    * @param params
    */
-  static create(discriminator3, options, params) {
+  static create(discriminator2, options, params) {
     const optionsMap = /* @__PURE__ */ new Map();
     for (const type of options) {
-      const discriminatorValues = getDiscriminator(type.shape[discriminator3]);
+      const discriminatorValues = getDiscriminator(type.shape[discriminator2]);
       if (!discriminatorValues.length) {
-        throw new Error(`A discriminator value for key \`${discriminator3}\` could not be extracted from all schema options`);
+        throw new Error(`A discriminator value for key \`${discriminator2}\` could not be extracted from all schema options`);
       }
       for (const value of discriminatorValues) {
         if (optionsMap.has(value)) {
-          throw new Error(`Discriminator property ${String(discriminator3)} has duplicate value ${String(value)}`);
+          throw new Error(`Discriminator property ${String(discriminator2)} has duplicate value ${String(value)}`);
         }
         optionsMap.set(value, type);
       }
     }
     return new _ZodDiscriminatedUnion({
       typeName: ZodFirstPartyTypeKind2.ZodDiscriminatedUnion,
-      discriminator: discriminator3,
+      discriminator: discriminator2,
       options,
       optionsMap,
       ...processCreateParams(params)
@@ -77503,11 +84385,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path6) {
-  if (path6.length === 0) {
+function getDotPath(path8) {
+  if (path8.length === 0) {
     return "object root";
   }
-  return path6.reduce((acc, seg, index) => {
+  return path8.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -80941,7 +87823,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve3) => setTimeout(resolve3, pollInterval));
+        await new Promise((resolve5) => setTimeout(resolve5, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error51) {
@@ -80958,7 +87840,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve5, reject) => {
       const earlyReject = (error51) => {
         reject(error51);
       };
@@ -81036,7 +87918,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve3(parseResult.data);
+            resolve5(parseResult.data);
           }
         } catch (error51) {
           reject(error51);
@@ -81297,12 +88179,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve5, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve3, interval);
+      const timeoutId = setTimeout(resolve5, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -81375,7 +88257,7 @@ var Protocol = class {
     };
   }
 };
-function isPlainObject2(value) {
+function isPlainObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function mergeCapabilities(base, additional) {
@@ -81386,7 +88268,7 @@ function mergeCapabilities(base, additional) {
     if (addValue === void 0)
       continue;
     const baseValue = result[k];
-    if (isPlainObject2(baseValue) && isPlainObject2(addValue)) {
+    if (isPlainObject4(baseValue) && isPlainObject4(addValue)) {
       result[k] = { ...baseValue, ...addValue };
     } else {
       result[k] = addValue;
@@ -82393,7 +89275,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve3) => setTimeout(resolve3, pollInterval));
+      await new Promise((resolve5) => setTimeout(resolve5, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -83057,12 +89939,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve3) => {
+    return new Promise((resolve5) => {
       const json2 = serializeMessage(message);
       if (this._stdout.write(json2)) {
-        resolve3();
+        resolve5();
       } else {
-        this._stdout.once("drain", resolve3);
+        this._stdout.once("drain", resolve5);
       }
     });
   }
@@ -83745,13 +90627,13 @@ var SessionLock = class {
     if (this.waiters.length >= this.maxQueue) {
       return Promise.reject(this.busy("queue-full", held, op));
     }
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve5, reject) => {
       const waiter = {
         op,
         enqueuedAt: this.now(),
         settled: false,
         timer: void 0,
-        resolve: resolve3,
+        resolve: resolve5,
         reject
       };
       waiter.timer = this.setTimer(() => this.timeOutWaiter(waiter), this.waitTimeoutMs);
@@ -85101,20 +91983,20 @@ var AbapConnection = class {
    * lease (`pool.ts`). Whether a cookie was actually set is reported via
    * `cookieJarChanged` rather than assumed.
    */
-  async serviceRuntimeGet(path6) {
+  async serviceRuntimeGet(path8) {
     this.assertUsable();
-    if (!SERVICE_METADATA_PATH.test(path6)) {
+    if (!SERVICE_METADATA_PATH.test(path8)) {
       throw new AbapError(
         "BAD_INPUT",
-        `Refusing to request '${path6}': this connection will only fetch OData $metadata, never service data. The path must be rooted at /sap/opu/odata or /sap/opu/odata4 and end in /$metadata.`,
-        { path: path6 },
+        `Refusing to request '${path8}': this connection will only fetch OData $metadata, never service data. The path must be rooted at /sap/opu/odata or /sap/opu/odata4 and end in /$metadata.`,
+        { path: path8 },
         "abapsmith reads OData CONTRACTS, never rows (parity item P-40). Entity reads, $batch and $filter are out of scope by design and no option enables them \u2014 an ADT developer session is not an application user session, and reading business data through one would escape the authorization concept the operator set. Use a real OData client with its own credentials for data."
       );
     }
     const jar = this.cookieJar();
     const before = jar ? new Map(jar) : void 0;
     try {
-      const resp = await this.request(path6, {
+      const resp = await this.request(path8, {
         method: "GET",
         // The OData runtime content-negotiates. `application/xml` is what
         // returns EDMX; `application/json` returns a JSON metadata document
@@ -85628,7 +92510,7 @@ var AbapConnection = class {
 
 // src/adt/object-gate.ts
 import { createHash as createHash5 } from "node:crypto";
-import * as path3 from "node:path";
+import * as path4 from "node:path";
 var InProcessObjectGate = class {
   /** key -> tail of the chain. Entries are deleted once they ARE the tail. */
   chains = /* @__PURE__ */ new Map();
@@ -85679,7 +92561,7 @@ var LOCK_HASH_HEX_LEN = 20;
 function objectGateLockPath(stateDir, objectUri) {
   const key = objectUriOf(objectUri);
   const hash2 = createHash5("sha256").update(key).digest("hex").slice(0, LOCK_HASH_HEX_LEN);
-  return path3.join(stateDir, "locks", "objects", `${hash2}.lock`);
+  return path4.join(stateDir, "locks", "objects", `${hash2}.lock`);
 }
 function toObjectLockBusyError(e, objectUri, lockPath) {
   const holder = fileLockHolderOf(e);
@@ -86204,7 +93086,7 @@ var AdtSessionPool = class {
     if (this.waiters.length >= this.maxQueue) {
       return Promise.reject(this.busyError("queue-full", op));
     }
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve5, reject) => {
       const w = {
         role,
         op,
@@ -86217,7 +93099,7 @@ var AdtSessionPool = class {
         if (w.settled) return;
         w.settled = true;
         this.clearTimer(w.timer);
-        resolve3(slot);
+        resolve5(slot);
       };
       w.reject = (err) => {
         if (w.settled) return;
@@ -87057,8 +93939,8 @@ var SessionTransport = class _SessionTransport {
 
 // src/journal.ts
 import { randomBytes as randomBytes5 } from "node:crypto";
-import { promises as fs2 } from "node:fs";
-import * as path4 from "node:path";
+import { promises as fs3 } from "node:fs";
+import * as path5 from "node:path";
 function journalRef(t) {
   return {
     name: t.name,
@@ -87112,10 +93994,10 @@ function journalConfigFromEnv(env, sid, cwd) {
   const flag2 = env.ABAP_JOURNAL?.trim().toLowerCase();
   const enabled = !(flag2 !== void 0 && OFF_VALUES.has(flag2));
   const base = cwd ?? process.cwd();
-  const root = env.ABAP_JOURNAL_DIR?.trim() ? path4.resolve(base, env.ABAP_JOURNAL_DIR.trim()) : path4.resolve(base, ".abapsmith", "journal");
+  const root = env.ABAP_JOURNAL_DIR?.trim() ? path5.resolve(base, env.ABAP_JOURNAL_DIR.trim()) : path5.resolve(base, ".abapsmith", "journal");
   const actor = env.ABAP_ACTOR?.trim() || void 0;
   return {
-    dir: path4.join(root, safeSegment(sid)),
+    dir: path5.join(root, safeSegment(sid)),
     enabled,
     maxEntries: intFromEnv2(env.ABAP_JOURNAL_MAX_ENTRIES, DEFAULT_MAX_ENTRIES),
     maxAgeDays: intFromEnv2(env.ABAP_JOURNAL_MAX_AGE_DAYS, DEFAULT_MAX_AGE_DAYS),
@@ -87218,10 +94100,10 @@ var Journal = class _Journal {
     this.enabled = cfg.enabled;
     this.dir = cfg.dir;
     this.system = system;
-    this.indexPath = path4.join(cfg.dir, INDEX_FILE);
-    this.blobDir = path4.join(cfg.dir, BLOB_DIR);
+    this.indexPath = path5.join(cfg.dir, INDEX_FILE);
+    this.blobDir = path5.join(cfg.dir, BLOB_DIR);
     this.lockPath = `${this.indexPath}.lock`;
-    this.inFlightDir = path4.join(this.dir, INFLIGHT_DIR);
+    this.inFlightDir = path5.join(this.dir, INFLIGHT_DIR);
   }
   /** Must be lazy, unlike `config.actor`: the client identity is unknown until the transport's initialize handshake completes, which is after this `Journal` is constructed (src/server.ts). */
   setClientActor(name) {
@@ -87260,7 +94142,7 @@ var Journal = class _Journal {
   async readAll() {
     let text3;
     try {
-      text3 = await fs2.readFile(this.indexPath, "utf8");
+      text3 = await fs3.readFile(this.indexPath, "utf8");
     } catch (e) {
       if (e.code === "ENOENT") return /* @__PURE__ */ new Map();
       throw e;
@@ -87313,10 +94195,10 @@ var Journal = class _Journal {
   }
   async readBlob(image) {
     if (!this.enabled || !image?.blob) return void 0;
-    const file2 = path4.join(this.blobDir, image.blob);
-    if (path4.dirname(path4.resolve(file2)) !== path4.resolve(this.blobDir)) return void 0;
+    const file2 = path5.join(this.blobDir, image.blob);
+    if (path5.dirname(path5.resolve(file2)) !== path5.resolve(this.blobDir)) return void 0;
     try {
-      return await fs2.readFile(file2, "utf8");
+      return await fs3.readFile(file2, "utf8");
     } catch (e) {
       if (e.code === "ENOENT") return void 0;
       throw e;
@@ -87339,8 +94221,8 @@ var Journal = class _Journal {
    * AND from `pruneLocked()` (inside one), and the lock is not re-entrant.
    */
   async ensureDirs() {
-    await fs2.mkdir(this.blobDir, { recursive: true });
-    await fs2.mkdir(this.inFlightDir, { recursive: true });
+    await fs3.mkdir(this.blobDir, { recursive: true });
+    await fs3.mkdir(this.inFlightDir, { recursive: true });
   }
   /**
    * Run `fn` with exclusive access to the index file, queued behind every
@@ -87389,7 +94271,7 @@ var Journal = class _Journal {
    * each.
    */
   markerPath(id) {
-    return path4.join(this.inFlightDir, `${id}.${process.pid}`);
+    return path5.join(this.inFlightDir, `${id}.${process.pid}`);
   }
   /**
    * Publish / retract an in-flight marker. Both are BEST-EFFORT and neither
@@ -87406,14 +94288,14 @@ var Journal = class _Journal {
    */
   async publishInFlight(id) {
     try {
-      const handle = await fs2.open(this.markerPath(id), "w");
+      const handle = await fs3.open(this.markerPath(id), "w");
       await handle.close();
     } catch {
     }
   }
   async retractInFlight(id) {
     try {
-      await fs2.unlink(this.markerPath(id));
+      await fs3.unlink(this.markerPath(id));
     } catch {
     }
   }
@@ -87421,7 +94303,7 @@ var Journal = class _Journal {
     const line = JSON.stringify(record2) + "\n";
     return this.runExclusive(
       () => this.withIndexLock(async () => {
-        await fs2.appendFile(this.indexPath, line, "utf8");
+        await fs3.appendFile(this.indexPath, line, "utf8");
         if (this.lineCount !== void 0) this.lineCount += 1;
       })
     );
@@ -87435,7 +94317,7 @@ var Journal = class _Journal {
    */
   async writeImage(id, which, source, serverEtag, partIndex) {
     const blob = partIndex === void 0 ? `${id}.${which}.txt` : `${id}.part${partIndex}.${which}.txt`;
-    await fs2.writeFile(path4.join(this.blobDir, blob), source, "utf8");
+    await fs3.writeFile(path5.join(this.blobDir, blob), source, "utf8");
     return {
       etag: contentHash(source),
       fingerprint: sourceFingerprint(source),
@@ -87683,7 +94565,7 @@ var Journal = class _Journal {
     if (cap <= 0) return;
     if (this.lineCount === void 0) {
       try {
-        const text3 = await fs2.readFile(this.indexPath, "utf8");
+        const text3 = await fs3.readFile(this.indexPath, "utf8");
         this.lineCount = text3.split("\n").filter((l) => l.trim() !== "").length;
       } catch {
         this.lineCount = 0;
@@ -87739,8 +94621,8 @@ var Journal = class _Journal {
     const body = keep.slice().reverse().map((e) => JSON.stringify(e)).join("\n");
     const tmp = `${this.indexPath}.${process.pid}.${randomBytes5(4).toString("hex")}.tmp`;
     await this.ensureDirs();
-    await fs2.writeFile(tmp, body.length ? body + "\n" : "", "utf8");
-    await fs2.rename(tmp, this.indexPath);
+    await fs3.writeFile(tmp, body.length ? body + "\n" : "", "utf8");
+    await fs3.rename(tmp, this.indexPath);
     this.lineCount = keep.length;
     const removedBlobs = await this.sweepBlobs(new Set(keep.map((e) => e.id)));
     return { removedEntries: drop.length, removedBlobs };
@@ -87781,7 +94663,7 @@ var Journal = class _Journal {
   async sweepBlobs(surviving) {
     let files;
     try {
-      files = await fs2.readdir(this.blobDir);
+      files = await fs3.readdir(this.blobDir);
     } catch (e) {
       if (e.code === "ENOENT") return 0;
       throw e;
@@ -87795,7 +94677,7 @@ var Journal = class _Journal {
       if (!looksLikeJournalId(stem)) continue;
       if (surviving.has(stem) || this.inFlight.has(stem) || registered.has(stem)) continue;
       try {
-        await fs2.unlink(path4.join(this.blobDir, f));
+        await fs3.unlink(path5.join(this.blobDir, f));
         removed += 1;
       } catch {
       }
@@ -87819,7 +94701,7 @@ var Journal = class _Journal {
   async readInFlightRegistry() {
     let markers;
     try {
-      markers = await fs2.readdir(this.inFlightDir);
+      markers = await fs3.readdir(this.inFlightDir);
     } catch (e) {
       if (e.code === "ENOENT") return /* @__PURE__ */ new Set();
       throw e;
@@ -87838,17 +94720,17 @@ var Journal = class _Journal {
   /** True when `name` no longer protects an id — see `readInFlightRegistry()`. */
   async reapMarker(name, pid, now) {
     if (pid === process.pid) return false;
-    const marker = path4.join(this.inFlightDir, name);
+    const marker = path5.join(this.inFlightDir, name);
     let age;
     try {
-      age = now - (await fs2.stat(marker)).mtimeMs;
+      age = now - (await fs3.stat(marker)).mtimeMs;
     } catch {
       return false;
     }
     if (age <= INFLIGHT_GRACE_MS) return false;
     if (Number.isInteger(pid) && pid > 0 && pidIsAlive(pid)) return false;
     try {
-      await fs2.unlink(marker);
+      await fs3.unlink(marker);
     } catch {
     }
     return true;
@@ -88006,9 +94888,9 @@ function parsePath(raw) {
   }
   return { root, steps };
 }
-function formatPath(path6) {
-  let out = path6.root;
-  for (const step of path6.steps) {
+function formatPath(path8) {
+  let out = path8.root;
+  for (const step of path8.steps) {
     out += step.kind === "component" ? `-${step.name}` : `[${step.value}]`;
   }
   return out;
@@ -88031,8 +94913,8 @@ function retrievalWindow(start, end, total) {
   const count = last - from + 1;
   return count >= 1 ? { from, count } : void 0;
 }
-function buildRetrievalCall(path6, window2, stateId) {
-  const args = [`stateId: "${stateId ?? STATE_ID_PLACEHOLDER}"`, `path: "${path6}"`];
+function buildRetrievalCall(path8, window2, stateId) {
+  const args = [`stateId: "${stateId ?? STATE_ID_PLACEHOLDER}"`, `path: "${path8}"`];
   if (window2 !== void 0) {
     args.push(`from: ${window2.from}`, `count: ${window2.count}`);
   }
@@ -88243,7 +95125,7 @@ function unplaceableRowsBlock(nodes, reason, stateId) {
     )
   ];
 }
-function buildTableRowsRender(v, rows, window2, path6, stateId) {
+function buildTableRowsRender(v, rows, window2, path8, stateId) {
   const total = v.tableLines;
   if (total !== void 0 && total <= 0) {
     return {
@@ -88266,7 +95148,7 @@ function buildTableRowsRender(v, rows, window2, path6, stateId) {
     if (r.index > next) {
       units.push({
         index: next,
-        line: `  ${elide("rows", r.index - next, buildRetrievalCall(path6, retrievalWindow(next, r.index - 1, total), stateId))}`
+        line: `  ${elide("rows", r.index - next, buildRetrievalCall(path8, retrievalWindow(next, r.index - 1, total), stateId))}`
       });
     }
     units.push({
@@ -88278,20 +95160,20 @@ function buildTableRowsRender(v, rows, window2, path6, stateId) {
   if (next <= hi) {
     units.push({
       index: next,
-      line: `  ${elide("rows", hi - next + 1, buildRetrievalCall(path6, retrievalWindow(next, hi, total), stateId))}`
+      line: `  ${elide("rows", hi - next + 1, buildRetrievalCall(path8, retrievalWindow(next, hi, total), stateId))}`
     });
   }
   const leading = [];
   const before = lo - 1;
   if (before > 0) {
-    leading.push(`  ${elide("rows", before, buildRetrievalCall(path6, retrievalWindow(1, before, total), stateId))}`);
+    leading.push(`  ${elide("rows", before, buildRetrievalCall(path8, retrievalWindow(1, before, total), stateId))}`);
   }
   const trailing = [];
   if (total !== void 0) {
     const after = total - hi;
     if (after > 0) {
       trailing.push(
-        `  ${elide("rows", after, buildRetrievalCall(path6, retrievalWindow(hi + 1, total, total), stateId))}`
+        `  ${elide("rows", after, buildRetrievalCall(path8, retrievalWindow(hi + 1, total, total), stateId))}`
       );
     }
     if (window2.start !== lo || window2.end !== hi) {
@@ -88307,7 +95189,7 @@ function buildTableRowsRender(v, rows, window2, path6, stateId) {
         "fetched rows outside the rendered window",
         outside.length,
         // A SPAN not a set — over-fetching gaps is harmless, dropping rows silently is not.
-        buildRetrievalCall(path6, retrievalWindow(Math.min(...indices), Math.max(...indices), total), stateId)
+        buildRetrievalCall(path8, retrievalWindow(Math.min(...indices), Math.max(...indices), total), stateId)
       )}`
     );
   }
@@ -88326,13 +95208,13 @@ function rowIndexOf(id) {
   const m = /\[(\d+)\]$/.exec(id);
   return m ? Number(m[1]) : -1;
 }
-function renderNode(node2, depth, maxDepth, path6, stateId) {
+function renderNode(node2, depth, maxDepth, path8, stateId) {
   const v = node2.variable;
   const indent = "  ".repeat(depth);
   if (v.metaType === "table") {
     return [
       `${indent}${v.name}: ${describeComplex(v)}`,
-      `${indent}  \u2192 ${buildRetrievalCall(path6, reachableWindow(v), stateId)}`
+      `${indent}  \u2192 ${buildRetrievalCall(path8, reachableWindow(v), stateId)}`
     ];
   }
   if (!isComplex(v.metaType)) {
@@ -88343,21 +95225,21 @@ function renderNode(node2, depth, maxDepth, path6, stateId) {
     if (node2.children && node2.children.length > 0) {
       return [
         line,
-        `${indent}  ${elide("children", node2.children.length, buildRetrievalCall(path6, void 0, stateId))}`
+        `${indent}  ${elide("children", node2.children.length, buildRetrievalCall(path8, void 0, stateId))}`
       ];
     }
     return [line];
   }
   if (!node2.children) {
-    return [line, `${indent}  (not expanded \u2014 ${buildRetrievalCall(path6, void 0, stateId)})`];
+    return [line, `${indent}  (not expanded \u2014 ${buildRetrievalCall(path8, void 0, stateId)})`];
   }
   const childLines = node2.children.flatMap(
-    (c) => renderNode(c, depth + 1, maxDepth, `${path6}-${c.variable.name}`, stateId)
+    (c) => renderNode(c, depth + 1, maxDepth, `${path8}-${c.variable.name}`, stateId)
   );
   return [line, ...childLines];
 }
-function renderTableWithinBudget(v, rows, window2, path6, maxChars, stateId) {
-  const parts = buildTableRowsRender(v, rows, window2, path6, stateId);
+function renderTableWithinBudget(v, rows, window2, path8, maxChars, stateId) {
+  const parts = buildTableRowsRender(v, rows, window2, path8, stateId);
   const assemble = (units, drop) => [
     parts.header,
     ...parts.leading,
@@ -88372,7 +95254,7 @@ function renderTableWithinBudget(v, rows, window2, path6, maxChars, stateId) {
   const worstDrop = `  ${elide(
     "rows",
     parts.window.end - parts.window.start + 1,
-    buildRetrievalCall(path6, retrievalWindow(parts.window.start, parts.window.end), stateId)
+    buildRetrievalCall(path8, retrievalWindow(parts.window.start, parts.window.end), stateId)
   )}`;
   const overhead = [parts.header, ...parts.leading, ...parts.trailing, worstDrop].reduce(
     (n, line) => n + line.length + 1,
@@ -88390,20 +95272,20 @@ function renderTableWithinBudget(v, rows, window2, path6, maxChars, stateId) {
   const droppedStart = dropped[0].index;
   const droppedEnd = parts.window.end;
   const nextCall = kept.length > 0 ? buildRetrievalCall(
-    path6,
+    path8,
     retrievalWindow(droppedStart, Math.min(droppedStart + kept.length - 1, droppedEnd)),
     stateId
-  ) : buildRetrievalCall(`${path6}[${droppedStart}]`, void 0, stateId);
+  ) : buildRetrievalCall(`${path8}[${droppedStart}]`, void 0, stateId);
   return assemble(kept, `  ${elide("rows", droppedEnd - droppedStart + 1, nextCall)}`);
 }
-function renderDrill(node2, path6, opts) {
+function renderDrill(node2, path8, opts) {
   const maxDepth = opts?.depth ?? 3;
   const maxChars = opts?.maxChars ?? DEBUG_MAX_CHARS;
   const stateId = opts?.stateId;
   if (node2.variable.metaType === "table" && opts?.rows && node2.children) {
-    return { text: renderTableWithinBudget(node2.variable, node2.children, opts.rows, path6, maxChars, stateId) };
+    return { text: renderTableWithinBudget(node2.variable, node2.children, opts.rows, path8, maxChars, stateId) };
   }
-  const lines = renderNode(node2, 0, maxDepth, path6, stateId);
+  const lines = renderNode(node2, 0, maxDepth, path8, stateId);
   let text3 = lines.join("\n");
   if (text3.length > maxChars) {
     const kept = [];
@@ -88415,7 +95297,7 @@ function renderDrill(node2, path6, opts) {
     }
     if (kept.length === 0 && lines.length > 0) kept.push(lines[0]);
     const remaining = lines.length - kept.length;
-    text3 = remaining > 0 ? [...kept, elide("lines", remaining, buildRetrievalCall(path6, void 0, stateId))].join("\n") : kept.join("\n");
+    text3 = remaining > 0 ? [...kept, elide("lines", remaining, buildRetrievalCall(path8, void 0, stateId))].join("\n") : kept.join("\n");
   }
   return { text: text3 };
 }
@@ -88459,8 +95341,8 @@ var VERSIONS_REL = "http://www.sap.com/adt/relations/versions";
 var NO_VERSIONS_LINK_HINT = "Version management is a per-object property, not a system-wide feature: an object type with no version management (many DDIC and generated objects) carries no versions link on its ADT structure document, so there is nothing to list and nothing to diff. Read the object normally (omit `view`) to see its current source.";
 var NO_RELEASED_HISTORY_EXPLANATION = "has no released version history: the only entry in its ADT version feed is the ACTIVE pseudo-version (00000), which serves the object's CURRENT source rather than a snapshot. SAP writes a version row on transport release or upgrade import, never on local activation \u2014 so a $TMP / local object accumulates no history no matter how many times it is edited and reactivated. There is no predecessor to diff against.";
 function versionIdFromContentUri(uri) {
-  const path6 = uri.replace(/[?#].*$/, "").replace(/\/+$/, "");
-  const segs = path6.split("/");
+  const path8 = uri.replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const segs = path8.split("/");
   if (segs.length < 2) return "";
   const candidate = segs[segs.length - 2] ?? "";
   if (!/^\d{1,5}$/.test(candidate)) return "";
@@ -89795,1734 +96677,7 @@ function cleanUri(uri) {
 // src/adt/write.ts
 var import_abap_adt_api8 = __toESM(require_build(), 1);
 
-// src/adt/run.ts
-var import_abap_adt_api7 = __toESM(require_build(), 1);
-import { createHash as createHash6 } from "node:crypto";
-
-// src/adt/dumps-query.ts
-var DUMPS_FEED_PATH = "/sap/bc/adt/runtime/dumps";
-var DUMPS_FEED_PARAMS = Object.freeze([
-  "$query",
-  "from",
-  "to",
-  "$top",
-  "$queryCheck",
-  "$inlinecount"
-]);
-var DUMPS_MAX_ROWS = 1e3;
-var DUMPS_RESIDENCE_WINDOW_DAYS = 8;
-var SILENTLY_IGNORED_PARAMS = Object.freeze({
-  query: "The parameter is `$query`, with the dollar sign. Sending `query=` returns HTTP 200 and the complete unfiltered feed \u2014 this near-miss is the single costliest mistake on this surface.",
-  $skip: 'There is no skip/offset parameter. Page with the `rel="next"` cursor (`to=`) instead.',
-  $filter: "OData syntax is not understood here. The filter parameter is `$query`, in FQL.",
-  $orderby: "There is no ordering parameter; the feed is returned newest-first.",
-  $select: "There is no projection parameter.",
-  queryString: "`queryString` is the attribute name inside `feed:queryVariant`, not a parameter.",
-  variant: "Server-side variants cannot be selected by name; expand them into a `$query` yourself.",
-  user: "Filter by user with `$query=and ( equals ( user , NAME ) )`, not a `user=` parameter.",
-  maxHits: "The row limit is `$top`.",
-  size: "The row limit is `$top`.",
-  pageSize: "The row limit is `$top`.",
-  client: "The client is fixed by the logon; it cannot be selected per request.",
-  $inlinecount: "Recognised by the server but INERT: it produces no count element anywhere, so this builder never sends it. There is no total-count facility on this feed \u2014 count `atom:entry` elements from the response instead, bounded by C_MAX_DUMPS = 1000 and the 8-day residence window."
-});
-function isRecognisedFeedParam(name) {
-  return DUMPS_FEED_PARAMS.includes(name);
-}
-function assertRecognisedFeedParam(name) {
-  if (isRecognisedFeedParam(name)) return name;
-  const known = SILENTLY_IGNORED_PARAMS[name];
-  throw new AbapError(
-    "BAD_INPUT",
-    `'${name}' is not a query parameter of the ABAP runtime-dumps feed.`,
-    { parameter: name, recognised: [...DUMPS_FEED_PARAMS] },
-    (known ? `${known} ` : "") + `This server silently ignores unrecognised parameters and answers HTTP 200 with the full unfiltered feed, so an unknown name is refused here rather than sent. The six recognised parameters are ${DUMPS_FEED_PARAMS.join(", ")}.`
-  );
-}
-var FQL_OPERATORS = Object.freeze({
-  equals: 1,
-  notEquals: 1,
-  contains: 1,
-  notContains: 1,
-  greater: 1,
-  greaterOrEquals: 1,
-  less: 1,
-  lessOrEquals: 1,
-  between: 2,
-  notBetween: 2
-});
-var FQL_JUNCTIONS = Object.freeze(["and", "or"]);
-var STRING_OPS = ["equals", "notEquals", "contains", "notContains"];
-var DATETIME_OPS = [
-  "equals",
-  "notEquals",
-  "greater",
-  "greaterOrEquals",
-  "less",
-  "lessOrEquals",
-  "between",
-  "notBetween"
-];
-var DUMPS_CONTRACT_AS_CAPTURED = Object.freeze({
-  queryDepth: 2,
-  // served, not assumed — no `queryDepthAssumed`.
-  operators: FQL_OPERATORS,
-  attributes: Object.freeze([
-    { id: "package", dataType: "string", operators: STRING_OPS },
-    { id: "packageHierarchy", dataType: "string", operators: STRING_OPS },
-    { id: "packageResponsible", dataType: "string", operators: STRING_OPS },
-    { id: "objectResponsible", dataType: "string", operators: STRING_OPS },
-    { id: "responsible", dataType: "string", operators: STRING_OPS },
-    { id: "objectName", dataType: "string", operators: STRING_OPS },
-    { id: "component", dataType: "string", operators: STRING_OPS },
-    // The asymmetry: `string` dataType, but only two operators.
-    { id: "user", dataType: "string", operators: Object.freeze(["equals", "notEquals"]) },
-    { id: "runtimeError", dataType: "string", operators: STRING_OPS },
-    { id: "exception", dataType: "string", operators: STRING_OPS },
-    { id: "datetime", dataType: "dateTime", operators: DATETIME_OPS }
-  ])
-});
-var DUMPS_ASSUMED_QUERY_DEPTH = 2;
-function toDumpsQueryContract(extendedData) {
-  const attributes = Object.freeze(
-    extendedData.attributes.map(
-      (a) => Object.freeze({
-        id: a.id,
-        dataType: a.dataTypeId,
-        operators: Object.freeze([...a.operatorIds])
-      })
-    )
-  );
-  const operators = {};
-  for (const op of extendedData.operators) operators[op.id] = op.numberOfOperands;
-  const hasOperators = Object.keys(operators).length > 0;
-  const served = extendedData.queryDepth;
-  const queryDepthIsServed = Number.isInteger(served) && served > 0;
-  return Object.freeze({
-    attributes,
-    queryDepth: queryDepthIsServed ? served : DUMPS_ASSUMED_QUERY_DEPTH,
-    ...queryDepthIsServed ? {} : { queryDepthAssumed: true },
-    ...hasOperators ? { operators: Object.freeze(operators) } : {}
-  });
-}
-var TS14_RE = /^\d{14}$/;
-var ISO_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/;
-var pad = (n, width) => String(n).padStart(width, "0");
-function isValidTimestamp14(text3) {
-  if (!TS14_RE.test(text3)) return false;
-  const y = Number(text3.slice(0, 4));
-  const mo = Number(text3.slice(4, 6));
-  const d = Number(text3.slice(6, 8));
-  const h = Number(text3.slice(8, 10));
-  const mi = Number(text3.slice(10, 12));
-  const s = Number(text3.slice(12, 14));
-  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || s > 59) return false;
-  const dt = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d && dt.getUTCHours() === h && dt.getUTCMinutes() === mi && dt.getUTCSeconds() === s;
-}
-function timestamp14(date5) {
-  return pad(date5.getUTCFullYear(), 4) + pad(date5.getUTCMonth() + 1, 2) + pad(date5.getUTCDate(), 2) + pad(date5.getUTCHours(), 2) + pad(date5.getUTCMinutes(), 2) + pad(date5.getUTCSeconds(), 2);
-}
-function normaliseTimestamp(value) {
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? void 0 : timestamp14(value);
-  }
-  const text3 = String(value).trim();
-  if (TS14_RE.test(text3)) return isValidTimestamp14(text3) ? text3 : void 0;
-  const m = ISO_RE.exec(text3);
-  if (!m) return void 0;
-  const candidate = `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}${m[6]}`;
-  return isValidTimestamp14(candidate) ? candidate : void 0;
-}
-function residenceWindowStart(now = /* @__PURE__ */ new Date()) {
-  const start = new Date(now.getTime());
-  start.setUTCDate(start.getUTCDate() - (DUMPS_RESIDENCE_WINDOW_DAYS - 1));
-  start.setUTCHours(0, 0, 0, 0);
-  return timestamp14(start);
-}
-var STRUCTURAL = /* @__PURE__ */ new Set(["(", ")", ","]);
-function tokenise(text3) {
-  const tokens = [];
-  let i = 0;
-  while (i < text3.length) {
-    const ch = text3[i];
-    if (/\s/.test(ch)) {
-      i += 1;
-      continue;
-    }
-    if (STRUCTURAL.has(ch)) {
-      tokens.push({ kind: ch, pos: i });
-      i += 1;
-      continue;
-    }
-    const start = i;
-    while (i < text3.length && !/\s/.test(text3[i]) && !STRUCTURAL.has(text3[i])) {
-      i += 1;
-    }
-    tokens.push({ kind: "word", text: text3.slice(start, i), pos: start });
-  }
-  return tokens;
-}
-function parseFqlQuery(text3) {
-  const tokens = tokenise(text3);
-  if (tokens.length === 0) return { error: "the query is empty" };
-  let i = 0;
-  const peek = () => tokens[i];
-  let failure;
-  const fail3 = (message, token) => {
-    failure ??= token ? `${message} at offset ${token.pos}` : message;
-    return void 0;
-  };
-  const parseNode = (depth) => {
-    if (depth > 64) return fail3("the query nests too deeply to parse");
-    const head = peek();
-    if (!head) return fail3("unexpected end of query; expected an operator or `and`/`or`");
-    if (head.kind !== "word") return fail3(`unexpected '${head.kind}'`, head);
-    i += 1;
-    const open = peek();
-    if (!open || open.kind !== "(") {
-      return fail3(`expected '(' after '${head.text}'`, open ?? head);
-    }
-    i += 1;
-    const lower = head.text.toLowerCase();
-    const isJunction = FQL_JUNCTIONS.includes(lower);
-    if (isJunction) {
-      const children = [];
-      if (peek()?.kind === ")") {
-        i += 1;
-        return { kind: "junction", junction: lower, children };
-      }
-      for (; ; ) {
-        const child4 = parseNode(depth + 1);
-        if (!child4) return void 0;
-        children.push(child4);
-        const next = peek();
-        if (!next) return fail3(`unclosed '${head.text} (' \u2014 expected ')'`);
-        if (next.kind === ",") {
-          i += 1;
-          continue;
-        }
-        if (next.kind === ")") {
-          i += 1;
-          return { kind: "junction", junction: lower, children };
-        }
-        return fail3(`expected ',' or ')'`, next);
-      }
-    }
-    const attrToken = peek();
-    if (!attrToken || attrToken.kind !== "word") {
-      return fail3(`expected an attribute name after '${head.text} ('`, attrToken);
-    }
-    i += 1;
-    const operands = [];
-    for (; ; ) {
-      const next = peek();
-      if (!next) return fail3(`unclosed '${head.text} (' \u2014 expected ')'`);
-      if (next.kind === ")") {
-        i += 1;
-        break;
-      }
-      if (next.kind !== ",") return fail3(`expected ',' or ')'`, next);
-      i += 1;
-      const parts = [];
-      for (; ; ) {
-        const v = peek();
-        if (!v || v.kind !== "word") break;
-        parts.push(v.text);
-        i += 1;
-      }
-      operands.push(parts.join(" "));
-    }
-    return {
-      kind: "predicate",
-      operator: head.text,
-      attribute: attrToken.text,
-      operands
-    };
-  };
-  const node2 = parseNode(0);
-  if (!node2) return { error: failure ?? "the query could not be parsed" };
-  const trailing = peek();
-  if (trailing) {
-    return {
-      error: `unexpected trailing input at offset ${trailing.pos} \u2014 a query is a single top-level and(\u2026)/or(\u2026)`
-    };
-  }
-  return { node: node2 };
-}
-var quoted = (v) => v.length >= 2 && (v.startsWith("'") && v.endsWith("'") || v.startsWith('"') && v.endsWith('"'));
-function nodeDepth(node2) {
-  if (node2.kind === "predicate") return 1;
-  if (node2.children.length === 0) return 1;
-  return 1 + Math.max(...node2.children.map(nodeDepth));
-}
-function collectPredicates(node2, out) {
-  if (node2.kind === "predicate") {
-    out.push(node2);
-    return;
-  }
-  for (const child4 of node2.children) collectPredicates(child4, out);
-}
-function findAttribute(contract, name) {
-  const lower = name.toLowerCase();
-  return contract.attributes.find((a) => a.id.toLowerCase() === lower);
-}
-function findOperator(name) {
-  const lower = name.toLowerCase();
-  return Object.keys(FQL_OPERATORS).find((o) => o.toLowerCase() === lower);
-}
-function validateOperands(attribute, operator, operands, violations) {
-  const isDateTime = attribute.dataType.toLowerCase() === "datetime";
-  for (const raw of operands) {
-    const value = raw.trim();
-    if (value === "") {
-      violations.push({
-        code: "INVALID_VALUE",
-        attribute: attribute.id,
-        operator,
-        message: `Empty value in ${operator}(${attribute.id}, \u2026). FQL values are unquoted and there is no empty literal \u2014 omit the predicate instead.`
-      });
-      continue;
-    }
-    if (quoted(value)) {
-      violations.push({
-        code: "INVALID_VALUE",
-        attribute: attribute.id,
-        operator,
-        message: `Value ${value} for '${attribute.id}' is quoted. FQL values are UNQUOTED \u2014 write ${operator} ( ${attribute.id} , ${value.slice(1, -1)} ).`
-      });
-      continue;
-    }
-    if (/[(),]/.test(value)) {
-      violations.push({
-        code: "INVALID_VALUE",
-        attribute: attribute.id,
-        operator,
-        message: `Value '${value}' for '${attribute.id}' contains '(' , ')' or ',', which are structural in FQL. The grammar has no quoting or escaping, so such a value cannot be expressed.`
-      });
-      continue;
-    }
-    if (/\s/.test(value)) {
-      violations.push({
-        code: "INVALID_VALUE",
-        attribute: attribute.id,
-        operator,
-        message: `Value '${value}' for '${attribute.id}' contains whitespace. Whitespace is insignificant in FQL and there is no quoting, so a value containing a space cannot be sent unambiguously.`
-      });
-      continue;
-    }
-    if (isDateTime && !isValidTimestamp14(value)) {
-      violations.push({
-        code: "MALFORMED_DATETIME",
-        attribute: attribute.id,
-        operator,
-        message: `'${value}' is not a valid datetime literal for '${attribute.id}'. Inside $query, dateTime values are 14 digits, YYYYMMDDHHMMSS, unquoted \u2014 e.g. 20260804000000. ISO-8601 is accepted by from/to, but NOT inside $query.`
-      });
-    }
-  }
-}
-function validateFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
-  const violations = [];
-  let root;
-  if (typeof query === "string") {
-    const parsed = parseFqlQuery(query);
-    if (!parsed.node) {
-      return {
-        ok: false,
-        violations: [
-          {
-            code: "SYNTAX",
-            message: `The query could not be parsed: ${parsed.error}. Expected the canonical form \`and ( equals ( user , DEVELOPER ) )\` \u2014 junction wrapper, then one or more \`operator ( attribute , value )\` predicates.`
-          }
-        ]
-      };
-    }
-    root = parsed.node;
-  } else {
-    root = {
-      kind: "junction",
-      junction: query.junction,
-      children: query.predicates.map((p) => ({ kind: "predicate", ...p }))
-    };
-    if (!FQL_JUNCTIONS.includes(query.junction)) {
-      violations.push({
-        code: "MISSING_WRAPPER",
-        message: `'${String(query.junction)}' is not a junction. The top-level wrapper must be \`and\` or \`or\`.`
-      });
-    }
-  }
-  if (root.kind !== "junction") {
-    violations.push({
-      code: "MISSING_WRAPPER",
-      ...root.attribute ? { attribute: root.attribute } : {},
-      operator: root.operator,
-      message: `The query is a bare '${root.operator}' predicate. A top-level and(\u2026)/or(\u2026) wrapper is MANDATORY on this feed, even for a single predicate \u2014 wrap it as and ( ${root.operator} ( ${root.attribute} , \u2026 ) ). Without the wrapper the server answers 400 with a body that says nothing about why.`
-    });
-  } else if (root.children.length === 0) {
-    violations.push({
-      code: "EMPTY_QUERY",
-      message: `'${root.junction} ( )' has no predicates. Omit $query entirely to read the unfiltered feed \u2014 but note the 8-day residence window still applies.`
-    });
-  }
-  const maxDepth = Number.isInteger(contract.queryDepth) ? contract.queryDepth : DUMPS_ASSUMED_QUERY_DEPTH;
-  const depth = nodeDepth(root);
-  if (depth > maxDepth) {
-    violations.push({
-      code: "EXCESS_DEPTH",
-      message: `The query nests ${depth} levels deep; ` + (contract.queryDepthAssumed === true ? `this feed served no queryDepth, so ${maxDepth} was ASSUMED \u2014 the smallest depth at which a legal query exists. The limit above is this client's, not the server's.` : `this feed advertises queryDepth ${maxDepth} and ENFORCES it (a third level is HTTP 400).`) + " One junction wrapper plus its predicates is depth 2 \u2014 flatten the nested junctions into a single and(\u2026)/or(\u2026)."
-    });
-  }
-  const predicates = [];
-  collectPredicates(root, predicates);
-  const operatorArity = contract.operators ?? FQL_OPERATORS;
-  for (const p of predicates) {
-    const attribute = findAttribute(contract, p.attribute);
-    if (!attribute) {
-      violations.push({
-        code: "UNKNOWN_ATTRIBUTE",
-        attribute: p.attribute,
-        operator: p.operator,
-        message: `'${p.attribute}' is not a filterable attribute of this feed. The ${contract.attributes.length} it serves are: ${contract.attributes.map((a) => a.id).join(", ")}.`
-      });
-      continue;
-    }
-    const operator = findOperator(p.operator);
-    if (!operator) {
-      violations.push({
-        code: "UNKNOWN_OPERATOR",
-        attribute: attribute.id,
-        operator: p.operator,
-        message: `'${p.operator}' is not an FQL operator. The 10 operators are: ${Object.keys(FQL_OPERATORS).join(", ")}.`
-      });
-      continue;
-    }
-    const permitted = attribute.operators.some((o) => o.toLowerCase() === operator.toLowerCase());
-    if (!permitted) {
-      const asymmetry = attribute.id === "user" ? " 'user' is a string attribute that nonetheless permits only equals/notEquals \u2014 this asymmetry is served in the contract and is not derivable from the dataType." : "";
-      violations.push({
-        code: "OPERATOR_NOT_PERMITTED",
-        attribute: attribute.id,
-        operator,
-        message: `Operator '${operator}' is not permitted for attribute '${attribute.id}'. The feed permits ${attribute.operators.join(", ")} for it.${asymmetry}`
-      });
-      continue;
-    }
-    const expected = operatorArity[operator] ?? FQL_OPERATORS[operator];
-    if (p.operands.length !== expected) {
-      violations.push({
-        code: "OPERAND_COUNT",
-        attribute: attribute.id,
-        operator,
-        message: `Operator '${operator}' takes ${expected} operand${expected === 1 ? "" : "s"}, but ${p.operands.length} ${p.operands.length === 1 ? "was" : "were"} given for '${attribute.id}'. Write ` + (expected === 2 ? `${operator} ( ${attribute.id} , <low> , <high> ).` : `${operator} ( ${attribute.id} , <value> ).`)
-      });
-      continue;
-    }
-    validateOperands(attribute, operator, p.operands, violations);
-  }
-  if (violations.length > 0) return { ok: false, violations };
-  const junction = root.junction;
-  const canonicalQuery = {
-    junction,
-    predicates: predicates.map((p) => ({
-      attribute: findAttribute(contract, p.attribute).id,
-      operator: findOperator(p.operator),
-      operands: p.operands.map((o) => o.trim())
-    }))
-  };
-  return { ok: true, violations: [], canonical: formatFqlQuery(canonicalQuery) };
-}
-function formatFqlQuery(query) {
-  const predicates = query.predicates.map(
-    (p) => `${p.operator} ( ${[p.attribute, ...p.operands.map((o) => o.trim())].join(" , ")} )`
-  );
-  return `${query.junction} ( ${predicates.join(" , ")} )`;
-}
-function assertValidFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
-  const result = validateFqlQuery(query, contract);
-  if (result.ok && result.canonical !== void 0) return result.canonical;
-  const messages = result.violations.map((v) => v.message);
-  throw new AbapError(
-    "BAD_INPUT",
-    `The dump filter is not a valid query for this feed: ${messages.join(" ")}`,
-    {
-      violations: result.violations,
-      query: typeof query === "string" ? query : { ...query }
-    },
-    "This was refused before sending. The server rejects an invalid $query with a 372-byte ExceptionInvalidData body that is byte-identical for an unknown attribute, a syntax error, a missing wrapper and excess depth \u2014 so the reason above is the only one available."
-  );
-}
-function buildFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
-  return assertValidFqlQuery(query, contract);
-}
-var REQUEST_KEYS = ["$query", "from", "to", "$top", "$queryCheck"];
-function encodePair(name, value) {
-  return `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
-}
-function normaliseBound(which, value, notes) {
-  const normalised = normaliseTimestamp(value);
-  if (normalised === void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `'${which}' is not a valid timestamp: ${String(value instanceof Date ? value.toString() : value)}.`,
-      { [which]: value instanceof Date ? value.toISOString() : String(value) },
-      "Pass 14 digits (YYYYMMDDHHMMSS), an ISO-8601 UTC instant (YYYY-MM-DDTHH:MM:SSZ), or a Date. An unparseable bound is not an error on this server \u2014 it is SILENTLY IGNORED and answered with the full unfiltered feed, so it is refused here instead of sent."
-    );
-  }
-  if (value instanceof Date === false && String(value).trim() !== normalised) {
-    notes.push(`'${which}' was normalised to the canonical 14-digit form ${normalised}.`);
-  }
-  return normalised;
-}
-function buildDumpsFeedUrl(request, options = {}) {
-  const contract = options.contract ?? DUMPS_CONTRACT_AS_CAPTURED;
-  const basePath = options.basePath ?? DUMPS_FEED_PATH;
-  const now = options.now ?? /* @__PURE__ */ new Date();
-  const notes = [];
-  for (const key of Object.keys(request)) {
-    if (REQUEST_KEYS.includes(key)) continue;
-    assertRecognisedFeedParam(key);
-    throw new AbapError(
-      "BAD_INPUT",
-      `'${key}' is recognised by the server but is not offered by this client.`,
-      { parameter: key },
-      SILENTLY_IGNORED_PARAMS[key] ?? ""
-    );
-  }
-  const params = [];
-  if (request.$query !== void 0) {
-    params.push(["$query", assertValidFqlQuery(request.$query, contract)]);
-  }
-  let fromTs;
-  let toTs;
-  if (request.from !== void 0) {
-    fromTs = normaliseBound("from", request.from, notes);
-    params.push(["from", fromTs]);
-  }
-  if (request.to !== void 0) {
-    toTs = normaliseBound("to", request.to, notes);
-    params.push(["to", toTs]);
-  }
-  if (request.$top !== void 0) {
-    const top = request.$top;
-    if (!Number.isInteger(top) || top < 1) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `$top must be a positive integer, got ${String(top)}.`,
-        { $top: top },
-        "0 is not 'no rows' on this endpoint \u2014 it means UNLIMITED and is silently accepted, so it is refused rather than sent. A non-integer such as 'abc' is the one parameter mistake this server actually reports (HTTP 400); every other bad parameter returns 200 with the complete feed."
-      );
-    }
-    if (top > DUMPS_MAX_ROWS) {
-      notes.push(
-        `$top=${top} exceeds the server's own ceiling C_MAX_DUMPS = ${DUMPS_MAX_ROWS}; at most ${DUMPS_MAX_ROWS} dumps can be returned however large $top is.`
-      );
-    }
-    params.push(["$top", String(top)]);
-  }
-  if (request.$queryCheck === true) params.push(["$queryCheck", "true"]);
-  const windowStart = residenceWindowStart(now);
-  if (fromTs !== void 0 && fromTs < windowStart) {
-    notes.push(
-      `from=${fromTs} predates the dump residence window. The handler ANDs your bound with 'datum ge sy-datum - ${DUMPS_RESIDENCE_WINDOW_DAYS} + 1', so it does NOT widen the window: only dumps from about ${windowStart} onwards are visible over ADT, and the server gives no warning that the rest exist. Older dumps must be read from SNAP by other means.`
-    );
-  }
-  if (toTs !== void 0 && toTs < windowStart) {
-    notes.push(
-      `to=${toTs} predates the dump residence window (about ${windowStart}); this range lies entirely outside what ADT can see and will return an empty feed.`
-    );
-  }
-  if (fromTs !== void 0 && toTs !== void 0 && fromTs > toTs) {
-    notes.push(
-      `from=${fromTs} is later than to=${toTs}. The bounds are an inclusive range (timestamp ge from AND timestamp le to), so this can only return an empty feed.`
-    );
-  }
-  const qs = params.map(([name, value]) => encodePair(name, value)).join("&");
-  return {
-    url: qs ? `${basePath}?${qs}` : basePath,
-    params,
-    notes,
-    residenceWindowStart: windowStart
-  };
-}
-
-// src/adt/enhancement-templates.ts
-function assertEnhIdentifier(value, what, opts = {}) {
-  if (typeof value !== "string" || !isValidAbapIdentifier(value, opts)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} is not a valid ABAP object name (a letter, then letters, digits and underscores only, max ${opts.maxLength ?? 30} characters${opts.allowNamespace ? "; a leading /NAMESPACE/ is allowed" : ""}${opts.allowLocal ? "; a leading $ is allowed" : ""}).`,
-      { what, value },
-      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a period, a quote, or a newline is refused outright, not escaped or stripped."
-    );
-  }
-  return value;
-}
-function assertEnhTypeRef(value, what) {
-  const parts = typeof value === "string" ? value.split("-") : [];
-  const [head, component, ...extra] = parts;
-  const valid = typeof value === "string" && extra.length === 0 && isValidAbapIdentifier(head ?? "", { allowNamespace: true, maxLength: 30 }) && (component === void 0 || isValidAbapIdentifier(component, { maxLength: 30 }));
-  if (!valid) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} is not a valid ABAP type reference (a plain or /NAMESPACE/-qualified type name, max 30 characters per part, optionally followed by exactly one -COMPONENT suffix, e.g. "STRING", "/DMO/S_FLIGHT-CARRID").`,
-      { what, value },
-      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a period, a quote, or a newline is refused outright, not escaped or stripped."
-    );
-  }
-  return value;
-}
-var CONTROL_CHAR_CODES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 127];
-var CONTROL_CHAR_RE = new RegExp(
-  "[" + CONTROL_CHAR_CODES.map((c) => String.fromCharCode(c)).join("") + "]"
-);
-function assertAbapText(value, what, maxLen = 60) {
-  if (typeof value !== "string") {
-    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what });
-  }
-  if (value.length > maxLen) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} is ${value.length} characters, longer than the ${maxLen}-character limit.`,
-      { what, length: value.length, maxLen }
-    );
-  }
-  if (CONTROL_CHAR_RE.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} contains a control character (newline, carriage return, or similar) \u2014 refused, not stripped.`,
-      { what }
-    );
-  }
-  return value;
-}
-function abapLiteral(value) {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-function abapBool(value) {
-  return value ? "abap_true" : "abap_false";
-}
-var FILTER_COMPARE_OPERATORS = /* @__PURE__ */ new Set(["=", "<>", "<", "<=", ">", ">="]);
-var FILTER_COMPARE_ALIASES = {
-  EQ: "=",
-  NE: "<>",
-  LT: "<",
-  LE: "<=",
-  GT: ">",
-  GE: ">="
-};
-function assertFilterCompare(value) {
-  const alias = typeof value === "string" ? FILTER_COMPARE_ALIASES[value] : void 0;
-  const normalized = alias ?? value;
-  if (!FILTER_COMPARE_OPERATORS.has(normalized)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `compare ${JSON.stringify(value)} is not one of the operators this codebase has live evidence for: ${[...FILTER_COMPARE_OPERATORS].join(", ")} (or their abap_run-style two-letter spellings ${Object.keys(FILTER_COMPARE_ALIASES).join(", ")}).`,
-      { value, allowed: [...FILTER_COMPARE_OPERATORS, ...Object.keys(FILTER_COMPARE_ALIASES)] },
-      "Only '=' has been captured live. Other BADI_FILTER_COMPARE domain values (e.g. CP, NP, BT, NB) may exist on the server but are not verified here \u2014 this template refuses rather than guess their exact codes."
-    );
-  }
-  return normalized;
-}
-function assertFilterTypeCode(value, what) {
-  if (typeof value !== "string" || !/^[A-Z]$/.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} must be a single uppercase letter (e.g. "C" \u2014 the only value captured live).`,
-      { what, value }
-    );
-  }
-  return value;
-}
-function createSpotFragment(p) {
-  const spotName = assertEnhIdentifier(p.spotName, "spotName");
-  const description = assertAbapText(p.description, "description", 60);
-  return [
-    "cl_enh_factory=>create_enhancement_spot(",
-    `  EXPORTING spot_name = ${abapLiteral(spotName)}`,
-    "            tooltype  = cl_enh_tool_badi_def=>tooltype",
-    "            dark      = abap_true",
-    "  IMPORTING spot      = lo_spot",
-    "  CHANGING  trkorr    = lv_trkorr",
-    "            devclass  = lv_pkg ).",
-    "out->write( 'SPOT-OBJECT-CREATED' ).",
-    "lo_def ?= lo_spot.",
-    `lo_spot->if_enh_object_docu~set_shorttext( ${abapLiteral(description)} ).`
-  ];
-}
-function addBadiDefFragment(p) {
-  const badiName = assertEnhIdentifier(p.badiName, "badiName");
-  const interfaceName = assertEnhIdentifier(p.interfaceName, "interfaceName");
-  const shortText = assertAbapText(p.shortText, "shortText", 60);
-  return [
-    "CLEAR ls_badi.",
-    `ls_badi-badi_name      = ${abapLiteral(badiName)}.`,
-    `ls_badi-interface_name = ${abapLiteral(interfaceName)}.`,
-    `ls_badi-single_use     = ${abapBool(p.singleUse)}.`,
-    `ls_badi-badi_shorttext = ${abapLiteral(shortText)}.`,
-    // Hardcoded — omitting this 500s on activation, confirmed live (see module header).
-    "ls_badi-context_mode = 'N'.",
-    "lo_def->add_badi_def( im_badi_def = ls_badi ).",
-    "out->write( 'BADI-DEF-ADDED' )."
-  ];
-}
-function addFilterDefFragment(p) {
-  const badiName = assertEnhIdentifier(p.badiName, "badiName");
-  const filterName = assertEnhIdentifier(p.filterName, "filterName", { maxLength: 30 });
-  const filterType = assertFilterTypeCode(p.filterType, "filterType");
-  const filterText = p.filterText === void 0 ? "" : assertAbapText(p.filterText, "filterText", 255);
-  return [
-    `ls_badi = lo_def->get_badi_def( badi_name = ${abapLiteral(badiName)} ).`,
-    `lo_def->delete_badi_def( badi_name = ${abapLiteral(badiName)} ).`,
-    "CLEAR ls_filter.",
-    `ls_filter-filter_name = ${abapLiteral(filterName)}.`,
-    `ls_filter-filter_type = ${abapLiteral(filterType)}.`,
-    `ls_filter-filtertext  = ${abapLiteral(filterText)}.`,
-    "APPEND ls_filter TO ls_badi-filters.",
-    "lo_def->add_badi_def( im_badi_def = ls_badi ).",
-    "out->write( 'FILTER-DEF-ADDED' )."
-  ];
-}
-function createImplFragment(p) {
-  const enhName = assertEnhIdentifier(p.enhName, "enhName");
-  const spotName = assertEnhIdentifier(p.spotName, "spotName");
-  const badiName = assertEnhIdentifier(p.badiName, "badiName");
-  const implName = assertEnhIdentifier(p.implName, "implName");
-  const implClass = assertEnhIdentifier(p.implClass, "implClass");
-  const description = assertAbapText(p.description, "description", 60);
-  return [
-    "cl_enh_factory=>create_enhancement(",
-    `  EXPORTING enhname     = ${abapLiteral(enhName)}`,
-    "            enhtype     = 'IMPL'",
-    "            enhtooltype = cl_enh_tool_badi_impl=>tooltype",
-    "            dark        = abap_true",
-    "  IMPORTING enhancement = lo_enh",
-    "  CHANGING  trkorr      = lv_trkorr",
-    "            devclass    = lv_pkg ).",
-    "out->write( 'ENHO-OBJECT-CREATED' ).",
-    "lo_impl ?= lo_enh.",
-    `lo_impl->set_spot_name( ${abapLiteral(spotName)} ).`,
-    // abapGit-precedent placement, not independently live-verified — see doc comment above.
-    `lo_impl->if_enh_object_docu~set_shorttext( ${abapLiteral(description)} ).`,
-    "CLEAR ls_impl.",
-    `ls_impl-spot_name  = ${abapLiteral(spotName)}.`,
-    `ls_impl-badi_name  = ${abapLiteral(badiName)}.`,
-    `ls_impl-impl_name  = ${abapLiteral(implName)}.`,
-    `ls_impl-impl_class = ${abapLiteral(implClass)}.`,
-    `ls_impl-active     = ${abapBool(p.active)}.`,
-    "lo_impl->add_implementation( im_implementation = ls_impl ).",
-    "out->write( 'IMPL-ADDED' )."
-  ];
-}
-function setFilterValuesFragment(p) {
-  const implName = assertEnhIdentifier(p.implName, "implName");
-  const filterName = assertEnhIdentifier(p.filterName, "filterName", { maxLength: 30 });
-  const filterType = assertFilterTypeCode(p.filterType, "filterType");
-  const compare = assertFilterCompare(p.compare);
-  const value = assertAbapText(p.value, "value", 255);
-  return [
-    `ls_impl = lo_impl->get_implementation( impl_name = ${abapLiteral(implName)} ).`,
-    // Required — no in-place "modify" op; skipping this fails live. See doc comment above.
-    `lo_impl->delete_implementation( impl_name = ${abapLiteral(implName)} ).`,
-    // filters (derived field) is never assigned anywhere in this file.
-    "CLEAR: ls_impl-filters, ls_impl-filter_values, ls_impl-filter_root, ls_impl-filter_tree.",
-    "CLEAR ls_val.",
-    "ls_val-id                 = 1.",
-    `ls_val-filter_name        = ${abapLiteral(filterName)}.`,
-    `ls_val-filter_type        = ${abapLiteral(filterType)}.`,
-    `ls_val-compare            = ${abapLiteral(compare)}.`,
-    `ls_val-filter_char_value1 = ${abapLiteral(value)}.`,
-    "APPEND ls_val TO ls_impl-filter_values.",
-    "CLEAR ls_id.",
-    "ls_id-id = 1.",
-    "CLEAR ls_root.",
-    "ls_root-root = 1.",
-    "APPEND ls_id TO ls_root-filters.",
-    "APPEND ls_root TO ls_impl-filter_root.",
-    "lo_impl->add_implementation( im_implementation = ls_impl ).",
-    "out->write( 'IMPL-REPLACED' )."
-  ];
-}
-function exerciseFragment(p) {
-  const badiName = assertEnhIdentifier(p.badiName, "badiName");
-  const methodName = assertEnhIdentifier(p.methodName, "methodName", { maxLength: 30 });
-  const params = p.params.map((param, i) => {
-    const label = `params[${i}]`;
-    const rawKind = param.kind ?? "importing";
-    if (rawKind !== "importing" && rawKind !== "changing" && rawKind !== "exporting" && rawKind !== "receiving") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label}.kind ${JSON.stringify(param.kind)} must be one of "importing", "changing", "exporting", "receiving" (or omitted, which defaults to "importing").`,
-        { what: `${label}.kind`, value: param.kind }
-      );
-    }
-    const kind = rawKind;
-    const name = assertEnhIdentifier(param.name, `${label}.name`, { maxLength: 30 });
-    const needsLocal = kind !== "importing";
-    const needsValue = kind === "importing" || kind === "changing";
-    if (needsValue) {
-      if (typeof param.value !== "string") {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${label} (kind "${kind}") requires a string "value" to seed it with \u2014 "${kind}" parameters are readable by the caller-supplied literal before the call.`,
-          { what: `${label}.value`, kind }
-        );
-      }
-    } else if (param.value !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} (kind "${kind}") must not supply "value" \u2014 the callee fully determines this parameter's value; a caller-supplied seed would be silently discarded, so this refuses it instead of accepting input that has no effect.`,
-        { what: `${label}.value`, kind }
-      );
-    }
-    if (needsLocal) {
-      if (typeof param.type !== "string" || param.type.length === 0) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${label} (kind "${kind}") requires an explicit "type" naming the ABAP type of the formal parameter (e.g. "STRING", "ZDE_MY_TYPE") \u2014 this tool cannot look up a BAdI interface method's signature, so it cannot infer the type on its own, and a wrong guess would fail to compile rather than fail loudly. State the type explicitly.`,
-          { what: `${label}.type`, kind }
-        );
-      }
-    } else if (param.type !== void 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} (kind "importing") must not supply "type" \u2014 importing parameters are passed as a literal directly; no local variable is declared for them, so there is nothing to type.`,
-        { what: `${label}.type`, kind }
-      );
-    }
-    return {
-      name,
-      kind,
-      value: needsValue ? assertAbapText(param.value, `${label}.value`, 255) : void 0,
-      type: needsLocal ? assertEnhTypeRef(param.type, `${label}.type`) : void 0
-    };
-  });
-  const seenNames = /* @__PURE__ */ new Set();
-  for (const param of params) {
-    const key = param.name.toUpperCase();
-    if (seenNames.has(key)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `params[].name ${JSON.stringify(param.name)} is supplied more than once (ABAP identifiers are case-insensitive) \u2014 each formal parameter can be assigned at most once in a single CALL BADI.`,
-        { what: "params[].name", value: param.name }
-      );
-    }
-    seenNames.add(key);
-  }
-  const receivingParams = params.filter((param) => param.kind === "receiving");
-  if (receivingParams.length > 1) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `at most one params[] entry may use kind "receiving" \u2014 a method has at most one RETURNING parameter, so CALL BADI's RECEIVING clause can only ever target one. Got ${receivingParams.length}: ${receivingParams.map((param) => param.name).join(", ")}.`,
-      { what: "params[].kind", count: receivingParams.length }
-    );
-  }
-  const lines = [`DATA lo_badi TYPE REF TO ${badiName}.`];
-  const hasFilterName = p.filterName !== void 0;
-  const hasFilterValue = p.filterValue !== void 0;
-  if (hasFilterName !== hasFilterValue) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "exercise: filterName and filterValue must be given together (both or neither) \u2014 a filter value with no filter field name has nothing to substitute into `GET BADI ... FILTERS`.",
-      { filterName: p.filterName, filterValue: p.filterValue }
-    );
-  }
-  if (hasFilterName && hasFilterValue) {
-    const filterName = assertEnhIdentifier(p.filterName, "filterName", { maxLength: 30 });
-    const filterValue = assertAbapText(p.filterValue, "filterValue", 255);
-    lines.push(`GET BADI lo_badi FILTERS ${filterName} = ${abapLiteral(filterValue)}.`);
-  } else {
-    lines.push("GET BADI lo_badi.");
-  }
-  const localVar = (name) => `lv_${name.toLowerCase()}`;
-  for (const param of params) {
-    if (!param.type) continue;
-    lines.push(`DATA ${localVar(param.name)} TYPE ${param.type}.`);
-  }
-  for (const param of params) {
-    if (param.kind !== "changing") continue;
-    lines.push(`${localVar(param.name)} = ${abapLiteral(param.value)}.`);
-  }
-  const asLiteralArg = (param) => `${param.name} = ${abapLiteral(param.value)}`;
-  const asVarArg = (param) => `${param.name} = ${localVar(param.name)}`;
-  const importingArgs = params.filter((param) => param.kind === "importing").map(asLiteralArg);
-  const exportingArgs = params.filter((param) => param.kind === "exporting").map(asVarArg);
-  const changingArgs = params.filter((param) => param.kind === "changing").map(asVarArg);
-  const firstReceivingParam = receivingParams[0];
-  const receivingArg = firstReceivingParam ? asVarArg(firstReceivingParam) : void 0;
-  const callParts = [];
-  if (importingArgs.length > 0) callParts.push(`EXPORTING ${importingArgs.join(" ")}`);
-  if (exportingArgs.length > 0) callParts.push(`IMPORTING ${exportingArgs.join(" ")}`);
-  if (changingArgs.length > 0) callParts.push(`CHANGING ${changingArgs.join(" ")}`);
-  if (receivingArg) callParts.push(`RECEIVING ${receivingArg}`);
-  const call = callParts.length > 0 ? `CALL BADI lo_badi->${methodName} ${callParts.join(" ")}.` : `CALL BADI lo_badi->${methodName}.`;
-  const bodyLines = [`  ${call}`, "  out->write( 'EXERCISED' )."];
-  for (const param of params) {
-    if (!param.type) continue;
-    bodyLines.push(`  out->write( |RESULT>${param.name}={ ${localVar(param.name)} }| ).`);
-  }
-  lines.push("IF lo_badi IS BOUND.", ...bodyLines, "ELSE.", "  out->write( 'NOT-BOUND' ).", "ENDIF.");
-  return lines;
-}
-function markerInterfaceSource(interfaceName) {
-  const name = assertEnhIdentifier(interfaceName, "interfaceName");
-  return [
-    `INTERFACE ${name} PUBLIC.`,
-    "  INTERFACES if_badi_interface.",
-    "ENDINTERFACE."
-  ].join("\n");
-}
-
-// src/adt/run-parameters.ts
-var RSPARAMS_SELNAME_MAX = 8;
-var RSPARAMS_LOW_MAX = 45;
-var RANGE_OPTIONS = /* @__PURE__ */ new Set([
-  "EQ",
-  "NE",
-  "GT",
-  "LT",
-  "GE",
-  "LE",
-  "CP",
-  "NP",
-  "BT",
-  "NB"
-]);
-var RANGE_NEEDS_HIGH = /* @__PURE__ */ new Set(["BT", "NB"]);
-var SELNAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
-function assertSelname(name, what) {
-  if (typeof name !== "string" || !SELNAME_RE.test(name)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(name)} is not a valid selection-screen field name \u2014 a letter, then letters/digits/underscore, at most ${RSPARAMS_SELNAME_MAX} characters (the ABAP compiler's own PARAMETERS/SELECT-OPTIONS identifier limit).`,
-      { what, value: name, maxLength: RSPARAMS_SELNAME_MAX },
-      "Check the report's own PARAMETERS/SELECT-OPTIONS statement for the exact name."
-    );
-  }
-  return name.toUpperCase();
-}
-var INT_RE = /^-?\d{1,9}$/;
-var PACKED_RE = /^-?\d+(\.\d+)?$/;
-function formatSelectionValue(raw, type, what) {
-  if (typeof raw !== "string") {
-    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what, type });
-  }
-  switch (type) {
-    case "char":
-      return assertAbapText(raw, what, RSPARAMS_LOW_MAX);
-    case "int": {
-      if (!INT_RE.test(raw)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${what} is ${JSON.stringify(raw)}, not a plain integer (optional leading "-", digits only).`,
-          { what, type, value: raw }
-        );
-      }
-      return raw;
-    }
-    case "packed": {
-      if (!PACKED_RE.test(raw)) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${what} is ${JSON.stringify(raw)}, not a plain decimal number \u2014 use digits with an optional leading "-" and an optional "." decimal point (not ",").`,
-          { what, type, value: raw }
-        );
-      }
-      return raw;
-    }
-    case "date": {
-      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
-      if (!m) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${what} is ${JSON.stringify(raw)}, not a date in "YYYY-MM-DD" form.`,
-          { what, type, value: raw }
-        );
-      }
-      const [, year, month, day] = m;
-      const monthNum = Number(month);
-      const dayNum = Number(day);
-      if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
-        throw new AbapError(
-          "BAD_INPUT",
-          `${what} is ${JSON.stringify(raw)} \u2014 month must be 01-12 and day 01-31.`,
-          { what, type, value: raw }
-        );
-      }
-      return `${year}${month}${day}`;
-    }
-  }
-}
-function assertOption(option, what) {
-  const opt3 = (option ?? "EQ").toUpperCase();
-  if (!RANGE_OPTIONS.has(opt3)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what}.option is ${JSON.stringify(option)}, not one of the ten standard ABAP select-option operators (EQ, NE, GT, LT, GE, LE, CP, NP, BT, NB).`,
-      { what, value: option }
-    );
-  }
-  return opt3;
-}
-function assertSign(sign, what) {
-  const s = (sign ?? "I").toUpperCase();
-  if (s !== "I" && s !== "E") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what}.sign is ${JSON.stringify(sign)}, not "I" (include) or "E" (exclude).`,
-      { what, value: sign }
-    );
-  }
-  return s;
-}
-function marshalRange(range, type, kind, selname, what) {
-  const sign = assertSign(range.sign, what);
-  const option = assertOption(range.option, what);
-  const needsHigh = RANGE_NEEDS_HIGH.has(option);
-  if (typeof range.low !== "string") {
-    throw new AbapError("BAD_INPUT", `${what}.low is required and must be a string.`, { what });
-  }
-  if (needsHigh && (range.high === void 0 || range.high === "")) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what}: option "${option}" requires a "high" bound, but none was given.`,
-      { what, option }
-    );
-  }
-  if (!needsHigh && range.high !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what}: option "${option}" does not take a "high" bound, but one was given (${JSON.stringify(range.high)}). Only BT/NB use "high".`,
-      { what, option, value: range.high }
-    );
-  }
-  const low = formatSelectionValue(range.low, type, `${what}.low`);
-  const high = needsHigh ? formatSelectionValue(range.high, type, `${what}.high`) : "";
-  return { selname, kind, sign, option, low, high };
-}
-function marshalSelectionTable(inputs) {
-  const rows = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const [i, input] of inputs.entries()) {
-    const label = `parameters[${i}]`;
-    if (!input || typeof input !== "object") {
-      throw new AbapError("BAD_INPUT", `${label} must be an object.`, { index: i });
-    }
-    const selname = assertSelname(input.name, `${label}.name`);
-    if (seen.has(selname)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label}.name "${selname}" is a duplicate \u2014 each selection-screen field may appear only once (a SELECT-OPTIONS field with several ranges uses ONE entry with several "ranges" rows).`,
-        { name: selname }
-      );
-    }
-    seen.add(selname);
-    const type = input.type ?? "char";
-    const hasValue = input.value !== void 0;
-    const hasRanges = input.ranges !== void 0;
-    if (hasValue === hasRanges) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} ("${selname}") must set exactly one of "value" (a PARAMETERS field) or "ranges" (a SELECT-OPTIONS field), not both and not neither.`,
-        { name: selname, hasValue, hasRanges }
-      );
-    }
-    if (hasValue) {
-      const low = formatSelectionValue(input.value, type, `${label}.value ("${selname}")`);
-      rows.push({ selname, kind: "P", sign: "I", option: "EQ", low, high: "" });
-      continue;
-    }
-    const ranges = input.ranges;
-    if (!Array.isArray(ranges) || ranges.length === 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${label} ("${selname}").ranges must be a non-empty array.`,
-        { name: selname }
-      );
-    }
-    for (const [j, range] of ranges.entries()) {
-      rows.push(marshalRange(range, type, "S", selname, `${label}.ranges[${j}] ("${selname}")`));
-    }
-  }
-  return rows;
-}
-function parseSelectionScreen(source) {
-  if (typeof source !== "string" || source.length === 0) return [];
-  const noLineComments = source.split(/\r\n|\r|\n/).map((line) => /^\s*\*/.test(line) ? "" : line).join("\n");
-  const noComments = noLineComments.replace(/"[^\n]*/g, "");
-  const statements = noComments.split(/\.(?=\s|$)/);
-  const fields = [];
-  const KEYWORD_RE = /^\s*(PARAMETERS|SELECT-OPTIONS)\s*:?\s*(.*)$/is;
-  for (const stmt of statements) {
-    const m = KEYWORD_RE.exec(stmt.trim());
-    if (!m) continue;
-    const statement = m[1].toUpperCase();
-    const rest = m[2];
-    const decls = rest.split(",");
-    for (const decl of decls) {
-      const trimmed = decl.trim();
-      if (!trimmed) continue;
-      const nameMatch = /^([A-Za-z][A-Za-z0-9_]{0,7})\b/.exec(trimmed);
-      if (!nameMatch) continue;
-      const name = nameMatch[1].toUpperCase();
-      const typeMatch = /\bTYPE\s+([\w/]+)/i.exec(trimmed);
-      const obligatory = /\bOBLIGATORY\b/i.test(trimmed);
-      fields.push({
-        name,
-        statement,
-        ...typeMatch ? { type: typeMatch[1] } : {},
-        obligatory
-      });
-    }
-  }
-  return fields;
-}
-function selectionScreenNotes(parsed, supplied) {
-  const notes = [];
-  if (parsed.length === 0) {
-    if (supplied.length > 0) {
-      notes.push(
-        "The report's source could not be parsed for PARAMETERS/SELECT-OPTIONS declarations (or none were found), so the supplied parameter name(s) could not be cross-checked against it. This is not evidence they are wrong \u2014 only that they are unconfirmed."
-      );
-    }
-    return notes;
-  }
-  const parsedByName = new Map(parsed.map((f) => [f.name, f]));
-  const suppliedNames = new Set(supplied.map((p) => p.name.toUpperCase()));
-  for (const input of supplied) {
-    const name = input.name.toUpperCase();
-    if (!parsedByName.has(name)) {
-      notes.push(
-        `Selection-screen field "${name}" was supplied but not found by source parsing \u2014 the parse is heuristic (macros/INCLUDEs/unusual layouts can defeat it), so this is not proof the field doesn't exist, only that it could not be confirmed.`
-      );
-    }
-  }
-  for (const field of parsed) {
-    if (field.obligatory && !suppliedNames.has(field.name)) {
-      notes.push(
-        `Selection-screen field "${field.name}" is declared OBLIGATORY in the source but no value was supplied \u2014 the report ran with it blank/initial, which may itself cause a selection-screen error or an unintended default.`
-      );
-    }
-  }
-  return notes;
-}
-
-// src/adt/run.ts
-var DUMP_CORRELATION_SLACK_SECONDS = 2;
-function buildDumpCorrelation(serverTime, user) {
-  if (!serverTime) return void 0;
-  const digits = serverTime.replace(/\D/g, "");
-  if (!isValidTimestamp14(digits)) return void 0;
-  const at = Date.UTC(
-    Number(digits.slice(0, 4)),
-    Number(digits.slice(4, 6)) - 1,
-    Number(digits.slice(6, 8)),
-    Number(digits.slice(8, 10)),
-    Number(digits.slice(10, 12)),
-    Number(digits.slice(12, 14))
-  );
-  const slack = DUMP_CORRELATION_SLACK_SECONDS * 1e3;
-  const from = timestamp14(new Date(at - slack));
-  const to = timestamp14(new Date(at + slack));
-  const upper = user?.trim().toUpperCase();
-  const query = upper ? buildFqlQuery({
-    junction: "and",
-    predicates: [{ attribute: "user", operator: "equals", operands: [upper] }]
-  }) : void 0;
-  return {
-    from,
-    to,
-    ...upper ? { user: upper } : {},
-    ...query ? { query } : {},
-    feedPath: DUMPS_FEED_PATH,
-    call: {
-      tool: "abap_dumps",
-      arguments: { mode: "list", from, to, ...query ? { query } : {} }
-    },
-    confidence: "candidates"
-  };
-}
-function dumpHint(correlation) {
-  const args = correlation ? JSON.stringify(correlation.call.arguments) : '{"mode":"list","from":"[YYYYMMDDHHMMSS just before this call]","to":"[just after]"}';
-  const lead = correlation ? "The ICF error page carries only the exception short text \u2014 no dump id, no call stack, no source position." : "The ICF error page carries only the exception short text \u2014 no dump id, no call stack, no source position, and no server time.";
-  return `${lead} Any output written before the dump is lost. The ABAP session was destroyed and has been discarded. Read the full ST22 dump with abap_dumps ${args} \u2014 a window can hold several dumps, so treat each row as a candidate, not the answer. Where that tool is not registered the same feed is ${DUMPS_FEED_PATH}, reaching only the last 8 days.`;
-}
-var BRIDGE_PACKAGE = "$TMP";
-var LIST_LINE_PREFIX = "LIST> ";
-var ERR_LINE_PREFIX = "ZMCP-ERR> ";
-var WIDTH_TRUNCATION_MARKER = "capture width and may be truncated";
-var CLASSRUN_PATH = "/sap/bc/adt/oo/classrun/";
-var BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_RUN_";
-var MAX_NAME = 30;
-var HASH_LEN = 6;
-var ABAP_NAME = /^[A-Za-z0-9_/]{1,40}$/;
-function assertPlainName(value, what) {
-  const v = value.trim();
-  if (!ABAP_NAME.test(v)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} "${value}" is not a valid ABAP object name.`,
-      { value },
-      "Only letters, digits, underscore and / (namespaces) are accepted \u2014 the name is embedded verbatim in generated ABAP source."
-    );
-  }
-  return v;
-}
-function bridgeClassName(report) {
-  const canon = assertPlainName(report, "Report name").toUpperCase();
-  const safe = canon.replace(/[^A-Z0-9_]/g, "_");
-  const budget = MAX_NAME - BRIDGE_CLASS_PREFIX.length;
-  if (safe.length <= budget && safe === canon) return BRIDGE_CLASS_PREFIX + safe;
-  const hash2 = createHash6("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
-  const keep = safe.slice(0, budget - HASH_LEN - 1);
-  return `${BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
-}
-function bridgeClassSource(className, report, selectionRows = []) {
-  const cls = assertPlainName(className, "Class name").toLowerCase();
-  const rep = assertPlainName(report, "Report name").toLowerCase();
-  const seltabDecl = selectionRows.length > 0 ? `    DATA: lt_seltab TYPE STANDARD TABLE OF rsparams,
-          ls_seltab TYPE rsparams.
-` : "";
-  const seltabFill = selectionRows.length > 0 ? selectionRows.map(
-    (row2) => `    CLEAR ls_seltab.
-    ls_seltab-selname = ${abapLiteral(row2.selname)}.
-    ls_seltab-kind    = ${abapLiteral(row2.kind)}.
-    ls_seltab-sign    = ${abapLiteral(row2.sign)}.
-    ls_seltab-option  = ${abapLiteral(row2.option)}.
-    ls_seltab-low     = ${abapLiteral(row2.low)}.
-    ls_seltab-high    = ${abapLiteral(row2.high)}.
-    APPEND ls_seltab TO lt_seltab.
-`
-  ).join("") : "";
-  const submitStmt = selectionRows.length > 0 ? `SUBMIT ${rep} WITH SELECTION-TABLE lt_seltab AND RETURN EXPORTING LIST TO MEMORY.` : `SUBMIT ${rep} AND RETURN EXPORTING LIST TO MEMORY.`;
-  return `CLASS ${cls} DEFINITION
-  PUBLIC FINAL
-  CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    INTERFACES if_oo_adt_classrun.
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-ENDCLASS.
-
-
-CLASS ${cls} IMPLEMENTATION.
-
-  METHOD if_oo_adt_classrun~main.
-*   Generated by abapsmith. Runs ${rep.toUpperCase()} and streams its classic list
-*   back through classrun. Do not edit: this class is regenerated from
-*   src/adt/run.ts whenever its content hash changes.
-*   Capture width is 1023 chars (F5) \u2014 the ceiling for a classic ABAP list
-*   line, not a cap chosen here. LOOP below still discloses a residual cut.
-    TYPES: ty_txt_line TYPE c LENGTH 1023.
-    DATA: lt_list TYPE TABLE OF abaplist,
-          lt_txt  TYPE TABLE OF ty_txt_line.
-${seltabDecl}
-${seltabFill}    ${submitStmt}
-    IF sy-subrc <> 0.
-      out->write( |${ERR_LINE_PREFIX}SUBMIT ${rep.toUpperCase()} set sy-subrc = { sy-subrc }| ).
-    ENDIF.
-
-    CALL FUNCTION 'LIST_FROM_MEMORY'
-      TABLES
-        listobject = lt_list
-      EXCEPTIONS
-        not_found  = 1
-        OTHERS     = 2.
-    IF sy-subrc <> 0.
-      out->write( |${ERR_LINE_PREFIX}LIST_FROM_MEMORY sy-subrc = { sy-subrc } (1 = no list in ABAP memory)| ).
-      RETURN.
-    ENDIF.
-
-    CALL FUNCTION 'LIST_TO_ASCI'
-      EXPORTING
-        list_index         = -1
-      TABLES
-        listobject         = lt_list
-        listasci           = lt_txt
-      EXCEPTIONS
-        empty_list         = 1
-        list_index_invalid = 2
-        OTHERS             = 3.
-    IF sy-subrc <> 0.
-      out->write( |${ERR_LINE_PREFIX}LIST_TO_ASCI sy-subrc = { sy-subrc } (1 = empty list)| ).
-      RETURN.
-    ENDIF.
-
-    LOOP AT lt_txt INTO DATA(lv_line).
-      IF strlen( lv_line ) >= 1023.
-        out->write( |${ERR_LINE_PREFIX}list line hit the 1023-char ${WIDTH_TRUNCATION_MARKER}| ).
-      ENDIF.
-      out->write( |${LIST_LINE_PREFIX}{ lv_line }| ).
-    ENDLOOP.
-
-  ENDMETHOD.
-
-ENDCLASS.
-`;
-}
-var isRuleLine = (line) => /^-{20,}$/.test(line.trim());
-var LIST_HEADER_DATE_AT_START = /^\s*\d{2}\.\d{2}\.\d{4}\b/;
-var LIST_HEADER_PAGE_NO = /\s\d+$/;
-var looksLikeListPageHeader = (line) => LIST_HEADER_DATE_AT_START.test(line) && LIST_HEADER_PAGE_NO.test(line);
-function stripListHeader(lines) {
-  const out = lines.map((l) => l.replace(/[ \t\r ]+$/, ""));
-  while (out.length > 0 && out[out.length - 1] === "") out.pop();
-  if (out.length >= 2 && out[0] !== "" && looksLikeListPageHeader(out[0]) && isRuleLine(out[1])) {
-    return out.slice(2);
-  }
-  return out;
-}
-function splitBridgeOutput(raw) {
-  const list5 = [];
-  const diagnostics = [];
-  let droppedLines = 0;
-  for (const line of raw.replace(/\r\n/g, "\n").split("\n")) {
-    if (line.startsWith(LIST_LINE_PREFIX)) {
-      list5.push(line.slice(LIST_LINE_PREFIX.length));
-    } else if (line.replace(/\s+$/, "") === LIST_LINE_PREFIX.trimEnd()) {
-      list5.push("");
-    } else if (line.startsWith(ERR_LINE_PREFIX)) {
-      diagnostics.push(line.trim());
-    } else {
-      droppedLines++;
-    }
-  }
-  return { list: list5, diagnostics, droppedLines };
-}
-function parseBracketFields(text3) {
-  const out = {};
-  const re = /(\w+)=\[(.*?)\](?=\s+\w+=\[|\s*$)/g;
-  let m;
-  while (m = re.exec(text3)) {
-    out[m[1]] = m[2];
-  }
-  return out;
-}
-function invalidateSession(conn) {
-  try {
-    conn.adt.httpClient.csrfToken = "fetch";
-  } catch {
-  }
-}
-var isResponseLike2 = (v) => typeof v === "object" && v !== null && typeof v.status === "number";
-function responseOf(e) {
-  const seen = /* @__PURE__ */ new Set();
-  const queue = [e];
-  while (queue.length) {
-    const node2 = queue.shift();
-    if (!node2 || typeof node2 !== "object" || seen.has(node2)) continue;
-    seen.add(node2);
-    const n = node2;
-    if (isResponseLike2(node2) && typeof n.body === "string") {
-      return {
-        status: n.status,
-        headers: n.headers ?? {},
-        body: n.body,
-        statusText: typeof n.statusText === "string" ? n.statusText : void 0
-      };
-    }
-    queue.push(n.response, n.parent, n.request);
-  }
-  return void 0;
-}
-function tidyShortText(text3) {
-  const normalised = text3.replace(/\(termination:[^)]*\)\s*$/i, "").replace(/^(?:error|exception|fehler)\s*:\s*/i, "").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
-  return truncateText(normalised, DUMP_SHORT_TEXT_MAX);
-}
-function translateRunFailure(conn, className, e) {
-  if (isAbapError(e)) return e;
-  const resp = responseOf(e);
-  const kind = classifySessionFailure(resp);
-  if (kind === "dump") {
-    invalidateSession(conn);
-    const parsed = parseDumpPage(resp.body);
-    const shortText = parsed.shortText ? tidyShortText(parsed.shortText) : "(the ICM error page carried no exception short text)";
-    const info = {
-      shortText,
-      ...parsed.serverTime ? { serverTime: parsed.serverTime } : {}
-    };
-    const correlation = buildDumpCorrelation(parsed.serverTime, conn.cfg.user);
-    return new AbapError(
-      "RUNTIME_DUMP",
-      `${className} short-dumped: ${shortText}`,
-      {
-        class: className,
-        ...info,
-        status: resp.status,
-        // Machine-readable so a v2 surface/orchestrator can act without
-        // regex-scraping the hint prose.
-        ...correlation ? { dumpCorrelation: correlation } : {}
-      },
-      dumpHint(correlation)
-    );
-  }
-  if (kind === "session-timeout") {
-    invalidateSession(conn);
-    return discloseMutationRisk(
-      new AbapError(
-        "SESSION_DEAD",
-        `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
-        { class: className, status: resp.status, kind },
-        "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
-      )
-    );
-  }
-  const translated = translateAdtError(e, {
-    operation: "run class",
-    name: className,
-    uri: `${CLASSRUN_PATH}${className}`
-  });
-  return resp === void 0 && !(0, import_abap_adt_api7.isCsrfError)(e) ? discloseMutationRisk(translated) : translated;
-}
-var UNDEFINED_BODY_LITERAL = "undefined";
-var XML_OR_HTML_BODY_PREFIX = /^(<\?xml|<!DOCTYPE|<html)/i;
-var ADT_EXCEPTION_MARKER = /exc:exception|<exc:/i;
-function bogusBodyReason(raw, trimmed) {
-  if (raw === UNDEFINED_BODY_LITERAL) return 'the body is the literal string "undefined" (an absent HTTP body)';
-  if (ADT_EXCEPTION_MARKER.test(raw)) return "the body carries an ADT exception envelope (exc:exception)";
-  if (XML_OR_HTML_BODY_PREFIX.test(trimmed)) return "the body is XML/HTML markup, not console output";
-  return void 0;
-}
-function assertPlausibleRunOutput(className, raw, bodyBytes) {
-  const reason = bogusBodyReason(raw, raw.trim());
-  if (!reason) return;
-  throw new AbapError(
-    "ADT_ERROR",
-    `${className} returned HTTP 200, but ${reason} \u2014 the response is not usable as program output.`,
-    { class: className, bodyBytes },
-    "classrun returns 200 for both genuine output and an ADT error envelope / ICF error page \u2014 the status code alone proves nothing. Treat this the same as a thrown ADT error rather than trusting the body."
-  );
-}
-async function runClass(conn, className) {
-  const name = assertPlainName(className, "Class name").toUpperCase();
-  if (name.length > MAX_NAME) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Class name ${name} is longer than ${MAX_NAME} characters.`,
-      { class: name }
-    );
-  }
-  const started = Date.now();
-  const raw = await conn.withFreshSession(async (client) => {
-    try {
-      return await client.runClass(name);
-    } catch (e) {
-      throw translateRunFailure(conn, name, e);
-    }
-  });
-  const bodyBytes = Buffer.byteLength(raw, "utf8");
-  assertPlausibleRunOutput(name, raw, bodyBytes);
-  const output = raw.replace(/\r\n/g, "\n").replace(/\n+$/, "");
-  return {
-    mode: "class",
-    object: name,
-    output,
-    lines: output === "" ? 0 : output.split("\n").length,
-    durationMs: Date.now() - started,
-    droppedLines: 0,
-    bodyBytes,
-    // No visibility into ABAP-side width truncation for an arbitrary class
-    // (only the report bridge, F5, can detect that) — so `true`.
-    outputComplete: true
-  };
-}
-function verifyBridgeActivation(activation, className, what, details) {
-  const positiveEvidence = activation.activated === true && activation.errors === 0 && activation.inactive.length === 0;
-  if (!positiveEvidence) {
-    throw new AbapError(
-      "CHECK_FAILED",
-      `Activation of the generated ${what} ${className} could not be positively verified before executing it.`,
-      {
-        bridgeClass: className,
-        ...details,
-        activated: activation.activated,
-        errors: activation.errors,
-        inactive: activation.inactive
-      },
-      "Never executed: activation reported something short of unambiguous success (not `activated === true`, or a non-empty inactive-objects list). Check the bridge class in ADT before retrying."
-    );
-  }
-  return true;
-}
-async function deployBridge(conn, gate, opts) {
-  const { className, source } = opts;
-  const authorized = await authorizeMutation(conn, gate, "write", {
-    type: "CLAS/OC",
-    name: className,
-    packageName: opts.packageName ?? BRIDGE_PACKAGE,
-    description: opts.description
-  });
-  const write = await writeObject(conn, authorized, {
-    source,
-    onBeforeImage: NO_JOURNAL
-  });
-  const bridgeRefreshed = Boolean(write.created || write.changed);
-  const alreadyActive = !write.created && !write.changed && write.target.activation === "active-is-current";
-  let stage = "activate-gate";
-  try {
-    gate.assert("activate", {
-      name: authorized.target.name,
-      packageName: authorized.target.packageName,
-      type: authorized.target.type
-    });
-    if (alreadyActive) {
-      return {
-        className,
-        target: authorized.target,
-        write,
-        bridgeRefreshed,
-        activationSource: "already-active",
-        activationVerified: true
-      };
-    }
-    stage = "activation";
-    const activation = await activateObject(conn, write.target);
-    assertNoErrors(activation, {
-      what: opts.what,
-      name: className,
-      source,
-      ...opts.hint === void 0 ? {} : { hint: opts.hint }
-    });
-    stage = "verify";
-    const activationVerified = opts.verify(activation);
-    return {
-      className,
-      target: authorized.target,
-      write,
-      bridgeRefreshed,
-      activation,
-      activationSource: "post",
-      activationVerified
-    };
-  } catch (e) {
-    throw discloseBridgeResidue(e, className, authorized.target.packageName, stage);
-  }
-}
-function discloseBridgeResidue(e, className, packageName, stage) {
-  if (!isAbapError(e)) return e;
-  const outcome = stage === "activate-gate" ? "was blocked before activation could run; it is left behind there, inactive" : stage === "activation" ? "failed to activate; it is left behind there, inactive" : "activated, then failed post-activation verification; it is left behind there";
-  const residueHint = `Bridge class ${className} was written to ${packageName} but ${outcome} \u2014 safe to delete.`;
-  const disclosed = new AbapError(
-    e.code,
-    e.message,
-    { ...e.details, bridgeClass: className, bridgeLeftBehind: true },
-    e.hint ? `${e.hint} ${residueHint}` : residueHint
-  );
-  disclosed.stack = e.stack;
-  disclosed.cause = e.cause;
-  return disclosed;
-}
-function discloseMutationRisk(err) {
-  const disclosure = "The request may already have executed and committed on the server before this response was lost \u2014 do not blindly retry a mutating bridge. Re-read the object first to see whether it changed.";
-  const disclosed = new AbapError(
-    err.code,
-    err.message,
-    { ...err.details, mayHaveExecuted: true },
-    err.hint ? `${err.hint} ${disclosure}` : disclosure
-  );
-  disclosed.stack = err.stack;
-  disclosed.cause = err.cause;
-  return disclosed;
-}
-async function executeBridge(conn, gate, deployed) {
-  const executeAuthorization = gate.authorize("execute", {
-    name: deployed.target.name,
-    packageName: deployed.target.packageName,
-    type: deployed.target.type
-  });
-  return runClass(conn, executeAuthorization.target.name);
-}
-async function runReport(conn, reportName, gate, parameters = []) {
-  const started = Date.now();
-  const report = assertPlainName(reportName, "Report name").toUpperCase();
-  const rows = marshalSelectionTable(parameters);
-  const className = bridgeClassName(report);
-  const source = bridgeClassSource(className, report, rows);
-  const deployed = await deployBridge(conn, gate, {
-    className,
-    source,
-    description: `abapsmith run bridge for report ${report}`,
-    what: "Activation of the generated run bridge",
-    hint: `The bridge SUBMITs ${report} by name, so the usual cause is that ${report} does not exist, is not a report, or is itself inactive.` + (rows.length > 0 ? ` It also populates a selection table with ${rows.length} row(s) \u2014 a value that does not fit the target field can dump here even when the report itself is fine.` : ""),
-    verify: (activation) => verifyBridgeActivation(activation, className, "run bridge", { report })
-  });
-  const { bridgeRefreshed, activationVerified: bridgeActivationVerified } = deployed;
-  const run2 = await executeBridge(conn, gate, deployed);
-  const { list: list5, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run2.output);
-  const beforeHeaderStrip = list5.length;
-  const stripped = stripListHeader(list5);
-  const headerDroppedLines = beforeHeaderStrip - stripped.length;
-  const output = stripped.join("\n");
-  const outputComplete = !diagnostics.some((d) => d.includes(WIDTH_TRUNCATION_MARKER));
-  return {
-    mode: "report",
-    object: report,
-    output,
-    lines: stripped.length,
-    // F4: the full write → activate → run round trip, not just the classrun leg.
-    durationMs: Date.now() - started,
-    droppedLines: bridgeDroppedLines + headerDroppedLines,
-    bodyBytes: run2.bodyBytes,
-    outputComplete,
-    bridgeClass: className,
-    bridgeRefreshed,
-    bridgeActivationVerified,
-    ...diagnostics.length ? { diagnostics } : {}
-  };
-}
-
-// src/adt/ddic-bridge.ts
-var DDIC_BRIDGE_PACKAGE = BRIDGE_PACKAGE;
-var DDIC_BRIDGE_CLASS = {
-  createView: "ZCL_ZMCP_DDIC_CVIEW",
-  createTransaction: "ZCL_ZMCP_DDIC_CTRAN",
-  createPackage: "ZCL_ZMCP_DDIC_CPKG",
-  deletePackage: "ZCL_ZMCP_DDIC_DPKG",
-  deleteView: "ZCL_ZMCP_DDIC_DVIEW",
-  deleteTransaction: "ZCL_ZMCP_DDIC_DTRAN",
-  removeTransportEntry: "ZCL_ZMCP_DDIC_TREN",
-  createIndex: "ZCL_ZMCP_DDIC_CINDX",
-  deleteIndex: "ZCL_ZMCP_DDIC_DINDX"
-};
-var ABAP_SOURCE_LINE_MAX = 255;
-var DDIC_ERR_PREFIX = "ZMCP-DDIC-ERR>";
-var DDIC_NOTE_PREFIX = "ZMCP-DDIC-NOTE>";
-var DDIC_TAGS = [
-  "VIEW-PUT",
-  "VIEW-REGISTERED",
-  "VIEW-ACTIVATED",
-  "TRAN-CREATED",
-  "PKG-CREATED",
-  "PKG-PARENT-SET",
-  "PKG-CONFIRMED",
-  // package-delete bridge:
-  "PKG-EMPTY",
-  "PKG-DELETED",
-  "PKG-GONE",
-  // view-delete / transaction-delete bridges:
-  "VIEW-DELETED",
-  "VIEW-GONE",
-  "TRAN-DELETED",
-  "TRAN-GONE",
-  // transport-entry-remove bridge:
-  "TREN-REMOVED",
-  "TREN-GONE",
-  // index-create / index-delete bridges (TABL/DI, DD_INDEX_INTERFACE):
-  "INDEX-CREATED",
-  "INDEX-ACTIVE",
-  "INDEX-FIELDS",
-  "INDEX-DELETED",
-  "INDEX-GONE",
-  // FM reported ACTFAILED on delete but the post-commit DD12V/DD17S read-back found the index gone anyway — live 2026-09-05.
-  "INDEX-DELETED-ACTFAILED"
-];
-function ddicBridgeSource(className, dataLines, bodyLines) {
-  const cls = assertPlainName(className, "Class name").toLowerCase();
-  const data = dataLines.map((l) => `    DATA ${l}`).join("\n");
-  const body = bodyLines.map((l) => `    ${l}`).join("\n");
-  const source = `CLASS ${cls} DEFINITION
-  PUBLIC FINAL
-  CREATE PUBLIC.
-
-  PUBLIC SECTION.
-    INTERFACES if_oo_adt_classrun.
-  PROTECTED SECTION.
-  PRIVATE SECTION.
-ENDCLASS.
-
-
-CLASS ${cls} IMPLEMENTATION.
-
-  METHOD if_oo_adt_classrun~main.
-*   Generated by abapsmith. Do not edit: this class is regenerated from
-*   src/adt/ddic-bridge.ts whenever its content hash changes.
-${data}
-    TRY.
-${body}
-      CATCH cx_root INTO DATA(lx_err).
-        out->write( |${DDIC_ERR_PREFIX} { lx_err->get_text( ) }| ).
-    ENDTRY.
-  ENDMETHOD.
-
-ENDCLASS.
-`;
-  source.split("\n").forEach((line, i) => {
-    if (line.length > ABAP_SOURCE_LINE_MAX) {
-      const excerpt = truncateForDisplay(line, ECHO_LINE_MAX);
-      throw new AbapError(
-        "CHECK_FAILED",
-        `Generated bridge source line ${i + 1} is ${line.length} chars, over ABAP's ${ABAP_SOURCE_LINE_MAX}-char class-source limit: ${excerpt}`,
-        { line: i + 1, length: line.length, excerpt }
-      );
-    }
-  });
-  return source;
-}
-function subrcGuardFragment(what) {
-  if (!/^[A-Za-z0-9_ ]+$/.test(what)) {
-    throw new AbapError("CHECK_FAILED", `Bridge step name ${JSON.stringify(what)} is not plain text.`, { what });
-  }
-  return [
-    `IF sy-subrc <> 0.`,
-    `  out->write( |${DDIC_ERR_PREFIX} ${what} failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).`,
-    `  RETURN.`,
-    `ENDIF.`
-  ];
-}
-function subrcCheckFragment(what, successTag) {
-  if (!DDIC_TAGS.includes(successTag)) {
-    throw new AbapError("CHECK_FAILED", `${successTag} is not a declared DDIC bridge tag.`, { successTag });
-  }
-  return [...subrcGuardFragment(what), `out->write( '${successTag}' ).`];
-}
-function parseDdicTranscript(raw) {
-  const tags = [];
-  let errorLine;
-  for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith(DDIC_ERR_PREFIX)) {
-      errorLine = trimmed.slice(DDIC_ERR_PREFIX.length).trim();
-      continue;
-    }
-    const tag = DDIC_TAGS.find((t) => trimmed === t);
-    if (tag) tags.push(tag);
-  }
-  return { tags, errorLine, raw };
-}
-function isHeadlessDynproFailure(errorLine) {
-  if (!errorLine) return false;
-  const lower = errorLine.toLowerCase();
-  return lower.includes("sending of dynpro") && lower.includes("no window system type specified");
-}
-var HEADLESS_DYNPRO_HINT = "The generated bridge class hit an interactive SAP dialog screen, which a headless IF_OO_ADT_CLASSRUN execution has no window system to display, so it aborted before the operation completed. The usual cause is a CTS transport-request prompt raised because no request number was supplied: pass corr_nr.";
-var PARTIAL_SUCCESS_HINT = "Do NOT simply retry this call: what is named above already exists, so a retry will collide with an object the caller did not know it had created. Establish the object's current state first and either continue from there or remove it, then create it again.";
-function assertDdicTranscript(result, expectTags, what, opts) {
-  if (result.errorLine) {
-    const dynproHint = isHeadlessDynproFailure(result.errorLine) ? HEADLESS_DYNPRO_HINT : void 0;
-    const firedCompleted = result.tags.filter((t) => opts?.completed?.[t] !== void 0);
-    let message = `${what} failed on the server: ${result.errorLine}`;
-    const details = { raw: result.raw };
-    let hint = dynproHint;
-    if (firedCompleted.length > 0) {
-      const done = firedCompleted.map((t) => opts.completed[t]);
-      const sep2 = /[.!?:]\s*$/.test(message) ? " " : ". ";
-      message += `${sep2}PARTIAL SUCCESS, NOT A NO-OP: this is a multi-step operation and earlier steps already took effect on the server and were NOT rolled back \u2014 ${done.join("; ")}.`;
-      details.partial = true;
-      details.completed = firedCompleted;
-      const prefix = [PARTIAL_SUCCESS_HINT, opts?.partialHint].filter((s) => s !== void 0).join(" ");
-      hint = [prefix, dynproHint].filter((s) => s !== void 0).join(" ");
-    }
-    throw new AbapError("CHECK_FAILED", message, details, hint);
-  }
-  const missing = expectTags.filter((t) => !result.tags.includes(t));
-  if (missing.length > 0) {
-    throw new AbapError(
-      "CHECK_FAILED",
-      `${what} did not report success \u2014 expected marker${missing.length > 1 ? "s" : ""} ${missing.join(", ")} in the classrun output, got: ${result.raw || "(empty)"}`,
-      { raw: result.raw, missing }
-    );
-  }
-}
+// src/adt/bridge-mutation.ts
 function assertBridgeMutation(gate, target, opts) {
   gate.assert(
     opts.op ?? "write",
@@ -91542,24 +96697,6 @@ function assertBridgeMutation(gate, target, opts) {
   if (opts.activate) {
     gate.assert("activate", target, opts.corr !== void 0 ? { corr: opts.corr } : {});
   }
-}
-async function runDdicBridge(conn, gate, opts) {
-  const deployed = await deployBridge(conn, gate, {
-    className: opts.className,
-    source: opts.source,
-    description: opts.description,
-    packageName: DDIC_BRIDGE_PACKAGE,
-    what: `Activation of the generated DDIC bridge ${opts.className}`,
-    verify: (activation) => verifyBridgeActivation(activation, opts.className, "DDIC bridge")
-  });
-  const run2 = await executeBridge(conn, gate, deployed);
-  const transcript = parseDdicTranscript(run2.output);
-  if (opts.beforeAssert) opts.beforeAssert(transcript);
-  assertDdicTranscript(transcript, opts.expectTags, opts.what, {
-    completed: opts.completed,
-    partialHint: opts.partialHint
-  });
-  return { run: run2, transcript };
 }
 
 // src/adt/package-ref.ts
@@ -92204,10 +97341,2771 @@ function missingEnhancementWrapperError(target, source, serverMessage, check4) {
   );
 }
 
+// src/adt/run.ts
+var import_abap_adt_api7 = __toESM(require_build(), 1);
+import { createHash as createHash6 } from "node:crypto";
+
+// src/adt/bridge-residue.ts
+function discloseBridgeResidue(e, className, packageName, stage) {
+  if (!isAbapError(e)) return e;
+  if (e.details.bridgeLeftBehind === true) return e;
+  const outcome = stage === "activate-gate" ? "was blocked before activation could run; it is left behind there, inactive" : stage === "activation" ? "failed to activate; it is left behind there, inactive" : stage === "verify" ? "activated, then failed post-activation verification; it is left behind there" : "activated, then failed the source read-back that confirms what landed; it is left behind there";
+  const residueHint = `Bridge class ${className} was written to ${packageName} but ${outcome} \u2014 safe to delete.`;
+  const disclosed = new AbapError(
+    e.code,
+    e.message,
+    { ...e.details, bridgeClass: className, bridgeLeftBehind: true },
+    e.hint ? `${e.hint} ${residueHint}` : residueHint
+  );
+  disclosed.stack = e.stack;
+  disclosed.cause = e.cause;
+  return disclosed;
+}
+
+// src/adt/fluid/package.ts
+var FLUID_PACKAGE = "$ABAPSMITH_FLUID_API";
+var FLUID_PACKAGE_DESCRIPTION = "abapsmith fluid API generated objects";
+var LEGACY_FLUID_PACKAGES = ["$ZMCP_HELPERS", "$TMP"];
+var RESERVED_OBJECT_PREFIXES = ["ZCL_ZMCP_", "ZIF_ZMCP_"];
+function isReservedFluidName(name) {
+  const n = name.trim().toUpperCase();
+  return RESERVED_OBJECT_PREFIXES.some((prefix) => n.startsWith(prefix));
+}
+var memo = /* @__PURE__ */ new Map();
+async function createFluidPackage(conn, gate) {
+  const probe3 = await resolveWriteTarget(conn, { type: "DEVC/K", name: FLUID_PACKAGE }, "write");
+  if (probe3.exists) return;
+  const authorized = await authorizeMutation(conn, gate, "write", {
+    type: "DEVC/K",
+    name: FLUID_PACKAGE,
+    description: FLUID_PACKAGE_DESCRIPTION,
+    packageName: "$TMP"
+  });
+  if (authorized.target.exists) return;
+  await createPackage(conn, authorized, {
+    softwareComponent: "LOCAL",
+    // NO_JOURNAL: abapsmith's own generated scaffolding, not user content — same idiom as ensureHelperPackage/deployBridge.
+    onBeforeImage: NO_JOURNAL
+  });
+}
+function ensureFluidPackage(conn, gate) {
+  const key = systemKey(conn.cfg);
+  const existing = memo.get(key);
+  if (existing) return existing;
+  const attempt = createFluidPackage(conn, gate);
+  memo.set(key, attempt);
+  attempt.catch(() => {
+    memo.delete(key);
+  });
+  return attempt;
+}
+
+// src/adt/fluid/enabled.ts
+function fluidDisabledReason(cfg, gate) {
+  if (cfg.fluidApi === false) return { kind: "flag", field: "ABAP_FLUID_API" };
+  if (cfg.abapMode === "read") return { kind: "read-only", field: "cfg.abapMode" };
+  if (cfg.readOnly === true) return { kind: "read-only", field: "cfg.readOnly" };
+  if (gate !== void 0) {
+    const g = gate.config;
+    if (g.productive === true) return { kind: "read-only", field: "gate.config.productive" };
+    if (g.systemRole === "productive") return { kind: "read-only", field: "gate.config.systemRole" };
+    if (g.roleProbeFailure !== void 0) return { kind: "read-only", field: "gate.config.roleProbeFailure" };
+    if (g.writesLockedOut === true) return { kind: "read-only", field: "gate.config.writesLockedOut" };
+  }
+  return void 0;
+}
+
+// src/adt/dumps-query.ts
+var DUMPS_FEED_PATH = "/sap/bc/adt/runtime/dumps";
+var DUMPS_FEED_PARAMS = Object.freeze([
+  "$query",
+  "from",
+  "to",
+  "$top",
+  "$queryCheck",
+  "$inlinecount"
+]);
+var DUMPS_MAX_ROWS = 1e3;
+var DUMPS_RESIDENCE_WINDOW_DAYS = 8;
+var SILENTLY_IGNORED_PARAMS = Object.freeze({
+  query: "The parameter is `$query`, with the dollar sign. Sending `query=` returns HTTP 200 and the complete unfiltered feed \u2014 this near-miss is the single costliest mistake on this surface.",
+  $skip: 'There is no skip/offset parameter. Page with the `rel="next"` cursor (`to=`) instead.',
+  $filter: "OData syntax is not understood here. The filter parameter is `$query`, in FQL.",
+  $orderby: "There is no ordering parameter; the feed is returned newest-first.",
+  $select: "There is no projection parameter.",
+  queryString: "`queryString` is the attribute name inside `feed:queryVariant`, not a parameter.",
+  variant: "Server-side variants cannot be selected by name; expand them into a `$query` yourself.",
+  user: "Filter by user with `$query=and ( equals ( user , NAME ) )`, not a `user=` parameter.",
+  maxHits: "The row limit is `$top`.",
+  size: "The row limit is `$top`.",
+  pageSize: "The row limit is `$top`.",
+  client: "The client is fixed by the logon; it cannot be selected per request.",
+  $inlinecount: "Recognised by the server but INERT: it produces no count element anywhere, so this builder never sends it. There is no total-count facility on this feed \u2014 count `atom:entry` elements from the response instead, bounded by C_MAX_DUMPS = 1000 and the 8-day residence window."
+});
+function isRecognisedFeedParam(name) {
+  return DUMPS_FEED_PARAMS.includes(name);
+}
+function assertRecognisedFeedParam(name) {
+  if (isRecognisedFeedParam(name)) return name;
+  const known = SILENTLY_IGNORED_PARAMS[name];
+  throw new AbapError(
+    "BAD_INPUT",
+    `'${name}' is not a query parameter of the ABAP runtime-dumps feed.`,
+    { parameter: name, recognised: [...DUMPS_FEED_PARAMS] },
+    (known ? `${known} ` : "") + `This server silently ignores unrecognised parameters and answers HTTP 200 with the full unfiltered feed, so an unknown name is refused here rather than sent. The six recognised parameters are ${DUMPS_FEED_PARAMS.join(", ")}.`
+  );
+}
+var FQL_OPERATORS = Object.freeze({
+  equals: 1,
+  notEquals: 1,
+  contains: 1,
+  notContains: 1,
+  greater: 1,
+  greaterOrEquals: 1,
+  less: 1,
+  lessOrEquals: 1,
+  between: 2,
+  notBetween: 2
+});
+var FQL_JUNCTIONS = Object.freeze(["and", "or"]);
+var STRING_OPS = ["equals", "notEquals", "contains", "notContains"];
+var DATETIME_OPS = [
+  "equals",
+  "notEquals",
+  "greater",
+  "greaterOrEquals",
+  "less",
+  "lessOrEquals",
+  "between",
+  "notBetween"
+];
+var DUMPS_CONTRACT_AS_CAPTURED = Object.freeze({
+  queryDepth: 2,
+  // served, not assumed — no `queryDepthAssumed`.
+  operators: FQL_OPERATORS,
+  attributes: Object.freeze([
+    { id: "package", dataType: "string", operators: STRING_OPS },
+    { id: "packageHierarchy", dataType: "string", operators: STRING_OPS },
+    { id: "packageResponsible", dataType: "string", operators: STRING_OPS },
+    { id: "objectResponsible", dataType: "string", operators: STRING_OPS },
+    { id: "responsible", dataType: "string", operators: STRING_OPS },
+    { id: "objectName", dataType: "string", operators: STRING_OPS },
+    { id: "component", dataType: "string", operators: STRING_OPS },
+    // The asymmetry: `string` dataType, but only two operators.
+    { id: "user", dataType: "string", operators: Object.freeze(["equals", "notEquals"]) },
+    { id: "runtimeError", dataType: "string", operators: STRING_OPS },
+    { id: "exception", dataType: "string", operators: STRING_OPS },
+    { id: "datetime", dataType: "dateTime", operators: DATETIME_OPS }
+  ])
+});
+var DUMPS_ASSUMED_QUERY_DEPTH = 2;
+function toDumpsQueryContract(extendedData) {
+  const attributes = Object.freeze(
+    extendedData.attributes.map(
+      (a) => Object.freeze({
+        id: a.id,
+        dataType: a.dataTypeId,
+        operators: Object.freeze([...a.operatorIds])
+      })
+    )
+  );
+  const operators = {};
+  for (const op of extendedData.operators) operators[op.id] = op.numberOfOperands;
+  const hasOperators = Object.keys(operators).length > 0;
+  const served = extendedData.queryDepth;
+  const queryDepthIsServed = Number.isInteger(served) && served > 0;
+  return Object.freeze({
+    attributes,
+    queryDepth: queryDepthIsServed ? served : DUMPS_ASSUMED_QUERY_DEPTH,
+    ...queryDepthIsServed ? {} : { queryDepthAssumed: true },
+    ...hasOperators ? { operators: Object.freeze(operators) } : {}
+  });
+}
+var TS14_RE = /^\d{14}$/;
+var ISO_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/;
+var pad = (n, width) => String(n).padStart(width, "0");
+function isValidTimestamp14(text3) {
+  if (!TS14_RE.test(text3)) return false;
+  const y = Number(text3.slice(0, 4));
+  const mo = Number(text3.slice(4, 6));
+  const d = Number(text3.slice(6, 8));
+  const h = Number(text3.slice(8, 10));
+  const mi = Number(text3.slice(10, 12));
+  const s = Number(text3.slice(12, 14));
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || s > 59) return false;
+  const dt = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d && dt.getUTCHours() === h && dt.getUTCMinutes() === mi && dt.getUTCSeconds() === s;
+}
+function timestamp14(date5) {
+  return pad(date5.getUTCFullYear(), 4) + pad(date5.getUTCMonth() + 1, 2) + pad(date5.getUTCDate(), 2) + pad(date5.getUTCHours(), 2) + pad(date5.getUTCMinutes(), 2) + pad(date5.getUTCSeconds(), 2);
+}
+function normaliseTimestamp(value) {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? void 0 : timestamp14(value);
+  }
+  const text3 = String(value).trim();
+  if (TS14_RE.test(text3)) return isValidTimestamp14(text3) ? text3 : void 0;
+  const m = ISO_RE.exec(text3);
+  if (!m) return void 0;
+  const candidate = `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}${m[6]}`;
+  return isValidTimestamp14(candidate) ? candidate : void 0;
+}
+function residenceWindowStart(now = /* @__PURE__ */ new Date()) {
+  const start = new Date(now.getTime());
+  start.setUTCDate(start.getUTCDate() - (DUMPS_RESIDENCE_WINDOW_DAYS - 1));
+  start.setUTCHours(0, 0, 0, 0);
+  return timestamp14(start);
+}
+var STRUCTURAL = /* @__PURE__ */ new Set(["(", ")", ","]);
+function tokenise(text3) {
+  const tokens = [];
+  let i = 0;
+  while (i < text3.length) {
+    const ch = text3[i];
+    if (/\s/.test(ch)) {
+      i += 1;
+      continue;
+    }
+    if (STRUCTURAL.has(ch)) {
+      tokens.push({ kind: ch, pos: i });
+      i += 1;
+      continue;
+    }
+    const start = i;
+    while (i < text3.length && !/\s/.test(text3[i]) && !STRUCTURAL.has(text3[i])) {
+      i += 1;
+    }
+    tokens.push({ kind: "word", text: text3.slice(start, i), pos: start });
+  }
+  return tokens;
+}
+function parseFqlQuery(text3) {
+  const tokens = tokenise(text3);
+  if (tokens.length === 0) return { error: "the query is empty" };
+  let i = 0;
+  const peek = () => tokens[i];
+  let failure;
+  const fail3 = (message, token) => {
+    failure ??= token ? `${message} at offset ${token.pos}` : message;
+    return void 0;
+  };
+  const parseNode = (depth) => {
+    if (depth > 64) return fail3("the query nests too deeply to parse");
+    const head = peek();
+    if (!head) return fail3("unexpected end of query; expected an operator or `and`/`or`");
+    if (head.kind !== "word") return fail3(`unexpected '${head.kind}'`, head);
+    i += 1;
+    const open = peek();
+    if (!open || open.kind !== "(") {
+      return fail3(`expected '(' after '${head.text}'`, open ?? head);
+    }
+    i += 1;
+    const lower = head.text.toLowerCase();
+    const isJunction = FQL_JUNCTIONS.includes(lower);
+    if (isJunction) {
+      const children = [];
+      if (peek()?.kind === ")") {
+        i += 1;
+        return { kind: "junction", junction: lower, children };
+      }
+      for (; ; ) {
+        const child4 = parseNode(depth + 1);
+        if (!child4) return void 0;
+        children.push(child4);
+        const next = peek();
+        if (!next) return fail3(`unclosed '${head.text} (' \u2014 expected ')'`);
+        if (next.kind === ",") {
+          i += 1;
+          continue;
+        }
+        if (next.kind === ")") {
+          i += 1;
+          return { kind: "junction", junction: lower, children };
+        }
+        return fail3(`expected ',' or ')'`, next);
+      }
+    }
+    const attrToken = peek();
+    if (!attrToken || attrToken.kind !== "word") {
+      return fail3(`expected an attribute name after '${head.text} ('`, attrToken);
+    }
+    i += 1;
+    const operands = [];
+    for (; ; ) {
+      const next = peek();
+      if (!next) return fail3(`unclosed '${head.text} (' \u2014 expected ')'`);
+      if (next.kind === ")") {
+        i += 1;
+        break;
+      }
+      if (next.kind !== ",") return fail3(`expected ',' or ')'`, next);
+      i += 1;
+      const parts = [];
+      for (; ; ) {
+        const v = peek();
+        if (!v || v.kind !== "word") break;
+        parts.push(v.text);
+        i += 1;
+      }
+      operands.push(parts.join(" "));
+    }
+    return {
+      kind: "predicate",
+      operator: head.text,
+      attribute: attrToken.text,
+      operands
+    };
+  };
+  const node2 = parseNode(0);
+  if (!node2) return { error: failure ?? "the query could not be parsed" };
+  const trailing = peek();
+  if (trailing) {
+    return {
+      error: `unexpected trailing input at offset ${trailing.pos} \u2014 a query is a single top-level and(\u2026)/or(\u2026)`
+    };
+  }
+  return { node: node2 };
+}
+var quoted = (v) => v.length >= 2 && (v.startsWith("'") && v.endsWith("'") || v.startsWith('"') && v.endsWith('"'));
+function nodeDepth(node2) {
+  if (node2.kind === "predicate") return 1;
+  if (node2.children.length === 0) return 1;
+  return 1 + Math.max(...node2.children.map(nodeDepth));
+}
+function collectPredicates(node2, out) {
+  if (node2.kind === "predicate") {
+    out.push(node2);
+    return;
+  }
+  for (const child4 of node2.children) collectPredicates(child4, out);
+}
+function findAttribute(contract, name) {
+  const lower = name.toLowerCase();
+  return contract.attributes.find((a) => a.id.toLowerCase() === lower);
+}
+function findOperator(name) {
+  const lower = name.toLowerCase();
+  return Object.keys(FQL_OPERATORS).find((o) => o.toLowerCase() === lower);
+}
+function validateOperands(attribute, operator, operands, violations) {
+  const isDateTime = attribute.dataType.toLowerCase() === "datetime";
+  for (const raw of operands) {
+    const value = raw.trim();
+    if (value === "") {
+      violations.push({
+        code: "INVALID_VALUE",
+        attribute: attribute.id,
+        operator,
+        message: `Empty value in ${operator}(${attribute.id}, \u2026). FQL values are unquoted and there is no empty literal \u2014 omit the predicate instead.`
+      });
+      continue;
+    }
+    if (quoted(value)) {
+      violations.push({
+        code: "INVALID_VALUE",
+        attribute: attribute.id,
+        operator,
+        message: `Value ${value} for '${attribute.id}' is quoted. FQL values are UNQUOTED \u2014 write ${operator} ( ${attribute.id} , ${value.slice(1, -1)} ).`
+      });
+      continue;
+    }
+    if (/[(),]/.test(value)) {
+      violations.push({
+        code: "INVALID_VALUE",
+        attribute: attribute.id,
+        operator,
+        message: `Value '${value}' for '${attribute.id}' contains '(' , ')' or ',', which are structural in FQL. The grammar has no quoting or escaping, so such a value cannot be expressed.`
+      });
+      continue;
+    }
+    if (/\s/.test(value)) {
+      violations.push({
+        code: "INVALID_VALUE",
+        attribute: attribute.id,
+        operator,
+        message: `Value '${value}' for '${attribute.id}' contains whitespace. Whitespace is insignificant in FQL and there is no quoting, so a value containing a space cannot be sent unambiguously.`
+      });
+      continue;
+    }
+    if (isDateTime && !isValidTimestamp14(value)) {
+      violations.push({
+        code: "MALFORMED_DATETIME",
+        attribute: attribute.id,
+        operator,
+        message: `'${value}' is not a valid datetime literal for '${attribute.id}'. Inside $query, dateTime values are 14 digits, YYYYMMDDHHMMSS, unquoted \u2014 e.g. 20260804000000. ISO-8601 is accepted by from/to, but NOT inside $query.`
+      });
+    }
+  }
+}
+function validateFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
+  const violations = [];
+  let root;
+  if (typeof query === "string") {
+    const parsed = parseFqlQuery(query);
+    if (!parsed.node) {
+      return {
+        ok: false,
+        violations: [
+          {
+            code: "SYNTAX",
+            message: `The query could not be parsed: ${parsed.error}. Expected the canonical form \`and ( equals ( user , DEVELOPER ) )\` \u2014 junction wrapper, then one or more \`operator ( attribute , value )\` predicates.`
+          }
+        ]
+      };
+    }
+    root = parsed.node;
+  } else {
+    root = {
+      kind: "junction",
+      junction: query.junction,
+      children: query.predicates.map((p) => ({ kind: "predicate", ...p }))
+    };
+    if (!FQL_JUNCTIONS.includes(query.junction)) {
+      violations.push({
+        code: "MISSING_WRAPPER",
+        message: `'${String(query.junction)}' is not a junction. The top-level wrapper must be \`and\` or \`or\`.`
+      });
+    }
+  }
+  if (root.kind !== "junction") {
+    violations.push({
+      code: "MISSING_WRAPPER",
+      ...root.attribute ? { attribute: root.attribute } : {},
+      operator: root.operator,
+      message: `The query is a bare '${root.operator}' predicate. A top-level and(\u2026)/or(\u2026) wrapper is MANDATORY on this feed, even for a single predicate \u2014 wrap it as and ( ${root.operator} ( ${root.attribute} , \u2026 ) ). Without the wrapper the server answers 400 with a body that says nothing about why.`
+    });
+  } else if (root.children.length === 0) {
+    violations.push({
+      code: "EMPTY_QUERY",
+      message: `'${root.junction} ( )' has no predicates. Omit $query entirely to read the unfiltered feed \u2014 but note the 8-day residence window still applies.`
+    });
+  }
+  const maxDepth = Number.isInteger(contract.queryDepth) ? contract.queryDepth : DUMPS_ASSUMED_QUERY_DEPTH;
+  const depth = nodeDepth(root);
+  if (depth > maxDepth) {
+    violations.push({
+      code: "EXCESS_DEPTH",
+      message: `The query nests ${depth} levels deep; ` + (contract.queryDepthAssumed === true ? `this feed served no queryDepth, so ${maxDepth} was ASSUMED \u2014 the smallest depth at which a legal query exists. The limit above is this client's, not the server's.` : `this feed advertises queryDepth ${maxDepth} and ENFORCES it (a third level is HTTP 400).`) + " One junction wrapper plus its predicates is depth 2 \u2014 flatten the nested junctions into a single and(\u2026)/or(\u2026)."
+    });
+  }
+  const predicates = [];
+  collectPredicates(root, predicates);
+  const operatorArity = contract.operators ?? FQL_OPERATORS;
+  for (const p of predicates) {
+    const attribute = findAttribute(contract, p.attribute);
+    if (!attribute) {
+      violations.push({
+        code: "UNKNOWN_ATTRIBUTE",
+        attribute: p.attribute,
+        operator: p.operator,
+        message: `'${p.attribute}' is not a filterable attribute of this feed. The ${contract.attributes.length} it serves are: ${contract.attributes.map((a) => a.id).join(", ")}.`
+      });
+      continue;
+    }
+    const operator = findOperator(p.operator);
+    if (!operator) {
+      violations.push({
+        code: "UNKNOWN_OPERATOR",
+        attribute: attribute.id,
+        operator: p.operator,
+        message: `'${p.operator}' is not an FQL operator. The 10 operators are: ${Object.keys(FQL_OPERATORS).join(", ")}.`
+      });
+      continue;
+    }
+    const permitted = attribute.operators.some((o) => o.toLowerCase() === operator.toLowerCase());
+    if (!permitted) {
+      const asymmetry = attribute.id === "user" ? " 'user' is a string attribute that nonetheless permits only equals/notEquals \u2014 this asymmetry is served in the contract and is not derivable from the dataType." : "";
+      violations.push({
+        code: "OPERATOR_NOT_PERMITTED",
+        attribute: attribute.id,
+        operator,
+        message: `Operator '${operator}' is not permitted for attribute '${attribute.id}'. The feed permits ${attribute.operators.join(", ")} for it.${asymmetry}`
+      });
+      continue;
+    }
+    const expected = operatorArity[operator] ?? FQL_OPERATORS[operator];
+    if (p.operands.length !== expected) {
+      violations.push({
+        code: "OPERAND_COUNT",
+        attribute: attribute.id,
+        operator,
+        message: `Operator '${operator}' takes ${expected} operand${expected === 1 ? "" : "s"}, but ${p.operands.length} ${p.operands.length === 1 ? "was" : "were"} given for '${attribute.id}'. Write ` + (expected === 2 ? `${operator} ( ${attribute.id} , <low> , <high> ).` : `${operator} ( ${attribute.id} , <value> ).`)
+      });
+      continue;
+    }
+    validateOperands(attribute, operator, p.operands, violations);
+  }
+  if (violations.length > 0) return { ok: false, violations };
+  const junction = root.junction;
+  const canonicalQuery = {
+    junction,
+    predicates: predicates.map((p) => ({
+      attribute: findAttribute(contract, p.attribute).id,
+      operator: findOperator(p.operator),
+      operands: p.operands.map((o) => o.trim())
+    }))
+  };
+  return { ok: true, violations: [], canonical: formatFqlQuery(canonicalQuery) };
+}
+function formatFqlQuery(query) {
+  const predicates = query.predicates.map(
+    (p) => `${p.operator} ( ${[p.attribute, ...p.operands.map((o) => o.trim())].join(" , ")} )`
+  );
+  return `${query.junction} ( ${predicates.join(" , ")} )`;
+}
+function assertValidFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
+  const result = validateFqlQuery(query, contract);
+  if (result.ok && result.canonical !== void 0) return result.canonical;
+  const messages = result.violations.map((v) => v.message);
+  throw new AbapError(
+    "BAD_INPUT",
+    `The dump filter is not a valid query for this feed: ${messages.join(" ")}`,
+    {
+      violations: result.violations,
+      query: typeof query === "string" ? query : { ...query }
+    },
+    "This was refused before sending. The server rejects an invalid $query with a 372-byte ExceptionInvalidData body that is byte-identical for an unknown attribute, a syntax error, a missing wrapper and excess depth \u2014 so the reason above is the only one available."
+  );
+}
+function buildFqlQuery(query, contract = DUMPS_CONTRACT_AS_CAPTURED) {
+  return assertValidFqlQuery(query, contract);
+}
+var REQUEST_KEYS = ["$query", "from", "to", "$top", "$queryCheck"];
+function encodePair(name, value) {
+  return `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+}
+function normaliseBound(which, value, notes) {
+  const normalised = normaliseTimestamp(value);
+  if (normalised === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'${which}' is not a valid timestamp: ${String(value instanceof Date ? value.toString() : value)}.`,
+      { [which]: value instanceof Date ? value.toISOString() : String(value) },
+      "Pass 14 digits (YYYYMMDDHHMMSS), an ISO-8601 UTC instant (YYYY-MM-DDTHH:MM:SSZ), or a Date. An unparseable bound is not an error on this server \u2014 it is SILENTLY IGNORED and answered with the full unfiltered feed, so it is refused here instead of sent."
+    );
+  }
+  if (value instanceof Date === false && String(value).trim() !== normalised) {
+    notes.push(`'${which}' was normalised to the canonical 14-digit form ${normalised}.`);
+  }
+  return normalised;
+}
+function buildDumpsFeedUrl(request, options = {}) {
+  const contract = options.contract ?? DUMPS_CONTRACT_AS_CAPTURED;
+  const basePath = options.basePath ?? DUMPS_FEED_PATH;
+  const now = options.now ?? /* @__PURE__ */ new Date();
+  const notes = [];
+  for (const key of Object.keys(request)) {
+    if (REQUEST_KEYS.includes(key)) continue;
+    assertRecognisedFeedParam(key);
+    throw new AbapError(
+      "BAD_INPUT",
+      `'${key}' is recognised by the server but is not offered by this client.`,
+      { parameter: key },
+      SILENTLY_IGNORED_PARAMS[key] ?? ""
+    );
+  }
+  const params = [];
+  if (request.$query !== void 0) {
+    params.push(["$query", assertValidFqlQuery(request.$query, contract)]);
+  }
+  let fromTs;
+  let toTs;
+  if (request.from !== void 0) {
+    fromTs = normaliseBound("from", request.from, notes);
+    params.push(["from", fromTs]);
+  }
+  if (request.to !== void 0) {
+    toTs = normaliseBound("to", request.to, notes);
+    params.push(["to", toTs]);
+  }
+  if (request.$top !== void 0) {
+    const top = request.$top;
+    if (!Number.isInteger(top) || top < 1) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `$top must be a positive integer, got ${String(top)}.`,
+        { $top: top },
+        "0 is not 'no rows' on this endpoint \u2014 it means UNLIMITED and is silently accepted, so it is refused rather than sent. A non-integer such as 'abc' is the one parameter mistake this server actually reports (HTTP 400); every other bad parameter returns 200 with the complete feed."
+      );
+    }
+    if (top > DUMPS_MAX_ROWS) {
+      notes.push(
+        `$top=${top} exceeds the server's own ceiling C_MAX_DUMPS = ${DUMPS_MAX_ROWS}; at most ${DUMPS_MAX_ROWS} dumps can be returned however large $top is.`
+      );
+    }
+    params.push(["$top", String(top)]);
+  }
+  if (request.$queryCheck === true) params.push(["$queryCheck", "true"]);
+  const windowStart = residenceWindowStart(now);
+  if (fromTs !== void 0 && fromTs < windowStart) {
+    notes.push(
+      `from=${fromTs} predates the dump residence window. The handler ANDs your bound with 'datum ge sy-datum - ${DUMPS_RESIDENCE_WINDOW_DAYS} + 1', so it does NOT widen the window: only dumps from about ${windowStart} onwards are visible over ADT, and the server gives no warning that the rest exist. Older dumps must be read from SNAP by other means.`
+    );
+  }
+  if (toTs !== void 0 && toTs < windowStart) {
+    notes.push(
+      `to=${toTs} predates the dump residence window (about ${windowStart}); this range lies entirely outside what ADT can see and will return an empty feed.`
+    );
+  }
+  if (fromTs !== void 0 && toTs !== void 0 && fromTs > toTs) {
+    notes.push(
+      `from=${fromTs} is later than to=${toTs}. The bounds are an inclusive range (timestamp ge from AND timestamp le to), so this can only return an empty feed.`
+    );
+  }
+  const qs = params.map(([name, value]) => encodePair(name, value)).join("&");
+  return {
+    url: qs ? `${basePath}?${qs}` : basePath,
+    params,
+    notes,
+    residenceWindowStart: windowStart
+  };
+}
+
+// src/adt/enhancement-templates.ts
+function assertEnhIdentifier(value, what, opts = {}) {
+  if (typeof value !== "string" || !isValidAbapIdentifier(value, opts)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} ${JSON.stringify(value)} is not a valid ABAP object name (a letter, then letters, digits and underscores only, max ${opts.maxLength ?? 30} characters${opts.allowNamespace ? "; a leading /NAMESPACE/ is allowed" : ""}${opts.allowLocal ? "; a leading $ is allowed" : ""}).`,
+      { what, value },
+      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a period, a quote, or a newline is refused outright, not escaped or stripped."
+    );
+  }
+  return value;
+}
+function assertEnhTypeRef(value, what) {
+  const parts = typeof value === "string" ? value.split("-") : [];
+  const [head, component, ...extra] = parts;
+  const valid = typeof value === "string" && extra.length === 0 && isValidAbapIdentifier(head ?? "", { allowNamespace: true, maxLength: 30 }) && (component === void 0 || isValidAbapIdentifier(component, { maxLength: 30 }));
+  if (!valid) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} ${JSON.stringify(value)} is not a valid ABAP type reference (a plain or /NAMESPACE/-qualified type name, max 30 characters per part, optionally followed by exactly one -COMPONENT suffix, e.g. "STRING", "/DMO/S_FLIGHT-CARRID").`,
+      { what, value },
+      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a period, a quote, or a newline is refused outright, not escaped or stripped."
+    );
+  }
+  return value;
+}
+var CONTROL_CHAR_CODES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 127];
+var CONTROL_CHAR_RE = new RegExp(
+  "[" + CONTROL_CHAR_CODES.map((c) => String.fromCharCode(c)).join("") + "]"
+);
+function assertAbapText(value, what, maxLen = 60) {
+  if (typeof value !== "string") {
+    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what });
+  }
+  if (value.length > maxLen) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} is ${value.length} characters, longer than the ${maxLen}-character limit.`,
+      { what, length: value.length, maxLen }
+    );
+  }
+  if (CONTROL_CHAR_RE.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} contains a control character (newline, carriage return, or similar) \u2014 refused, not stripped.`,
+      { what }
+    );
+  }
+  return value;
+}
+function abapLiteral(value) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+function exerciseFragment(p) {
+  const badiName = assertEnhIdentifier(p.badiName, "badiName");
+  const methodName = assertEnhIdentifier(p.methodName, "methodName", { maxLength: 30 });
+  const params = p.params.map((param, i) => {
+    const label = `params[${i}]`;
+    const rawKind = param.kind ?? "importing";
+    if (rawKind !== "importing" && rawKind !== "changing" && rawKind !== "exporting" && rawKind !== "receiving") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label}.kind ${JSON.stringify(param.kind)} must be one of "importing", "changing", "exporting", "receiving" (or omitted, which defaults to "importing").`,
+        { what: `${label}.kind`, value: param.kind }
+      );
+    }
+    const kind = rawKind;
+    const name = assertEnhIdentifier(param.name, `${label}.name`, { maxLength: 30 });
+    const needsLocal = kind !== "importing";
+    const needsValue = kind === "importing" || kind === "changing";
+    if (needsValue) {
+      if (typeof param.value !== "string") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${label} (kind "${kind}") requires a string "value" to seed it with \u2014 "${kind}" parameters are readable by the caller-supplied literal before the call.`,
+          { what: `${label}.value`, kind }
+        );
+      }
+    } else if (param.value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} (kind "${kind}") must not supply "value" \u2014 the callee fully determines this parameter's value; a caller-supplied seed would be silently discarded, so this refuses it instead of accepting input that has no effect.`,
+        { what: `${label}.value`, kind }
+      );
+    }
+    if (needsLocal) {
+      if (typeof param.type !== "string" || param.type.length === 0) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${label} (kind "${kind}") requires an explicit "type" naming the ABAP type of the formal parameter (e.g. "STRING", "ZDE_MY_TYPE") \u2014 this tool cannot look up a BAdI interface method's signature, so it cannot infer the type on its own, and a wrong guess would fail to compile rather than fail loudly. State the type explicitly.`,
+          { what: `${label}.type`, kind }
+        );
+      }
+    } else if (param.type !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} (kind "importing") must not supply "type" \u2014 importing parameters are passed as a literal directly; no local variable is declared for them, so there is nothing to type.`,
+        { what: `${label}.type`, kind }
+      );
+    }
+    return {
+      name,
+      kind,
+      value: needsValue ? assertAbapText(param.value, `${label}.value`, 255) : void 0,
+      type: needsLocal ? assertEnhTypeRef(param.type, `${label}.type`) : void 0
+    };
+  });
+  const seenNames = /* @__PURE__ */ new Set();
+  for (const param of params) {
+    const key = param.name.toUpperCase();
+    if (seenNames.has(key)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `params[].name ${JSON.stringify(param.name)} is supplied more than once (ABAP identifiers are case-insensitive) \u2014 each formal parameter can be assigned at most once in a single CALL BADI.`,
+        { what: "params[].name", value: param.name }
+      );
+    }
+    seenNames.add(key);
+  }
+  const receivingParams = params.filter((param) => param.kind === "receiving");
+  if (receivingParams.length > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `at most one params[] entry may use kind "receiving" \u2014 a method has at most one RETURNING parameter, so CALL BADI's RECEIVING clause can only ever target one. Got ${receivingParams.length}: ${receivingParams.map((param) => param.name).join(", ")}.`,
+      { what: "params[].kind", count: receivingParams.length }
+    );
+  }
+  const lines = [`DATA lo_badi TYPE REF TO ${badiName}.`];
+  const hasFilterName = p.filterName !== void 0;
+  const hasFilterValue = p.filterValue !== void 0;
+  if (hasFilterName !== hasFilterValue) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "exercise: filterName and filterValue must be given together (both or neither) \u2014 a filter value with no filter field name has nothing to substitute into `GET BADI ... FILTERS`.",
+      { filterName: p.filterName, filterValue: p.filterValue }
+    );
+  }
+  if (hasFilterName && hasFilterValue) {
+    const filterName = assertEnhIdentifier(p.filterName, "filterName", { maxLength: 30 });
+    const filterValue = assertAbapText(p.filterValue, "filterValue", 255);
+    lines.push(`GET BADI lo_badi FILTERS ${filterName} = ${abapLiteral(filterValue)}.`);
+  } else {
+    lines.push("GET BADI lo_badi.");
+  }
+  const localVar = (name) => `lv_${name.toLowerCase()}`;
+  for (const param of params) {
+    if (!param.type) continue;
+    lines.push(`DATA ${localVar(param.name)} TYPE ${param.type}.`);
+  }
+  for (const param of params) {
+    if (param.kind !== "changing") continue;
+    lines.push(`${localVar(param.name)} = ${abapLiteral(param.value)}.`);
+  }
+  const asLiteralArg = (param) => `${param.name} = ${abapLiteral(param.value)}`;
+  const asVarArg = (param) => `${param.name} = ${localVar(param.name)}`;
+  const importingArgs = params.filter((param) => param.kind === "importing").map(asLiteralArg);
+  const exportingArgs = params.filter((param) => param.kind === "exporting").map(asVarArg);
+  const changingArgs = params.filter((param) => param.kind === "changing").map(asVarArg);
+  const firstReceivingParam = receivingParams[0];
+  const receivingArg = firstReceivingParam ? asVarArg(firstReceivingParam) : void 0;
+  const callParts = [];
+  if (importingArgs.length > 0) callParts.push(`EXPORTING ${importingArgs.join(" ")}`);
+  if (exportingArgs.length > 0) callParts.push(`IMPORTING ${exportingArgs.join(" ")}`);
+  if (changingArgs.length > 0) callParts.push(`CHANGING ${changingArgs.join(" ")}`);
+  if (receivingArg) callParts.push(`RECEIVING ${receivingArg}`);
+  const call = callParts.length > 0 ? `CALL BADI lo_badi->${methodName} ${callParts.join(" ")}.` : `CALL BADI lo_badi->${methodName}.`;
+  const bodyLines = [`  ${call}`, "  out->write( 'EXERCISED' )."];
+  for (const param of params) {
+    if (!param.type) continue;
+    bodyLines.push(`  out->write( |RESULT>${param.name}={ ${localVar(param.name)} }| ).`);
+  }
+  lines.push("IF lo_badi IS BOUND.", ...bodyLines, "ELSE.", "  out->write( 'NOT-BOUND' ).", "ENDIF.");
+  return lines;
+}
+function markerInterfaceSource(interfaceName) {
+  const name = assertEnhIdentifier(interfaceName, "interfaceName");
+  return [
+    `INTERFACE ${name} PUBLIC.`,
+    "  INTERFACES if_badi_interface.",
+    "ENDINTERFACE."
+  ].join("\n");
+}
+
+// src/adt/run-parameters.ts
+var RSPARAMS_SELNAME_MAX = 8;
+var RSPARAMS_LOW_MAX = 45;
+var RANGE_OPTIONS = /* @__PURE__ */ new Set([
+  "EQ",
+  "NE",
+  "GT",
+  "LT",
+  "GE",
+  "LE",
+  "CP",
+  "NP",
+  "BT",
+  "NB"
+]);
+var RANGE_NEEDS_HIGH = /* @__PURE__ */ new Set(["BT", "NB"]);
+var SELNAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
+function assertSelname(name, what) {
+  if (typeof name !== "string" || !SELNAME_RE.test(name)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} ${JSON.stringify(name)} is not a valid selection-screen field name \u2014 a letter, then letters/digits/underscore, at most ${RSPARAMS_SELNAME_MAX} characters (the ABAP compiler's own PARAMETERS/SELECT-OPTIONS identifier limit).`,
+      { what, value: name, maxLength: RSPARAMS_SELNAME_MAX },
+      "Check the report's own PARAMETERS/SELECT-OPTIONS statement for the exact name."
+    );
+  }
+  return name.toUpperCase();
+}
+var INT_RE = /^-?\d{1,9}$/;
+var PACKED_RE = /^-?\d+(\.\d+)?$/;
+function formatSelectionValue(raw, type, what) {
+  if (typeof raw !== "string") {
+    throw new AbapError("BAD_INPUT", `${what} must be a string.`, { what, type });
+  }
+  switch (type) {
+    case "char":
+      return assertAbapText(raw, what, RSPARAMS_LOW_MAX);
+    case "int": {
+      if (!INT_RE.test(raw)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${what} is ${JSON.stringify(raw)}, not a plain integer (optional leading "-", digits only).`,
+          { what, type, value: raw }
+        );
+      }
+      return raw;
+    }
+    case "packed": {
+      if (!PACKED_RE.test(raw)) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${what} is ${JSON.stringify(raw)}, not a plain decimal number \u2014 use digits with an optional leading "-" and an optional "." decimal point (not ",").`,
+          { what, type, value: raw }
+        );
+      }
+      return raw;
+    }
+    case "date": {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+      if (!m) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${what} is ${JSON.stringify(raw)}, not a date in "YYYY-MM-DD" form.`,
+          { what, type, value: raw }
+        );
+      }
+      const [, year, month, day] = m;
+      const monthNum = Number(month);
+      const dayNum = Number(day);
+      if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${what} is ${JSON.stringify(raw)} \u2014 month must be 01-12 and day 01-31.`,
+          { what, type, value: raw }
+        );
+      }
+      return `${year}${month}${day}`;
+    }
+  }
+}
+function assertOption(option, what) {
+  const opt3 = (option ?? "EQ").toUpperCase();
+  if (!RANGE_OPTIONS.has(opt3)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what}.option is ${JSON.stringify(option)}, not one of the ten standard ABAP select-option operators (EQ, NE, GT, LT, GE, LE, CP, NP, BT, NB).`,
+      { what, value: option }
+    );
+  }
+  return opt3;
+}
+function assertSign(sign, what) {
+  const s = (sign ?? "I").toUpperCase();
+  if (s !== "I" && s !== "E") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what}.sign is ${JSON.stringify(sign)}, not "I" (include) or "E" (exclude).`,
+      { what, value: sign }
+    );
+  }
+  return s;
+}
+function marshalRange(range, type, kind, selname, what) {
+  const sign = assertSign(range.sign, what);
+  const option = assertOption(range.option, what);
+  const needsHigh = RANGE_NEEDS_HIGH.has(option);
+  if (typeof range.low !== "string") {
+    throw new AbapError("BAD_INPUT", `${what}.low is required and must be a string.`, { what });
+  }
+  if (needsHigh && (range.high === void 0 || range.high === "")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what}: option "${option}" requires a "high" bound, but none was given.`,
+      { what, option }
+    );
+  }
+  if (!needsHigh && range.high !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what}: option "${option}" does not take a "high" bound, but one was given (${JSON.stringify(range.high)}). Only BT/NB use "high".`,
+      { what, option, value: range.high }
+    );
+  }
+  const low = formatSelectionValue(range.low, type, `${what}.low`);
+  const high = needsHigh ? formatSelectionValue(range.high, type, `${what}.high`) : "";
+  return { selname, kind, sign, option, low, high };
+}
+function marshalSelectionTable(inputs) {
+  const rows = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const [i, input] of inputs.entries()) {
+    const label = `parameters[${i}]`;
+    if (!input || typeof input !== "object") {
+      throw new AbapError("BAD_INPUT", `${label} must be an object.`, { index: i });
+    }
+    const selname = assertSelname(input.name, `${label}.name`);
+    if (seen.has(selname)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label}.name "${selname}" is a duplicate \u2014 each selection-screen field may appear only once (a SELECT-OPTIONS field with several ranges uses ONE entry with several "ranges" rows).`,
+        { name: selname }
+      );
+    }
+    seen.add(selname);
+    const type = input.type ?? "char";
+    const hasValue = input.value !== void 0;
+    const hasRanges = input.ranges !== void 0;
+    if (hasValue === hasRanges) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} ("${selname}") must set exactly one of "value" (a PARAMETERS field) or "ranges" (a SELECT-OPTIONS field), not both and not neither.`,
+        { name: selname, hasValue, hasRanges }
+      );
+    }
+    if (hasValue) {
+      const low = formatSelectionValue(input.value, type, `${label}.value ("${selname}")`);
+      rows.push({ selname, kind: "P", sign: "I", option: "EQ", low, high: "" });
+      continue;
+    }
+    const ranges = input.ranges;
+    if (!Array.isArray(ranges) || ranges.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} ("${selname}").ranges must be a non-empty array.`,
+        { name: selname }
+      );
+    }
+    for (const [j, range] of ranges.entries()) {
+      rows.push(marshalRange(range, type, "S", selname, `${label}.ranges[${j}] ("${selname}")`));
+    }
+  }
+  return rows;
+}
+function parseSelectionScreen(source) {
+  if (typeof source !== "string" || source.length === 0) return [];
+  const noLineComments = source.split(/\r\n|\r|\n/).map((line) => /^\s*\*/.test(line) ? "" : line).join("\n");
+  const noComments = noLineComments.replace(/"[^\n]*/g, "");
+  const statements = noComments.split(/\.(?=\s|$)/);
+  const fields = [];
+  const KEYWORD_RE = /^\s*(PARAMETERS|SELECT-OPTIONS)\s*:?\s*(.*)$/is;
+  for (const stmt of statements) {
+    const m = KEYWORD_RE.exec(stmt.trim());
+    if (!m) continue;
+    const statement = m[1].toUpperCase();
+    const rest = m[2];
+    const decls = rest.split(",");
+    for (const decl of decls) {
+      const trimmed = decl.trim();
+      if (!trimmed) continue;
+      const nameMatch = /^([A-Za-z][A-Za-z0-9_]{0,7})\b/.exec(trimmed);
+      if (!nameMatch) continue;
+      const name = nameMatch[1].toUpperCase();
+      const typeMatch = /\bTYPE\s+([\w/]+)/i.exec(trimmed);
+      const obligatory = /\bOBLIGATORY\b/i.test(trimmed);
+      fields.push({
+        name,
+        statement,
+        ...typeMatch ? { type: typeMatch[1] } : {},
+        obligatory
+      });
+    }
+  }
+  return fields;
+}
+function selectionScreenNotes(parsed, supplied) {
+  const notes = [];
+  if (parsed.length === 0) {
+    if (supplied.length > 0) {
+      notes.push(
+        "The report's source could not be parsed for PARAMETERS/SELECT-OPTIONS declarations (or none were found), so the supplied parameter name(s) could not be cross-checked against it. This is not evidence they are wrong \u2014 only that they are unconfirmed."
+      );
+    }
+    return notes;
+  }
+  const parsedByName = new Map(parsed.map((f) => [f.name, f]));
+  const suppliedNames = new Set(supplied.map((p) => p.name.toUpperCase()));
+  for (const input of supplied) {
+    const name = input.name.toUpperCase();
+    if (!parsedByName.has(name)) {
+      notes.push(
+        `Selection-screen field "${name}" was supplied but not found by source parsing \u2014 the parse is heuristic (macros/INCLUDEs/unusual layouts can defeat it), so this is not proof the field doesn't exist, only that it could not be confirmed.`
+      );
+    }
+  }
+  for (const field of parsed) {
+    if (field.obligatory && !suppliedNames.has(field.name)) {
+      notes.push(
+        `Selection-screen field "${field.name}" is declared OBLIGATORY in the source but no value was supplied \u2014 the report ran with it blank/initial, which may itself cause a selection-screen error or an unintended default.`
+      );
+    }
+  }
+  return notes;
+}
+
+// src/adt/run.ts
+var DUMP_CORRELATION_SLACK_SECONDS = 2;
+function buildDumpCorrelation(serverTime, user) {
+  if (!serverTime) return void 0;
+  const digits = serverTime.replace(/\D/g, "");
+  if (!isValidTimestamp14(digits)) return void 0;
+  const at = Date.UTC(
+    Number(digits.slice(0, 4)),
+    Number(digits.slice(4, 6)) - 1,
+    Number(digits.slice(6, 8)),
+    Number(digits.slice(8, 10)),
+    Number(digits.slice(10, 12)),
+    Number(digits.slice(12, 14))
+  );
+  const slack = DUMP_CORRELATION_SLACK_SECONDS * 1e3;
+  const from = timestamp14(new Date(at - slack));
+  const to = timestamp14(new Date(at + slack));
+  const upper = user?.trim().toUpperCase();
+  const query = upper ? buildFqlQuery({
+    junction: "and",
+    predicates: [{ attribute: "user", operator: "equals", operands: [upper] }]
+  }) : void 0;
+  return {
+    from,
+    to,
+    ...upper ? { user: upper } : {},
+    ...query ? { query } : {},
+    feedPath: DUMPS_FEED_PATH,
+    call: {
+      tool: "abap_dumps",
+      arguments: { mode: "list", from, to, ...query ? { query } : {} }
+    },
+    confidence: "candidates"
+  };
+}
+function dumpHint(correlation) {
+  const args = correlation ? JSON.stringify(correlation.call.arguments) : '{"mode":"list","from":"[YYYYMMDDHHMMSS just before this call]","to":"[just after]"}';
+  const lead = correlation ? "The ICF error page carries only the exception short text \u2014 no dump id, no call stack, no source position." : "The ICF error page carries only the exception short text \u2014 no dump id, no call stack, no source position, and no server time.";
+  return `${lead} Any output written before the dump is lost. The ABAP session was destroyed and has been discarded. Read the full ST22 dump with abap_dumps ${args} \u2014 a window can hold several dumps, so treat each row as a candidate, not the answer. Where that tool is not registered the same feed is ${DUMPS_FEED_PATH}, reaching only the last 8 days.`;
+}
+var LIST_LINE_PREFIX = "LIST> ";
+var ERR_LINE_PREFIX = "ZMCP-ERR> ";
+var WIDTH_TRUNCATION_MARKER = "capture width and may be truncated";
+var CLASSRUN_PATH = "/sap/bc/adt/oo/classrun/";
+var BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_RUN_";
+var MAX_NAME = 30;
+var HASH_LEN = 6;
+var ABAP_NAME = /^[A-Za-z0-9_/]{1,40}$/;
+function assertPlainName(value, what) {
+  const v = value.trim();
+  if (!ABAP_NAME.test(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${value}" is not a valid ABAP object name.`,
+      { value },
+      "Only letters, digits, underscore and / (namespaces) are accepted \u2014 the name is embedded verbatim in generated ABAP source."
+    );
+  }
+  return v;
+}
+function bridgeClassName(report) {
+  const canon = assertPlainName(report, "Report name").toUpperCase();
+  const safe = canon.replace(/[^A-Z0-9_]/g, "_");
+  const budget = MAX_NAME - BRIDGE_CLASS_PREFIX.length;
+  if (safe.length <= budget && safe === canon) return BRIDGE_CLASS_PREFIX + safe;
+  const hash2 = createHash6("sha256").update(canon, "utf8").digest("hex").slice(0, HASH_LEN).toUpperCase();
+  const keep = safe.slice(0, budget - HASH_LEN - 1);
+  return `${BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
+}
+function bridgeClassSource(className, report, selectionRows = []) {
+  const cls = assertPlainName(className, "Class name").toLowerCase();
+  const rep = assertPlainName(report, "Report name").toLowerCase();
+  const seltabDecl = selectionRows.length > 0 ? `    DATA: lt_seltab TYPE STANDARD TABLE OF rsparams,
+          ls_seltab TYPE rsparams.
+` : "";
+  const seltabFill = selectionRows.length > 0 ? selectionRows.map(
+    (row2) => `    CLEAR ls_seltab.
+    ls_seltab-selname = ${abapLiteral(row2.selname)}.
+    ls_seltab-kind    = ${abapLiteral(row2.kind)}.
+    ls_seltab-sign    = ${abapLiteral(row2.sign)}.
+    ls_seltab-option  = ${abapLiteral(row2.option)}.
+    ls_seltab-low     = ${abapLiteral(row2.low)}.
+    ls_seltab-high    = ${abapLiteral(row2.high)}.
+    APPEND ls_seltab TO lt_seltab.
+`
+  ).join("") : "";
+  const submitStmt = selectionRows.length > 0 ? `SUBMIT ${rep} WITH SELECTION-TABLE lt_seltab AND RETURN EXPORTING LIST TO MEMORY.` : `SUBMIT ${rep} AND RETURN EXPORTING LIST TO MEMORY.`;
+  return `CLASS ${cls} DEFINITION
+  PUBLIC FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+CLASS ${cls} IMPLEMENTATION.
+
+  METHOD if_oo_adt_classrun~main.
+*   Generated by abapsmith. Runs ${rep.toUpperCase()} and streams its classic list
+*   back through classrun. Do not edit: this class is regenerated from
+*   src/adt/run.ts whenever its content hash changes.
+*   Capture width is 1023 chars (F5) \u2014 the ceiling for a classic ABAP list
+*   line, not a cap chosen here. LOOP below still discloses a residual cut.
+    TYPES: ty_txt_line TYPE c LENGTH 1023.
+    DATA: lt_list TYPE TABLE OF abaplist,
+          lt_txt  TYPE TABLE OF ty_txt_line.
+${seltabDecl}
+${seltabFill}    ${submitStmt}
+    IF sy-subrc <> 0.
+      out->write( |${ERR_LINE_PREFIX}SUBMIT ${rep.toUpperCase()} set sy-subrc = { sy-subrc }| ).
+    ENDIF.
+
+    CALL FUNCTION 'LIST_FROM_MEMORY'
+      TABLES
+        listobject = lt_list
+      EXCEPTIONS
+        not_found  = 1
+        OTHERS     = 2.
+    IF sy-subrc <> 0.
+      out->write( |${ERR_LINE_PREFIX}LIST_FROM_MEMORY sy-subrc = { sy-subrc } (1 = no list in ABAP memory)| ).
+      RETURN.
+    ENDIF.
+
+    CALL FUNCTION 'LIST_TO_ASCI'
+      EXPORTING
+        list_index         = -1
+      TABLES
+        listobject         = lt_list
+        listasci           = lt_txt
+      EXCEPTIONS
+        empty_list         = 1
+        list_index_invalid = 2
+        OTHERS             = 3.
+    IF sy-subrc <> 0.
+      out->write( |${ERR_LINE_PREFIX}LIST_TO_ASCI sy-subrc = { sy-subrc } (1 = empty list)| ).
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_txt INTO DATA(lv_line).
+      IF strlen( lv_line ) >= 1023.
+        out->write( |${ERR_LINE_PREFIX}list line hit the 1023-char ${WIDTH_TRUNCATION_MARKER}| ).
+      ENDIF.
+      out->write( |${LIST_LINE_PREFIX}{ lv_line }| ).
+    ENDLOOP.
+
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+}
+var isRuleLine = (line) => /^-{20,}$/.test(line.trim());
+var LIST_HEADER_DATE_AT_START = /^\s*\d{2}\.\d{2}\.\d{4}\b/;
+var LIST_HEADER_PAGE_NO = /\s\d+$/;
+var looksLikeListPageHeader = (line) => LIST_HEADER_DATE_AT_START.test(line) && LIST_HEADER_PAGE_NO.test(line);
+function stripListHeader(lines) {
+  const out = lines.map((l) => l.replace(/[ \t\r ]+$/, ""));
+  while (out.length > 0 && out[out.length - 1] === "") out.pop();
+  if (out.length >= 2 && out[0] !== "" && looksLikeListPageHeader(out[0]) && isRuleLine(out[1])) {
+    return out.slice(2);
+  }
+  return out;
+}
+function splitBridgeOutput(raw) {
+  const list5 = [];
+  const diagnostics = [];
+  let droppedLines = 0;
+  for (const line of raw.replace(/\r\n/g, "\n").split("\n")) {
+    if (line.startsWith(LIST_LINE_PREFIX)) {
+      list5.push(line.slice(LIST_LINE_PREFIX.length));
+    } else if (line.replace(/\s+$/, "") === LIST_LINE_PREFIX.trimEnd()) {
+      list5.push("");
+    } else if (line.startsWith(ERR_LINE_PREFIX)) {
+      diagnostics.push(line.trim());
+    } else {
+      droppedLines++;
+    }
+  }
+  return { list: list5, diagnostics, droppedLines };
+}
+function parseBracketFields(text3) {
+  const out = {};
+  const re = /(\w+)=\[(.*?)\](?=\s+\w+=\[|\s*$)/g;
+  let m;
+  while (m = re.exec(text3)) {
+    out[m[1]] = m[2];
+  }
+  return out;
+}
+function invalidateSession(conn) {
+  try {
+    conn.adt.httpClient.csrfToken = "fetch";
+  } catch {
+  }
+}
+var isResponseLike2 = (v) => typeof v === "object" && v !== null && typeof v.status === "number";
+function responseOf(e) {
+  const seen = /* @__PURE__ */ new Set();
+  const queue = [e];
+  while (queue.length) {
+    const node2 = queue.shift();
+    if (!node2 || typeof node2 !== "object" || seen.has(node2)) continue;
+    seen.add(node2);
+    const n = node2;
+    if (isResponseLike2(node2) && typeof n.body === "string") {
+      return {
+        status: n.status,
+        headers: n.headers ?? {},
+        body: n.body,
+        statusText: typeof n.statusText === "string" ? n.statusText : void 0
+      };
+    }
+    queue.push(n.response, n.parent, n.request);
+  }
+  return void 0;
+}
+function tidyShortText(text3) {
+  const normalised = text3.replace(/\(termination:[^)]*\)\s*$/i, "").replace(/^(?:error|exception|fehler)\s*:\s*/i, "").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
+  return truncateText(normalised, DUMP_SHORT_TEXT_MAX);
+}
+function translateRunFailure(conn, className, e) {
+  if (isAbapError(e)) return e;
+  const resp = responseOf(e);
+  const kind = classifySessionFailure(resp);
+  if (kind === "dump") {
+    invalidateSession(conn);
+    const parsed = parseDumpPage(resp.body);
+    const shortText = parsed.shortText ? tidyShortText(parsed.shortText) : "(the ICM error page carried no exception short text)";
+    const info = {
+      shortText,
+      ...parsed.serverTime ? { serverTime: parsed.serverTime } : {}
+    };
+    const correlation = buildDumpCorrelation(parsed.serverTime, conn.cfg.user);
+    return new AbapError(
+      "RUNTIME_DUMP",
+      `${className} short-dumped: ${shortText}`,
+      {
+        class: className,
+        ...info,
+        status: resp.status,
+        // Machine-readable so a v2 surface/orchestrator can act without
+        // regex-scraping the hint prose.
+        ...correlation ? { dumpCorrelation: correlation } : {}
+      },
+      dumpHint(correlation)
+    );
+  }
+  if (kind === "session-timeout") {
+    invalidateSession(conn);
+    return discloseMutationRisk(
+      new AbapError(
+        "SESSION_DEAD",
+        `The ABAP session was gone while running ${className} (HTTP ${resp.status}, "Session Timed Out").`,
+        { class: className, status: resp.status, kind },
+        "This is NOT an authentication failure and does not count against the logon-attempt budget. The session has been discarded; retry the call and a fresh one is established. If it recurs, something dumped just before this request."
+      )
+    );
+  }
+  const translated = translateAdtError(e, {
+    operation: "run class",
+    name: className,
+    uri: `${CLASSRUN_PATH}${className}`
+  });
+  return resp === void 0 && !(0, import_abap_adt_api7.isCsrfError)(e) ? discloseMutationRisk(translated) : translated;
+}
+var UNDEFINED_BODY_LITERAL = "undefined";
+var XML_OR_HTML_BODY_PREFIX = /^(<\?xml|<!DOCTYPE|<html)/i;
+var ADT_EXCEPTION_MARKER = /exc:exception|<exc:/i;
+function bogusBodyReason(raw, trimmed) {
+  if (raw === UNDEFINED_BODY_LITERAL) return 'the body is the literal string "undefined" (an absent HTTP body)';
+  if (ADT_EXCEPTION_MARKER.test(raw)) return "the body carries an ADT exception envelope (exc:exception)";
+  if (XML_OR_HTML_BODY_PREFIX.test(trimmed)) return "the body is XML/HTML markup, not console output";
+  return void 0;
+}
+function assertPlausibleRunOutput(className, raw, bodyBytes) {
+  const reason = bogusBodyReason(raw, raw.trim());
+  if (!reason) return;
+  throw new AbapError(
+    "ADT_ERROR",
+    `${className} returned HTTP 200, but ${reason} \u2014 the response is not usable as program output.`,
+    { class: className, bodyBytes },
+    "classrun returns 200 for both genuine output and an ADT error envelope / ICF error page \u2014 the status code alone proves nothing. Treat this the same as a thrown ADT error rather than trusting the body."
+  );
+}
+async function runClass(conn, className) {
+  const name = assertPlainName(className, "Class name").toUpperCase();
+  if (name.length > MAX_NAME) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Class name ${name} is longer than ${MAX_NAME} characters.`,
+      { class: name }
+    );
+  }
+  const started = Date.now();
+  const raw = await conn.withFreshSession(async (client) => {
+    try {
+      return await client.runClass(name);
+    } catch (e) {
+      throw translateRunFailure(conn, name, e);
+    }
+  });
+  const bodyBytes = Buffer.byteLength(raw, "utf8");
+  assertPlausibleRunOutput(name, raw, bodyBytes);
+  const output = raw.replace(/\r\n/g, "\n").replace(/\n+$/, "");
+  return {
+    mode: "class",
+    object: name,
+    output,
+    lines: output === "" ? 0 : output.split("\n").length,
+    durationMs: Date.now() - started,
+    droppedLines: 0,
+    bodyBytes,
+    // No visibility into ABAP-side width truncation for an arbitrary class
+    // (only the report bridge, F5, can detect that) — so `true`.
+    outputComplete: true
+  };
+}
+function verifyBridgeActivation(activation, className, what, details) {
+  const positiveEvidence = activation.activated === true && activation.errors === 0 && activation.inactive.length === 0;
+  if (!positiveEvidence) {
+    throw new AbapError(
+      "CHECK_FAILED",
+      `Activation of the generated ${what} ${className} could not be positively verified before executing it.`,
+      {
+        bridgeClass: className,
+        ...details,
+        activated: activation.activated,
+        errors: activation.errors,
+        inactive: activation.inactive
+      },
+      "Never executed: activation reported something short of unambiguous success (not `activated === true`, or a non-empty inactive-objects list). Check the bridge class in ADT before retrying."
+    );
+  }
+  return true;
+}
+function fluidApiDisabled(reason, conn, opts, packageName) {
+  const who = opts.caller ? `${opts.caller.tool} ${opts.caller.action}` : opts.className;
+  const details = {
+    reason: reason.kind,
+    field: reason.field,
+    flag: "ABAP_FLUID_API",
+    flagEnabled: conn.cfg.fluidApi !== false,
+    package: packageName,
+    ...opts.caller ? { tool: opts.caller.tool, action: opts.caller.action } : {},
+    objects: [opts.className]
+  };
+  if (reason.kind === "flag") {
+    return new AbapError(
+      "FLUID_API_DISABLED",
+      `${who} needs abapsmith's fluid API \u2014 the generated ABAP class ${opts.className} that abapsmith installs into ${packageName} \u2014 but the fluid API is disabled by ABAP_FLUID_API=false. Nothing was deployed and nothing was changed.`,
+      details,
+      "Set ABAP_FLUID_API=true, or unset it (it defaults to on), to allow it. The ordinary ceilings still apply on top: a productive or inconclusive system, ABAP_MODE=read, or a read-only session refuses it regardless of this flag."
+    );
+  }
+  return new AbapError(
+    "FLUID_API_DISABLED",
+    `${who} needs abapsmith's fluid API, which installs ABAP objects into ${packageName}. This session is read-only (${reason.field}), so no fluid operation is available. Nothing was deployed and nothing was changed.`,
+    details,
+    "The fluid API installs and runs ABAP; there is no read-only subset of it. Run with ABAP_MODE=edit against a system abapsmith can prove is non-productive."
+  );
+}
+function strandedLegacyPackage(e, className, packageName) {
+  if (packageName !== FLUID_PACKAGE) return void 0;
+  if (!isAbapError(e) || e.code !== "BAD_INPUT") return void 0;
+  if (!isReservedFluidName(className)) return void 0;
+  const details = e.details;
+  const server = details["serverPackage"];
+  if (typeof server !== "string") return void 0;
+  if (details["requestedPackage"] !== FLUID_PACKAGE) return void 0;
+  return LEGACY_FLUID_PACKAGES.includes(server.toUpperCase()) ? server : void 0;
+}
+async function authorizeBridgeTarget(conn, gate, opts, packageName) {
+  const spec = {
+    type: "CLAS/OC",
+    name: opts.className,
+    packageName,
+    description: opts.description
+  };
+  try {
+    return await authorizeMutation(conn, gate, "write", spec);
+  } catch (e) {
+    const strandedIn = strandedLegacyPackage(e, opts.className, packageName);
+    if (strandedIn === void 0) throw e;
+    const authorizedDelete = await authorizeMutation(conn, gate, "delete", {
+      type: "CLAS/OC",
+      name: opts.className
+    });
+    const del3 = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
+    if (del3.deleted === false) {
+      throw new AbapError(
+        "FLUID_OBJECT_CONFLICT",
+        `CLAS/OC ${opts.className} could not be relocated out of ${strandedIn}: the delete was sent, but a read-back confirmed the object is still there.`,
+        { name: opts.className, type: "CLAS/OC", foundIn: strandedIn, requestedPackage: packageName },
+        "Delete it manually, or find out why the delete did not take effect, before retrying."
+      );
+    }
+    try {
+      return await authorizeMutation(conn, gate, "write", spec);
+    } catch (e2) {
+      if (!isSessionDeadFailure(e2)) throw e2;
+      await conn.connect();
+      return await authorizeMutation(conn, gate, "write", spec);
+    }
+  }
+}
+async function deployBridge(conn, gate, opts) {
+  const { className, source } = opts;
+  const packageName = opts.packageName ?? FLUID_PACKAGE;
+  const disabled = fluidDisabledReason(conn.cfg, gate);
+  if (disabled) throw fluidApiDisabled(disabled, conn, opts, packageName);
+  const authorized = await authorizeBridgeTarget(conn, gate, opts, packageName);
+  if (packageName === FLUID_PACKAGE && !authorized.target.exists) {
+    await ensureFluidPackage(conn, gate);
+  }
+  const write = await writeObject(conn, authorized, {
+    source,
+    onBeforeImage: NO_JOURNAL
+  });
+  const bridgeRefreshed = Boolean(write.created || write.changed);
+  const alreadyActive = !write.created && !write.changed && write.target.activation === "active-is-current";
+  let stage = "activate-gate";
+  try {
+    gate.assert("activate", {
+      name: authorized.target.name,
+      packageName: authorized.target.packageName,
+      type: authorized.target.type
+    });
+    if (alreadyActive) {
+      return {
+        className,
+        target: authorized.target,
+        write,
+        bridgeRefreshed,
+        activationSource: "already-active",
+        activationVerified: true
+      };
+    }
+    stage = "activation";
+    const activation = await activateObject(conn, write.target);
+    assertNoErrors(activation, {
+      what: opts.what,
+      name: className,
+      source,
+      ...opts.hint === void 0 ? {} : { hint: opts.hint }
+    });
+    stage = "verify";
+    const activationVerified = opts.verify(activation);
+    return {
+      className,
+      target: authorized.target,
+      write,
+      bridgeRefreshed,
+      activation,
+      activationSource: "post",
+      activationVerified
+    };
+  } catch (e) {
+    throw discloseBridgeResidue(e, className, authorized.target.packageName, stage);
+  }
+}
+function discloseMutationRisk(err) {
+  const disclosure = "The request may already have executed and committed on the server before this response was lost \u2014 do not blindly retry a mutating bridge. Re-read the object first to see whether it changed.";
+  const disclosed = new AbapError(
+    err.code,
+    err.message,
+    { ...err.details, mayHaveExecuted: true },
+    err.hint ? `${err.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = err.stack;
+  disclosed.cause = err.cause;
+  return disclosed;
+}
+async function executeBridge(conn, gate, deployed) {
+  const executeAuthorization = gate.authorize("execute", {
+    name: deployed.target.name,
+    packageName: deployed.target.packageName,
+    type: deployed.target.type
+  });
+  return runClass(conn, executeAuthorization.target.name);
+}
+async function runReport(conn, reportName, gate, parameters = []) {
+  const started = Date.now();
+  const report = assertPlainName(reportName, "Report name").toUpperCase();
+  const rows = marshalSelectionTable(parameters);
+  const className = bridgeClassName(report);
+  const source = bridgeClassSource(className, report, rows);
+  const deployed = await deployBridge(conn, gate, {
+    className,
+    source,
+    description: `abapsmith run bridge for report ${report}`,
+    caller: { tool: "abap_run", action: "report" },
+    what: "Activation of the generated run bridge",
+    hint: `The bridge SUBMITs ${report} by name, so the usual cause is that ${report} does not exist, is not a report, or is itself inactive.` + (rows.length > 0 ? ` It also populates a selection table with ${rows.length} row(s) \u2014 a value that does not fit the target field can dump here even when the report itself is fine.` : ""),
+    verify: (activation) => verifyBridgeActivation(activation, className, "run bridge", { report })
+  });
+  const { bridgeRefreshed, activationVerified: bridgeActivationVerified } = deployed;
+  const run2 = await executeBridge(conn, gate, deployed);
+  const { list: list5, diagnostics, droppedLines: bridgeDroppedLines } = splitBridgeOutput(run2.output);
+  const beforeHeaderStrip = list5.length;
+  const stripped = stripListHeader(list5);
+  const headerDroppedLines = beforeHeaderStrip - stripped.length;
+  const output = stripped.join("\n");
+  const outputComplete = !diagnostics.some((d) => d.includes(WIDTH_TRUNCATION_MARKER));
+  return {
+    mode: "report",
+    object: report,
+    output,
+    lines: stripped.length,
+    // F4: the full write → activate → run round trip, not just the classrun leg.
+    durationMs: Date.now() - started,
+    droppedLines: bridgeDroppedLines + headerDroppedLines,
+    bodyBytes: run2.bodyBytes,
+    outputComplete,
+    bridgeClass: className,
+    bridgeRefreshed,
+    bridgeActivationVerified,
+    ...diagnostics.length ? { diagnostics } : {}
+  };
+}
+
+// src/version.ts
+import { readFileSync as readFileSync3 } from "node:fs";
+function readPackageVersion(raw) {
+  if (typeof raw !== "object" || raw === null || !("version" in raw) || typeof raw.version !== "string") {
+    throw new Error(
+      'src/version.ts: package.json has no string "version" field'
+    );
+  }
+  return raw.version;
+}
+var packageJson = JSON.parse(
+  readFileSync3(new URL("../package.json", import.meta.url), "utf8")
+);
+var SERVER_VERSION = readPackageVersion(packageJson);
+
+// src/adt/fluid/registry.ts
+import * as path6 from "node:path";
+import { readFileSync as readFileSync4 } from "node:fs";
+var REGISTRY_VERSION = 1;
+var REGISTRY_FILE = "registry.json";
+function fluidRegistryPath(cfg) {
+  return path6.join(path6.resolve(cfg.stateDir), "fluid", safeSegment(cfg.sid), REGISTRY_FILE);
+}
+function coerceEntry(value) {
+  if (typeof value !== "object" || value === null) return void 0;
+  const e = value;
+  if (typeof e.toolId !== "string" || typeof e.contract !== "string" || typeof e.version !== "string" || typeof e.deployedAt !== "string" || !Array.isArray(e.objects) || !e.objects.every((o) => typeof o === "string")) {
+    return void 0;
+  }
+  return {
+    toolId: e.toolId,
+    contract: e.contract,
+    version: e.version,
+    objects: [...e.objects],
+    deployedAt: e.deployedAt
+  };
+}
+function coerceFile(parsed) {
+  if (typeof parsed !== "object" || parsed === null) return void 0;
+  const raw = parsed;
+  if (raw.version !== REGISTRY_VERSION) return void 0;
+  if (typeof raw.systems !== "object" || raw.systems === null) return void 0;
+  const systems = {};
+  for (const [sysKey, toolsRaw] of Object.entries(raw.systems)) {
+    if (typeof toolsRaw !== "object" || toolsRaw === null) continue;
+    const tools = {};
+    for (const [toolId, entryRaw] of Object.entries(toolsRaw)) {
+      const entry = coerceEntry(entryRaw);
+      if (entry) tools[toolId] = entry;
+    }
+    systems[sysKey] = tools;
+  }
+  return { version: REGISTRY_VERSION, systems };
+}
+function readRegistryFile(registryPath) {
+  try {
+    try {
+      hardenFileModeSync(registryPath);
+    } catch {
+    }
+    return coerceFile(JSON.parse(readFileSync4(registryPath, "utf8")));
+  } catch {
+    return void 0;
+  }
+}
+async function mutateRegistryFile(registryPath, mutate) {
+  await withFileLock(registryPath + ".lock", async () => {
+    const current = readRegistryFile(registryPath) ?? { version: REGISTRY_VERSION, systems: {} };
+    mutate(current);
+    atomicWriteFileSync(registryPath, JSON.stringify(current, null, 2) + "\n");
+  });
+}
+async function readFluidRegistry(cfg, systemKey2) {
+  const file2 = readRegistryFile(fluidRegistryPath(cfg));
+  const tools = file2?.systems[systemKey2];
+  if (!tools) return /* @__PURE__ */ new Map();
+  return new Map(Object.entries(tools));
+}
+async function recordManifest(cfg, systemKey2, entry) {
+  try {
+    await mutateRegistryFile(fluidRegistryPath(cfg), (file2) => {
+      const tools = file2.systems[systemKey2] ?? {};
+      tools[entry.toolId] = entry;
+      file2.systems[systemKey2] = tools;
+    });
+  } catch {
+  }
+}
+async function forgetManifest(cfg, systemKey2, toolId) {
+  try {
+    await mutateRegistryFile(fluidRegistryPath(cfg), (file2) => {
+      const tools = file2.systems[systemKey2];
+      if (!tools || tools[toolId] === void 0) return;
+      delete tools[toolId];
+    });
+  } catch {
+  }
+}
+
+// src/adt/fluid/ensure.ts
+var redeployed = /* @__PURE__ */ new Set();
+var DEPLOYED_VERSION_MARKER_RE = /^\* abapsmith fluid v(\S+)\r?\n/;
+function withDeployedVersionMarker(source) {
+  return `* abapsmith fluid v${SERVER_VERSION}
+${source}`;
+}
+function readDeployedVersion(installedSource) {
+  return DEPLOYED_VERSION_MARKER_RE.exec(installedSource)?.[1];
+}
+function stripDeployedVersionMarker(installedSource) {
+  return installedSource.replace(DEPLOYED_VERSION_MARKER_RE, "");
+}
+function isNewerVersion(a, b) {
+  const pa = /^(\d+)\.(\d+)\.(\d+)/.exec(a.trim());
+  const pb = /^(\d+)\.(\d+)\.(\d+)/.exec(b.trim());
+  if (!pa || !pb) return void 0;
+  for (let i = 1; i <= 3; i++) {
+    const na = Number(pa[i]);
+    const nb = Number(pb[i]);
+    if (na !== nb) return na > nb;
+  }
+  return false;
+}
+async function classifyOne(conn, obj, expectedSource) {
+  const resolved = await resolveWriteTarget(conn, { type: obj.type, name: obj.name }, "write");
+  if (!resolved.exists) return { resolved, state: "absent" };
+  const pkg = resolved.packageName;
+  const pkgNormalized = pkg.trim().toUpperCase();
+  if (pkgNormalized !== FLUID_PACKAGE) {
+    if (LEGACY_FLUID_PACKAGES.includes(pkgNormalized) && isReservedFluidName(obj.name)) {
+      return { resolved, state: "legacy", foundIn: pkg };
+    }
+    return { resolved, state: "foreign", foundIn: pkg };
+  }
+  const read = await readCurrentSourceResult(conn, resolved);
+  if (!read.ok) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Could not read the current source of ${obj.name} to check it against the manifest: ` + describeUnknownError(read.error),
+      { name: obj.name, type: obj.type },
+      "Nothing was written or activated. Retry once the object is readable again."
+    );
+  }
+  const installed = read.source ?? "";
+  const installedVersion = readDeployedVersion(installed);
+  if (installedVersion !== void 0 && isNewerVersion(installedVersion, SERVER_VERSION) === true) {
+    return { resolved, state: "newer", installedVersion };
+  }
+  if (canonicalEtag(stripDeployedVersionMarker(installed)) !== canonicalEtag(expectedSource)) {
+    return { resolved, state: "stale" };
+  }
+  if (resolved.activation !== "active-is-current") {
+    return { resolved, state: "inactive" };
+  }
+  const check4 = await checkSource(conn, resolved, withDeployedVersionMarker(expectedSource));
+  return { resolved, state: check4.ok ? "present" : "broken" };
+}
+function objectStatus(obj, c) {
+  return {
+    name: obj.name,
+    type: obj.type,
+    state: c.state,
+    ...c.foundIn !== void 0 ? { foundIn: c.foundIn } : {}
+  };
+}
+async function classifyFluidTool(conn, cfg, tool) {
+  const disabled = fluidDisabledReason(cfg);
+  if (disabled) throw fluidDisabledError(disabled, cfg, tool);
+  const statuses = [];
+  for (const obj of tool.manifest.objects) {
+    const expectedSource = requireSource(tool, obj);
+    const c = await classifyOne(conn, obj, expectedSource);
+    statuses.push(objectStatus(obj, c));
+  }
+  return statuses;
+}
+function requireSource(tool, obj) {
+  const source = tool.sources.get(obj.name);
+  if (source === void 0) {
+    throw new AbapError(
+      "FLUID_MANIFEST_INVALID",
+      `${tool.manifest.id}: no ABAP source was loaded for object ${obj.name}.`,
+      { tool: tool.manifest.id, object: obj.name },
+      "This is a loader defect, not something the caller did \u2014 every manifest object must have a resolved source."
+    );
+  }
+  return source;
+}
+function fluidDisabledError(reason, cfg, tool, ctx) {
+  const flagEnabled = cfg.fluidApi !== false;
+  const details = {
+    reason: reason.kind,
+    ...reason.kind === "flag" ? {} : { field: reason.field },
+    flag: "ABAP_FLUID_API",
+    flagEnabled,
+    package: FLUID_PACKAGE,
+    tool: ctx?.tool ?? tool.manifest.id,
+    ...ctx ? { action: ctx.action, op: ctx.op } : {},
+    objects: tool.manifest.objects.map((o) => o.name)
+  };
+  const who = ctx ? `${ctx.tool}.${ctx.action}` : tool.manifest.id;
+  const message = reason.kind === "flag" ? `The fluid API is disabled (ABAP_FLUID_API=false). ${who} was not run \u2014 nothing was deployed, checked, or changed.` : `${who} needs the fluid API, and this connection is read-only (${reason.field}). There is no read-only subset of the fluid API \u2014 even a check can need to deploy or repair the ABAP side first, so nothing ran and nothing was changed.`;
+  const hint = reason.kind === "flag" ? "Set ABAP_FLUID_API=true (or leave it unset \u2014 it defaults to enabled) to use the fluid API. The ordinary write ceilings (ABAP_ALLOW_WRITE, ABAP_MODE, the productive-system lockout, ABAP_ALLOW_PACKAGES) still apply on top once it is." : 'Connect with write access (ABAP_ALLOW_WRITE=true, ABAP_MODE not "read", and off a productive system) to use any part of the fluid API.';
+  return new AbapError("FLUID_API_DISABLED", message, details, hint);
+}
+function foreignConflictError(obj, foundIn, tool) {
+  return new AbapError(
+    "FLUID_OBJECT_CONFLICT",
+    `${obj.type} ${obj.name} already exists in ${foundIn}, a package abapsmith does not own. Nothing was changed.`,
+    { name: obj.name, type: obj.type, foundIn, tool: tool.manifest.id },
+    `abapsmith will not delete or overwrite an object it does not own. Rename ${obj.name} in the manifest, or move/delete the existing object out of ${foundIn} yourself.`
+  );
+}
+function newerVersionConflictError(obj, tool, installedVersion) {
+  return new AbapError(
+    "FLUID_OBJECT_CONFLICT",
+    `${obj.type} ${obj.name} was deployed by abapsmith v${installedVersion}, newer than this abapsmith (v${SERVER_VERSION}). Nothing was changed.`,
+    { name: obj.name, type: obj.type, installed_version: installedVersion, our_version: SERVER_VERSION, tool: tool.manifest.id },
+    "upgrade abapsmith or run abap_fluid op=remove"
+  );
+}
+function redeployExhaustedError(obj, tool, redeployedThisCall) {
+  return new AbapError(
+    "FLUID_OBJECT_CONFLICT",
+    `${obj.type} ${obj.name} still does not match the manifest after ${redeployedThisCall ? "a redeploy" : "being written and activated"} \u2014 something else is writing to it concurrently, or the server is silently rejecting the content.`,
+    { name: obj.name, type: obj.type, tool: tool.manifest.id },
+    redeployedThisCall ? "This tool has already used its one redeploy for this process. Investigate before retrying." : "This manifest's one redeploy for this process is already spent, so none was attempted here. Investigate before retrying."
+  );
+}
+async function writeAndActivateOnce(conn, gate, obj, expectedSource, reviveOnDeadSession = false) {
+  const spec = {
+    type: obj.type,
+    name: obj.name,
+    packageName: FLUID_PACKAGE,
+    description: obj.description
+  };
+  const authorized = reviveOnDeadSession ? await (async () => {
+    try {
+      return await authorizeMutation(conn, gate, "write", spec);
+    } catch (e) {
+      if (!isSessionDeadFailure(e)) throw e;
+      await conn.connect();
+      return await authorizeMutation(conn, gate, "write", spec);
+    }
+  })() : await authorizeMutation(conn, gate, "write", spec);
+  const write = await writeObject(conn, authorized, { source: expectedSource, onBeforeImage: NO_JOURNAL });
+  const alreadyActive = !write.created && !write.changed && write.target.activation === "active-is-current";
+  let stage = "activate-gate";
+  try {
+    gate.assert("activate", {
+      name: write.target.name,
+      packageName: write.target.packageName,
+      type: write.target.type
+    });
+    if (alreadyActive) return write;
+    stage = "activation";
+    const activation = await activateObject(conn, write.target);
+    assertNoErrors(activation, {
+      what: `Deploy fluid object ${obj.name}`,
+      name: obj.name,
+      source: expectedSource
+    });
+    return write;
+  } catch (e) {
+    throw discloseBridgeResidue(e, obj.name, FLUID_PACKAGE, stage);
+  }
+}
+async function contentConfirmed(conn, target, expectedSource) {
+  const fresh = { ...target, exists: true };
+  const read = await readCurrentSourceResult(conn, fresh);
+  if (!read.ok) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `${target.name} was written and activated, but its source could not be read back to confirm the deploy: ${describeUnknownError(read.error)}`,
+      { name: target.name, type: target.type },
+      "The write and activation already happened; only the confirmation read failed. Retry the call."
+    );
+  }
+  return read.source !== void 0 && canonicalEtag(read.source) === canonicalEtag(expectedSource);
+}
+async function deployAndVerify(conn, gate, ledgerKey, tool, obj, expectedSource, reviveOnDeadSession = false) {
+  let write = await writeAndActivateOnce(conn, gate, obj, expectedSource, reviveOnDeadSession);
+  try {
+    if (await contentConfirmed(conn, write.target, expectedSource)) return write;
+    if (redeployed.has(ledgerKey)) {
+      throw redeployExhaustedError(obj, tool, false);
+    }
+    redeployed.add(ledgerKey);
+  } catch (e) {
+    throw discloseBridgeResidue(e, obj.name, FLUID_PACKAGE, "content-verify");
+  }
+  write = await writeAndActivateOnce(conn, gate, obj, expectedSource);
+  try {
+    if (await contentConfirmed(conn, write.target, expectedSource)) return write;
+    throw redeployExhaustedError(obj, tool, true);
+  } catch (e) {
+    throw discloseBridgeResidue(e, obj.name, FLUID_PACKAGE, "content-verify");
+  }
+}
+function isCreateConflict(e) {
+  return isAbapError(e) && e.details["adtExceptionType"] === "ExceptionResourceAlreadyExists";
+}
+async function actOnClassification(conn, gate, ledgerKey, tool, obj, expectedSource, c, allowCreateConflictRetry) {
+  const markedSource = withDeployedVersionMarker(expectedSource);
+  switch (c.state) {
+    case "present":
+      return { status: objectStatus(obj, c), wrote: false };
+    case "newer":
+      throw newerVersionConflictError(obj, tool, c.installedVersion ?? "unknown");
+    case "foreign":
+      throw foreignConflictError(obj, c.foundIn ?? "", tool);
+    case "absent":
+    case "stale": {
+      try {
+        await deployAndVerify(conn, gate, ledgerKey, tool, obj, markedSource);
+      } catch (e) {
+        if (c.state === "absent" && allowCreateConflictRetry && isCreateConflict(e)) {
+          const reclassified = await classifyOne(conn, obj, expectedSource);
+          if (reclassified.state !== "absent") {
+            return actOnClassification(conn, gate, ledgerKey, tool, obj, expectedSource, reclassified, false);
+          }
+        }
+        throw e;
+      }
+      return { status: { name: obj.name, type: obj.type, state: "present" }, wrote: true };
+    }
+    case "legacy": {
+      const authorizedDelete = await authorizeMutation(conn, gate, "delete", {
+        type: obj.type,
+        name: obj.name
+      });
+      const del3 = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
+      if (del3.deleted === false) {
+        throw new AbapError(
+          "FLUID_OBJECT_CONFLICT",
+          `${obj.type} ${obj.name} could not be relocated out of ${c.foundIn ?? "its legacy package"}: the delete was sent, but a read-back confirmed the object is still there.`,
+          { name: obj.name, type: obj.type, foundIn: c.foundIn, tool: tool.manifest.id },
+          "Delete it manually, or find out why the delete did not take effect, before retrying."
+        );
+      }
+      await deployAndVerify(conn, gate, ledgerKey, tool, obj, markedSource, true);
+      return { status: { name: obj.name, type: obj.type, state: "present" }, wrote: true };
+    }
+    case "inactive": {
+      const authorized = await authorizeMutation(conn, gate, "activate", {
+        type: obj.type,
+        name: obj.name
+      });
+      const activation = await activateObject(conn, authorized.target);
+      assertNoErrors(activation, {
+        what: `Activate fluid object ${obj.name}`,
+        name: obj.name,
+        source: markedSource
+      });
+      return { status: { name: obj.name, type: obj.type, state: "present" }, wrote: false };
+    }
+    case "broken": {
+      const authorizedDelete = await authorizeMutation(conn, gate, "delete", {
+        type: obj.type,
+        name: obj.name
+      });
+      const del3 = await deleteObject(conn, authorizedDelete, { onBeforeImage: NO_JOURNAL });
+      if (del3.deleted === false) {
+        throw new AbapError(
+          "FLUID_OBJECT_CONFLICT",
+          `${obj.type} ${obj.name} could not be repaired: the delete was sent, but a read-back confirmed the object is still there.`,
+          { name: obj.name, type: obj.type, tool: tool.manifest.id },
+          "Delete it manually, or find out why the delete did not take effect, before retrying."
+        );
+      }
+      const write = await deployAndVerify(conn, gate, ledgerKey, tool, obj, markedSource, true);
+      const recheck = await checkSource(conn, write.target, markedSource);
+      return {
+        status: { name: obj.name, type: obj.type, state: recheck.ok ? "present" : "broken" },
+        wrote: true
+      };
+    }
+  }
+}
+async function ensureOneObject(conn, gate, ledgerKey, tool, obj, expectedSource) {
+  const c = await classifyOne(conn, obj, expectedSource);
+  return actOnClassification(conn, gate, ledgerKey, tool, obj, expectedSource, c, true);
+}
+async function ensureFluidTool(conn, gate, cfg, tool, ctx) {
+  const disabled = fluidDisabledReason(cfg, gate);
+  if (disabled) throw fluidDisabledError(disabled, cfg, tool, ctx);
+  const sysKey = systemKey(conn.cfg);
+  const registry2 = await readFluidRegistry(cfg, sysKey);
+  const cached2 = registry2.get(tool.manifest.id);
+  if (cached2 && cached2.contract === tool.manifest.contract && cached2.version === tool.version) {
+    return {
+      toolId: tool.manifest.id,
+      version: tool.version,
+      deployed: false,
+      objects: tool.manifest.objects.map((o) => ({ name: o.name, type: o.type, state: "present" }))
+    };
+  }
+  await ensureFluidPackage(conn, gate);
+  const ledgerKey = `${sysKey}:${tool.manifest.id}`;
+  const statuses = [];
+  let deployed = false;
+  for (const obj of tool.manifest.objects) {
+    const expectedSource = requireSource(tool, obj);
+    const { status, wrote } = await ensureOneObject(conn, gate, ledgerKey, tool, obj, expectedSource);
+    statuses.push(status);
+    deployed = deployed || wrote;
+  }
+  if (statuses.every((s) => s.state === "present")) {
+    await recordManifest(cfg, sysKey, {
+      toolId: tool.manifest.id,
+      contract: tool.manifest.contract,
+      version: tool.version,
+      objects: tool.manifest.objects.map((o) => o.name),
+      deployedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+  return { toolId: tool.manifest.id, version: tool.version, deployed, objects: statuses };
+}
+async function ensureFluidRuntimeFor(conn, gate, cfg, tool, ctx) {
+  if (tool.origin !== "plugin") return;
+  if (tool.manifest.objects.some((o) => o.name === FLUID_RUNTIME_CLASS)) return;
+  const runtimeCtx = ctx ?? {
+    tool: tool.manifest.id,
+    action: "ensure-runtime",
+    op: "run"
+  };
+  await ensureFluidTool(conn, gate, cfg, fluidRuntimeTool, runtimeCtx);
+}
+async function probeFluidObjectsExist(conn, tool) {
+  const results = [];
+  for (const obj of tool.manifest.objects) {
+    const resolved = await resolveWriteTarget(conn, { type: obj.type, name: obj.name }, "write");
+    results.push({ name: obj.name, type: obj.type, exists: resolved.exists });
+  }
+  return results;
+}
+async function anyFluidObjectMissing(conn, tool) {
+  const presence = await probeFluidObjectsExist(conn, tool);
+  return presence.some((p) => !p.exists);
+}
+async function recoverMissingFluidObject(conn, gate, cfg, tool, ctx) {
+  const sysKey = systemKey(conn.cfg);
+  await forgetManifest(cfg, sysKey, tool.manifest.id);
+  return ensureFluidTool(conn, gate, cfg, tool, ctx);
+}
+
+// src/adt/fluid/protocol.ts
+var FLUID_FRAME_PREFIX = "ZMCP-H>";
+var FRAME_NAMES = /* @__PURE__ */ new Set(["BEGIN", "OUT", "OUTC", "OUTE", "ERR", "END"]);
+var ERR_KINDS = /* @__PURE__ */ new Set(["subrc", "exception", "message"]);
+var LINE_EXCERPT_MAX = 200;
+function protocolError(message, lineNumber, lineText) {
+  const excerpt = truncateText(lineText, LINE_EXCERPT_MAX);
+  return new AbapError(
+    "FLUID_PROTOCOL_ERROR",
+    `${message} (line ${lineNumber}: "${excerpt}")`,
+    { line: lineNumber, text: excerpt }
+  );
+}
+function isPlainObject5(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function parseJsonPayload(payload, what, lineNumber, lineText) {
+  try {
+    return JSON.parse(payload);
+  } catch (e) {
+    throw protocolError(
+      `${what} payload is not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
+      lineNumber,
+      lineText
+    );
+  }
+}
+function parseBegin(payload, lineNumber, lineText) {
+  const parsed = parseJsonPayload(payload, "BEGIN", lineNumber, lineText);
+  if (!isPlainObject5(parsed)) {
+    throw protocolError("BEGIN payload is not a JSON object", lineNumber, lineText);
+  }
+  const bad = [];
+  for (const field of ["id", "ver", "action", "contract"]) {
+    if (typeof parsed[field] !== "string") bad.push(field);
+  }
+  if (bad.length > 0) {
+    throw protocolError(
+      `BEGIN payload is missing or has a non-string value for: ${bad.join(", ")}`,
+      lineNumber,
+      lineText
+    );
+  }
+  return {
+    id: parsed["id"],
+    ver: parsed["ver"],
+    action: parsed["action"],
+    contract: parsed["contract"]
+  };
+}
+function parseEnd(payload, lineNumber, lineText) {
+  const parsed = parseJsonPayload(payload, "END", lineNumber, lineText);
+  if (!isPlainObject5(parsed)) {
+    throw protocolError("END payload is not a JSON object", lineNumber, lineText);
+  }
+  const bad = [];
+  for (const field of ["rc", "outBytes", "ms"]) {
+    const v = parsed[field];
+    if (typeof v !== "number" || !Number.isFinite(v)) bad.push(field);
+  }
+  if (typeof parsed["truncated"] !== "boolean") bad.push("truncated");
+  if (bad.length > 0) {
+    throw protocolError(`END payload has an invalid value for: ${bad.join(", ")}`, lineNumber, lineText);
+  }
+  return {
+    rc: parsed["rc"],
+    outBytes: parsed["outBytes"],
+    truncated: parsed["truncated"],
+    ms: parsed["ms"]
+  };
+}
+function parseErr(payload, lineNumber, lineText) {
+  const parsed = parseJsonPayload(payload, "ERR", lineNumber, lineText);
+  if (!isPlainObject5(parsed)) {
+    throw protocolError("ERR payload is not a JSON object", lineNumber, lineText);
+  }
+  const kind = parsed["kind"];
+  if (typeof kind !== "string" || !ERR_KINDS.has(kind)) {
+    throw protocolError(
+      `ERR payload has an invalid "kind" (must be "subrc", "exception", or "message")`,
+      lineNumber,
+      lineText
+    );
+  }
+  if (typeof parsed["step"] !== "string") {
+    throw protocolError(`ERR payload's "step" field must be a string`, lineNumber, lineText);
+  }
+  if (typeof parsed["text"] !== "string") {
+    throw protocolError(`ERR payload's "text" field must be a string`, lineNumber, lineText);
+  }
+  if (parsed["subrc"] !== void 0 && typeof parsed["subrc"] !== "number") {
+    throw protocolError(`ERR payload's "subrc" field must be a number`, lineNumber, lineText);
+  }
+  if (parsed["msgid"] !== void 0 && typeof parsed["msgid"] !== "string") {
+    throw protocolError(`ERR payload's "msgid" field must be a string`, lineNumber, lineText);
+  }
+  if (parsed["msgno"] !== void 0 && typeof parsed["msgno"] !== "number") {
+    throw protocolError(`ERR payload's "msgno" field must be a number`, lineNumber, lineText);
+  }
+  const msgv = parsed["msgv"];
+  if (msgv !== void 0 && (!Array.isArray(msgv) || !msgv.every((x) => typeof x === "string"))) {
+    throw protocolError(`ERR payload's "msgv" field must be an array of strings`, lineNumber, lineText);
+  }
+  return {
+    kind,
+    step: parsed["step"],
+    text: parsed["text"],
+    ...parsed["subrc"] !== void 0 ? { subrc: parsed["subrc"] } : {},
+    ...parsed["msgid"] !== void 0 ? { msgid: parsed["msgid"] } : {},
+    ...parsed["msgno"] !== void 0 ? { msgno: parsed["msgno"] } : {},
+    ...msgv !== void 0 ? { msgv } : {}
+  };
+}
+function splitFrame(line, lineNumber) {
+  const rest = line.slice(FLUID_FRAME_PREFIX.length);
+  const spaceIdx = rest.indexOf(" ");
+  if (spaceIdx === -1) {
+    return { name: rest, payload: "", lineNumber, lineText: line };
+  }
+  return { name: rest.slice(0, spaceIdx), payload: rest.slice(spaceIdx + 1), lineNumber, lineText: line };
+}
+function hasErrFrame(rawLines) {
+  for (const raw of rawLines) {
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    if (!line.startsWith(FLUID_FRAME_PREFIX)) continue;
+    if (splitFrame(line, 0).name === "ERR") return true;
+  }
+  return false;
+}
+function parseFluidConsole(consoleText) {
+  const rawLines = consoleText.split("\n");
+  const hasErr = hasErrFrame(rawLines);
+  let begin;
+  let end;
+  const values = [];
+  const errors = [];
+  const stray = [];
+  const dropped = [];
+  let openFragments;
+  let openAt;
+  for (let i = 0; i < rawLines.length; i++) {
+    const raw = rawLines[i] ?? "";
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    const lineNumber = i + 1;
+    if (!line.startsWith(FLUID_FRAME_PREFIX)) {
+      if (line.trim() === "") continue;
+      stray.push(line);
+      continue;
+    }
+    const frame = splitFrame(line, lineNumber);
+    if (!FRAME_NAMES.has(frame.name)) {
+      throw protocolError(`Unknown fluid frame name "${frame.name}"`, lineNumber, line);
+    }
+    if (end !== void 0 && frame.name !== "ERR") {
+      throw protocolError(`A ${frame.name} frame arrived after END`, lineNumber, line);
+    }
+    if (frame.name !== "BEGIN" && begin === void 0) {
+      throw protocolError(`A ${frame.name} frame arrived before BEGIN`, lineNumber, line);
+    }
+    if (frame.name === "BEGIN" && begin !== void 0) {
+      throw protocolError("A second BEGIN frame arrived", lineNumber, line);
+    }
+    switch (frame.name) {
+      case "BEGIN":
+        begin = parseBegin(frame.payload, lineNumber, line);
+        break;
+      case "OUT":
+        values.push(parseJsonPayload(frame.payload, "OUT", lineNumber, line));
+        break;
+      case "OUTC":
+        if (openFragments === void 0) {
+          openFragments = [frame.payload];
+          openAt = frame;
+        } else {
+          openFragments.push(frame.payload);
+        }
+        break;
+      case "OUTE": {
+        if (openFragments === void 0) {
+          throw protocolError("OUTE frame with no open OUTC to close", lineNumber, line);
+        }
+        openFragments.push(frame.payload);
+        const reassembled = openFragments.join("");
+        const startAt = openAt;
+        try {
+          values.push(parseJsonPayload(reassembled, "Reassembled OUTC/OUTE", lineNumber, line));
+        } catch (e) {
+          if (!hasErr) throw e;
+          dropped.push({ raw: reassembled, lineNumber: startAt ? startAt.lineNumber : lineNumber });
+        }
+        openFragments = void 0;
+        openAt = void 0;
+        break;
+      }
+      case "ERR":
+        errors.push(parseErr(frame.payload, lineNumber, line));
+        break;
+      case "END":
+        end = parseEnd(frame.payload, lineNumber, line);
+        break;
+    }
+  }
+  if (openFragments !== void 0) {
+    if (!hasErr) {
+      throw protocolError(
+        "Unterminated value: OUTC was opened but never closed by OUTE before the input ended",
+        openAt ? openAt.lineNumber : rawLines.length,
+        openAt ? openAt.lineText : ""
+      );
+    }
+    dropped.push({ raw: openFragments.join(""), lineNumber: openAt ? openAt.lineNumber : rawLines.length });
+  }
+  return { begin, values, errors, end, stray, dropped };
+}
+
+// src/adt/fluid/invoke.ts
+function hashPart(s) {
+  return `${s.length}:${s}`;
+}
+function canonicalArgsJson(value) {
+  if (value === void 0) return "null";
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map((v) => v === void 0 ? "null" : canonicalArgsJson(v)).join(",")}]`;
+  }
+  const obj = value;
+  const keys = Object.keys(obj).filter((k) => obj[k] !== void 0).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalArgsJson(obj[k])}`).join(",")}}`;
+}
+function invokerName(toolId, action, args, contract) {
+  const joined = [toolId, action, contract, canonicalArgsJson(args)].map(hashPart).join("");
+  const hex3 = contentHash(joined).replace(/^sha256:/, "").slice(0, 8).toUpperCase();
+  return `ZCL_ZMCP_I_${hex3}`;
+}
+var ARG_CHUNK_RAW = 90;
+var HIGH_SURROGATE_MIN = 55296;
+var HIGH_SURROGATE_MAX = 56319;
+function abapArgumentChunks(json2) {
+  const chunks = [];
+  let i = 0;
+  while (i < json2.length) {
+    let end = Math.min(i + ARG_CHUNK_RAW, json2.length);
+    if (end < json2.length && end - 1 > i) {
+      const code = json2.charCodeAt(end - 1);
+      if (code >= HIGH_SURROGATE_MIN && code <= HIGH_SURROGATE_MAX) {
+        end -= 1;
+      }
+    }
+    chunks.push(json2.slice(i, end));
+    i = end;
+  }
+  return chunks;
+}
+function escapeAbapLiteral(value) {
+  return value.replace(/`/g, "``");
+}
+var INVOKER_NAME_RE = /^ZCL_ZMCP_I_[0-9A-F]{8}$/;
+var VERSION_RE = /^[0-9a-f]{8}$/;
+var CONTRACT_RE2 = /^\d+\.\d+$/;
+var QUOTE_OR_NEWLINE = /['\r\n]/;
+function assertNoQuoteOrNewline(value, field) {
+  if (QUOTE_OR_NEWLINE.test(value)) {
+    throw new AbapError("BAD_INPUT", `${field} "${value}" must not contain a single quote or a newline.`, {
+      field,
+      value
+    });
+  }
+  return value;
+}
+function invokerSource(args) {
+  const plainName = assertPlainName(args.name, "invoker class name");
+  if (!INVOKER_NAME_RE.test(plainName)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `invoker class name "${args.name}" must match ${INVOKER_NAME_RE}.`,
+      { field: "name", value: args.name }
+    );
+  }
+  const entry = assertPlainName(args.entry, "entry class name");
+  const toolId = assertNoQuoteOrNewline(args.toolId, "toolId");
+  const action = assertNoQuoteOrNewline(args.action, "action");
+  if (!VERSION_RE.test(args.version)) {
+    throw new AbapError("BAD_INPUT", `version "${args.version}" must be 8 lowercase hex characters.`, {
+      field: "version",
+      value: args.version
+    });
+  }
+  if (!CONTRACT_RE2.test(args.contract)) {
+    throw new AbapError("BAD_INPUT", `contract "${args.contract}" must match ${CONTRACT_RE2}.`, {
+      field: "contract",
+      value: args.contract
+    });
+  }
+  const cls = plainName.toLowerCase();
+  const entryLower = entry.toLowerCase();
+  const jsonLines = [
+    "    CLEAR lv_json.",
+    ...abapArgumentChunks(args.argsJson).map(
+      (chunk2) => `    lv_json = lv_json && \`${escapeAbapLiteral(chunk2)}\`.`
+    )
+  ].join("\n");
+  const commitLines = args.commit ? `
+
+* Transaction handling lives in the invoker, not the body class, so a plugin author cannot forget it.
+    IF zcl_zmcp_fluid_rt=>failed( ) = abap_true.
+      ROLLBACK WORK.
+    ELSE.
+      COMMIT WORK AND WAIT.
+    ENDIF.` : "";
+  const source = `CLASS ${cls} DEFINITION
+  PUBLIC FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+CLASS ${cls} IMPLEMENTATION.
+
+  METHOD if_oo_adt_classrun~main.
+*   Generated by abapsmith for fluid tool '${toolId}', action '${action}'. Do not edit.
+    DATA lv_json TYPE string.
+${jsonLines}
+    zcl_zmcp_fluid_rt=>attach( io_out = out iv_ver = '${args.version}' iv_contract = '${args.contract}' ).
+* Opened before TRY so a throw ahead of the body class's own begin( ) still leaves ERR/END inside a frame.
+    zcl_zmcp_fluid_rt=>begin( iv_id = '${toolId}' iv_action = '${action}' ).
+
+    TRY.
+        ${entryLower}=>run( iv_action = '${action}' iv_json = lv_json ).
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = '${action}' iv_text = lx_err->get_text( ) ).
+        zcl_zmcp_fluid_rt=>end( 8 ).
+    ENDTRY.${commitLines}
+    zcl_zmcp_fluid_rt=>end( 0 ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+  assertAbapLineLengths(source);
+  return source;
+}
+function assertAbapLineLengths(source) {
+  const lines = source.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const length = lines[i].length;
+    if (length > 255) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `generated ABAP source line ${i + 1} is ${length} characters long; ABAP source lines are capped at 255.`,
+        { line: i + 1, length }
+      );
+    }
+  }
+}
+
+// src/adt/fluid/dispatch.ts
+function callerAttribution(req) {
+  return {
+    tool: req.caller?.tool ?? req.tool,
+    action: req.caller?.action ?? req.action,
+    who: req.caller ? `${req.caller.tool} ${req.caller.action}` : `${req.tool}.${req.action}`
+  };
+}
+function dispatchDisabledError(reason, cfg, req) {
+  const flagEnabled = cfg.fluidApi !== false;
+  const { tool, action, who } = callerAttribution(req);
+  const details = {
+    reason: reason.kind,
+    ...reason.kind === "flag" ? {} : { field: reason.field },
+    flag: "ABAP_FLUID_API",
+    flagEnabled,
+    package: FLUID_PACKAGE,
+    tool,
+    action
+  };
+  const message = reason.kind === "flag" ? `The fluid API is disabled (ABAP_FLUID_API=false). ${who} was not run \u2014 nothing was deployed, checked, or changed.` : `${who} needs the fluid API, and this connection is read-only (${reason.field}). There is no read-only subset of the fluid API \u2014 even a check can need to deploy or repair the ABAP side first, so nothing ran and nothing was changed.`;
+  const hint = reason.kind === "flag" ? "Set ABAP_FLUID_API=true (or leave it unset \u2014 it defaults to enabled) to use the fluid API. The ordinary write ceilings (ABAP_ALLOW_WRITE, ABAP_MODE, the productive-system lockout, ABAP_ALLOW_PACKAGES) still apply on top once it is." : 'Connect with write access (ABAP_ALLOW_WRITE=true, ABAP_MODE not "read", and off a productive system) to use any part of the fluid API.';
+  return new AbapError("FLUID_API_DISABLED", message, details, hint);
+}
+function resolvePointer(doc, pointer) {
+  if (pointer === "") return { ok: true, value: doc };
+  if (!pointer.startsWith("/")) return { ok: false };
+  const tokens = pointer.slice(1).split("/").map((t) => t.replace(/~1/g, "/").replace(/~0/g, "~"));
+  let cur = doc;
+  for (const token of tokens) {
+    if (Array.isArray(cur)) {
+      if (!/^(0|[1-9]\d*)$/.test(token) || Number(token) >= cur.length) return { ok: false };
+      cur = cur[Number(token)];
+    } else if (cur !== null && typeof cur === "object") {
+      if (!Object.prototype.hasOwnProperty.call(cur, token)) return { ok: false };
+      cur = cur[token];
+    } else {
+      return { ok: false };
+    }
+  }
+  return { ok: true, value: cur };
+}
+function resolveTargetString(args, pointer, field) {
+  const r = resolvePointer(args, pointer);
+  if (!r.ok || typeof r.value !== "string") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `action target "${field}" (pointer "${pointer}") did not resolve to a string in args.`,
+      { field, pointer }
+    );
+  }
+  return r.value;
+}
+function gateOpForCategory(category) {
+  switch (category) {
+    case "read":
+      return "read";
+    case "execute":
+      return "execute";
+    case "mutate":
+      return "write";
+  }
+}
+function assertTargetsAgainstGate(gate, action, args, origin) {
+  const targets = action.targets;
+  if (!targets) return;
+  const resolvedObject = targets.object !== void 0 ? resolveTargetString(args, targets.object, "object") : void 0;
+  const resolvedPackage = targets.package !== void 0 ? resolveTargetString(args, targets.package, "package") : void 0;
+  const resolvedTransport = targets.transport !== void 0 ? resolveTargetString(args, targets.transport, "transport") : void 0;
+  const target = safetyTarget({
+    name: resolvedObject ?? resolvedPackage ?? "",
+    ...resolvedPackage !== void 0 ? { packageName: resolvedPackage } : {}
+  });
+  const corr = targets.corr === "local" && origin === "builtin" ? { kind: "local" } : void 0;
+  gate.assert(gateOpForCategory(action.category), target, {
+    ...resolvedTransport !== void 0 ? { corrNr: resolvedTransport } : {},
+    ...corr !== void 0 ? { corr } : {}
+  });
+}
+async function journalFluidMutate(deps, req, sysKey) {
+  const journal = deps.journal;
+  if (!journal) return;
+  const object3 = {
+    name: `${req.tool}.${req.action}`,
+    type: "FLUID",
+    uri: "",
+    package: FLUID_PACKAGE,
+    description: `fluid plugin mutate: ${req.tool}.${req.action}`
+  };
+  const beginInput2 = {
+    operation: "update",
+    object: object3,
+    existedBefore: true,
+    // No before-image exists for whatever ABAP-side state a plugin action touched — this framework
+    // never reads it, so "captured"/"failed" would both overstate what is known.
+    beforeCapture: "unknown",
+    // No generic undo exists for an arbitrary plugin mutate action.
+    irreversible: true,
+    systemKey: sysKey,
+    ...req.corrNr !== void 0 ? { corrNr: req.corrNr } : {},
+    trSource: "caller",
+    tool: req.tool
+  };
+  let entry;
+  try {
+    entry = await journal.begin(beginInput2);
+  } catch (e) {
+    deps.warn?.(
+      `[abapsmith] WARNING: ${req.tool}.${req.action} \u2014 the mutation DID happen but could NOT be journalled: ${e.message}.`
+    );
+    return;
+  }
+  if (!entry) return;
+  try {
+    const settled = await journal.settle(entry.id, { outcome: "succeeded" });
+    if (!settled.settled) {
+      deps.warn?.(
+        `[abapsmith] WARNING: ${req.tool}.${req.action} \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`
+      );
+    }
+  } catch (e) {
+    deps.warn?.(
+      `[abapsmith] WARNING: ${req.tool}.${req.action} \u2014 journal entry ${entry.id} could not be settled (${e.message}).`
+    );
+  }
+}
+async function forceInvokerRegeneration(deps, invokerClassName) {
+  let authorized;
+  try {
+    authorized = await authorizeMutation(deps.conn, deps.gate, "activate", {
+      type: "CLAS/OC",
+      name: invokerClassName
+    });
+  } catch (e) {
+    if (isAbapError(e) && e.code === "NOT_FOUND") return;
+    throw e;
+  }
+  const activation = await activateObject(deps.conn, authorized.target);
+  assertNoErrors(activation, {
+    what: `Force-regenerate the fluid invoker ${invokerClassName} after recovering its dependency`,
+    name: invokerClassName
+  });
+}
+function buildWarnings(transcript) {
+  const warnings = [];
+  for (const line of transcript.stray) {
+    warnings.push(`stray console output: ${line}`);
+  }
+  for (const d of transcript.dropped) {
+    warnings.push(`a value starting at line ${d.lineNumber} could not be parsed and was dropped: ${d.raw}`);
+  }
+  return warnings;
+}
+function assertTranscriptIdentity(transcript, req) {
+  const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
+  if (transcript.errors.length > 0) {
+    throw new AbapError(
+      "FLUID_ACTION_FAILED",
+      `${who} reported ${transcript.errors.length} error frame(s).`,
+      {
+        tool: attrTool,
+        action: attrAction,
+        frames: transcript.errors,
+        warnings: buildWarnings(transcript)
+      }
+    );
+  }
+  if (!transcript.end) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      `${who}: the fluid transcript has no END frame and reported no errors \u2014 the ABAP side dumped before it could report anything.`,
+      { tool: attrTool, action: attrAction }
+    );
+  }
+  const end = transcript.end;
+  const begin = transcript.begin;
+  if (begin && (begin.id !== req.tool || begin.action !== req.action)) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      `${who}: the transcript's BEGIN frame reports ${begin.id}.${begin.action}, not the requested call \u2014 a stale invoker class or program buffer served a different action.`,
+      { tool: attrTool, action: attrAction, beginId: begin.id, beginAction: begin.action }
+    );
+  }
+  return { begin, end };
+}
+async function dispatch2(deps, req) {
+  const disabled = fluidDisabledReason(deps.cfg, deps.gate);
+  if (disabled) throw dispatchDisabledError(disabled, deps.cfg, req);
+  const tool = deps.tools.get(req.tool);
+  if (!tool) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Unknown fluid tool "${req.tool}". Available tools: ${[...deps.tools.keys()].sort().join(", ") || "(none)"}.`,
+      { field: "tool", tool: req.tool, available: [...deps.tools.keys()].sort() }
+    );
+  }
+  const action = tool.manifest.actions.find((a) => a.name === req.action);
+  if (!action) {
+    const available = tool.manifest.actions.map((a) => a.name).sort();
+    throw new AbapError(
+      "BAD_INPUT",
+      `Unknown action "${req.action}" for fluid tool "${req.tool}". Available actions: ${available.join(", ") || "(none)"}.`,
+      { field: "action", tool: req.tool, action: req.action, available }
+    );
+  }
+  if (tool.origin === "plugin") {
+    if (!deps.cfg.allowFluidPlugins) {
+      throw new AbapError(
+        "FLUID_PLUGINS_DISABLED",
+        `Plugin fluid tools are disabled (ABAP_ALLOW_FLUID_PLUGINS=false). ${req.tool}.${req.action} was not run.`,
+        { tool: req.tool, action: req.action }
+      );
+    }
+    if (action.category === "mutate") {
+      if (!deps.cfg.allowFluidPluginMutate) {
+        throw new AbapError(
+          "FLUID_PLUGIN_MUTATE_DISABLED",
+          `Mutating plugin fluid actions are disabled (ABAP_ALLOW_FLUID_PLUGIN_MUTATE=false). ${req.tool}.${req.action} was not run.`,
+          { tool: req.tool, action: req.action }
+        );
+      }
+      const expectedConfirm = `${req.tool}.${req.action}`;
+      if (req.confirm !== expectedConfirm) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${req.tool}.${req.action} mutates state and requires confirm: ${JSON.stringify(expectedConfirm)} (got ${req.confirm === void 0 ? "nothing" : JSON.stringify(req.confirm)}).`,
+          { field: "confirm", expected: expectedConfirm, got: req.confirm }
+        );
+      }
+    }
+  }
+  await guardCoreAction(deps, req);
+  const inputErrors = validateAgainstSchema(req.args, action.input, "args");
+  if (inputErrors.length > 0) {
+    const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
+    throw new AbapError(
+      "BAD_INPUT",
+      `${who}: invalid arguments.`,
+      { tool: attrTool, action: attrAction, messages: inputErrors }
+    );
+  }
+  assertTargetsAgainstGate(deps.gate, action, req.args, tool.origin);
+  await ensureFluidPackage(deps.conn, deps.gate);
+  const sysKey = systemKey(deps.conn.cfg);
+  const contract = tool.manifest.contract;
+  const invokerClassName = invokerName(req.tool, req.action, req.args, contract);
+  const runDeployAndExecute = async () => {
+    await ensureFluidRuntimeFor(deps.conn, deps.gate, deps.cfg, tool, {
+      tool: req.tool,
+      action: req.action,
+      op: "run"
+    });
+    const ensureResult2 = await ensureFluidTool(deps.conn, deps.gate, deps.cfg, tool, {
+      tool: req.tool,
+      action: req.action,
+      op: "run"
+    });
+    const name = invokerClassName;
+    const argsJson = canonicalArgsJson(req.args);
+    const source = invokerSource({
+      name,
+      entry: tool.manifest.entry,
+      toolId: req.tool,
+      action: req.action,
+      argsJson,
+      version: tool.version,
+      contract,
+      commit: action.category === "mutate"
+    });
+    const deployedBridge2 = await deployBridge(deps.conn, deps.gate, {
+      className: name,
+      source,
+      description: `fluid invoker for ${req.tool}.${req.action}`,
+      packageName: FLUID_PACKAGE,
+      what: `Activation of the generated fluid invoker ${name}`,
+      verify: (activation) => verifyBridgeActivation(activation, name, "fluid invoker")
+    });
+    const run3 = await executeBridge(deps.conn, deps.gate, deployedBridge2);
+    return { ensureResult: ensureResult2, deployedBridge: deployedBridge2, run: run3 };
+  };
+  const redeployAndRetryOnce = async () => {
+    await recoverMissingFluidObject(deps.conn, deps.gate, deps.cfg, tool, {
+      tool: req.tool,
+      action: req.action,
+      op: "run"
+    });
+    await forceInvokerRegeneration(deps, invokerClassName);
+    return runDeployAndExecute();
+  };
+  let ensureResult;
+  let deployedBridge;
+  let run2;
+  try {
+    ({ ensureResult, deployedBridge, run: run2 } = await runDeployAndExecute());
+  } catch (e) {
+    if (!isAbapError(e)) throw e;
+    if (e.code !== "NOT_FOUND" && e.code !== "RUNTIME_DUMP" && e.code !== "CHECK_FAILED") throw e;
+    await deps.conn.connect();
+    const missing = await anyFluidObjectMissing(deps.conn, tool);
+    if (!missing) throw e;
+    ({ ensureResult, deployedBridge, run: run2 } = await redeployAndRetryOnce());
+  }
+  let transcript = parseFluidConsole(run2.output);
+  let identity = assertTranscriptIdentity(transcript, req);
+  if (identity.begin && identity.begin.ver !== tool.version) {
+    const expectedVersion = tool.version;
+    ({ ensureResult, deployedBridge, run: run2 } = await redeployAndRetryOnce());
+    transcript = parseFluidConsole(run2.output);
+    identity = assertTranscriptIdentity(transcript, req);
+    if (identity.begin && identity.begin.ver !== expectedVersion) {
+      throw new AbapError(
+        "FLUID_PROTOCOL_ERROR",
+        `${req.tool}.${req.action}: the BEGIN frame still reports ver ${identity.begin.ver} after forgetting the registry entry and redeploying once \u2014 expected ${expectedVersion}.`,
+        { tool: req.tool, action: req.action, expected: expectedVersion, got: identity.begin.ver }
+      );
+    }
+  }
+  if (tool.origin === "plugin" && action.category === "mutate" && deps.journal) {
+    await journalFluidMutate(deps, req, sysKey);
+  }
+  let result;
+  if (action.output.type === "array") {
+    result = transcript.values;
+  } else if (action.output.type === void 0) {
+    if (transcript.values.length !== 0) {
+      const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
+      throw new AbapError(
+        "FLUID_PROTOCOL_ERROR",
+        `${who}: expected no output value (void), got ${transcript.values.length}.`,
+        { tool: attrTool, action: attrAction, count: transcript.values.length }
+      );
+    }
+    result = void 0;
+  } else {
+    if (transcript.values.length !== 1) {
+      const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
+      throw new AbapError(
+        "FLUID_PROTOCOL_ERROR",
+        `${who}: expected exactly one output value, got ${transcript.values.length}.`,
+        { tool: attrTool, action: attrAction, count: transcript.values.length }
+      );
+    }
+    result = transcript.values[0];
+  }
+  const outputErrors = validateAgainstSchema(result, action.output, "result");
+  if (outputErrors.length > 0) {
+    const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      `${who}: output did not match the declared schema.`,
+      { tool: attrTool, action: attrAction, messages: outputErrors }
+    );
+  }
+  return {
+    tool: req.tool,
+    action: req.action,
+    version: tool.version,
+    deployed: ensureResult.deployed || deployedBridge.bridgeRefreshed,
+    ms: identity.end.ms,
+    truncated: identity.end.truncated,
+    warnings: buildWarnings(transcript),
+    result
+  };
+}
+
+// src/adt/classic-call.ts
+async function runClassicAction(conn, gate, opts) {
+  const fr = await dispatch2(
+    { conn, cfg: conn.cfg, gate, tools: /* @__PURE__ */ new Map([[CLASSIC_TOOL_ID, classicTool]]) },
+    { tool: CLASSIC_TOOL_ID, action: opts.action, args: opts.args }
+  );
+  if (!Array.isArray(fr.result) || !fr.result.every((v) => typeof v === "string")) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      `classic.${opts.action}: expected an array of output lines, got ${typeof fr.result}.`,
+      { tool: CLASSIC_TOOL_ID, action: opts.action, result: fr.result }
+    );
+  }
+  const lines = fr.result;
+  const raw = lines.join("\n");
+  const transcript = parseDdicTranscript(raw);
+  if (opts.beforeAssert) opts.beforeAssert(transcript);
+  assertDdicTranscript(transcript, opts.expectTags, opts.what, {
+    completed: opts.completed,
+    partialHint: opts.partialHint
+  });
+  const run2 = {
+    mode: "class",
+    object: CLASSIC_BODY_CLASS,
+    output: raw,
+    lines: raw === "" ? 0 : raw.split("\n").length,
+    durationMs: fr.ms,
+    droppedLines: 0,
+    bodyBytes: raw.length,
+    outputComplete: !fr.truncated
+  };
+  return { run: run2, transcript };
+}
+
 // src/adt/package-delete.ts
 var PACKAGE_MAX_LENGTH = 30;
 var PACKAGE_RULES = { maxLength: PACKAGE_MAX_LENGTH, allowLocal: true };
-var CONTENT_DISPLAY_LIMIT = 20;
 var SET_CHANGEABLE_STEP = "Making package changeable";
 function assertOptionalCorrNr(value) {
   if (value === "") return value;
@@ -92220,33 +100118,11 @@ function assertOptionalCorrNr(value) {
   }
   return value;
 }
-function quoted2(validatedIdentifier) {
-  return `'${validatedIdentifier}'`;
-}
 var PKG_CONTENT_PREFIX = "ZMCP-PKG-CONTENT>";
-var PKG_CONTENT_TRUNCATED_PREFIX = "ZMCP-PKG-CONTENT-TRUNCATED>";
-var PACKAGE_DELETE_DATA_LINES = [
-  "ls_tdevc            TYPE tdevc.",
-  "lt_subpkg           TYPE STANDARD TABLE OF tdevc WITH EMPTY KEY.",
-  "ls_subpkg           TYPE tdevc.",
-  "lt_tadir            TYPE STANDARD TABLE OF tadir WITH EMPTY KEY.",
-  "ls_tadir            TYPE tadir.",
-  "lo_package          TYPE REF TO if_package.",
-  "lv_content_count    TYPE i.",
-  "lv_subpkg_count     TYPE i.",
-  "lv_tadir_count      TYPE i.",
-  "lv_subpkg_truncated TYPE abap_bool.",
-  "lv_tadir_truncated  TYPE abap_bool."
-];
 function parsePackageContents(raw) {
   const contents = [];
-  let truncated = false;
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
-    if (trimmed.startsWith(PKG_CONTENT_TRUNCATED_PREFIX)) {
-      truncated = true;
-      continue;
-    }
     if (!trimmed.startsWith(PKG_CONTENT_PREFIX)) continue;
     const rest = trimmed.slice(PKG_CONTENT_PREFIX.length).trim();
     const fields = {};
@@ -92263,135 +100139,7 @@ function parsePackageContents(raw) {
     if (kind !== "OBJECT" && kind !== "SUBPKG") continue;
     contents.push({ kind, pgmid, object: object3, name });
   }
-  return { contents, truncated };
-}
-function packageDeleteFragment(p) {
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", PACKAGE_RULES);
-  const corrNr = assertOptionalCorrNr(p.corrNr);
-  const pkg = quoted2(packageName);
-  const saveCallLines = corrNr === "" ? ["CALL METHOD lo_package->save", "  EXCEPTIONS", "    OTHERS = 1."] : [
-    "CALL METHOD lo_package->save",
-    "  EXPORTING",
-    `    i_transport_request = ${quoted2(corrNr)}`,
-    "  EXCEPTIONS",
-    "    OTHERS               = 1."
-  ];
-  return [
-    '" Step 1 - confirm the package exists; refuse honestly if it does not,',
-    '" rather than treating a delete of a never-existed name as a no-op.',
-    // Defence-in-depth, not live via `abap_write mode=delete`: authorizeMutation
-    // (src/adt/write.ts) calls resolveWriteTarget(..., "delete") first and throws
-    // NOT_FOUND for a nonexistent DEVC/K before this bridge is even generated —
-    // verified by reading that code path. This check still matters because the
-    // bridge is also reachable from the undo path (src/adt/undo.ts's "undo a
-    // create" delete, which does not re-run that NOT_FOUND guard) and it costs
-    // only one SELECT SINGLE. Do not delete it, and do not write a test that
-    // asserts `abap_write mode=delete` surfaces this message — it can't.
-    `SELECT SINGLE * FROM tdevc INTO @ls_tdevc WHERE devclass = ${pkg}.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |ZMCP-DDIC-ERR> package ${packageName} does not exist| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "",
-    '" Step 2 - gather emptiness evidence first: sub-packages (TDEVC-PARENTCL)',
-    '" and objects (TADIR-DEVCLASS), UP TO 21 ROWS so a 21st row signals more.',
-    `SELECT * FROM tdevc UP TO 21 ROWS INTO TABLE @lt_subpkg WHERE parentcl = ${pkg}.`,
-    "lv_subpkg_count = lines( lt_subpkg ).",
-    `IF lv_subpkg_count > ${CONTENT_DISPLAY_LIMIT}.`,
-    "  lv_subpkg_truncated = abap_true.",
-    "ENDIF.",
-    "LOOP AT lt_subpkg INTO ls_subpkg.",
-    `  IF sy-tabix > ${CONTENT_DISPLAY_LIMIT}.`,
-    "    CONTINUE.",
-    "  ENDIF.",
-    "  lv_content_count = lv_content_count + 1.",
-    `  out->write( |${PKG_CONTENT_PREFIX} KIND=SUBPKG PGMID=R3TR OBJECT=DEVC NAME={ ls_subpkg-devclass }| ).`,
-    "ENDLOOP.",
-    "IF lv_subpkg_truncated = abap_true.",
-    `  out->write( '${PKG_CONTENT_TRUNCATED_PREFIX} SOURCE=SUBPKG' ).`,
-    "ENDIF.",
-    "",
-    `SELECT * FROM tadir UP TO 21 ROWS INTO TABLE @lt_tadir WHERE devclass = ${pkg}.`,
-    "lv_tadir_count = lines( lt_tadir ).",
-    `IF lv_tadir_count > ${CONTENT_DISPLAY_LIMIT}.`,
-    "  lv_tadir_truncated = abap_true.",
-    "ENDIF.",
-    "LOOP AT lt_tadir INTO ls_tadir.",
-    `  IF sy-tabix > ${CONTENT_DISPLAY_LIMIT}.`,
-    "    CONTINUE.",
-    "  ENDIF.",
-    `  " The package's own R3TR DEVC row in TADIR is filtered here, in the`,
-    '  " LOOP, rather than in the SQL WHERE clause, deliberately.',
-    `  IF ls_tadir-pgmid = 'R3TR' AND ls_tadir-object = 'DEVC' AND ls_tadir-obj_name = ${pkg}.`,
-    "    CONTINUE.",
-    "  ENDIF.",
-    "  lv_content_count = lv_content_count + 1.",
-    `  out->write( |${PKG_CONTENT_PREFIX} KIND=OBJECT PGMID={ ls_tadir-pgmid } OBJECT={ ls_tadir-object } NAME={ ls_tadir-obj_name }| ).`,
-    "ENDLOOP.",
-    "IF lv_tadir_truncated = abap_true.",
-    `  out->write( '${PKG_CONTENT_TRUNCATED_PREFIX} SOURCE=TADIR' ).`,
-    "ENDIF.",
-    "",
-    '" Step 3 - delete is only attempted on a provably empty package; any',
-    '" content found above stops here before CL_PACKAGE_FACTORY is touched.',
-    "IF lv_content_count > 0.",
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'PKG-EMPTY' ).",
-    "",
-    '" Step 4 - LOAD_PACKAGE mirrors ./package-create.ts; SAVE takes',
-    '" i_transport_request only when a transport was supplied.',
-    '" LOAD_PACKAGE / SET_CHANGEABLE / DELETE / SAVE all raise CLASSIC',
-    '" (non-cx_root) exceptions, invisible to the CATCH cx_root wrapping this',
-    '" whole method (see ddic-bridge.ts). CALL METHOD ... EXCEPTIONS OTHERS = 1',
-    '" is the only way to attach EXCEPTIONS to a method call - functional-call',
-    '" syntax (e.g. the old `lo_package->delete( ).`) cannot carry one at all.',
-    '" A locked package short-dumped through set_changeable live before this',
-    '" guard existed and destroyed the whole tagged transcript.',
-    "CALL METHOD cl_package_factory=>load_package",
-    "  EXPORTING",
-    `    i_package_name = ${pkg}`,
-    "  IMPORTING",
-    "    e_package      = lo_package",
-    "  EXCEPTIONS",
-    "    OTHERS         = 1.",
-    ...subrcGuardFragment("Loading package"),
-    "",
-    // lo_package is TYPE REF TO if_package (an INTERFACE reference), so
-    // IF_PACKAGE~ prefixing this call is invalid - A4H rejects it at
-    // activation ("Class IF_PACKAGE does not contain an interface
-    // IF_PACKAGE"). Every call on lo_package already omits it.
-    '" i_changeable is transcribed from the IF_PACKAGE signature and is NOT',
-    '" verified live by this change. If the name is wrong, the generated',
-    '" class fails ITS OWN SYNTAX CHECK at bridge activation - caught by',
-    '" deployBridge/verifyBridgeActivation BEFORE any mutation runs. Loud,',
-    '" and safe: nothing is created or deleted on a bad name here.',
-    "CALL METHOD lo_package->set_changeable",
-    "  EXPORTING",
-    "    i_changeable = abap_true",
-    "  EXCEPTIONS",
-    "    OTHERS       = 1.",
-    ...subrcGuardFragment(SET_CHANGEABLE_STEP),
-    "",
-    "CALL METHOD lo_package->delete",
-    "  EXCEPTIONS",
-    "    OTHERS = 1.",
-    ...subrcGuardFragment("Deleting package"),
-    "",
-    ...saveCallLines,
-    ...subrcGuardFragment("Saving package"),
-    "COMMIT WORK.",
-    "out->write( 'PKG-DELETED' ).",
-    "",
-    '" Step 5 - re-read TDEVC because a clean return from IF_PACKAGE~DELETE is',
-    '" not trusted (unverified live); only then write PKG-GONE.',
-    `SELECT SINGLE * FROM tdevc INTO @ls_tdevc WHERE devclass = ${pkg}.`,
-    "IF sy-subrc = 0.",
-    `  out->write( |ZMCP-DDIC-ERR> delete of ${packageName} reported no error but the TDEVC row still exists| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'PKG-GONE' )."
-  ];
+  return { contents };
 }
 async function deletePackageViaBridge(conn, gate, params) {
   const packageName = assertEnhIdentifier(params.packageName, "packageName", PACKAGE_RULES);
@@ -92407,19 +100155,14 @@ async function deletePackageViaBridge(conn, gate, params) {
     },
     { activate: false, op: "delete", ...corr !== void 0 ? { corr } : {} }
   );
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.deletePackage,
-    PACKAGE_DELETE_DATA_LINES,
-    packageDeleteFragment({ packageName, corrNr })
-  );
   const beforeAssert = (transcript2) => {
-    const { contents: contents2, truncated: truncated2 } = parsePackageContents(transcript2.raw);
+    const { contents: contents2 } = parsePackageContents(transcript2.raw);
     if (contents2.length > 0) {
       const listed = contents2.map((c) => `${c.kind === "SUBPKG" ? "sub-package" : "object"} ${c.pgmid} ${c.object} ${c.name}`).join(", ");
       throw new AbapError(
         "CHECK_FAILED",
-        `Package ${packageName} is not empty and was NOT deleted. It still contains: ${listed}` + (truncated2 ? " (and more - this list was capped at 20)." : ".") + " Empty the package first (move or delete its objects and sub-packages, or reassign its sub-packages elsewhere) and retry \u2014 abapsmith will not delete a package's contents on the caller's behalf.",
-        { packageName, contents: contents2, truncated: truncated2 }
+        `Package ${packageName} is not empty and was NOT deleted. It still contains: ${listed}. Empty the package first (move or delete its objects and sub-packages, or reassign its sub-packages elsewhere) and retry \u2014 abapsmith will not delete a package's contents on the caller's behalf.`,
+        { packageName, contents: contents2 }
       );
     }
     if (transcript2.errorLine?.startsWith(`${SET_CHANGEABLE_STEP} failed`)) {
@@ -92430,16 +100173,15 @@ async function deletePackageViaBridge(conn, gate, params) {
       );
     }
   };
-  const { run: run2, transcript } = await runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.deletePackage,
-    source,
-    description: `abapsmith delete-package bridge (${packageName})`,
+  const { run: run2, transcript } = await runClassicAction(conn, gate, {
+    action: "delete_package",
+    args: { package_name: packageName, corr_nr: corrNr },
     what: `Deleting package ${packageName}`,
     expectTags: ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"],
     beforeAssert
   });
-  const { contents, truncated } = parsePackageContents(transcript.raw);
-  return { run: run2, transcript, contents, truncated };
+  const { contents } = parsePackageContents(transcript.raw);
+  return { run: run2, transcript, contents };
 }
 
 // src/adt/write.ts
@@ -93288,7 +101030,6 @@ async function reportCreateOrphan(conn, t, e) {
 function sourceEquals(a, b) {
   return canonicalSource(a) === canonicalSource(b);
 }
-var canonicalEtag = (s) => contentHash(canonicalSource(s));
 function normaliseEtag(etag) {
   const e = stripPartialEtag(etag).trim();
   return /^[0-9a-f]{16,}$/i.test(e) ? `sha256:${e.toLowerCase()}` : e;
@@ -94737,7 +102478,7 @@ function warnIfDerivedIdentity(id, warn) {
 
 // src/debug/arm-lock.ts
 import { createHash as createHash7 } from "node:crypto";
-import * as path5 from "node:path";
+import * as path7 from "node:path";
 var NoopDebugArmLock = class {
   async acquire() {
   }
@@ -94770,7 +102511,7 @@ function debugArmLockKey(cfg) {
 }
 function debugArmLockPath(stateDir, cfg) {
   const hash2 = createHash7("sha256").update(debugArmLockKey(cfg)).digest("hex").slice(0, LOCK_HASH_HEX_LEN2);
-  return path5.join(stateDir, "locks", "debug", `${hash2}.lock`);
+  return path7.join(stateDir, "locks", "debug", `${hash2}.lock`);
 }
 function toDebugLockBusyError(e, key, lockPath) {
   const holder = fileLockHolderOf(e);
@@ -94783,13 +102524,13 @@ function toDebugLockBusyError(e, key, lockPath) {
   );
 }
 function deferred() {
-  let resolve3;
+  let resolve5;
   let reject;
   const promise2 = new Promise((res, rej) => {
-    resolve3 = res;
+    resolve5 = res;
     reject = rej;
   });
-  return { promise: promise2, resolve: resolve3, reject };
+  return { promise: promise2, resolve: resolve5, reject };
 }
 var FileLockDebugArmLock = class {
   lockPath;
@@ -95355,7 +103096,7 @@ async function abapRun(conn, input, maxChars, gate) {
   } else {
     gate.assert("write", {
       name: bridgeClassName(obj.name),
-      packageName: BRIDGE_PACKAGE,
+      packageName: FLUID_PACKAGE,
       type: "CLAS/OC"
     });
     res = await runReport(conn, obj.name, gate, parameters);
@@ -95577,8 +103318,8 @@ function shutdownDebugTools() {
 var TIMED_OUT = /* @__PURE__ */ Symbol("debug.timed-out");
 function raceDeadline(p, ms) {
   let timer;
-  const deadline2 = new Promise((resolve3) => {
-    timer = setTimeout(() => resolve3(TIMED_OUT), ms);
+  const deadline2 = new Promise((resolve5) => {
+    timer = setTimeout(() => resolve5(TIMED_OUT), ms);
     if (typeof timer.unref === "function") timer.unref();
   });
   return Promise.race([p, deadline2]).finally(() => {
@@ -96934,74 +104675,6 @@ function validate2(p) {
   const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX });
   return { viewName };
 }
-var VIEW_DELETE_DATA_LINES = [
-  "ls_dd25l TYPE dd25l.",
-  "lv_dd25l_count TYPE i.",
-  "lv_tadir_count TYPE i."
-];
-function viewDeleteFragment(p) {
-  const { viewName } = validate2(p);
-  const view = abapLiteral(viewName);
-  const step1 = [
-    '" Step 1: confirm the view exists.',
-    `SELECT SINGLE * FROM dd25l INTO @ls_dd25l WHERE viewname = ${view}.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |ZMCP-DDIC-ERR> view ${viewName} does not exist| ).`,
-    "  RETURN.",
-    "ENDIF."
-  ];
-  const step2 = [
-    '" Step 2: delete the active version.',
-    "CALL FUNCTION 'DD_OBJ_DEL'",
-    "  EXPORTING",
-    `    object_name = ${view}`,
-    "    object_type = 'VIEW'",
-    "    del_state   = 'A'",
-    "    prid        = -1",
-    "  EXCEPTIONS",
-    "    OTHERS      = 1.",
-    ...subrcCheckFragment("DD_OBJ_DEL", "VIEW-DELETED")
-  ];
-  const step3 = [
-    '" Step 3: delete any inactive version (no inactive row is normal).',
-    "CALL FUNCTION 'DD_OBJ_DEL'",
-    "  EXPORTING",
-    `    object_name = ${view}`,
-    "    object_type = 'VIEW'",
-    "    del_state   = 'N'",
-    "    prid        = -1",
-    "  EXCEPTIONS",
-    "    OTHERS      = 1."
-  ];
-  const step4 = [
-    '" Step 4: remove the TADIR row (wi_test_modus = space, or this no-ops).',
-    "CALL FUNCTION 'TR_TADIR_INTERFACE'",
-    "  EXPORTING",
-    "    wi_test_modus         = space",
-    "    wi_tadir_pgmid        = 'R3TR'",
-    "    wi_tadir_object       = 'VIEW'",
-    `    wi_tadir_obj_name     = ${view}`,
-    "    wi_delete_tadir_entry = 'X'",
-    "  EXCEPTIONS",
-    "    OTHERS                = 1."
-  ];
-  const step5 = ['" Step 5: commit.', "COMMIT WORK."];
-  const step6 = [
-    '" Step 6: re-read DD25L, then TADIR, before declaring the view gone.',
-    `SELECT COUNT( * ) FROM dd25l INTO @lv_dd25l_count WHERE viewname = ${view}.`,
-    "IF lv_dd25l_count <> 0.",
-    `  out->write( |ZMCP-DDIC-ERR> delete of ${viewName} reported no error but DD25L still has a row| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    `SELECT COUNT( * ) FROM tadir INTO @lv_tadir_count WHERE pgmid = 'R3TR' AND object = 'VIEW' AND obj_name = ${view}.`,
-    "IF lv_tadir_count <> 0.",
-    `  out->write( |ZMCP-DDIC-ERR> ${viewName}'s DD25L rows are gone but its TADIR row remains; the DD25L delete worked; likely cause is an object lock from an open transport request (TR022)| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'VIEW-GONE' )."
-  ];
-  return [...step1, "", ...step2, "", ...step3, "", ...step4, "", ...step5, "", ...step6];
-}
 async function deleteClassicViewViaBridge(conn, gate, params) {
   assertServerPackage(params.packageName, `view ${params.viewName}`);
   const { viewName } = validate2(params);
@@ -97010,11 +104683,6 @@ async function deleteClassicViewViaBridge(conn, gate, params) {
     gate,
     { type: "VIEW/DV", name: viewName, packageName },
     { activate: false, op: "delete", corr: { kind: "local" } }
-  );
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.deleteView,
-    VIEW_DELETE_DATA_LINES,
-    viewDeleteFragment({ viewName, packageName: params.packageName })
   );
   const beforeAssert = (transcript) => {
     if (transcript.errorLine?.includes(`${viewName} does not exist`)) {
@@ -97025,10 +104693,9 @@ async function deleteClassicViewViaBridge(conn, gate, params) {
       );
     }
   };
-  return runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.deleteView,
-    source,
-    description: `abapsmith delete-classic-view bridge (${viewName})`,
+  return runClassicAction(conn, gate, {
+    action: "delete_view",
+    args: { view_name: viewName, package_name: packageName },
     what: `Deleting classic view ${viewName}`,
     expectTags: ["VIEW-DELETED", "VIEW-GONE"],
     beforeAssert
@@ -97040,21 +104707,16 @@ var TCODE_MAX_LENGTH = 20;
 var TTEXT_MAX_LENGTH = 37;
 var PROGRAM_MAX_LENGTH = 40;
 var PACKAGE_MAX_LENGTH2 = 30;
-var TRANSACTION_TYPE_REPORT = "R";
-var REPORT_DYNPRO = "1000";
 function assertTransactionCode(value, what = "tcode") {
   if (typeof value !== "string" || !new RegExp(`^[A-Za-z][A-Za-z0-9_]{0,${TCODE_MAX_LENGTH - 1}}$`).test(value)) {
     throw new AbapError(
       "BAD_INPUT",
       `${what} ${JSON.stringify(value)} is not a valid transaction code for this bridge (a letter, then letters, digits and underscores only, max ${TCODE_MAX_LENGTH} characters).`,
       { what, value, maxLength: TCODE_MAX_LENGTH },
-      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a quote, a period or a newline is refused outright, not escaped or stripped. SAP itself allows '/' and '-' in customer transaction codes; this bridge does not, because no run in this codebase has established that they are safe in that position."
+      "A quote, a period or a newline is refused outright, not escaped or stripped. SAP itself allows '/' and '-' in customer transaction codes; this bridge does not, because no run in this codebase has established that they are safe in that position."
     );
   }
   return value;
-}
-function quoted3(validatedIdentifier) {
-  return `'${validatedIdentifier}'`;
 }
 function assertCorrNr(value) {
   if (!isTrkorr(value)) {
@@ -97090,37 +104752,6 @@ function assertTransactionCreateTarget(packageName, corrNr) {
   if (corrNr !== void 0) assertCorrNr(corrNr);
   return validated;
 }
-var TRAN_DATA_LINES = [];
-function transactionFragment(p) {
-  const tcode = assertTransactionCode(p.tcode);
-  const program = assertEnhIdentifier(p.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
-  const description = assertAbapText(p.description, "description", TTEXT_MAX_LENGTH);
-  const packageName = assertTransactionCreateTarget(p.packageName, p.corrNr);
-  const local = isLocalPackageName(packageName);
-  const corrNr = local ? void 0 : p.corrNr;
-  return [
-    "CALL FUNCTION 'RPY_TRANSACTION_INSERT'",
-    `  EXPORTING transaction       = ${quoted3(tcode)}`,
-    `            program           = ${quoted3(program)}`,
-    `            dynpro            = ${quoted3(REPORT_DYNPRO)}`,
-    "            language          = sy-langu",
-    `            development_class = ${quoted3(packageName)}`,
-    // A local ($-prefixed) package has no transport request to name; space is ABAP's SPACE constant, not a quoted literal.
-    local ? "            transport_number  = space" : `            transport_number  = ${quoted3(corrNr)}`,
-    `            transaction_type  = ${quoted3(TRANSACTION_TYPE_REPORT)}`,
-    `            shorttext         = ${abapLiteral(description)}`,
-    "  EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3",
-    "             name_not_allowed = 4 name_conflict = 5 illegal_type = 6",
-    "             object_inconsistent = 7 db_access_error = 8 OTHERS = 9.",
-    // Mandatory: RPY_TRANSACTION_INSERT reports failure via sy-subrc, not an
-    // exception a CATCH would see. Skipping this would report success for a
-    // no-op call — `already_exist` is the likely real-world case.
-    ...subrcCheckFragment("RPY_TRANSACTION_INSERT", "TRAN-CREATED"),
-    "",
-    // Safety-net commit — see transactionFragment's doc comment above.
-    "COMMIT WORK."
-  ];
-}
 async function createTransaction(conn, gate, params) {
   const tcode = assertTransactionCode(params.tcode);
   const program = assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
@@ -97134,15 +104765,15 @@ async function createTransaction(conn, gate, params) {
     { type: "TRAN/T", name: tcode, packageName },
     { activate: false, ...corr !== void 0 ? { corr } : {} }
   );
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.createTransaction,
-    TRAN_DATA_LINES,
-    transactionFragment({ tcode, program, description, packageName, corrNr })
-  );
-  return runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.createTransaction,
-    source,
-    description: `abapsmith create-transaction bridge (${tcode})`,
+  return runClassicAction(conn, gate, {
+    action: "create_transaction",
+    args: {
+      tcode,
+      program,
+      description,
+      package_name: packageName,
+      corr_nr: corrNr ?? ""
+    },
     what: `Creating transaction ${tcode}`,
     expectTags: ["TRAN-CREATED"]
   });
@@ -97150,42 +104781,6 @@ async function createTransaction(conn, gate, params) {
 
 // src/adt/tran-delete.ts
 var PACKAGE_MAX_LENGTH3 = 30;
-var TRAN_DELETE_DATA_LINES = ["ls_tstc TYPE tstc."];
-function quoted4(validatedIdentifier) {
-  return `'${validatedIdentifier}'`;
-}
-function transactionDeleteFragment(p) {
-  const tcode = assertTransactionCode(p.tcode);
-  const tc = quoted4(tcode);
-  const step1 = [
-    '" Step 1: confirm the transaction exists.',
-    `SELECT SINGLE * FROM tstc INTO @ls_tstc WHERE tcode = ${tc}.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |ZMCP-DDIC-ERR> transaction ${tcode} does not exist| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    ""
-  ];
-  const step2 = [
-    '" Step 2: delete via RPY_TRANSACTION_DELETE.',
-    "CALL FUNCTION 'RPY_TRANSACTION_DELETE'",
-    `  EXPORTING transaction = ${tc}`,
-    "  EXCEPTIONS OTHERS = 1.",
-    ...subrcCheckFragment("RPY_TRANSACTION_DELETE", "TRAN-DELETED"),
-    ""
-  ];
-  const step3 = ['" Step 3: commit.', "COMMIT WORK.", ""];
-  const step4 = [
-    '" Step 4: prove absence.',
-    `SELECT SINGLE * FROM tstc INTO @ls_tstc WHERE tcode = ${tc}.`,
-    "IF sy-subrc = 0.",
-    `  out->write( |ZMCP-DDIC-ERR> delete of ${tcode} reported no error but the TSTC row still exists| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'TRAN-GONE' )."
-  ];
-  return [...step1, ...step2, ...step3, ...step4];
-}
 async function deleteTransactionViaBridge(conn, gate, params) {
   assertServerPackage(params.packageName, `transaction ${params.tcode}`);
   const tcode = assertTransactionCode(params.tcode);
@@ -97198,11 +104793,6 @@ async function deleteTransactionViaBridge(conn, gate, params) {
     { type: "TRAN/T", name: tcode, packageName },
     { activate: false, op: "delete", corr: { kind: "local" } }
   );
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.deleteTransaction,
-    TRAN_DELETE_DATA_LINES,
-    transactionDeleteFragment({ tcode })
-  );
   const beforeAssert = (transcript) => {
     if (transcript.errorLine?.includes("does not exist")) {
       throw new AbapError(
@@ -97212,10 +104802,9 @@ async function deleteTransactionViaBridge(conn, gate, params) {
       );
     }
   };
-  return runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.deleteTransaction,
-    source,
-    description: `abapsmith delete-transaction bridge (${tcode})`,
+  return runClassicAction(conn, gate, {
+    action: "delete_transaction",
+    args: { tcode, package_name: packageName },
     what: `Deleting transaction ${tcode}`,
     expectTags: ["TRAN-DELETED", "TRAN-GONE"],
     beforeAssert
@@ -99541,8 +107130,8 @@ function flattenDetails(node2, depth, out) {
 }
 function includeNameFromUri(uri) {
   if (!uri) return void 0;
-  const path6 = String(uri).split("#")[0] ?? "";
-  const m = /\/includes\/([^/?#]+)\/?$/.exec(path6);
+  const path8 = String(uri).split("#")[0] ?? "";
+  const m = /\/includes\/([^/?#]+)\/?$/.exec(path8);
   return m ? m[1] : void 0;
 }
 function parseStack(node2) {
@@ -100121,9 +107710,6 @@ async function resolveIndexOwner(conn, baseTable) {
 function isLocalPackage(packageName) {
   return isLocalPackageName(packageName);
 }
-function quotedIdentifier(value, what, opts) {
-  return abapLiteral(assertEnhIdentifier(value, what, opts));
-}
 function assertCorrNr2(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
@@ -100250,167 +107836,6 @@ var DD_INDEX_EXCEPTIONS = [
     hint: void 0
   }
 ];
-function ddIndexExceptionsClause() {
-  return DD_INDEX_EXCEPTIONS.map((e, i) => {
-    const kw = e.name === "others" ? "OTHERS" : e.name;
-    const end = i === DD_INDEX_EXCEPTIONS.length - 1 ? "." : "";
-    return `    ${kw} = ${e.subrc}${end}`;
-  });
-}
-function transportParamLine(local, corrNr) {
-  return local ? "    no_transp_request   = 'X'" : `    transport_number    = ${abapLiteral(corrNr)}`;
-}
-var INDEX_DATA_LINES = [
-  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
-  "lv_actfailed TYPE ddrefstruc-flag.",
-  "lv_dd12v_count TYPE i.",
-  "lv_dd12v_any TYPE i.",
-  "lv_dd17s_count TYPE i.",
-  "lv_client_field TYPE dd03l-fieldname."
-];
-var INDEX_DELETE_DATA_LINES = [
-  "lt_fields TYPE STANDARD TABLE OF ddfldnam WITH DEFAULT KEY.",
-  "lv_actfailed TYPE ddrefstruc-flag.",
-  "lv_dd12v_count TYPE i.",
-  "lv_dd12v_active TYPE i.",
-  "lv_dd17s_count TYPE i.",
-  // built up over several assignments, not one literal — a 30-char baseTable pushes either
-  // message past the 255-char class-source line limit if written in one piece (live 2026-09-05).
-  "lv_msg TYPE string."
-];
-function secondaryIndexFragment(p) {
-  const v = validate3(p);
-  const { indexName, baseTable, fields, description, corrNr, unique } = v;
-  const index = quotedIdentifier(indexName, "indexName", { maxLength: INDEX_NAME_MAX });
-  const table = quotedIdentifier(baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
-  const local = corrNr === void 0;
-  const lines = [];
-  fields.forEach((f, i) => {
-    const quoted6 = quotedIdentifier(f, `fields[${i}]`, { maxLength: INDEX_FIELD_NAME_MAX });
-    lines.push(`APPEND VALUE #( name = ${quoted6} ) TO lt_fields.`);
-  });
-  lines.push("");
-  if (unique) {
-    lines.push(
-      `SELECT SINGLE fieldname FROM dd03l INTO @lv_client_field WHERE tabname = ${table} AND as4local = 'A' AND datatype = 'CLNT'.`,
-      "IF sy-subrc = 0 AND lv_client_field IS NOT INITIAL.",
-      "  READ TABLE lt_fields TRANSPORTING NO FIELDS WITH KEY name = lv_client_field.",
-      "  IF sy-subrc <> 0.",
-      `    out->write( |ZMCP-DDIC-ERR> unique index ${indexName} on ${baseTable} omits the client field { lv_client_field }| ).`,
-      "    RETURN.",
-      "  ENDIF.",
-      "ENDIF.",
-      ""
-    );
-  }
-  lines.push(
-    "CALL FUNCTION 'DD_INDEX_INTERFACE'",
-    "  EXPORTING",
-    `    table_name          = ${table}`,
-    `    index_name          = ${index}`,
-    "    action              = 'I'",
-    `    shorttext           = ${abapLiteral(description)}`,
-    "    activate            = 'X'",
-    ...unique ? ["    unique              = 'X'"] : [],
-    transportParamLine(local, corrNr),
-    "  IMPORTING",
-    "    actfailed = lv_actfailed",
-    "  TABLES",
-    "    index_fields = lt_fields",
-    "  EXCEPTIONS",
-    ...ddIndexExceptionsClause(),
-    ...subrcGuardFragment(CREATE_FM_WHAT),
-    "IF lv_actfailed = 'X'.",
-    // DD_INDEX_INTERFACE exports no activation log; the cheapest evidence of what a failed
-    // activation left behind is a DD12V row count with no AS4LOCAL filter at all.
-    `  SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_any WHERE sqltab = ${table} AND indexname = ${index}.`,
-    `  out->write( |ZMCP-DDIC-ERR> ${CREATE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}; DD12V rows for this pair after the failure, any AS4LOCAL: { lv_dd12v_any }| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'INDEX-CREATED' ).",
-    ""
-  );
-  lines.push("COMMIT WORK.", "");
-  lines.push(
-    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index} AND as4local = 'A'.`,
-    "IF lv_dd12v_count = 0.",
-    `  out->write( |ZMCP-DDIC-ERR> ${indexName} on ${baseTable} not found active (AS4LOCAL = 'A') in DD12V after commit| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'INDEX-ACTIVE' ).",
-    ""
-  );
-  lines.push(
-    `SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    `IF lv_dd17s_count < ${fields.length}.`,
-    `  out->write( |ZMCP-DDIC-ERR> expected at least ${fields.length} DD17S field row(s) for ${indexName} on ${baseTable}, got { lv_dd17s_count }| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'INDEX-FIELDS' )."
-  );
-  return lines;
-}
-function indexDeleteFragment(p) {
-  const v = validateDelete(p);
-  const { indexName, baseTable, corrNr } = v;
-  const index = quotedIdentifier(indexName, "indexName", { maxLength: INDEX_NAME_MAX });
-  const table = quotedIdentifier(baseTable, "baseTable", { maxLength: BASE_TABLE_MAX });
-  const local = corrNr === void 0;
-  const lines = [];
-  lines.push(
-    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    "IF lv_dd12v_count = 0.",
-    `  out->write( |ZMCP-DDIC-ERR> index ${indexName} on ${baseTable} does not exist| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    ""
-  );
-  lines.push(
-    "CALL FUNCTION 'DD_INDEX_INTERFACE'",
-    "  EXPORTING",
-    `    table_name          = ${table}`,
-    `    index_name          = ${index}`,
-    "    action              = 'D'",
-    "    activate            = 'X'",
-    transportParamLine(local, corrNr),
-    "  IMPORTING",
-    "    actfailed = lv_actfailed",
-    // DD_INDEX_INTERFACE requires INDEX_FIELDS for every ACTION, content or not; omitting it
-    // failed live on 2026-09-05 with "the mandatory parameter INDEX_FIELDS was not filled".
-    "  TABLES",
-    "    index_fields = lt_fields",
-    "  EXCEPTIONS",
-    ...ddIndexExceptionsClause(),
-    ...subrcGuardFragment(DELETE_FM_WHAT),
-    ""
-  );
-  lines.push("COMMIT WORK.", "");
-  lines.push(
-    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    `SELECT COUNT( * ) FROM dd12v INTO @lv_dd12v_active WHERE sqltab = ${table} AND indexname = ${index} AND as4local = 'A'.`,
-    `SELECT COUNT( * ) FROM dd17s INTO @lv_dd17s_count WHERE sqltab = ${table} AND indexname = ${index}.`,
-    ""
-  );
-  lines.push(
-    "IF lv_dd12v_count <> 0 OR lv_dd12v_active <> 0 OR lv_dd17s_count <> 0.",
-    `  lv_msg = |ZMCP-DDIC-ERR> delete of ${indexName} on ${baseTable} left rows behind after commit |.`,
-    "  lv_msg = lv_msg && |(DD12V any: { lv_dd12v_count }, DD12V active: { lv_dd12v_active }, |.",
-    `  lv_msg = lv_msg && |DD17S: { lv_dd17s_count }); ${DELETE_FM_WHAT} ACTFAILED = '{ lv_actfailed }'|.`,
-    "  out->write( lv_msg ).",
-    "  RETURN.",
-    "ENDIF.",
-    "IF lv_actfailed = 'X'.",
-    `  lv_msg = |${DDIC_NOTE_PREFIX} ${DELETE_FM_WHAT} reported ACTFAILED = 'X' for ${indexName} on ${baseTable}, |.`,
-    "  lv_msg = lv_msg && |but the post-commit read-back found it gone (DD12V any: { lv_dd12v_count }, |.",
-    "  lv_msg = lv_msg && |DD12V active: { lv_dd12v_active }, DD17S: { lv_dd17s_count }) \u2014 treating as deleted|.",
-    "  out->write( lv_msg ).",
-    "  out->write( 'INDEX-DELETED-ACTFAILED' ).",
-    "ENDIF.",
-    "out->write( 'INDEX-DELETED' ).",
-    "out->write( 'INDEX-GONE' )."
-  );
-  return lines;
-}
 function indexCreatePartialSuccess(indexName, baseTable) {
   return {
     completed: {
@@ -100452,19 +107877,25 @@ function indexBridgeErrorHook(what, indexName, baseTable) {
 async function createSecondaryIndex(conn, gate, params) {
   assertServerPackage(params.packageName, `secondary index ${params.indexName} on ${params.baseTable}`);
   const validated = validate3(params);
-  const { indexName, baseTable, packageName, corrNr } = validated;
+  const { indexName, baseTable, fields, description, packageName, corrNr, unique } = validated;
   const corr = corrNr === void 0 ? void 0 : { kind: "transport", corrNr, source: "named" };
   assertBridgeMutation(
     gate,
     { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
     { activate: true, ...corr !== void 0 ? { corr } : {} }
   );
-  const source = ddicBridgeSource(DDIC_BRIDGE_CLASS.createIndex, INDEX_DATA_LINES, secondaryIndexFragment(validated));
   const partial2 = indexCreatePartialSuccess(indexName, baseTable);
-  return runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.createIndex,
-    source,
-    description: `abapsmith create-secondary-index bridge (${indexName} on ${baseTable})`,
+  return runClassicAction(conn, gate, {
+    action: "create_index",
+    args: {
+      index_name: indexName,
+      base_table: baseTable,
+      fields,
+      description,
+      package_name: packageName.name,
+      corr_nr: corrNr ?? "",
+      ...params.unique !== void 0 ? { unique } : {}
+    },
     what: `Creating secondary index ${indexName} on ${baseTable}`,
     expectTags: ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"],
     beforeAssert: indexBridgeErrorHook("insert", indexName, baseTable),
@@ -100482,15 +107913,14 @@ async function deleteSecondaryIndexViaBridge(conn, gate, params) {
     { type: "TABL/DI", name: indexGateName(baseTable, indexName), packageName: packageName.name },
     { activate: true, op: "delete", ...corr !== void 0 ? { corr } : {} }
   );
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.deleteIndex,
-    INDEX_DELETE_DATA_LINES,
-    indexDeleteFragment(validated)
-  );
-  return runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.deleteIndex,
-    source,
-    description: `abapsmith delete-secondary-index bridge (${indexName} on ${baseTable})`,
+  return runClassicAction(conn, gate, {
+    action: "delete_index",
+    args: {
+      index_name: indexName,
+      base_table: baseTable,
+      package_name: packageName.name,
+      corr_nr: corrNr ?? ""
+    },
     what: `Deleting secondary index ${indexName} on ${baseTable}`,
     expectTags: ["INDEX-DELETED", "INDEX-GONE"],
     beforeAssert: indexBridgeErrorHook("delete", indexName, baseTable)
@@ -100505,8 +107935,7 @@ function assertSoftwareComponent(value, what = "softwareComponent") {
     throw new AbapError(
       "BAD_INPUT",
       `${what} ${JSON.stringify(value)} is not a valid software component for this bridge (a letter, then letters, digits and underscores only, max 30 characters, already upper-cased and trimmed by the caller).`,
-      { what, value },
-      "This value is substituted verbatim into generated ABAP source that is then activated and executed \u2014 a quote, a period or a newline is refused outright, not escaped or stripped."
+      { what, value }
     );
   }
   if (value === "LOCAL") {
@@ -100530,7 +107959,7 @@ function assertCorrNr3(value) {
   return value;
 }
 function assertPackageType(value) {
-  if (value === void 0 || value === "development") return "D";
+  if (value === void 0 || value === "development") return;
   throw new AbapError(
     "BAD_INPUT",
     `package_type ${JSON.stringify(value)} is not supported \u2014 only "development" (SCOMPKDTLN-PACKTYPE = 'D') is exposed by this bridge today.`,
@@ -100538,14 +107967,6 @@ function assertPackageType(value) {
     "Structure packages, main packages and other PACKTYPE values are not implemented \u2014 this is a deliberate scope limitation, not an oversight; extend assertPackageType (src/adt/package-create.ts) if one of them is needed."
   );
 }
-function quoted5(validatedIdentifier) {
-  return `'${validatedIdentifier}'`;
-}
-var PACKAGE_DATA_LINES = [
-  "ls_data    TYPE scompkdtln.",
-  "lo_package TYPE REF TO if_package.",
-  "ls_tdevc   TYPE tdevc."
-];
 var PKG_TDEVC_PREFIX = "ZMCP-PKG-TDEVC>";
 function parseTdevcLine(raw) {
   for (const line of raw.split("\n")) {
@@ -100568,143 +107989,6 @@ function parseTdevcLine(raw) {
     return { devclass, parentcl, dlvunit, korrflag };
   }
   return void 0;
-}
-function packageFragment(p) {
-  const packageName = assertEnhIdentifier(p.packageName, "packageName", { maxLength: PACKAGE_MAX_LENGTH4 });
-  const description = assertAbapText(p.description, "description", CTEXT_MAX_LENGTH);
-  const softwareComponent = assertSoftwareComponent(p.softwareComponent);
-  const corrNr = assertCorrNr3(p.corrNr);
-  const packType = assertPackageType(p.packageType);
-  const superPackage = p.superPackage === void 0 ? void 0 : assertEnhIdentifier(p.superPackage, "superPackage", { maxLength: PACKAGE_MAX_LENGTH4 });
-  const lines = [
-    '" --- Constraints proven live on A4H. Do not "simplify" these. ---',
-    '" 1. The classrun method must be if_oo_adt_classrun~main, not if_oo_adt_classrun.',
-    '"    (ddicBridgeSource already emits the correct form.)',
-    '" 2. SCOMPKDTLN has NO DEVLAYER field and no usable COMPONENT field - setting',
-    '"    either fails the syntax check.',
-    '" 3. SCOMPKDTLN-PDEVCLASS is the TRANSPORT LAYER, not the superpackage. Setting',
-    '"    it to a package name silently truncates to 4 characters and short-dumps',
-    '"    with LAYER_INVALID. It is never set here; the transport layer is left to',
-    '"    the transport route configured for the software component.',
-    '" 4. SUPERPACKAGE_IN_TDEVC looks right but is output-only on create - passing it',
-    '"    leaves PARENTCL blank. The parent is attached in a SECOND step below.',
-    `ls_data-devclass = ${quoted5(packageName)}.`,
-    `ls_data-ctext    = ${abapLiteral(description)}.`,
-    "ls_data-as4user  = sy-uname.",
-    `ls_data-dlvunit  = ${quoted5(softwareComponent)}.`,
-    "ls_data-korrflag = 'X'.",
-    `ls_data-packtype = ${quoted5(packType)}.`,
-    "",
-    '" CREATE_NEW_PACKAGE / SAVE / SET_CHANGEABLE raise CLASSIC (non-cx_root)',
-    '" exceptions, invisible to the CATCH cx_root around this whole method',
-    '" (see ddic-bridge.ts) - CALL METHOD ... EXCEPTIONS OTHERS = 1 is the',
-    '" only way to attach EXCEPTIONS at all; functional-call syntax cannot.',
-    "CALL METHOD cl_package_factory=>create_new_package",
-    "  EXPORTING",
-    "    i_reuse_deleted_object = abap_true",
-    "  IMPORTING",
-    "    e_package               = lo_package",
-    "  CHANGING",
-    "    c_package_data           = ls_data",
-    "  EXCEPTIONS",
-    "    OTHERS                   = 1.",
-    ...subrcGuardFragment("Creating package"),
-    "",
-    "CALL METHOD lo_package->save",
-    "  EXPORTING",
-    `    i_transport_request = ${quoted5(corrNr)}`,
-    "  EXCEPTIONS",
-    "    OTHERS               = 1.",
-    ...subrcGuardFragment("Saving package"),
-    "",
-    '" i_changeable is transcribed from the IF_PACKAGE signature and is NOT',
-    `" verified live by this change - see this file's header. A wrong name`,
-    `" fails the generated class's OWN syntax check at bridge activation,`,
-    '" before any mutation runs.',
-    "CALL METHOD lo_package->set_changeable",
-    "  EXPORTING",
-    "    i_changeable = abap_false",
-    "  EXCEPTIONS",
-    "    OTHERS       = 1.",
-    ...subrcGuardFragment("Making package not changeable"),
-    "COMMIT WORK.",
-    "out->write( 'PKG-CREATED' )."
-  ];
-  if (superPackage !== void 0) {
-    lines.push(
-      "",
-      '" Step 2 - the parent CANNOT be set on create (constraint 4 above); the package',
-      '" is re-loaded and attached here. LOAD_PACKAGE / SET_CHANGEABLE / SAVE /',
-      `" SET_SUPER_PACKAGE_NAME all raise CLASSIC exceptions - see this file's header.`,
-      "CALL METHOD cl_package_factory=>load_package",
-      "  EXPORTING",
-      `    i_package_name = ${quoted5(packageName)}`,
-      "  IMPORTING",
-      "    e_package      = lo_package",
-      "  EXCEPTIONS",
-      "    OTHERS         = 1.",
-      ...subrcGuardFragment("Loading package"),
-      "",
-      '" i_changeable - see the unverified-parameter-name note above.',
-      "CALL METHOD lo_package->set_changeable",
-      "  EXPORTING",
-      "    i_changeable = abap_true",
-      "  EXCEPTIONS",
-      "    OTHERS       = 1.",
-      ...subrcGuardFragment("Making package changeable"),
-      "",
-      '" i_super_package_name is transcribed from the IF_PACKAGE signature and is',
-      `" NOT verified live by this change - see this file's header. A wrong name`,
-      `" fails the generated class's OWN syntax check at bridge activation, before`,
-      '" any mutation runs.',
-      "CALL METHOD lo_package->set_super_package_name",
-      "  EXPORTING",
-      `    i_super_package_name = ${quoted5(superPackage)}`,
-      "  EXCEPTIONS",
-      "    OTHERS                = 1.",
-      ...subrcGuardFragment("Attaching super package"),
-      "",
-      "CALL METHOD lo_package->save",
-      "  EXCEPTIONS",
-      "    OTHERS = 1.",
-      ...subrcGuardFragment("Saving package"),
-      "",
-      "CALL METHOD lo_package->set_changeable",
-      "  EXPORTING",
-      "    i_changeable = abap_false",
-      "  EXCEPTIONS",
-      "    OTHERS       = 1.",
-      ...subrcGuardFragment("Making package not changeable"),
-      "COMMIT WORK.",
-      "out->write( 'PKG-PARENT-SET' )."
-    );
-  }
-  lines.push(
-    "",
-    '" A tag alone is not proof: the classrun could report success for a row that',
-    '" was rolled back. Re-read TDEVC and refuse to write PKG-CONFIRMED unless the',
-    `" row is actually there. (This is still the bridge's own stdout -`,
-    '" src/tools/write.ts additionally verifies out-of-band.)',
-    '"',
-    '" DLVUNIT and KORRFLAG are reported as EVIDENCE, not judged here. Two',
-    '" reasons. (a) Any RETURN below this point fires AFTER the create already',
-    '" happened, and this bridge does not self-delete on a discrepancy: a hard',
-    '" failure here would leave the package behind while telling the caller the',
-    '" operation failed - strictly worse than handing back the row and letting the TypeScript layer',
-    '" say what it means. (b) The KORRFLAG value TDEVC carries for a',
-    `" transportable package is transcribed from the reporter's run, not`,
-    '" independently confirmed, so a mismatch is not reliably a defect. The',
-    `" comparison lives in createPackageViaBridge's caller instead, where it is a`,
-    '" loud note rather than a verdict.',
-    `SELECT SINGLE * FROM tdevc INTO @ls_tdevc WHERE devclass = ${quoted5(packageName)}.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} TDEVC has no row for ${packageName} after create| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    `out->write( |${PKG_TDEVC_PREFIX} DEVCLASS={ ls_tdevc-devclass } PARENTCL={ ls_tdevc-parentcl } DLVUNIT={ ls_tdevc-dlvunit } KORRFLAG={ ls_tdevc-korrflag }| ).`
-  );
-  lines.push("out->write( 'PKG-CONFIRMED' ).");
-  return lines;
 }
 function tdevcDiscrepancies(row2, expect) {
   if (row2 === void 0) {
@@ -100755,23 +108039,17 @@ async function createPackageViaBridge(conn, gate, params) {
     },
     { activate: false, corr }
   );
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.createPackage,
-    PACKAGE_DATA_LINES,
-    packageFragment({
-      packageName,
-      description,
-      softwareComponent,
-      corrNr,
-      superPackage,
-      packageType: params.packageType
-    })
-  );
   const expectTags = superPackage !== void 0 ? ["PKG-CREATED", "PKG-PARENT-SET", "PKG-CONFIRMED"] : ["PKG-CREATED", "PKG-CONFIRMED"];
-  const { run: run2, transcript } = await runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.createPackage,
-    source,
-    description: `abapsmith create-package bridge (${packageName})`,
+  const { run: run2, transcript } = await runClassicAction(conn, gate, {
+    action: "create_package",
+    args: {
+      package_name: packageName,
+      description,
+      software_component: softwareComponent,
+      corr_nr: corrNr,
+      super_package: superPackage ?? "",
+      package_type: params.packageType ?? ""
+    },
     what: `Creating package ${packageName}`,
     expectTags,
     completed: {
@@ -100790,18 +108068,11 @@ async function createPackageViaBridge(conn, gate, params) {
 var VIEW_NAME_MAX2 = 30;
 var VIEW_TEXT_MAX = 60;
 var MAX_VIEW_FIELDS = 249;
-var DICT_KEY_NAME_LENGTH = 40;
-function dictObjectKey(viewName) {
-  return `VIEW${viewName.padEnd(DICT_KEY_NAME_LENGTH)}`;
-}
 function isLocalPackage2(packageName) {
   return isLocalPackageName(packageName);
 }
 function classicViewUri(viewName) {
   return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
-}
-function quotedIdentifier2(value, what, opts = {}) {
-  return abapLiteral(assertEnhIdentifier(value, what, { maxLength: VIEW_NAME_MAX2, ...opts }));
 }
 var PACKAGE_RULES3 = { maxLength: VIEW_NAME_MAX2, allowLocal: true };
 function assertCorrNr4(value) {
@@ -100861,113 +108132,6 @@ function validate4(p) {
   const corrNr = local ? void 0 : p.corrNr;
   return { viewName, baseTable, fields, description, packageName, corrNr, corrSource: p.corrSource };
 }
-var VIEW_DATA_LINES = [
-  "ls_dd25v TYPE dd25v.",
-  "ls_dd26v TYPE dd26v.",
-  "lt_dd26v TYPE STANDARD TABLE OF dd26v.",
-  "ls_dd27p TYPE dd27p.",
-  "lt_dd27p TYPE STANDARD TABLE OF dd27p.",
-  "lv_rc TYPE sy-subrc."
-];
-function classicViewFragment(p) {
-  const { viewName, baseTable, fields, description, packageName, corrNr } = validate4(p);
-  const view = quotedIdentifier2(viewName, "viewName");
-  const table = quotedIdentifier2(baseTable, "baseTable");
-  const local = isLocalPackage2(packageName);
-  const lines = [];
-  lines.push(
-    // --- TADIR registration, BEFORE any dictionary write: a key
-    //     RS_CORR_INSERT rejects then strands nothing. Runs for every
-    //     package; only korrnum differs (TRKORR vs space) below.
-    "CALL FUNCTION 'RS_CORR_INSERT'",
-    // ABAP drops a text-field literal's trailing blanks; the formal
-    // parameter (DDOBJNAME, CHAR44) re-pads to its declared length, so the
-    // literal emitted here and the key SAP actually reads are the same
-    // 44-byte layout.
-    `  EXPORTING object = ${abapLiteral(dictObjectKey(viewName))}`,
-    "            object_class = 'DICT'",
-    `            devclass = ${quotedIdentifier2(packageName, "packageName", PACKAGE_RULES3)}`,
-    "            master_language = sy-langu",
-    "            mode = 'INSERT'",
-    // Selects R3TR/VIEW registration over the LIMU/VIED sub-object variant.
-    "            global_lock = 'X'",
-    // A local ($-prefixed) package has no transport request to name; space is ABAP's SPACE constant, not a quoted literal.
-    local ? "            korrnum = space" : `            korrnum = ${abapLiteral(corrNr)}`,
-    // suppress_dialog = 'X' sets iv_dialog = 'D', suppressing the request-selection dynpro
-    // (korrnum alone reaches only iv_order).
-    "            suppress_dialog = 'X'",
-    "  EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.",
-    ...subrcCheckFragment("RS_CORR_INSERT", "VIEW-REGISTERED"),
-    ""
-  );
-  lines.push(
-    // --- DD25V: the view header (field names/constants are ASSUMPTIONS, see doc comment above).
-    "CLEAR ls_dd25v.",
-    `ls_dd25v-viewname   = ${view}.`,
-    // 'V' = view (as opposed to a maintenance/help aggregate).
-    "ls_dd25v-aggtype    = 'V'.",
-    `ls_dd25v-roottab    = ${table}.`,
-    // 'D' = database view. 'R' = read-only access.
-    "ls_dd25v-viewclass  = 'D'.",
-    "ls_dd25v-viewgrant  = 'R'.",
-    "ls_dd25v-ddlanguage = sy-langu.",
-    `ls_dd25v-ddtext     = ${abapLiteral(description)}.`,
-    "",
-    // --- DD26V: the base table (ONE row — single-table projections only; see capabilities.ts's VIEW/DV limits).
-    "CLEAR lt_dd26v. CLEAR ls_dd26v.",
-    `ls_dd26v-viewname = ${view}.`,
-    `ls_dd26v-tabname  = ${table}.`,
-    "ls_dd26v-tabpos   = '0001'.",
-    "APPEND ls_dd26v TO lt_dd26v.",
-    "",
-    // --- DD27P: one row per projected field, in the caller's order.
-    "CLEAR lt_dd27p."
-  );
-  fields.forEach((field, index) => {
-    const quoted6 = quotedIdentifier2(field, `fields[${index}]`);
-    const objpos = String(index + 1).padStart(4, "0");
-    lines.push(
-      "CLEAR ls_dd27p.",
-      `ls_dd27p-viewname  = ${view}.`,
-      `ls_dd27p-objpos    = '${objpos}'.`,
-      `ls_dd27p-viewfield = ${quoted6}.`,
-      `ls_dd27p-tabname   = ${table}.`,
-      `ls_dd27p-fieldname = ${quoted6}.`,
-      "APPEND ls_dd27p TO lt_dd27p."
-    );
-  });
-  lines.push(
-    "",
-    // --- The PUT. Parameter and exception names are the captured ones.
-    "CALL FUNCTION 'DDIF_VIEW_PUT'",
-    `  EXPORTING name = ${view}`,
-    "            dd25v_wa = ls_dd25v",
-    "  TABLES    dd26v_tab = lt_dd26v",
-    "            dd27p_tab = lt_dd27p",
-    "  EXCEPTIONS view_not_found = 1 name_inconsistent = 2 view_inconsistent = 3",
-    "             put_failure = 4 put_refused = 5 OTHERS = 6.",
-    ...subrcCheckFragment("DDIF_VIEW_PUT", "VIEW-PUT"),
-    "",
-    // Commits the staged PUT before ACTIVATE touches it — see doc comment above (false-success
-    // incident). Registration (above, if generated) already ran before this, so nothing is
-    // stranded if a later step fails.
-    "COMMIT WORK."
-  );
-  lines.push(
-    "",
-    // --- Activation. `rc > 4` means "not activated" without raising; folded into sy-subrc so subrcCheckFragment sees it too.
-    "CALL FUNCTION 'DDIF_VIEW_ACTIVATE'",
-    `  EXPORTING name = ${view}`,
-    "  IMPORTING rc = lv_rc",
-    "  EXCEPTIONS not_found = 1 put_failure = 2 OTHERS = 3.",
-    "IF sy-subrc = 0 AND lv_rc > 4. sy-subrc = lv_rc. ENDIF.",
-    ...subrcCheckFragment("DDIF_VIEW_ACTIVATE", "VIEW-ACTIVATED"),
-    "",
-    // No implicit commit on classrun return — same reasoning as the COMMIT WORK above.
-    "COMMIT WORK."
-  );
-  return lines;
-}
 function viewCreatePartialSuccess(viewName) {
   return {
     completed: {
@@ -100979,24 +108143,25 @@ function viewCreatePartialSuccess(viewName) {
 }
 async function createClassicView(conn, gate, params) {
   const validated = validate4(params);
-  const { viewName, packageName, corrNr, corrSource } = validated;
+  const { viewName, baseTable, fields, description, packageName, corrNr, corrSource } = validated;
   const corr = isLocalPackage2(packageName) ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
   assertBridgeMutation(
     gate,
     { type: "VIEW/DV", name: viewName, packageName },
     { activate: true, ...corr !== void 0 ? { corr } : {} }
   );
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.createView,
-    VIEW_DATA_LINES,
-    classicViewFragment(validated)
-  );
   const expectTags = ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
   const partial2 = viewCreatePartialSuccess(viewName);
-  return runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.createView,
-    source,
-    description: `abapsmith create-classic-view bridge (${viewName})`,
+  return runClassicAction(conn, gate, {
+    action: "create_view",
+    args: {
+      view_name: viewName,
+      base_table: baseTable,
+      fields,
+      description,
+      package_name: packageName,
+      corr_nr: corrNr ?? ""
+    },
     what: `Creating classic view ${viewName}`,
     expectTags,
     completed: partial2.completed,
@@ -102016,7 +109181,7 @@ async function resolveWriteSource(conn, authorized, input) {
     "Pass the complete new source, {edit:{old_string,new_string}} to splice a unique match, or {method,source} to replace one method's implementation. Use mode=delete to remove the object."
   );
 }
-async function abapWrite(conn, input, maxChars, gate, journal, transport, verifyWrites = "speculative", toolLabel = "abap_write") {
+async function abapWrite(conn, input, maxChars, gate, journal, transport, verifyWrites = "speculative", toolLabel2 = "abap_write") {
   if (input.objects !== void 0) {
     if (input.dry_run) throw dryRunNotSupported("objects");
     const stray = [
@@ -102281,7 +109446,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
           ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
           afterSource: source,
           systemKey: systemKey(conn.cfg),
-          tool: toolLabel
+          tool: toolLabel2
         })
       },
       (onBeforeImage) => writeObject(conn, authorized, {
@@ -103014,7 +110179,7 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
   if (verifyOutcome.status === "confirmed-absent") {
     throw new AbapError(
       "CHECK_FAILED",
-      `${DDIC_BRIDGE_CLASS.createPackage} reported success (the transcript carries ${bridgeRes.transcript.tags.join(", ")}) but a follow-up repository search returned no hit for ${target.name} (${verifyOutcome.uri}, via ${verifyOutcome.via}) \u2014 the same false-success shape VIEW/DV was once reproduced against live for (see abapCreateViaBridge above). The search is calibrated for packages: live, a package present in TDEVC was found by it both as a local and as a transportable package, so a miss is strong evidence the create did not land \u2014 evidence, not proof of absence. This was already journalled as created above: confirm which it is before acting, and if CL_PACKAGE_FACTORY did leave something behind, delete it (abap_write mode=delete, while empty) or clean up by hand in SE21.`,
+      `${CLASSIC_BODY_CLASS} reported success (the transcript carries ${bridgeRes.transcript.tags.join(", ")}) but a follow-up repository search returned no hit for ${target.name} (${verifyOutcome.uri}, via ${verifyOutcome.via}) \u2014 the same false-success shape VIEW/DV was once reproduced against live for (see abapCreateViaBridge above). The search is calibrated for packages: live, a package present in TDEVC was found by it both as a local and as a transportable package, so a miss is strong evidence the create did not land \u2014 evidence, not proof of absence. This was already journalled as created above: confirm which it is before acting, and if CL_PACKAGE_FACTORY did leave something behind, delete it (abap_write mode=delete, while empty) or clean up by hand in SE21.`,
       { object: target.name, type: "DEVC/K", markers: bridgeRes.transcript.tags.join(" ") },
       'Confirm before acting: abap_search mode=objects type="DEVC" for this name, or read TDEVC directly (abap_data_preview, devclass = the package name). SE21 also shows it.'
     );
@@ -103040,14 +110205,14 @@ async function abapCreatePackage(conn, target, input, maxChars, gate, trOpts, jo
       package_type: input.package_type?.trim() || "development",
       transport: transportHeaderText(transportInfo),
       verified,
-      bridge_class: DDIC_BRIDGE_CLASS.createPackage,
+      bridge_class: CLASSIC_BODY_CLASS,
       markers: bridgeRes.transcript.tags.join(" "),
       tdevc: bridgeRes.tdevc ? `DEVCLASS=${bridgeRes.tdevc.devclass} PARENTCL=${bridgeRes.tdevc.parentcl} DLVUNIT=${bridgeRes.tdevc.dlvunit} KORRFLAG=${bridgeRes.tdevc.korrflag}` : void 0,
       journal: journalled2 ? entryId : "off (nothing recorded)"
     },
     notes: [
       transportNote(transportInfo, gate.config?.abapMode),
-      "Created by running a generated ZCL_ZMCP_DDIC_CPKG classrun bridge, not over ADT REST: CL_PACKAGE_FACTORY=>CREATE_NEW_PACKAGE, then lo_package->save(i_transport_request=...) \u2014 SE21's own backend. See src/adt/package-create.ts and src/adt/ddic-bridge.ts.",
+      "Created by running the classic fluid tool's body class " + CLASSIC_BODY_CLASS + ", not over ADT REST: CL_PACKAGE_FACTORY=>CREATE_NEW_PACKAGE, then lo_package->save(i_transport_request=...) \u2014 SE21's own backend. See src/adt/package-create.ts and src/adt/classic-call.ts.",
       verifyNote,
       ...tdevcDiscrepancies(bridgeRes.tdevc, {
         softwareComponent,
@@ -103193,7 +110358,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
     }
     const baseTable = input.base_table;
     const viewFields = input.view_fields;
-    bridgeClass = DDIC_BRIDGE_CLASS.createView;
+    bridgeClass = CLASSIC_BODY_CLASS;
     const named = normalizeCorrNr(input.corr_nr);
     const localPkg = isLocalPackageName(packageName);
     let corrNr;
@@ -103281,7 +110446,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
         `Create the program first with abap_write (type="PROG/P"), or correct \`program\` if this was a typo.`
       );
     }
-    bridgeClass = DDIC_BRIDGE_CLASS.createTransaction;
+    bridgeClass = CLASSIC_BODY_CLASS;
     const corrNr = normalizeCorrNr(input.corr_nr);
     ({ result: created, entryId } = await journalBridgeCreate(
       journal,
@@ -103329,7 +110494,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
       journal: entryId !== void 0 ? entryId : "off (not journalled \u2014 see notes)"
     },
     notes: [
-      `Created by running a generated ${bridgeClass} classrun bridge, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/ddic-bridge.ts"}`,
+      `Created by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
       verifyNote,
       bridgeReversalNote(entryId, beforeCapture, registration, label, type, target.name)
@@ -103411,10 +110576,10 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
   let deleted;
   let bridgeClass;
   if (type === "VIEW/DV") {
-    bridgeClass = DDIC_BRIDGE_CLASS.deleteView;
+    bridgeClass = CLASSIC_BODY_CLASS;
     deleted = await deleteClassicViewViaBridge(conn, gate, { viewName: target.name, packageName: resolved });
   } else {
-    bridgeClass = DDIC_BRIDGE_CLASS.deleteTransaction;
+    bridgeClass = CLASSIC_BODY_CLASS;
     deleted = await deleteTransactionViaBridge(conn, gate, { tcode: target.name, packageName: resolved });
   }
   const outcome = await verifyObjectDeleted(conn, {
@@ -103451,7 +110616,7 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
       journal: "off (not journalled \u2014 see notes)"
     },
     notes: [
-      `Deleted by running a generated ${bridgeClass} classrun bridge, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
+      `Deleted by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
       verifyNote,
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this object. To bring it back, create it again with a fresh abap_write call.",
       isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName)
@@ -103539,12 +110704,12 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate) {
       created: true,
       verified: false,
       detail,
-      bridge_class: DDIC_BRIDGE_CLASS.createIndex,
+      bridge_class: CLASSIC_BODY_CLASS,
       markers: created.transcript.tags.join(" "),
       journal: "off (never journalled \u2014 see notes)"
     },
     notes: [
-      `Created by running a generated ${DDIC_BRIDGE_CLASS.createIndex} classrun bridge, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
+      `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
       "NOT independently verified: a secondary index has no ADT resource of its own to read back from (see this type's REGISTRY entry in src/adt/capabilities.ts). The INDEX-ACTIVE and INDEX-FIELDS markers above come from the generated bridge's own post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, independent read \u2014 abapsmith still reports created:true, trusting that transcript, but verified is always false here.",
       'NOT journalled: an index create has no undo path (src/adt/undo.ts recognises no TABL/DI shape and would throw on one). To reverse this, delete the index with a fresh abap_write { mode: "delete", type: "TABL/DI" } call, not abap_journal mode=undo.'
@@ -103615,12 +110780,12 @@ async function abapDeleteIndexViaBridge(conn, target, input, maxChars, gate) {
       mode: "delete-bridge",
       deleted: true,
       verified: false,
-      bridge_class: DDIC_BRIDGE_CLASS.deleteIndex,
+      bridge_class: CLASSIC_BODY_CLASS,
       markers: deleted.transcript.tags.join(" "),
       journal: "off (not journalled \u2014 see notes)"
     },
     notes: [
-      `Deleted by running a generated ${DDIC_BRIDGE_CLASS.deleteIndex} classrun bridge, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
+      `Deleted by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
       "NOT independently verified: a secondary index has no ADT resource of its own to read back from. The INDEX-GONE marker above comes from the generated bridge's own post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, independent read \u2014 abapsmith still reports deleted:true, trusting that transcript, but verified is always false here.",
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this index. To bring it back, create it again with a fresh abap_write call.",
       ...deleted.transcript.tags.includes("INDEX-DELETED-ACTFAILED") ? [
@@ -103714,144 +110879,6 @@ function registerWriteTools(mcp, deps) {
 }
 
 // src/adt/transport-entry-remove.ts
-var TRANSPORT_ENTRY_REMOVE_DATA_LINES = [
-  "ls_req TYPE trwbo_request.",
-  "ls_e071 TYPE e071.",
-  "lt_rows TYPE STANDARD TABLE OF e071 WITH EMPTY KEY.",
-  "lt_candidates TYPE STANDARD TABLE OF trkorr WITH EMPTY KEY.",
-  "lt_tasks TYPE STANDARD TABLE OF trkorr WITH EMPTY KEY.",
-  "lv_trkorr TYPE trkorr.",
-  "lv_holder TYPE trkorr.",
-  "lv_check TYPE trkorr.",
-  "lv_subrc TYPE sy-subrc.",
-  "ls_msg TYPE symsg.",
-  "lv_msgtext TYPE string.",
-  "lv_readerr TYPE string.",
-  "ls_other TYPE e071.",
-  "lv_n TYPE i.",
-  "lv_positions TYPE string."
-];
-function transportEntryRemoveFragment(p) {
-  const trkorr = assertTrkorr(p.trkorr, "transportEntryRemove");
-  const objectName = assertEnhIdentifier(p.objectName, "object", {
-    maxLength: 40,
-    allowNamespace: true
-  }).toUpperCase();
-  const trkorrLit = abapLiteral(trkorr);
-  const nameLit = abapLiteral(objectName);
-  const step1 = [
-    '" Step 1: resolve which of trkorr or its tasks holds the entry.',
-    `lv_trkorr = ${trkorrLit}.`,
-    "APPEND lv_trkorr TO lt_candidates.",
-    `SELECT trkorr FROM e070 INTO TABLE lt_tasks WHERE strkorr = ${trkorrLit}.`,
-    "APPEND LINES OF lt_tasks TO lt_candidates.",
-    "CLEAR lv_holder.",
-    "LOOP AT lt_candidates INTO lv_trkorr.",
-    "  CLEAR ls_req.",
-    "  ls_req-h-trkorr = lv_trkorr.",
-    "  CALL FUNCTION 'TRINT_READ_REQUEST'",
-    "    EXPORTING iv_read_e070 = 'X' iv_read_e07t = 'X' iv_read_e070c = 'X' iv_read_e070m = 'X'",
-    "              iv_read_objs_keys = 'X' iv_read_attributes = 'X'",
-    "    CHANGING  cs_request = ls_req",
-    "    EXCEPTIONS OTHERS = 1.",
-    "  lv_subrc = sy-subrc.",
-    "  MOVE-CORRESPONDING sy TO ls_msg.",
-    "  IF lv_subrc <> 0.",
-    "    lv_readerr = |{ lv_trkorr } sy-subrc={ lv_subrc } msg={ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
-    "    CONTINUE.",
-    "  ENDIF.",
-    "  CLEAR lt_rows.",
-    `  LOOP AT ls_req-objects INTO ls_e071 WHERE obj_name = ${nameLit}.`,
-    "    APPEND ls_e071 TO lt_rows.",
-    "  ENDLOOP.",
-    "  IF lines( lt_rows ) > 0.",
-    "    lv_holder = lv_trkorr.",
-    "    EXIT.",
-    "  ENDIF.",
-    "ENDLOOP."
-  ];
-  const step2 = [
-    '" Step 2: refuse if no candidate carried the entry.',
-    "IF lv_holder IS INITIAL.",
-    "  IF lv_readerr IS INITIAL.",
-    `    out->write( |ZMCP-DDIC-ERR> no entry for ${objectName} on ${trkorr} or its tasks| ).`,
-    "  ELSE.",
-    `    out->write( |ZMCP-DDIC-ERR> no entry for ${objectName} on ${trkorr} or its tasks; last TRINT_READ_REQUEST failure: { lv_readerr }| ).`,
-    "  ENDIF.",
-    "  RETURN.",
-    "ENDIF."
-  ];
-  const step3 = ['" Step 3: name the resolved holder.', "out->write( |ZMCP-TREN-HOLDER { lv_holder }| )."];
-  const step4 = [
-    '" Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name.',
-    "LOOP AT lt_rows INTO ls_e071.",
-    "  lv_n = 0.",
-    "  CLEAR lv_positions.",
-    "  LOOP AT lt_rows INTO ls_other WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object",
-    "                                  AND obj_name = ls_e071-obj_name.",
-    "    lv_n = lv_n + 1.",
-    "    IF lv_positions IS INITIAL.",
-    "      lv_positions = |{ ls_other-as4pos }|.",
-    "    ELSE.",
-    "      lv_positions = |{ lv_positions },{ ls_other-as4pos }|.",
-    "    ENDIF.",
-    "  ENDLOOP.",
-    "  IF lv_n >= 2.",
-    "    out->write( |ZMCP-DDIC-ERR> duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }| ).",
-    "    RETURN.",
-    "  ENDIF.",
-    "ENDLOOP."
-  ];
-  const step5 = [
-    '" Step 5: remove every collected row.',
-    "LOOP AT lt_rows INTO ls_e071.",
-    "  CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'",
-    "    EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071",
-    "    CHANGING cs_request = ls_req",
-    "    EXCEPTIONS OTHERS = 1.",
-    "  lv_subrc = sy-subrc.",
-    "  MOVE-CORRESPONDING sy TO ls_msg.",
-    "  IF lv_subrc <> 0.",
-    // OTHERS = 1, not a named exception: which exceptions exist is a property of the installed
-    // release; naming one absent here is a syntax error at class activation, not runtime —
-    // so sy-subrc/sy-msg* are read instead. sy-msg* is best-effort (bare RAISE leaves it blank);
-    // the duplicate case's E TR 292, blank v1-v4, is expected: MESSAGE e292(tr) takes no WITH operands.
-    "    lv_msgtext = |{ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.",
-    "    out->write( |ZMCP-DDIC-ERR> TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }, sy-subrc={ lv_subrc }, msg={ lv_msgtext }| ).",
-    "    RETURN.",
-    "  ENDIF.",
-    "  out->write( |ZMCP-TREN-ROW { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }| ).",
-    "ENDLOOP."
-  ];
-  const step6 = ['" Step 6: one success tag for the whole batch.', "out->write( 'TREN-REMOVED' )."];
-  const step7 = ['" Step 7: commit.', "COMMIT WORK AND WAIT."];
-  const step8 = [
-    '" Step 8: prove absence.',
-    `SELECT SINGLE trkorr FROM e071 INTO @lv_check WHERE trkorr = @lv_holder AND obj_name = ${nameLit}.`,
-    "IF sy-subrc = 0.",
-    `  out->write( |ZMCP-DDIC-ERR> removal of ${objectName} reported no error but a row is still there| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "out->write( 'TREN-GONE' )."
-  ];
-  return [
-    ...step1,
-    "",
-    ...step2,
-    "",
-    ...step3,
-    "",
-    ...step4,
-    "",
-    ...step5,
-    "",
-    ...step6,
-    "",
-    ...step7,
-    "",
-    ...step8
-  ];
-}
 async function removeTransportEntryViaBridge(conn, gate, params, proof) {
   void proof;
   const trkorr = assertTrkorr(params.trkorr, "removeTransportEntry");
@@ -103859,11 +110886,6 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
     maxLength: 40,
     allowNamespace: true
   }).toUpperCase();
-  const source = ddicBridgeSource(
-    DDIC_BRIDGE_CLASS.removeTransportEntry,
-    TRANSPORT_ENTRY_REMOVE_DATA_LINES,
-    transportEntryRemoveFragment({ trkorr, objectName })
-  );
   const beforeAssert = (transcript2) => {
     if (transcript2.errorLine?.startsWith("duplicate E071 entries for")) {
       const m = /^duplicate E071 entries for (\S+) (\S+) (\S+) on (\S+): (\d+) rows at AS4POS (\S+)$/.exec(
@@ -103897,10 +110919,9 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
       );
     }
   };
-  const { run: run2, transcript } = await runDdicBridge(conn, gate, {
-    className: DDIC_BRIDGE_CLASS.removeTransportEntry,
-    source,
-    description: `abapsmith remove-transport-entry bridge (${objectName})`,
+  const { run: run2, transcript } = await runClassicAction(conn, gate, {
+    action: "remove_transport_entry",
+    args: { trkorr, object_name: objectName },
     what: `Removing ${objectName} from ${trkorr}`,
     expectTags: ["TREN-REMOVED", "TREN-GONE"],
     beforeAssert
@@ -107487,17 +114508,17 @@ function safeJson(v) {
     return String(v);
   }
 }
-function refShapeIssue(path6, value) {
+function refShapeIssue(path8, value) {
   if (typeof value === "string") {
     return {
-      message: `${path6} = ${JSON.stringify(value)} is a bare string, not an object ref. It must be { "name": "...", "type": "..." } \u2014 most likely { "name": ${JSON.stringify(value)}, "type": "..." }.`,
-      detail: { path: path6, value }
+      message: `${path8} = ${JSON.stringify(value)} is a bare string, not an object ref. It must be { "name": "...", "type": "..." } \u2014 most likely { "name": ${JSON.stringify(value)}, "type": "..." }.`,
+      detail: { path: path8, value }
     };
   }
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {
-      message: `${path6} must be an object ref { "name": "...", "type": "..." }, got ${describeType(value)}.`,
-      detail: { path: path6, value }
+      message: `${path8} must be an object ref { "name": "...", "type": "..." }, got ${describeType(value)}.`,
+      detail: { path: path8, value }
     };
   }
   const o = value;
@@ -107508,42 +114529,42 @@ function refShapeIssue(path6, value) {
     (x) => x !== void 0
   );
   return {
-    message: `${path6} is missing required field(s) ${missing.join(" and ")} \u2014 got ${safeJson(value)}. Required shape: { "name": "...", "type": "..." }.`,
-    detail: { path: path6, value, missing }
+    message: `${path8} is missing required field(s) ${missing.join(" and ")} \u2014 got ${safeJson(value)}. Required shape: { "name": "...", "type": "..." }.`,
+    detail: { path: path8, value, missing }
   };
 }
-function shapeIssue(path6, shape, value) {
+function shapeIssue(path8, shape, value) {
   switch (shape) {
     case "string":
-      return typeof value === "string" ? void 0 : { message: `${path6} must be a string, got ${describeType(value)}.`, detail: { path: path6, value } };
+      return typeof value === "string" ? void 0 : { message: `${path8} must be a string, got ${describeType(value)}.`, detail: { path: path8, value } };
     case "boolean":
-      return typeof value === "boolean" ? void 0 : { message: `${path6} must be a boolean, got ${describeType(value)}.`, detail: { path: path6, value } };
+      return typeof value === "boolean" ? void 0 : { message: `${path8} must be a boolean, got ${describeType(value)}.`, detail: { path: path8, value } };
     case "booleanOrNull":
-      return value === null || typeof value === "boolean" ? void 0 : { message: `${path6} must be a boolean or null, got ${describeType(value)}.`, detail: { path: path6, value } };
+      return value === null || typeof value === "boolean" ? void 0 : { message: `${path8} must be a boolean or null, got ${describeType(value)}.`, detail: { path: path8, value } };
     case "stringOrNull":
-      return value === null || typeof value === "string" ? void 0 : { message: `${path6} must be a string or null, got ${describeType(value)}.`, detail: { path: path6, value } };
+      return value === null || typeof value === "string" ? void 0 : { message: `${path8} must be a string or null, got ${describeType(value)}.`, detail: { path: path8, value } };
     case "ref":
-      return refShapeIssue(path6, value);
+      return refShapeIssue(path8, value);
     case "refOrNull":
-      return value === null ? void 0 : refShapeIssue(path6, value);
+      return value === null ? void 0 : refShapeIssue(path8, value);
     case "stringArray": {
       if (!Array.isArray(value)) {
-        return { message: `${path6} must be an array of strings, got ${describeType(value)}.`, detail: { path: path6, value } };
+        return { message: `${path8} must be an array of strings, got ${describeType(value)}.`, detail: { path: path8, value } };
       }
       if (value.length === 0) {
-        return { message: `${path6} must be a non-empty array of strings.`, detail: { path: path6, value } };
+        return { message: `${path8} must be a non-empty array of strings.`, detail: { path: path8, value } };
       }
       const badIndex = value.findIndex((x) => typeof x !== "string");
       if (badIndex !== -1) {
         return {
-          message: `${path6}[${badIndex}] must be a string, got ${describeType(value[badIndex])}.`,
-          detail: { path: path6, index: badIndex, value: value[badIndex] }
+          message: `${path8}[${badIndex}] must be a string, got ${describeType(value[badIndex])}.`,
+          detail: { path: path8, index: badIndex, value: value[badIndex] }
         };
       }
       return void 0;
     }
     case "objectArray":
-      return Array.isArray(value) ? void 0 : { message: `${path6} must be an array, got ${describeType(value)}.`, detail: { path: path6, value } };
+      return Array.isArray(value) ? void 0 : { message: `${path8} must be an array, got ${describeType(value)}.`, detail: { path: path8, value } };
   }
 }
 function suggestKey(unknownKey, accepted) {
@@ -107598,16 +114619,16 @@ function validateArrayEntries(pathBase, entryLabel, entries, table) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
     const obj = entry;
     for (const key of Object.keys(obj)) {
-      const path6 = `${pathBase}[${i}].${key}`;
+      const path8 = `${pathBase}[${i}].${key}`;
       const shape = table[key];
       if (shape === void 0) {
         issues.push({
-          message: `${path6} is not a recognised field on a ${entryLabel} entry. Accepted field(s): ${accepted.join(", ")}.`,
-          detail: { path: path6, key, index: i, accepted }
+          message: `${path8} is not a recognised field on a ${entryLabel} entry. Accepted field(s): ${accepted.join(", ")}.`,
+          detail: { path: path8, key, index: i, accepted }
         });
         continue;
       }
-      const problem = shapeIssue(path6, shape, obj[key]);
+      const problem = shapeIssue(path8, shape, obj[key]);
       if (problem) issues.push(problem);
     }
   });
@@ -110484,6 +117505,7 @@ async function runBopfTest(conn, model, scenario, gate, opts) {
     className,
     source,
     description: `abapsmith BOPF test bridge for ${model.name}`,
+    caller: { tool: "abap_bopf_test", action: "run_test" },
     what: "Activation of the generated BOPF test bridge",
     hint: `The bridge exercises BO ${model.name} through its service/transaction managers, so the usual cause is that the BO is inactive, does not exist, or a scenario node's structure reference no longer matches what activated.`,
     verify: (activation) => verifyBridgeActivation(activation, className, "BOPF test bridge", { bo: model.name })
@@ -110676,7 +117698,7 @@ async function runBopfTest2(deps, args) {
   const bridgeClass = bopfBridgeClassName(input.bo);
   deps.safety.assert(
     "write",
-    { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" },
+    { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" }
   );
   if (!input.generate_only) {
@@ -110727,29 +117749,13 @@ function registerBopfTestTool(mcp, deps) {
 }
 
 // src/adt/fpm-runtime.ts
-import { createHash as createHash9 } from "node:crypto";
-var CONFIG_ID_LEN = 32;
 var CONFIG_VAR_MAX = 6;
-function sqlQuote(value) {
-  return value.replace(/'/g, "''");
-}
 function assertConfigId(value) {
   const v = assertPlainName(value, "config_id");
   if (v.length > CONFIG_ID_LEN) {
     throw new AbapError(
       "BAD_INPUT",
       `config_id "${value}" is ${v.length} characters long; WDY_CONFIG_ID is CHAR${CONFIG_ID_LEN}.`,
-      { value }
-    );
-  }
-  return v;
-}
-function assertConfigType(value) {
-  const v = (value ?? "00").trim();
-  if (!/^[0-9]{2}$/.test(v)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `config_type "${value}" must be exactly 2 digits (NUMC2) \u2014 e.g. "00" (component) or "02" (application).`,
       { value }
     );
   }
@@ -110767,529 +117773,227 @@ function assertConfigVar(value) {
   }
   return v;
 }
-function assertComponent(value) {
-  return assertPlainName(value, "component");
-}
-function assertPackageFilter(value) {
-  return assertPlainName(value, "package");
-}
-function buildLikePattern(query) {
-  const trimmed = query.trim();
-  if (trimmed === "" || !/^[A-Za-z0-9_/*]{1,40}$/.test(trimmed)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `query "${query}" may only contain letters, digits, underscore, "/" and "*" (wildcard), 1-40 chars.`,
-      { value: query }
-    );
-  }
-  const escapeChar = "#";
-  const escaped = trimmed.replace(/_/g, `${escapeChar}_`).replace(/\*/g, "%");
-  return { literal: sqlQuote(escaped), escapeChar };
-}
-function validateQuery(q) {
-  switch (q.mode) {
-    case "find":
-      assertConfigType(q.configType);
-      if (q.component) assertComponent(q.component);
-      if (q.queryPattern) buildLikePattern(q.queryPattern);
-      if (q.package) assertPackageFilter(q.package);
-      if (q.configType === "02" && q.component) {
-        throw new AbapError(
-          "BAD_INPUT",
-          'component filter does not apply to application configs (config_type "02") \u2014 WDY_CONFIG_APPL has no component column.',
-          { component: q.component, configType: q.configType }
-        );
-      }
-      break;
-    case "outline":
-      assertConfigId(q.configId);
-      assertConfigType(q.configType);
-      assertConfigVar(q.configVar);
-      break;
-    case "app":
-      assertConfigId(q.configId);
-      break;
-  }
-}
-var FPM_BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_FPM_";
-function discriminator(q) {
-  switch (q.mode) {
-    case "find":
-      return JSON.stringify({
-        mode: "find",
-        configType: q.configType,
-        component: q.component ?? "",
-        queryPattern: q.queryPattern ?? "",
-        package: q.package ?? ""
-      });
-    case "outline":
-      return JSON.stringify({
-        mode: "outline",
-        configId: q.configId,
-        configType: q.configType,
-        configVar: q.configVar
-      });
-    case "app":
-      return JSON.stringify({ mode: "app", configId: q.configId, resolve: q.resolve });
-  }
-}
-function fpmBridgeClassName(q) {
-  validateQuery(q);
-  const hashHexLen = MAX_NAME - FPM_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash9("sha256").update(discriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
-  return `${FPM_BRIDGE_CLASS_PREFIX}${hash2}`;
-}
-var FPM_LINE_PREFIX = "FPM> ";
-function findBody(q) {
-  const configType = assertConfigType(q.configType);
-  const isAppl = configType === "02";
-  const table = isAppl ? "wdy_config_appl" : "wdy_config_data";
-  const textTable2 = isAppl ? "wdy_config_appt" : "wdy_config_datt";
-  const tadirObject = isAppl ? "WDCA" : "WDCC";
-  if (isAppl && q.component) {
-    throw new AbapError(
-      "BAD_INPUT",
-      'component filter does not apply to application configs (config_type "02") \u2014 WDY_CONFIG_APPL has no component column.',
-      { component: q.component, configType }
-    );
-  }
-  const conditions = [`config_type = '${configType}'`];
-  if (q.component) {
-    conditions.push(`component = '${sqlQuote(assertComponent(q.component))}'`);
-  }
-  if (q.queryPattern) {
-    const { literal: literal2, escapeChar } = buildLikePattern(q.queryPattern);
-    conditions.push(`config_id LIKE '${literal2}' ESCAPE '${escapeChar}'`);
-  }
-  const whereClause = `WHERE ${conditions.join(" AND ")}`;
-  const selectFields = isAppl ? "config_id, config_type, config_var" : "config_id, config_type, config_var, component";
-  const componentField = isAppl ? "" : "{ ls_row-component }";
-  const lines = [];
-  lines.push(`    SELECT ${selectFields}`);
-  lines.push(`      FROM ${table}`);
-  lines.push(`      ${whereClause}`);
-  lines.push(`      INTO TABLE @DATA(lt_rows)`);
-  lines.push(`      UP TO 200 ROWS.`);
-  lines.push(`    mo_out->write( |${FPM_LINE_PREFIX}COUNT { lines( lt_rows ) }| ).`);
-  lines.push(`    LOOP AT lt_rows INTO DATA(ls_row).`);
-  lines.push(`      DATA lv_desc TYPE string.`);
-  lines.push(`      CLEAR lv_desc.`);
-  lines.push(`      SELECT SINGLE description FROM ${textTable2}`);
-  lines.push(`        WHERE config_id = @ls_row-config_id AND config_type = @ls_row-config_type`);
-  lines.push(`          AND config_var = @ls_row-config_var AND langu = @sy-langu`);
-  lines.push(`        INTO @lv_desc.`);
-  if (q.package) {
-    const pkg = sqlQuote(assertPackageFilter(q.package));
-    lines.push(`      DATA lv_key40 TYPE c LENGTH 40.`);
-    lines.push(`      CLEAR lv_key40.`);
-    lines.push(`      lv_key40(32)   = ls_row-config_id.`);
-    lines.push(`      lv_key40+32(2) = ls_row-config_type.`);
-    lines.push(`      lv_key40+34(6) = ls_row-config_var.`);
-    lines.push(`      DATA lv_devclass TYPE devclass.`);
-    lines.push(`      CLEAR lv_devclass.`);
-    lines.push(`      SELECT SINGLE devclass FROM tadir`);
-    lines.push(`        WHERE pgmid = 'R3TR' AND object = '${tadirObject}' AND obj_name = @lv_key40`);
-    lines.push(`        INTO @lv_devclass.`);
-    lines.push(`      IF lv_devclass <> '${pkg}'.`);
-    lines.push(`        CONTINUE.`);
-    lines.push(`      ENDIF.`);
-    lines.push(
-      `      mo_out->write( |${FPM_LINE_PREFIX}CONFIG config_id=[{ ls_row-config_id }] config_type=[{ ls_row-config_type }] config_var=[{ ls_row-config_var }] component=[${componentField}] description=[{ lv_desc }] devclass=[{ lv_devclass }]| ).`
-    );
-  } else {
-    lines.push(
-      `      mo_out->write( |${FPM_LINE_PREFIX}CONFIG config_id=[{ ls_row-config_id }] config_type=[{ ls_row-config_type }] config_var=[{ ls_row-config_var }] component=[${componentField}] description=[{ lv_desc }]| ).`
-    );
-  }
-  lines.push(`    ENDLOOP.`);
-  return lines.join("\n");
-}
-function outlineBody(q) {
-  const configId = sqlQuote(assertConfigId(q.configId));
-  const configType = assertConfigType(q.configType);
-  const configVar = sqlQuote(assertConfigVar(q.configVar));
-  const isAppl = configType === "02";
-  const tadirObject = isAppl ? "WDCA" : "WDCC";
-  const lines = [];
-  if (isAppl) {
-    lines.push(`    DATA lv_xc TYPE xstring.`);
-    lines.push(`    CLEAR lv_xc.`);
-    lines.push(`    SELECT SINGLE xcontent FROM wdy_config_appl`);
-    lines.push(`      WHERE config_id = '${configId}' AND config_type = '02'`);
-    lines.push(`        AND config_var = '${configVar}'`);
-    lines.push(`      INTO @lv_xc.`);
-    lines.push(`    IF sy-subrc <> 0.`);
-    lines.push(`      mo_out->write( '${ERR_LINE_PREFIX}wdy_config_appl: no matching row for the given key' ).`);
-    lines.push(`    ENDIF.`);
-    lines.push(`    DATA lv_txt TYPE string.`);
-    lines.push(`    CLEAR lv_txt.`);
-    lines.push(`    IF lv_xc IS NOT INITIAL.`);
-    lines.push(`      DATA(lo_conv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_xc ).`);
-    lines.push(`      lo_conv->read( IMPORTING data = lv_txt ).`);
-    lines.push(`    ENDIF.`);
-    lines.push(`    emit_xml( iv_tag = 'XML' iv_text = lv_txt ).`);
-    lines.push(``);
-    lines.push(`    DATA lv_key40 TYPE c LENGTH 40.`);
-    lines.push(`    CLEAR lv_key40.`);
-    lines.push(`    lv_key40(32)   = '${configId}'.`);
-    lines.push(`    lv_key40+32(2) = '02'.`);
-    lines.push(`    lv_key40+34(6) = '${configVar}'.`);
-    lines.push(`    DATA lv_devclass TYPE devclass.`);
-    lines.push(`    CLEAR lv_devclass.`);
-    lines.push(`    SELECT SINGLE devclass FROM tadir`);
-    lines.push(`      WHERE pgmid = 'R3TR' AND object = '${tadirObject}' AND obj_name = @lv_key40`);
-    lines.push(`      INTO @lv_devclass.`);
-    lines.push(
-      `    mo_out->write( |${FPM_LINE_PREFIX}META CONFIG_IDPAR=[N/A - application config, delta tracking not implemented for this branch] CONFIG_TYPEPAR=[] CONFIG_VARPAR=[] COMPONENT=[] DEVCLASS=[{ lv_devclass }]| ).`
-    );
-  } else {
-    lines.push(`    DATA ls_key TYPE wdy_config_key.`);
-    lines.push(`    CLEAR ls_key.`);
-    lines.push(`    ls_key-config_id   = '${configId}'.`);
-    lines.push(`    ls_key-config_type = '${configType}'.`);
-    lines.push(`    ls_key-config_var  = '${configVar}'.`);
-    lines.push(`    DATA lv_xc TYPE xstring.`);
-    lines.push(`    CLEAR lv_xc.`);
-    lines.push(`    DATA(ls_ocd) = VALUE wdy_config_data( ).`);
-    lines.push(`    TRY.`);
-    lines.push(`        cl_wdr_cfg_persistence_utils=>read_comp_config_from_db(`);
-    lines.push(`          EXPORTING config_key           = ls_key`);
-    lines.push(`          IMPORTING xml_xcontent         = lv_xc`);
-    lines.push(`                    original_config_data = ls_ocd ).`);
-    lines.push(`      CATCH cx_root INTO DATA(lx1).`);
-    lines.push(
-      `        mo_out->write( |${ERR_LINE_PREFIX}READ_COMP_CONFIG_FROM_DB FAILED { lx1->get_text( ) }| ).`
-    );
-    lines.push(`    ENDTRY.`);
-    lines.push(`    DATA lv_txt TYPE string.`);
-    lines.push(`    CLEAR lv_txt.`);
-    lines.push(`    IF lv_xc IS NOT INITIAL.`);
-    lines.push(`      DATA(lo_conv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_xc ).`);
-    lines.push(`      lo_conv->read( IMPORTING data = lv_txt ).`);
-    lines.push(`    ENDIF.`);
-    lines.push(`    emit_xml( iv_tag = 'XML' iv_text = lv_txt ).`);
-    lines.push(``);
-    lines.push(`    DATA lv_key40 TYPE c LENGTH 40.`);
-    lines.push(`    CLEAR lv_key40.`);
-    lines.push(`    lv_key40(32)   = ls_key-config_id.`);
-    lines.push(`    lv_key40+32(2) = ls_key-config_type.`);
-    lines.push(`    lv_key40+34(6) = ls_key-config_var.`);
-    lines.push(`    DATA lv_devclass TYPE devclass.`);
-    lines.push(`    CLEAR lv_devclass.`);
-    lines.push(`    SELECT SINGLE devclass FROM tadir`);
-    lines.push(`      WHERE pgmid = 'R3TR' AND object = '${tadirObject}' AND obj_name = @lv_key40`);
-    lines.push(`      INTO @lv_devclass.`);
-    lines.push(
-      `    mo_out->write( |${FPM_LINE_PREFIX}META CONFIG_IDPAR=[{ ls_ocd-config_idpar }] CONFIG_TYPEPAR=[{ ls_ocd-config_typepar }] CONFIG_VARPAR=[{ ls_ocd-config_varpar }] COMPONENT=[{ ls_ocd-component }] DEVCLASS=[{ lv_devclass }]| ).`
-    );
-  }
-  return lines.join("\n");
-}
-function appBody(q) {
-  const configId = sqlQuote(assertConfigId(q.configId));
-  const lines = [];
-  lines.push(`    DATA lo_as TYPE REF TO cl_fpm_cfg_hrchy_brwsr_assist.`);
-  lines.push(`    CREATE OBJECT lo_as.`);
-  lines.push(`    lo_as->mv_mode = 2.`);
-  lines.push(`    lo_as->init_affixes( ).`);
-  lines.push(`    lo_as->ms_config_key-config_id   = '${configId}'.`);
-  lines.push(`    lo_as->ms_config_key-config_type = '02'.`);
-  lines.push(`    lo_as->load_configuration( lo_as->mc_level-conf ).`);
-  lines.push(``);
-  lines.push(`    mo_out->write( |${FPM_LINE_PREFIX}COUNT { lines( lo_as->mt_node_table ) }| ).`);
-  lines.push(`    DATA lv_node_idx TYPE i.`);
-  lines.push(`    CLEAR lv_node_idx.`);
-  lines.push(`    LOOP AT lo_as->mt_node_table INTO DATA(ls_node).`);
-  lines.push(`      lv_node_idx = lv_node_idx + 1.`);
-  lines.push(
-    `      mo_out->write( |${FPM_LINE_PREFIX}NODE node_path=[{ ls_node-node_path }] parent_path=[{ ls_node-parent_node_path }] | &&`
-  );
-  lines.push(
-    `        |is_top=[{ ls_node-is_top_node }] node_name=[{ ls_node-node_name }] description=[{ ls_node-description }] | &&`
-  );
-  lines.push(`        |component=[{ ls_node-component_name }] interface_view=[{ ls_node-interface_view }] | &&`);
-  lines.push(
-    `        |config_id=[{ ls_node-config_id }] config_type=[{ ls_node-config_type }] config_var=[{ ls_node-config_var }] | &&`
-  );
-  lines.push(
-    `        |target_config_id=[{ ls_node-target_config_id }] is_configurable=[{ ls_node-is_configurable }] | &&`
-  );
-  lines.push(`        |is_customized=[{ ls_node-is_customized }] is_enhanced=[{ ls_node-is_enhanced }] | &&`);
-  lines.push(`        |is_freestyle_uibb=[{ ls_node-is_freestyle_uibb }] is_leaf=[{ ls_node-is_leaf }]| ).`);
-  if (q.resolve) {
-    lines.push(``);
-    lines.push(`      IF ls_node-component_name IS NOT INITIAL AND ls_node-is_configurable = abap_true.`);
-    lines.push(`        DATA ls_rkey TYPE wdy_config_key.`);
-    lines.push(`        CLEAR ls_rkey.`);
-    lines.push(`        ls_rkey-config_id   = ls_node-config_id.`);
-    lines.push(`        ls_rkey-config_type = ls_node-config_type.`);
-    lines.push(`        ls_rkey-config_var  = ls_node-config_var.`);
-    lines.push(`        DATA lv_rxc TYPE xstring.`);
-    lines.push(`        CLEAR lv_rxc.`);
-    lines.push(`        TRY.`);
-    lines.push(`            cl_wdr_cfg_persistence_utils=>read_comp_config_from_db(`);
-    lines.push(`              EXPORTING config_key   = ls_rkey`);
-    lines.push(`              IMPORTING xml_xcontent = lv_rxc ).`);
-    lines.push(`          CATCH cx_root INTO DATA(lxr).`);
-    lines.push(
-      `            mo_out->write( |${ERR_LINE_PREFIX}RESOLVE { ls_node-node_path } FAILED { lxr->get_text( ) }| ).`
-    );
-    lines.push(`        ENDTRY.`);
-    lines.push(`        DATA lv_rtxt TYPE string.`);
-    lines.push(`        CLEAR lv_rtxt.`);
-    lines.push(`        IF lv_rxc IS NOT INITIAL.`);
-    lines.push(`          DATA(lo_rconv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_rxc ).`);
-    lines.push(`          lo_rconv->read( IMPORTING data = lv_rtxt ).`);
-    lines.push(`        ENDIF.`);
-    lines.push(`        DATA lv_feeder TYPE string.`);
-    lines.push(`        DATA lv_bopf TYPE string.`);
-    lines.push(`        CLEAR: lv_feeder, lv_bopf.`);
-    lines.push(`        IF lv_rtxt CS 'FEEDER'.`);
-    lines.push(`          lv_feeder = 'X'.`);
-    lines.push(`        ENDIF.`);
-    lines.push(`        IF lv_rtxt CS '/BOBF/' OR lv_rtxt CS 'BOPF' OR lv_rtxt CS 'BO_KEY'.`);
-    lines.push(`          lv_bopf = 'X'.`);
-    lines.push(`        ENDIF.`);
-    lines.push(
-      `        mo_out->write( |${FPM_LINE_PREFIX}RESOLVED node_path=[{ ls_node-node_path }] xml_len=[{ strlen( lv_rtxt ) }] feeder_hint=[{ lv_feeder }] bopf_hint=[{ lv_bopf }]| ).`
-    );
-    lines.push(
-      `        emit_xml( iv_tag = |XMLEXCERPT_{ lv_node_idx }| iv_text = substring( val = lv_rtxt len = nmin( val1 = strlen( lv_rtxt ) val2 = 300 ) ) ).`
-    );
-    lines.push(`      ENDIF.`);
-  }
-  lines.push(`    ENDLOOP.`);
-  return lines.join("\n");
-}
-function fpmBridgeSource(query, className) {
-  const cls = assertPlainName(className, "Bridge class name").toLowerCase();
-  let body;
+var FPM_TOOLS = /* @__PURE__ */ new Map([
+  [
+    "fpm",
+    {
+      manifest: fpmManifest,
+      origin: "builtin",
+      sources: fpmSources,
+      version: manifestVersion(fpmManifest, fpmSources)
+    }
+  ]
+]);
+function fpmDispatchArgs(query) {
   switch (query.mode) {
     case "find":
-      body = findBody(query);
-      break;
+      return {
+        config_type: query.configType,
+        ...query.component !== void 0 ? { component: query.component } : {},
+        ...query.queryPattern !== void 0 ? { query: query.queryPattern } : {},
+        ...query.package !== void 0 ? { package: query.package } : {}
+      };
     case "outline":
-      body = outlineBody(query);
-      break;
+      return { config_id: query.configId, config_type: query.configType, config_var: query.configVar };
     case "app":
-      body = appBody(query);
-      break;
+      return { config_id: query.configId, resolve: query.resolve };
   }
-  return `CLASS ${cls} DEFINITION PUBLIC FINAL CREATE PUBLIC.
-  PUBLIC SECTION.
-    INTERFACES if_oo_adt_classrun.
-  PRIVATE SECTION.
-    DATA mo_out TYPE REF TO if_oo_adt_classrun_out.
-    "! Writes iv_text as one or more ${FPM_LINE_PREFIX}<tag>_BEGIN / <tag>C <chunk>
-    "! / <tag>_END lines. Real CR/LF inside iv_text is escaped to a literal
-    "! two-character \\n sequence first \u2014 an embedded raw newline would start
-    "! an unprefixed continuation line that the TS-side parser must treat as
-    "! a dropped line, never silently absorb.
-    METHODS emit_xml
-      IMPORTING iv_tag  TYPE string
-                iv_text TYPE string.
-ENDCLASS.
-
-CLASS ${cls} IMPLEMENTATION.
-
-  METHOD emit_xml.
-    DATA lv_esc TYPE string.
-    lv_esc = iv_text.
-    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN lv_esc WITH '\\n'.
-    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline IN lv_esc WITH '\\n'.
-    mo_out->write( |${FPM_LINE_PREFIX}{ iv_tag }_BEGIN| ).
-    DATA lv_off TYPE i.
-    DATA lv_len TYPE i.
-    lv_off = 0.
-    lv_len = strlen( lv_esc ).
-    WHILE lv_off < lv_len.
-      DATA(lv_chunk_len) = lv_len - lv_off.
-      IF lv_chunk_len > 32000.
-        lv_chunk_len = 32000.
-      ENDIF.
-      mo_out->write( |${FPM_LINE_PREFIX}{ iv_tag }C { substring( val = lv_esc off = lv_off len = lv_chunk_len ) }| ).
-      lv_off = lv_off + lv_chunk_len.
-    ENDWHILE.
-    IF lv_len = 0.
-      mo_out->write( |${FPM_LINE_PREFIX}{ iv_tag }C | ).
-    ENDIF.
-    mo_out->write( |${FPM_LINE_PREFIX}{ iv_tag }_END| ).
-  ENDMETHOD.
-
-  METHOD if_oo_adt_classrun~main.
-*   Generated by abapsmith (abap_fpm_read, mode=${query.mode}). Do not edit \u2014
-*   this class is regenerated from src/adt/fpm-runtime.ts whenever its
-*   content hash changes. Read-only: no WDY_CONFIG_* row is ever written.
-    mo_out = out.
-    TRY.
-${body}
-      CATCH cx_root INTO DATA(lx).
-        out->write( |${ERR_LINE_PREFIX}EXCEPTION { cl_abap_classdescr=>get_class_name( lx ) }: { lx->get_text( ) }| ).
-    ENDTRY.
-  ENDMETHOD.
-
-ENDCLASS.
-`;
 }
-function parseXmlStreams(transcriptLines) {
-  const finalized = /* @__PURE__ */ new Map();
-  const rest = [];
-  let openTag;
-  let chunks = [];
-  for (const line of transcriptLines) {
-    if (openTag === void 0) {
-      const m = /^(\S+)_BEGIN$/.exec(line);
-      if (m) {
-        openTag = m[1];
-        chunks = [];
-        continue;
-      }
-      rest.push(line);
-      continue;
-    }
-    if (line === `${openTag}_END`) {
-      finalized.set(openTag, chunks.join("").replace(/\\n/g, "\n"));
-      openTag = void 0;
-      chunks = [];
-      continue;
-    }
-    const chunkPrefix = `${openTag}C `;
-    if (line.startsWith(chunkPrefix)) {
-      chunks.push(line.slice(chunkPrefix.length));
-      continue;
-    }
-    if (line === `${openTag}C`) {
-      continue;
-    }
-    rest.push(line);
+var EMPTY_TRANSCRIPT = {
+  count: void 0,
+  configs: [],
+  outlineXml: void 0,
+  outlineMeta: void 0,
+  appNodes: [],
+  droppedLines: 0
+};
+function outlineNotFoundDiagnostic(e) {
+  if (!isAbapError(e) || e.code !== "FLUID_ACTION_FAILED") return void 0;
+  const frames = e.details["frames"];
+  if (!Array.isArray(frames) || frames.length !== 1) return void 0;
+  const frame = frames[0];
+  if (frame.kind === "subrc" && frame.step === "select" && typeof frame.text === "string") {
+    return `${ERR_LINE_PREFIX}${frame.text}`;
   }
-  return { finalized, rest };
+  if (frame.kind === "exception" && frame.step === "read_comp_config_from_db" && typeof frame.text === "string") {
+    return `${ERR_LINE_PREFIX}READ_COMP_CONFIG_FROM_DB FAILED ${frame.text}`;
+  }
+  return void 0;
 }
-function parseFpmTranscript(raw) {
-  const transcript = [];
-  const diagnostics = [];
-  let droppedLines = 0;
-  for (const line of raw.replace(/\r\n/g, "\n").split("\n")) {
-    if (line.startsWith(FPM_LINE_PREFIX)) {
-      transcript.push(line.slice(FPM_LINE_PREFIX.length));
-    } else if (line.startsWith(ERR_LINE_PREFIX)) {
-      diagnostics.push(line.trim());
-    } else if (line.trim() === "") {
-    } else {
-      droppedLines++;
-    }
+function isFpmFindRow(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  return typeof r["config_id"] === "string" && typeof r["config_type"] === "string" && typeof r["config_var"] === "string" && typeof r["component"] === "string" && typeof r["description"] === "string" && typeof r["devclass"] === "string";
+}
+function isFpmOutlineResult(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  if (typeof r["config_id"] !== "string" || typeof r["config_type"] !== "string" || typeof r["config_var"] !== "string" || typeof r["xml"] !== "string" || typeof r["meta"] !== "object" || r["meta"] === null) {
+    return false;
   }
-  const { finalized, rest } = parseXmlStreams(transcript);
-  const configs = [];
-  const appNodes = [];
-  let outlineMeta;
-  let count;
-  let resolveOrdinal = 0;
-  for (const line of rest) {
-    const spaceIdx = line.indexOf(" ");
-    const head = spaceIdx === -1 ? line : line.slice(0, spaceIdx);
-    const remainder = spaceIdx === -1 ? "" : line.slice(spaceIdx + 1);
-    const fields = parseBracketFields(remainder);
-    switch (head) {
-      case "COUNT": {
-        const n = Number(remainder.trim());
-        if (!Number.isNaN(n)) count = n;
-        break;
-      }
-      case "CONFIG":
-        configs.push({
-          configId: fields.config_id ?? "",
-          configType: fields.config_type ?? "",
-          configVar: fields.config_var ?? "",
-          component: fields.component ?? "",
-          description: fields.description ?? "",
-          devclass: fields.devclass
-        });
-        break;
-      case "META":
-        outlineMeta = {
-          configIdPar: fields.CONFIG_IDPAR ?? "",
-          configTypePar: fields.CONFIG_TYPEPAR ?? "",
-          configVarPar: fields.CONFIG_VARPAR ?? "",
-          component: fields.COMPONENT ?? "",
-          devclass: fields.DEVCLASS ?? ""
-        };
-        break;
-      case "NODE":
-        resolveOrdinal++;
-        appNodes.push({
-          nodePath: fields.node_path ?? "",
-          parentPath: fields.parent_path ?? "",
-          isTopNode: fields.is_top === "X",
-          nodeName: fields.node_name ?? "",
-          description: fields.description ?? "",
-          componentName: fields.component ?? "",
-          interfaceView: fields.interface_view ?? "",
-          configId: fields.config_id ?? "",
-          configType: fields.config_type ?? "",
-          configVar: fields.config_var ?? "",
-          targetConfigId: fields.target_config_id ?? "",
-          isConfigurable: fields.is_configurable === "X",
-          isCustomized: fields.is_customized === "X",
-          isEnhanced: fields.is_enhanced === "X",
-          isFreestyleUibb: fields.is_freestyle_uibb === "X",
-          isLeaf: fields.is_leaf === "X"
-        });
-        break;
-      case "RESOLVED": {
-        const target = appNodes[appNodes.length - 1];
-        if (target) {
-          target.resolved = {
-            xmlLen: Number(fields.xml_len ?? "0") || 0,
-            feederHint: fields.feeder_hint === "X",
-            bopfHint: fields.bopf_hint === "X",
-            excerpt: finalized.get(`XMLEXCERPT_${resolveOrdinal}`)
-          };
-        }
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  return {
-    count,
-    configs,
-    outlineXml: finalized.get("XML"),
-    outlineMeta,
-    appNodes,
-    diagnostics,
-    droppedLines
-  };
+  const m = r["meta"];
+  return typeof m["config_idpar"] === "string" && typeof m["config_typepar"] === "string" && typeof m["config_varpar"] === "string" && typeof m["component"] === "string" && typeof m["devclass"] === "string";
+}
+function isFpmAppNodeResult(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  return typeof r["node_path"] === "string" && typeof r["parent_path"] === "string" && typeof r["is_top_node"] === "boolean" && typeof r["node_name"] === "string" && typeof r["description"] === "string" && typeof r["component_name"] === "string" && typeof r["interface_view"] === "string" && typeof r["config_id"] === "string" && typeof r["config_type"] === "string" && typeof r["config_var"] === "string" && typeof r["target_config_id"] === "string" && typeof r["is_configurable"] === "boolean" && typeof r["is_customized"] === "boolean" && typeof r["is_enhanced"] === "boolean" && typeof r["is_freestyle_uibb"] === "boolean" && typeof r["is_leaf"] === "boolean";
 }
 async function runFpmRead(conn, query, gate) {
   const started = Date.now();
-  const className = fpmBridgeClassName(query);
-  const source = fpmBridgeSource(query, className);
-  const deployed = await deployBridge(conn, gate, {
-    className,
-    source,
-    description: `abapsmith FPM read bridge (mode=${query.mode})`,
-    what: "Activation of the generated FPM read bridge",
-    hint: "The bridge reads FPM/FBI configuration via SAP-standard SELECTs and API calls \u2014 a syntax error here most likely means one of the referenced fields/methods does not exist exactly as assumed on this system (see fpm-runtime.ts's module doc comment for which facts are confirmed vs. best-effort).",
-    verify: (activation) => verifyBridgeActivation(activation, className, "FPM read bridge", { mode: query.mode })
-  });
-  const { bridgeRefreshed } = deployed;
-  const run2 = await executeBridge(conn, gate, deployed);
-  const transcript = parseFpmTranscript(run2.output);
+  let res;
+  try {
+    res = await dispatch2(
+      { conn, cfg: conn.cfg, gate, tools: FPM_TOOLS },
+      {
+        tool: "fpm",
+        action: query.mode,
+        args: fpmDispatchArgs(query),
+        // Names the MCP-facing tool/action in a FLUID_API_DISABLED refusal — see FluidRunRequest.caller's doc.
+        caller: { tool: "abap_fpm_read", action: query.mode }
+      }
+    );
+  } catch (e) {
+    if (query.mode === "outline") {
+      const diagnostic = outlineNotFoundDiagnostic(e);
+      if (diagnostic !== void 0) {
+        return {
+          query,
+          bridgeClass: fpmManifest.entry,
+          bridgeRefreshed: false,
+          durationMs: Date.now() - started,
+          transcript: { ...EMPTY_TRANSCRIPT, diagnostics: [diagnostic] },
+          outputComplete: true,
+          bodyBytes: 0
+        };
+      }
+    }
+    throw e;
+  }
+  let transcript;
+  switch (query.mode) {
+    case "find": {
+      if (!Array.isArray(res.result) || !res.result.every(isFpmFindRow)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.find returned a result that does not match the declared array-of-row schema.",
+          { tool: "fpm", action: "find", result: res.result }
+        );
+      }
+      const rows = res.result;
+      transcript = {
+        // The fluid body applies the `package` filter inside the same loop
+        // that emits each row (builtin/fpm.ts), so — unlike the legacy
+        // bridge's COUNT, taken before that filter — this count and the
+        // number of emitted rows can never diverge: there is no separate
+        // pre-filter total to report any more.
+        count: rows.length,
+        configs: rows.map((r) => ({
+          configId: r.config_id,
+          configType: r.config_type,
+          configVar: r.config_var,
+          component: r.component,
+          description: r.description,
+          devclass: r.devclass
+        })),
+        outlineXml: void 0,
+        outlineMeta: void 0,
+        appNodes: [],
+        diagnostics: [],
+        droppedLines: 0
+      };
+      break;
+    }
+    case "outline": {
+      if (!isFpmOutlineResult(res.result)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.outline returned a result that does not match the declared object schema.",
+          { tool: "fpm", action: "outline", result: res.result }
+        );
+      }
+      const r = res.result;
+      transcript = {
+        count: void 0,
+        configs: [],
+        outlineXml: r.xml,
+        outlineMeta: {
+          configIdPar: r.meta.config_idpar,
+          configTypePar: r.meta.config_typepar,
+          configVarPar: r.meta.config_varpar,
+          component: r.meta.component,
+          devclass: r.meta.devclass
+        },
+        appNodes: [],
+        diagnostics: [],
+        droppedLines: 0
+      };
+      break;
+    }
+    case "app": {
+      if (!Array.isArray(res.result) || !res.result.every(isFpmAppNodeResult)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.app returned a result that does not match the declared array-of-node schema.",
+          { tool: "fpm", action: "app", result: res.result }
+        );
+      }
+      const nodes = res.result;
+      const diagnostics = [];
+      const appNodes = nodes.map((n) => {
+        if (n.resolve_error !== void 0) {
+          diagnostics.push(`${ERR_LINE_PREFIX}RESOLVE ${n.node_path} FAILED ${n.resolve_error}`);
+        }
+        return {
+          nodePath: n.node_path,
+          parentPath: n.parent_path,
+          isTopNode: n.is_top_node,
+          nodeName: n.node_name,
+          description: n.description,
+          componentName: n.component_name,
+          interfaceView: n.interface_view,
+          configId: n.config_id,
+          configType: n.config_type,
+          configVar: n.config_var,
+          targetConfigId: n.target_config_id,
+          isConfigurable: n.is_configurable,
+          isCustomized: n.is_customized,
+          isEnhanced: n.is_enhanced,
+          isFreestyleUibb: n.is_freestyle_uibb,
+          isLeaf: n.is_leaf,
+          resolved: n.resolved ? {
+            xmlLen: n.resolved.xml_len,
+            feederHint: n.resolved.feeder_hint,
+            bopfHint: n.resolved.bopf_hint,
+            excerpt: n.resolved.excerpt
+          } : void 0
+        };
+      });
+      transcript = {
+        count: nodes.length,
+        configs: [],
+        outlineXml: void 0,
+        outlineMeta: void 0,
+        appNodes,
+        diagnostics,
+        droppedLines: 0
+      };
+      break;
+    }
+  }
   return {
     query,
-    bridgeClass: className,
-    bridgeRefreshed,
+    bridgeClass: fpmManifest.entry,
+    bridgeRefreshed: res.deployed,
     durationMs: Date.now() - started,
     transcript,
-    outputComplete: run2.outputComplete,
-    bodyBytes: run2.bodyBytes
+    outputComplete: !res.truncated,
+    bodyBytes: Buffer.byteLength(JSON.stringify(res.result), "utf8")
   };
 }
 
 // src/adt/fpm-lock.ts
-import { createHash as createHash10 } from "node:crypto";
+import { createHash as createHash9 } from "node:crypto";
 var CONFIG_TYPE_LEN = 2;
 var CONFIG_VAR_LEN = 6;
 function assertLockConfigType(value) {
@@ -111469,12 +118173,12 @@ function lockDiscriminator(q) {
     kind: q.key.kind,
     label,
     // Body's own hash: differing ABAP gets a differing bridge class.
-    body: createHash10("sha256").update(body, "utf8").digest("hex")
+    body: createHash9("sha256").update(body, "utf8").digest("hex")
   });
 }
 function fpmLockBridgeClassName(q) {
   const hashHexLen = MAX_NAME - FPM_LOCK_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash10("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
+  const hash2 = createHash9("sha256").update(lockDiscriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
   return `${FPM_LOCK_BRIDGE_CLASS_PREFIX}${hash2}`;
 }
 function abapLiteral2(value, what) {
@@ -112205,6 +118909,7 @@ async function runFpmLockInspect(conn, query, gate) {
     className,
     source,
     description: "abapsmith FPM lock inspection bridge",
+    caller: { tool: "abap_fpm_read", action: "locks" },
     what: "Activation of the generated FPM lock bridge",
     hint: "The bridge reads the enqueue table via ENQUEUE_READ and takes one throwaway self-lock through ENQUEUE_E_WDY_CONFCOMP/CONFAPPL. A syntax error here most likely means one of those function modules, or a SEQG3 field, is not shaped exactly as the lock-discipline spike recorded (see this module's doc comment for confirmed vs. inferred).",
     verify: (activation) => verifyBridgeActivation(activation, className, "FPM lock bridge", { mode: "locks" })
@@ -112267,7 +118972,7 @@ function buildQuery2(input) {
     }
     const q2 = {
       mode: "outline",
-      configId: input.config_id,
+      configId: assertConfigId(input.config_id),
       configType: input.config_type ?? "00",
       configVar: input.config_var ?? ""
     };
@@ -112276,7 +118981,7 @@ function buildQuery2(input) {
   if (!input.config_id || !input.config_id.trim()) {
     throw new AbapError("BAD_INPUT", 'mode "app" requires config_id.', { mode: input.mode });
   }
-  const q = { mode: "app", configId: input.config_id, resolve: input.resolve ?? true };
+  const q = { mode: "app", configId: assertConfigId(input.config_id), resolve: input.resolve ?? true };
   return q;
 }
 function buildLocksQuery(input) {
@@ -112317,9 +119022,9 @@ function buildFindResponse(result, detail, xmlWindowPassed, maxChars) {
     columns = columns.filter((c) => hoisted[c] === void 0);
   }
   const notes = detail === "compact" ? [COMPACT_COVERAGE_NOTE] : [...FIDELITY_NOTES];
-  if (t.count !== void 0 && t.count >= 200) {
+  if (!result.outputComplete) {
     notes.push(
-      `The server-side SELECT is capped at 200 rows; it matched ${t.count} row(s) on config_type/component/query BEFORE any package filter was applied here \u2014 there may be more configs than are shown. Narrow component/query to be sure nothing is missing.`
+      "The bridge's output was cut off before every matching row could be returned \u2014 there may be more configs than are shown. Narrow component/query/package to be sure nothing is missing."
     );
   }
   if (t.diagnostics.length) {
@@ -112583,7 +119288,7 @@ function buildLocksResponse(query, result, detailPassed, xmlWindowPassed, maxCha
     maxChars
   }).text;
 }
-var FPM_TOOL_DESCRIPTION = "Read SAP FPM/FBI screen configurations \u2014 no ADT read endpoint exists. find: search by component/config_id pattern/package. outline: one configuration's XML plus delta/package metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints (resolve, default true). locks: enqueue lock holders. Read-only; every call deploys a throwaway $TMP bridge class.";
+var FPM_TOOL_DESCRIPTION = "Read SAP FPM/FBI screen configurations \u2014 no ADT read endpoint exists. find: search by component/config_id pattern/package. outline: one configuration's XML plus delta/package metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints (resolve, default true). locks: enqueue lock holders. Read-only; every call deploys a throwaway bridge class into abapsmith's own package.";
 async function runFpmReadTool(deps, args) {
   const input = args;
   const detail = input.detail ?? "compact";
@@ -112594,7 +119299,7 @@ async function runFpmReadTool(deps, args) {
     deps.safety.assert("read");
     deps.safety.assert(
       "write",
-      { name: lockBridgeClass, packageName: "$TMP", type: "CLAS/OC" },
+      { name: lockBridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
       { phase: "preflight" }
     );
     await deps.ensureConnected();
@@ -112608,11 +119313,11 @@ async function runFpmReadTool(deps, args) {
     );
   }
   const query = buildQuery2(input);
-  const bridgeClass = fpmBridgeClassName(query);
+  const bridgeClass = fpmManifest.entry;
   deps.safety.assert("read");
   deps.safety.assert(
     "write",
-    { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" },
+    { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" }
   );
   await deps.ensureConnected();
@@ -113739,7 +120444,7 @@ async function readImgShow(conn, q) {
   if (titleResult.rs.records.length === 0) {
     notes.push(`No ${tbl2("imgActivityText")} title for activity "${q.activity}" in language "${q.language}".`);
   }
-  const { path: path6, mountedNodes } = await walkImgPath(conn, ctx, notes, q.activity, title, q.language);
+  const { path: path8, mountedNodes } = await walkImgPath(conn, ctx, notes, q.activity, title, q.language);
   if (docId.trim() !== "") {
     docs.push({ activity: q.activity, docId });
   } else {
@@ -113822,7 +120527,7 @@ async function readImgShow(conn, q) {
       page: null,
       treeId: null,
       activities: [{ activity: q.activity, title, objects: objectRows2.length, nodes: mountedNodes }],
-      path: path6,
+      path: path8,
       nodes: [],
       objects,
       tables,
@@ -114326,7 +121031,7 @@ function resolveActivity(t) {
   const activity = t.activities[0]?.activity ?? t.path[0]?.activity ?? t.docs[0]?.activity ?? "";
   const matches = (a) => activity === "" || a === activity;
   const title = t.activities.find((a) => matches(a.activity))?.title ?? "";
-  const path6 = t.path.filter((p) => matches(p.activity)).slice().sort((a, b) => a.position - b.position).map((p) => ({ node: p.node, title: p.title }));
+  const path8 = t.path.filter((p) => matches(p.activity)).slice().sort((a, b) => a.position - b.position).map((p) => ({ node: p.node, title: p.title }));
   const objects = t.objects.map((o) => buildResolvedObject(o, t));
   const docRow = t.docs.find((d) => matches(d.activity));
   const doc = docRow ? { docId: docRow.docId } : void 0;
@@ -114345,7 +121050,7 @@ function resolveActivity(t) {
       ambiguity = tablesAmbiguity(primary);
     }
   }
-  return { activity, title, path: path6, objects, doc, primary, primaryTable, ambiguity };
+  return { activity, title, path: path8, objects, doc, primary, primaryTable, ambiguity };
 }
 function resolveObject2(t) {
   const obj = t.objects[0];
@@ -114682,62 +121387,8 @@ function registerImgTools(mcp, deps) {
   );
 }
 
-// src/adt/helper-package.ts
-var HELPER_PACKAGE = "$ZMCP_HELPERS";
-var HELPER_PACKAGE_DESCRIPTION = "abapsmith generated helper classes";
-var NO_TMP_FALLBACK_HINT = `abapsmith does not fall back to $TMP for bridge/helper classes \u2014 if ${HELPER_PACKAGE} cannot be created or used, this is a hard refusal. Create it by hand (SE21, LOCAL software component) or fix whatever the underlying error names, then retry.`;
-var SAFETY_DENIED_HINT = `${NO_TMP_FALLBACK_HINT} Creating it also needs ABAP_ALLOW_NAME_PREFIXES to cover "$" (or be "*") \u2014 the default Z/Y list refuses a $-named object \u2014 and, separately, ABAP_ALLOW_PACKAGES to permit $TMP, its super package (a package create's allowlist question is answered by the superpackage, not the package's own name); both apply only to the first call that creates it.`;
-function fallbackHintFor(code) {
-  return code === "SAFETY_DENIED" ? SAFETY_DENIED_HINT : NO_TMP_FALLBACK_HINT;
-}
-async function ensureHelperPackage(conn, gate) {
-  try {
-    const authorized = await authorizeMutation(conn, gate, "write", {
-      type: "DEVC/K",
-      name: HELPER_PACKAGE,
-      description: HELPER_PACKAGE_DESCRIPTION,
-      // Super package for the create — verified live on 2026-09-05: SAP
-      // accepted $ZMCP_HELPERS under $TMP and read back
-      // pak:superPackage adtcore:name="$TMP". Not a guess.
-      packageName: "$TMP"
-    });
-    if (authorized.target.exists) {
-      return { package: HELPER_PACKAGE, created: false };
-    }
-    const created = await createPackage(conn, authorized, {
-      softwareComponent: "LOCAL",
-      // NO_JOURNAL: a generated helper package, not a user object — same idiom as deployBridge.
-      onBeforeImage: NO_JOURNAL
-    });
-    return { package: HELPER_PACKAGE, created: true, superPackage: created.superPackage };
-  } catch (e) {
-    if (isAbapError(e)) {
-      const fallback = fallbackHintFor(e.code);
-      throw new AbapError(
-        e.code,
-        e.message,
-        e.details,
-        e.hint ? `${e.hint} ${fallback}` : fallback,
-        { retryable: e.retryable }
-        // re-wrap, not an override — no site reachable here overrides RETRYABILITY today
-        // carries the caught error's retryable across instead of recomputing it, so that stays true if one ever does
-      );
-    }
-    throw new AbapError(
-      "ADT_ERROR",
-      `Could not create or verify the local helper package ${HELPER_PACKAGE}: ${describeUnknownError(e)}.`,
-      { cause: describeUnknownError(e) },
-      NO_TMP_FALLBACK_HINT
-    );
-  }
-}
-
 // src/adt/img-write-bridge.ts
 var IMGW_LINE_PREFIX = "IMGW> ";
-var IMGW_BRIDGE_CLASS = {
-  probe: "ZCL_ZMCP_IMG_WPROBE",
-  apply: "ZCL_ZMCP_IMG_WAPPLY"
-};
 var IMGW_MAX_ROWS = 50;
 var CTS_INSERT_FM = Object.freeze({
   checkFm: "TR_OBJECTS_CHECK",
@@ -114899,338 +121550,6 @@ function validateApplyPlan(p) {
       assertRowValue(row2.values[name], `row ${i} value ${name}`);
     }
   });
-}
-var T000_FIELDS = { mandt: "mandt", cccategory: "cccategory", cccoractiv: "cccoractiv" };
-var DD02L_FIELDS = { table: "tabname", delclass: "contflag", clidep: "clidep", active: "as4local" };
-function dumpRowFragment(tag, rowLiteral) {
-  return [
-    "lo_descr = cl_abap_typedescr=>describe_by_data( ls_wa ).",
-    "lo_struct = CAST cl_abap_structdescr( lo_descr ).",
-    "lt_comp = lo_struct->get_components( ).",
-    "LOOP AT lt_comp INTO ls_comp.",
-    "  ASSIGN COMPONENT ls_comp-name OF STRUCTURE ls_wa TO <fs_val>.",
-    "  IF sy-subrc <> 0.",
-    "    CONTINUE.",
-    "  ENDIF.",
-    "  lv_fval = |{ <fs_val> }|.",
-    `  out->write( |${IMGW_LINE_PREFIX}${tag} row=[${rowLiteral}] field=[{ ls_comp-name }] | &&`,
-    "    |len=[{ strlen( lv_fval ) }] value=[{ lv_fval }]| ).",
-    "ENDLOOP."
-  ];
-}
-function clientCheckFragment() {
-  return [
-    `SELECT SINGLE ${T000_FIELDS.mandt}, ${T000_FIELDS.cccategory}, ${T000_FIELDS.cccoractiv} FROM t000`,
-    `  INTO (@DATA(lv_mandt), @DATA(lv_cccategory), @DATA(lv_cccoractiv))`,
-    `  WHERE ${T000_FIELDS.mandt} = @sy-mandt.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} T000 read failed for client { sy-mandt }| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    `out->write( |${IMGW_LINE_PREFIX}CLIENT mandt=[{ lv_mandt }] cccategory=[{ lv_cccategory }] cccoractiv=[{ lv_cccoractiv }]| ).`,
-    "IF lv_cccoractiv = '2'.",
-    `  out->write( |${DDIC_ERR_PREFIX} T000-CCCORACTIV = 2 for client { sy-mandt }: client-dependent customizing changes are blocked outright in this client.| ).`,
-    "  RETURN.",
-    "ENDIF."
-  ];
-}
-function ddicTableCheckFragment(tableLower, tableLit) {
-  return [
-    `SELECT SINGLE ${DD02L_FIELDS.delclass}, ${DD02L_FIELDS.clidep} FROM dd02l`,
-    `  INTO (@DATA(lv_delclass), @DATA(lv_clidep))`,
-    `  WHERE ${DD02L_FIELDS.table} = '${tableLit}' AND ${DD02L_FIELDS.active} = 'A'.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} DD02L read failed for ${tableLower}| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    `out->write( |${IMGW_LINE_PREFIX}TABLE table=[${tableLower}] delclass=[{ lv_delclass }] clidep=[{ lv_clidep }]| ).`
-  ];
-}
-function whereOnKeys(keyFields, row2) {
-  return keyFields.map((f) => `${f.toLowerCase()} = ${abapLiteral(row2.key[f])}`).join(" AND ");
-}
-function imgProbeSource(p) {
-  validateProbePlan(p);
-  const tableLower = p.table.toLowerCase();
-  const tableLit = p.table.toUpperCase();
-  const body = [
-    "DATA lo_descr TYPE REF TO cl_abap_typedescr.",
-    "DATA lo_struct TYPE REF TO cl_abap_structdescr.",
-    "DATA ls_comp TYPE abap_componentdescr.",
-    "DATA lt_comp TYPE cl_abap_structdescr=>component_table.",
-    "FIELD-SYMBOLS <fs_val> TYPE any.",
-    "DATA lv_fval TYPE string.",
-    `DATA ls_wa TYPE ${tableLower}.`,
-    // One DD03L read for the whole table, not one per key field: the DD03L loop below used to run
-    // once per key field with its four result variables bound inline (@DATA(...)) on the SELECT,
-    // which is a duplicate declaration for any table with more than one key field (every text
-    // table, e.g. TB004T) — measured live 2026-09-06, activation failed with `"LV_KEY_FLAG" was
-    // already declared.` on exactly this shape. Reading the whole table once, into a table
-    // variable declared here and reused by plain LOOP AT below, cannot repeat that: the
-    // declaration is emitted exactly once regardless of how many columns or key fields the table
-    // has. This read is also what makes VALUE (non-key) columns visible to the caller at all — the
-    // old per-key-field loop only ever emitted key fields, so no value column could ever be named
-    // in an apply plan.
-    "DATA lt_fld TYPE STANDARD TABLE OF dd03l WITH DEFAULT KEY.",
-    "DATA ls_fld TYPE dd03l.",
-    "",
-    ...clientCheckFragment(),
-    "",
-    ...ddicTableCheckFragment(tableLower, tableLit),
-    ""
-  ];
-  body.push(
-    `SELECT position, fieldname, keyflag, datatype, leng, rollname FROM dd03l`,
-    `  INTO CORRESPONDING FIELDS OF TABLE @lt_fld`,
-    `  WHERE tabname = '${tableLit}' AND as4local = 'A'`,
-    `  ORDER BY position.`,
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} DD03L returned no fields for ${tableLower}| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "LOOP AT lt_fld INTO ls_fld.",
-    "  IF ls_fld-fieldname(1) = '.'.",
-    "    CONTINUE.",
-    "  ENDIF.",
-    `  out->write( |${IMGW_LINE_PREFIX}FLD table=[${tableLower}] field=[{ ls_fld-fieldname }] key=[{ ls_fld-keyflag }] | &&`,
-    `    |type=[{ ls_fld-datatype }] len=[{ ls_fld-leng }] rollname=[{ ls_fld-rollname }]| ).`,
-    "ENDLOOP.",
-    ""
-  );
-  p.rows.forEach((row2, i) => {
-    const rowNo = i + 1;
-    body.push(
-      "CLEAR ls_wa.",
-      `SELECT SINGLE * FROM ${tableLower} INTO @ls_wa WHERE ${whereOnKeys(p.keyFields, row2)}.`,
-      "IF sy-subrc <> 0.",
-      `  out->write( |${IMGW_LINE_PREFIX}BABSENT row=[${rowNo}]| ).`,
-      "ELSE.",
-      ...dumpRowFragment("BVAL", rowNo).map((l) => "  " + l),
-      "ENDIF.",
-      ""
-    );
-  });
-  body.push(`out->write( |${IMGW_LINE_PREFIX}PROBED rows=[${p.rows.length}]| ).`);
-  return ddicBridgeSource(IMGW_BRIDGE_CLASS.probe, [], body);
-}
-function ctsRecordFragment(tableLower, tableLit, corrNr, rowNo, view, masterType) {
-  const corrLit = abapLiteral(corrNr);
-  const viewLit = view.toUpperCase();
-  const P = CTS_INSERT_FM.params;
-  const X = CTS_INSERT_FM.exceptions;
-  const errorLines = (fm) => [
-    "IF sy-subrc <> 0.",
-    `  out->write( |${DDIC_ERR_PREFIX} ${fm} failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc } | &&`,
-    `    |msgid=[{ sy-msgid }] msgty=[{ sy-msgty }] msgno=[{ sy-msgno }] msgv1=[{ sy-msgv1 }] | &&`,
-    `    |msgv2=[{ sy-msgv2 }] msgv3=[{ sy-msgv3 }] msgv4=[{ sy-msgv4 }]| ).`,
-    "  RETURN.",
-    "ENDIF."
-  ];
-  const dynCallErrorLines = (wording) => [
-    "  lo_exc_type = cl_abap_typedescr=>describe_by_object_ref( lx_cts ).",
-    "  lv_exc_class = lo_exc_type->get_relative_name( ).",
-    wording === "mismatch" ? "  lv_exc_text = |function-module interface mismatch: { lx_cts->get_text( ) }|." : "  lv_exc_text = lx_cts->get_text( ).",
-    `  out->write( |${IMGW_LINE_PREFIX}ERROR class=[{ lv_exc_class }] len=[{ strlen( lv_exc_text ) }] | &&`,
-    "    |value=[{ lv_exc_text }]| ).",
-    "  RETURN."
-  ];
-  return [
-    "CLEAR ls_ko200.",
-    "ls_ko200-pgmid = 'R3TR'.",
-    `ls_ko200-object = '${masterType}'.`,
-    `ls_ko200-obj_name = '${viewLit}'.`,
-    "ls_ko200-objfunc = 'K'.",
-    "REFRESH lt_ko200.",
-    "APPEND ls_ko200 TO lt_ko200.",
-    "CLEAR ls_e071k.",
-    "ls_e071k-pgmid = 'R3TR'.",
-    "ls_e071k-object = 'TABU'.",
-    `ls_e071k-objname = '${tableLit}'.`,
-    `ls_e071k-mastertype = '${masterType}'.`,
-    `ls_e071k-mastername = '${viewLit}'.`,
-    `ls_e071k-viewname = '${viewLit}'.`,
-    "ls_e071k-objfunc = ' '.",
-    "ASSIGN ls_key TO <key_c> CASTING TYPE c.",
-    "ls_e071k-tabkey = |{ sy-mandt }{ <key_c> }|.",
-    "REFRESH lt_e071k.",
-    "APPEND ls_e071k TO lt_e071k.",
-    // TRY/CATCH added so a TABLES-formal/actual mismatch — measured live 2026-09-06 on this very
-    // pair of calls — surfaces as its own tagged IMGW> ERROR line instead of only the generic,
-    // unattributed ZMCP-DDIC-ERR> line the outer CATCH cx_root in ddicBridgeSource already prints.
-    "TRY.",
-    `    CALL FUNCTION '${CTS_INSERT_FM.checkFm}'`,
-    "      EXPORTING",
-    `        ${P.noStandardEditor} = 'X'`,
-    `        ${P.noShowOption}     = 'X'`,
-    "      TABLES",
-    `        ${P.objects} = lt_ko200`,
-    `        ${P.keys}    = lt_e071k`,
-    "      EXCEPTIONS",
-    `        ${X.cancelEditOtherError} = 1`,
-    `        ${X.showOnlyOtherError}   = 2`,
-    "        OTHERS = 3.",
-    ...errorLines(CTS_INSERT_FM.checkFm).map((l) => "  " + l),
-    `    CALL FUNCTION '${CTS_INSERT_FM.insertFm}'`,
-    "      EXPORTING",
-    `        ${P.order}            = ${corrLit}`,
-    `        ${P.noStandardEditor} = 'X'`,
-    `        ${P.noShowOption}     = 'X'`,
-    "      IMPORTING",
-    `        ${P.weOrder} = lv_we_order`,
-    `        ${P.weTask} = lv_we_task`,
-    "      TABLES",
-    `        ${P.objects} = lt_ko200`,
-    `        ${P.keys}    = lt_e071k`,
-    "      EXCEPTIONS",
-    `        ${X.cancelEditOtherError} = 1`,
-    `        ${X.showOnlyOtherError}   = 2`,
-    "        OTHERS = 3.",
-    ...errorLines(CTS_INSERT_FM.insertFm).map((l) => "  " + l),
-    "  CATCH cx_sy_dyn_call_illegal_type cx_sy_dyn_call_param_missing INTO lx_cts.",
-    ...dynCallErrorLines("mismatch"),
-    "  CATCH cx_root INTO lx_cts.",
-    ...dynCallErrorLines("generic"),
-    "ENDTRY.",
-    `out->write( |${IMGW_LINE_PREFIX}TRKEY row=[${rowNo}] trkorr=[${corrNr}] | &&`,
-    `  |order_len=[{ strlen( lv_we_order ) }] order=[{ lv_we_order }] | &&`,
-    `  |task_len=[{ strlen( lv_we_task ) }] task=[{ lv_we_task }] | &&`,
-    `  |len=[{ strlen( <key_c> ) }] value=[{ <key_c> }]| ).`
-  ];
-}
-function imgApplySource(p) {
-  validateApplyPlan(p);
-  const tableLower = p.table.toLowerCase();
-  const tableLit = p.table.toUpperCase();
-  const fieldByName = new Map(p.fields.map((f) => [f.field.toUpperCase(), f]));
-  const keyDataLines = p.keyFields.map((kf) => `  ${kf.toLowerCase()} TYPE ${tableLower}-${kf.toLowerCase()},`);
-  const body = [
-    "DATA lo_descr TYPE REF TO cl_abap_typedescr.",
-    "DATA lo_struct TYPE REF TO cl_abap_structdescr.",
-    "DATA ls_comp TYPE abap_componentdescr.",
-    "DATA lt_comp TYPE cl_abap_structdescr=>component_table.",
-    "FIELD-SYMBOLS <fs_val> TYPE any.",
-    "DATA lv_fval TYPE string.",
-    `DATA ls_wa TYPE ${tableLower}.`,
-    "DATA: BEGIN OF ls_key,",
-    ...keyDataLines,
-    "END OF ls_key.",
-    "FIELD-SYMBOLS <key_c> TYPE c.",
-    "DATA ls_ko200 TYPE ko200.",
-    // wt_ko200/wt_e071k (CTS_INSERT_FM.params.objects/keys) are TABLES formal parameters on
-    // TR_OBJECTS_CHECK/TR_OBJECTS_INSERT — a classic TABLES formal is a standard table with the
-    // DEFAULT key, and passing a WITH EMPTY KEY actual there is a runtime type conflict
-    // (CALL_FUNCTION_CONFLICT_TAB_TYP, catchable as CX_SY_DYN_CALL_ILLEGAL_TYPE) that ADT's
-    // activation syntax check does not catch. Measured live 2026-09-06: ZCL_ZMCP_IMG_WAPPLY
-    // activated and ran, then threw exactly this exception ("not handled locally or declared in
-    // a RAISING clause") at the TR_OBJECTS_CHECK call, before any row was written. WITH DEFAULT
-    // KEY is the standard fix for a TABLES actual; not itself re-verified live as of this change.
-    "DATA lt_ko200 TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.",
-    "DATA ls_e071k TYPE e071k.",
-    "DATA lt_e071k TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.",
-    "DATA lv_we_order TYPE trkorr.",
-    "DATA lv_we_task TYPE trkorr.",
-    // Declared once here, not inside ctsRecordFragment: that fragment is emitted once per row, so
-    // an inline DATA(lx)-style CATCH declaration would be a duplicate-declaration syntax error on
-    // any plan with more than one row. describe_by_object_ref/get_relative_name (not
-    // cl_abap_classdescr=>get_class_name) is used to name the caught exception at runtime — the
-    // oldest, most-certain RTTI path, chosen because this branch has already lost two live rounds
-    // to unverified SAP API names.
-    "DATA lx_cts TYPE REF TO cx_root.",
-    "DATA lo_exc_type TYPE REF TO cl_abap_typedescr.",
-    "DATA lv_exc_class TYPE string.",
-    "DATA lv_exc_text TYPE string.",
-    "",
-    ...clientCheckFragment(),
-    "",
-    ...ddicTableCheckFragment(tableLower, tableLit),
-    `IF lv_delclass <> '${p.expectedDeliveryClass.toUpperCase()}' OR boolc( lv_clidep = 'X' ) <> '${p.expectedClientDependent ? "X" : ""}'.`,
-    `  out->write( |${DDIC_ERR_PREFIX} DD02L for ${tableLower} changed since the probe (delclass/clidep) \u2014 re-probe before applying.| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    ""
-  ];
-  p.rows.forEach((row2, i) => {
-    const rowNo = i + 1;
-    body.push("CLEAR ls_key.");
-    for (const kf of p.keyFields) {
-      body.push(`ls_key-${kf.toLowerCase()} = ${abapLiteral(row2.key[kf])}.`);
-    }
-    body.push(
-      "CLEAR ls_wa.",
-      `SELECT SINGLE * FROM ${tableLower} INTO @ls_wa WHERE ${whereOnKeys(p.keyFields, row2)}.`
-    );
-    if (p.op === "upsert") {
-      body.push(
-        "IF sy-subrc <> 0.",
-        `  out->write( |${IMGW_LINE_PREFIX}BABSENT row=[${rowNo}]| ).`,
-        "  CLEAR ls_wa.",
-        ...p.keyFields.map((kf) => `  ls_wa-${kf.toLowerCase()} = ls_key-${kf.toLowerCase()}.`),
-        "ELSE.",
-        ...dumpRowFragment("BVAL", rowNo).map((l) => "  " + l),
-        "ENDIF.",
-        `ls_wa-${p.clientField.toLowerCase()} = sy-mandt.`
-      );
-      if (p.corrNr !== void 0) {
-        body.push(...ctsRecordFragment(tableLower, tableLit, p.corrNr, rowNo, p.view, p.masterType));
-      }
-      for (const [name, value] of Object.entries(row2.values)) {
-        const field = fieldByName.get(name.toUpperCase());
-        if (!field) continue;
-        body.push(`ls_wa-${field.field.toLowerCase()} = ${abapLiteral(value)}.`);
-      }
-      body.push(
-        `MODIFY ${tableLower} FROM ls_wa.`,
-        "IF sy-subrc <> 0.",
-        `  out->write( |${DDIC_ERR_PREFIX} MODIFY failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc }| ).`,
-        "  RETURN.",
-        "ENDIF.",
-        // Marks this row's own MODIFY as done (sy-subrc 0) — not that the batch committed.
-        // COMMIT WORK AND WAIT runs only after every row in the plan reaches here.
-        `out->write( |${IMGW_LINE_PREFIX}WROTE row=[${rowNo}]| ).`
-      );
-    } else {
-      body.push(
-        "IF sy-subrc <> 0.",
-        `  out->write( |${IMGW_LINE_PREFIX}BABSENT row=[${rowNo}]| ).`,
-        "ELSE.",
-        ...dumpRowFragment("BVAL", rowNo).map((l) => "  " + l)
-      );
-      if (p.corrNr !== void 0) {
-        body.push(...ctsRecordFragment(tableLower, tableLit, p.corrNr, rowNo, p.view, p.masterType).map((l) => "  " + l));
-      }
-      body.push(
-        // Key work area only — DELETE FROM never widens the key with a WHERE clause.
-        `  ls_wa-${p.clientField.toLowerCase()} = sy-mandt.`,
-        ...p.keyFields.map((kf) => `  ls_wa-${kf.toLowerCase()} = ls_key-${kf.toLowerCase()}.`),
-        `  DELETE ${tableLower} FROM ls_wa.`,
-        "  IF sy-subrc <> 0.",
-        `    out->write( |${DDIC_ERR_PREFIX} DELETE failed for row ${rowNo} on ${tableLower}, sy-subrc={ sy-subrc }| ).`,
-        "    RETURN.",
-        "  ENDIF.",
-        // Same marker as the upsert side, same caveat: this row's own DELETE returned sy-subrc 0;
-        // COMMIT WORK AND WAIT (below, after all rows) is what actually commits it.
-        `  out->write( |${IMGW_LINE_PREFIX}WROTE row=[${rowNo}]| ).`,
-        "ENDIF."
-      );
-    }
-    body.push("");
-  });
-  body.push("COMMIT WORK AND WAIT.", "");
-  p.rows.forEach((row2, i) => {
-    const rowNo = i + 1;
-    body.push(
-      "CLEAR ls_wa.",
-      `SELECT SINGLE * FROM ${tableLower} INTO @ls_wa WHERE ${whereOnKeys(p.keyFields, row2)}.`,
-      "IF sy-subrc <> 0.",
-      `  out->write( |${IMGW_LINE_PREFIX}AABSENT row=[${rowNo}]| ).`,
-      "ELSE.",
-      ...dumpRowFragment("AVAL", rowNo).map((l) => "  " + l),
-      "ENDIF.",
-      ""
-    );
-  });
-  body.push(`out->write( |${IMGW_LINE_PREFIX}APPLIED rows=[${p.rows.length}]| ).`);
-  return ddicBridgeSource(IMGW_BRIDGE_CLASS.apply, [], body);
 }
 function extractLenPrefixedValue(afterHead, fieldsRe) {
   const m = fieldsRe.exec(afterHead);
@@ -115443,7 +121762,6 @@ function parseImgWriteTranscript(text3) {
 
 // src/adt/customizing-request.ts
 var CUSTREQ_LINE_PREFIX = "CTSW> ";
-var CUSTOMIZING_REQUEST_CLASS = "ZCL_ZMCP_CTS_WREQ";
 var CUSTREQ_DESCRIPTION_MAX = 60;
 var CUSTOMIZING_REQUEST_FM = Object.freeze({
   fm: "TR_INSERT_REQUEST_WITH_TASKS",
@@ -115482,93 +121800,6 @@ function validateCustomizingRequestPlan(p) {
   if (p.owner !== void 0) {
     assertCustomizingOwner(p.owner);
   }
-}
-function customizingRequestBody(p) {
-  const P = CUSTOMIZING_REQUEST_FM.params;
-  const X = CUSTOMIZING_REQUEST_FM.exceptions;
-  const textLit = abapLiteral(p.description);
-  const exportingLines = [`    ${P.type} = 'W'`, `    ${P.text} = ${textLit}`];
-  if (p.owner !== void 0) {
-    exportingLines.push(`    ${P.owner} = ${abapLiteral(p.owner)}`);
-  }
-  exportingLines.push(`    ${P.users} = lt_users`);
-  return [
-    "DATA ls_request_header TYPE trwbo_request_header.",
-    "DATA lt_task_headers TYPE trwbo_request_headers.",
-    "DATA ls_task_header TYPE trwbo_request_header.",
-    "DATA lt_users TYPE scts_users.",
-    "DATA ls_user TYPE scts_user.",
-    "DATA lv_msg TYPE string.",
-    "DATA lv_exc TYPE string.",
-    "",
-    "ls_user-user = sy-uname.",
-    "ls_user-type = 'Q'.",
-    "INSERT ls_user INTO TABLE lt_users.",
-    "",
-    `CALL FUNCTION '${CUSTOMIZING_REQUEST_FM.fm}'`,
-    "  EXPORTING",
-    ...exportingLines,
-    "  IMPORTING",
-    `    ${P.requestHeader} = ls_request_header`,
-    `    ${P.taskHeaders}   = lt_task_headers`,
-    "  EXCEPTIONS",
-    `    ${X.insertFailed}  = 1`,
-    `    ${X.enqueueFailed} = 2`,
-    "    OTHERS = 3.",
-    "IF sy-subrc <> 0.",
-    "  CASE sy-subrc.",
-    "    WHEN 1.",
-    `      lv_exc = '${X.insertFailed.toUpperCase()}'.`,
-    "    WHEN 2.",
-    `      lv_exc = '${X.enqueueFailed.toUpperCase()}'.`,
-    "    WHEN OTHERS.",
-    "      lv_exc = 'OTHERS'.",
-    "  ENDCASE.",
-    // CTS FMs report the real reason via sy-msg*, not the exception name — see the
-    // module header and img-write-bridge.ts's CTS_INSERT_FM note for the same finding.
-    "  MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno",
-    "    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.",
-    `  out->write( |${CUSTREQ_LINE_PREFIX}ERROR exception=[{ lv_exc }] len=[{ strlen( lv_msg ) }] value=[{ lv_msg }]| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "",
-    "IF ls_request_header-trkorr IS INITIAL.",
-    `  out->write( |${CUSTREQ_LINE_PREFIX}ERROR exception=[NO_REQUEST] len=[0] value=[]| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "",
-    `out->write( |${CUSTREQ_LINE_PREFIX}REQUEST len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
-    "",
-    "READ TABLE lt_task_headers INTO ls_task_header INDEX 1.",
-    "IF sy-subrc <> 0.",
-    // Row-recording decision: corr_nr is still passed straight through to
-    // TR_OBJECTS_CHECK/TR_OBJECTS_INSERT unchanged by the row-recording path; that path
-    // itself performs no task-less check. Whether CTS accepts rows recorded against a
-    // request with no task under it is unknown from here — a further reason the
-    // task-less condition is instead reported loudly here, carrying the request number,
-    // so the caller can add a task or delete the request. Refusing at row-recording time
-    // would mean recognising "this number names a task-less request", which requires
-    // reading CTS state that path does not read.
-    `  out->write( |${CUSTREQ_LINE_PREFIX}WARN code=[NO_TASK] len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
-    "ELSE.",
-    `  out->write( |${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]| ).`,
-    // TRWBO_REQUEST_HEADER-TRFUNCTION is NOT measured from this system — only SCTS_USER's
-    // USER/TYPE fields were (see the IT_USERS comment above). Emitted so a live round-3
-    // read-back can prove or disprove the 'Q' guess passed as IT_USERS-TYPE above; a wrong
-    // field name here fails activation before the FM ever runs, the same cheap failure
-    // mode as a wrong SCTS_USER field name. Its own `out->write`/`CTSW>` line, not extra
-    // fields tacked onto the TASK line above: every other line here (REQUEST, TASK, WARN,
-    // ERROR) is `head len=[n] value=[v]`, and `extractCustReqValue`/the CUSTREQ_*_RE
-    // patterns are all built on exactly one `len=[n] value=[v]` pair per line — a combined
-    // `TASK <number> TYPE <x>` line would need its own bespoke two-value regex instead of
-    // reusing that shape, for one field that is genuinely a second, independent value.
-    `  out->write( |${CUSTREQ_LINE_PREFIX}TASKTYPE len=[{ strlen( ls_task_header-trfunction ) }] value=[{ ls_task_header-trfunction }]| ).`,
-    "ENDIF."
-  ];
-}
-function customizingRequestSource(p) {
-  validateCustomizingRequestPlan(p);
-  return ddicBridgeSource(CUSTOMIZING_REQUEST_CLASS, [], customizingRequestBody(p));
 }
 function extractCustReqValue(afterHead, fieldsRe) {
   const m = fieldsRe.exec(afterHead);
@@ -115642,117 +121873,119 @@ function parseCustomizingRequestTranscript(text3) {
 }
 
 // src/adt/img-write.ts
-var PROBE_HINT = "The probe only SELECTs the target table plus DD02L/DD03L, all named from the caller's own plan (table, keyFields) \u2014 a syntax error here most likely means the table does not exist or one of keyFields is not really a field on it, as spelled. It is never a symptom of a bad ROW VALUE: those reach this bridge only as quoted literals, never as identifiers.";
-var APPLY_HINT = "The apply bridge MODIFYs/DELETEs the target table directly and then calls TR_OBJECTS_CHECK/TR_OBJECTS_INSERT (see CTS_INSERT_FM) \u2014 ordinary standard SAP function modules whose interface here is confirmed by a successful live call, not merely read from FUPARAREF: on 2026-09-06 an armed upsert filed a real E071/E071K row pair through both, and a subsequent delete on the same table also succeeded. So a syntax error here is an ordinary ABAP error in the generated body, not a suspected FM-interface problem \u2014 the ADT syntax check DOES validate ordinary ABAP statements in the generated body, and the likeliest cause is the table's real structure having drifted from the field list the probe returned. It is never a symptom of a bad row value, for the same quoted-literal reason as the probe bridge.";
-var REQUEST_HINT = `This bridge only calls TR_INSERT_REQUEST_WITH_TASKS (see CUSTOMIZING_REQUEST_FM) \u2014 an ordinary standard SAP function module \u2014 with request type 'W' and the caller's description/owner as quoted literals. Its interface here is confirmed by a successful live call, not merely read from FUPARAREF: on 2026-09-06 it created a real type-W customizing request with a type-Q task. So a syntax error here is an ordinary ABAP error in the generated body, not a suspected FM-interface problem. The ADT syntax check DOES validate ordinary ABAP statements in the generated body: on 2026-09-06 it also caught "SY-UNAME" and the row type of "LT_USERS" are incompatible in this very bridge before the FM was ever called; the quoted activation message names the actual defect, not a guess. Delete the left-behind bridge class with abap_write {"object":"class ${CUSTOMIZING_REQUEST_CLASS}","mode":"delete"}.`;
-var DUPLICATE_DECLARATION_HINT = "The activation error says a name was already declared, which means the GENERATED ABAP source itself declares something twice \u2014 a defect in abapsmith's own code generator, not a mistake in the caller's plan. The table, keyFields and row values here are not suspects: nothing about them could make the generator emit the same declaration twice. Report this to abapsmith, quoting the activation message in this error, rather than editing or resubmitting the plan.";
-function withDuplicateDeclarationHintFix(e, originalHint) {
-  if (!isAbapError(e)) return e;
-  const rendered = typeof e.details.messages === "string" ? e.details.messages : "";
-  const raw = Array.isArray(e.details.raw) ? e.details.raw : [];
-  const rawText = raw.map((m) => typeof m?.text === "string" ? m.text : "").join("\n");
-  const isDuplicateDeclaration = /already declared/i.test(`${rendered}
-${rawText}`);
-  if (!isDuplicateDeclaration) return e;
-  const residue = e.hint !== void 0 && e.hint.startsWith(originalHint) ? e.hint.slice(originalHint.length) : "";
-  return new AbapError(
-    e.code,
-    e.message,
-    e.details,
-    `${DUPLICATE_DECLARATION_HINT}${residue}`,
-    { retryable: e.retryable }
-    // re-wrap, not an override — no site reachable here overrides RETRYABILITY today
-    // carries the caught error's retryable across instead of recomputing it, so that stays true if one ever does
-  );
-}
-async function runImgProbe(conn, gate, plan) {
+var IMG_TOOLS = /* @__PURE__ */ new Map([
+  [
+    "img",
+    {
+      manifest: imgManifest,
+      origin: "builtin",
+      sources: imgSources,
+      version: manifestVersion(imgManifest, imgSources)
+    }
+  ]
+]);
+async function runImgProbe(conn, gate, plan, cfg, callerAction) {
   const started = Date.now();
   validateProbePlan(plan);
-  await ensureHelperPackage(conn, gate);
-  const className = IMGW_BRIDGE_CLASS.probe;
-  const source = imgProbeSource(plan);
-  const deployed = await deployBridge(conn, gate, {
-    className,
-    source,
-    description: "abapsmith IMG customizing write probe",
-    packageName: HELPER_PACKAGE,
-    what: "Activation of the generated IMG write-probe bridge",
-    hint: PROBE_HINT,
-    verify: (activation) => verifyBridgeActivation(activation, className, "IMG write-probe bridge", { table: plan.table })
-  }).catch((e) => {
-    throw withDuplicateDeclarationHintFix(e, PROBE_HINT);
-  });
-  const { bridgeRefreshed } = deployed;
-  const run2 = await executeBridge(conn, gate, deployed);
-  const transcript = parseImgWriteTranscript(run2.output);
+  const res = await dispatch2(
+    { conn, cfg, gate, tools: IMG_TOOLS },
+    {
+      tool: "img",
+      action: "preview",
+      args: { table: plan.table, keyFields: plan.keyFields, rows: plan.rows.map((row2) => row2.key) },
+      caller: { tool: "abap_img_edit", action: callerAction }
+    }
+  );
+  if (!Array.isArray(res.result) || res.result.some((line) => typeof line !== "string")) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      "img.preview returned a result that is not an array of strings.",
+      { tool: "img", action: "preview", result: res.result }
+    );
+  }
+  const raw = res.result.join("\n");
+  const transcript = parseImgWriteTranscript(raw);
   return {
     plan,
-    bridgeClass: className,
-    bridgeRefreshed,
+    bridgeClass: imgManifest.entry,
+    bridgeRefreshed: res.deployed,
     durationMs: Date.now() - started,
     transcript,
-    outputComplete: run2.outputComplete,
-    bodyBytes: run2.bodyBytes
+    outputComplete: !res.truncated,
+    bodyBytes: Buffer.byteLength(raw, "utf8")
   };
 }
-async function runImgApply(conn, gate, plan) {
+async function runImgApply(conn, gate, plan, cfg, callerAction) {
   const started = Date.now();
   validateApplyPlan(plan);
-  await ensureHelperPackage(conn, gate);
-  const className = IMGW_BRIDGE_CLASS.apply;
-  const source = imgApplySource(plan);
-  const deployed = await deployBridge(conn, gate, {
-    className,
-    source,
-    description: "abapsmith IMG customizing write apply",
-    packageName: HELPER_PACKAGE,
-    what: "Activation of the generated IMG write-apply bridge",
-    hint: APPLY_HINT,
-    verify: (activation) => verifyBridgeActivation(activation, className, "IMG write-apply bridge", { table: plan.table, op: plan.op })
-  }).catch((e) => {
-    throw withDuplicateDeclarationHintFix(e, APPLY_HINT);
-  });
-  const { bridgeRefreshed } = deployed;
-  const run2 = await executeBridge(conn, gate, deployed);
-  const transcript = parseImgWriteTranscript(run2.output);
+  const res = await dispatch2(
+    { conn, cfg, gate, tools: IMG_TOOLS },
+    {
+      tool: "img",
+      action: "apply",
+      args: {
+        table: plan.table,
+        clientField: plan.clientField,
+        keyFields: plan.keyFields,
+        rows: plan.rows,
+        op: plan.op,
+        ...plan.corrNr !== void 0 ? { corrNr: plan.corrNr } : {},
+        view: plan.view,
+        masterType: plan.masterType,
+        expectedDeliveryClass: plan.expectedDeliveryClass,
+        expectedClientDependent: plan.expectedClientDependent
+      },
+      caller: { tool: "abap_img_edit", action: callerAction }
+    }
+  );
+  if (!Array.isArray(res.result) || res.result.some((line) => typeof line !== "string")) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      "img.apply returned a result that is not an array of strings.",
+      { tool: "img", action: "apply", result: res.result }
+    );
+  }
+  const raw = res.result.join("\n");
+  const transcript = parseImgWriteTranscript(raw);
   return {
     plan,
-    bridgeClass: className,
-    bridgeRefreshed,
+    bridgeClass: imgManifest.entry,
+    bridgeRefreshed: res.deployed,
     durationMs: Date.now() - started,
     transcript,
-    outputComplete: run2.outputComplete,
-    bodyBytes: run2.bodyBytes
+    outputComplete: !res.truncated,
+    bodyBytes: Buffer.byteLength(raw, "utf8")
   };
 }
-async function runCreateCustomizingRequest(conn, gate, plan) {
+async function runCreateCustomizingRequest(conn, gate, plan, cfg) {
   const started = Date.now();
   validateCustomizingRequestPlan(plan);
-  await ensureHelperPackage(conn, gate);
-  const className = CUSTOMIZING_REQUEST_CLASS;
-  const source = customizingRequestSource(plan);
-  const deployed = await deployBridge(conn, gate, {
-    className,
-    source,
-    description: "abapsmith customizing request creation",
-    packageName: HELPER_PACKAGE,
-    what: "Activation of the generated customizing-request-creation bridge",
-    hint: REQUEST_HINT,
-    verify: (activation) => verifyBridgeActivation(activation, className, "customizing-request bridge", {})
-  }).catch((e) => {
-    throw withDuplicateDeclarationHintFix(e, REQUEST_HINT);
-  });
-  const { bridgeRefreshed } = deployed;
-  const run2 = await executeBridge(conn, gate, deployed);
-  const transcript = parseCustomizingRequestTranscript(run2.output);
+  const res = await dispatch2(
+    { conn, cfg, gate, tools: IMG_TOOLS },
+    {
+      tool: "img",
+      action: "create_request",
+      args: { description: plan.description, ...plan.owner !== void 0 ? { owner: plan.owner } : {} },
+      caller: { tool: "abap_img_edit", action: "create_request" }
+    }
+  );
+  if (!Array.isArray(res.result) || res.result.some((line) => typeof line !== "string")) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      "img.create_request returned a result that is not an array of strings.",
+      { tool: "img", action: "create_request", result: res.result }
+    );
+  }
+  const raw = res.result.join("\n");
+  const transcript = parseCustomizingRequestTranscript(raw);
   return {
     plan,
-    bridgeClass: className,
-    bridgeRefreshed,
+    bridgeClass: imgManifest.entry,
+    bridgeRefreshed: res.deployed,
     durationMs: Date.now() - started,
     transcript,
-    outputComplete: run2.outputComplete,
-    bodyBytes: run2.bodyBytes
+    outputComplete: !res.truncated,
+    bodyBytes: Buffer.byteLength(raw, "utf8")
   };
 }
 
@@ -116079,7 +122312,7 @@ function splitClientField(table, objectLabel) {
     if (!table.clientDependent) {
       throw new AbapError(
         "BAD_INPUT",
-        `"${objectLabel}" resolves to base table ${table.table}, which is client-independent (no CLNT-typed key field) \u2014 this tool cannot write a client-independent table at all, through this path or the table/key_fields/client_field expert escape hatch: the generated apply class always sets a client field from sy-mandt, which a table shaped this way does not have. Maintain this table by hand (SM30/SM34) instead.`,
+        `"${objectLabel}" resolves to base table ${table.table}, which is client-independent (no CLNT-typed key field) \u2014 this tool cannot write a client-independent table at all, through this path or the table/key_fields/client_field expert escape hatch: the shared apply class refuses outright, before touching any row, when the declared client field is not a component of the table \u2014 which a table shaped this way never has. Maintain this table by hand (SM30/SM34) instead.`,
         { table: table.table }
       );
     }
@@ -116689,7 +122922,7 @@ async function runProbeAndApply(deps, mode, args, opts) {
   if (opts.needsReadAndConnect) deps.safety.assert("read");
   deps.safety.assert(
     "write",
-    { name: IMGW_BRIDGE_CLASS.probe, packageName: HELPER_PACKAGE, type: "CLAS/OC" },
+    { name: imgManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" }
   );
   if (opts.needsReadAndConnect) await deps.ensureConnected();
@@ -116702,8 +122935,8 @@ async function runProbeAndApply(deps, mode, args, opts) {
   };
   const probe3 = await deps.pool.withWrite(
     "abap_img_edit",
-    IMGW_BRIDGE_CLASS.probe,
-    (conn) => runImgProbe(conn, deps.safety, probePlan)
+    imgManifest.entry,
+    (conn) => runImgProbe(conn, deps.safety, probePlan, deps.cfg, mode)
   );
   const verdict = evaluateReal(args, mode, probe3, deps.safety);
   const table = policyTableFromProbe(args, probe3);
@@ -116715,13 +122948,13 @@ async function runProbeAndApply(deps, mode, args, opts) {
   }
   deps.safety.assert(
     "write",
-    { name: IMGW_BRIDGE_CLASS.apply, packageName: HELPER_PACKAGE, type: "CLAS/OC" },
+    { name: imgManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" }
   );
   const apply = await deps.pool.withWrite(
     "abap_img_edit",
-    IMGW_BRIDGE_CLASS.apply,
-    (conn) => runImgApply(conn, deps.safety, applyPlan)
+    imgManifest.entry,
+    (conn) => runImgApply(conn, deps.safety, applyPlan, deps.cfg, mode)
   );
   const failure = applyFailure(mode, args.rows, apply);
   const journalNote = await recordRowMutation(deps, mode, args, probe3, apply, failure);
@@ -116823,14 +123056,14 @@ async function runCreateRequestMode(deps, input) {
   deps.safety.assert("read");
   deps.safety.assert(
     "write",
-    { name: CUSTOMIZING_REQUEST_CLASS, packageName: HELPER_PACKAGE, type: "CLAS/OC" },
+    { name: imgManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" }
   );
   await deps.ensureConnected();
   const result = await deps.pool.withWrite(
     "abap_img_edit",
-    CUSTOMIZING_REQUEST_CLASS,
-    (conn) => runCreateCustomizingRequest(conn, deps.safety, plan)
+    imgManifest.entry,
+    (conn) => runCreateCustomizingRequest(conn, deps.safety, plan, deps.cfg)
   );
   const t = result.transcript;
   const warn = deps.warn ?? ((m) => void process.stderr.write(`${m}
@@ -116896,7 +123129,7 @@ async function runCreateRequestMode(deps, input) {
   }
   return ok14(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
 }
-var IMG_EDIT_TOOL_DESCRIPTION = "preview (table, key_fields, rows) validates rows against policy and shows current vs. prospective rows without writing. upsert/delete (table, key_fields, rows, confirm) write rows; confirm must equal table (case-insensitive) and corr_nr is usually required. view/master_type name the transport entry recorded for upsert/delete (default: table/VDAT). create_request (description, owner) mints a new customizing (type W) transport request. First call per mode deploys and activates a $ZMCP_HELPERS bridge class.";
+var IMG_EDIT_TOOL_DESCRIPTION = "preview (table, key_fields, rows) validates rows against policy and shows current vs. prospective rows without writing. upsert/delete (table, key_fields, rows, confirm) write rows; confirm must equal table (case-insensitive) and corr_nr is usually required. view/master_type name the transport entry recorded for upsert/delete (default: table/VDAT). create_request (description, owner) mints a new customizing (type W) transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API.";
 async function runImgEditTool(deps, args) {
   const input = args;
   switch (input.mode) {
@@ -116928,12 +123161,12 @@ function registerImgEditTools(mcp, deps) {
 }
 
 // src/adt/ui-runtime.ts
-import { createHash as createHash11 } from "node:crypto";
+import { createHash as createHash10 } from "node:crypto";
 var TCODE_MAX = 20;
 var PROGRAM_MAX = 40;
 var FIELD_NAME_MAX = 132;
 var FIELD_VALUE_MAX = 132;
-function escapeAbapLiteral(value) {
+function escapeAbapLiteral2(value) {
   return value.replace(/'/g, "''");
 }
 var ABAP_LITERAL_CHUNK_RAW = 90;
@@ -116941,7 +123174,7 @@ function abapLiteralAssignmentLines(targetVar, rawValue, indent = "    ") {
   const lines = [`${indent}CLEAR ${targetVar}.`];
   for (let i = 0; i < rawValue.length; i += ABAP_LITERAL_CHUNK_RAW) {
     const chunk2 = rawValue.slice(i, i + ABAP_LITERAL_CHUNK_RAW);
-    lines.push(`${indent}${targetVar} = ${targetVar} && '${escapeAbapLiteral(chunk2)}'.`);
+    lines.push(`${indent}${targetVar} = ${targetVar} && '${escapeAbapLiteral2(chunk2)}'.`);
   }
   return lines;
 }
@@ -117028,7 +123261,7 @@ function assertOkCode(value) {
   assertNoControlChars(trimmed, "OK-code");
   return trimmed;
 }
-function validateQuery2(q) {
+function validateQuery(q) {
   switch (q.mode) {
     case "screen":
       if (q.target.by === "tcode") {
@@ -117058,7 +123291,7 @@ function validateQuery2(q) {
   }
 }
 var UI_BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_UI_";
-function discriminator2(q) {
+function discriminator(q) {
   switch (q.mode) {
     case "screen":
       return JSON.stringify({ mode: "screen", target: q.target });
@@ -117067,14 +123300,12 @@ function discriminator2(q) {
   }
 }
 function uiBridgeClassName(q) {
-  validateQuery2(q);
+  validateQuery(q);
   const hashHexLen = MAX_NAME - UI_BRIDGE_CLASS_PREFIX.length;
-  const hash2 = createHash11("sha256").update(discriminator2(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
+  const hash2 = createHash10("sha256").update(discriminator(q), "utf8").digest("hex").slice(0, hashHexLen).toUpperCase();
   return `${UI_BRIDGE_CLASS_PREFIX}${hash2}`;
 }
 var UI_LINE_PREFIX = "UI> ";
-var UI_STATUS_LOOP_CAP = 30;
-var UI_FKEY_ROW_CAP = 350;
 var ABAP_MAX_LINE_LEN = 255;
 function assertNoOverlongLines(source, className) {
   const lines = source.split("\n");
@@ -117090,197 +123321,17 @@ function assertNoOverlongLines(source, className) {
     }
   }
 }
-function screenBody(q) {
-  const lines = [];
-  lines.push(`    DATA lv_program TYPE syrepid.`);
-  lines.push(`    DATA lv_dynpro TYPE sydynnr.`);
-  lines.push(`    CLEAR: lv_program, lv_dynpro.`);
-  if (q.target.by === "tcode") {
-    const tcode = escapeAbapLiteral(assertTcode(q.target.tcode));
-    lines.push(`    DATA lv_cinfo TYPE tstc-cinfo.`);
-    lines.push(`    CLEAR lv_cinfo.`);
-    lines.push(`    SELECT SINGLE pgmna, dypno, cinfo`);
-    lines.push(`      FROM tstc`);
-    lines.push(`      WHERE tcode = '${tcode}'`);
-    lines.push(`      INTO (@lv_program, @lv_dynpro, @lv_cinfo).`);
-    lines.push(`    IF sy-subrc <> 0.`);
-    lines.push(
-      `      out->write( |${ERR_LINE_PREFIX}TSTC lookup failed for tcode ${tcode}, sy-subrc={ sy-subrc } (tcode probably does not exist)| ).`
-    );
-    lines.push(`      RETURN.`);
-    lines.push(`    ENDIF.`);
-    lines.push(`    DATA lv_kind TYPE string.`);
-    lines.push(`    CLEAR lv_kind.`);
-    lines.push(`    CASE lv_cinfo.`);
-    lines.push(`      WHEN '00'.`);
-    lines.push(`        lv_kind = 'dialog transaction (classic dynpro; batch input / press applies)'.`);
-    lines.push(`      WHEN '80'.`);
-    lines.push(`        lv_kind = 'report transaction (SUBMIT-driven; batch input does NOT apply)'.`);
-    lines.push(`      WHEN OTHERS.`);
-    lines.push(
-      `        lv_kind = 'unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies'.`
-    );
-    lines.push(`    ENDCASE.`);
-    lines.push(
-      `    mo_out->write( |${UI_LINE_PREFIX}TCODE tcode=[${tcode}] program=[{ lv_program }] dynpro=[{ lv_dynpro }] cinfo=[{ lv_cinfo }] kind=[{ lv_kind }]| ).`
-    );
-  } else {
-    const program = escapeAbapLiteral(assertProgramName(q.target.program));
-    const dynpro = escapeAbapLiteral(assertDynpro(q.target.dynpro));
-    lines.push(`    lv_program = '${program}'.`);
-    lines.push(`    lv_dynpro = '${dynpro}'.`);
-  }
-  lines.push(`    mo_out->write( |${UI_LINE_PREFIX}RESOLVED program=[{ lv_program }] dynpro=[{ lv_dynpro }]| ).`);
-  lines.push(`    DATA ls_header TYPE rpy_dyhead.`);
-  lines.push(`    DATA lt_fields_list TYPE TABLE OF d021s.`);
-  lines.push(`    DATA lt_flow_logic TYPE TABLE OF rpy_dyflow.`);
-  lines.push(`    CLEAR: ls_header, lt_fields_list, lt_flow_logic.`);
-  lines.push(`    CALL FUNCTION 'RPY_DYNPRO_READ'`);
-  lines.push(`      EXPORTING`);
-  lines.push(`        progname = lv_program`);
-  lines.push(`        dynnr    = lv_dynpro`);
-  lines.push(`      IMPORTING`);
-  lines.push(`        header   = ls_header`);
-  lines.push(`      TABLES`);
-  lines.push(`        flow_logic  = lt_flow_logic`);
-  lines.push(`        fields_list = lt_fields_list`);
-  lines.push(`      EXCEPTIONS`);
-  lines.push(`        cancelled        = 1`);
-  lines.push(`        not_found        = 2`);
-  lines.push(`        permission_error = 3`);
-  lines.push(`        OTHERS           = 4.`);
-  lines.push(`    IF sy-subrc <> 0.`);
-  lines.push(
-    `      out->write( |${ERR_LINE_PREFIX}RPY_DYNPRO_READ failed, sy-subrc={ sy-subrc } (1=cancelled 2=not_found 3=permission_error 4=other)| ).`
-  );
-  lines.push(`    ELSE.`);
-  lines.push(`      mo_out->write( |${UI_LINE_PREFIX}HEADER { flatten_any( ls_header ) }| ).`);
-  lines.push(`      mo_out->write( |${UI_LINE_PREFIX}COUNT_FIELDS { lines( lt_fields_list ) }| ).`);
-  lines.push(`      LOOP AT lt_fields_list INTO DATA(ls_field).`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}FIELD { flatten_any( ls_field ) }| ).`);
-  lines.push(`      ENDLOOP.`);
-  lines.push(`      mo_out->write( |${UI_LINE_PREFIX}COUNT_FLOW { lines( lt_flow_logic ) }| ).`);
-  lines.push(`      LOOP AT lt_flow_logic INTO DATA(ls_flow).`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}FLOW { flatten_any( ls_flow ) }| ).`);
-  lines.push(`      ENDLOOP.`);
-  lines.push(`    ENDIF.`);
-  lines.push(`    IF lv_program IS NOT INITIAL.`);
-  lines.push(`      DATA lt_sta TYPE STANDARD TABLE OF rsmpe_stat.`);
-  lines.push(`      DATA lt_fun TYPE STANDARD TABLE OF rsmpe_funt.`);
-  lines.push(`      DATA lt_men TYPE STANDARD TABLE OF rsmpe_men.`);
-  lines.push(`      DATA lt_mtx TYPE STANDARD TABLE OF rsmpe_mnlt.`);
-  lines.push(`      DATA lt_act TYPE STANDARD TABLE OF rsmpe_act.`);
-  lines.push(`      DATA lt_but TYPE STANDARD TABLE OF rsmpe_but.`);
-  lines.push(`      DATA lt_pfk TYPE STANDARD TABLE OF rsmpe_pfk.`);
-  lines.push(`      DATA lt_set TYPE STANDARD TABLE OF rsmpe_staf.`);
-  lines.push(`      DATA lt_doc TYPE STANDARD TABLE OF rsmpe_atrt.`);
-  lines.push(`      DATA lt_tit TYPE STANDARD TABLE OF rsmpe_titt.`);
-  lines.push(`      DATA lt_biv TYPE STANDARD TABLE OF rsmpe_buts.`);
-  lines.push(`      DATA lt_fkeys TYPE STANDARD TABLE OF rseul_keys.`);
-  lines.push(
-    `      CLEAR: lt_sta, lt_fun, lt_men, lt_mtx, lt_act, lt_but, lt_pfk, lt_set, lt_doc, lt_tit, lt_biv, lt_fkeys.`
-  );
-  lines.push(`      CALL FUNCTION 'RS_CUA_INTERNAL_FETCH'`);
-  lines.push(`        EXPORTING`);
-  lines.push(`          program = lv_program`);
-  lines.push(`        TABLES`);
-  lines.push(`          sta = lt_sta`);
-  lines.push(`          fun = lt_fun`);
-  lines.push(`          men = lt_men`);
-  lines.push(`          mtx = lt_mtx`);
-  lines.push(`          act = lt_act`);
-  lines.push(`          but = lt_but`);
-  lines.push(`          pfk = lt_pfk`);
-  lines.push(`          set = lt_set`);
-  lines.push(`          doc = lt_doc`);
-  lines.push(`          tit = lt_tit`);
-  lines.push(`          biv = lt_biv`);
-  lines.push(`        EXCEPTIONS`);
-  lines.push(`          not_found       = 1`);
-  lines.push(`          unknown_version = 2`);
-  lines.push(`          OTHERS          = 3.`);
-  lines.push(`      IF sy-subrc = 1.`);
-  lines.push(
-    `        mo_out->write( |${UI_LINE_PREFIX}NOCUA program=[{ lv_program }] note=[no GUI status defined for this program]| ).`
-  );
-  lines.push(`      ELSEIF sy-subrc <> 0.`);
-  lines.push(
-    `        out->write( |${ERR_LINE_PREFIX}RS_CUA_INTERNAL_FETCH failed, sy-subrc={ sy-subrc } (1=not_found 2=unknown_version 3=other)| ).`
-  );
-  lines.push(`      ELSE.`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}COUNT_STATUS { lines( lt_sta ) }| ).`);
-  lines.push(`        LOOP AT lt_sta INTO DATA(ls_sta).`);
-  lines.push(`          mo_out->write( |${UI_LINE_PREFIX}STATUS { flatten_any( ls_sta ) }| ).`);
-  lines.push(`        ENDLOOP.`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}COUNT_FUNCTIONS { lines( lt_fun ) }| ).`);
-  lines.push(`        LOOP AT lt_fun INTO DATA(ls_fun).`);
-  lines.push(
-    `          mo_out->write( |${UI_LINE_PREFIX}FUNCTION code=[{ ls_fun-code }] text=[{ ls_fun-fun_text }] type=[{ ls_fun-type }]| ).`
-  );
-  lines.push(`        ENDLOOP.`);
-  lines.push(`        DATA lv_status_done TYPE i VALUE 0.`);
-  lines.push(`        DATA lv_status_capped TYPE abap_bool VALUE abap_false.`);
-  lines.push(`        DATA lv_fkeys_total TYPE i VALUE 0.`);
-  lines.push(`        DATA lv_fkeys_capped TYPE abap_bool VALUE abap_false.`);
-  lines.push(`        DATA lv_status TYPE gui_status.`);
-  lines.push(`        LOOP AT lt_sta INTO ls_sta.`);
-  lines.push(`          IF lv_status_done >= ${UI_STATUS_LOOP_CAP}.`);
-  lines.push(`            lv_status_capped = abap_true.`);
-  lines.push(`            EXIT.`);
-  lines.push(`          ENDIF.`);
-  lines.push(`          lv_status = ls_sta-code.`);
-  lines.push(`          CLEAR lt_fkeys.`);
-  lines.push(`          CALL FUNCTION 'RS_CUA_GET_STATUS'`);
-  lines.push(`            EXPORTING`);
-  lines.push(`              program = lv_program`);
-  lines.push(`              status  = lv_status`);
-  lines.push(`            TABLES`);
-  lines.push(`              fkeys = lt_fkeys`);
-  lines.push(`            EXCEPTIONS`);
-  lines.push(`              not_found_program = 1`);
-  lines.push(`              not_found_status  = 2`);
-  lines.push(`              recursive_menues  = 3`);
-  lines.push(`              empty_list        = 4`);
-  lines.push(`              not_found_menu    = 5`);
-  lines.push(`              OTHERS            = 6.`);
-  lines.push(`          IF sy-subrc = 0.`);
-  lines.push(`            LOOP AT lt_fkeys INTO DATA(ls_fkey).`);
-  lines.push(`              IF ls_fkey-code IS NOT INITIAL.`);
-  lines.push(`                IF lv_fkeys_total < ${UI_FKEY_ROW_CAP}.`);
-  lines.push(
-    `                  mo_out->write( |${UI_LINE_PREFIX}FKEY status=[{ lv_status }] code=[{ ls_fkey-code }] text=[{ ls_fkey-text }] quickinfo=[{ ls_fkey-quickinfo }]| ).`
-  );
-  lines.push(`                  lv_fkeys_total = lv_fkeys_total + 1.`);
-  lines.push(`                ELSE.`);
-  lines.push(`                  lv_fkeys_capped = abap_true.`);
-  lines.push(`                ENDIF.`);
-  lines.push(`              ENDIF.`);
-  lines.push(`            ENDLOOP.`);
-  lines.push(`          ENDIF.`);
-  lines.push(`          lv_status_done = lv_status_done + 1.`);
-  lines.push(`        ENDLOOP.`);
-  lines.push(`        mo_out->write( |${UI_LINE_PREFIX}COUNT_FKEYS { lv_fkeys_total }| ).`);
-  lines.push(
-    `        mo_out->write( |${UI_LINE_PREFIX}FKEY_CAP emitted=[{ lv_fkeys_total }] capped=[{ lv_fkeys_capped }]| ).`
-  );
-  lines.push(
-    `        mo_out->write( |${UI_LINE_PREFIX}STATUS_LOOP done=[{ lv_status_done }] total=[{ lines( lt_sta ) }] capped=[{ lv_status_capped }]| ).`
-  );
-  lines.push(`      ENDIF.`);
-  lines.push(`    ENDIF.`);
-  return lines.join("\n");
-}
 function bdcScreenStartLines(program, dynpro) {
-  const p = escapeAbapLiteral(program);
-  const d = escapeAbapLiteral(dynpro);
+  const p = escapeAbapLiteral2(program);
+  const d = escapeAbapLiteral2(dynpro);
   return [`    APPEND VALUE #( program = '${p}' dynpro = '${d}' dynbegin = 'X' ) TO lt_bdc.`];
 }
 function bdcFieldLines(fnam, rawValue) {
-  const f = escapeAbapLiteral(fnam);
+  const f = escapeAbapLiteral2(fnam);
   return [...abapLiteralAssignmentLines("lv_fval", rawValue, "    "), `    APPEND VALUE #( fnam = '${f}' fval = lv_fval ) TO lt_bdc.`];
 }
 function pressBody(q) {
-  const tcode = escapeAbapLiteral(assertTcode(q.tcode));
+  const tcode = escapeAbapLiteral2(assertTcode(q.tcode));
   const lines = [];
   lines.push(`    DATA lt_bdc TYPE STANDARD TABLE OF bdcdata.`);
   lines.push(`    DATA lt_msgcoll TYPE STANDARD TABLE OF bdcmsgcoll.`);
@@ -117325,8 +123376,8 @@ function pressBody(q) {
 }
 function uiBridgeSource(query, className) {
   const cls = assertPlainName(className, "Bridge class name").toLowerCase();
-  validateQuery2(query);
-  const body = query.mode === "screen" ? screenBody(query) : pressBody(query);
+  validateQuery(query);
+  const body = pressBody(query);
   const source = `CLASS ${cls} DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES if_oo_adt_classrun.
@@ -117476,23 +123527,6 @@ function parseUiTranscript(raw) {
       case "FKEY":
         result.fkeys.push(fields);
         break;
-      case "FKEY_CAP": {
-        const emitted = Number(fields.emitted ?? "");
-        const capped = fields.capped === "X" || fields.capped === "1" || fields.capped === "true";
-        if (!Number.isNaN(emitted)) {
-          result.fkeyCap = { emitted, capped };
-        }
-        break;
-      }
-      case "STATUS_LOOP": {
-        const done = Number(fields.done ?? "");
-        const total = Number(fields.total ?? "");
-        const capped = fields.capped === "X" || fields.capped === "1" || fields.capped === "true";
-        if (!Number.isNaN(done) && !Number.isNaN(total)) {
-          result.statusLoop = { done, total, capped };
-        }
-        break;
-      }
       case "NOCUA":
         result.noCua = { program: fields.program ?? "", note: fields.note ?? "" };
         break;
@@ -117538,7 +123572,75 @@ function parseUiTranscript(raw) {
   }
   return result;
 }
+var UI_TOOLS = /* @__PURE__ */ new Map([
+  [
+    "ui",
+    {
+      manifest: uiManifest,
+      origin: "builtin",
+      sources: uiSources,
+      version: manifestVersion(uiManifest, uiSources)
+    }
+  ]
+]);
+function isUiFluidScreenPayload(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const o = v;
+  return typeof o.program === "string" && typeof o.dynpro === "string" && Array.isArray(o.fields);
+}
+function toUiTranscriptResult(payload) {
+  return {
+    ...payload.tcode ? { tcode: payload.tcode } : {},
+    resolved: { program: payload.program, dynpro: payload.dynpro },
+    ...payload.header ? { header: payload.header } : {},
+    fieldsCount: payload.fields.length,
+    fields: payload.fields,
+    ...payload.flowCount !== void 0 ? { flowCount: payload.flowCount } : {},
+    flow: payload.flow ?? [],
+    ...payload.statusCount !== void 0 ? { statusCount: payload.statusCount } : {},
+    statusList: payload.statusList ?? [],
+    ...payload.functionsCount !== void 0 ? { functionsCount: payload.functionsCount } : {},
+    functions: payload.functions ?? [],
+    ...payload.fkeysCount !== void 0 ? { fkeysCount: payload.fkeysCount } : {},
+    fkeys: payload.fkeys ?? [],
+    ...payload.noCua ? { noCua: payload.noCua } : {},
+    diagnostics: [],
+    droppedLines: 0
+  };
+}
 async function runUiBridge(conn, query, gate) {
+  if (query.mode === "screen") {
+    return runUiScreenFluid(conn, query, gate);
+  }
+  return runUiPressBridge(conn, query, gate);
+}
+async function runUiScreenFluid(conn, query, gate) {
+  const started = Date.now();
+  validateQuery(query);
+  const args = query.target.by === "tcode" ? { tcode: query.target.tcode } : { program: query.target.program, dynpro: query.target.dynpro };
+  const res = await dispatch2(
+    { conn, cfg: conn.cfg, gate, tools: UI_TOOLS },
+    { tool: "ui", action: "screen", args, caller: { tool: "abap_ui", action: "screen" } }
+  );
+  if (!isUiFluidScreenPayload(res.result)) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      "ui.screen returned a result that does not match its declared output schema.",
+      { tool: "ui", action: "screen", result: res.result }
+    );
+  }
+  const transcript = toUiTranscriptResult(res.result);
+  return {
+    query,
+    bridgeClass: uiManifest.entry,
+    bridgeRefreshed: res.deployed,
+    durationMs: Date.now() - started,
+    transcript,
+    outputComplete: !res.truncated,
+    bodyBytes: Buffer.byteLength(JSON.stringify(res.result), "utf8")
+  };
+}
+async function runUiPressBridge(conn, query, gate) {
   const started = Date.now();
   const className = uiBridgeClassName(query);
   const source = uiBridgeSource(query, className);
@@ -117546,8 +123648,9 @@ async function runUiBridge(conn, query, gate) {
     className,
     source,
     description: `abapsmith UI bridge (mode=${query.mode})`,
+    caller: { tool: "abap_ui", action: query.mode },
     what: "Activation of the generated UI bridge",
-    hint: query.mode === "screen" ? "The bridge reads dynpro/status metadata via RPY_DYNPRO_READ and RS_CUA_GET_STATUS \u2014 a syntax error here is unlikely to be about caller input (program/dynpro/tcode are validated and charset-restricted before any ABAP is generated) and more likely points at this module's own template (see ui-runtime.ts's module header for what is confirmed vs. best-effort)." : "The bridge builds a BDCDATA table and runs CALL TRANSACTION \u2014 a syntax error here is unlikely to be about caller input (every field/program/dynpro/OK-code is validated before a line of ABAP is generated) and more likely points at this module's own template.",
+    hint: "The bridge builds a BDCDATA table and runs CALL TRANSACTION \u2014 a syntax error here is unlikely to be about caller input (every field/program/dynpro/OK-code is validated before a line of ABAP is generated) and more likely points at this module's own template.",
     verify: (activation) => verifyBridgeActivation(activation, className, "UI bridge", { mode: query.mode })
   });
   const { bridgeRefreshed } = deployed;
@@ -117696,15 +123799,14 @@ function assertPressEnabled(cfg) {
 }
 async function assertBdcApplies(deps, tcode) {
   const precheckQuery = { mode: "screen", target: { by: "tcode", tcode } };
-  const precheckClass = uiBridgeClassName(precheckQuery);
   deps.safety.assert(
     "write",
-    { name: precheckClass, packageName: "$TMP", type: "CLAS/OC" },
+    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" }
   );
   const precheck = await deps.pool.withWrite(
     "abap_ui",
-    precheckClass,
+    uiManifest.entry,
     (conn) => runUiBridge(conn, precheckQuery, deps.safety)
   );
   const kind = precheck.transcript.tcode;
@@ -117749,16 +123851,6 @@ function buildScreenResponse(query, result, maxChars) {
   if (t.noCua) {
     notes.push(`No GUI status defined for program ${t.noCua.program} \u2014 this is normal, not an error.`);
   }
-  if (t.statusLoop?.capped) {
-    notes.push(
-      `GUI status button lookup was capped at ${t.statusLoop.done} of ${t.statusLoop.total} statuses \u2014 FUNCTION KEYS below is an INCOMPLETE list, not the full set.`
-    );
-  }
-  if (t.fkeyCap?.capped) {
-    notes.push(
-      `FUNCTION KEYS was capped at ${UI_FKEY_ROW_CAP} rows \u2014 this is an INCOMPLETE list of the buttons found.`
-    );
-  }
   return buildResponse({
     header: {
       mode: "screen",
@@ -117771,11 +123863,6 @@ function buildScreenResponse(query, result, maxChars) {
       statusCount: t.statusCount,
       functionsCount: t.functionsCount,
       fkeysCount: t.fkeysCount,
-      statusLoopDone: t.statusLoop?.done,
-      statusLoopTotal: t.statusLoop?.total,
-      statusLoopCapped: t.statusLoop?.capped,
-      fkeyCapEmitted: t.fkeyCap?.emitted,
-      fkeyCapCapped: t.fkeyCap?.capped,
       bridgeClass: result.bridgeClass,
       bridgeRefreshed: result.bridgeRefreshed
     },
@@ -117836,13 +123923,16 @@ function buildPressResponse(query, result, maxChars) {
 }
 async function runScreenTool(deps, input) {
   const query = buildScreenQuery(input);
-  const bridgeClass = uiBridgeClassName(query);
   deps.safety.assert("read");
-  deps.safety.assert("write", { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" }, { phase: "preflight" });
+  deps.safety.assert(
+    "write",
+    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+    { phase: "preflight" }
+  );
   await deps.ensureConnected();
   const result = await deps.pool.withWrite(
     "abap_ui",
-    bridgeClass,
+    uiManifest.entry,
     (conn) => runUiBridge(conn, query, deps.safety)
   );
   return ok15(buildScreenResponse(query, result, deps.cfg.maxResponseChars));
@@ -117856,7 +123946,7 @@ async function runPressTool(deps, input) {
   await deps.ensureConnected();
   await assertBdcApplies(deps, query.tcode);
   const bridgeClass = uiBridgeClassName(query);
-  deps.safety.assert("write", { name: bridgeClass, packageName: "$TMP", type: "CLAS/OC" }, { phase: "preflight" });
+  deps.safety.assert("write", { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" }, { phase: "preflight" });
   const journalled2 = await withJournalledMutation(
     deps.journal,
     {
@@ -118597,15 +124687,17 @@ async function deleteEnhancementObject(conn, gate, target, opts) {
 }
 
 // src/adt/enhancement-bridge.ts
-var ENH_CREATE_PACKAGE = BRIDGE_PACKAGE;
+var ENH_CREATE_PACKAGE = "$TMP";
 var BRIDGE_CLASS = {
-  createSpot: "ZCL_ZMCP_ENH_CSPOT",
-  addBadiDef: "ZCL_ZMCP_ENH_ADEF",
-  addFilterDef: "ZCL_ZMCP_ENH_FDEF",
-  createImpl: "ZCL_ZMCP_ENH_CIMPL",
-  setFilterValues: "ZCL_ZMCP_ENH_FVAL",
   exercise: "ZCL_ZMCP_ENH_EXEC"
 };
+var ENH_TOOL = {
+  manifest: enhManifest,
+  origin: "builtin",
+  sources: enhSources,
+  version: manifestVersion(enhManifest, enhSources)
+};
+var ENH_TOOLS = /* @__PURE__ */ new Map([[enhManifest.id, ENH_TOOL]]);
 function bridgeSource(className, dataLines, bodyLines) {
   const cls = assertPlainName(className, "Class name").toLowerCase();
   const data = dataLines.map((l) => `    DATA ${l}`).join("\n");
@@ -118636,52 +124728,6 @@ ${body}
 
 ENDCLASS.
 `;
-}
-var DATA_COMMON = ["lv_pkg TYPE devclass VALUE '$TMP'.", "lv_trkorr TYPE trkorr."];
-var DATA_SPOT = ["lo_spot TYPE REF TO if_enh_spot_tool.", "lo_def TYPE REF TO cl_enh_tool_badi_def."];
-var DATA_FILTER = ["ls_badi TYPE enh_badi_data.", "ls_filter TYPE enh_badi_filter."];
-var DATA_IMPL_CREATE = [
-  "lo_enh TYPE REF TO if_enh_tool.",
-  "lo_impl TYPE REF TO cl_enh_tool_badi_impl.",
-  "ls_impl TYPE enh_badi_impl_data."
-];
-var DATA_FILTER_VALUES = [
-  "lo_tool TYPE REF TO if_enh_tool.",
-  "lo_obj TYPE REF TO if_enh_object.",
-  "lo_impl TYPE REF TO cl_enh_tool_badi_impl.",
-  "ls_impl TYPE enh_badi_impl_data.",
-  "ls_val TYPE enh_badiimpl_filter_value.",
-  "ls_root TYPE enh_badiimpl_filter_root.",
-  "ls_id TYPE LINE OF enh_badiimpl_filter_id_it."
-];
-function epilogueFragment(handle) {
-  return [
-    `${handle}save( EXPORTING run_dark = abap_true CHANGING devclass = lv_pkg trkorr = lv_trkorr ).`,
-    `${handle}activate( EXPORTING run_dark = abap_true CHANGING devclass = lv_pkg trkorr = lv_trkorr ).`,
-    `${handle}unlock( ).`
-  ];
-}
-function badiFilterCheckFragment(spotName, badiName) {
-  return [
-    "TRY.",
-    `    lo_spot = cl_enh_factory=>get_enhancement_spot( spot_name = ${assertQuotedLiteral(spotName)} lock = 'X' run_dark = abap_true ).`,
-    "    lo_def ?= lo_spot.",
-    `    ls_badi = lo_def->get_badi_def( badi_name = ${assertQuotedLiteral(badiName)} ).`,
-    "    IF ls_badi-filters IS NOT INITIAL.",
-    "      out->write( 'BADI-HAS-FILTERS' ).",
-    "    ELSE.",
-    "      out->write( 'BADI-NO-FILTERS' ).",
-    "    ENDIF.",
-    "  CATCH cx_root.",
-    "    out->write( 'BADI-FILTER-CHECK-INCONCLUSIVE' ).",
-    "ENDTRY.",
-    "IF lo_spot IS BOUND.",
-    "  TRY.",
-    "      lo_spot->if_enh_object~unlock( ).",
-    "    CATCH cx_root.",
-    "  ENDTRY.",
-    "ENDIF."
-  ];
 }
 var ENH_TAGS = [
   "SPOT-OBJECT-CREATED",
@@ -118734,16 +124780,48 @@ function assertEnhTranscript(result, expectTags, what) {
     );
   }
 }
-async function writeActivateRunBridge(conn, gate, className, source, description) {
+async function writeActivateRunBridge(conn, gate, className, source, description, action) {
   const deployed = await deployBridge(conn, gate, {
     className,
     source,
     description,
-    packageName: ENH_CREATE_PACKAGE,
+    packageName: FLUID_PACKAGE,
+    caller: { tool: "abap_enh", action },
     what: `Activation of the generated enhancement bridge ${className}`,
     verify: (activation) => verifyBridgeActivation(activation, className, "enhancement bridge")
   });
   return executeBridge(conn, gate, deployed);
+}
+async function runEnhAction(conn, gate, action, args) {
+  const fr = await dispatch2(
+    { conn, cfg: conn.cfg, gate, tools: ENH_TOOLS },
+    // `caller` names the MCP-facing identity (abap_enh + the operation the
+    // caller actually invoked, which is byte-identical to this fluid
+    // action name for all five reroutes) so a FLUID_API_DISABLED refusal
+    // names abap_enh, not the internal fluid tool id "enh" dispatch() runs
+    // this as under the hood.
+    { tool: enhManifest.id, action, args, caller: { tool: "abap_enh", action } }
+  );
+  if (typeof fr.result !== "object" || fr.result === null || Array.isArray(fr.result)) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      `enh.${action}: expected a JSON object result, got ${typeof fr.result}.`,
+      { tool: enhManifest.id, action, result: fr.result }
+    );
+  }
+  const result = fr.result;
+  const raw = JSON.stringify(result);
+  const run2 = {
+    mode: "class",
+    object: enhManifest.entry,
+    output: raw,
+    lines: 1,
+    durationMs: fr.ms,
+    droppedLines: 0,
+    bodyBytes: raw.length,
+    outputComplete: !fr.truncated
+  };
+  return { result, run: run2 };
 }
 async function ensureMarkerInterface(conn, gate, interfaceName) {
   const name = assertEnhIdentifier(interfaceName, "interfaceName");
@@ -118824,19 +124902,16 @@ async function createEnhancementSpot(conn, gate, params) {
   );
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
-  const body = [
-    ...createSpotFragment({ spotName, description: params.description }),
-    ...epilogueFragment("lo_spot->if_enh_object~")
-  ];
-  const source = bridgeSource(BRIDGE_CLASS.createSpot, [...DATA_COMMON, ...DATA_SPOT], body);
-  const run2 = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.createSpot,
-    source,
-    `abapsmith T15 create-enhancement-spot bridge (${spotName})`
-  );
-  const transcript = parseEnhancementTranscript(run2.output);
+  const { result, run: run2 } = await runEnhAction(conn, gate, "create_spot", {
+    spot_name: spotName,
+    description: params.description,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: ""
+  });
+  const transcript = {
+    tags: result.created === true ? ["SPOT-OBJECT-CREATED"] : [],
+    raw: JSON.stringify(result)
+  };
   assertEnhTranscript(transcript, ["SPOT-OBJECT-CREATED"], `Creating enhancement spot ${spotName}`);
   const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
   return { run: run2, transcript, activation };
@@ -118852,23 +124927,19 @@ async function addBadiDefinition(conn, gate, params) {
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
   await ensureMarkerInterface(conn, gate, interfaceName);
-  const acquire = [
-    // Locked GET of the existing spot. `spot` is RETURNING, not IMPORTING
-    // (fixtures 486, 893). Locking inferred by symmetry with fixture 466 —
-    // see header, deviation (2).
-    `lo_spot = cl_enh_factory=>get_enhancement_spot( spot_name = ${assertQuotedLiteral(spotName)} lock = 'X' run_dark = abap_true ).`,
-    "lo_def ?= lo_spot."
-  ];
-  const body = [...acquire, ...addBadiDefFragment({ ...params, badiName, interfaceName }), ...epilogueFragment("lo_spot->if_enh_object~")];
-  const source = bridgeSource(BRIDGE_CLASS.addBadiDef, [...DATA_COMMON, ...DATA_SPOT, ...DATA_FILTER], body);
-  const run2 = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.addBadiDef,
-    source,
-    `abapsmith T15 add-badi-def bridge (${badiName} on ${spotName})`
-  );
-  const transcript = parseEnhancementTranscript(run2.output);
+  const { result, run: run2 } = await runEnhAction(conn, gate, "add_badi_def", {
+    spot_name: spotName,
+    badi_name: badiName,
+    interface_name: interfaceName,
+    single_use: params.singleUse,
+    short_text: params.shortText,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: ""
+  });
+  const transcript = {
+    tags: result.added === true ? ["BADI-DEF-ADDED"] : [],
+    raw: JSON.stringify(result)
+  };
   assertEnhTranscript(transcript, ["BADI-DEF-ADDED"], `Adding BAdI definition ${badiName} to spot ${spotName}`);
   const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
   return { run: run2, transcript, activation };
@@ -118882,22 +124953,20 @@ async function addFilterDefinition(conn, gate, params) {
   );
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
-  const acquire = [
-    // `spot` is RETURNING, not IMPORTING — see addBadiDefinition's acquire
-    // comment above and this module's header, deviation (2).
-    `lo_spot = cl_enh_factory=>get_enhancement_spot( spot_name = ${assertQuotedLiteral(spotName)} lock = 'X' run_dark = abap_true ).`,
-    "lo_def ?= lo_spot."
-  ];
-  const body = [...acquire, ...addFilterDefFragment({ ...params, badiName }), ...epilogueFragment("lo_spot->if_enh_object~")];
-  const source = bridgeSource(BRIDGE_CLASS.addFilterDef, [...DATA_COMMON, ...DATA_SPOT, ...DATA_FILTER], body);
-  const run2 = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.addFilterDef,
-    source,
-    `abapsmith T15 add-filter-def bridge (${params.filterName} on ${badiName})`
-  );
-  const transcript = parseEnhancementTranscript(run2.output);
+  const args = {
+    spot_name: spotName,
+    badi_name: badiName,
+    filter_name: params.filterName,
+    filter_type: params.filterType,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: ""
+  };
+  if (params.filterText !== void 0) args.filter_text = params.filterText;
+  const { result, run: run2 } = await runEnhAction(conn, gate, "add_filter_def", args);
+  const transcript = {
+    tags: result.added === true ? ["FILTER-DEF-ADDED"] : [],
+    raw: JSON.stringify(result)
+  };
   assertEnhTranscript(transcript, ["FILTER-DEF-ADDED"], `Adding filter definition ${params.filterName} to ${badiName}`);
   const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
   return { run: run2, transcript, activation };
@@ -118922,27 +124991,24 @@ async function createBadiImplementation(conn, gate, params) {
   );
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
-  const body = [
-    ...createImplFragment(params),
-    ...epilogueFragment("lo_enh->if_enh_object~"),
-    // Defect-2 guard (see badiFilterCheckFragment) — runs after success
-    // tags are written and can never turn a successful create into a
-    // failure.
-    ...badiFilterCheckFragment(spotName, badiName)
-  ];
-  const source = bridgeSource(
-    BRIDGE_CLASS.createImpl,
-    [...DATA_COMMON, ...DATA_SPOT, ...DATA_FILTER, ...DATA_IMPL_CREATE],
-    body
-  );
-  const run2 = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.createImpl,
-    source,
-    `abapsmith T15 create-badi-impl bridge (${enhName})`
-  );
-  const transcript = parseEnhancementTranscript(run2.output);
+  const { result, run: run2 } = await runEnhAction(conn, gate, "create_impl", {
+    enh_name: enhName,
+    spot_name: spotName,
+    badi_name: badiName,
+    impl_name: params.implName,
+    impl_class: implClass,
+    active: params.active,
+    description: params.description,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: ""
+  });
+  const tags = [];
+  if (result.created === true) tags.push("ENHO-OBJECT-CREATED");
+  if (result.impl_added === true) tags.push("IMPL-ADDED");
+  if (result.filter_check === "has_filters") tags.push("BADI-HAS-FILTERS");
+  else if (result.filter_check === "no_filters") tags.push("BADI-NO-FILTERS");
+  else if (result.filter_check === "inconclusive") tags.push("BADI-FILTER-CHECK-INCONCLUSIVE");
+  const transcript = { tags, raw: JSON.stringify(result) };
   assertEnhTranscript(transcript, ["ENHO-OBJECT-CREATED", "IMPL-ADDED"], `Creating BAdI implementation ${enhName}`);
   const activation = await activateObject(conn, { name: enhName, uri: implUri(enhName) });
   const exists = await implementingClassExists(conn, implClass);
@@ -118957,23 +125023,20 @@ async function setFilterValues(conn, gate, params) {
   );
   gate.assertIntent(intent, { op: "write" });
   gate.assertIntent(intent, { op: "activate" });
-  const acquire = [
-    // Fixture 466's exact acquisition — get-existing-and-lock, then cast
-    // twice. `enhancement` is RETURNING, not IMPORTING.
-    `lo_tool = cl_enh_factory=>get_enhancement( enhancement_id = ${assertQuotedLiteral(enhName)} lock = 'X' run_dark = abap_true ).`,
-    "lo_impl ?= lo_tool.",
-    "lo_obj ?= lo_tool."
-  ];
-  const body = [...acquire, ...setFilterValuesFragment(params), ...epilogueFragment("lo_obj->")];
-  const source = bridgeSource(BRIDGE_CLASS.setFilterValues, [...DATA_COMMON, ...DATA_FILTER_VALUES], body);
-  const run2 = await writeActivateRunBridge(
-    conn,
-    gate,
-    BRIDGE_CLASS.setFilterValues,
-    source,
-    `abapsmith T15 set-filter-values bridge (${enhName})`
-  );
-  const transcript = parseEnhancementTranscript(run2.output);
+  const { result, run: run2 } = await runEnhAction(conn, gate, "set_filter_values", {
+    enh_name: enhName,
+    impl_name: params.implName,
+    filter_name: params.filterName,
+    filter_type: params.filterType,
+    compare: params.compare,
+    value: params.value,
+    package_name: ENH_CREATE_PACKAGE,
+    corr_nr: ""
+  });
+  const transcript = {
+    tags: result.replaced === true ? ["IMPL-REPLACED"] : [],
+    raw: JSON.stringify(result)
+  };
   assertEnhTranscript(transcript, ["IMPL-REPLACED"], `Setting filter values on implementation ${enhName}`);
   const jointAuthorized = gate.authorizeIntent(
     "activate",
@@ -119009,7 +125072,8 @@ async function exerciseBadi(conn, gate, params) {
     gate,
     BRIDGE_CLASS.exercise,
     source,
-    `abapsmith T15 exercise-badi bridge (${badiName})`
+    `abapsmith T15 exercise-badi bridge (${badiName})`,
+    "exercise"
   );
   const transcript = parseEnhancementTranscript(run2.output);
   if (transcript.tags.includes("NOT-BOUND")) {
@@ -119021,9 +125085,6 @@ async function exerciseBadi(conn, gate, params) {
   }
   assertEnhTranscript(transcript, ["EXERCISED"], `Exercising BAdI ${badiName}`);
   return { run: run2, transcript };
-}
-function assertQuotedLiteral(identifier) {
-  return `'${identifier}'`;
 }
 
 // src/adt/enhancement-hook.ts
@@ -120389,9 +126450,9 @@ function dumpLinkKind(uri) {
 function stripAdtScheme(uri) {
   return uri.replace(ADT_SCHEME_RE, "");
 }
-function dumpKeyFromDetailPath(path6) {
-  if (!path6.startsWith(DUMP_DETAIL_PATH_PREFIX)) return void 0;
-  const key = path6.slice(DUMP_DETAIL_PATH_PREFIX.length);
+function dumpKeyFromDetailPath(path8) {
+  if (!path8.startsWith(DUMP_DETAIL_PATH_PREFIX)) return void 0;
+  const key = path8.slice(DUMP_DETAIL_PATH_PREFIX.length);
   return key === "" ? void 0 : key;
 }
 function exceptionFromDoc(doc) {
@@ -120556,14 +126617,14 @@ function parseDumpDetail(body) {
   };
 }
 function terminationTarget(uri) {
-  const path6 = stripAdtScheme(uri);
-  if (path6 === "") return void 0;
-  const hash2 = path6.indexOf("#");
-  if (hash2 < 0) return { path: path6 };
-  const start = new URLSearchParams(path6.slice(hash2 + 1)).get("start");
+  const path8 = stripAdtScheme(uri);
+  if (path8 === "") return void 0;
+  const hash2 = path8.indexOf("#");
+  if (hash2 < 0) return { path: path8 };
+  const start = new URLSearchParams(path8.slice(hash2 + 1)).get("start");
   const line = start === null ? Number.NaN : Number.parseInt(start, 10);
   return {
-    path: path6.slice(0, hash2),
+    path: path8.slice(0, hash2),
     ...Number.isFinite(line) ? { line } : {}
   };
 }
@@ -120918,8 +126979,8 @@ async function fetchDumpFormatted(conn, target) {
 function formattedTarget(target) {
   if (typeof target === "string") return { uri: dumpFormattedPath(target), key: target };
   const link = target.links.find((l) => l.relationToken === FORMATTED_RELATION_TOKEN);
-  const path6 = target.formattedPath ?? link?.uri;
-  if (path6 === void 0) {
+  const path8 = target.formattedPath ?? link?.uri;
+  if (path8 === void 0) {
     throw new AbapError(
       "NOT_FOUND",
       "This dump detail advertises no plain-text rendering.",
@@ -120935,7 +126996,7 @@ function formattedTarget(target) {
       "This resource advertises absolute links (an internal https://host:port URL among them) that are not reachable or trustworthy from this client. Only server-relative paths are followed."
     );
   }
-  return { uri: path6 };
+  return { uri: path8 };
 }
 function selectDumpChapters(detail, formatted, names = TIER1_CHAPTER_NAMES) {
   const requested = [...names];
@@ -122252,8 +128313,8 @@ function parseProposalDeltas(xml3, expectedSourceUri) {
     if (node2 === void 0) continue;
     const ref2 = asRecord3(node2["objectReference"]);
     const uri = attrOrEmpty3(ref2, "uri");
-    const path6 = uriPath(uri);
-    if (path6 !== expectedSourceUri) {
+    const path8 = uriPath(uri);
+    if (path8 !== expectedSourceUri) {
       throw new AbapError(
         "UNSUPPORTED",
         `A quick-fix delta unit targets a different object than the one being fixed.`,
@@ -123088,12 +129149,12 @@ function boolAttr2(node2, name) {
   if (raw === "false" || raw === "") return false;
   return void 0;
 }
-function assertServiceRuntimePath(path6) {
-  if (SERVICE_METADATA_PATH2.test(path6)) return;
+function assertServiceRuntimePath(path8) {
+  if (SERVICE_METADATA_PATH2.test(path8)) return;
   throw new AbapError(
     "BAD_INPUT",
-    `Refusing to build the service-runtime request '${path6}': abapsmith fetches OData $metadata and nothing else.`,
-    { path: path6 },
+    `Refusing to build the service-runtime request '${path8}': abapsmith fetches OData $metadata and nothing else.`,
+    { path: path8 },
     "The path must be rooted at /sap/opu/odata or /sap/opu/odata4 and end in /$metadata. Reading entity data through an ADT developer session is out of scope by design (parity item P-40) and no setting enables it."
   );
 }
@@ -123607,6 +129668,1006 @@ function registerServiceTools(mcp, deps) {
   );
 }
 
+// src/adt/fluid/delete.ts
+async function deleteOneFluidObject(conn, gate, target, reviveOnDeadSession) {
+  const attempt = async () => {
+    const authorized = await authorizeMutation(conn, gate, "delete", { type: target.type, name: target.name });
+    return deleteObject(conn, authorized, { onBeforeImage: NO_JOURNAL });
+  };
+  if (!reviveOnDeadSession) return attempt();
+  try {
+    return await attempt();
+  } catch (e) {
+    if (!isSessionDeadFailure(e)) throw e;
+    await conn.connect();
+    return attempt();
+  }
+}
+
+// src/adt/fluid/retired.ts
+var TMP_PACKAGE = "$TMP";
+var LEGACY_HELPER_PACKAGE = LEGACY_FLUID_PACKAGES.find((p) => p !== TMP_PACKAGE);
+if (LEGACY_HELPER_PACKAGE === void 0) {
+  throw new Error("LEGACY_FLUID_PACKAGES no longer names the retired helper package");
+}
+var RETIRED_BRIDGE_CLASSES = [
+  { name: "ZCL_ZMCP_DDIC_CVIEW", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
+  { name: "ZCL_ZMCP_DDIC_DVIEW", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
+  { name: "ZCL_ZMCP_DDIC_CTRAN", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
+  { name: "ZCL_ZMCP_DDIC_DTRAN", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
+  { name: "ZCL_ZMCP_DDIC_CINDX", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
+  { name: "ZCL_ZMCP_DDIC_DINDX", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
+  { name: "ZCL_ZMCP_DDIC_CPKG", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
+  { name: "ZCL_ZMCP_DDIC_DPKG", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
+  { name: "ZCL_ZMCP_DDIC_TREN", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
+  { name: "ZCL_ZMCP_IMG_WPROBE", type: "CLAS/OC", packageName: LEGACY_HELPER_PACKAGE, supersededBy: "img" },
+  { name: "ZCL_ZMCP_IMG_WAPPLY", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "img" },
+  { name: "ZCL_ZMCP_CTS_WREQ", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "img" },
+  // The five fixed-name bridges `abap_enh`'s create family generated before it moved onto
+  // `ZCL_ZMCP_FLUID_ENH`. Their names are `enhancement-bridge.ts`'s own former `BRIDGE_CLASS` map,
+  // which now retains only its `exercise` entry; that entry is absent here on purpose, because
+  // `exercise` never moved and still generates the class every call.
+  { name: "ZCL_ZMCP_ENH_CSPOT", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" },
+  { name: "ZCL_ZMCP_ENH_ADEF", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" },
+  { name: "ZCL_ZMCP_ENH_FDEF", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" },
+  { name: "ZCL_ZMCP_ENH_CIMPL", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" },
+  { name: "ZCL_ZMCP_ENH_FVAL", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" }
+];
+var OWN_FLUID_PACKAGES = [...LEGACY_FLUID_PACKAGES, FLUID_PACKAGE].map((p) => p.toUpperCase());
+async function probeRetiredBridges(conn) {
+  const probes = [];
+  for (const entry of RETIRED_BRIDGE_CLASSES) {
+    const base = { name: entry.name, expectedPackage: entry.packageName, supersededBy: entry.supersededBy };
+    try {
+      const resolved = await resolveWriteTarget(conn, { type: entry.type, name: entry.name }, "delete");
+      if (!resolved.exists) {
+        probes.push({ ...base, state: "absent" });
+        continue;
+      }
+      const pkgNormalized = resolved.packageName.trim().toUpperCase();
+      if (OWN_FLUID_PACKAGES.includes(pkgNormalized)) {
+        probes.push({ ...base, state: "present", foundIn: resolved.packageName });
+      } else {
+        probes.push({ ...base, state: "moved", foundIn: resolved.packageName });
+      }
+    } catch (e) {
+      probes.push({ ...base, state: "unknown", error: describeUnknownError(e) });
+    }
+  }
+  return probes;
+}
+async function reapRetiredBridges(gate, lease) {
+  const probes = await lease("abap_fluid.repair.probe", (conn) => probeRetiredBridges(conn));
+  const results = [];
+  for (const probe3 of probes) {
+    if (probe3.state === "absent") {
+      results.push({ name: probe3.name, outcome: "already-absent" });
+      continue;
+    }
+    if (probe3.state === "moved") {
+      results.push({ name: probe3.name, outcome: "left-alone", foundIn: probe3.foundIn });
+      continue;
+    }
+    if (probe3.state === "unknown") {
+      results.push({ name: probe3.name, outcome: "unknown", error: probe3.error });
+      continue;
+    }
+    try {
+      const del3 = await lease(
+        "abap_fluid.repair.delete",
+        (conn) => deleteOneFluidObject(conn, gate, { type: "CLAS/OC", name: probe3.name }, false)
+      );
+      results.push({ name: probe3.name, outcome: del3.deleted === false ? "failed" : "deleted" });
+    } catch (e) {
+      if (isAbapError(e) && e.code === "NOT_FOUND") {
+        results.push({ name: probe3.name, outcome: "already-absent" });
+      } else {
+        results.push({ name: probe3.name, outcome: "failed", error: describeUnknownError(e) });
+      }
+    }
+  }
+  return results;
+}
+
+// src/adt/fluid/invokers.ts
+var INVOKER_NAME_RE2 = /^ZCL_ZMCP_I_[0-9A-F]{8}$/i;
+var GENERATED_COMMENT_RE = /^\*\s*Generated by abapsmith for fluid tool '([^'\r\n]*)', action '([^'\r\n]*)'\.\s*Do not edit\.\s*$/im;
+var ATTACH_LINE_RE = /zcl_zmcp_fluid_rt=>attach\(\s*io_out\s*=\s*out\s+iv_ver\s*=\s*'([^'\r\n]*)'\s+iv_contract\s*=\s*'([^'\r\n]*)'\s*\)/i;
+var VERSION_RE2 = /^[0-9a-f]{8}$/;
+var CONTRACT_RE3 = /^\d+\.\d+$/;
+function parseInvokerProvenance(source) {
+  const result = {};
+  const comment = GENERATED_COMMENT_RE.exec(source);
+  if (comment) {
+    result.toolId = comment[1];
+    result.action = comment[2];
+  }
+  const attach = ATTACH_LINE_RE.exec(source);
+  if (attach) {
+    const version2 = attach[1] ?? "";
+    const contract = attach[2] ?? "";
+    if (VERSION_RE2.test(version2)) result.version = version2;
+    if (CONTRACT_RE3.test(contract)) result.contract = contract;
+  }
+  return result;
+}
+async function listInvokerClasses(conn) {
+  const listed = await conn.adt.nodeContents("DEVC/K", FLUID_PACKAGE);
+  const names = [];
+  for (const n of listed.nodes ?? []) {
+    const name = n.OBJECT_NAME ?? "";
+    const type = n.OBJECT_TYPE ?? "";
+    if (!name || type !== "CLAS/OC") continue;
+    if (INVOKER_NAME_RE2.test(name)) names.push(name);
+  }
+  return names;
+}
+async function probeInvokers(conn, names) {
+  const probes = [];
+  for (const name of names) {
+    try {
+      const resolved = await resolveWriteTarget(conn, { type: "CLAS/OC", name }, "delete");
+      if (!resolved.exists) {
+        probes.push({ name, error: "does not exist" });
+        continue;
+      }
+      const resp = await conn.get(resolved.sourceUri, { headers: { Accept: "text/plain" } });
+      const provenance = parseInvokerProvenance(resp.body);
+      probes.push({ name, toolId: provenance.toolId, action: provenance.action, version: provenance.version });
+    } catch (e) {
+      probes.push({ name, error: describeUnknownError(e) });
+    }
+  }
+  return probes;
+}
+function staleInvokers(probes, toolId, currentVersion) {
+  return probes.filter((p) => p.toolId === toolId && p.version !== void 0 && p.version !== currentVersion);
+}
+async function pruneInvokers(gate, lease, probes) {
+  const results = [];
+  for (const probe3 of probes) {
+    try {
+      const del3 = await lease(
+        "abap_fluid.repair.prune-invoker",
+        (conn) => deleteOneFluidObject(conn, gate, { type: "CLAS/OC", name: probe3.name }, false)
+      );
+      results.push({ name: probe3.name, outcome: del3.deleted === false ? "failed" : "deleted" });
+    } catch (e) {
+      if (isAbapError(e) && e.code === "NOT_FOUND") {
+        results.push({ name: probe3.name, outcome: "already-absent" });
+      } else {
+        results.push({ name: probe3.name, outcome: "failed", error: describeUnknownError(e) });
+      }
+    }
+  }
+  return results;
+}
+
+// src/adt/fluid/dynamic-bridges.ts
+var DYNAMIC_BRIDGE_FAMILIES = [
+  { label: "BOPF test bridges", tool: "abap_bopf_test", prefix: BOPF_BRIDGE_CLASS_PREFIX },
+  { label: "UI press bridges", tool: 'abap_ui (mode: "press")', prefix: UI_BRIDGE_CLASS_PREFIX },
+  {
+    label: "Enhancement exercise bridges",
+    tool: 'abap_enh (operation: "exercise")',
+    names: Object.values(BRIDGE_CLASS)
+  },
+  { label: "FPM lock-mode bridges", tool: 'abap_fpm_read (mode: "locks")', prefix: FPM_LOCK_BRIDGE_CLASS_PREFIX },
+  { label: "Run report bridges", tool: "abap_run (report bridge)", prefix: BRIDGE_CLASS_PREFIX }
+].sort((a, b) => (b.prefix?.length ?? 1e3) - (a.prefix?.length ?? 1e3));
+function familyMatches(family, name) {
+  if (family.prefix !== void 0 && name.startsWith(family.prefix)) return true;
+  if (family.names !== void 0 && family.names.includes(name)) return true;
+  return false;
+}
+function classifyDynamicBridgeName(name) {
+  const n = name.trim().toUpperCase();
+  if (INVOKER_NAME_RE2.test(n)) return void 0;
+  for (const family of DYNAMIC_BRIDGE_FAMILIES) {
+    if (familyMatches(family, n)) return family;
+  }
+  return void 0;
+}
+function isDynamicBridgeName(name) {
+  return classifyDynamicBridgeName(name) !== void 0;
+}
+async function listDynamicBridges(conn, exclude = /* @__PURE__ */ new Set()) {
+  const listed = await conn.adt.nodeContents("DEVC/K", FLUID_PACKAGE);
+  const results = [];
+  for (const n of listed.nodes ?? []) {
+    const name = n.OBJECT_NAME ?? "";
+    const type = n.OBJECT_TYPE ?? "";
+    if (!name || type !== "CLAS/OC") continue;
+    const upper = name.trim().toUpperCase();
+    if (exclude.has(upper)) continue;
+    const family = classifyDynamicBridgeName(upper);
+    if (!family) continue;
+    results.push({ name, label: family.label, tool: family.tool });
+  }
+  return results;
+}
+
+// src/adt/fluid/describe.ts
+function sortedTools(toolSet) {
+  const byId = (a, b) => a.manifest.id.localeCompare(b.manifest.id);
+  const all = [...toolSet.tools.values()];
+  return [
+    ...all.filter((t) => t.origin === "builtin").sort(byId),
+    ...all.filter((t) => t.origin === "plugin").sort(byId)
+  ];
+}
+function toolLabel(t) {
+  return t.origin === "plugin" ? `${t.manifest.id} (plugin)` : t.manifest.id;
+}
+function actionToken(a) {
+  return `${a.name} (${a.category})`;
+}
+var WRAP_WIDTH = 96;
+var CONTINUATION_INDENT = "    ";
+function renderToolActionsLine(label, actions) {
+  const lines = [];
+  let current = `  ${label}:`;
+  let firstOnLine = true;
+  for (const action of actions) {
+    const token = actionToken(action);
+    const candidate = firstOnLine ? `${current} ${token}` : `${current}, ${token}`;
+    if (!firstOnLine && candidate.length > WRAP_WIDTH) {
+      lines.push(current);
+      current = `${CONTINUATION_INDENT}${token}`;
+    } else {
+      current = candidate;
+    }
+    firstOnLine = false;
+  }
+  lines.push(current);
+  return lines.join("\n");
+}
+function exampleValueFor(schema) {
+  if (!schema) return "value";
+  if (schema.enum && schema.enum.length > 0) return schema.enum[0];
+  switch (schema.type) {
+    case "string":
+      return "value";
+    case "number":
+    case "integer":
+      return 1;
+    case "boolean":
+      return true;
+    case "object":
+      return {};
+    case "array":
+      return [];
+    default:
+      return "value";
+  }
+}
+function exampleArgs(action) {
+  const props = action.input.properties;
+  if (!props) return {};
+  const required3 = action.input.required ?? [];
+  const declared = Object.keys(props);
+  const ordered = [
+    ...required3.filter((key) => declared.includes(key)),
+    ...declared.filter((key) => !required3.includes(key))
+  ];
+  const args = {};
+  for (const key of ordered.slice(0, 2)) {
+    args[key] = exampleValueFor(props[key]);
+  }
+  return args;
+}
+function firstReadAction(tools) {
+  for (const tool of tools) {
+    for (const action of tool.manifest.actions) {
+      if (action.category === "read") return { tool, action };
+    }
+  }
+  return void 0;
+}
+function buildFluidDescription(toolSet) {
+  const tools = sortedTools(toolSet);
+  const header = `abap_fluid \u2014 SAP functions that run through abapsmith-installed ABAP (package ${FLUID_PACKAGE}). ops: run (default), list, describe, status, verify, repair, remove.
+abap_fluid() with no arguments: flag state, package, loaded tools, what to call next.`;
+  if (tools.length === 0) {
+    return `${header}
+No fluid tools are loaded.`;
+  }
+  const routableTools = tools.filter((t) => t.manifest.internal !== true);
+  const actionLines = routableTools.map((t) => renderToolActionsLine(toolLabel(t), t.manifest.actions)).join("\n");
+  const lines = [header, "tools.actions (category):", actionLines];
+  const firstTool = routableTools[0];
+  const firstAction = firstTool?.manifest.actions[0];
+  const fallback = firstTool !== void 0 && firstAction !== void 0 ? { tool: firstTool, action: firstAction } : void 0;
+  const example = firstReadAction(routableTools) ?? fallback;
+  if (example !== void 0) {
+    const args = exampleArgs(example.action);
+    lines.push(
+      `abap_fluid(tool="${example.tool.manifest.id}", action="${example.action.name}", args=${JSON.stringify(args)})`
+    );
+    lines.push(
+      `abap_fluid(op="describe", tool="${example.tool.manifest.id}")  \u2014 full input/output schemas for one tool`
+    );
+  }
+  return lines.join("\n");
+}
+function toDescribeAction(a) {
+  return {
+    name: a.name,
+    category: a.category,
+    description: a.description,
+    input: a.input,
+    output: a.output,
+    ...a.targets !== void 0 ? { targets: a.targets } : {}
+  };
+}
+function toDescribeTool(t) {
+  return {
+    id: t.manifest.id,
+    title: t.manifest.title,
+    description: t.manifest.description,
+    contract: t.manifest.contract,
+    origin: t.origin,
+    version: t.version,
+    entry: t.manifest.entry,
+    objects: t.manifest.objects.map((o) => ({ name: o.name, type: o.type, description: o.description })),
+    actions: t.manifest.actions.map(toDescribeAction),
+    ...t.manifest.internal === true ? { internal: true } : {}
+  };
+}
+function buildFluidDescribe(toolSet, toolId) {
+  const tools = toolId === void 0 ? sortedTools(toolSet) : (() => {
+    const t = toolSet.tools.get(toolId);
+    return t ? [t] : [];
+  })();
+  return {
+    package: FLUID_PACKAGE,
+    contract: FLUID_CONTRACT,
+    tools: tools.map(toDescribeTool)
+  };
+}
+function buildFluidInfoBlock(deps) {
+  const tools = sortedTools(deps.toolSet).map((t) => ({
+    id: t.manifest.id,
+    origin: t.origin,
+    version: t.version,
+    actions: t.manifest.actions.map((a) => a.name),
+    ...t.manifest.internal === true ? { internal: true } : {}
+  }));
+  const g = deps.safety?.config;
+  const safety = g === void 0 ? void 0 : {
+    systemRole: g.systemRole,
+    productive: g.productive,
+    writesLockedOut: g.writesLockedOut,
+    roleProbeFailure: g.roleProbeFailure
+  };
+  const firstTool = tools[0];
+  const next = firstTool !== void 0 ? `abap_fluid(op="describe", tool="${firstTool.id}") \u2014 full input/output schemas for one tool` : deps.toolSet.refused.length > 0 ? "No fluid tools are loaded, and one or more plugins were refused \u2014 see refused[] for why." : "No fluid tools are loaded \u2014 check ABAP_FLUID_PLUGINS / ABAP_ALLOW_FLUID_PLUGINS if you expected any.";
+  return {
+    flag: { field: "ABAP_FLUID_API", enabled: deps.cfg.fluidApi !== false },
+    package: FLUID_PACKAGE,
+    contract: FLUID_CONTRACT,
+    abapMode: deps.cfg.abapMode,
+    readOnly: deps.cfg.readOnly,
+    safety,
+    tools,
+    refused: deps.toolSet.refused,
+    warnings: deps.toolSet.warnings,
+    next
+  };
+}
+
+// src/tools/fluid.ts
+var FLUID_OPS = ["list", "describe", "status", "verify", "run", "repair", "remove"];
+var fluidInputSchema = {
+  op: external_exports.enum(FLUID_OPS).optional().describe(
+    'What to do. Defaults to "run" whenever `tool` or `action` is given without `op`; a call with none of `op`/`tool`/`action` returns the catalogue instead (other fields such as `args`/`confirm`/`corr_nr`/`scope` do not affect this). list/describe touch no network; status reads the local registry plus a best-effort probe of retired pre-fluid bridge classes and invoker classes per tool. verify asks the system what is actually deployed. run (the default) executes one action, deploying or repairing first if needed. repair forces a redeploy (and, with no `tool`, also reaps retired pre-fluid bridge classes; with `tool`, prunes its stale invokers). remove deletes abapsmith-owned generated ABAP.'
+  ),
+  tool: external_exports.string().optional().describe(
+    'Fluid tool id. Required for describe and run; an optional filter for verify/repair (default: every loaded tool); required for remove unless scope is "all".'
+  ),
+  action: external_exports.string().optional().describe("Action name within `tool`. Required for run."),
+  args: external_exports.record(external_exports.string(), external_exports.unknown()).optional().describe(
+    "Action-specific arguments for run; the catalogue (bare call or describe) names the keys per action."
+  ),
+  confirm: external_exports.string().optional().describe(
+    'Required for remove \u2014 pass the literal string "remove". Also forwarded to run, where a plugin action in the "mutate" category may require its own confirm string (the catalogue/describe output for that action says so).'
+  ),
+  corr_nr: external_exports.string().optional().describe("Transport request number, forwarded to run for a mutating action that targets a transportable object."),
+  scope: external_exports.enum(["tool", "invokers", "all", "dynamic"]).optional().describe(
+    `remove only. "tool" (default) deletes one tool's manifest objects (needs \`tool\`). "invokers" deletes every generated per-call invoker class (ZCL_ZMCP_I_xxxxxxxx). "dynamic" deletes every generated per-call dynamic-bridge class (the abap_bopf_test/abap_ui/abap_enh/abap_fpm_read/abap_run tool paths that deploy fresh ABAP per call \u2014 see \`status\`'s "dynamic bridges" section). "all" deletes every abapsmith-owned object in ${FLUID_PACKAGE}, which already includes both of the above. The package itself is never deleted.`
+  )
+};
+var FluidInputSchema = external_exports.object(fluidInputSchema);
+function isBareFluidCall(a) {
+  return a.op === void 0 && a.tool === void 0 && a.action === void 0;
+}
+var ok22 = (text3) => ({ content: [{ type: "text", text: text3 }] });
+function badInput(message, field, extra = {}) {
+  return new AbapError("BAD_INPUT", message, { field, ...extra });
+}
+function mustGetTool(toolSet, id) {
+  const t = toolSet.tools.get(id);
+  if (t) return t;
+  const available = [...toolSet.tools.keys()].sort();
+  throw badInput(
+    `Unknown fluid tool "${id}". Loaded tools: ${available.length ? available.join(", ") : "(none)"}.`,
+    "tool",
+    { tool: id, available }
+  );
+}
+function fluidApiDisabledError(reason, ctx) {
+  const who = ctx.tool !== void 0 && ctx.action !== void 0 ? `${ctx.tool}.${ctx.action}` : `abap_fluid(op:"${ctx.op}")`;
+  const details = {
+    reason: reason.kind,
+    field: reason.field,
+    package: FLUID_PACKAGE,
+    op: ctx.op,
+    ...ctx.tool !== void 0 ? { tool: ctx.tool } : {},
+    ...ctx.action !== void 0 ? { action: ctx.action } : {}
+  };
+  if (reason.kind === "flag") {
+    return new AbapError(
+      "FLUID_API_DISABLED",
+      `The fluid API is disabled (ABAP_FLUID_API=false) \u2014 ${who} was not run. Nothing was deployed, checked, or changed.`,
+      details,
+      "Set ABAP_FLUID_API=true, or leave it unset (it defaults to enabled), to use the fluid API."
+    );
+  }
+  return new AbapError(
+    "FLUID_API_DISABLED",
+    `${who} needs the fluid API, and this connection cannot write (${reason.field}) \u2014 there is no read-only subset of the fluid API, since even a check can need to deploy or repair the ABAP side first. Nothing ran and nothing was changed.`,
+    details,
+    'Connect with write access (ABAP_ALLOW_WRITE=true, ABAP_MODE not "read", off a productive system, with a passing role probe) to use any part of the fluid API.'
+  );
+}
+function requireFluidEnabled(deps, ctx) {
+  const reason = fluidDisabledReason(deps.cfg, deps.safety);
+  if (reason) throw fluidApiDisabledError(reason, ctx);
+}
+function toolListRows(toolSet, opts) {
+  return [...toolSet.tools.values()].sort((a, b) => a.manifest.id.localeCompare(b.manifest.id)).map((t) => ({
+    id: t.manifest.id,
+    origin: t.origin,
+    version: t.version,
+    actions: t.manifest.actions.map((a) => opts.categories ? `${a.name}:${a.category}` : a.name).join(", ")
+  }));
+}
+function refusedSection(toolSet) {
+  if (toolSet.refused.length === 0) return [];
+  const rows = toolSet.refused.map((r) => ({ path: r.path, id: r.id ?? "", code: r.code, reason: r.reason }));
+  return [{ title: "REFUSED PLUGINS", content: textTable(rows, ["path", "id", "code", "reason"]) }];
+}
+function renderInfoBlock(deps) {
+  const info = buildFluidInfoBlock(deps);
+  const rows = info.tools.map((t) => ({
+    id: t.id,
+    origin: t.origin,
+    version: t.version,
+    actions: t.actions.join(", ")
+  }));
+  const usage = [
+    "list      \u2014 every loaded tool: origin, version, action names+categories (zero network)",
+    "describe  \u2014 {tool?} one tool, or every loaded tool, in full: objects, entry class, per-action input/output schema (zero network)",
+    "status    \u2014 flag/package/contract, what the LOCAL REGISTRY believes is deployed, plus best-effort retired-bridge-class and invoker-count probes",
+    "verify    \u2014 {tool?} ask the system what is ACTUALLY deployed for one or every loaded tool",
+    "run       \u2014 {tool, action, args?} the default op: execute one action, deploying/repairing first if needed",
+    "repair    \u2014 {tool?} force a redeploy of one or every loaded tool (a named `tool` also prunes its stale invokers; omitting `tool` reaps retired pre-fluid bridge classes instead)",
+    'remove    \u2014 {confirm:"remove", tool?, scope?} delete abapsmith-owned generated ABAP'
+  ].join("\n");
+  const body = (rows.length ? textTable(rows, ["id", "origin", "version", "actions"]) : "(no fluid tools loaded)") + "\n\nOPS:\n" + usage + "\n\nNEXT: " + info.next;
+  return buildResponse({
+    header: {
+      flag_ABAP_FLUID_API: info.flag.enabled,
+      package: info.package,
+      contract: info.contract,
+      abapMode: info.abapMode ?? "(unset)",
+      readOnly: info.readOnly,
+      systemRole: info.safety?.systemRole,
+      productive: info.safety?.productive,
+      writesLockedOut: info.safety?.writesLockedOut,
+      roleProbeFailure: info.safety?.roleProbeFailure,
+      tools_loaded: info.tools.length
+    },
+    sections: refusedSection(deps.toolSet),
+    body,
+    bodyLabel: "CATALOGUE",
+    notes: [...info.warnings],
+    maxChars: deps.cfg.maxResponseChars
+  }).text;
+}
+function renderList(deps) {
+  const rows = toolListRows(deps.toolSet, { categories: true });
+  return buildResponse({
+    header: {
+      tools_loaded: deps.toolSet.tools.size,
+      refused: deps.toolSet.refused.length
+    },
+    sections: refusedSection(deps.toolSet),
+    body: rows.length ? textTable(rows, ["id", "origin", "version", "actions"]) : "(no fluid tools loaded)",
+    bodyLabel: "TOOLS",
+    notes: [...deps.toolSet.warnings],
+    maxChars: deps.cfg.maxResponseChars
+  }).text;
+}
+function describeToolBody(tool) {
+  const lines = [];
+  lines.push("OBJECTS:");
+  for (const o of tool.objects) {
+    const entryTag = o.name === tool.entry ? " [entry]" : "";
+    lines.push(`  ${o.name} (${o.type})${entryTag} \u2014 ${o.description}`);
+  }
+  lines.push("");
+  lines.push("ACTIONS:");
+  for (const a of tool.actions) {
+    lines.push(`  ${a.name} [${a.category}] \u2014 ${a.description}`);
+    lines.push(`    input:  ${JSON.stringify(a.input)}`);
+    lines.push(`    output: ${JSON.stringify(a.output)}`);
+    if (a.targets) lines.push(`    targets: ${JSON.stringify(a.targets)}`);
+  }
+  return lines.join("\n");
+}
+function renderDescribe(deps, payload, toolId) {
+  if (toolId !== void 0) {
+    const [only] = payload.tools;
+    if (only !== void 0) {
+      return buildResponse({
+        header: {
+          tool: only.id,
+          title: only.title,
+          description: only.description,
+          contract: only.contract,
+          origin: only.origin,
+          version: only.version,
+          entry: only.entry
+        },
+        body: describeToolBody(only),
+        bodyLabel: "TOOL",
+        maxChars: deps.cfg.maxResponseChars
+      }).text;
+    }
+  }
+  const sections = payload.tools.map((t) => ({
+    title: `${t.id} (${t.origin}, v${t.version})`,
+    content: describeToolBody(t)
+  }));
+  return buildResponse({
+    header: { package: payload.package, contract: payload.contract, tools_described: payload.tools.length },
+    sections,
+    body: payload.tools.length ? "" : "(no fluid tools loaded)",
+    bodyLabel: "TOOLS",
+    maxChars: deps.cfg.maxResponseChars
+  }).text;
+}
+var RETIRED_BRIDGE_REPAIR_NOTE = 'op:"repair" with no `tool` deletes the ones reported "present". A "moved" one is in a package abapsmith does not own and is never touched.';
+function renderRetiredBridgeSection(probes, error51) {
+  const title = "RETIRED BRIDGE CLASSES";
+  if (error51 !== void 0) return { title, content: `(probe unavailable: ${error51})` };
+  const nonAbsent = (probes ?? []).filter((p) => p.state !== "absent");
+  if (nonAbsent.length === 0) {
+    return {
+      title,
+      content: `(none \u2014 all ${RETIRED_BRIDGE_CLASSES.length} retired pre-fluid bridge classes are gone)`
+    };
+  }
+  const rows = nonAbsent.map((p) => ({
+    name: p.name,
+    state: p.state,
+    foundIn: p.foundIn ?? "",
+    supersededBy: p.supersededBy
+  }));
+  return {
+    title,
+    content: textTable(rows, ["name", "state", "foundIn", "supersededBy"]) + "\n\n" + RETIRED_BRIDGE_REPAIR_NOTE
+  };
+}
+function renderInvokerCountsSection(probes, error51) {
+  const title = "INVOKER CLASSES";
+  if (error51 !== void 0) return { title, content: `(probe unavailable: ${error51})` };
+  const all = probes ?? [];
+  if (all.length === 0) return { title, content: "(none \u2014 no ZCL_ZMCP_I_* invoker classes exist)" };
+  const counts = /* @__PURE__ */ new Map();
+  let unattributable = 0;
+  for (const p of all) {
+    if (p.toolId === void 0) {
+      unattributable += 1;
+      continue;
+    }
+    counts.set(p.toolId, (counts.get(p.toolId) ?? 0) + 1);
+  }
+  const rows = [...counts.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([tool, count]) => ({ tool, invokers: String(count) }));
+  const body = rows.length ? textTable(rows, ["tool", "invokers"]) : "(none attributable to a loaded tool id)";
+  const unattributableLine = unattributable > 0 ? `
+${unattributable} invoker(s) could not be attributed to a tool.` : "";
+  return {
+    title,
+    content: `${body}${unattributableLine}
+Counting invokers costs one source read per invoker.`
+  };
+}
+var DYNAMIC_BRIDGE_REMOVE_NOTE = 'op:"remove" with scope:"dynamic" deletes every one of these; scope:"all" already includes them too, since they are all reserved (ZCL_ZMCP_*) names.';
+function renderDynamicBridgeSection(bridges, error51) {
+  const title = "DYNAMIC BRIDGES";
+  if (error51 !== void 0) return { title, content: `(probe unavailable: ${error51})` };
+  const all = bridges ?? [];
+  if (all.length === 0) return { title, content: "(none \u2014 no per-call dynamic-bridge classes exist)" };
+  const byLabel = /* @__PURE__ */ new Map();
+  for (const b of all) {
+    const entry = byLabel.get(b.label);
+    if (entry) entry.count += 1;
+    else byLabel.set(b.label, { tool: b.tool, count: 1 });
+  }
+  const rows = [...byLabel.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, { tool, count }]) => ({ family: label, tool, count: String(count) }));
+  return {
+    title,
+    content: textTable(rows, ["family", "tool", "count"]) + "\n\n" + DYNAMIC_BRIDGE_REMOVE_NOTE
+  };
+}
+async function renderStatus(deps) {
+  const key = systemKey(deps.cfg);
+  const registry2 = await readFluidRegistry(deps.cfg, key);
+  const rows = [...registry2.values()].sort((a, b) => a.toolId.localeCompare(b.toolId)).map((e) => ({
+    tool: e.toolId,
+    contract: e.contract,
+    version: e.version,
+    objects: e.objects.join(","),
+    deployedAt: e.deployedAt
+  }));
+  let retired;
+  let invokers;
+  let dynamicBridges;
+  let probeError;
+  let invokerProbeError;
+  let dynamicBridgeProbeError;
+  try {
+    await deps.ensureConnected();
+    const manifestObjectNames = new Set(
+      [...deps.toolSet.tools.values()].flatMap((t) => t.manifest.objects.map((o) => o.name.trim().toUpperCase()))
+    );
+    const probed = await deps.pool.withRead("abap_fluid.status", async (conn) => {
+      const retiredProbe = await probeRetiredBridges(conn);
+      let invokerProbe;
+      let invokerErr;
+      try {
+        const invokerNames = await listInvokerClasses(conn);
+        invokerProbe = await probeInvokers(conn, invokerNames);
+      } catch (e) {
+        invokerErr = describeUnknownError(e);
+      }
+      let dynamicBridgeProbe;
+      let dynamicBridgeErr;
+      try {
+        dynamicBridgeProbe = await listDynamicBridges(conn, manifestObjectNames);
+      } catch (e) {
+        dynamicBridgeErr = describeUnknownError(e);
+      }
+      return { retiredProbe, invokerProbe, invokerErr, dynamicBridgeProbe, dynamicBridgeErr };
+    });
+    retired = probed.retiredProbe;
+    invokers = probed.invokerProbe;
+    invokerProbeError = probed.invokerErr;
+    dynamicBridges = probed.dynamicBridgeProbe;
+    dynamicBridgeProbeError = probed.dynamicBridgeErr;
+  } catch (e) {
+    probeError = describeUnknownError(e);
+  }
+  return buildResponse({
+    header: {
+      flag_ABAP_FLUID_API: deps.cfg.fluidApi !== false,
+      FLUID_PACKAGE,
+      FLUID_CONTRACT,
+      abapMode: deps.cfg.abapMode ?? "(unset)",
+      readOnly: deps.cfg.readOnly,
+      tools_loaded: deps.toolSet.tools.size
+    },
+    body: rows.length ? textTable(rows, ["tool", "contract", "version", "objects", "deployedAt"]) : "(nothing recorded for this system)",
+    bodyLabel: "LOCAL REGISTRY",
+    sections: [
+      renderRetiredBridgeSection(retired, probeError),
+      renderInvokerCountsSection(invokers, probeError ?? invokerProbeError),
+      renderDynamicBridgeSection(dynamicBridges, probeError ?? dynamicBridgeProbeError)
+    ],
+    notes: [
+      'The local registry is what abapsmith BELIEVES is deployed on this system \u2014 a cache, not an authority. It can be stale or wrong. Use op:"verify" to actually ask the system what is deployed.'
+    ],
+    maxChars: deps.cfg.maxResponseChars
+  }).text;
+}
+var VERIFY_STATE_NOTE = `States: absent (never deployed), present (matches the manifest and is active), stale (deployed but content differs from the manifest), inactive (written but not activated), broken (matches the manifest's content but fails a syntax check), foreign (exists, under a reserved name, in a package abapsmith does not own), legacy (exists under a reserved name in an old fluid package \u2014 ${LEGACY_FLUID_PACKAGES.join(" or ")} \u2014 and would be relocated on the next run or repair).`;
+async function runVerify(deps, a) {
+  requireFluidEnabled(deps, { op: "verify", tool: a.tool });
+  await deps.ensureConnected();
+  requireFluidEnabled(deps, { op: "verify", tool: a.tool });
+  const targets = a.tool ? [mustGetTool(deps.toolSet, a.tool)] : [...deps.toolSet.tools.values()];
+  if (targets.length === 0) throw badInput("No fluid tools are loaded; nothing to verify.", "tool");
+  const { byTool, retired } = await deps.pool.withRead("abap_fluid.verify", async (conn) => {
+    const out = /* @__PURE__ */ new Map();
+    for (const t of targets) out.set(t.manifest.id, await classifyFluidTool(conn, deps.cfg, t));
+    return { byTool: out, retired: await probeRetiredBridges(conn) };
+  });
+  const rows = [];
+  let anyNotPresent = false;
+  for (const t of targets) {
+    for (const s of byTool.get(t.manifest.id) ?? []) {
+      if (s.state !== "present") anyNotPresent = true;
+      rows.push({ tool: t.manifest.id, object: s.name, type: s.type, state: s.state, foundIn: s.foundIn ?? "" });
+    }
+  }
+  const notes = anyNotPresent ? [VERIFY_STATE_NOTE] : [];
+  if (retired.some((p) => p.state === "present")) notes.push(RETIRED_BRIDGE_REPAIR_NOTE);
+  return buildResponse({
+    header: { tools_checked: targets.length },
+    body: rows.length ? textTable(rows, ["tool", "object", "type", "state", "foundIn"]) : "(nothing to verify)",
+    bodyLabel: "OBJECTS",
+    sections: [renderRetiredBridgeSection(retired, void 0)],
+    notes,
+    maxChars: deps.cfg.maxResponseChars
+  }).text;
+}
+async function runRun(deps, a) {
+  const toolId = a.tool;
+  const actionName = a.action;
+  if (!toolId) throw badInput("run requires `tool`.", "tool");
+  if (!actionName) throw badInput("run requires `action`.", "action");
+  requireFluidEnabled(deps, { op: "run", tool: toolId, action: actionName });
+  await deps.ensureConnected();
+  const result = await deps.pool.withWrite(
+    "abap_fluid.run",
+    void 0,
+    (conn) => dispatch2(
+      {
+        conn,
+        cfg: deps.cfg,
+        gate: deps.safety,
+        tools: deps.toolSet.tools,
+        journal: deps.journal,
+        ...deps.warn ? { warn: deps.warn } : {}
+      },
+      {
+        tool: toolId,
+        action: actionName,
+        args: a.args ?? {},
+        ...a.confirm !== void 0 ? { confirm: a.confirm } : {},
+        ...a.corr_nr !== void 0 ? { corrNr: a.corr_nr } : {}
+      }
+    )
+  );
+  return buildResponse({
+    header: {
+      tool: result.tool,
+      action: result.action,
+      version: result.version,
+      deployed: result.deployed,
+      ms: result.ms,
+      truncated: result.truncated
+    },
+    body: JSON.stringify(result.result, null, 2),
+    bodyLabel: "RESULT",
+    maxChars: deps.cfg.maxResponseChars
+  }).text;
+}
+async function runRepair(deps, a) {
+  requireFluidEnabled(deps, { op: "repair", tool: a.tool });
+  await deps.ensureConnected();
+  requireFluidEnabled(deps, { op: "repair", tool: a.tool });
+  const soleTool = a.tool ? mustGetTool(deps.toolSet, a.tool) : void 0;
+  const targets = soleTool ? [soleTool] : [...deps.toolSet.tools.values()];
+  if (targets.length === 0) throw badInput("No fluid tools are loaded; nothing to repair.", "tool");
+  const key = systemKey(deps.cfg);
+  const results = [];
+  for (const t of targets) {
+    await forgetManifest(deps.cfg, key, t.manifest.id);
+    results.push(
+      await deps.pool.withWrite("abap_fluid.repair", void 0, async (conn) => {
+        await ensureFluidRuntimeFor(conn, deps.safety, deps.cfg, t, {
+          tool: t.manifest.id,
+          action: "(repair)",
+          op: "repair"
+        });
+        const result = await ensureFluidTool(conn, deps.safety, deps.cfg, t, {
+          tool: t.manifest.id,
+          action: "(repair)",
+          op: "repair"
+        });
+        conn.markDead("abap_fluid.repair: retiring after this tool's ensure pass so the next tool cannot inherit its logon-ceiling budget");
+        return result;
+      })
+    );
+  }
+  let reaped;
+  let pruned;
+  let invokerProbeError;
+  if (soleTool === void 0) {
+    reaped = await reapRetiredBridges(deps.safety, (op, fn) => deps.pool.withWrite(op, void 0, fn));
+  } else {
+    try {
+      const probes = await deps.pool.withRead("abap_fluid.repair.probe-invokers", async (conn) => {
+        const names = await listInvokerClasses(conn);
+        return probeInvokers(conn, names);
+      });
+      const stale = staleInvokers(probes, soleTool.manifest.id, soleTool.version);
+      pruned = await pruneInvokers(deps.safety, (op, fn) => deps.pool.withWrite(op, void 0, fn), stale);
+    } catch (e) {
+      invokerProbeError = describeUnknownError(e);
+    }
+  }
+  const rows = [];
+  for (const r of results) {
+    for (const s of r.objects) rows.push({ tool: r.toolId, object: s.name, type: s.type, state: s.state });
+  }
+  const sections = results.map((r) => ({ title: r.toolId, content: `version ${r.version}, deployed: ${r.deployed}` }));
+  const notes = [];
+  if (reaped) {
+    const reapRows = reaped.map((r) => ({ name: r.name, outcome: r.outcome, foundIn: r.foundIn ?? "", error: r.error ?? "" }));
+    sections.push({
+      title: "RETIRED BRIDGE CLASSES",
+      content: reaped.every((r) => r.outcome === "already-absent") ? "(none \u2014 nothing retired was left on this system)" : textTable(reapRows, ["name", "outcome", "foundIn", "error"])
+    });
+  } else {
+    notes.push('Retired pre-fluid bridge classes are only reaped by op:"repair" with no `tool`.');
+  }
+  if (pruned) {
+    const pruneRows = pruned.map((p) => ({ name: p.name, outcome: p.outcome, error: p.error ?? "" }));
+    sections.push({
+      title: "STALE INVOKERS",
+      content: pruneRows.length ? textTable(pruneRows, ["name", "outcome", "error"]) : "(none \u2014 no stale invokers found for this tool)"
+    });
+  } else if (invokerProbeError !== void 0) {
+    sections.push({ title: "STALE INVOKERS", content: `(probe unavailable: ${invokerProbeError})` });
+  }
+  return buildResponse({
+    header: { tools_repaired: results.length },
+    sections,
+    body: rows.length ? textTable(rows, ["tool", "object", "type", "state"]) : "(nothing to repair)",
+    bodyLabel: "OBJECTS",
+    notes,
+    maxChars: deps.cfg.maxResponseChars
+  }).text;
+}
+async function removeTargets(conn, toolSet, scope, toolId) {
+  if (scope === "tool") {
+    const t = mustGetTool(toolSet, toolId ?? "");
+    return { targets: t.manifest.objects.map((o) => ({ type: o.type, name: o.name })), unmappable: [] };
+  }
+  const listed = await conn.adt.nodeContents("DEVC/K", FLUID_PACKAGE);
+  const targets = [];
+  const unmappable = [];
+  for (const n of listed.nodes ?? []) {
+    const name = n.OBJECT_NAME ?? "";
+    const type = n.OBJECT_TYPE ?? "";
+    if (!name) continue;
+    const wanted = scope === "invokers" ? INVOKER_NAME_RE2.test(name) : scope === "dynamic" ? isDynamicBridgeName(name) : isReservedFluidName(name);
+    if (!wanted) continue;
+    if (type === "CLAS/OC" || type === "INTF/OI") {
+      targets.push({ type, name });
+    } else {
+      unmappable.push({ type, name });
+    }
+  }
+  return { targets, unmappable };
+}
+async function runRemove(deps, a) {
+  if (a.confirm !== "remove") {
+    throw badInput(
+      `remove deletes ABAP objects and requires confirm: "remove" (got ${a.confirm === void 0 ? "nothing" : JSON.stringify(a.confirm)}).`,
+      "confirm"
+    );
+  }
+  const scope = a.scope ?? "tool";
+  if (scope === "tool" && (a.tool === void 0 || a.tool === "")) {
+    throw badInput('scope "tool" (the default) requires `tool`.', "tool");
+  }
+  requireFluidEnabled(deps, { op: "remove", tool: a.tool });
+  await deps.ensureConnected();
+  requireFluidEnabled(deps, { op: "remove", tool: a.tool });
+  const { targets, unmappable } = await deps.pool.withRead(
+    "abap_fluid.remove.list",
+    (conn) => removeTargets(conn, deps.toolSet, scope, a.tool)
+  );
+  const outcomes = [];
+  for (const target of targets) {
+    try {
+      const del3 = await deps.pool.withWrite(
+        "abap_fluid.remove",
+        void 0,
+        (conn) => deleteOneFluidObject(conn, deps.safety, target, false)
+      );
+      outcomes.push({ ...target, outcome: del3.deleted === false ? "failed" : "deleted" });
+    } catch (e) {
+      if (isAbapError(e) && e.code === "NOT_FOUND") {
+        outcomes.push({ ...target, outcome: "already-absent" });
+      } else {
+        outcomes.push({ ...target, outcome: "failed", error: describeUnknownError(e) });
+      }
+    }
+  }
+  const key = systemKey(deps.cfg);
+  const deletedNames = new Set(outcomes.filter((o) => o.outcome === "deleted").map((o) => o.name.toUpperCase()));
+  for (const t of deps.toolSet.tools.values()) {
+    if (t.manifest.objects.some((o) => deletedNames.has(o.name.toUpperCase()))) {
+      await forgetManifest(deps.cfg, key, t.manifest.id);
+    }
+  }
+  const rows = outcomes.map((o) => ({ type: o.type, name: o.name, outcome: o.outcome, error: o.error ?? "" }));
+  const notes = [
+    `${FLUID_PACKAGE} itself is never deleted: abapsmith's package-delete route deploys its own helper class into the package before deleting it, and generated ABAP refuses to delete a non-empty package \u2014 a package delete from inside that same package cannot work. Drop it manually if you want it gone.`
+  ];
+  if (unmappable.length) {
+    notes.push(
+      `${unmappable.length} package member(s) matched the reserved-name filter but are not a class or interface (CLAS/OC or INTF/OI) and were left alone: ` + unmappable.map((u) => `${u.name} (${u.type || "unknown type"})`).join(", ") + "."
+    );
+  }
+  return buildResponse({
+    header: { scope, tool: a.tool ?? "(n/a)" },
+    body: rows.length ? textTable(rows, ["type", "name", "outcome", "error"]) : "(nothing matched this scope)",
+    bodyLabel: "OBJECTS",
+    notes,
+    maxChars: deps.cfg.maxResponseChars
+  }).text;
+}
+function builtinFluidToolSet(builtins) {
+  const tools = /* @__PURE__ */ new Map();
+  for (const builtin of builtins) {
+    tools.set(builtin.manifest.id, {
+      manifest: builtin.manifest,
+      origin: "builtin",
+      sources: builtin.sources,
+      version: manifestVersion(builtin.manifest, builtin.sources)
+    });
+  }
+  return { tools, refused: [], warnings: [] };
+}
+function registerFluidTool(mcp, deps) {
+  const description = buildFluidDescription(deps.toolSet);
+  mcp.registerTool(
+    "abap_fluid",
+    {
+      title: "Fluid ABAP tool API",
+      description,
+      inputSchema: fluidInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (rawArgs) => {
+      try {
+        const a = rawArgs;
+        if (isBareFluidCall(a)) {
+          requireFluidEnabled(deps, { op: "catalogue" });
+          return ok22(renderInfoBlock(deps));
+        }
+        const op = a.op ?? "run";
+        switch (op) {
+          case "list":
+            requireFluidEnabled(deps, { op });
+            return ok22(renderList(deps));
+          case "describe": {
+            requireFluidEnabled(deps, { op, tool: a.tool });
+            const toolId = a.tool ? a.tool : void 0;
+            if (toolId !== void 0) mustGetTool(deps.toolSet, toolId);
+            return ok22(renderDescribe(deps, buildFluidDescribe(deps.toolSet, toolId), toolId));
+          }
+          case "status":
+            requireFluidEnabled(deps, { op });
+            return ok22(await renderStatus(deps));
+          case "verify":
+            return ok22(await runVerify(deps, a));
+          case "run":
+            return ok22(await runRun(deps, a));
+          case "repair":
+            return ok22(await runRepair(deps, a));
+          case "remove":
+            return ok22(await runRemove(deps, a));
+        }
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
 // src/tools/v2/adt-validation.ts
 var ADT_PATH_PREFIX = "/sap/bc/adt/";
 var DENIED_ADT_HEADERS = [
@@ -123621,33 +130682,33 @@ var DENIED_ADT_HEADERS = [
 function normalizeAdtMethod(method) {
   return (method ?? "GET").toUpperCase();
 }
-function validateAdtPath(path6) {
-  if (path6 === void 0 || path6 === "") {
+function validateAdtPath(path8) {
+  if (path8 === void 0 || path8 === "") {
     return { ok: false, message: "abap_adt requires a non-empty path." };
   }
-  if (path6.includes("://")) {
+  if (path8.includes("://")) {
     return {
       ok: false,
-      message: `abap_adt path must be relative to the connected system, not an absolute URL: "${path6}".`
+      message: `abap_adt path must be relative to the connected system, not an absolute URL: "${path8}".`
     };
   }
-  if (path6.startsWith("//")) {
+  if (path8.startsWith("//")) {
     return {
       ok: false,
-      message: `abap_adt path must not start with "//" (protocol-relative URL): "${path6}".`
+      message: `abap_adt path must not start with "//" (protocol-relative URL): "${path8}".`
     };
   }
-  const pathOnly = (path6.split("#")[0] ?? path6).split("?")[0] ?? path6;
+  const pathOnly = (path8.split("#")[0] ?? path8).split("?")[0] ?? path8;
   if (pathOnly.split("/").includes("..")) {
-    return { ok: false, message: `abap_adt path must not contain ".." segments: "${path6}".` };
+    return { ok: false, message: `abap_adt path must not contain ".." segments: "${path8}".` };
   }
   if (!pathOnly.startsWith(ADT_PATH_PREFIX)) {
     return {
       ok: false,
-      message: `abap_adt path must start with "${ADT_PATH_PREFIX}": "${path6}".`
+      message: `abap_adt path must start with "${ADT_PATH_PREFIX}": "${path8}".`
     };
   }
-  return { ok: true, path: path6 };
+  return { ok: true, path: path8 };
 }
 function findDeniedAdtHeader(headers) {
   if (headers === void 0) return void 0;
@@ -123815,7 +130876,7 @@ var bareNext = [
 function retryBareNext() {
   return [{ tool: "abap_adt", args: {}, why: "Retry with the bare call for guidance." }];
 }
-function badInput(message) {
+function badInput2(message) {
   return {
     ok: false,
     tool: "abap_adt",
@@ -123869,27 +130930,27 @@ async function handleAbapAdt(args, deps) {
       );
     }
     const pathCheck = validateAdtPath(a.path);
-    if (!pathCheck.ok) return v2Result(badInput(pathCheck.message));
+    if (!pathCheck.ok) return v2Result(badInput2(pathCheck.message));
     const deniedHeader = findDeniedAdtHeader(a.headers);
     if (deniedHeader !== void 0) {
       return v2Result(
-        badInput(
+        badInput2(
           `abap_adt refuses to override the "${deniedHeader}" header: it is session-owned (cookies/CSRF/connection framing are managed by the connection itself). Remove it from headers and retry.`
         )
       );
     }
     await deps.ensureConnected();
     deps.safety.assert("read");
-    const path6 = pathCheck.path;
+    const path8 = pathCheck.path;
     const resp = await deps.pool.withRead(
       "abap_adt",
-      (conn) => conn.get(path6, a.headers !== void 0 ? { headers: a.headers } : {})
+      (conn) => conn.get(path8, a.headers !== void 0 ? { headers: a.headers } : {})
     );
     const contentType2 = typeof resp.headers["content-type"] === "string" ? resp.headers["content-type"] : void 0;
     const built = buildResponse({
       header: {
         method: "GET",
-        path: path6,
+        path: path8,
         status: resp.status,
         contentType: contentType2
       },
@@ -123902,7 +130963,7 @@ async function handleAbapAdt(args, deps) {
       tool: "abap_adt",
       data: built.text,
       next: [
-        { tool: "abap_adt", args: { path: path6 }, why: "Repeat this GET." },
+        { tool: "abap_adt", args: { path: path8 }, why: "Repeat this GET." },
         {
           tool: "abap_adt",
           args: {},
@@ -123990,14 +131051,14 @@ async function handleAbapDebug(args, deps) {
     }
     const runner = runnerFor(deps);
     const result = await runner.run(args);
-    const ok22 = {
+    const ok23 = {
       ok: true,
       tool: "abap_debug",
       data: result.text,
       ...result.notes.length > 0 ? { notes: result.notes } : {},
       next: buildNextCalls(result)
     };
-    return v2Result(ok22);
+    return v2Result(ok23);
   } catch (e) {
     return v2Result(
       v2Error("abap_debug", e, [{ tool: "abap_debug", args: {}, why: "Retry with the bare call for guidance." }])
@@ -125273,20 +132334,20 @@ async function handleAbapFind(args, deps) {
 // src/tools/v2/handlers/read.ts
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname as dirname3, join as join8 } from "node:path";
+import { dirname as dirname3, join as join10 } from "node:path";
 import { fileURLToPath } from "node:url";
 var KNOWN_VIEWS = ["source", "contract", "method", "diff", "metadata", "outline", "bopf", "fpm"];
 var UNSUPPORTED_VIEWS = /* @__PURE__ */ new Set(["diff"]);
 function compiledContractEntryPoint() {
   const here = dirname3(fileURLToPath(import.meta.url));
-  const distLayout = join8(here, "..", "..", "..", "bin", "contract.js");
+  const distLayout = join10(here, "..", "..", "..", "bin", "contract.js");
   if (existsSync(distLayout)) return distLayout;
-  const bundleLayout = join8(here, "bin", "contract.js");
+  const bundleLayout = join10(here, "bin", "contract.js");
   if (existsSync(bundleLayout)) return bundleLayout;
   return distLayout;
 }
 function runContractSubprocess(entryPoint, kind, name, source) {
-  return new Promise((resolve3, reject) => {
+  return new Promise((resolve5, reject) => {
     const child4 = spawn(process.execPath, [entryPoint, kind, name], {
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -125296,7 +132357,7 @@ function runContractSubprocess(entryPoint, kind, name, source) {
     child4.stderr.on("data", (d) => stderr.push(d));
     child4.on("error", reject);
     child4.on("close", (code) => {
-      resolve3({ stdout: Buffer.concat(stdout).toString("utf8"), stderr: Buffer.concat(stderr).toString("utf8"), code });
+      resolve5({ stdout: Buffer.concat(stdout).toString("utf8"), stderr: Buffer.concat(stderr).toString("utf8"), code });
     });
     child4.stdin.write(source, "utf8");
     child4.stdin.end();
@@ -125653,8 +132714,8 @@ async function handleAbapWrite(args, deps) {
         }
       ] : []
     );
-    const ok22 = { ok: true, tool: "abap_write", data: result.text, next };
-    return v2Result(ok22);
+    const ok23 = { ok: true, tool: "abap_write", data: result.text, next };
+    return v2Result(ok23);
   } catch (e) {
     const failedObject = objectNameFromArgs(args);
     return v2Result(
@@ -126101,7 +133162,6 @@ function fitEnvelope(payload) {
 
 // src/server.ts
 var SERVER_NAME = "abapsmith";
-var SERVER_VERSION = "0.3.0";
 function transportCreateJournalHook(deps) {
   const { journal, cfg, warn } = deps;
   return async (event) => {
@@ -126182,13 +133242,13 @@ function packageScopeSentence(readOnly, allowPackages) {
   }
   return `ABAP_ALLOW_PACKAGES is [${allowPackages.join(", ")}] here, so only those packages are writable; unset allows every customer package, and an empty value refuses every write.`;
 }
-function instructionsFor(toolSurface, abapMode, readOnly, allowPackages) {
+function instructionsFor(toolSurface, abapMode, readOnly, allowPackages, fluidAvailable = false) {
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   if (toolSurface === "v2") {
     return `Access to an SAP ABAP system over ADT, via 6 tools. EXPERIMENTAL SURFACE \u2014 not supported for production use; known defects are not being fixed while it holds this status. Prefer the v1 surface for anything that matters. Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
   }
-  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
+  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "");
 }
 function describeStartupProbeFailure(e) {
   if (isAbapError(e)) return { code: e.code, message: e.message, hint: e.hint };
@@ -126266,7 +133326,15 @@ function createServer(cfg, opts) {
   });
   const mcp = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
-    { instructions: instructionsFor(cfg.toolSurface, cfg.abapMode, cfg.readOnly, cfg.allowPackages) }
+    {
+      instructions: instructionsFor(
+        cfg.toolSurface,
+        cfg.abapMode,
+        cfg.readOnly,
+        cfg.allowPackages,
+        toolCapabilities.canUseFluidApi
+      )
+    }
   );
   const processSessionId = randomUUID2();
   mcp.server.oninitialized = () => {
@@ -126386,6 +133454,18 @@ function createServer(cfg, opts) {
       registerVariables: toolCapabilities.canReadDumpVariables
     });
     registerServiceTools(mcp, { pool, cfg, ensureConnected, errorResult });
+    if (toolCapabilities.canUseFluidApi) {
+      registerFluidTool(mcp, {
+        pool,
+        cfg,
+        safety,
+        ensureConnected,
+        errorResult,
+        journal,
+        warn,
+        toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
+      });
+    }
   } else {
     const v2Mode = cfg.abapMode ?? "read";
     registerV2Tools(mcp, {
@@ -126539,7 +133619,16 @@ async function main() {
     `[abapsmith] config (secrets redacted; host, user and SID are not): ${JSON.stringify(redactConfigSecrets(cfg))}
 `
   );
-  const server = createServer(cfg, { breaker: AuthCircuitBreaker.forConfig(cfg) });
+  const fluidToolSet = await loadFluidTools(cfg, BUILTIN_FLUID_TOOLS);
+  for (const r of fluidToolSet.refused) {
+    process.stderr.write(`[abapsmith] fluid plugin refused (${r.code}): ${r.path} \u2014 ${r.reason}
+`);
+  }
+  for (const w of fluidToolSet.warnings) {
+    process.stderr.write(`[abapsmith] fluid plugin warning: ${w}
+`);
+  }
+  const server = createServer(cfg, { breaker: AuthCircuitBreaker.forConfig(cfg), fluidToolSet });
   armDebugShutdown(server, async () => {
     shutdownDebugTools();
     await shutdownAllDebugSessions((m) => process.stderr.write(`${m}
