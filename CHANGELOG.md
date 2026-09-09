@@ -109,6 +109,12 @@ version was set to `0.3.0`, which is intended.
   (or create the package another way); once the package exists, the prefix rule is never
   consulted for it again.
 
+### Fixed
+
+- The MCP `initialize` response now reports the real package version. `SERVER_VERSION` was
+  hard-coded at `0.3.0` while `package.json` had already moved to `0.4.0`; it's now read from
+  `package.json` at runtime so the two can't drift again.
+
 ## [0.4.0] - 2026-09-06
 
 ### Added
