@@ -293,7 +293,7 @@ dw("live A4H: a plugin call redeploys the fluid runtime class it can never decla
     const { mcp, tools: registered } = fakeMcp();
     registerFluidTool(mcp, deps);
     tools = registered;
-  }, 90_000);
+  }, 300_000);
 
   afterAll(async () => {
     // Lease 3: one fresh connection, best-effort. Never deletes
@@ -316,7 +316,7 @@ dw("live A4H: a plugin call redeploys the fluid runtime class it can never decla
     }
     await conn?.shutdown("test-end");
     if (tmpRoot) await rm(tmpRoot, { recursive: true, force: true });
-  }, 120_000);
+  }, 300_000);
 
   it("loadFluidTools loads exactly the isolated hello fixture as a plugin-origin tool", () => {
     expect(loaded.refused).toEqual([]);
@@ -345,5 +345,5 @@ dw("live A4H: a plugin call redeploys the fluid runtime class it can never decla
     // since the "hello" plugin manifest itself can never declare it.
     const after = await withRevive((c) => resolveWriteTarget(c, { type: "CLAS/OC", name: FLUID_RUNTIME_CLASS }, "delete"));
     expect(after.exists, `${FLUID_RUNTIME_CLASS} was not redeployed by the plugin call`).toBe(true);
-  }, 180_000);
+  }, 600_000);
 });

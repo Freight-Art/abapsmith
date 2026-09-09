@@ -260,10 +260,29 @@ async function deleteInvokerIfPresent(config: Config, toolId: string, contract: 
  * (so a mid-test failure there cannot leave the appliance poisoned for
  * every test/run that comes after). Always a live probe, never a registry
  * read, so it correctly no-ops whenever the fixture is already present.
+ *
+ * On a freshly installed appliance ZCL_ZMCP_FLUID_RT does not exist yet
+ * either, and FIXTURE_SOURCE above calls zcl_zmcp_fluid_rt=>begin/out/
+ * err/end directly, so the fixture's own activation fails with unresolved
+ * references unless the runtime class is deployed first. Unlike a real
+ * builtin manifest (which bundles its own copy of the runtime object
+ * straight into manifest.objects/sources — see builtin/core.ts), fixtureTool
+ * is a "builtin"-origin tool that deliberately does NOT declare the runtime
+ * itself, so ensureFluidRuntimeFor is not the right call here either — its
+ * `tool.origin !== "plugin"` check makes it a no-op for fixtureTool exactly
+ * as it would for a real builtin, but for the wrong reason (fixtureTool
+ * genuinely needs the runtime deployed, it just can't declare it) — and this
+ * deploys fluidRuntimeTool directly instead, the same way the cold-deploy
+ * `it` below does.
  */
 async function restoreFixtureIfMissing(): Promise<void> {
   const probe = await resolveWriteTarget(conn, { type: "CLAS/OC", name: FIXTURE_CLASS }, "write");
   if (probe.exists) return;
+  await ensureFluidTool(conn, GATE, cfg, fluidRuntimeTool, {
+    tool: fluidRuntimeManifest.id,
+    action: "ping",
+    op: "run",
+  });
   await forgetManifest(cfg, systemKey(conn.cfg), fixtureManifest.id);
   await ensureFluidTool(conn, GATE, cfg, fixtureTool, {
     tool: fixtureManifest.id,
