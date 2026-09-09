@@ -1,32 +1,42 @@
 /**
- * Tests for `src/adt/img-write.ts` — the deploy-then-execute orchestration
- * over the apply bridge (`img-write-bridge.ts`) and the customizing-request
- * bridge (`customizing-request.ts`), plus the read-only probe, which now
- * runs as the fluid `img` tool's `preview` action (`fluid/dispatch.ts`)
- * instead of deploying its own generated bridge class.
+ * Tests for `src/adt/img-write.ts` — thin result-shaping wrappers over the
+ * fluid `img` tool's three actions (`preview`, `apply`, `create_request`,
+ * `fluid/builtin/img.ts`), each dispatched through `fluid/dispatch.ts`
+ * against the shared `imgManifest.entry` body class. None of the three
+ * deploys a per-function generated bridge class any more — the old
+ * `ZCL_ZMCP_IMG_WAPPLY`/`ZCL_ZMCP_CTS_WREQ` bridges (`img-write-bridge.ts`/
+ * `customizing-request.ts`) are retired; those modules now contribute only
+ * plan validation and transcript parsing.
  *
  * Same harness shape as `test/img-tool.test.ts` (a `RecordingClient`
- * implementing `HttpClient` directly, `bridgeHappyPath`-style routing), with
- * one addition: every call here also goes through the package-existence
- * check first, so every route below also answers a GET on `FLUID_PACKAGE`'s
- * package URI (modelled on `test/helper-package.test.ts`'s `existingRoute` —
- * the package already exists, so no create POST is ever needed to reach the
- * bridge deploy). The probe describe block additionally needs a fresh
- * per-test `stateDir` and reset fluid caches (`resetFluidEnsureState`/
- * `resetFluidPackageMemo`) — `dispatch()`'s deploy/activate wiring is
- * memoized across calls, and a stale cache would silently short-circuit the
- * very network calls these tests assert on. `test/helpers/fluid-img-fake.ts`
- * carries the transcript-framing and class-lifecycle fake shared with
- * img-edit-tool.test.ts — see that file's header for the frame grammar.
+ * implementing `HttpClient` directly), with one addition: every call here
+ * also goes through the package-existence check first, so every route below
+ * also answers a GET on `FLUID_PACKAGE`'s package URI (modelled on
+ * `test/helper-package.test.ts`'s `existingRoute` — the package already
+ * exists, so no create POST is ever needed to reach the body class deploy).
+ * Every describe block needs a fresh per-test `stateDir` and reset fluid
+ * caches (`resetFluidEnsureState`/`resetFluidPackageMemo`) — `dispatch()`'s
+ * deploy/activate wiring is memoized across calls, and a stale cache would
+ * silently short-circuit the very network calls these tests assert on.
+ * `test/helpers/fluid-img-fake.ts` carries the transcript-framing and
+ * class-lifecycle fake shared with img-edit-tool.test.ts — see that file's
+ * header for the frame grammar; `imgProbeConsole`'s `action` option picks
+ * which of the three actions' BEGIN frame is being faked.
  *
  * Plan validation, ABAP fragment generation and transcript parsing are
  * already covered in `test/img-write-bridge.test.ts` and
  * `test/customizing-request.test.ts` (not modified here) — this file only
  * exercises what is unique to the orchestration layer: the deploy/activate/
- * execute wiring, the FLUID_PACKAGE target, and each function's own
- * bespoke activation-failure hint (the apply/request bridges still have
- * one; the probe's fluid path only ever surfaces activate.ts's generic hint,
- * since neither `ensure.ts` nor `dispatch()` passes it a bespoke one).
+ * execute wiring and the FLUID_PACKAGE target. All three actions now share
+ * one body class and therefore one activation-failure hint — activate.ts's
+ * generic `checkFailedError` default, via `discloseBridgeResidue` — so there
+ * is no more bespoke per-bridge hint content to assert on (the retired
+ * `runImgApply`/`runCreateCustomizingRequest` bridge-deploy code used to
+ * rewrite that hint per bridge, including a special case recognizing an
+ * "already declared" activation error as a generator defect; neither
+ * `ensure.ts` nor `dispatch()` has an equivalent, so that per-error-content
+ * hint rewrite is gone, not merely moved — see the activation-refusal tests
+ * below).
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { promises as fs } from "node:fs";
@@ -48,8 +58,8 @@ import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.j
 import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
 import { imgManifest } from "../src/adt/fluid/builtin/img.js";
 import { FLUID_RUNTIME_CLASS } from "../src/adt/fluid/abap/runtime.js";
-import { IMGW_BRIDGE_CLASS, type ImgApplyPlan, type ImgProbePlan } from "../src/adt/img-write-bridge.js";
-import { CUSTOMIZING_REQUEST_CLASS, type CustomizingRequestPlan } from "../src/adt/customizing-request.js";
+import { type ImgApplyPlan, type ImgProbePlan } from "../src/adt/img-write-bridge.js";
+import { type CustomizingRequestPlan } from "../src/adt/customizing-request.js";
 import { runImgProbe, runImgApply, runCreateCustomizingRequest } from "../src/adt/img-write.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 import { dynamicImgFluidRoute, imgProbeConsole } from "./helpers/fluid-img-fake.js";
@@ -215,110 +225,6 @@ function runtimeClassRoute(packageName: string): (o: HttpClientOptions) => HttpC
   };
 }
 
-/** Full write -> activate -> classrun happy path for `className`, landing in `FLUID_PACKAGE`. */
-function bridgeHappyPath(
-  className: string,
-  classrun: (o: HttpClientOptions) => HttpClientResponse,
-): (o: HttpClientOptions) => HttpClientResponse {
-  const classUri = `/sap/bc/adt/oo/classes/${className.toLowerCase()}`;
-  const sourceUri = `${classUri}/source/main`;
-  return (o: HttpClientOptions) => {
-    const base = baseRoute(o);
-    if (base) return base;
-    const qs = (o.qs ?? {}) as Record<string, string>;
-    const method = (o.method ?? "GET").toUpperCase();
-
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) return classrun(o);
-    if (o.url === classUri && method === "GET" && !qs._action) {
-      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-    }
-    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
-    if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-    if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url === sourceUri && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
-    return resp(200, "<ok/>", { "content-type": "application/xml" });
-  };
-}
-
-/** Bridge class write succeeds, but the activation POST itself reports a real compile error — same fixture shape as `test/run.test.ts`'s `runReport — activation refusal` describe block. */
-function bridgeActivationRefused(className: string): (o: HttpClientOptions) => HttpClientResponse {
-  const classUri = `/sap/bc/adt/oo/classes/${className.toLowerCase()}`;
-  const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
-<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
-  <msg objDescr="Class ${className}" type="E" line="1"
-       href="${classUri}/source/main#start=12,4" forceSupported="true">
-    <shortText><txt>Field "LV_UNDEFINED" is unknown. It is neither in one of the specified tables nor defined by a "DATA" statement.</txt></shortText>
-  </msg>
-</chkl:messages>`;
-  return (o: HttpClientOptions) => {
-    const base = baseRoute(o);
-    if (base) return base;
-    const qs = (o.qs ?? {}) as Record<string, string>;
-    const method = (o.method ?? "GET").toUpperCase();
-
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
-      throw new Error(`unrouted classrun call for ${className} — activation should have refused first`);
-    }
-    if (o.url === classUri && method === "GET" && !qs._action) {
-      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-    }
-    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
-    if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-    if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url === `${classUri}/source/main` && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, ACTIVATION_ERROR, { "content-type": "application/xml" });
-    return resp(200, "<ok/>", { "content-type": "application/xml" });
-  };
-}
-
-/**
- * Bridge class write succeeds, but activation reports a DUPLICATE DECLARATION —
- * the exact live shape from the 2026-09-06 round-6 armed upsert against a
- * two-key customizing table: `E line 58 col 13  "LV_KEY_FLAG" was already
- * declared.` A generator defect, never a caller-input mistake.
- */
-function bridgeActivationDuplicateDeclaration(className: string): (o: HttpClientOptions) => HttpClientResponse {
-  const classUri = `/sap/bc/adt/oo/classes/${className.toLowerCase()}`;
-  const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
-<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
-  <msg objDescr="Class ${className}" type="E" line="58"
-       href="${classUri}/source/main#start=58,13" forceSupported="true">
-    <shortText><txt>"LV_KEY_FLAG" was already declared.</txt></shortText>
-  </msg>
-</chkl:messages>`;
-  return (o: HttpClientOptions) => {
-    const base = baseRoute(o);
-    if (base) return base;
-    const qs = (o.qs ?? {}) as Record<string, string>;
-    const method = (o.method ?? "GET").toUpperCase();
-
-    if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
-      throw new Error(`unrouted classrun call for ${className} — activation should have refused first`);
-    }
-    if (o.url === classUri && method === "GET" && !qs._action) {
-      const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
-    }
-    if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") return resp(200, "", {});
-    if (qs._action === "LOCK") return resp(200, LOCK_XML(), { "content-type": "application/xml" });
-    if (qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url === `${classUri}/source/main` && method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    if (o.url.includes("/sap/bc/adt/activation")) return resp(200, ACTIVATION_ERROR, { "content-type": "application/xml" });
-    return resp(200, "<ok/>", { "content-type": "application/xml" });
-  };
-}
-
-/** A classrun POST that 500s — a scaffold-level failure below activation, with activation itself already having succeeded. */
-function bridgeClassrunBlowsUp(className: string): (o: HttpClientOptions) => HttpClientResponse {
-  return bridgeHappyPath(className, (o) => {
-    const r = resp(500, "<exc:exception/>", { "content-type": "application/xml" });
-    throw new HttpClientException("Request failed with status code 500", "500", 500, undefined, o, r);
-  });
-}
-
 async function connected(
   route: (o: HttpClientOptions) => HttpClientResponse,
 ): Promise<{ conn: AbapConnection; inner: RecordingClient; cfg: Config }> {
@@ -424,7 +330,7 @@ describe("runImgProbe", () => {
   it("deploys the fluid img body class and returns the parsed transcript", async () => {
     const { conn, inner, cfg: usedCfg } = await connected(probeHappyPath(TRANSCRIPT));
 
-    const result = await runImgProbe(conn, openGate(), PROBE_PLAN, usedCfg);
+    const result = await runImgProbe(conn, openGate(), PROBE_PLAN, usedCfg, "preview");
 
     expect(result.bridgeClass).toBe(imgManifest.entry);
     expect(result.bridgeRefreshed).toBe(true);
@@ -450,7 +356,7 @@ describe("runImgProbe", () => {
     const { conn, inner, cfg: usedCfg } = await connected(probeHappyPath(TRANSCRIPT));
 
     const badPlan: ImgProbePlan = { ...PROBE_PLAN, keyFields: [] };
-    const err = await runImgProbe(conn, openGate(), badPlan, usedCfg).catch((e: unknown) => e);
+    const err = await runImgProbe(conn, openGate(), badPlan, usedCfg, "preview").catch((e: unknown) => e);
 
     expect(isAbapError(err)).toBe(true);
     expect((err as { code: string }).code).toBe("BAD_INPUT");
@@ -461,7 +367,7 @@ describe("runImgProbe", () => {
   it("an activation refusal surfaces as CHECK_FAILED carrying activate.ts's generic hint, and never reaches classrun", async () => {
     const { conn, inner, cfg: usedCfg } = await connected(probeActivationRefused());
 
-    const err = await runImgProbe(conn, openGate(), PROBE_PLAN, usedCfg).catch((e: unknown) => e);
+    const err = await runImgProbe(conn, openGate(), PROBE_PLAN, usedCfg, "preview").catch((e: unknown) => e);
 
     expect(isAbapError(err)).toBe(true);
     expect((err as { code: string }).code).toBe("CHECK_FAILED");
@@ -488,7 +394,7 @@ describe("runImgProbe", () => {
   it("a scaffold-level failure below activation (classrun itself 500s) surfaces as an error, not a silent empty result", async () => {
     const { conn, inner, cfg: usedCfg } = await connected(probeClassrunBlowsUp());
 
-    const outcome = await runImgProbe(conn, openGate(), PROBE_PLAN, usedCfg).then(
+    const outcome = await runImgProbe(conn, openGate(), PROBE_PLAN, usedCfg, "preview").then(
       (r) => ({ ok: true as const, r }),
       (e: unknown) => ({ ok: false as const, e }),
     );
@@ -512,52 +418,104 @@ describe("runImgApply", () => {
     `IMGW> AVAL row=[0] field=[ZDESC] len=[8] value=[Test row]\n` +
     `IMGW> APPLIED rows=[1]\n`;
 
-  it("deploys ZCL_ZMCP_IMG_WAPPLY into FLUID_PACKAGE and returns the parsed transcript", async () => {
-    const { conn, inner } = await connected(bridgeHappyPath(IMGW_BRIDGE_CLASS.apply, () => resp(200, TRANSCRIPT)));
+  function applyHappyPath(rawTranscript: string): (o: HttpClientOptions) => HttpClientResponse {
+    const fluidRoute = dynamicImgFluidRoute({
+      transcript: () => imgProbeConsole(rawTranscript, { action: "apply" }),
+      packageName: FLUID_PACKAGE,
+    });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    return (o) =>
+      baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
+  }
 
-    const result = await runImgApply(conn, openGate(), APPLY_PLAN);
+  function applyActivationRefused(): (o: HttpClientOptions) => HttpClientResponse {
+    const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
+<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
+  <msg objDescr="Class ${imgManifest.entry}" type="E" line="1"
+       href="/sap/bc/adt/oo/classes/${imgManifest.entry.toLowerCase()}/source/main#start=12,4" forceSupported="true">
+    <shortText><txt>Field "LV_UNDEFINED" is unknown. It is neither in one of the specified tables nor defined by a "DATA" statement.</txt></shortText>
+  </msg>
+</chkl:messages>`;
+    const fluidRoute = dynamicImgFluidRoute({
+      transcript: () => {
+        throw new Error("unrouted classrun call — the body class activation should have refused first");
+      },
+      packageName: FLUID_PACKAGE,
+      activationError: { matches: (name) => name === imgManifest.entry, xml: () => ACTIVATION_ERROR },
+    });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    return (o) =>
+      baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
+  }
 
-    expect(result.bridgeClass).toBe(IMGW_BRIDGE_CLASS.apply);
+  function applyClassrunBlowsUp(): (o: HttpClientOptions) => HttpClientResponse {
+    const fluidRoute = dynamicImgFluidRoute({
+      transcript: () => imgProbeConsole(TRANSCRIPT, { action: "apply" }),
+      packageName: FLUID_PACKAGE,
+      classrunOverride: (o) => {
+        const r = resp(500, "<exc:exception/>", { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 500", "500", 500, undefined, o, r);
+      },
+    });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    return (o) =>
+      baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
+  }
+
+  it("deploys the fluid img body class and returns the parsed transcript", async () => {
+    const { conn, inner, cfg: usedCfg } = await connected(applyHappyPath(TRANSCRIPT));
+
+    const result = await runImgApply(conn, openGate(), APPLY_PLAN, usedCfg, "upsert");
+
+    expect(result.bridgeClass).toBe(imgManifest.entry);
     expect(result.transcript.applied).toBe(1);
     expect(result.transcript.trkeys).toEqual([{ row: 0, trkorr: "A4HK900001", len: 10, value: "A4HK900001" }]);
 
-    const create = inner.calls.find((c) => c.url === "/sap/bc/adt/oo/classes" && (c.method ?? "GET").toUpperCase() === "POST");
+    const create = inner.calls.find(
+      (c) =>
+        c.url === "/sap/bc/adt/oo/classes" &&
+        (c.method ?? "GET").toUpperCase() === "POST" &&
+        typeof c.body === "string" &&
+        c.body.includes(`adtcore:name="${imgManifest.entry}"`),
+    );
     expect(create?.body).toContain(`adtcore:name="${FLUID_PACKAGE}"`);
   });
 
   it("BAD_INPUT from validateApplyPlan (op missing a valid value) is thrown before any network call", async () => {
-    const { conn, inner } = await connected(bridgeHappyPath(IMGW_BRIDGE_CLASS.apply, () => resp(200, TRANSCRIPT)));
+    const { conn, inner, cfg: usedCfg } = await connected(applyHappyPath(TRANSCRIPT));
 
     const badPlan = { ...APPLY_PLAN, op: "wipe" } as unknown as ImgApplyPlan;
-    const err = await runImgApply(conn, openGate(), badPlan).catch((e: unknown) => e);
+    const err = await runImgApply(conn, openGate(), badPlan, usedCfg, "upsert").catch((e: unknown) => e);
 
     expect(isAbapError(err)).toBe(true);
     expect((err as { code: string }).code).toBe("BAD_INPUT");
     expect(inner.calls).toHaveLength(0);
   });
 
-  it("an activation refusal surfaces as CHECK_FAILED carrying the apply bridge's own bespoke hint (distinct from the probe's), and never reaches classrun", async () => {
-    const { conn, inner } = await connected(bridgeActivationRefused(IMGW_BRIDGE_CLASS.apply));
+  it("an activation refusal surfaces as CHECK_FAILED carrying activate.ts's generic hint (apply's own bespoke hint is retired — see this file's header), and never reaches classrun", async () => {
+    const { conn, inner, cfg: usedCfg } = await connected(applyActivationRefused());
 
-    const err = await runImgApply(conn, openGate(), APPLY_PLAN).catch((e: unknown) => e);
+    const err = await runImgApply(conn, openGate(), APPLY_PLAN, usedCfg, "upsert").catch((e: unknown) => e);
 
     expect(isAbapError(err)).toBe(true);
     expect((err as { code: string }).code).toBe("CHECK_FAILED");
     const hint = (err as { hint?: string }).hint ?? "";
-    expect(hint).toContain("MODIFYs/DELETEs the target table directly");
-    expect(hint).toContain("TR_OBJECTS_CHECK/TR_OBJECTS_INSERT");
-    expect(hint).not.toContain("SELECTs the target table plus"); // not the probe's hint
-    // Defect B correction: the ADT syntax check does catch an ordinary ABAP type error in
-    // the generated body (proven live 2026-09-06 in the sibling request bridge) — this
-    // hint must no longer imply an FM-interface guess is the only explanation.
-    expect(hint).toMatch(/DOES validate ordinary ABAP statements/);
+    // Same text the probe's own activation-refusal test asserts on (describe("runImgProbe")
+    // above) — apply now shares the one body class and the one generic hint with the other
+    // two actions, so there is no bridge-specific wording left to distinguish here.
+    expect(hint).toBe(
+      "Fix the reported lines and write again. Line numbers come from the ADT href fragment, " +
+        "not from the message ordinal, so they are the real source lines. " +
+        `Bridge class ${imgManifest.entry} was written to ${FLUID_PACKAGE} but failed to activate; ` +
+        `it is left behind there, inactive — safe to delete.`,
+    );
     expect(inner.calls.some((c) => c.url.includes("/oo/classrun/"))).toBe(false);
   });
 
   it("a scaffold-level failure below activation (classrun itself 500s) surfaces as an error, not a silent empty result", async () => {
-    const { conn } = await connected(bridgeClassrunBlowsUp(IMGW_BRIDGE_CLASS.apply));
+    const { conn, cfg: usedCfg } = await connected(applyClassrunBlowsUp());
 
-    const outcome = await runImgApply(conn, openGate(), APPLY_PLAN).then(
+    const outcome = await runImgApply(conn, openGate(), APPLY_PLAN, usedCfg, "upsert").then(
       (r) => ({ ok: true as const, r }),
       (e: unknown) => ({ ok: false as const, e }),
     );
@@ -572,70 +530,102 @@ describe("runImgApply", () => {
 describe("runCreateCustomizingRequest", () => {
   const TRANSCRIPT = `CTSW> REQUEST len=[10] value=[A4HK900002]\nCTSW> TASK len=[10] value=[A4HK900003]\n`;
 
-  it("deploys ZCL_ZMCP_CTS_WREQ into FLUID_PACKAGE and returns the parsed request/task numbers", async () => {
-    const { conn, inner } = await connected(bridgeHappyPath(CUSTOMIZING_REQUEST_CLASS, () => resp(200, TRANSCRIPT)));
+  function requestHappyPath(rawTranscript: string): (o: HttpClientOptions) => HttpClientResponse {
+    const fluidRoute = dynamicImgFluidRoute({
+      transcript: () => imgProbeConsole(rawTranscript, { action: "create_request" }),
+      packageName: FLUID_PACKAGE,
+    });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    return (o) =>
+      baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
+  }
 
-    const result = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN);
+  function requestActivationRefused(): (o: HttpClientOptions) => HttpClientResponse {
+    const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
+<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
+  <msg objDescr="Class ${imgManifest.entry}" type="E" line="1"
+       href="/sap/bc/adt/oo/classes/${imgManifest.entry.toLowerCase()}/source/main#start=12,4" forceSupported="true">
+    <shortText><txt>Field "LV_UNDEFINED" is unknown. It is neither in one of the specified tables nor defined by a "DATA" statement.</txt></shortText>
+  </msg>
+</chkl:messages>`;
+    const fluidRoute = dynamicImgFluidRoute({
+      transcript: () => {
+        throw new Error("unrouted classrun call — the body class activation should have refused first");
+      },
+      packageName: FLUID_PACKAGE,
+      activationError: { matches: (name) => name === imgManifest.entry, xml: () => ACTIVATION_ERROR },
+    });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    return (o) =>
+      baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
+  }
 
-    expect(result.bridgeClass).toBe(CUSTOMIZING_REQUEST_CLASS);
+  function requestClassrunBlowsUp(): (o: HttpClientOptions) => HttpClientResponse {
+    const fluidRoute = dynamicImgFluidRoute({
+      transcript: () => imgProbeConsole(TRANSCRIPT, { action: "create_request" }),
+      packageName: FLUID_PACKAGE,
+      classrunOverride: (o) => {
+        const r = resp(500, "<exc:exception/>", { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 500", "500", 500, undefined, o, r);
+      },
+    });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    return (o) =>
+      baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" });
+  }
+
+  it("deploys the fluid img body class and returns the parsed request/task numbers", async () => {
+    const { conn, inner, cfg: usedCfg } = await connected(requestHappyPath(TRANSCRIPT));
+
+    const result = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN, usedCfg);
+
+    expect(result.bridgeClass).toBe(imgManifest.entry);
     expect(result.transcript.request).toBe("A4HK900002");
     expect(result.transcript.task).toBe("A4HK900003");
 
-    const create = inner.calls.find((c) => c.url === "/sap/bc/adt/oo/classes" && (c.method ?? "GET").toUpperCase() === "POST");
+    const create = inner.calls.find(
+      (c) =>
+        c.url === "/sap/bc/adt/oo/classes" &&
+        (c.method ?? "GET").toUpperCase() === "POST" &&
+        typeof c.body === "string" &&
+        c.body.includes(`adtcore:name="${imgManifest.entry}"`),
+    );
     expect(create?.body).toContain(`adtcore:name="${FLUID_PACKAGE}"`);
   });
 
   it("BAD_INPUT from validateCustomizingRequestPlan (empty description) is thrown before any network call", async () => {
-    const { conn, inner } = await connected(bridgeHappyPath(CUSTOMIZING_REQUEST_CLASS, () => resp(200, TRANSCRIPT)));
+    const { conn, inner, cfg: usedCfg } = await connected(requestHappyPath(TRANSCRIPT));
 
-    const err = await runCreateCustomizingRequest(conn, openGate(), { description: "  " }).catch((e: unknown) => e);
+    const err = await runCreateCustomizingRequest(conn, openGate(), { description: "  " }, usedCfg).catch(
+      (e: unknown) => e,
+    );
 
     expect(isAbapError(err)).toBe(true);
     expect((err as { code: string }).code).toBe("BAD_INPUT");
     expect(inner.calls).toHaveLength(0);
   });
 
-  it("an activation refusal surfaces as CHECK_FAILED carrying the request bridge's own bespoke hint (distinct from probe/apply), and never reaches classrun", async () => {
-    const { conn, inner } = await connected(bridgeActivationRefused(CUSTOMIZING_REQUEST_CLASS));
+  it("an activation refusal surfaces as CHECK_FAILED carrying activate.ts's generic hint (the request bridge's own bespoke hint is retired — see this file's header), and never reaches classrun", async () => {
+    const { conn, inner, cfg: usedCfg } = await connected(requestActivationRefused());
 
-    const err = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN).catch((e: unknown) => e);
+    const err = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN, usedCfg).catch((e: unknown) => e);
 
     expect(isAbapError(err)).toBe(true);
     expect((err as { code: string }).code).toBe("CHECK_FAILED");
     const hint = (err as { hint?: string }).hint ?? "";
-    expect(hint).toContain("TR_INSERT_REQUEST_WITH_TASKS");
-    expect(hint).not.toContain("SELECTs the target table plus");
-    expect(hint).not.toContain("MODIFYs/DELETEs the target table directly");
+    expect(hint).toBe(
+      "Fix the reported lines and write again. Line numbers come from the ADT href fragment, " +
+        "not from the message ordinal, so they are the real source lines. " +
+        `Bridge class ${imgManifest.entry} was written to ${FLUID_PACKAGE} but failed to activate; ` +
+        `it is left behind there, inactive — safe to delete.`,
+    );
     expect(inner.calls.some((c) => c.url.includes("/oo/classrun/"))).toBe(false);
   });
 
-  it("the request bridge's hint gives the exact delete command for the left-behind class, and no longer blames the FM's parameter names as the leading explanation", async () => {
-    const { conn } = await connected(bridgeActivationRefused(CUSTOMIZING_REQUEST_CLASS));
-
-    const err = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN).catch((e: unknown) => e);
-
-    expect(isAbapError(err)).toBe(true);
-    const hint = (err as { hint?: string }).hint ?? "";
-    // Defect B, live 2026-09-06: the false claim this replaces said a syntax error here
-    // "most likely means that FM's parameter names are wrong" — falsified by an ordinary
-    // ABAP type error inside the generated body, nothing to do with the FM interface.
-    expect(hint).not.toContain("most likely means that FM's parameter names are wrong");
-    // Substance that must now be present: the check does validate ordinary ABAP
-    // statements in the generated body, and the exact command to clean up the
-    // left-behind, never-activated bridge class.
-    expect(hint).toMatch(/DOES validate ordinary ABAP statements/);
-    expect(hint).toContain(`abap_write {"object":"class ${CUSTOMIZING_REQUEST_CLASS}","mode":"delete"}`);
-    // discloseBridgeResidue (./run.ts) already appends its own generic "safe to delete"
-    // sentence naming the class and package — the bespoke hint must not repeat that
-    // sentence verbatim, only add the delete command it doesn't give.
-    expect(hint).toContain(`Bridge class ${CUSTOMIZING_REQUEST_CLASS}`);
-    expect((hint.match(/safe to delete/g) ?? []).length).toBe(1);
-  });
-
   it("a scaffold-level failure below activation (classrun itself 500s) surfaces as an error, not a silent empty result", async () => {
-    const { conn } = await connected(bridgeClassrunBlowsUp(CUSTOMIZING_REQUEST_CLASS));
+    const { conn, cfg: usedCfg } = await connected(requestClassrunBlowsUp());
 
-    const outcome = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN).then(
+    const outcome = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN, usedCfg).then(
       (r) => ({ ok: true as const, r }),
       (e: unknown) => ({ ok: false as const, e }),
     );
@@ -646,38 +636,49 @@ describe("runCreateCustomizingRequest", () => {
 });
 
 // ===========================================================================
-// Task 1 — an "already declared" activation failure is a generator defect,
-// never a caller-input mistake, and must not be reported as one.
+// Coverage note (was: "duplicate-declaration activation failures get a
+// corrected hint"). The old `runImgApply`/`runCreateCustomizingRequest`
+// bridge-deploy code used to recognize an "already declared" ADT activation
+// error by its message text and rewrite the thrown hint to say plainly that
+// this is a generator defect, never a caller-input mistake — distinct
+// per-bridge wording, asserted on by two tests that used to live in this
+// spot. Neither `ensure.ts` nor `dispatch()` (the code these two functions
+// now run through) has any equivalent special-casing: `assertNoErrors`
+// (src/adt/activate.ts) throws the same content-independent default hint
+// regardless of what the activation message says — proven by the generic-hint
+// tests directly above, which use the exact same "already declared" wording
+// live-verified on 2026-09-06 and still get the ordinary default hint, not a
+// generator-defect one. That distinction is gone with the reroute, not moved
+// elsewhere; flagged to the slice owner rather than silently dropped.
 // ===========================================================================
 
-describe("duplicate-declaration activation failures get a corrected hint", () => {
-  // The probe now runs through the fluid img.preview path, whose dispatch/ensure wiring
-  // never applies a per-bridge hint rewrite or bridge-residue disclosure; only the apply
-  // and request bridges still go through the code paths this describe block covers.
+describe("an 'already declared' activation failure is not distinguished from any other activation failure", () => {
+  it("apply: reports the same generic CHECK_FAILED hint as any other activation refusal, not a generator-defect rewrite", async () => {
+    const ACTIVATION_ERROR = `<?xml version="1.0" encoding="utf-8"?>
+<chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist">
+  <msg objDescr="Class ${imgManifest.entry}" type="E" line="58"
+       href="/sap/bc/adt/oo/classes/${imgManifest.entry.toLowerCase()}/source/main#start=58,13" forceSupported="true">
+    <shortText><txt>"LV_KEY_FLAG" was already declared.</txt></shortText>
+  </msg>
+</chkl:messages>`;
+    const fluidRoute = dynamicImgFluidRoute({
+      transcript: () => {
+        throw new Error("unrouted classrun call — activation should have refused first");
+      },
+      packageName: FLUID_PACKAGE,
+      activationError: { matches: (name) => name === imgManifest.entry, xml: () => ACTIVATION_ERROR },
+    });
+    const runtimeRoute = runtimeClassRoute(FLUID_PACKAGE);
+    const { conn, cfg: usedCfg } = await connected(
+      (o) => baseRoute(o) ?? fluidRoute(o) ?? runtimeRoute(o) ?? resp(200, "<ok/>", { "content-type": "application/xml" }),
+    );
 
-  it("apply bridge: 'already declared' activation failure reports a generator defect, not a drifted table structure or FM interface", async () => {
-    const { conn } = await connected(bridgeActivationDuplicateDeclaration(IMGW_BRIDGE_CLASS.apply));
-
-    const err = await runImgApply(conn, openGate(), APPLY_PLAN).catch((e: unknown) => e);
+    const err = await runImgApply(conn, openGate(), APPLY_PLAN, usedCfg, "upsert").catch((e: unknown) => e);
 
     expect(isAbapError(err)).toBe(true);
     expect((err as { code: string }).code).toBe("CHECK_FAILED");
     const hint = (err as { hint?: string }).hint ?? "";
-    expect(hint).toContain("defect in abapsmith's own code generator");
-    // The old apply-bridge hint's structure-drift/FM-interface theory must NOT survive.
-    expect(hint).not.toContain("table's real structure having");
-    expect(hint).not.toContain("TR_OBJECTS_CHECK");
+    expect(hint).not.toContain("defect in abapsmith's own code generator");
+    expect(hint).toContain("Fix the reported lines and write again");
   });
-
-  it("request bridge: 'already declared' activation failure reports a generator defect too — the fix is shared, not per-bridge", async () => {
-    const { conn } = await connected(bridgeActivationDuplicateDeclaration(CUSTOMIZING_REQUEST_CLASS));
-
-    const err = await runCreateCustomizingRequest(conn, openGate(), REQUEST_PLAN).catch((e: unknown) => e);
-
-    expect(isAbapError(err)).toBe(true);
-    const hint = (err as { hint?: string }).hint ?? "";
-    expect(hint).toContain("defect in abapsmith's own code generator");
-    expect(hint).not.toContain("TR_INSERT_REQUEST_WITH_TASKS");
-  });
-
 });

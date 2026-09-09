@@ -62,9 +62,33 @@ elided anywhere.
 | `objects[].source` | yes | `{"file": "<relative path>"}` for plugins, `{"text": "…"}` for built-ins. |
 | `entry` | yes | The class whose `run( iv_action, iv_json )` the invoker calls. Must appear in `objects`. |
 | `actions[]` | yes, at least one | `name` (`/^[a-z][a-z0-9_]{0,29}$/`), `category`, `description`, `input`, `output`, optional `targets`. |
-| `category` | yes | `read`, `execute` or `mutate`. Classifies the action for gating: `read` and `execute` need no per-call consent beyond the plugin gate; `mutate` additionally needs `targets` and, for a plugin, `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` plus a `confirm` echo of `<tool>.<action>`. See [safety.md](safety.md). |
+| `category` | yes | `read`, `execute` or `mutate`. Classifies the action for gating: `read` and `execute` need no per-call consent beyond the plugin gate; `mutate` should carry `targets` (see below — the schema does not force it) and, for a plugin, needs `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` plus a `confirm` echo of `<tool>.<action>`. See [safety.md](safety.md). |
 | `input` / `output` | yes | A `FluidJsonSchema` object — the documented subset below. Input is validated before any network call; output after the transcript is parsed. |
-| `targets` | only on `mutate` | JSON Pointers into the action's own arguments naming the object, package and transport the safety gate must judge, before any ABAP is generated. |
+| `targets` | no, on any category | JSON Pointers into the action's own arguments naming the object, package and transport handed to the safety gate, before any ABAP is generated. Meaningful on `mutate`; ignored in practice elsewhere. |
+
+`targets` is optional in the schema on **every** category, `mutate`
+included — `FluidActionSpecSchema` declares it `.optional()` with no
+category condition, and this table says so rather than describing a
+requirement the loader would not enforce. The consequence is worth stating
+plainly, because it is easy to read the other way: a `mutate` action that
+omits `targets` is not partially gated, it is **not gate-asserted at all**
+— `assertTargetsAgainstGate` returns before it reaches `gate.assert`. The
+ordinary ceilings of step 8 in [safety.md](safety.md) still apply, so such
+an action cannot run on a productive system or under a write lockout, but
+no object, package or transport allowlist is consulted for it.
+
+Omitting `targets` on a `mutate` is therefore a deliberate choice, not a
+default, and it is only defensible when the action acts on no named
+repository object *and* the adapter around it supplies its own gate.
+`classic.remove_transport_entry` is the one shipped example: it removes an
+E071 bookkeeping row for an object that is typically already deleted, so
+there is nothing left to authorize against, and its gating is the tool
+layer's admin-only transport-delete ceiling instead (see the comment on
+`removeTransportEntryViaBridge` in `src/adt/transport-entry-remove.ts`). If
+a new `mutate` cannot point at the thing it changes, say why at the
+declaration; if it merely does not know the package without an extra read,
+declare `targets: {}` instead, which routes through the gate and fails
+closed. See step 7 of [safety.md](safety.md) for what each shape reaches.
 
 ## Compatibility policy
 

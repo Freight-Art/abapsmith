@@ -636,7 +636,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
     if (toolCapabilities.canWrite) {
       registerBopfTestTool(mcp, { ...createBopfTestDeps(), pool, cfg, safety, ensureConnected, errorResult });
       registerFpmTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
-      // `abap_ui`'s `screen` mode deploys a throwaway $ABAPSMITH_FLUID_API bridge class, so
+      // `abap_ui`'s `screen` mode deploys reused $ABAPSMITH_FLUID_API fluid classes, so
       // it needs write capability just to register. `press` (committing) is
       // gated far more tightly at call time — `assertPressEnabled` in
       // src/tools/ui.ts requires ABAP_MODE=admin AND ABAP_ALLOW_UI_PRESS.
@@ -645,10 +645,11 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       registerUiTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
       // `journal` for the before-image, `transport` for the CTS assignment.
       registerWriteTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
-      // `abap_img_edit` writes IMG customizing rows via a generated $ABAPSMITH_FLUID_API bridge
-      // (src/adt/img-write-bridge.ts) — an irreversible business-data write, gated here like
-      // every other mutating tool. `journal` records the before-image; the wider `cfg` slice
-      // (`sid`/`url`/`client`) is for `systemKey()` on those journal entries.
+      // `abap_img_edit` writes IMG customizing rows by dispatching against the reused
+      // $ABAPSMITH_FLUID_API body class ZCL_ZMCP_FLUID_IMG (src/adt/fluid/builtin/img.ts) —
+      // an irreversible business-data write, gated here like every other mutating tool.
+      // `journal` records the before-image; the wider `cfg` slice (`sid`/`url`/`client`) is
+      // for `systemKey()` on those journal entries.
       registerImgEditTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal });
       registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });

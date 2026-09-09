@@ -5,11 +5,25 @@
  * pattern (that file's own header explains why each suite keeps its own
  * small copy rather than sharing one with `test/enhancement-write.test.ts`'s
  * heavier `FakeAdt`).
+ *
+ * The five mutating operations (`createEnhancementSpot`, `addBadiDefinition`,
+ * `addFilterDefinition`, `createBadiImplementation`, `setFilterValues`) no
+ * longer generate and deploy a per-call `ZCL_ZMCP_ENH_*` bridge class — their
+ * ABAP-side work now runs through `dispatch()` against the static fluid body
+ * `ZCL_ZMCP_FLUID_ENH` (see `runEnhAction` in `../src/adt/enhancement-bridge.ts`).
+ * Wire-level coverage for those five uses `./helpers/fluid-enh-fake.ts`'s
+ * `dynamicEnhFluidRoute`/`enhProbeConsole` instead of `objectHappyPath` +
+ * `classrunOutput`. `exerciseBadi` (bridge class `ZCL_ZMCP_ENH_EXEC`) is
+ * unaffected by the reroute and keeps using `objectHappyPath`/`classrunOutput`
+ * exactly as before.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { promises as fs } from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
   HttpClient,
   HttpClientOptions,
@@ -18,7 +32,7 @@ import type {
 import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
-import { SafetyGate, type Operation, type SafetyTarget, type EvaluateOptions } from "../src/safety.js";
+import { SafetyGate } from "../src/safety.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import {
@@ -35,13 +49,34 @@ import {
   exerciseBadi,
   activateSpotAndImplementation,
 } from "../src/adt/enhancement-bridge.js";
-import { createSpotFragment, exerciseFragment, createImplFragment } from "../src/adt/enhancement-templates.js";
+import { exerciseFragment } from "../src/adt/enhancement-templates.js";
 import { enhancementIntentFor } from "../src/adt/write.js";
+import { enhManifest } from "../src/adt/fluid/builtin/enh.js";
+import { invokerName } from "../src/adt/fluid/invoke.js";
+import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { resetFluidPackageMemo } from "../src/adt/fluid/package.js";
+import {
+  dynamicEnhFluidRoute,
+  enhProbeConsole,
+  type EnhFluidRouteOptions,
+} from "./helpers/fluid-enh-fake.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 
 // ---------------------------------------------------------------------------
 // Fake transport — same shape as test/bopf-runtime.test.ts
 // ---------------------------------------------------------------------------
+
+let tmp: string;
+
+beforeEach(async () => {
+  tmp = await fs.mkdtemp(path.join(os.tmpdir(), "abapsmith-enh-bridge-"));
+  resetFluidEnsureState();
+  resetFluidPackageMemo();
+});
+
+afterEach(async () => {
+  await fs.rm(tmp, { recursive: true, force: true });
+});
 
 const cfg = (): Config =>
   ConfigSchema.parse({
@@ -51,6 +86,8 @@ const cfg = (): Config =>
     sid: "TST",
     client: "001",
     readOnly: false,
+    fluidApi: true,
+    stateDir: tmp,
   });
 
 const resp = (
@@ -223,43 +260,18 @@ const AFFECTS = { name: "ZCL_TARGET", packageName: "ZTARGET_PKG", masterSystem: 
  */
 const noJournalHook = async (): Promise<void> => {};
 
-/**
- * Regression harness: `readOnly: true` denies `write` too,
- * so the existing `exerciseBadi` "readOnly gate" test proves execute is not
- * *exempt* from readOnly but cannot prove execute is gated *on its own* —
- * under a coarse readOnly gate the buggy pre-fix `writeActivateRunBridge`
- * (which ran the bridge class via a bare `runClass` call, with no
- * `gate.authorize("execute", ...)` at all) would still be refused, just at
- * the write step, never reaching the code path the fix touched.
- *
- * This gate isolates that: it delegates `write`/`activate` to a real,
- * permissive `SafetyGate` exactly like `allowingGate`, and denies only
- * `execute`. Under the fixed code, the write and activate calls hit the
- * wire and then `gate.authorize("execute", ...)` throws before `runClass`
- * is ever reached. Under the pre-fix code this override would never fire —
- * `runClass` would run unchecked and the classrun POST would appear in
- * `inner.calls` — so this is the one test shape that actually distinguishes
- * the two.
- */
-class ExecuteDenyingGate extends SafetyGate {
-  override assert(op: Operation, obj?: SafetyTarget, opts: EvaluateOptions = {}): void {
-    if (op === "execute") {
-      throw new AbapError("SAFETY_DENIED", "execute denied by test gate", { operation: op });
-    }
-    super.assert(op, obj, opts);
-  }
-}
-
-const executeDenyingGate = (): SafetyGate =>
-  new ExecuteDenyingGate({
-    readOnly: false,
-    allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE],
-    allowNamePrefixes: ["*"],
-    writesLockedOut: false,
-    allowEnhancements: true,
-    enhanceTargets: "customer",
-    originSystems: ["TST"],
-  });
+// `ExecuteDenyingGate`/`executeDenyingGate` and the "execute is gated on its
+// own, after write+activate succeed" describe block that used them were
+// deleted here: that regression harness proved a standalone
+// `gate.authorize("execute", ...)` check ran immediately before `runClass`
+// in the old `writeActivateRunBridge` path. The five dispatch()-routed
+// operations no longer call `writeActivateRunBridge` at all — `dispatch()`
+// gates its mutate actions on `"write"` only (see `runEnhAction`'s doc
+// comment in enhancement-bridge.ts), so there is no standalone `op:"execute"`
+// check left on these five call sites for a test to isolate. `exerciseBadi`,
+// the sixth operation, is unaffected (still `writeActivateRunBridge` +
+// `gate.assertIntent(intent, { op: "execute" })`) and keeps its own
+// "is refused outright under a readOnly gate" coverage above.
 
 /**
  * `activateSpotAndImplementation` now requires a real `AuthorizedTarget`
@@ -305,6 +317,55 @@ function classrunOutput(lines: readonly string[]): (o: HttpClientOptions) => Htt
   return () => resp(200, body, { "content-type": "text/plain" });
 }
 
+/**
+ * The two routes every dispatch()-routed `enh` action test needs, in the
+ * order `combine` must try them: `dynamicEnhFluidRoute` first (deploys and
+ * activates both manifest objects — `FLUID_RUNTIME_CLASS`, `ZCL_ZMCP_FLUID_ENH`
+ * — plus the content-hashed invoker, and answers the invoker's classrun
+ * with one `enhProbeConsole` transcript carrying `result`), `sharedRoute`
+ * last (session/discovery/ato/datapreview/package-probe, plus any genuine
+ * TS-side `activateObject` call against a spot/impl/interface name, which
+ * is never a fluid class name so `dynamicEnhFluidRoute` leaves it
+ * unrouted). `sharedRoute`'s own classrun branch is unreachable here
+ * (shadowed) but harmless. Returned as an array, not a single combined
+ * function, so a test that needs to intercept one specific call (e.g. a
+ * spot activation failure) can splice its own route in between the two.
+ */
+function enhFluidRoutes(
+  action: string,
+  result: Record<string, unknown>,
+  opts: { activationError?: EnhFluidRouteOptions["activationError"] } = {},
+): Array<(o: HttpClientOptions) => HttpClientResponse | undefined> {
+  return [
+    dynamicEnhFluidRoute({
+      transcript: () => enhProbeConsole(action, result),
+      packageName: ENH_BRIDGE_PACKAGE,
+      activationError: opts.activationError,
+    }),
+    sharedRoute(classrunOutput([])),
+  ];
+}
+
+/**
+ * The invoker class name `dispatch()` will compute for this exact
+ * `(action, args)` pair — proof that a captured POST creating a class with
+ * this name means the production code sent exactly this action and exactly
+ * these args (any difference, including a missing `corr_nr: ""`, hashes to
+ * a different, unrecognized name).
+ */
+function expectedInvokerName(action: string, args: Record<string, unknown>): string {
+  return invokerName(enhManifest.id, action, args, enhManifest.contract);
+}
+
+function createdInvoker(inner: RecordingClient, name: string): boolean {
+  return inner.calls.some(
+    (c) =>
+      (c.method ?? "").toUpperCase() === "POST" &&
+      c.url === "/sap/bc/adt/oo/classes" &&
+      String(c.body).includes(`adtcore:name="${name}"`),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // H50 — a period, a quote, or a newline is refused outright, before any I/O
 // ---------------------------------------------------------------------------
@@ -336,170 +397,38 @@ describe("H50 — identifier validation refuses before any network call", () => 
       expect(inner.calls.length).toBe(0);
     });
 
-    it(`setFilterValues refuses a parameter value containing a control character`, async () => {
-      const { conn, inner } = await connected(combine(sharedRoute(classrunOutput([]))));
-      const err = await catchErr(
-        setFilterValues(conn, allowingGate(), {
-          enhName: "ZMCP_ENH",
-          spotName: "ZMCP_SPOT",
-          implName: "ZMCP_IMPL",
-          filterName: "FLT",
-          filterType: "C",
-          compare: "=",
-          value: bad.includes("\n") ? bad : "ok",
-          affects: AFFECTS,
-          onJointActivation: noJournalHook,
-        }),
-      );
-      // Only the newline case is guaranteed BAD_INPUT via `value`; the other
-      // two bad strings are asserted through their own identifier fields
-      // above. This test exists specifically for the "newline in free text"
-      // half of H50 that assertEnhIdentifier's own tests do not cover.
-      if (bad.includes("\n")) {
-        expect(err.code).toBe("BAD_INPUT");
-        expect(inner.calls.length).toBe(0);
-      }
-    });
+    // A per-iteration `value`-control-character check used to live here:
+    // before the reroute, `setFilterValuesFragment` spliced `params.value`
+    // literally into generated ABAP source (a string literal), so a raw
+    // newline had to be refused as BAD_INPUT before any network call, same
+    // as an identifier. `value` now travels as one field of the JSON `args`
+    // object handed to `dispatch()` — the static fluid body assigns it to an
+    // ABAP variable, never splices it into source text — so a control
+    // character in free text is no longer a source-injection hazard and
+    // `setFilterValues` does not (and no longer needs to) reject it
+    // up front. Confirmed via a direct call: with a real fluid route wired
+    // up, `value: "bad\nname"` reaches `dispatch()` and is not refused
+    // before I/O; the removed assertion was `expect(err.code).toBe(
+    // "BAD_INPUT")` + `expect(inner.calls.length).toBe(0)`, verified stale by
+    // running it against the current source (it now fails only because the
+    // OLD-style, non-fluid `sharedRoute` fixture used here leaves
+    // ZCL_ZMCP_FLUID_RT unrouted, which surfaces as SAFETY_DENIED /
+    // PACKAGE_UNKNOWN — a fixture artifact, not evidence of any surviving
+    // client-side control-character check).
   }
 });
 
 // ---------------------------------------------------------------------------
-// createSpotFragment — root-cause fix, the ENHS/XS sibling of
-// createImplFragment's fix below: every enhancement spot this template
-// creates must come out with a non-empty root description, or it is
-// unwritable the moment it exists (enhancement-write.ts's
-// assertDescriptionWillBePresent covers enhsxs explicitly). See
-// CreateSpotParams' own doc comment in enhancement-templates.ts for the full
-// story, including why its evidence is WEAKER than createImplFragment's own.
+// createSpotFragment/createImplFragment: deleted along with the generators
+// they tested. The five mutating operations no longer build ABAP source
+// fragments in TypeScript -- spot/impl description handling now lives
+// inside the static fluid body ZCL_ZMCP_FLUID_ENH (see runEnhAction).
+// Confirmed via grep before deletion: no remaining non-test caller of
+// createSpotFragment/createImplFragment/addBadiDefFragment/
+// addFilterDefFragment/setFilterValuesFragment in src/ or test/ (see the
+// final report for the exact grep evidence and the corresponding
+// deletions in enhancement-templates.ts).
 // ---------------------------------------------------------------------------
-
-describe("createSpotFragment", () => {
-  const BASE = { spotName: "ZMCP_SPOT" };
-
-  it("emits if_enh_object_docu~set_shorttext with the description, right after the lo_def cast", () => {
-    const lines = createSpotFragment({ ...BASE, description: "My spot" });
-    const castIdx = lines.findIndex((l) => l.includes("lo_def ?= lo_spot."));
-    const shortTextIdx = lines.findIndex((l) => l.includes("if_enh_object_docu~set_shorttext"));
-    expect(castIdx).toBeGreaterThanOrEqual(0);
-    expect(shortTextIdx).toBe(castIdx + 1);
-    expect(lines[shortTextIdx]).toBe(`lo_spot->if_enh_object_docu~set_shorttext( 'My spot' ).`);
-  });
-
-  it("doubles an embedded single quote in the description (abapLiteral escaping)", () => {
-    const lines = createSpotFragment({ ...BASE, description: "Fritz's spot" });
-    const shortText = lines.find((l) => l.includes("if_enh_object_docu~set_shorttext"));
-    expect(shortText).toBe(`lo_spot->if_enh_object_docu~set_shorttext( 'Fritz''s spot' ).`);
-  });
-
-  it("allows a period in the description — free text, not a bare identifier", () => {
-    const lines = createSpotFragment({ ...BASE, description: "Handles doc. approval." });
-    const shortText = lines.find((l) => l.includes("if_enh_object_docu~set_shorttext"));
-    expect(shortText).toBe(`lo_spot->if_enh_object_docu~set_shorttext( 'Handles doc. approval.' ).`);
-  });
-
-  it("refuses a description containing a newline — not stripped, not silently accepted", () => {
-    expect(() => createSpotFragment({ ...BASE, description: "line1\nline2" })).toThrow(AbapError);
-    try {
-      createSpotFragment({ ...BASE, description: "line1\nline2" });
-      throw new Error("expected throw");
-    } catch (e) {
-      expect(isAbapError(e) && e.code).toBe("BAD_INPUT");
-    }
-  });
-
-  it("refuses a description containing a control character (e.g. NUL)", () => {
-    try {
-      createSpotFragment({ ...BASE, description: "bad desc" });
-      throw new Error("expected throw");
-    } catch (e) {
-      expect(isAbapError(e) && e.code).toBe("BAD_INPUT");
-    }
-  });
-
-  it("refuses when description is omitted entirely — refused, never synthesised from spotName", () => {
-    const { description: _drop, ...withoutDescription } = { ...BASE, description: "x" };
-    try {
-      // @ts-expect-error — intentionally omitting the required field to prove runtime refusal.
-      createSpotFragment(withoutDescription);
-      throw new Error("expected throw");
-    } catch (e) {
-      expect(isAbapError(e) && e.code).toBe("BAD_INPUT");
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// createImplFragment — root-cause fix: every ENHO/XH this template creates
-// must come out with a non-empty root description, or it is unwritable
-// (including un-deactivatable) the moment it exists. See CreateImplParams'
-// own doc comment in enhancement-templates.ts for the full story.
-// ---------------------------------------------------------------------------
-
-describe("createImplFragment", () => {
-  const BASE = {
-    enhName: "ZMCP_ENH_BADI",
-    spotName: "ZMCP_SPOT",
-    badiName: "ZMCP_BADI",
-    implName: "ZMCP_IMPL",
-    implClass: "ZCL_MCP_IMPL",
-    active: true,
-  };
-
-  it("emits if_enh_object_docu~set_shorttext with the description, right after set_spot_name", () => {
-    const lines = createImplFragment({ ...BASE, description: "My BAdI impl" });
-    const spotIdx = lines.findIndex((l) => l.includes("set_spot_name"));
-    const shortTextIdx = lines.findIndex((l) => l.includes("if_enh_object_docu~set_shorttext"));
-    expect(spotIdx).toBeGreaterThanOrEqual(0);
-    expect(shortTextIdx).toBe(spotIdx + 1);
-    expect(lines[shortTextIdx]).toBe(`lo_impl->if_enh_object_docu~set_shorttext( 'My BAdI impl' ).`);
-    // Placed before add_implementation, matching abapGit's own ordering
-    // (set_shorttext before the impl is added).
-    const addImplIdx = lines.findIndex((l) => l.includes("add_implementation("));
-    expect(shortTextIdx).toBeLessThan(addImplIdx);
-  });
-
-  it("doubles an embedded single quote in the description (abapLiteral escaping)", () => {
-    const lines = createImplFragment({ ...BASE, description: "Fritz's BAdI" });
-    const shortText = lines.find((l) => l.includes("if_enh_object_docu~set_shorttext"));
-    expect(shortText).toBe(`lo_impl->if_enh_object_docu~set_shorttext( 'Fritz''s BAdI' ).`);
-  });
-
-  it("allows a period in the description — free text, not a bare identifier", () => {
-    const lines = createImplFragment({ ...BASE, description: "Handles doc. approval." });
-    const shortText = lines.find((l) => l.includes("if_enh_object_docu~set_shorttext"));
-    expect(shortText).toBe(`lo_impl->if_enh_object_docu~set_shorttext( 'Handles doc. approval.' ).`);
-  });
-
-  it("refuses a description containing a newline — not stripped, not silently accepted", () => {
-    expect(() => createImplFragment({ ...BASE, description: "line1\nline2" })).toThrow(AbapError);
-    try {
-      createImplFragment({ ...BASE, description: "line1\nline2" });
-      throw new Error("expected throw");
-    } catch (e) {
-      expect(isAbapError(e) && e.code).toBe("BAD_INPUT");
-    }
-  });
-
-  it("refuses a description containing a control character (e.g. NUL)", () => {
-    try {
-      createImplFragment({ ...BASE, description: "bad desc" });
-      throw new Error("expected throw");
-    } catch (e) {
-      expect(isAbapError(e) && e.code).toBe("BAD_INPUT");
-    }
-  });
-
-  it("refuses when description is omitted entirely — refused, never synthesised from enhName", () => {
-    const { description: _drop, ...withoutDescription } = { ...BASE, description: "x" };
-    try {
-      // @ts-expect-error — intentionally omitting the required field to prove runtime refusal.
-      createImplFragment(withoutDescription);
-      throw new Error("expected throw");
-    } catch (e) {
-      expect(isAbapError(e) && e.code).toBe("BAD_INPUT");
-    }
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Generator/parser drift — mirrors bopf-runtime.test.ts's convention
@@ -518,7 +447,11 @@ describe("bridgeSource DATA section", () => {
   // assembly point rather than editing each of the five data-line arrays.
   it("prepends DATA to every data-section line", () => {
     const source = bridgeSource(
-      BRIDGE_CLASS.createSpot,
+      // Any bridge-shaped class name works here — bridgeSource is generic
+      // and unrelated to which specific class name is passed. BRIDGE_CLASS
+      // now only names "exercise" (the five mutating operations no longer
+      // deploy a per-call bridge), so this uses a literal placeholder.
+      "ZCL_ZMCP_ENH_TEST",
       ["lv_pkg TYPE devclass VALUE '$TMP'.", "lv_trkorr TYPE trkorr."],
       ['out->write( \'X\' ).'],
     );
@@ -539,18 +472,6 @@ describe("bridgeSource DATA section", () => {
 });
 
 describe("parseEnhancementTranscript", () => {
-  it("recognises every tag createSpotFragment's own generator emits", () => {
-    const body = createSpotFragment({ spotName: "ZMCP_SPOT", description: "A spot" });
-    const source = bridgeSource(BRIDGE_CLASS.createSpot, [], body);
-    // The generator writes its tag via `out->write( 'SPOT-OBJECT-CREATED' ).`
-    // — simulate the captured classrun transcript directly (LIST> stripped
-    // upstream by run.ts before this parser ever sees it).
-    expect(source).toContain("out->write( 'SPOT-OBJECT-CREATED' )");
-    const result = parseEnhancementTranscript("SPOT-OBJECT-CREATED");
-    expect(result.tags).toEqual(["SPOT-OBJECT-CREATED"]);
-    expect(result.errorLine).toBeUndefined();
-  });
-
   it("captures a ZMCP-ENH-ERR> line and reports no tags", () => {
     const result = parseEnhancementTranscript("ZMCP-ENH-ERR> Something broke");
     expect(result.tags).toEqual([]);
@@ -695,12 +616,8 @@ describe("exerciseFragment", () => {
 // ---------------------------------------------------------------------------
 
 describe("createEnhancementSpot", () => {
-  it("writes, activates, and runs the bridge; reports SPOT-OBJECT-CREATED", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createSpot),
-      sharedRoute(classrunOutput(["SPOT-OBJECT-CREATED"])),
-    );
-    const { conn, inner } = await connected(route);
+  it("dispatches create_spot through the fluid enh body and reports SPOT-OBJECT-CREATED", async () => {
+    const { conn, inner } = await connected(combine(...enhFluidRoutes("create_spot", { created: true })));
     const { transcript } = await createEnhancementSpot(conn, allowingGate(), {
       spotName: "ZMCP_SPOT",
       description: "A spot",
@@ -710,21 +627,29 @@ describe("createEnhancementSpot", () => {
     const methods = inner.calls.map((c) => (c.method ?? "GET").toUpperCase());
     expect(methods).toContain("PUT");
     expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
-    // Regression: the generated class source actually sent over the wire
-    // must declare its locals with `DATA`, not the bare declaration that
-    // caused a real live syntax error, captured live.
-    const sourcePut = inner.calls.find(
-      (c) => (c.method ?? "").toUpperCase() === "PUT" &&
-        c.url === `${CLASS_COLLECTION}/${BRIDGE_CLASS.createSpot.toLowerCase()}/source/main`,
-    );
-    expect(String(sourcePut?.body)).toContain("DATA lv_pkg TYPE devclass VALUE '$TMP'.");
+  });
+
+  it("dispatches create_spot with the exact args, including corr_nr", async () => {
+    const args = {
+      spot_name: "ZMCP_SPOT",
+      description: "A spot",
+      package_name: ENH_CREATE_PACKAGE,
+      corr_nr: "",
+    };
+    const { conn, inner } = await connected(combine(...enhFluidRoutes("create_spot", { created: true })));
+    await createEnhancementSpot(conn, allowingGate(), {
+      spotName: "ZMCP_SPOT",
+      description: "A spot",
+      affects: AFFECTS,
+    });
+    expect(createdInvoker(inner, expectedInvokerName("create_spot", args))).toBe(true);
   });
 
   // Same defect class as createBadiImplementation's L17/ZTM_HW011B_IMPL
   // regression (see this module's header, "isActive-vs-adtcore:version"):
   // createEnhancementSpot's epilogue is inline-ABAP-side only. This proves a
   // separate, genuine POST /sap/bc/adt/activation now fires against the
-  // newly created spot itself, not just the bridge class.
+  // newly created spot itself, not just the fluid deploy/invoke path.
   it("also performs a separate, genuine activation of the newly created spot — not just the inline epilogue (isActive-vs-adtcore:version regression)", async () => {
     const activationCalls: HttpClientOptions[] = [];
     const route = combine(
@@ -732,8 +657,7 @@ describe("createEnhancementSpot", () => {
         if (o.url.includes("/sap/bc/adt/activation")) activationCalls.push(o);
         return undefined;
       },
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createSpot),
-      sharedRoute(classrunOutput(["SPOT-OBJECT-CREATED"])),
+      ...enhFluidRoutes("create_spot", { created: true }),
     );
     const { conn } = await connected(route);
     const result = await createEnhancementSpot(conn, allowingGate(), {
@@ -745,10 +669,10 @@ describe("createEnhancementSpot", () => {
     expect(result.activation).toBeDefined();
     expect(result.activation.activated).toBe(true);
     expect(result.activation.errors).toBe(0);
-    // Bridge-class activation (1) + the new explicit post-create activation
-    // of the spot itself (1) = 2 distinct /sap/bc/adt/activation calls.
-    // Before the fix this was 1: only the bridge class was ever activated.
-    expect(activationCalls.length).toBe(2);
+    // The fluid deploy path activates FLUID_RUNTIME_CLASS, ZCL_ZMCP_FLUID_ENH,
+    // and the per-call invoker (3), plus the explicit post-create activation
+    // of the spot itself (1) = 4 distinct /sap/bc/adt/activation calls.
+    expect(activationCalls.length).toBe(4);
     const spotActivation = activationCalls.find((c) => String(c.body).toLowerCase().includes("zmcp_spot"));
     expect(spotActivation).toBeTruthy();
   });
@@ -767,8 +691,7 @@ describe("createEnhancementSpot", () => {
         }
         return undefined;
       },
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createSpot),
-      sharedRoute(classrunOutput(["SPOT-OBJECT-CREATED"])),
+      ...enhFluidRoutes("create_spot", { created: true }),
     );
     const { conn } = await connected(route);
     const result = await createEnhancementSpot(conn, allowingGate(), {
@@ -782,24 +705,16 @@ describe("createEnhancementSpot", () => {
     expect(result.activation.errors).toBe(1);
   });
 
-  it("throws when the transcript shows no success tag", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createSpot),
-      sharedRoute(classrunOutput(["SOMETHING-ELSE"])),
-    );
-    const { conn } = await connected(route);
+  it("throws CHECK_FAILED when the fluid result's created flag is false", async () => {
+    const { conn } = await connected(combine(...enhFluidRoutes("create_spot", { created: false })));
     const err = await catchErr(
       createEnhancementSpot(conn, allowingGate(), { spotName: "ZMCP_SPOT", description: "A spot", affects: AFFECTS }),
     );
     expect(err.code).toBe("CHECK_FAILED");
   });
 
-  it("throws when readOnly gate refuses the write, before any bridge-class network call", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createSpot),
-      sharedRoute(classrunOutput(["SPOT-OBJECT-CREATED"])),
-    );
-    const { conn, inner } = await connected(route);
+  it("throws when readOnly gate refuses the write, before any network call", async () => {
+    const { conn, inner } = await connected(combine(...enhFluidRoutes("create_spot", { created: true })));
     const readOnlyGate = new SafetyGate({ readOnly: true, allowPackages: [ENH_CREATE_PACKAGE], writesLockedOut: false });
     const err = await catchErr(
       createEnhancementSpot(conn, readOnlyGate, { spotName: "ZMCP_SPOT", description: "A spot", affects: AFFECTS }),
@@ -814,12 +729,8 @@ describe("createEnhancementSpot", () => {
 // ---------------------------------------------------------------------------
 
 describe("addBadiDefinition", () => {
-  it("creates the marker interface (H21) before writing the bridge class", async () => {
-    const route = combine(
-      objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addBadiDef),
-      sharedRoute(classrunOutput(["BADI-DEF-ADDED"])),
-    );
+  it("creates the marker interface (H21) before dispatching add_badi_def", async () => {
+    const route = combine(objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"), ...enhFluidRoutes("add_badi_def", { added: true }));
     const { conn, inner } = await connected(route);
     const { transcript } = await addBadiDefinition(conn, allowingGate(), {
       spotName: "ZMCP_SPOT",
@@ -837,6 +748,29 @@ describe("addBadiDefinition", () => {
     expect(String(interfacePut?.body)).toContain("INTERFACES if_badi_interface.");
   });
 
+  it("dispatches add_badi_def with the exact args, including corr_nr", async () => {
+    const args = {
+      spot_name: "ZMCP_SPOT",
+      badi_name: "ZMCP_BADI",
+      interface_name: "ZIF_MCP_BADI",
+      single_use: true,
+      short_text: "Test BAdI",
+      package_name: ENH_CREATE_PACKAGE,
+      corr_nr: "",
+    };
+    const route = combine(objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"), ...enhFluidRoutes("add_badi_def", { added: true }));
+    const { conn, inner } = await connected(route);
+    await addBadiDefinition(conn, allowingGate(), {
+      spotName: "ZMCP_SPOT",
+      badiName: "ZMCP_BADI",
+      interfaceName: "ZIF_MCP_BADI",
+      singleUse: true,
+      shortText: "Test BAdI",
+      affects: AFFECTS,
+    });
+    expect(createdInvoker(inner, expectedInvokerName("add_badi_def", args))).toBe(true);
+  });
+
   // Same defect class as createBadiImplementation's L17/ZTM_HW011B_IMPL
   // regression (see enhancement-bridge.ts's module header,
   // "isActive-vs-adtcore:version"): addBadiDefinition's epilogue re-saves the
@@ -852,8 +786,7 @@ describe("addBadiDefinition", () => {
         return undefined;
       },
       objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addBadiDef),
-      sharedRoute(classrunOutput(["BADI-DEF-ADDED"])),
+      ...enhFluidRoutes("add_badi_def", { added: true }),
     );
     const { conn } = await connected(route);
     const result = await addBadiDefinition(conn, allowingGate(), {
@@ -868,11 +801,10 @@ describe("addBadiDefinition", () => {
     expect(result.activation).toBeDefined();
     expect(result.activation.activated).toBe(true);
     expect(result.activation.errors).toBe(0);
-    // H21 marker-interface activation (1) + bridge-class activation (1) +
-    // the new explicit post-write activation of the spot itself (1) = 3.
-    // Before the fix this was 2: the spot itself was never re-activated
-    // out-of-band after the epilogue's inline save/activate.
-    expect(activationCalls.length).toBe(3);
+    // H21 marker-interface activation (1) + the fluid deploy path's three
+    // activations (FLUID_RUNTIME_CLASS, ZCL_ZMCP_FLUID_ENH, invoker) +
+    // the explicit post-write activation of the spot itself (1) = 5.
+    expect(activationCalls.length).toBe(5);
     const spotActivation = activationCalls.find((c) => String(c.body).toLowerCase().includes("zmcp_spot"));
     expect(spotActivation).toBeTruthy();
   });
@@ -892,8 +824,7 @@ describe("addBadiDefinition", () => {
         return undefined;
       },
       objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addBadiDef),
-      sharedRoute(classrunOutput(["BADI-DEF-ADDED"])),
+      ...enhFluidRoutes("add_badi_def", { added: true }),
     );
     const { conn } = await connected(route);
     const result = await addBadiDefinition(conn, allowingGate(), {
@@ -910,45 +841,20 @@ describe("addBadiDefinition", () => {
     expect(result.activation.errors).toBe(1);
   });
 
-  // Regression for two bugs in the EXPORTING keyword handling, found
-  // in sequence:
-  //  1. The acquisition call mixed IMPORTING into a short-form call with no
-  //     EXPORTING keyword, which ABAP's parser cannot disambiguate ("Unable
-  //     to interpret IMPORTING", captured live). EXPORTING must be explicit
-  //     whenever IMPORTING/CHANGING also appear.
-  //  2. Adding EXPORTING alone was not enough: `spot` is a RETURNING
-  //     parameter of `cl_enh_factory=>get_enhancement_spot`, not IMPORTING,
-  //     as live fixture 893 proved once fix #1 let the source get far enough
-  //     to activate ("Formal parameter \"SPOT\" is a RETURNING parameter,
-  //     not a EXPORTING parameter"). The correct form is a plain functional
-  //     call assigning the RETURNING value directly — matching fixture 486's
-  //     independently captured source (`DATA(lo_spot) = cl_enh_factory=>
-  //     get_enhancement_spot( spot_name = iv_spot ).`).
-  it("acquires the spot via a functional call assigning the RETURNING value, not IMPORTING", async () => {
-    const route = combine(
-      objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addBadiDef),
-      sharedRoute(classrunOutput(["BADI-DEF-ADDED"])),
+  it("throws CHECK_FAILED when the fluid result's added flag is false", async () => {
+    const route = combine(objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"), ...enhFluidRoutes("add_badi_def", { added: false }));
+    const { conn } = await connected(route);
+    const err = await catchErr(
+      addBadiDefinition(conn, allowingGate(), {
+        spotName: "ZMCP_SPOT",
+        badiName: "ZMCP_BADI",
+        interfaceName: "ZIF_MCP_BADI",
+        singleUse: true,
+        shortText: "Test BAdI",
+        affects: AFFECTS,
+      }),
     );
-    const { conn, inner } = await connected(route);
-    await addBadiDefinition(conn, allowingGate(), {
-      spotName: "ZMCP_SPOT",
-      badiName: "ZMCP_BADI",
-      interfaceName: "ZIF_MCP_BADI",
-      singleUse: true,
-      shortText: "Test BAdI",
-      affects: AFFECTS,
-    });
-    const classPut = inner.calls.find(
-      (c) =>
-        c.url === `${CLASS_COLLECTION}/${BRIDGE_CLASS.addBadiDef.toLowerCase()}/source/main` &&
-        (c.method ?? "").toUpperCase() === "PUT",
-    );
-    expect(classPut).toBeTruthy();
-    expect(String(classPut?.body)).toContain(
-      "lo_spot = cl_enh_factory=>get_enhancement_spot( spot_name = 'ZMCP_SPOT' lock = 'X' run_dark = abap_true ).",
-    );
-    expect(String(classPut?.body)).not.toContain("IMPORTING spot");
+    expect(err.code).toBe("CHECK_FAILED");
   });
 
   it("skips writing the marker interface when one already exists (never overwrites)", async () => {
@@ -964,8 +870,7 @@ describe("addBadiDefinition", () => {
               { "content-type": "application/xml" },
             )
           : undefined,
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addBadiDef),
-      sharedRoute(classrunOutput(["BADI-DEF-ADDED"])),
+      ...enhFluidRoutes("add_badi_def", { added: true }),
     );
     const { conn, inner } = await connected(route);
     await addBadiDefinition(conn, allowingGate(), {
@@ -988,11 +893,8 @@ describe("addBadiDefinition", () => {
 // ---------------------------------------------------------------------------
 
 describe("createBadiImplementation", () => {
-  it("writes, activates, and runs the bridge; reports both success tags", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createImpl),
-      sharedRoute(classrunOutput(["ENHO-OBJECT-CREATED", "IMPL-ADDED"])),
-    );
+  it("dispatches create_impl through the fluid enh body; reports both success tags", async () => {
+    const route = combine(...enhFluidRoutes("create_impl", { created: true, impl_added: true, filter_check: "no_filters" }));
     const { conn } = await connected(route);
     const { transcript } = await createBadiImplementation(conn, allowingGate(), {
       enhName: "ZMCP_ENH_BADI",
@@ -1004,7 +906,51 @@ describe("createBadiImplementation", () => {
       active: true,
       affects: AFFECTS,
     });
-    expect(transcript.tags).toEqual(["ENHO-OBJECT-CREATED", "IMPL-ADDED"]);
+    expect(transcript.tags).toEqual(["ENHO-OBJECT-CREATED", "IMPL-ADDED", "BADI-NO-FILTERS"]);
+  });
+
+  it("dispatches create_impl with the exact args, including corr_nr", async () => {
+    const args = {
+      enh_name: "ZMCP_ENH_BADI",
+      spot_name: "ZMCP_SPOT",
+      badi_name: "ZMCP_BADI",
+      impl_name: "ZMCP_IMPL",
+      impl_class: "ZCL_MCP_IMPL",
+      active: true,
+      description: "Test implementation",
+      package_name: ENH_CREATE_PACKAGE,
+      corr_nr: "",
+    };
+    const route = combine(...enhFluidRoutes("create_impl", { created: true, impl_added: true, filter_check: "no_filters" }));
+    const { conn, inner } = await connected(route);
+    await createBadiImplementation(conn, allowingGate(), {
+      enhName: "ZMCP_ENH_BADI",
+      spotName: "ZMCP_SPOT",
+      badiName: "ZMCP_BADI",
+      implName: "ZMCP_IMPL",
+      implClass: "ZCL_MCP_IMPL",
+      description: "Test implementation",
+      active: true,
+      affects: AFFECTS,
+    });
+    expect(createdInvoker(inner, expectedInvokerName("create_impl", args))).toBe(true);
+  });
+
+  it("throws CHECK_FAILED when the fluid result's created flag is false", async () => {
+    const { conn } = await connected(combine(...enhFluidRoutes("create_impl", { created: false, impl_added: false, filter_check: "no_filters" })));
+    const err = await catchErr(
+      createBadiImplementation(conn, allowingGate(), {
+        enhName: "ZMCP_ENH_BADI",
+        spotName: "ZMCP_SPOT",
+        badiName: "ZMCP_BADI",
+        implName: "ZMCP_IMPL",
+        implClass: "ZCL_MCP_IMPL",
+        description: "Test implementation",
+        active: true,
+        affects: AFFECTS,
+      }),
+    );
+    expect(err.code).toBe("CHECK_FAILED");
   });
 
   // Regression for the L17/ZTM_HW011B_IMPL field report: a caller called
@@ -1028,8 +974,7 @@ describe("createBadiImplementation", () => {
         if (o.url.includes("/sap/bc/adt/activation")) activationCalls.push(o);
         return undefined;
       },
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createImpl),
-      sharedRoute(classrunOutput(["ENHO-OBJECT-CREATED", "IMPL-ADDED"])),
+      ...enhFluidRoutes("create_impl", { created: true, impl_added: true, filter_check: "no_filters" }),
     );
     const { conn } = await connected(route);
     const result = await createBadiImplementation(conn, allowingGate(), {
@@ -1042,17 +987,17 @@ describe("createBadiImplementation", () => {
       active: true,
       affects: AFFECTS,
     });
-    expect(result.transcript.tags).toEqual(["ENHO-OBJECT-CREATED", "IMPL-ADDED"]);
+    expect(result.transcript.tags).toEqual(["ENHO-OBJECT-CREATED", "IMPL-ADDED", "BADI-NO-FILTERS"]);
     expect(result.activation).toBeDefined();
     expect(result.activation.activated).toBe(true);
     expect(result.activation.errors).toBe(0);
-    // Bridge-class activation (1, from writeActivateRunBridge activating the
-    // throwaway classrun bridge itself) + the new explicit post-create
-    // activation of the created ENHO/XH implementation (1) = 2 distinct
-    // /sap/bc/adt/activation calls. Before the fix this was 1: only the
-    // bridge class was ever activated, never the object create_impl actually
-    // creates.
-    expect(activationCalls.length).toBe(2);
+    // The fluid deploy path's own three activations (FLUID_RUNTIME_CLASS,
+    // ZCL_ZMCP_FLUID_ENH, and the content-hash invoker) + the explicit
+    // post-create activation of the created ENHO/XH implementation itself
+    // (1) = 4 distinct /sap/bc/adt/activation calls. Before the fix this was
+    // 1: only the bridge class was ever activated, never the object
+    // create_impl actually creates.
+    expect(activationCalls.length).toBe(4);
     const implActivation = activationCalls.find((c) => String(c.body).toLowerCase().includes("zmcp_enh_badi"));
     expect(implActivation).toBeTruthy();
   });
@@ -1079,8 +1024,7 @@ describe("createBadiImplementation", () => {
         }
         return undefined;
       },
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createImpl),
-      sharedRoute(classrunOutput(["ENHO-OBJECT-CREATED", "IMPL-ADDED"])),
+      ...enhFluidRoutes("create_impl", { created: true, impl_added: true, filter_check: "no_filters" }),
     );
     const { conn } = await connected(route);
     const result = await createBadiImplementation(conn, allowingGate(), {
@@ -1095,7 +1039,7 @@ describe("createBadiImplementation", () => {
     });
     expect(sawImplActivation).toBe(true);
     // Creation is reported regardless — this must not throw.
-    expect(result.transcript.tags).toEqual(["ENHO-OBJECT-CREATED", "IMPL-ADDED"]);
+    expect(result.transcript.tags).toEqual(["ENHO-OBJECT-CREATED", "IMPL-ADDED", "BADI-NO-FILTERS"]);
     expect(result.activation.activated).toBe(false);
     expect(result.activation.errors).toBe(1);
   });
@@ -1113,15 +1057,15 @@ describe("setFilterValues", () => {
         if (o.url.includes("/sap/bc/adt/activation")) activationCalls.push(o);
         return undefined;
       },
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues),
-      sharedRoute(classrunOutput(["IMPL-REPLACED"])),
+      ...enhFluidRoutes("set_filter_values", { replaced: true }),
     );
     const { conn } = await connected(route);
     // This is the ONE call site here that actually reaches the joint POST, so
     // rather than the shared no-op it records when the hook fired — proving the
     // seam is real and ordered, not merely a parameter that is accepted and
-    // dropped. `activationCalls.length` at the moment of the hook must be 1: the
-    // bridge class's own activation has happened, the joint POST has not.
+    // dropped. `activationCalls.length` at the moment of the hook must be 3:
+    // the fluid deploy path's three activations (FLUID_RUNTIME_CLASS,
+    // ZCL_ZMCP_FLUID_ENH, invoker) have happened, the joint POST has not.
     let hookFiredAfterNActivations: number | undefined;
     const { transcript, jointActivation } = await setFilterValues(conn, allowingGate(), {
       enhName: "ZMCP_ENH_BADI",
@@ -1139,24 +1083,26 @@ describe("setFilterValues", () => {
     expect(transcript.tags).toEqual(["IMPL-REPLACED"]);
     expect(jointActivation.activated).toBe(true);
     expect(jointActivation.errors).toBe(0);
-    // Bridge-class activation (1) + joint spot/impl activation (1) = 2 distinct
-    // /sap/bc/adt/activation calls, proving H23's second activation actually fired.
-    expect(activationCalls.length).toBe(2);
-    expect(hookFiredAfterNActivations, "onJointActivation must fire BEFORE the joint POST, after the bridge-class activation").toBe(1);
+    // The fluid deploy path's own three activations (FLUID_RUNTIME_CLASS,
+    // ZCL_ZMCP_FLUID_ENH, invoker) + the joint spot/impl activation (1) = 4
+    // distinct /sap/bc/adt/activation calls, proving H23's second activation
+    // actually fired.
+    expect(activationCalls.length).toBe(4);
+    expect(hookFiredAfterNActivations, "onJointActivation must fire BEFORE the joint POST, after the fluid deploy path's own activations").toBe(3);
   });
 
-  // Regression for the EXPORTING keyword bugs — see the
-  // matching comment on addBadiDefinition's regression test above. `enhancement`
-  // is likewise a RETURNING parameter of `cl_enh_factory=>get_enhancement`,
-  // matching fixture 466's independently captured source (`lo_tool =
-  // cl_enh_factory=>get_enhancement( enhancement_id = 'ZMCP_ENH_BADI'
-  // lock = 'X' run_dark = abap_true ).`).
-  it("acquires the enhancement via a functional call assigning the RETURNING value, not IMPORTING", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues),
-      sharedRoute(classrunOutput(["IMPL-REPLACED"])),
-    );
-    const { conn, inner } = await connected(route);
+  it("dispatches set_filter_values with the exact args, including corr_nr", async () => {
+    const args = {
+      enh_name: "ZMCP_ENH_BADI",
+      impl_name: "ZMCP_IMPL",
+      filter_name: "FLT",
+      filter_type: "C",
+      compare: "=",
+      value: "ALPHA",
+      package_name: ENH_CREATE_PACKAGE,
+      corr_nr: "",
+    };
+    const { conn, inner } = await connected(combine(...enhFluidRoutes("set_filter_values", { replaced: true })));
     await setFilterValues(conn, allowingGate(), {
       enhName: "ZMCP_ENH_BADI",
       spotName: "ZMCP_SPOT",
@@ -1168,63 +1114,25 @@ describe("setFilterValues", () => {
       affects: AFFECTS,
       onJointActivation: noJournalHook,
     });
-    const classPut = inner.calls.find(
-      (c) =>
-        c.url === `${CLASS_COLLECTION}/${BRIDGE_CLASS.setFilterValues.toLowerCase()}/source/main` &&
-        (c.method ?? "").toUpperCase() === "PUT",
-    );
-    expect(classPut).toBeTruthy();
-    expect(String(classPut?.body)).toContain(
-      "lo_tool = cl_enh_factory=>get_enhancement( enhancement_id = 'ZMCP_ENH_BADI' lock = 'X' run_dark = abap_true ).",
-    );
-    expect(String(classPut?.body)).not.toContain("IMPORTING enhancement");
+    expect(createdInvoker(inner, expectedInvokerName("set_filter_values", args))).toBe(true);
   });
 
-  // Regression — filter values must be deleted before re-adding: IF_ENH_TOOL_BADI_IMPL
-  // has no in-place "modify filter values" — add_implementation means
-  // "create new", so the existing implementation must be deleted first, or
-  // add_implementation fails live with "Error while creating the enhancement
-  // implementation" (reproduced identically across two fresh implementations,
-  // regardless of singleUse true/false). Fixture 466's captured request body
-  // is the reference sequence:
-  // get_implementation, THEN delete_implementation, THEN CLEAR/populate/
-  // add_implementation — this asserts the generated source matches that
-  // sequence exactly, in order.
-  it("deletes the existing implementation before recreating it with new filter values (fixture 466's sequence)", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues),
-      sharedRoute(classrunOutput(["IMPL-REPLACED"])),
+  it("throws CHECK_FAILED when the fluid result's replaced flag is false", async () => {
+    const { conn } = await connected(combine(...enhFluidRoutes("set_filter_values", { replaced: false })));
+    const err = await catchErr(
+      setFilterValues(conn, allowingGate(), {
+        enhName: "ZMCP_ENH_BADI",
+        spotName: "ZMCP_SPOT",
+        implName: "ZMCP_IMPL",
+        filterName: "FLT",
+        filterType: "C",
+        compare: "=",
+        value: "ALPHA",
+        affects: AFFECTS,
+        onJointActivation: noJournalHook,
+      }),
     );
-    const { conn, inner } = await connected(route);
-    await setFilterValues(conn, allowingGate(), {
-      enhName: "ZMCP_ENH_BADI",
-      spotName: "ZMCP_SPOT",
-      implName: "ZMCP_IMPL",
-      filterName: "FLT",
-      filterType: "C",
-      compare: "=",
-      value: "ALPHA",
-      affects: AFFECTS,
-      onJointActivation: noJournalHook,
-    });
-    const classPut = inner.calls.find(
-      (c) =>
-        c.url === `${CLASS_COLLECTION}/${BRIDGE_CLASS.setFilterValues.toLowerCase()}/source/main` &&
-        (c.method ?? "").toUpperCase() === "PUT",
-    );
-    expect(classPut).toBeTruthy();
-    const body = String(classPut?.body);
-    expect(body).toContain("lo_impl->delete_implementation( impl_name = 'ZMCP_IMPL' ).");
-    // Order matters: get -> delete -> clear -> ... -> add. A delete anywhere
-    // else (e.g. after add_implementation) would not fix the bug.
-    const getIdx = body.indexOf("ls_impl = lo_impl->get_implementation( impl_name = 'ZMCP_IMPL' ).");
-    const deleteIdx = body.indexOf("lo_impl->delete_implementation( impl_name = 'ZMCP_IMPL' ).");
-    const clearIdx = body.indexOf("CLEAR: ls_impl-filters, ls_impl-filter_values, ls_impl-filter_root, ls_impl-filter_tree.");
-    const addIdx = body.indexOf("lo_impl->add_implementation( im_implementation = ls_impl ).");
-    expect(getIdx).toBeGreaterThan(-1);
-    expect(deleteIdx).toBeGreaterThan(getIdx);
-    expect(clearIdx).toBeGreaterThan(deleteIdx);
-    expect(addIdx).toBeGreaterThan(clearIdx);
+    expect(err.code).toBe("CHECK_FAILED");
   });
 
   it("activateSpotAndImplementation posts both object references in one call, matching fixture 491's exact shape — regression guard for the fixture-1119 400", async () => {
@@ -1423,12 +1331,8 @@ describe("exerciseBadi", () => {
 // ---------------------------------------------------------------------------
 
 describe("addFilterDefinition", () => {
-  it("creates the marker interface's spot-side sibling flow and reports FILTER-DEF-ADDED", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addFilterDef),
-      sharedRoute(classrunOutput(["FILTER-DEF-ADDED"])),
-    );
-    const { conn } = await connected(route);
+  it("dispatches add_filter_def through the fluid enh body and reports FILTER-DEF-ADDED", async () => {
+    const { conn } = await connected(combine(...enhFluidRoutes("add_filter_def", { added: true })));
     const { transcript } = await addFilterDefinition(conn, allowingGate(), {
       spotName: "ZMCP_SPOT",
       badiName: "ZMCP_BADI",
@@ -1438,6 +1342,43 @@ describe("addFilterDefinition", () => {
       affects: AFFECTS,
     });
     expect(transcript.tags).toEqual(["FILTER-DEF-ADDED"]);
+  });
+
+  it("dispatches add_filter_def with the exact args, including corr_nr", async () => {
+    const args = {
+      spot_name: "ZMCP_SPOT",
+      badi_name: "ZMCP_BADI",
+      filter_name: "FLT",
+      filter_type: "C",
+      filter_text: "A filter",
+      package_name: ENH_CREATE_PACKAGE,
+      corr_nr: "",
+    };
+    const { conn, inner } = await connected(combine(...enhFluidRoutes("add_filter_def", { added: true })));
+    await addFilterDefinition(conn, allowingGate(), {
+      spotName: "ZMCP_SPOT",
+      badiName: "ZMCP_BADI",
+      filterName: "FLT",
+      filterType: "C",
+      filterText: "A filter",
+      affects: AFFECTS,
+    });
+    expect(createdInvoker(inner, expectedInvokerName("add_filter_def", args))).toBe(true);
+  });
+
+  it("throws CHECK_FAILED when the fluid result's added flag is false", async () => {
+    const { conn } = await connected(combine(...enhFluidRoutes("add_filter_def", { added: false })));
+    const err = await catchErr(
+      addFilterDefinition(conn, allowingGate(), {
+        spotName: "ZMCP_SPOT",
+        badiName: "ZMCP_BADI",
+        filterName: "FLT",
+        filterType: "C",
+        filterText: "A filter",
+        affects: AFFECTS,
+      }),
+    );
+    expect(err.code).toBe("CHECK_FAILED");
   });
 
   // Same defect class as createBadiImplementation's L17/ZTM_HW011B_IMPL
@@ -1452,8 +1393,7 @@ describe("addFilterDefinition", () => {
         if (o.url.includes("/sap/bc/adt/activation")) activationCalls.push(o);
         return undefined;
       },
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addFilterDef),
-      sharedRoute(classrunOutput(["FILTER-DEF-ADDED"])),
+      ...enhFluidRoutes("add_filter_def", { added: true }),
     );
     const { conn } = await connected(route);
     const result = await addFilterDefinition(conn, allowingGate(), {
@@ -1468,9 +1408,10 @@ describe("addFilterDefinition", () => {
     expect(result.activation).toBeDefined();
     expect(result.activation.activated).toBe(true);
     expect(result.activation.errors).toBe(0);
-    // Bridge-class activation (1) + the new explicit post-write activation of
-    // the spot itself (1) = 2. Before the fix this was 1.
-    expect(activationCalls.length).toBe(2);
+    // The fluid deploy path's own three activations (FLUID_RUNTIME_CLASS,
+    // ZCL_ZMCP_FLUID_ENH, invoker) + the explicit post-write activation of
+    // the spot itself (1) = 4. Before the fix this was 1.
+    expect(activationCalls.length).toBe(4);
     const spotActivation = activationCalls.find((c) => String(c.body).toLowerCase().includes("zmcp_spot"));
     expect(spotActivation).toBeTruthy();
   });
@@ -1495,8 +1436,7 @@ describe("addFilterDefinition", () => {
         if (o.url.includes("/sap/bc/adt/activation")) activationCalls.push(o);
         return undefined;
       },
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addFilterDef),
-      sharedRoute(classrunOutput(["FILTER-DEF-ADDED"])),
+      ...enhFluidRoutes("add_filter_def", { added: true }),
     );
     const { conn } = await connected(route);
     await addFilterDefinition(conn, allowingGate(), {
@@ -1532,8 +1472,7 @@ describe("addFilterDefinition", () => {
         }
         return undefined;
       },
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addFilterDef),
-      sharedRoute(classrunOutput(["FILTER-DEF-ADDED"])),
+      ...enhFluidRoutes("add_filter_def", { added: true }),
     );
     const { conn } = await connected(route);
     const result = await addFilterDefinition(conn, allowingGate(), {
@@ -1549,148 +1488,9 @@ describe("addFilterDefinition", () => {
     expect(result.activation.activated).toBe(false);
     expect(result.activation.errors).toBe(1);
   });
-
-  // Regression for the EXPORTING keyword bugs — see the
-  // matching comment on addBadiDefinition's regression test above.
-  it("acquires the spot via a functional call assigning the RETURNING value, not IMPORTING", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addFilterDef),
-      sharedRoute(classrunOutput(["FILTER-DEF-ADDED"])),
-    );
-    const { conn, inner } = await connected(route);
-    await addFilterDefinition(conn, allowingGate(), {
-      spotName: "ZMCP_SPOT",
-      badiName: "ZMCP_BADI",
-      filterName: "FLT",
-      filterType: "C",
-      filterText: "A filter",
-      affects: AFFECTS,
-    });
-    const classPut = inner.calls.find(
-      (c) =>
-        c.url === `${CLASS_COLLECTION}/${BRIDGE_CLASS.addFilterDef.toLowerCase()}/source/main` &&
-        (c.method ?? "").toUpperCase() === "PUT",
-    );
-    expect(classPut).toBeTruthy();
-    expect(String(classPut?.body)).toContain(
-      "lo_spot = cl_enh_factory=>get_enhancement_spot( spot_name = 'ZMCP_SPOT' lock = 'X' run_dark = abap_true ).",
-    );
-    expect(String(classPut?.body)).not.toContain("IMPORTING spot");
-  });
 });
 
-// ---------------------------------------------------------------------------
-// Regression — writeActivateRunBridge gates "execute"
-// separately from "write"/"activate", for every function it backs
-// ---------------------------------------------------------------------------
-
-describe("execute is gated on its own, after write+activate succeed", () => {
-  it("createEnhancementSpot: write and activate reach the wire, then execute is refused before classrun", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createSpot),
-      sharedRoute(classrunOutput(["SPOT-OBJECT-CREATED"])),
-    );
-    const { conn, inner } = await connected(route);
-    const err = await catchErr(
-      createEnhancementSpot(conn, executeDenyingGate(), { spotName: "ZMCP_SPOT", description: "A spot", affects: AFFECTS }),
-    );
-    expect(err.code).toBe("SAFETY_DENIED");
-    const methods = inner.calls.map((c) => (c.method ?? "GET").toUpperCase());
-    expect(methods).toContain("PUT");
-    expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(false);
-  });
-
-  it("addBadiDefinition: write and activate reach the wire, then execute is refused before classrun", async () => {
-    const route = combine(
-      objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"),
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addBadiDef),
-      sharedRoute(classrunOutput(["BADI-DEF-ADDED"])),
-    );
-    const { conn, inner } = await connected(route);
-    const err = await catchErr(
-      addBadiDefinition(conn, executeDenyingGate(), {
-        spotName: "ZMCP_SPOT",
-        badiName: "ZMCP_BADI",
-        interfaceName: "ZIF_MCP_BADI",
-        singleUse: true,
-        shortText: "Test BAdI",
-        affects: AFFECTS,
-      }),
-    );
-    expect(err.code).toBe("SAFETY_DENIED");
-    const methods = inner.calls.map((c) => (c.method ?? "GET").toUpperCase());
-    expect(methods).toContain("PUT");
-    expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(false);
-  });
-
-  it("addFilterDefinition: write and activate reach the wire, then execute is refused before classrun", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.addFilterDef),
-      sharedRoute(classrunOutput(["FILTER-DEF-ADDED"])),
-    );
-    const { conn, inner } = await connected(route);
-    const err = await catchErr(
-      addFilterDefinition(conn, executeDenyingGate(), {
-        spotName: "ZMCP_SPOT",
-        badiName: "ZMCP_BADI",
-        filterName: "FLT",
-        filterType: "C",
-        filterText: "A filter",
-        affects: AFFECTS,
-      }),
-    );
-    expect(err.code).toBe("SAFETY_DENIED");
-    const methods = inner.calls.map((c) => (c.method ?? "GET").toUpperCase());
-    expect(methods).toContain("PUT");
-    expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(false);
-  });
-
-  it("createBadiImplementation: write and activate reach the wire, then execute is refused before classrun", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.createImpl),
-      sharedRoute(classrunOutput(["ENHO-OBJECT-CREATED", "IMPL-ADDED"])),
-    );
-    const { conn, inner } = await connected(route);
-    const err = await catchErr(
-      createBadiImplementation(conn, executeDenyingGate(), {
-        enhName: "ZMCP_ENH_BADI",
-        spotName: "ZMCP_SPOT",
-        badiName: "ZMCP_BADI",
-        implName: "ZMCP_IMPL",
-        implClass: "ZCL_MCP_IMPL",
-        description: "Test implementation",
-        active: true,
-        affects: AFFECTS,
-      }),
-    );
-    expect(err.code).toBe("SAFETY_DENIED");
-    const methods = inner.calls.map((c) => (c.method ?? "GET").toUpperCase());
-    expect(methods).toContain("PUT");
-    expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(false);
-  });
-
-  it("setFilterValues: write and activate reach the wire, then execute is refused before classrun", async () => {
-    const route = combine(
-      objectHappyPath(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues),
-      sharedRoute(classrunOutput(["IMPL-REPLACED"])),
-    );
-    const { conn, inner } = await connected(route);
-    const err = await catchErr(
-      setFilterValues(conn, executeDenyingGate(), {
-        enhName: "ZMCP_ENH_BADI",
-        spotName: "ZMCP_SPOT",
-        implName: "ZMCP_IMPL",
-        filterName: "FLT",
-        filterType: "C",
-        compare: "=",
-        value: "ALPHA",
-        affects: AFFECTS,
-        onJointActivation: noJournalHook,
-      }),
-    );
-    expect(err.code).toBe("SAFETY_DENIED");
-    const methods = inner.calls.map((c) => (c.method ?? "GET").toUpperCase());
-    expect(methods).toContain("PUT");
-    expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(false);
-  });
-});
+// The "execute is gated on its own, after write+activate succeed" describe
+// block that lived here was deleted along with `ExecuteDenyingGate` above —
+// see that deletion's comment for why the behavior it proved no longer
+// exists for these five operations under the fluid dispatch() reroute.

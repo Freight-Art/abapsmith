@@ -3,32 +3,41 @@
  *
  * ADT REST `POST` has no working route for enhancement spots (`ENHS/XS`),
  * BAdI definitions, or implementations (`ENHO/XH`) — only source-code
- * plug-ins (`ENHO/XHH`). The only route that works is server-side ABAP
- * driving `CL_ENH_FACTORY`/`CL_ENH_TOOL_BADI_DEF`/`CL_ENH_TOOL_BADI_IMPL`
- * over the same `IF_OO_ADT_CLASSRUN` bridge pattern as `./run.ts` and
- * `./bopf-runtime.ts`. Live evidence: the git history.
+ * plug-ins (`ENHO/XHH`). Five of the six operations that once drove this
+ * server-side (create-spot, add-badi-def, add-filter-def, create-impl,
+ * set-filter-values) now dispatch through the static fluid body
+ * `ZCL_ZMCP_FLUID_ENH` instead (see `./enhancement-bridge.ts`'s module doc
+ * comment) — their ABAP-source generators (`createSpotFragment`,
+ * `addBadiDefFragment`, `addFilterDefFragment`, `createImplFragment`,
+ * `setFilterValuesFragment`) are gone, but the five `*Params` interfaces
+ * (`CreateSpotParams`, `AddBadiDefParams`, `AddFilterDefParams`,
+ * `CreateImplParams`, `SetFilterValuesParams`) are kept — `enhancement-bridge.ts`'s
+ * public params types still `extend` them. Only `exerciseFragment` remains a
+ * live generator: {@link exerciseFragment} still drives
+ * `CL_ENH_TOOL_BADI_IMPL` server-side, over the same `IF_OO_ADT_CLASSRUN`
+ * bridge pattern as `./run.ts` and `./bopf-runtime.ts`, because it needs a
+ * compile-time `DATA lo_badi TYPE REF TO <badi_name>` built from a runtime
+ * string (see `./fluid/builtin/enh.ts`'s doc comment for the full reason it
+ * cannot move to the fluid model). Live evidence: the git history.
  *
- * This module is a CLOSED set of six named templates — {@link createSpotFragment},
- * {@link addBadiDefFragment}, {@link addFilterDefFragment}, {@link createImplFragment},
- * {@link setFilterValuesFragment}, {@link exerciseFragment} — each taking a
- * TYPED parameter object, never a free-form ABAP string or a name-keyed
- * lookup. `./enhancement-bridge.ts` calls these six directly by TS
- * identifier — every substituted identifier is validated first
+ * `./enhancement-bridge.ts` (and, for `exerciseFragment`, the fluid dispatch
+ * boundary) validates every substituted identifier first
  * ({@link assertEnhIdentifier}, wrapping `../safety.ts`'s
  * `isValidAbapIdentifier`); free text goes through {@link assertAbapText}
  * then {@link abapLiteral}.
  *
- * Hazard invariants baked into the generated code (archive has the incidents
- * behind each):
- *  - {@link addBadiDefFragment} hardcodes `context_mode = 'N'` — omitting it
+ * Hazard invariants that used to be baked into the now-deleted generated code
+ * (archive has the incidents behind each; the ABAP-side static fluid body
+ * `ZCL_ZMCP_FLUID_ENH` owns them now for the five rerouted operations):
+ *  - `context_mode = 'N'` must be hardcoded for add-badi-def — omitting it
  *    500s on activation ("Definition of the referenced BAdI is inconsistent").
  *  - {@link markerInterfaceSource} hardcodes `INTERFACES if_badi_interface.`
  *    first — without it, activation returns HTTP 200 with a failing
  *    checklist, which `./enhancement-bridge.ts` treats as an error via
  *    `assertNoErrors`.
- *  - {@link setFilterValuesFragment} only ever writes `filter_values` +
- *    `filter_root`, never the derived `filters` field (writing it directly
- *    round-trips to nothing on reload).
+ *  - set-filter-values only ever writes `filter_values` + `filter_root`,
+ *    never the derived `filters` field (writing it directly round-trips to
+ *    nothing on reload).
  *  - Spot + implementation must be reactivated together in one
  *    `POST /sap/bc/adt/activation` call — enforced in
  *    `./enhancement-bridge.ts`'s `activateSpotAndImplementation`.
@@ -133,62 +142,11 @@ export function abapLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-/** `abap_true`/`abap_false` for a validated boolean — never a string the caller controls. */
-function abapBool(value: boolean): string {
-  return value ? "abap_true" : "abap_false";
-}
-
-// Only operators with live evidence; SAP's BADI_FILTER_COMPARE domain likely
-// has more (BT, CP, NP…) — unlisted ones are refused, not guessed.
-const FILTER_COMPARE_OPERATORS = new Set(["=", "<>", "<", "<=", ">", ">="]);
-
-// abap_run's ranges.option (../tools/run.ts) uses SELECT-OPTIONS two-letter
-// codes (EQ/NE/LT/LE/GT/GE) for the same six relations; this maps both
-// spellings to the symbolic form the generated ABAP needs. CP/NP/BT/NB are
-// deliberately excluded (no live evidence).
-const FILTER_COMPARE_ALIASES: Readonly<Record<string, string>> = {
-  EQ: "=",
-  NE: "<>",
-  LT: "<",
-  LE: "<=",
-  GT: ">",
-  GE: ">=",
-};
-
-function assertFilterCompare(value: string): string {
-  const alias = typeof value === "string" ? FILTER_COMPARE_ALIASES[value] : undefined;
-  const normalized = alias ?? value;
-  if (!FILTER_COMPARE_OPERATORS.has(normalized)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `compare ${JSON.stringify(value)} is not one of the operators this codebase has live evidence ` +
-        `for: ${[...FILTER_COMPARE_OPERATORS].join(", ")} (or their abap_run-style two-letter spellings ` +
-        `${Object.keys(FILTER_COMPARE_ALIASES).join(", ")}).`,
-      { value, allowed: [...FILTER_COMPARE_OPERATORS, ...Object.keys(FILTER_COMPARE_ALIASES)] },
-      "Only '=' has been captured live. Other BADI_FILTER_COMPARE domain " +
-        "values (e.g. CP, NP, BT, NB) may exist on the server but are not verified here — this " +
-        "template refuses rather than guess their exact codes.",
-    );
-  }
-  return normalized;
-}
-
-// Grammar check only (a bare uppercase letter can't inject anything) — only
-// 'C' is evidenced live.
-function assertFilterTypeCode(value: string, what: string): string {
-  if (typeof value !== "string" || !/^[A-Z]$/.test(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `${what} ${JSON.stringify(value)} must be a single uppercase letter (e.g. "C" — the only value ` +
-        "captured live).",
-      { what, value },
-    );
-  }
-  return value;
-}
-
 // ---------------------------------------------------------------------------
-// Template 1/6 — create-spot
+// create-spot — CreateSpotParams; the generator (createSpotFragment) is dead
+// since createEnhancementSpot now dispatches through the static fluid body
+// ZCL_ZMCP_FLUID_ENH — kept because CreateEnhancementSpotParams
+// (enhancement-bridge.ts) still extends it.
 // ---------------------------------------------------------------------------
 
 export interface CreateSpotParams {
@@ -203,35 +161,11 @@ export interface CreateSpotParams {
   description: string;
 }
 
-/**
- * `CL_ENH_FACTORY=>CREATE_ENHANCEMENT_SPOT(...)` — verified live
- * (`"SPOT-OBJECT-CREATED"`). `dark = abap_true` matches `run.ts`/
- * `bopf-runtime.ts`'s own bridges. Produces `lo_spot`/`lo_def`; save/
- * activate/unlock happen in `./enhancement-bridge.ts`'s shared epilogue.
- *
- * CAUTION: the `set_shorttext` call below is weaker evidence than
- * {@link createImplFragment}'s equivalent — no fixture has captured a live
- * spot-creation run exercising it. See archive. Needs a live run to confirm.
- */
-export function createSpotFragment(p: CreateSpotParams): string[] {
-  const spotName = assertEnhIdentifier(p.spotName, "spotName");
-  const description = assertAbapText(p.description, "description", 60);
-  return [
-    "cl_enh_factory=>create_enhancement_spot(",
-    `  EXPORTING spot_name = ${abapLiteral(spotName)}`,
-    "            tooltype  = cl_enh_tool_badi_def=>tooltype",
-    "            dark      = abap_true",
-    "  IMPORTING spot      = lo_spot",
-    "  CHANGING  trkorr    = lv_trkorr",
-    "            devclass  = lv_pkg ).",
-    "out->write( 'SPOT-OBJECT-CREATED' ).",
-    "lo_def ?= lo_spot.",
-    `lo_spot->if_enh_object_docu~set_shorttext( ${abapLiteral(description)} ).`,
-  ];
-}
-
 // ---------------------------------------------------------------------------
-// Template 2/6 — add-badi-def
+// add-badi-def — AddBadiDefParams; the generator (addBadiDefFragment) is dead
+// since addBadiDefinition now dispatches through the static fluid body
+// ZCL_ZMCP_FLUID_ENH — kept because AddBadiDefinitionParams
+// (enhancement-bridge.ts) still extends it.
 // ---------------------------------------------------------------------------
 
 export interface AddBadiDefParams {
@@ -245,31 +179,11 @@ export interface AddBadiDefParams {
   shortText: string;
 }
 
-/**
- * `LO_DEF->ADD_BADI_DEF(...)` — verified live (`"BADI-DEF-ADDED"`).
- * `context_mode = 'N'` is hardcoded — required to avoid a 500 on activation,
- * see module header. Assumes `lo_spot`/`lo_def` already hold a locked spot;
- * `./enhancement-bridge.ts` owns that choreography.
- */
-export function addBadiDefFragment(p: AddBadiDefParams): string[] {
-  const badiName = assertEnhIdentifier(p.badiName, "badiName");
-  const interfaceName = assertEnhIdentifier(p.interfaceName, "interfaceName");
-  const shortText = assertAbapText(p.shortText, "shortText", 60);
-  return [
-    "CLEAR ls_badi.",
-    `ls_badi-badi_name      = ${abapLiteral(badiName)}.`,
-    `ls_badi-interface_name = ${abapLiteral(interfaceName)}.`,
-    `ls_badi-single_use     = ${abapBool(p.singleUse)}.`,
-    `ls_badi-badi_shorttext = ${abapLiteral(shortText)}.`,
-    // Hardcoded — omitting this 500s on activation, confirmed live (see module header).
-    "ls_badi-context_mode = 'N'.",
-    "lo_def->add_badi_def( im_badi_def = ls_badi ).",
-    "out->write( 'BADI-DEF-ADDED' ).",
-  ];
-}
-
 // ---------------------------------------------------------------------------
-// Template 3/6 — add-filter-def
+// add-filter-def — AddFilterDefParams; the generator (addFilterDefFragment) is
+// dead since addFilterDefinition now dispatches through the static fluid body
+// ZCL_ZMCP_FLUID_ENH — kept because AddFilterDefinitionParams
+// (enhancement-bridge.ts) still extends it.
 // ---------------------------------------------------------------------------
 
 export interface AddFilterDefParams {
@@ -279,44 +193,19 @@ export interface AddFilterDefParams {
   filterName: string;
   /**
    * Filter value's ABAP type category, e.g. `"C"` — `ENH_BADI_FILTER-FILTER_TYPE`
-   * (`BADI_FILTER_TYPE`). Only a bare uppercase letter is accepted (see
-   * `assertFilterTypeCode`'s doc comment — the full domain is unverified).
+   * (`BADI_FILTER_TYPE`). Only a bare uppercase letter is accepted — the full
+   * domain is unverified.
    */
   filterType: string;
   /** Optional short description — `ENH_BADI_FILTER-FILTERTEXT` (`ENHSHORTTEXT255`). */
   filterText?: string;
 }
 
-/**
- * Declares that a BAdI definition SUPPORTS filtering on a named attribute —
- * prerequisite to {@link setFilterValuesFragment} (which sets what an
- * IMPLEMENTATION filters *to*). Field names verified against a live DDIC
- * catalog query on `ENH_BADI_FILTER`.
- *
- * CAUTION: unlike the other five templates, no live end-to-end
- * create-then-activate round trip exercises this table — the field names are
- * confirmed, the append pattern is inferred by analogy. See archive.
- */
-export function addFilterDefFragment(p: AddFilterDefParams): string[] {
-  const badiName = assertEnhIdentifier(p.badiName, "badiName");
-  const filterName = assertEnhIdentifier(p.filterName, "filterName", { maxLength: 30 });
-  const filterType = assertFilterTypeCode(p.filterType, "filterType");
-  const filterText = p.filterText === undefined ? "" : assertAbapText(p.filterText, "filterText", 255);
-  return [
-    `ls_badi = lo_def->get_badi_def( badi_name = ${abapLiteral(badiName)} ).`,
-    `lo_def->delete_badi_def( badi_name = ${abapLiteral(badiName)} ).`,
-    "CLEAR ls_filter.",
-    `ls_filter-filter_name = ${abapLiteral(filterName)}.`,
-    `ls_filter-filter_type = ${abapLiteral(filterType)}.`,
-    `ls_filter-filtertext  = ${abapLiteral(filterText)}.`,
-    "APPEND ls_filter TO ls_badi-filters.",
-    "lo_def->add_badi_def( im_badi_def = ls_badi ).",
-    "out->write( 'FILTER-DEF-ADDED' ).",
-  ];
-}
-
 // ---------------------------------------------------------------------------
-// Template 4/6 — create-impl
+// create-impl — CreateImplParams; the generator (createImplFragment) is dead
+// since createBadiImplementation now dispatches through the static fluid body
+// ZCL_ZMCP_FLUID_ENH — kept because CreateBadiImplementationParams
+// (enhancement-bridge.ts) still extends it.
 // ---------------------------------------------------------------------------
 
 export interface CreateImplParams {
@@ -347,50 +236,11 @@ export interface CreateImplParams {
   description: string;
 }
 
-/**
- * `CL_ENH_FACTORY=>CREATE_ENHANCEMENT(...)` then `ADD_IMPLEMENTATION(...)` —
- * verified live (`"ENHO-OBJECT-CREATED"` / `"IMPL-ADDED"`). `impl_class`
- * must already exist and implement the marker interface's contract — out of
- * scope here (create it with `abap_write` like any other class).
- *
- * CAUTION: `set_shorttext` placement follows abapGit's
- * `zcl_abapgit_object_enho_badi` precedent but is not independently
- * live-verified by this codebase. See archive. Needs a live run to confirm.
- */
-export function createImplFragment(p: CreateImplParams): string[] {
-  const enhName = assertEnhIdentifier(p.enhName, "enhName");
-  const spotName = assertEnhIdentifier(p.spotName, "spotName");
-  const badiName = assertEnhIdentifier(p.badiName, "badiName");
-  const implName = assertEnhIdentifier(p.implName, "implName");
-  const implClass = assertEnhIdentifier(p.implClass, "implClass");
-  const description = assertAbapText(p.description, "description", 60);
-  return [
-    "cl_enh_factory=>create_enhancement(",
-    `  EXPORTING enhname     = ${abapLiteral(enhName)}`,
-    "            enhtype     = 'IMPL'",
-    "            enhtooltype = cl_enh_tool_badi_impl=>tooltype",
-    "            dark        = abap_true",
-    "  IMPORTING enhancement = lo_enh",
-    "  CHANGING  trkorr      = lv_trkorr",
-    "            devclass    = lv_pkg ).",
-    "out->write( 'ENHO-OBJECT-CREATED' ).",
-    "lo_impl ?= lo_enh.",
-    `lo_impl->set_spot_name( ${abapLiteral(spotName)} ).`,
-    // abapGit-precedent placement, not independently live-verified — see doc comment above.
-    `lo_impl->if_enh_object_docu~set_shorttext( ${abapLiteral(description)} ).`,
-    "CLEAR ls_impl.",
-    `ls_impl-spot_name  = ${abapLiteral(spotName)}.`,
-    `ls_impl-badi_name  = ${abapLiteral(badiName)}.`,
-    `ls_impl-impl_name  = ${abapLiteral(implName)}.`,
-    `ls_impl-impl_class = ${abapLiteral(implClass)}.`,
-    `ls_impl-active     = ${abapBool(p.active)}.`,
-    "lo_impl->add_implementation( im_implementation = ls_impl ).",
-    "out->write( 'IMPL-ADDED' ).",
-  ];
-}
-
 // ---------------------------------------------------------------------------
-// Template 5/6 — set-filter-values
+// set-filter-values — SetFilterValuesParams; the generator
+// (setFilterValuesFragment) is dead since setFilterValues now dispatches
+// through the static fluid body ZCL_ZMCP_FLUID_ENH — kept because
+// SetFilterValuesRequestParams (enhancement-bridge.ts) still extends it.
 // ---------------------------------------------------------------------------
 
 export interface SetFilterValuesParams {
@@ -400,55 +250,14 @@ export interface SetFilterValuesParams {
   filterName: string;
   /** Type category — same domain as {@link AddFilterDefParams.filterType}. */
   filterType: string;
-  /** Comparison operator — see `FILTER_COMPARE_OPERATORS`. */
+  /** Comparison operator, e.g. `"EQ"`. */
   compare: string;
   /** The literal value, as text. Embedded via `filter_char_value1` (fixture 469's field). */
   value: string;
 }
 
-/**
- * Writes ONLY `filter_values` + `filter_root` — never the derived `filters`
- * field (writing it directly round-trips to nothing; `filters` is
- * recomputed server-side by `CALCULATE_FILTER_CONDITION`). Verified live
- * (`"VALUE id=1 name=[FLT] c1=[ALPHA]"`).
- *
- * The `delete_implementation` call before `add_implementation` is REQUIRED:
- * `IF_ENH_TOOL_BADI_IMPL` has no in-place "modify filter values" op.
- * Skipping it fails live with "Error while creating the enhancement
- * implementation" — see archive.
- */
-export function setFilterValuesFragment(p: SetFilterValuesParams): string[] {
-  const implName = assertEnhIdentifier(p.implName, "implName");
-  const filterName = assertEnhIdentifier(p.filterName, "filterName", { maxLength: 30 });
-  const filterType = assertFilterTypeCode(p.filterType, "filterType");
-  const compare = assertFilterCompare(p.compare);
-  const value = assertAbapText(p.value, "value", 255);
-  return [
-    `ls_impl = lo_impl->get_implementation( impl_name = ${abapLiteral(implName)} ).`,
-    // Required — no in-place "modify" op; skipping this fails live. See doc comment above.
-    `lo_impl->delete_implementation( impl_name = ${abapLiteral(implName)} ).`,
-    // filters (derived field) is never assigned anywhere in this file.
-    "CLEAR: ls_impl-filters, ls_impl-filter_values, ls_impl-filter_root, ls_impl-filter_tree.",
-    "CLEAR ls_val.",
-    "ls_val-id                 = 1.",
-    `ls_val-filter_name        = ${abapLiteral(filterName)}.`,
-    `ls_val-filter_type        = ${abapLiteral(filterType)}.`,
-    `ls_val-compare            = ${abapLiteral(compare)}.`,
-    `ls_val-filter_char_value1 = ${abapLiteral(value)}.`,
-    "APPEND ls_val TO ls_impl-filter_values.",
-    "CLEAR ls_id.",
-    "ls_id-id = 1.",
-    "CLEAR ls_root.",
-    "ls_root-root = 1.",
-    "APPEND ls_id TO ls_root-filters.",
-    "APPEND ls_root TO ls_impl-filter_root.",
-    "lo_impl->add_implementation( im_implementation = ls_impl ).",
-    "out->write( 'IMPL-REPLACED' ).",
-  ];
-}
-
 // ---------------------------------------------------------------------------
-// Template 6/6 — exercise
+// exercise — the only remaining live ABAP-source generator (exerciseFragment)
 // ---------------------------------------------------------------------------
 
 /**
@@ -513,9 +322,11 @@ export interface ExerciseParams {
  * Verified live: a filtered-out call correctly raises rather than silently
  * matching, once filter-value and filter-scope reactivation are honoured.
  *
- * This is a CLASSRUN INVOCATION like the other five templates —
- * `./enhancement-bridge.ts` gates it through `SafetyGate.assertIntent(...,
- * { op: "execute" })`, never treated as "just reading".
+ * This is a CLASSRUN INVOCATION, the only one left in this module — the other
+ * five operations now dispatch through the static fluid body
+ * `ZCL_ZMCP_FLUID_ENH` instead (see the module doc comment). `./enhancement-bridge.ts`
+ * gates it through `SafetyGate.assertIntent(..., { op: "execute" })`, never
+ * treated as "just reading".
  */
 export function exerciseFragment(p: ExerciseParams): string[] {
   const badiName = assertEnhIdentifier(p.badiName, "badiName");

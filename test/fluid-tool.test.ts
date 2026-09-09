@@ -14,7 +14,7 @@
  * `test/data-preview-gates.test.ts` checks `abap_data_preview`: a real
  * `createServer` + an in-memory MCP client's `tools/list`.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -900,4 +900,148 @@ describe("abap_fluid — op: repair with `tool`, invoker probe degradation", () 
       expect(String(payload.message)).toContain("boom: ensure write lease rejected");
     },
   );
+});
+
+// ============================================================================
+// 12. repair — one write lease PER TOOL, and each leased connection retired
+// before its lease is released (src/tools/fluid.ts, runRepair)
+// ============================================================================
+
+/**
+ * What this proves: `runRepair` takes one fresh `abap_fluid.repair` write lease
+ * per target tool — not one lease shared across the batch — and calls
+ * `conn.markDead()` on each leased connection INSIDE that tool's own lease,
+ * before it is released.
+ *
+ * The real failure it guards against is a repair batch that wedges partway
+ * through, leaving some tools repaired and the rest not. Each link of that was
+ * read in this tree before the test was written:
+ *
+ *  - `ensureOneObject`'s "legacy" and "broken" branches (`src/adt/fluid/ensure.ts:379`
+ *    and `:421`) repair by DELETE-then-recreate, and pass `reviveOnDeadSession
+ *    = true` into `deployAndVerify` (`ensure.ts:403`, `:447`) precisely because
+ *    an ADT delete tears the ABAP session down server-side.
+ *  - That revive (`writeAndActivateOnce`, `ensure.ts:253`-`:267`) swallows the
+ *    `SESSION_DEAD` and calls `conn.connect()` on the SAME connection object.
+ *    So the pool never learns anything died: `AdtSessionPool.isSlotDead`
+ *    (`src/adt/pool.ts:661`) is a pure read of `conn.isDead`, which the
+ *    successful `connect()` has already cleared (`connection.ts:875`, backed by
+ *    a `death` record only `connectUnderLock()` clears).
+ *  - Every one of those revives is charged against the per-INSTANCE, never-reset
+ *    `logonEndpointRequestCount` (`src/adt/connection.ts:441`, charged at `:801`,
+ *    refused at `:779`) whose ceiling `LOGON_ENDPOINT_LIFETIME_CEILING` is 5
+ *    (`connection.ts:219`). A connection healed that way looks perfectly alive
+ *    at release time, so `AdtSessionPool.tryTake` (`pool.ts:794`, warmest-first)
+ *    hands the very same object to the next tool's lease with its spent budget
+ *    intact — and a long enough batch dies with "Refused logon-endpoint request
+ *    #6" somewhere in the middle. Splitting the loop into one `withWrite` per
+ *    tool does NOT fix that on its own; only the explicit `markDead()` does,
+ *    because `releaseSlot` (`pool.ts:1123`) drops any slot `isSlotDead` reports
+ *    on release, so the next tool starts on a genuinely fresh connection.
+ *
+ * Three tools, not two, so the assertion is "one lease per tool" rather than
+ * "two by coincidence".
+ *
+ * What this does NOT prove:
+ *  - That any repair here took the delete path at all. The fixture's objects are
+ *    absent, so every tool goes down the plain "absent" deploy branch — no
+ *    delete, no revive, nothing charged. That is deliberate: whether a given
+ *    tool needs the delete path is a per-system fact abapsmith cannot know
+ *    before it starts, so the lease-and-retire discipline has to hold
+ *    unconditionally, and this test asserts it unconditionally.
+ *  - That the pool actually honours `markDead` by dropping the slot. That is
+ *    `AdtSessionPool`'s own contract and belongs to its tests; here the fake
+ *    pool stands in for it and the assertion stops at "`runRepair` emitted the
+ *    signal, once, inside the lease".
+ */
+describe("abap_fluid — op: repair lease discipline", () => {
+  it("takes one write lease per tool and marks each leased connection dead before releasing it", async () => {
+    const targets = [
+      makeTool({ id: "r-one", className: "ZCL_ZMCP_R1" }),
+      makeTool({ id: "r-two", className: "ZCL_ZMCP_R2" }),
+      makeTool({ id: "r-three", className: "ZCL_ZMCP_R3" }),
+    ];
+    // One shared fake-ADT route (so every connection sees one object store) but a
+    // SEPARATE `AbapConnection` per lease — which is exactly what the real pool
+    // hands out once the previous slot has been dropped as dead on release. A
+    // single shared connection could not model this at all: `markDead()` on the
+    // first tool would make every later request throw `SESSION_DEAD`.
+    const route = dynamicFluidRoute({ transcript: () => "" });
+    const ensureConns: AbapConnection[] = [];
+    for (const _t of targets) ensureConns.push((await connected(route)).conn);
+    // `op:"repair"` with no `tool` also runs the retired-bridge reap, which takes
+    // its own `abap_fluid.repair.probe` lease. That one must NOT be retired, so it
+    // gets a connection of its own and is asserted still alive at the end.
+    const reapConn = (await connected(route)).conn;
+
+    // Ordering is the point, so lease open/close and markDead go into ONE log.
+    const events: string[] = [];
+    ensureConns.forEach((c, i) => {
+      const realMarkDead = c.markDead.bind(c);
+      vi.spyOn(c, "markDead").mockImplementation((reason: string, generation?: number) => {
+        events.push(`markDead#${i}`);
+        realMarkDead(reason, generation);
+      });
+    });
+
+    const writeOps: string[] = [];
+    let repairLeases = 0;
+    const pool: SessionPool = {
+      withRead: (op: string) => Promise.reject(new Error(`unexpected withRead op: ${op}`)),
+      withWrite: async (op: string, _uri: string | undefined, fn: (c: AbapConnection) => Promise<unknown>) => {
+        writeOps.push(op);
+        if (op === "abap_fluid.repair") {
+          const i = repairLeases++;
+          const conn = ensureConns[i];
+          if (!conn) throw new Error(`runRepair took more abap_fluid.repair leases (${i + 1}) than it has tools`);
+          events.push(`open#${i}`);
+          try {
+            return await fn(conn);
+          } finally {
+            // `isDead` (connection.ts:875) is the public signal `markDead` sets, and
+            // the only one `AdtSessionPool.isSlotDead` reads — recording it HERE,
+            // at release, is what pins "dead before the slot goes back".
+            events.push(`close#${i}:dead=${conn.isDead}`);
+          }
+        }
+        if (op === "abap_fluid.repair.probe") return fn(reapConn);
+        throw new Error(`unexpected withWrite op: ${op}`);
+      },
+      reserveDebug: () => {
+        throw new Error("reserveDebug: not used by abap_fluid repair");
+      },
+    } as unknown as SessionPool;
+
+    const tools = registered({ toolSet: toolSetOf(...targets), pool, ensureConnected: async () => {} });
+
+    const text = okText(await invoke(tools, { op: "repair" }));
+
+    expect(text).toContain("tools_repaired: 3");
+    // One lease per tool. The pre-split shape took exactly one for the batch.
+    expect(writeOps.filter((op) => op === "abap_fluid.repair")).toEqual([
+      "abap_fluid.repair",
+      "abap_fluid.repair",
+      "abap_fluid.repair",
+    ]);
+    // Exactly one markDead per lease, strictly between that lease's open and
+    // close: a batch-wide lease collapses this to a single open/close pair, and a
+    // markDead hoisted out of the loop would land after the last close.
+    expect(events).toEqual([
+      "open#0",
+      "markDead#0",
+      "close#0:dead=true",
+      "open#1",
+      "markDead#1",
+      "close#1:dead=true",
+      "open#2",
+      "markDead#2",
+      "close#2:dead=true",
+    ]);
+    // No connection carries its logon-ceiling budget forward: each is dead by the
+    // time the next tool's lease opens.
+    for (const c of ensureConns) expect(c.isDead).toBe(true);
+    // The reap probe borrows a connection but does not ensure on it, so repair
+    // must not retire it — this is scoped retirement, not "kill everything".
+    expect(reapConn.isDead).toBe(false);
+  });
 });

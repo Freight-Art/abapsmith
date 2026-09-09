@@ -476,12 +476,13 @@ export interface EvaluateOptions {
 
 /**
  * What the gate needs to know about an enhancement BEFORE any ABAP exists.
- * Every field is already held by the calling tool: the bridge route generates
- * a throwaway `$TMP` helper class and POSTs it to `/sap/bc/adt/oo/classrun/…`,
- * so the only object with a URI is that helper, which trivially passes every
- * URI-shaped rule. The enhancement, spot and intercepted SAP object are
- * string arguments inside generated ABAP — judged as an INTENT before
- * generation, or not judged at all.
+ * Every field is already held by the calling tool: the create family runs its
+ * ABAP through the fluid API — the reused `ZCL_ZMCP_FLUID_ENH` body plus a
+ * content-addressed `ZCL_ZMCP_I_<hash8>` invoker, both in
+ * `$ABAPSMITH_FLUID_API` — so the only objects with a URI are those helpers,
+ * which trivially pass every URI-shaped rule. The enhancement, spot and
+ * intercepted SAP object are opaque JSON arguments the body reads at runtime
+ * — judged as an INTENT before generation, or not judged at all.
  */
 export interface EnhancementIntent {
   /** The ENHO/ENHS being created — Q1, "what is being written". */
@@ -2059,18 +2060,20 @@ export class SafetyGate {
    *
    * `evaluate()` is URI-shaped — it judges a resolved object's name, package,
    * type — but ADT REST refuses to create enhancement spots/definitions
-   * directly, so this feature generates a throwaway `IF_OO_ADT_CLASSRUN`
-   * class and POSTs it to `/sap/bc/adt/oo/classrun/…`. The only object with
-   * a URI on that route is a `$TMP` helper that passes every rule trivially;
-   * the real enhancement/spot/target are ABAP-source string arguments no
-   * URI-shaped gate can see. So this gates the INTENT, before generation —
-   * before-execution would be too late, since by then the identifiers are
-   * already concatenated into a blob of ABAP this gate cannot read.
+   * directly, so this feature runs its ABAP through the fluid API: the reused
+   * `ZCL_ZMCP_FLUID_ENH` body plus a content-addressed `ZCL_ZMCP_I_<hash8>`
+   * invoker, both in `$ABAPSMITH_FLUID_API`. The only objects with a URI on
+   * that route are those two helpers, which pass every rule trivially; the
+   * real enhancement/spot/target are opaque JSON arguments no URI-shaped gate
+   * can read. So this gates the INTENT, before generation — before-execution
+   * would be too late, since by then the identifiers are already buried in an
+   * argument blob this gate cannot judge.
    *
    * Narrows one route, does not close the channel: `abap_run`'s classrun
    * path (`src/adt/run.ts`, `src/adt/bopf-runtime.ts`) still generates and
-   * executes arbitrary ABAP via the same ungated `$TMP`-bridge mechanism —
-   * pre-existing, out of scope here, tracked separately.
+   * executes arbitrary ABAP via an ungated per-call bridge deployed to the
+   * same `$ABAPSMITH_FLUID_API` package — pre-existing, out of scope here,
+   * tracked separately.
    *
    * Deny by default: with no `ABAP_ALLOW_ENHANCEMENTS`, `ABAP_ENHANCE_TARGETS`,
    * or `ABAP_ENHANCE_TARGET_PACKAGES`, every intent is refused.

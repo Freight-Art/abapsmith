@@ -1,35 +1,27 @@
 /**
- * Shared fake-ADT plumbing for the fluid `img` tool's three actions
- * (`preview`, `apply`, `create_request`), used by img-write.test.ts and
- * img-edit-tool.test.ts. Two things live here:
+ * Shared fake-ADT plumbing for the fluid `enh` tool's five mutating actions
+ * (`create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`,
+ * `set_filter_values`), used by `test/enhancement-bridge.test.ts` and
+ * `test/enhancement-tools.test.ts`. Modeled directly on
+ * `test/helpers/fluid-img-fake.ts`'s `dynamicImgFluidRoute`/`imgProbeConsole`
+ * pair, with two differences the `enh` manifest's own shape forces:
  *
- * - `imgProbeConsole`: wraps a plain `IMGW>`/`CTSW>`/`ZMCP-DDIC-ERR>`
- *   transcript (the same fixture text `parseImgWriteTranscript`/
- *   `parseCustomizingRequestTranscript` have always consumed) into the fluid
- *   console frame grammar `src/adt/fluid/protocol.ts` expects — one `OUT`
- *   frame per line, bracketed by `BEGIN`/`END`. The name is a holdover from
- *   when only the probe used it; `opts.action` (default `"preview"`) picks
- *   which action's transcript this is, since `dispatch()` rejects a BEGIN
- *   frame whose `action` doesn't match the request it was sent for. Every
- *   one of `imgManifest`'s actions declares an array-of-string output, so
- *   `dispatch()` hands back `res.result` as exactly that array of OUT
- *   payloads, and the `img-write.ts` caller re-joins them with `\n` before
- *   parsing — hence one line per frame, not one frame holding the whole
- *   array.
- *
- * - `dynamicImgFluidRoute`: auto-vivifying class store for the two class
- *   shapes the fluid img probe ever deploys — the fixed body class
- *   (`imgManifest.entry`) and the content-hash invoker `dispatch()` computes
- *   at runtime (`ZCL_ZMCP_I_[0-9A-F]{8}`, src/adt/fluid/invoke.ts). Same
- *   idiom as test/fluid-dispatch.test.ts's `dynamicFluidRoute`, generalized
- *   with `activationError`/`classrunOverride` hooks so the same store can
- *   also stand in for an activation-refusal or below-activation classrun
- *   failure. Returns `undefined` for anything it doesn't recognize (package
- *   existence, login, other bridge classes), so it composes as a fallback
- *   under each test file's own `baseRoute`.
+ * - `enh`'s manifest declares TWO fixed body objects (the shared
+ *   `FLUID_RUNTIME_CLASS`, deployed first, and `ZCL_ZMCP_FLUID_ENH` itself),
+ *   not img's one — see `src/adt/fluid/ensure.ts`'s in-order deploy and
+ *   `test/img-write.test.ts`'s own `runtimeClassRoute` comment for why a
+ *   fake that only recognizes the entry class's own name leaves the runtime
+ *   class's lifecycle unrouted. `isEnhFluidClass` recognizes all three
+ *   shapes (both fixed names, plus the content-hash invoker) so one store
+ *   handles every class the fluid `enh` deploy path ever touches.
+ * - `enh`'s five actions all declare an `object`-typed output (one JSON
+ *   value), not img's array-of-string-lines — so `enhProbeConsole` emits
+ *   exactly ONE `OUT` frame carrying `JSON.stringify(result)`, not one frame
+ *   per line.
  */
 import type { HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
-import { imgManifest, imgSources } from "../../src/adt/fluid/builtin/img.js";
+import { FLUID_RUNTIME_CLASS } from "../../src/adt/fluid/abap/runtime.js";
+import { enhManifest, enhSources } from "../../src/adt/fluid/builtin/enh.js";
 import { manifestVersion } from "../../src/adt/fluid/manifest.js";
 
 const resp = (status: number, body = "", headers: Record<string, unknown> = {}): HttpClientResponse =>
@@ -84,29 +76,32 @@ function nameFromClassUrl(url: string): string | undefined {
   return rest.toUpperCase();
 }
 
-/** The only two class shapes the fluid img probe ever deploys: the fixed body class, or a content-hash invoker (src/adt/fluid/invoke.ts). */
-export function isImgFluidClass(name: string): boolean {
-  return name === imgManifest.entry || /^ZCL_ZMCP_I_[0-9A-F]{8}$/.test(name);
+/**
+ * The three class shapes the fluid `enh` deploy path ever touches: the
+ * shared runtime class, the fixed `enh` body class, or a content-hash
+ * invoker (`src/adt/fluid/invoke.ts`).
+ */
+export function isEnhFluidClass(name: string): boolean {
+  return name === FLUID_RUNTIME_CLASS || name === enhManifest.entry || /^ZCL_ZMCP_I_[0-9A-F]{8}$/.test(name);
 }
 
-export const imgManifestVersion: string = manifestVersion(imgManifest, imgSources);
+export const enhManifestVersion: string = manifestVersion(enhManifest, enhSources);
 
-/** One `OUT` frame per line of `raw`, bracketed by BEGIN (id: "img", action: `opts.action`) and END. */
-export function imgProbeConsole(
-  raw: string,
-  opts: { action?: string; ver?: string; rc?: number; truncated?: boolean } = {},
+/**
+ * One `OUT` frame carrying `JSON.stringify(result)`, bracketed by BEGIN (id:
+ * "enh", action) and END — `enh`'s actions all declare an `object`-typed
+ * output, so `dispatch()` expects exactly one OUT frame, not one per line.
+ */
+export function enhProbeConsole(
+  action: string,
+  result: Record<string, unknown>,
+  opts: { ver?: string; rc?: number; truncated?: boolean } = {},
 ): string {
-  const lines = raw.split("\n").filter((l) => l.length > 0);
   const frame = (name: string, payload: unknown) => `ZMCP-H>${name} ${JSON.stringify(payload)}`;
   const out = [
-    frame("BEGIN", {
-      id: "img",
-      action: opts.action ?? "preview",
-      ver: opts.ver ?? imgManifestVersion,
-      contract: imgManifest.contract,
-    }),
-    ...lines.map((l) => frame("OUT", l)),
-    frame("END", { rc: opts.rc ?? 0, outBytes: raw.length, truncated: opts.truncated ?? false, ms: 1 }),
+    frame("BEGIN", { id: "enh", action, ver: opts.ver ?? enhManifestVersion, contract: enhManifest.contract }),
+    frame("OUT", result),
+    frame("END", { rc: opts.rc ?? 0, outBytes: JSON.stringify(result).length, truncated: opts.truncated ?? false, ms: 1 }),
   ];
   return out.join("\n") + "\n";
 }
@@ -118,19 +113,29 @@ interface ObjState {
   active: boolean;
 }
 
-export interface ImgFluidRouteOptions {
-  /** classrun output for the invoker's execution — normally built with `imgProbeConsole`. */
+export interface EnhFluidRouteOptions {
+  /** classrun output for the invoker's execution — normally built with `enhProbeConsole`. */
   transcript: () => string;
   /** Bridge deploy package name embedded in class-create bodies and classDocXml's packageRef. */
   packageName: string;
-  /** When set, activation of a class satisfying `matches` answers with this XML instead of a bare success — same shape as img-write.test.ts's bridgeActivationRefused/bridgeActivationDuplicateDeclaration. */
+  /** When set, activation of a class satisfying `matches` answers with this XML instead of a bare success. */
   activationError?: { matches: (className: string) => boolean; xml: (className: string) => string };
-  /** When set, classrun for any fluid img class is answered by this instead of `transcript()` — for a below-activation scaffold failure (e.g. classrun itself 500s). */
+  /** When set, classrun for any fluid enh class is answered by this instead of `transcript()`. */
   classrunOverride?: (o: HttpClientOptions) => HttpClientResponse;
 }
 
-export function dynamicImgFluidRoute(
-  opts: ImgFluidRouteOptions,
+/**
+ * Auto-vivifying class store for every class name `isEnhFluidClass`
+ * recognizes — same idiom as `fluid-img-fake.ts`'s `dynamicImgFluidRoute`,
+ * generalized to cover `enh`'s two fixed body objects plus the invoker in
+ * one function instead of needing a second, separately-maintained
+ * runtime-class route composed alongside it. Returns `undefined` for
+ * anything it doesn't recognize (package existence, login, other bridge
+ * classes), so it composes as a fallback under each test file's own base
+ * route.
+ */
+export function dynamicEnhFluidRoute(
+  opts: EnhFluidRouteOptions,
 ): (o: HttpClientOptions) => HttpClientResponse | undefined {
   const store = new Map<string, ObjState>();
   const at = (name: string): ObjState => {
@@ -149,7 +154,7 @@ export function dynamicImgFluidRoute(
     if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") {
       const m = /adtcore:name="([^"]+)"/.exec(o.body ?? "");
       const name = (m?.[1] ?? "").toUpperCase();
-      if (!isImgFluidClass(name)) return undefined;
+      if (!isEnhFluidClass(name)) return undefined;
       const prior = store.get(name);
       store.set(name, { exists: true, packageName: opts.packageName, source: prior?.source, active: false });
       return resp(200, "", OK_TEXT);
@@ -158,7 +163,7 @@ export function dynamicImgFluidRoute(
     if (o.url === "/sap/bc/adt/activation" && method === "POST") {
       const m = /adtcore:name="([^"]+)"/.exec(o.body ?? "");
       const name = (m?.[1] ?? "").toUpperCase();
-      if (!isImgFluidClass(name)) return undefined;
+      if (!isEnhFluidClass(name)) return undefined;
       if (opts.activationError?.matches(name)) return resp(200, opts.activationError.xml(name), OK_XML);
       const st = store.get(name);
       if (st) st.active = true;
@@ -171,7 +176,7 @@ export function dynamicImgFluidRoute(
     }
 
     const name = nameFromClassUrl(o.url);
-    if (name !== undefined && isImgFluidClass(name)) {
+    if (name !== undefined && isEnhFluidClass(name)) {
       const st = at(name);
       const isSrc = o.url.endsWith("/source/main");
       if (!isSrc && method === "GET" && !qs._action) {

@@ -35,7 +35,32 @@ The framework is reached through exactly one MCP tool, `abap_fluid` — see
 
 ## Built-in tools
 
-`core` is a built-in fluid tool with three actions:
+Eight fluid tools ship built in. They are ordinary fluid tools — same
+manifest shape, same protocol, same gate — but they are compiled into
+abapsmith rather than loaded from a plugin directory, so
+`ABAP_ALLOW_FLUID_PLUGINS` and `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` do not
+apply to them.
+
+| Tool | Actions | What it covers |
+|---|---|---|
+| `classic` | `create_view`, `delete_view`, `create_transaction`, `delete_transaction`, `create_index`, `delete_index`, `create_package`, `delete_package`, `remove_transport_entry`, `exists` | Repository objects with no usable ADT write endpoint. |
+| `core` | `select`, `describe_fm`, `call_fm` | Generic DDIC reads and dynamic function-module calls. |
+| `enh` | `create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`, `set_filter_values` | Enhancement spots, BAdI definitions and implementations. |
+| `fpm` | `find`, `outline`, `app` | Floorplan Manager configuration reads. |
+| `img` | `preview`, `create_request`, `apply` | IMG customizing: row preview, customizing request creation, and the write itself. |
+| `rt` | `ping`, `fail` | Runtime self-test: proves the frame protocol end to end, including the error frame. |
+| `run` | `report` | Runs an ABAP report and captures its list output. |
+| `ui` | `screen` | Dynpro field and flow-logic reads. |
+
+Most built-in actions back a dedicated abapsmith tool (`abap_img_edit`,
+`abap_enh`, `abap_fpm_read`, `abap_ui`, and others) rather than being
+called directly. The dedicated tool keeps its own name, schema and
+domain gate and dispatches through the fluid framework underneath — but
+every action here is also reachable directly via `abap_fluid`, so each
+one is gated on its own declared targets and cannot rely on its calling
+tool having checked first.
+
+`core`'s three actions carry policy worth stating explicitly:
 
 - `core.select` (read) — a read-only row preview of one DDIC table.
   Judged by the **existing** data-preview policy

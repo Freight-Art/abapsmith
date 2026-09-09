@@ -108,10 +108,14 @@ each has been observed once, independently confirmed by read-back, but not
 the repeated, citable evidence `ENHO/XHH` has, whose PUT success is
 confirmed. `putVerified: false` is a caveat on an already-SUCCESS result,
 never a failure signal, and the tool's own response text repeats this note
-whenever it applies. The six create-family operations (which write via a
-generated classrun bridge, not a direct PUT) and `delete` (a DELETE, not a
+whenever it applies. The six create-family operations (which write from
+inside deployed ABAP, not by a direct PUT) and `delete` (a DELETE, not a
 PUT) report no `putVerified` field at all — the caveat does not apply to
-them.
+them. Which ABAP that is differs between them and does not change the point:
+five of the six run through the fluid API's shared `ZCL_ZMCP_FLUID_ENH`,
+while `exercise` still generates a classrun bridge per call. Neither issues
+the PUT whose response `putVerified` reports on, so neither has anything to
+report.
 
 Example (exercise a BAdI):
 

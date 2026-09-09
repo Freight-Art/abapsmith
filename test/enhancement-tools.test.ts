@@ -62,9 +62,10 @@ import {
   ENH_ACTIVATION_OPERATIONS,
 } from "../src/tools/enh.js";
 import { Journal } from "../src/journal.js";
-import { BRIDGE_CLASS, ENH_BRIDGE_PACKAGE, ENH_CREATE_PACKAGE } from "../src/adt/enhancement-bridge.js";
+import { ENH_BRIDGE_PACKAGE, ENH_CREATE_PACKAGE } from "../src/adt/enhancement-bridge.js";
 import { patchBadiImplementationActive, patchEnhancementRootAttribute } from "../src/adt/enhancement-xml.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
+import { dynamicEnhFluidRoute, enhProbeConsole } from "./helpers/fluid-enh-fake.js";
 
 // ---------------------------------------------------------------------------
 // ADT-layer harness, copied from test/enhancement-write.test.ts — see that
@@ -935,25 +936,30 @@ const LOCK_LOCAL_XML_H =
   `<MODIFICATION_SUPPORT>NoModification</MODIFICATION_SUPPORT><SCOPE_MESSAGES/></DATA></asx:values></asx:abap>`;
 
 /**
- * GET-404 -> POST-create -> LOCK -> PUT source -> UNLOCK happy path for the
- * generated bridge class, plus its classrun run and its activation — the
- * same shape as test/enhancement-bridge.test.ts's own `objectHappyPath` +
- * `sharedRoute` + `classrunOutput`, kept as its own small copy here per this
- * file's own header (one small copy per test file, not a shared harness).
+ * create_spot now dispatches through the static fluid body
+ * `ZCL_ZMCP_FLUID_ENH` instead of a per-call classrun bridge — see
+ * `dynamicEnhFluidRoute`/`enhProbeConsole` (test/helpers/fluid-enh-fake.ts),
+ * the same helper enhancement-bridge.test.ts/enh-system-key.test.ts use. It
+ * deploys/activates the two manifest objects plus the content-hashed
+ * invoker and answers the invoker's classrun with one `enhProbeConsole`
+ * transcript carrying `result`; the generic `/activation` fallback covers
+ * the TS-side post-op `activateObject(ZMCP_SPOT, ...)` call, which targets
+ * the real business object, not a fluid class, so `dynamicEnhFluidRoute`
+ * itself leaves it unrouted. `tags` keeps its old call-site shape — it maps
+ * onto the `created` boolean the manifest's `create_spot` action requires.
  */
+function tagsToCreateSpotResult(tags: readonly string[]): Record<string, unknown> {
+  return { created: tags.includes("SPOT-OBJECT-CREATED") };
+}
+
 function createSpotBridgeRoute(tags: readonly string[]): Route {
-  const objUrl = `${CLASS_COLLECTION}/${BRIDGE_CLASS.createSpot.toLowerCase()}`;
-  const sourceUri = `${objUrl}/source/main`;
+  const route = dynamicEnhFluidRoute({
+    transcript: () => enhProbeConsole("create_spot", tagsToCreateSpotResult(tags)),
+    packageName: ENH_BRIDGE_PACKAGE,
+  });
   return (r: Recorded) => {
-    if (r.url === objUrl && r.method === "GET" && !r.qs._action) {
-      const res = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, r as unknown as HttpClientOptions, res);
-    }
-    if (r.url === CLASS_COLLECTION && r.method === "POST") return resp(200, "", {});
-    if (r.url === objUrl && r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML_H, OK_XML);
-    if (r.url === objUrl && r.qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (r.url === sourceUri && r.method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, tags.join("\n"), { "content-type": "text/plain" });
+    const hit = route(r as unknown as HttpClientOptions);
+    if (hit) return hit;
     if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
     return undefined;
   };
@@ -1159,24 +1165,35 @@ describe("abap_enh — operation:create_spot", () => {
 // ===========================================================================
 
 /**
- * Same shape as createSpotBridgeRoute above (GET-404 -> POST-create -> LOCK
- * -> PUT source -> UNLOCK -> classrun run -> activation), parameterized for
- * BRIDGE_CLASS.createImpl instead of createSpot — kept as its own small copy
- * per this file's own one-copy-per-file convention, not shared.
+ * Same fluid-routing shape as createSpotBridgeRoute above, parameterized for
+ * `create_impl` instead of `create_spot`. `tags` keeps its old call-site
+ * shape — it maps onto the `created`/`impl_added`/`filter_check` fields the
+ * manifest's `create_impl` action requires (filter_check's enum is
+ * has_filters/no_filters/inconclusive; ties for the empty/failure-case
+ * `tags` argument to "no_filters", which is harmless here since no test
+ * asserts filter_check content when create/impl_added are both false).
  */
+function tagsToCreateImplResult(tags: readonly string[]): Record<string, unknown> {
+  const filterCheck = tags.includes("BADI-HAS-FILTERS")
+    ? "has_filters"
+    : tags.includes("BADI-FILTER-CHECK-INCONCLUSIVE")
+      ? "inconclusive"
+      : "no_filters";
+  return {
+    created: tags.includes("ENHO-OBJECT-CREATED"),
+    impl_added: tags.includes("IMPL-ADDED"),
+    filter_check: filterCheck,
+  };
+}
+
 function createImplBridgeRoute(tags: readonly string[]): Route {
-  const objUrl = `${CLASS_COLLECTION}/${BRIDGE_CLASS.createImpl.toLowerCase()}`;
-  const sourceUri = `${objUrl}/source/main`;
+  const route = dynamicEnhFluidRoute({
+    transcript: () => enhProbeConsole("create_impl", tagsToCreateImplResult(tags)),
+    packageName: ENH_BRIDGE_PACKAGE,
+  });
   return (r: Recorded) => {
-    if (r.url === objUrl && r.method === "GET" && !r.qs._action) {
-      const res = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
-      throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, r as unknown as HttpClientOptions, res);
-    }
-    if (r.url === CLASS_COLLECTION && r.method === "POST") return resp(200, "", {});
-    if (r.url === objUrl && r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML_H, OK_XML);
-    if (r.url === objUrl && r.qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
-    if (r.url === sourceUri && r.method === "PUT") return resp(200, "", { "content-type": "text/plain" });
-    if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, tags.join("\n"), { "content-type": "text/plain" });
+    const hit = route(r as unknown as HttpClientOptions);
+    if (hit) return hit;
     if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
     return undefined;
   };
@@ -1897,11 +1914,27 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
     };
   }
 
-  /** classrun output + the generic /activation stub every bridge call (and
-   *  set_filter_values's joint spot+implementation re-activation) needs. */
-  function classrunSharedRoute(tags: readonly string[]): Route {
+  /**
+   * add_badi_def/add_filter_def/set_filter_values now dispatch through the
+   * static fluid body `ZCL_ZMCP_FLUID_ENH` instead of a per-call classrun
+   * bridge — same `dynamicEnhFluidRoute`/`enhProbeConsole` helper
+   * createSpotBridgeRoute/createImplBridgeRoute above use. It deploys/
+   * activates the two manifest objects plus the content-hashed invoker and
+   * answers the invoker's classrun with one `enhProbeConsole` transcript
+   * carrying `result`; the generic `/activation` fallback covers the TS-side
+   * post-op activation of the real business object(s) (single for
+   * add_badi_def/add_filter_def, joint spot+implementation for
+   * set_filter_values), which is not a fluid class so `dynamicEnhFluidRoute`
+   * itself leaves it unrouted.
+   */
+  function fluidRoute(action: string, result: Record<string, unknown>): Route {
+    const route = dynamicEnhFluidRoute({
+      transcript: () => enhProbeConsole(action, result),
+      packageName: ENH_BRIDGE_PACKAGE,
+    });
     return (r: Recorded) => {
-      if (r.url.startsWith("/sap/bc/adt/oo/classrun/")) return resp(200, tags.join("\n"), { "content-type": "text/plain" });
+      const hit = route(r as unknown as HttpClientOptions);
+      if (hit) return hit;
       if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
       return undefined;
     };
@@ -1979,8 +2012,7 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
       const { conn } = await connected(
         combineRoutes(
           objectHappyPathRoute(INTF_COLLECTION, "ZIF_MCP_BADI"),
-          objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.addBadiDef),
-          classrunSharedRoute(["BADI-DEF-ADDED"]),
+          fluidRoute("add_badi_def", { added: true }),
         ),
       );
       const { tools } = await registered(conn, { journal });
@@ -2015,8 +2047,7 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
       const { conn } = await connected(
         combineRoutes(
           objectHappyPathRoute(INTF_COLLECTION, "ZIF_MCP_BADI"),
-          objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.addBadiDef),
-          classrunSharedRoute([]), // no BADI-DEF-ADDED tag -> assertEnhTranscript throws
+          fluidRoute("add_badi_def", { added: false }), // no BADI-DEF-ADDED tag -> assertEnhTranscript throws
         ),
       );
       const { tools } = await registered(conn, { journal });
@@ -2039,7 +2070,7 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
   it("add_filter_def: records operation:update against the SPOT (not filterName), beforeCapture:failed, irreversible:true", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
-        combineRoutes(objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.addFilterDef), classrunSharedRoute(["FILTER-DEF-ADDED"])),
+        fluidRoute("add_filter_def", { added: true }),
       );
       const { tools } = await registered(conn, { journal });
 
@@ -2068,10 +2099,7 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
   it("add_filter_def: still records the entry, settled failed, when the bridge transcript never confirms the add", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
-        combineRoutes(
-          objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.addFilterDef),
-          classrunSharedRoute([]), // no FILTER-DEF-ADDED tag -> assertEnhTranscript throws
-        ),
+        fluidRoute("add_filter_def", { added: false }), // no FILTER-DEF-ADDED tag -> assertEnhTranscript throws
       );
       const { tools } = await registered(conn, { journal });
 
@@ -2145,7 +2173,7 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
   it("set_filter_values: records operation:update against the existing ENHO/XH, beforeCapture:failed, irreversible:true", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
-        combineRoutes(objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues), classrunSharedRoute(["IMPL-REPLACED"])),
+        fluidRoute("set_filter_values", { replaced: true }),
       );
       const { tools } = await registered(conn, { journal });
 
@@ -2202,10 +2230,7 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
   it("set_filter_values: still records the entry, settled failed, when the bridge transcript never confirms IMPL-REPLACED (before the H23 joint activation is ever reached)", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
-        combineRoutes(
-          objectHappyPathRoute(CLASS_COLLECTION, BRIDGE_CLASS.setFilterValues),
-          classrunSharedRoute([]), // no IMPL-REPLACED tag -> assertEnhTranscript throws
-        ),
+        fluidRoute("set_filter_values", { replaced: false }), // no IMPL-REPLACED tag -> assertEnhTranscript throws
       );
       const { tools } = await registered(conn, { journal });
 

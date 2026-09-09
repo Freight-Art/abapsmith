@@ -7,19 +7,28 @@
  * and a gate that allowed only `$TMP` passed preflight for a write that would
  * never actually land there.
  *
- * Three things are proven, one per family (abap_ui screen, abap_fpm_read
- * find, abap_fpm_read locks, abap_bopf_test):
+ * Three things are proven. Parts (a) and (c) cover the families that had a
+ * tool-layer write preflight to disagree with in the first place (abap_ui
+ * screen, abap_fpm_read find, abap_fpm_read locks, abap_bopf_test, and
+ * abap_img_edit for (c)); part (b) covers all six rerouted-or-not families,
+ * including abap_img_edit and abap_enh, because the caller-context invariant
+ * it holds is not about preflight packages at all and applies to every family
+ * that can reach a fluid refusal.
  *
  * (a) the TOOL-layer preflight now agrees with the real target: a gate
  *     allowing only FLUID_PACKAGE clears preflight (proven by reaching
  *     `ensureConnected`, made to throw a private marker so no network call is
  *     ever needed), while a gate allowing only "$TMP" is refused before
  *     `ensureConnected` runs, naming $ABAPSMITH_FLUID_API — not $TMP.
- * (b) `caller: {tool, action}` reaches `deployBridge` for each family, proven
+ * (b) `caller: {tool, action}` survives to the refusal for each family, proven
  *     by driving the ADT-layer function directly on a `fluidApi: false`
- *     connection (fluidDisabledReason short-circuits deployBridge before any
+ *     connection (fluidDisabledReason short-circuits before any
  *     authorization/wire I/O — see src/adt/fluid/enabled.ts) and reading the
- *     FLUID_API_DISABLED error's details.tool/details.action.
+ *     FLUID_API_DISABLED error's details.tool/details.action. Two different
+ *     mechanisms now serve these six cases — `deployBridge` for the families
+ *     still on generated bridges, `dispatch()` for the rerouted ones — and
+ *     both must produce the SAME caller-facing name; see part (b)'s own
+ *     header for why they are asserted together.
  * (c) no `packageName: "$TMP"` literal remains near any `deps.safety.assert(
  *     "write"` preflight call in the three tool files.
  */
@@ -44,6 +53,8 @@ import { runUiBridge } from "../src/adt/ui-runtime.js";
 import { runFpmRead } from "../src/adt/fpm-runtime.js";
 import { runFpmLockInspect, type FpmLockInspectQuery } from "../src/adt/fpm-lock.js";
 import { runBopfTest as runBopfTestBridge, type BoModel, type BopfTestScenario } from "../src/adt/bopf-runtime.js";
+import { runImgProbe } from "../src/adt/img-write.js";
+import { createEnhancementSpot, ENH_CREATE_PACKAGE } from "../src/adt/enhancement-bridge.js";
 import type { AdtObjectRef, BoAssociation, BoNode } from "../src/adt/bopf-types.js";
 
 // ---------------------------------------------------------------------------
@@ -291,10 +302,22 @@ describe("tool-layer preflight agrees with deployBridge's real target package", 
 });
 
 // ---------------------------------------------------------------------------
-// Part (b) — caller context reaches deployBridge, per family.
+// Part (b) — caller context survives to the refusal, per family.
+//
+// Two mechanisms are covered here, deliberately by the same assertion. The
+// families still on generated bridges (`abap_fpm_read locks`, `abap_bopf_test`)
+// refuse inside `deployBridge`, which has carried a `caller` since before this
+// slice. The rerouted families (`abap_ui screen`, `abap_fpm_read find`,
+// `abap_img_edit`, `abap_enh`) refuse inside `dispatch()`, which grew its own
+// optional `caller` so that a rerouted tool still names ITSELF rather than the
+// internal fluid tool it now runs on.
+// The point of asserting both against one helper is that a caller must not be
+// able to tell, from the refusal, which mechanism served it — if a reroute ever
+// drops the caller, the message silently degrades to an internal id like
+// `ui.screen`, and these cases are what catch it.
 // ---------------------------------------------------------------------------
 
-async function assertCallerReachesDeployBridge(
+async function assertCallerReachesRefusal(
   run: () => Promise<unknown>,
   expected: { tool: string; action: string },
 ): Promise<void> {
@@ -307,10 +330,10 @@ async function assertCallerReachesDeployBridge(
   expect(err.message).toContain(`${expected.tool} ${expected.action}`);
 }
 
-describe("caller context reaches deployBridge", () => {
+describe("caller context survives to the FLUID_API_DISABLED refusal", () => {
   it("abap_ui screen -> {tool: abap_ui, action: screen}", async () => {
     const conn = await disabledConnection();
-    await assertCallerReachesDeployBridge(
+    await assertCallerReachesRefusal(
       () => runUiBridge(conn, { mode: "screen", target: { by: "tcode", tcode: "SE80" } }, allowingGate()),
       { tool: "abap_ui", action: "screen" },
     );
@@ -318,7 +341,7 @@ describe("caller context reaches deployBridge", () => {
 
   it("abap_fpm_read find -> {tool: abap_fpm_read, action: find}", async () => {
     const conn = await disabledConnection();
-    await assertCallerReachesDeployBridge(
+    await assertCallerReachesRefusal(
       () => runFpmRead(conn, { mode: "find", configType: "00" }, allowingGate()),
       { tool: "abap_fpm_read", action: "find" },
     );
@@ -327,7 +350,7 @@ describe("caller context reaches deployBridge", () => {
   it("abap_fpm_read locks -> {tool: abap_fpm_read, action: locks}", async () => {
     const conn = await disabledConnection();
     const query: FpmLockInspectQuery = { mode: "locks", configId: "ZTEST_CFG" };
-    await assertCallerReachesDeployBridge(() => runFpmLockInspect(conn, query, allowingGate()), {
+    await assertCallerReachesRefusal(() => runFpmLockInspect(conn, query, allowingGate()), {
       tool: "abap_fpm_read",
       action: "locks",
     });
@@ -335,10 +358,68 @@ describe("caller context reaches deployBridge", () => {
 
   it("abap_bopf_test -> {tool: abap_bopf_test, action: run_test}", async () => {
     const conn = await disabledConnection();
-    await assertCallerReachesDeployBridge(() => runBopfTestBridge(conn, MODEL, SCENARIO, allowingGate()), {
+    await assertCallerReachesRefusal(() => runBopfTestBridge(conn, MODEL, SCENARIO, allowingGate()), {
       tool: "abap_bopf_test",
       action: "run_test",
     });
+  });
+
+  // The two families rerouted after the four above. They are the interesting cases for this
+  // assertion, not repetition of it: `abap_img_edit` is the only tool whose caller-facing action
+  // name is NOT the fluid action name — three tool modes (`preview`/`upsert`/`delete`) all run
+  // `img.preview` first, and `runImgProbe` forwards the caller's own mode rather than the action it
+  // dispatches. So a reroute that "helpfully" passed the fluid action through would still look
+  // correct for every other family and be wrong only here; `upsert` is used below for exactly that
+  // reason, since `preview` would pass either way.
+  it("abap_img_edit upsert -> {tool: abap_img_edit, action: upsert}, not the img.preview it dispatches", async () => {
+    const conn = await disabledConnection();
+    await assertCallerReachesRefusal(
+      () =>
+        runImgProbe(
+          conn,
+          allowingGate(),
+          {
+            table: "TB004T",
+            clientField: "MANDT",
+            keyFields: ["SPRAS", "COUNTRY"],
+            rows: [{ key: { SPRAS: "E", COUNTRY: "DE" }, values: {} }],
+            language: "E",
+          },
+          cfg({ fluidApi: false }),
+          "upsert",
+        ),
+      { tool: "abap_img_edit", action: "upsert" },
+    );
+  });
+
+  // `abap_enh` reaches dispatch() only after its own `gate.assertIntent(..., {op:"write"})` pair,
+  // and that intent is checked against the whole enhancement gate — not just the package. So
+  // `allowingGate()` is not usable here: it would refuse first with ENHANCEMENT_DISABLED (measured,
+  // not assumed — it is what this test reported before the gate below was widened), and the case
+  // would then pass for the wrong reason, asserting an enhancement refusal it had mistaken for the
+  // fluid one. This mirrors test/enhancement-bridge.test.ts's own `allowingGate` rather than
+  // inventing a second dialect of the same fixture; every field below is load-bearing for reaching
+  // dispatch(), so narrowing any of them re-hides the thing this case exists to prove.
+  it("abap_enh create_spot -> {tool: abap_enh, action: create_spot}", async () => {
+    const conn = await disabledConnection();
+    const gate = new SafetyGate({
+      readOnly: false,
+      allowPackages: [FLUID_PACKAGE, ENH_CREATE_PACKAGE],
+      allowNamePrefixes: ["*"],
+      writesLockedOut: false,
+      allowEnhancements: true,
+      enhanceTargets: "customer",
+      originSystems: ["TST"],
+    });
+    await assertCallerReachesRefusal(
+      () =>
+        createEnhancementSpot(conn, gate, {
+          spotName: "ZMCP_SPOT_PREFLIGHT",
+          description: "Preflight caller-context fixture",
+          affects: { name: "ZCL_TARGET", packageName: "ZTARGET_PKG", masterSystem: "TST" },
+        }),
+      { tool: "abap_enh", action: "create_spot" },
+    );
   });
 });
 
@@ -346,7 +427,12 @@ describe("caller context reaches deployBridge", () => {
 // Part (c) — no stale "$TMP" literal survives next to a write preflight.
 // ---------------------------------------------------------------------------
 
-const TOOL_FILES = ["ui.ts", "fpm.ts", "bopf-test.ts"] as const;
+// `img-edit.ts` joined this list once `abap_img_edit` was rerouted. Before the reroute its write
+// preflights named the per-call bridge class in `$ZMCP_HELPERS`, so scanning it for a `$TMP`
+// literal next to a `FLUID_PACKAGE` target would have asserted a shape it did not yet have; now all
+// three of its preflights target `imgManifest.entry` in `FLUID_PACKAGE`, which is exactly the shape
+// this guard exists to hold still.
+const TOOL_FILES = ["ui.ts", "fpm.ts", "bopf-test.ts", "img-edit.ts"] as const;
 const SRC_TOOLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "tools");
 
 /**

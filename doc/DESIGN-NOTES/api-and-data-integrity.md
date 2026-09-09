@@ -49,17 +49,21 @@ different: SAP's own standard local package, not abapsmith's; only the leftover
 `doc/FLUID-API/README.md` and `doc/TOOLS/abap-fluid.md` for what gets installed
 and how removal is scoped.
 
-Where ADT's REST surface has no endpoint — report execution, BOPF runtime, FPM
-configuration reads, some enhancement operations — abapsmith runs its own ABAP
-and reads the framed output, through the objects it installs in
-`$ABAPSMITH_FLUID_API`. That part hasn't changed. What has is the mechanism: it
-is no longer a throwaway `$TMP` classrun torn down after the call. Body classes
-are persistent and reused across calls, rewritten only when their content
-changes (`src/adt/run.ts:1088-1182`); invoker classes are content-addressed and
-accumulate, one per distinct (tool, action, contract, args) hash
-(`src/adt/fluid/invoke.ts:51-54`); and a few families — report/class execution,
-BOPF runtime tests, FPM/UI reads — derive their bridge class name from what
+Where ADT's REST surface has no endpoint, abapsmith runs its own ABAP in
+`$ABAPSMITH_FLUID_API` and reads the framed output, in one of two shapes. FPM
+configuration reads, `abap_ui` screen discovery, IMG customizing writes and the
+enhancement create family dispatch against a **static body class** reused
+across calls, rewritten only when its content changes, reached through an
+invoker class named by a hash of `{tool, action, args, contract}`
+(`src/adt/fluid/invoke.ts:51-54`) — invokers are content-addressed and
+accumulate, one per distinct argument shape. Report execution, BOPF runtime,
+`abap_ui press`, `abap_enh exercise` and `abap_fpm_read mode:"locks"` still
+generate a **per-call classrun bridge** (`IF_OO_ADT_CLASSRUN`) named from what
 they run, so identical calls reuse a class and distinct ones add another.
+Either way the generated object is an ordinary one in the namespace and package
+the safety gate already governs, so it inherits every existing control instead
+of needing new ones; `abap_fluid(op="status")` lists both kinds. Nothing is a
+throwaway `$TMP` classrun torn down after the call any more.
 
 ## Tool schemas are treated as a budget
 

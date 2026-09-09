@@ -88,8 +88,9 @@
   is an opt-in integration test that is skipped unless a live system is
   configured — which is why it is graded `tests` while the operations it
   reverses are graded `live`.
-- **UI automation.** Discovery is read-only in effect but still deploys a
-  throwaway bridge class. A press runs a transaction with scripted batch
+- **UI automation.** Discovery is read-only in effect but still writes — it
+  dispatches against the reused fluid body class `ZCL_ZMCP_FLUID_UI` plus a
+  content-addressed invoker. A press runs a transaction with scripted batch
   input, commits, and cannot be rolled back; it is gated on admin mode plus a
   separate opt-in flag plus an exact confirmation, and a denylist covers
   operating-system command, user and role administration, client

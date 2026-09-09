@@ -1,20 +1,31 @@
 /**
  * Before the fluid API existed, abapsmith installed one throwaway bridge
- * class per DDIC/CTS operation into `$TMP`, plus one IMG write-probe class
- * into the old helper package. Those families are now served by the
- * built-in `classic` and `img` fluid tools out of `$ABAPSMITH_FLUID_API`, so
- * the classes below are dead code sitting in customer systems.
+ * class per DDIC/CTS operation into `$TMP`, and one IMG write-probe class
+ * into the old helper package. Three later families were retired after
+ * `FLUID_PACKAGE` already existed and so were never in a legacy package at
+ * all: the IMG write-apply class, the customizing-request-creation class,
+ * and the five fixed-name enhancement create-family bridges. Every family
+ * here is now served by the built-in `classic`, `img` and `enh` fluid tools,
+ * so the classes below are dead code sitting in customer systems.
+ *
+ * Only FIXED names belong here. The per-call bridges whose names are a
+ * content hash of their target (`abap_fpm_read` find/outline/app,
+ * `abap_ui screen`) cannot be listed statically and are swept by
+ * `./dynamic-bridges.ts` and `abap_fluid remove` with `scope:"dynamic"`
+ * instead — a listing, not a name list. `ZCL_ZMCP_ENH_EXEC` is fixed-name
+ * but is deliberately NOT here: `abap_enh exercise` still generates it, so
+ * it is live, not retired.
  *
  * This list is static and closed: abapsmith never discovers retired classes
  * by scanning a package, because a `ZCL_ZMCP_`-prefixed class it did not
  * write must never be deleted. `probeRetiredBridges` and
- * `reapRetiredBridges` only ever look at these ten names.
+ * `reapRetiredBridges` only ever look at these seventeen names.
  */
 import type { AbapConnection } from "../connection.js";
 import type { SafetyGate } from "../../safety.js";
 import { isAbapError, describeUnknownError } from "../errors.js";
 import { resolveWriteTarget } from "../write.js";
-import { LEGACY_FLUID_PACKAGES } from "./package.js";
+import { LEGACY_FLUID_PACKAGES, FLUID_PACKAGE } from "./package.js";
 import { deleteOneFluidObject } from "./delete.js";
 
 const TMP_PACKAGE = "$TMP";
@@ -28,7 +39,14 @@ if (LEGACY_HELPER_PACKAGE === undefined) {
 export interface RetiredBridgeClass {
   readonly name: string;
   readonly type: "CLAS/OC";
-  /** The legacy package this class was installed into. Always a LEGACY_FLUID_PACKAGES entry. */
+  /**
+   * The package this class was installed into. A LEGACY_FLUID_PACKAGES entry
+   * for the ten oldest; the seven retired since `FLUID_PACKAGE` existed (the
+   * IMG write-apply and customizing-request-creation bridges, and the five
+   * enhancement create-family bridges) were deployed into `FLUID_PACKAGE`
+   * itself. `probeRetiredBridges` treats a class found in either as
+   * legitimately abapsmith's own.
+   */
   readonly packageName: string;
   /** The built-in fluid tool that replaced it. */
   readonly supersededBy: string;
@@ -45,7 +63,25 @@ export const RETIRED_BRIDGE_CLASSES: readonly RetiredBridgeClass[] = [
   { name: "ZCL_ZMCP_DDIC_DPKG", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
   { name: "ZCL_ZMCP_DDIC_TREN", type: "CLAS/OC", packageName: TMP_PACKAGE, supersededBy: "classic" },
   { name: "ZCL_ZMCP_IMG_WPROBE", type: "CLAS/OC", packageName: LEGACY_HELPER_PACKAGE, supersededBy: "img" },
+  { name: "ZCL_ZMCP_IMG_WAPPLY", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "img" },
+  { name: "ZCL_ZMCP_CTS_WREQ", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "img" },
+  // The five fixed-name bridges `abap_enh`'s create family generated before it moved onto
+  // `ZCL_ZMCP_FLUID_ENH`. Their names are `enhancement-bridge.ts`'s own former `BRIDGE_CLASS` map,
+  // which now retains only its `exercise` entry; that entry is absent here on purpose, because
+  // `exercise` never moved and still generates the class every call.
+  { name: "ZCL_ZMCP_ENH_CSPOT", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" },
+  { name: "ZCL_ZMCP_ENH_ADEF", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" },
+  { name: "ZCL_ZMCP_ENH_FDEF", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" },
+  { name: "ZCL_ZMCP_ENH_CIMPL", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" },
+  { name: "ZCL_ZMCP_ENH_FVAL", type: "CLAS/OC", packageName: FLUID_PACKAGE, supersededBy: "enh" },
 ];
+
+// Classification widened beyond LEGACY_FLUID_PACKAGES itself (which stays closed — pinned by
+// test/legacy-helper-package-retired.test.ts and package.ts's own doc comment) to also recognize
+// FLUID_PACKAGE: the seven ZCL_ZMCP_IMG_WAPPLY/ZCL_ZMCP_CTS_WREQ/ZCL_ZMCP_ENH_* entries above were
+// deployed there, not into a legacy package, so a class found there is exactly as much
+// "abapsmith's own leftover" as one found in $TMP or the old helper package.
+const OWN_FLUID_PACKAGES = [...LEGACY_FLUID_PACKAGES, FLUID_PACKAGE].map((p) => p.toUpperCase());
 
 export type RetiredBridgeState = "present" | "absent" | "moved" | "unknown";
 
@@ -75,12 +111,13 @@ export async function probeRetiredBridges(conn: AbapConnection): Promise<readonl
         probes.push({ ...base, state: "absent" });
         continue;
       }
-      // Compared against LEGACY_FLUID_PACKAGES as a whole, not against this
-      // entry's own packageName: a class installed into $TMP on one system
-      // and into the old helper package on another is still abapsmith's own
-      // leftover either way.
+      // Compared against OWN_FLUID_PACKAGES as a whole, not against this
+      // entry's own packageName: a class installed into $TMP on one system,
+      // into the old helper package on another, or into FLUID_PACKAGE itself
+      // (ZCL_ZMCP_IMG_WAPPLY/ZCL_ZMCP_CTS_WREQ's real home) is still
+      // abapsmith's own leftover either way.
       const pkgNormalized = resolved.packageName.trim().toUpperCase();
-      if (LEGACY_FLUID_PACKAGES.includes(pkgNormalized)) {
+      if (OWN_FLUID_PACKAGES.includes(pkgNormalized)) {
         probes.push({ ...base, state: "present", foundIn: resolved.packageName });
       } else {
         // Relocated into a package abapsmith does not own — reported and

@@ -13,7 +13,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   assertEnhIdentifier,
-  addBadiDefFragment,
   exerciseFragment,
 } from "../src/adt/enhancement-templates.js";
 import { isAbapError } from "../src/adt/errors.js";
@@ -121,19 +120,6 @@ describe("the object-name rule is unchanged elsewhere", () => {
         badiName: "Z",
         methodName: "M",
         params: [{ name: "/DMO/IV_X", value: "v" }],
-      }),
-    );
-    expect(isAbapError(err)).toBe(true);
-    expect((err as { code: string }).code).toBe("BAD_INPUT");
-  });
-
-  it("badiName is still refused when namespaced", () => {
-    const err = catchErr(() =>
-      addBadiDefFragment({
-        badiName: "/SCMTMS/BADI_X",
-        interfaceName: "IF_BADI_MARKER",
-        singleUse: true,
-        shortText: "test",
       }),
     );
     expect(isAbapError(err)).toBe(true);

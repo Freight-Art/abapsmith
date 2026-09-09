@@ -34,7 +34,9 @@
 import type { FluidManifest } from "../manifest.js";
 import { FLUID_CONTRACT } from "../manifest.js";
 import { FLUID_RUNTIME_CLASS, fluidRuntimeManifest, fluidRuntimeSources } from "../abap/runtime.js";
-import { CONFIG_ID_LEN } from "../../fpm-runtime.js";
+
+/** WDY_CONFIG_ID's length (CHAR32); re-exported from fpm-runtime.ts for existing callers. */
+export const CONFIG_ID_LEN = 32;
 
 const RUNTIME_SOURCE = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
 if (RUNTIME_SOURCE === undefined) {
@@ -122,8 +124,7 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         FROM wdy_config_appl
         WHERE config_type = @lv_config_type
           AND ( @lv_has_query = @abap_false OR config_id LIKE @lv_pattern ESCAPE '#' )
-        INTO TABLE @DATA(lt_appl)
-        UP TO 200 ROWS.
+        INTO TABLE @DATA(lt_appl).
       LOOP AT lt_appl INTO DATA(ls_appl).
         DATA(lv_desc) = ||.
         SELECT SINGLE description FROM wdy_config_appt
@@ -160,8 +161,7 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         WHERE config_type = @lv_config_type
           AND ( @lv_has_component = @abap_false OR component = @lv_component )
           AND ( @lv_has_query = @abap_false OR config_id LIKE @lv_pattern ESCAPE '#' )
-        INTO TABLE @DATA(lt_data)
-        UP TO 200 ROWS.
+        INTO TABLE @DATA(lt_data).
       LOOP AT lt_data INTO DATA(ls_data).
         DATA(lv_desc2) = ||.
         SELECT SINGLE description FROM wdy_config_datt
@@ -449,7 +449,7 @@ export const fpmManifest: FluidManifest = {
       },
       output: {
         type: "array",
-        description: "Up to 200 matching config rows.",
+        description: "Every matching config row; abapsmith imposes no row cap here.",
         items: {
           type: "object",
           required: ["config_id", "config_type", "config_var", "component", "description", "devclass"],

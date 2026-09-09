@@ -60,6 +60,8 @@ import { registerUiTools, type UiToolDeps } from "../src/tools/ui.js";
 import { Journal, systemKey } from "../src/journal.js";
 import { errorResult } from "../src/server.js";
 import { DATA_PREVIEW_PATH, systemRoleProbeResponse } from "./helpers/system-role-fake.js";
+import { dynamicUiFluidRoute, isUiFluidClass, uiScreenConsole } from "./helpers/fluid-ui-fake.js";
+import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -93,6 +95,15 @@ const LOCK_XML =
   `<CORRUSER/><CORRTEXT/><IS_LOCAL>X</IS_LOCAL><IS_LINK_UP/>` +
   `<MODIFICATION_SUPPORT>NoModification</MODIFICATION_SUPPORT><SCOPE_MESSAGES/></DATA></asx:values></asx:abap>`;
 
+const PKG_URI = "/sap/bc/adt/packages/%24abapsmith_fluid_api";
+const PACKAGE_XML = (name: string): string =>
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
+  `xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${name}" adtcore:type="DEVC/K">` +
+  `<adtcore:packageRef adtcore:name="${name}" adtcore:type="DEVC/K"/>` +
+  `<pak:superPackage adtcore:name="$TMP"/>` +
+  `</pak:package>`;
+
 class RecordingClient implements HttpClient {
   calls: HttpClientOptions[] = [];
   constructor(private readonly respond: (o: HttpClientOptions) => HttpClientResponse) {}
@@ -104,30 +115,46 @@ class RecordingClient implements HttpClient {
 
 /**
  * `press`'s full happy path: `assertBdcApplies`'s `mode:"screen"` TSTC
- * precheck bridge, then the `mode:"press"` BDCDATA bridge — two distinct
- * hashed class names, each independently deployed (GET-404 -> POST create ->
- * LOCK -> PUT source -> UNLOCK -> activation) then run via classrun. Routed
- * generically by URL SHAPE (any `/sap/bc/adt/oo/classes/zcl_zmcp_ui_...`)
- * rather than a pinned class name, and the two classrun calls are
- * distinguished by ORDER — the precheck always runs first, matching
- * `runPressTool`'s own `await assertBdcApplies(...)` before the press
- * bridge's `deps.pool.withWrite(...)`.
+ * precheck, then the `mode:"press"` BDCDATA bridge. The precheck no longer
+ * deploys a per-call generated bridge class — it dispatches through the
+ * fluid `ui.screen` action (`src/adt/fluid/dispatch.ts`) against the fixed
+ * body class `uiManifest.entry`, so it is routed through
+ * `dynamicUiFluidRoute` (test/helpers/fluid-ui-fake.ts), same idiom as
+ * test/img-edit-tool.test.ts's `multiBridgeHappyPath`: classrun for a fluid
+ * ui class (runtime/body/invoker, `isUiFluidClass`) is intercepted and
+ * answered with `uiScreenConsole`'s TCODE payload BEFORE `fluidRoute`'s own
+ * unconditional (name-unfiltered) classrun branch would otherwise swallow
+ * the actual press's classrun too. The press bridge itself keeps deploying
+ * and running a per-call hashed `zcl_zmcp_ui_...` class exactly as before.
  */
 function pressHappyPath(tcode: string): (o: HttpClientOptions) => HttpClientResponse {
-  let classrunCalls = 0;
+  const fluidRoute = dynamicUiFluidRoute({
+    transcript: () =>
+      uiScreenConsole({
+        tcode: {
+          tcode,
+          program: "SAPMZUI1",
+          dynpro: "0100",
+          cinfo: "00",
+          kind: "dialog transaction",
+          bdcApplies: true,
+        },
+        program: "SAPMZUI1",
+        dynpro: "0100",
+        fields: [],
+      }),
+    packageName: FLUID_PACKAGE,
+  });
+
   return (o: HttpClientOptions) => {
     const qs = (o.qs ?? {}) as Record<string, string>;
     const method = (o.method ?? "GET").toUpperCase();
 
     if (o.url.startsWith("/sap/bc/adt/oo/classrun/")) {
-      classrunCalls += 1;
-      if (classrunCalls === 1) {
-        // TSTC precheck: cinfo=00 -> dialog transaction -> bdcApplies=true.
-        return resp(
-          200,
-          `${UI_LINE_PREFIX}TCODE tcode=[${tcode}] program=[SAPMZUI1] dynpro=[0100] cinfo=[00] kind=[Dialog]\n`,
-          { "content-type": "text/plain" },
-        );
+      const name = o.url.slice("/sap/bc/adt/oo/classrun/".length);
+      if (isUiFluidClass(name)) {
+        const r = fluidRoute(o);
+        if (r) return r;
       }
       // The actual press: subrc 0, two BDCDATA rows submitted, no messages.
       return resp(200, `${UI_LINE_PREFIX}SUBRC 0\n${UI_LINE_PREFIX}ROWCOUNT 2\n`, {
@@ -137,6 +164,13 @@ function pressHappyPath(tcode: string): (o: HttpClientOptions) => HttpClientResp
     if (o.url.includes(SESSION_URL)) return resp(200, "<graph/>", LOGIN_HEADERS);
     if (o.url.includes(DATA_PREVIEW_PATH)) return systemRoleProbeResponse("nonproductive");
     if (o.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
+    if (o.url === PKG_URI && method === "GET") {
+      return resp(200, PACKAGE_XML(FLUID_PACKAGE), { "content-type": "application/xml" });
+    }
+
+    const fluid = fluidRoute(o);
+    if (fluid) return fluid;
+
     if (o.url.startsWith(`${CLASS_COLLECTION}/zcl_zmcp_ui_`) && method === "GET" && !qs._action) {
       const r = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
       throw new HttpClientException("Request failed with status code 404", "404", 404, undefined, o, r);
