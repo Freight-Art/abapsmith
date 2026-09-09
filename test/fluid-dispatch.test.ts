@@ -139,6 +139,10 @@ const notFoundXml = (name: string): string =>
   `<namespace id="com.sap.adt"/><type id="ExceptionResourceNotFound"/>` +
   `<message lang="EN">${name} does not exist</message><properties/></exc:exception>`;
 
+const CHECKRUN_CLEAN_XML =
+  `<?xml version="1.0" encoding="utf-8"?>` +
+  `<chkrun:checkRunReports xmlns:chkrun="http://www.sap.com/adt/checkrun" xmlns:atom="http://www.w3.org/2005/Atom"/>`;
+
 const PACKAGE_XML = (name: string): string =>
   `<?xml version="1.0" encoding="utf-8"?>` +
   `<pak:package xmlns:pak="http://www.sap.com/adt/packages" ` +
@@ -209,6 +213,10 @@ function dynamicFluidRoute(opts: { transcript: () => string }): { route: Route; 
   const route: Route = (r) => {
     if (r.url === PKG_URI && r.method === "GET") return resp(200, PACKAGE_XML(FLUID_PACKAGE), OK_XML);
     if (r.url === PACKAGES && r.method === "POST") return resp(200, "", OK_TEXT);
+    // Only reachable once a test redeploys an object that already exists+active (e.g. a forced
+    // recovery retry re-classifying what the first attempt just deployed) — classifyOne's
+    // "already there, verify content" branch runs a checkruns syntax check before trusting it.
+    if (r.url.startsWith("/sap/bc/adt/checkruns") && r.method === "POST") return resp(200, CHECKRUN_CLEAN_XML, OK_XML);
 
     if (r.url === CLS_COLLECTION && r.method === "POST") {
       const m = /adtcore:name="([^"]+)"/.exec(r.body ?? "");
@@ -509,11 +517,16 @@ describe("dispatch — transcript protocol", () => {
     expect(err.code).toBe("FLUID_PROTOCOL_ERROR");
   });
 
-  it("a BEGIN.ver mismatch forgets the just-written registry entry, but the call still succeeds", async () => {
-    const NAME = "ZCL_VERMIS";
-    const tool = makeManifestTool({ id: "vermis", className: NAME, actions: [READ_ACTION] });
+  it("a BEGIN.ver mismatch forgets the registry entry, redeploys once, and succeeds once the retry's transcript matches", async () => {
+    const NAME = "ZCL_VERMIS_OK";
+    const tool = makeManifestTool({ id: "vermisok", className: NAME, actions: [READ_ACTION] });
+    let transcriptCalls = 0;
     const { route } = dynamicFluidRoute({
-      transcript: () => buildTranscript({ id: tool.manifest.id, ver: "deadbeef", action: "run", outs: [{}] }),
+      transcript: () => {
+        transcriptCalls++;
+        const ver = transcriptCalls === 1 ? "deadbeef" : tool.version;
+        return buildTranscript({ id: tool.manifest.id, ver, action: "run", outs: [{}] });
+      },
     });
     const { conn } = await connected(route);
     const sysKey = systemKey(conn.cfg);
@@ -529,8 +542,49 @@ describe("dispatch — transcript protocol", () => {
     const result = await dispatch(d, { tool: tool.manifest.id, action: "run", args: {} });
 
     expect(result.result).toEqual({});
+    expect(result.version).toBe(tool.version);
+    // Exactly one retry: the mismatched first BEGIN.ver triggers exactly one forget +
+    // redeploy + re-run, evidenced by exactly two classrun executions, never a loop.
+    expect(transcriptCalls).toBe(2);
     const registry = await readFluidRegistry(cfg(), sysKey);
-    expect(registry.get(tool.manifest.id)).toBeUndefined();
+    expect(registry.get(tool.manifest.id)?.version).toBe(tool.version);
+  });
+
+  it("a BEGIN.ver mismatch that persists after the redeploy raises FLUID_PROTOCOL_ERROR naming expected/got", async () => {
+    const NAME = "ZCL_VERMIS_STILL";
+    const tool = makeManifestTool({ id: "vermisstill", className: NAME, actions: [READ_ACTION] });
+    let transcriptCalls = 0;
+    const { route } = dynamicFluidRoute({
+      transcript: () => {
+        transcriptCalls++;
+        return buildTranscript({ id: tool.manifest.id, ver: "deadbeef", action: "run", outs: [{}] });
+      },
+    });
+    const { conn } = await connected(route);
+    const sysKey = systemKey(conn.cfg);
+    await recordManifest(cfg(), sysKey, {
+      toolId: tool.manifest.id,
+      contract: tool.manifest.contract,
+      version: "00000000",
+      objects: [NAME],
+      deployedAt: new Date().toISOString(),
+    });
+    const d = depsFor(conn, gate(), tool);
+
+    const err = await catchErr(dispatch(d, { tool: tool.manifest.id, action: "run", args: {} }));
+
+    expect(err.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(err.details["expected"]).toBe(tool.version);
+    expect(err.details["got"]).toBe("deadbeef");
+    // Exactly one retry, never a loop: two classrun executions total.
+    expect(transcriptCalls).toBe(2);
+    // The stale pre-existing "00000000" lie does not survive: forgetManifest ran inside the
+    // retry's recovery, and the redeploy that followed recorded a fresh, correct entry — the
+    // registry is not left holding the original lie even though the call still failed.
+    const registry = await readFluidRegistry(cfg(), sysKey);
+    const entry = registry.get(tool.manifest.id);
+    expect(entry?.version).toBe(tool.version);
+    expect(entry?.version).not.toBe("00000000");
   });
 
   it("a BEGIN.id mismatch raises FLUID_PROTOCOL_ERROR naming what was requested and what came back", async () => {
@@ -604,6 +658,70 @@ describe("dispatch — END with neither OUT nor ERR", () => {
 
     expect(err.code).toBe("FLUID_PROTOCOL_ERROR");
     expect(err.details["count"]).toBe(1);
+  });
+});
+
+describe("dispatch — transcript warnings (protocol.md's stray/dropped, surfaced not swallowed)", () => {
+  it("a stray console line surfaces as a warning on an otherwise successful call", async () => {
+    const tool = makeManifestTool({ id: "straywarn", className: "ZCL_STRAYWARN", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () =>
+        [
+          frameLine("BEGIN", { id: tool.manifest.id, ver: tool.version, action: "run", contract: "1.0" }),
+          "unexpected debug noise printed by some other WRITE statement",
+          frameLine("OUT", {}),
+          frameLine("END", { rc: 0, outBytes: 0, truncated: false, ms: 1 }),
+        ].join("\n") + "\n",
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const result = await dispatch(d, { tool: tool.manifest.id, action: "run", args: {} });
+
+    expect(result.result).toEqual({});
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain("unexpected debug noise printed by some other WRITE statement");
+  });
+
+  it("a clean transcript surfaces no warnings", async () => {
+    const tool = makeManifestTool({ id: "nowarn", className: "ZCL_NOWARN", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const result = await dispatch(d, { tool: tool.manifest.id, action: "run", args: {} });
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  // `dropped` can only ever be populated alongside an ERR frame (protocol.ts's own invariant —
+  // an unparseable reassembled OUTC/OUTE value is swallowed as "dropped" instead of thrown only
+  // because an ERR frame already explains the failure), and an ERR frame always makes dispatch
+  // throw FLUID_ACTION_FAILED before any success FluidRunResult could be built. So the one place
+  // a `dropped` entry can ever actually reach a caller is the thrown error's own details, not
+  // `result.warnings` on a success — see buildWarnings' doc comment in dispatch.ts.
+  it("a dropped value alongside an ERR frame surfaces in the thrown error's warnings", async () => {
+    const tool = makeManifestTool({ id: "droppedwarn", className: "ZCL_DROPPEDWARN", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () =>
+        [
+          frameLine("BEGIN", { id: tool.manifest.id, ver: tool.version, action: "run", contract: "1.0" }),
+          "ZMCP-H>OUTC not valid json",
+          "ZMCP-H>OUTE  still not valid",
+          frameLine("ERR", { kind: "exception", step: "run", text: "boom" }),
+          frameLine("END", { rc: 8, outBytes: 0, truncated: false, ms: 1 }),
+        ].join("\n") + "\n",
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool);
+
+    const err = await catchErr(dispatch(d, { tool: tool.manifest.id, action: "run", args: {} }));
+
+    expect(err.code).toBe("FLUID_ACTION_FAILED");
+    const warnings = err.details["warnings"] as readonly string[];
+    expect(warnings.some((w) => w.includes("not valid json still not valid"))).toBe(true);
   });
 });
 

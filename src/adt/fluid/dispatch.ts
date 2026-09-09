@@ -17,10 +17,14 @@ import { activateObject, assertNoErrors } from "../activate.js";
 import { authorizeMutation } from "../write.js";
 import { fluidDisabledReason } from "./enabled.js";
 import { ensureFluidPackage, FLUID_PACKAGE } from "./package.js";
-import { anyFluidObjectMissing, ensureFluidTool, recoverMissingFluidObject } from "./ensure.js";
+import {
+  anyFluidObjectMissing,
+  ensureFluidRuntimeFor,
+  ensureFluidTool,
+  recoverMissingFluidObject,
+} from "./ensure.js";
 import { guardCoreAction } from "./builtin/core.js";
-import { forgetManifest } from "./registry.js";
-import { parseFluidConsole } from "./protocol.js";
+import { parseFluidConsole, type FluidBeginFrame, type FluidEndFrame, type FluidTranscript } from "./protocol.js";
 import { canonicalArgsJson, invokerName, invokerSource } from "./invoke.js";
 import {
   validateAgainstSchema,
@@ -53,6 +57,16 @@ export interface FluidRunResult {
   readonly deployed: boolean;
   readonly ms: number;
   readonly truncated: boolean;
+  /**
+   * Non-fatal transcript oddities, human-readable and never truncated:
+   * `transcript.stray` (console output outside the frame grammar) and
+   * `transcript.dropped` (a value the frame grammar could not reassemble or
+   * parse — protocol.ts only ever produces one alongside an ERR frame, so in
+   * practice it reaches the caller through the `FLUID_ACTION_FAILED` error's
+   * own details rather than through this field). Empty when the transcript
+   * was clean. Never the reason a call fails.
+   */
+  readonly warnings: readonly string[];
   readonly result: unknown;
 }
 
@@ -265,6 +279,81 @@ async function forceInvokerRegeneration(deps: FluidDeps, invokerClassName: strin
   });
 }
 
+/**
+ * `stray` and `dropped` are informational, not action failures — protocol.md
+ * documents both as reported to the caller rather than silently discarded.
+ * `dropped` is only ever populated alongside at least one ERR frame
+ * (parseFluidConsole's own invariant: an unparseable reassembled value is
+ * swallowed as "dropped" instead of thrown only because an ERR frame already
+ * explains the failure), so in practice this only ever surfaces a `dropped`
+ * entry when called from the `FLUID_ACTION_FAILED` branch below — a
+ * transcript with `dropped.length > 0` and `errors.length === 0` cannot
+ * occur.
+ */
+function buildWarnings(transcript: FluidTranscript): readonly string[] {
+  const warnings: string[] = [];
+  for (const line of transcript.stray) {
+    warnings.push(`stray console output: ${line}`);
+  }
+  for (const d of transcript.dropped) {
+    warnings.push(`a value starting at line ${d.lineNumber} could not be parsed and was dropped: ${d.raw}`);
+  }
+  return warnings;
+}
+
+/**
+ * Everything about a transcript that identifies it as belonging to this
+ * call, independent of whether the deployed build's version matches: ERR
+ * frames, a missing END, and a BEGIN naming a different tool/action. A
+ * BEGIN.ver mismatch is deliberately not checked here — the caller runs this
+ * once against the first transcript and, on a ver mismatch, again against a
+ * second transcript from a forced redeploy, so it owns that check itself
+ * rather than duplicating this function per attempt.
+ */
+interface TranscriptIdentity {
+  readonly begin: FluidBeginFrame | undefined;
+  // Narrowed out of `FluidEndFrame | undefined` below — returned rather than left for the
+  // caller to re-check so a `transcript.end.ms` after this call doesn't need its own guard.
+  readonly end: FluidEndFrame;
+}
+
+function assertTranscriptIdentity(transcript: FluidTranscript, req: FluidRunRequest): TranscriptIdentity {
+  if (transcript.errors.length > 0) {
+    throw new AbapError(
+      "FLUID_ACTION_FAILED",
+      `${req.tool}.${req.action} reported ${transcript.errors.length} error frame(s).`,
+      {
+        tool: req.tool,
+        action: req.action,
+        frames: transcript.errors,
+        warnings: buildWarnings(transcript),
+      },
+    );
+  }
+  // Checked only once ERR is ruled out above: a mid-run abort after the invoker's CATCH arm
+  // prints ERR but never reaches END must surface as the plugin's own failure, not this.
+  if (!transcript.end) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      `${req.tool}.${req.action}: the fluid transcript has no END frame and reported no errors — the ` +
+        `ABAP side dumped before it could report anything.`,
+      { tool: req.tool, action: req.action },
+    );
+  }
+  const end = transcript.end;
+
+  const begin = transcript.begin;
+  if (begin && (begin.id !== req.tool || begin.action !== req.action)) {
+    throw new AbapError(
+      "FLUID_PROTOCOL_ERROR",
+      `${req.tool}.${req.action}: the transcript's BEGIN frame reports ${begin.id}.${begin.action}, not the ` +
+        `requested call — a stale invoker class or program buffer served a different action.`,
+      { tool: req.tool, action: req.action, beginId: begin.id, beginAction: begin.action },
+    );
+  }
+  return { begin, end };
+}
+
 export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<FluidRunResult> {
   const disabled = fluidDisabledReason(deps.cfg, deps.gate);
   if (disabled) throw dispatchDisabledError(disabled, deps.cfg, req);
@@ -365,6 +454,17 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
   // frame in `transcript`, not as a thrown `AbapError`, so it can never reach
   // this catch in the first place).
   const runDeployAndExecute = async () => {
+    // Both a plugin's ABAP body and its generated invoker hard-call the fluid runtime class by
+    // name, but no plugin manifest may declare that class itself (the loader's namespace rule
+    // refuses it) — so nothing else ever deploys it for a plugin. No-op for a builtin tool, which
+    // already owns the runtime class in its own manifest. Must run before `ensureFluidTool`: the
+    // plugin body it deploys next depends on the runtime class already existing.
+    await ensureFluidRuntimeFor(deps.conn, deps.gate, deps.cfg, tool, {
+      tool: req.tool,
+      action: req.action,
+      op: "run",
+    });
+
     const ensureResult = await ensureFluidTool(deps.conn, deps.gate, deps.cfg, tool, {
       tool: req.tool,
       action: req.action,
@@ -395,6 +495,39 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
     const run = await executeBridge(deps.conn, deps.gate, deployedBridge);
 
     return { ensureResult, deployedBridge, run };
+  };
+
+  // Shared by two independent triggers below: an exception straight out of `runDeployAndExecute`
+  // (the catch block right after this) and a BEGIN.ver mismatch on an otherwise-clean transcript
+  // (further down, once frame identity is already confirmed). Both need the exact same recovery —
+  // forget the registry's cached entry, let `ensureFluidTool` re-classify and redeploy whatever the
+  // manifest says should be there, force the generated invoker to recompile against whatever came
+  // back, then run the whole deploy+execute range again — so it is written once here rather than
+  // twice. Neither caller loops on this; each site calls it at most once per dispatch.
+  //
+  // The force-regenerate step matters even though `recoverMissingFluidObject` just redeployed:
+  // it only touches the fluid BODY classes tracked in the manifest and has no idea the generated
+  // invoker even exists. When the invoker itself was left referencing a dependency that just came
+  // back (the classic shape: a body class deleted out of band, then restored), it is untouched by
+  // that redeploy — `deployBridge`'s own F6 shortcut (see its doc, src/adt/run.ts) skips the
+  // activation POST whenever the invoker's source hash is unchanged AND its `adtcore:version`
+  // metadata already says "active", both true here since nothing about the invoker's OWN row
+  // changed. Left alone, the retry below would call `deployBridge` again, hit that exact same
+  // shortcut, skip activation again, and `executeBridge` would re-run the still unregenerated
+  // invoker and fail identically a second time. Forcing a real activation here — outside
+  // `deployBridge`, after the dependency it needs is back — is what actually gets the invoker's
+  // program regenerated against the now-valid dependency before the retry runs it. (When the
+  // triggering failure doesn't fit that shape, the retry's own `deployBridge` already activates
+  // unconditionally, so this call is a harmless, already-active no-op; see
+  // `forceInvokerRegeneration`'s own doc.)
+  const redeployAndRetryOnce = async () => {
+    await recoverMissingFluidObject(deps.conn, deps.gate, deps.cfg, tool, {
+      tool: req.tool,
+      action: req.action,
+      op: "run",
+    });
+    await forceInvokerRegeneration(deps, invokerClassName);
+    return runDeployAndExecute();
   };
 
   let ensureResult: Awaited<ReturnType<typeof runDeployAndExecute>>["ensureResult"];
@@ -468,70 +601,34 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
     // below) cannot have executed. So recovering and re-running the whole
     // range here can never double-commit or double-journal a mutation that
     // already went through.
-    await recoverMissingFluidObject(deps.conn, deps.gate, deps.cfg, tool, {
-      tool: req.tool,
-      action: req.action,
-      op: "run",
-    });
-    // `recoverMissingFluidObject` only redeploys the fluid BODY classes
-    // tracked in the manifest — it has no idea the generated invoker even
-    // exists. When the invoker itself was left referencing the now-redeployed
-    // dependency (the `RUNTIME_DUMP`-via-F6-shortcut shape above), it is
-    // untouched by that redeploy: `deployBridge`'s own F6 shortcut (see its
-    // doc, src/adt/run.ts) skips the activation POST whenever the invoker's
-    // source hash is unchanged AND its `adtcore:version` metadata already
-    // says "active" — both true here, since nothing about the invoker's OWN
-    // row changed when its referenced body class was deleted and restored.
-    // Left alone, the retry below would call `deployBridge` again, hit that
-    // exact same shortcut, skip activation again, and `executeBridge` would
-    // re-run the still unregenerated invoker and dump identically a second
-    // time. Forcing a real activation here — outside `deployBridge`, after
-    // the dependency it needs is back — is what actually gets the invoker's
-    // program regenerated against the now-valid body class before the retry
-    // runs it. (When the failure was instead the `CHECK_FAILED`-without-F6
-    // shape, the retry's own `deployBridge` already activates unconditionally
-    // — `write.created || write.changed` is true precisely because F6 did not
-    // engage — so this call is a harmless, already-active no-op for that
-    // shape; see `forceInvokerRegeneration`'s own doc.)
-    await forceInvokerRegeneration(deps, invokerClassName);
     // Exactly one retry: this second call sits outside any try/catch of its
     // own, so a failure here — the object is still broken even after
     // recovery — propagates to the caller unchanged rather than looping.
-    ({ ensureResult, deployedBridge, run } = await runDeployAndExecute());
+    ({ ensureResult, deployedBridge, run } = await redeployAndRetryOnce());
   }
 
-  const transcript = parseFluidConsole(run.output);
-  if (transcript.errors.length > 0) {
-    throw new AbapError(
-      "FLUID_ACTION_FAILED",
-      `${req.tool}.${req.action} reported ${transcript.errors.length} error frame(s).`,
-      { tool: req.tool, action: req.action, frames: transcript.errors },
-    );
-  }
-  // Checked only once ERR is ruled out above: a mid-run abort after the invoker's CATCH arm
-  // prints ERR but never reaches END must surface as the plugin's own failure, not this.
-  if (!transcript.end) {
-    throw new AbapError(
-      "FLUID_PROTOCOL_ERROR",
-      `${req.tool}.${req.action}: the fluid transcript has no END frame and reported no errors — the ` +
-        `ABAP side dumped before it could report anything.`,
-      { tool: req.tool, action: req.action },
-    );
-  }
+  let transcript = parseFluidConsole(run.output);
+  let identity = assertTranscriptIdentity(transcript, req);
 
-  const begin = transcript.begin;
-  if (begin && (begin.id !== req.tool || begin.action !== req.action)) {
-    throw new AbapError(
-      "FLUID_PROTOCOL_ERROR",
-      `${req.tool}.${req.action}: the transcript's BEGIN frame reports ${begin.id}.${begin.action}, not the ` +
-        `requested call — a stale invoker class or program buffer served a different action.`,
-      { tool: req.tool, action: req.action, beginId: begin.id, beginAction: begin.action },
-    );
-  }
-  // Checked only once identity is confirmed above — ver is meaningless to act on when the BEGIN
-  // frame may belong to an entirely different call.
-  if (begin && begin.ver !== tool.version) {
-    await forgetManifest(deps.cfg, sysKey, tool.manifest.id);
+  // A BEGIN.ver mismatch means a build that isn't what the manifest says should be deployed
+  // actually ran and reported success — the registry's cached entry lied, or something
+  // redeployed a different version out of band. Forgetting and redeploying once via the same
+  // machinery as the catch block above, then re-validating the retry's own transcript from
+  // scratch (its BEGIN could just as easily fail an identity check as a ver check), is the only
+  // way to avoid handing the caller a result that didn't come from the build it names.
+  if (identity.begin && identity.begin.ver !== tool.version) {
+    const expectedVersion = tool.version;
+    ({ ensureResult, deployedBridge, run } = await redeployAndRetryOnce());
+    transcript = parseFluidConsole(run.output);
+    identity = assertTranscriptIdentity(transcript, req);
+    if (identity.begin && identity.begin.ver !== expectedVersion) {
+      throw new AbapError(
+        "FLUID_PROTOCOL_ERROR",
+        `${req.tool}.${req.action}: the BEGIN frame still reports ver ${identity.begin.ver} after forgetting the ` +
+          `registry entry and redeploying once — expected ${expectedVersion}.`,
+        { tool: req.tool, action: req.action, expected: expectedVersion, got: identity.begin.ver },
+      );
+    }
   }
 
   // No ERR frame (checked above) means the invoker's own COMMIT WORK already ran — the mutation
@@ -580,8 +677,9 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
     action: req.action,
     version: tool.version,
     deployed: ensureResult.deployed || deployedBridge.bridgeRefreshed,
-    ms: transcript.end.ms,
-    truncated: transcript.end.truncated,
+    ms: identity.end.ms,
+    truncated: identity.end.truncated,
+    warnings: buildWarnings(transcript),
     result,
   };
 }
