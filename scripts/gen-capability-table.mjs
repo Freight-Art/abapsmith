@@ -193,8 +193,9 @@ export async function buildCapabilityTable(registry) {
     ...creatable.map((r) => `- \`${r.type}\` — write shape \`${r.write}\`, delete: ${r.del}`),
     "",
     `**Bridge-only create types (${bridged.length}).** ADT REST has no usable create for these, so ` +
-      "abapsmith generates a throwaway `IF_OO_ADT_CLASSRUN` class into `$TMP` and runs it. The " +
-      "bridge never updates an existing object. Whether it can delete one — and so whether the " +
+      "abapsmith runs them over the fluid `classic` tool's shared `ZCL_ZMCP_FLUID_CLASSIC` body " +
+      "class in `$ABAPSMITH_FLUID_API`, not a throwaway per-call `$TMP` classrun. The bridge " +
+      "never updates an existing object. Whether it can delete one — and so whether the " +
       "create is reversible — differs per type; see each bullet." +
       (bridged.some((r) => r.bridgeRefused)
         ? " A bullet marked **create REFUSED** creates nothing at all: the bridge is described but " +

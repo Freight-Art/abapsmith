@@ -1,10 +1,10 @@
 /**
  * `abap_fpm_read` — reads SAP FPM/FBI screen configs. No ADT read endpoint
  * exists for this content (every write verb 405s — see `src/adt/fpm-runtime.ts`).
- * Like `abap_bopf_test`, it works by generating/activating a throwaway
- * `IF_OO_ADT_CLASSRUN` bridge class in FLUID_PACKAGE, so despite being
- * read-only in effect it goes through `pool.withWrite` and is gated as a
- * write on the bridge class name.
+ * find/outline/app dispatch through the fluid `fpm` tool's static body class
+ * (`fpmManifest.entry`, a fixed name in `$ABAPSMITH_FLUID_API`); `locks` still
+ * generates/activates a per-call bridge class there (`fpm-lock.ts`). Either
+ * way it goes through `pool.withWrite` and is gated as a write on the class name.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

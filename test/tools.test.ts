@@ -1743,7 +1743,7 @@ describe("abap_run", () => {
   });
 
   /**
-   * Running a report CREATES the bridge class, in $TMP, from inside
+   * Running a report CREATES the bridge class, in $ABAPSMITH_FLUID_API, from inside
    * `runReport` — below the tool layer, where the safety gate is out of scope.
    * An operator who allowlisted only `ZFOO_*` would otherwise get an object
    * written to a package they never authorised.

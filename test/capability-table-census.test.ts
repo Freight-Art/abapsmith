@@ -185,6 +185,22 @@ describe("capability table: bridge-only-create types state their update position
   });
 });
 
+describe("capability table: bridge-only create types describe the real mechanism", () => {
+  // These types moved off a per-call generated IF_OO_ADT_CLASSRUN $TMP class
+  // onto the fluid `classic` tool's shared ZCL_ZMCP_FLUID_CLASSIC body class
+  // in $ABAPSMITH_FLUID_API. The bucket intro must say so, not the old shape.
+  it("does not claim a throwaway $TMP classrun for the bridged create types", async () => {
+    const { table } = await buildCapabilityTable(REGISTRY);
+    const start = table.indexOf("Bridge-only create types");
+    const stop = table.indexOf("Creatable, but the create site is outside this registry");
+    expect(start).toBeGreaterThan(-1);
+    expect(stop).toBeGreaterThan(start);
+    const section = table.slice(start, stop);
+    expect(section).not.toMatch(/throwaway `IF_OO_ADT_CLASSRUN`/);
+    expect(section).toContain("ZCL_ZMCP_FLUID_CLASSIC");
+  });
+});
+
 describe("capability table: skill is current without a build", () => {
   it("the generated block in skills/abapsmith-orient/SKILL.md matches buildCapabilityTable(REGISTRY)", async () => {
     const skillPath = new URL("../skills/abapsmith-orient/SKILL.md", import.meta.url);
