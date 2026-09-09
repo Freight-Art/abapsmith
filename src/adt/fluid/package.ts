@@ -1,8 +1,9 @@
 /**
  * The one local package the fluid API deploys its own generated objects
- * into. Distinct from `HELPER_PACKAGE` (`$ZMCP_HELPERS`, `src/adt/helper-package.ts`),
- * which the older bridge families still use. Created on first use, never
- * assumed to exist.
+ * into. Distinct from the older bridge families' packages, one of which
+ * (`$ZMCP_HELPERS`) still shows up below in {@link LEGACY_FLUID_PACKAGES} —
+ * an object a pre-fluid release left there is relocated into this package
+ * rather than left behind. Created on first use, never assumed to exist.
  */
 
 import type { AbapConnection } from "../connection.js";

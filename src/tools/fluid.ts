@@ -29,6 +29,7 @@ import { fluidDisabledReason, type FluidDisabledReason } from "../adt/fluid/enab
 import type { FluidBuiltinSource, FluidToolSet } from "../adt/fluid/plugin-loader.js";
 import {
   classifyFluidTool,
+  ensureFluidRuntimeFor,
   ensureFluidTool,
   type EnsureFluidToolResult,
   type FluidObjectStatus,
@@ -719,6 +720,14 @@ async function runRepair(deps: FluidToolDeps, a: FluidInput): Promise<string> {
     await forgetManifest(deps.cfg, key, t.manifest.id);
     results.push(
       await deps.pool.withWrite("abap_fluid.repair", undefined, async (conn) => {
+        // A plugin body compiles against the shared runtime class but cannot declare it
+        // (the loader confines plugin objects to their own namespace), so repairing the
+        // plugin alone would leave a missing runtime missing. No-op for builtins.
+        await ensureFluidRuntimeFor(conn, deps.safety, deps.cfg, t, {
+          tool: t.manifest.id,
+          action: "(repair)",
+          op: "repair",
+        });
         const result = await ensureFluidTool(conn, deps.safety, deps.cfg, t, {
           tool: t.manifest.id,
           action: "(repair)",

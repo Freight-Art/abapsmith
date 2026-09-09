@@ -74,6 +74,11 @@ const LIVE_INTEGRATION_TESTS = [
   // nonexistent spot. Same independent-gate convention as the other fluid
   // live suites above.
   "test/integration-fluid-enh.test.ts",
+  // Pins the S13 fix: a plugin call redeploys ZCL_ZMCP_FLUID_RT when it is
+  // missing, since a plugin manifest can never declare that class itself
+  // (the loader's namespace guard refuses it). Same independent-gate
+  // convention as the other fluid live suites above.
+  "test/integration-fluid-plugin.test.ts",
 ];
 
 const isLive = process.env.VITEST_LIVE === "1";

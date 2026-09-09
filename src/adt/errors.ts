@@ -291,9 +291,23 @@ export type AbapErrorCode =
   | "FLUID_API_DISABLED"
   /** `ABAP_FLUID_PLUGINS` (the path list) and `ABAP_ALLOW_FLUID_PLUGINS` (the allow flag) are both required; either missing means no plugin loads. */
   | "FLUID_PLUGINS_DISABLED"
-  /** A plugin action declared `category: "mutate"` with `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` off; refused before dispatch, built-in tools unaffected. */
+  /**
+   * `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` is off and either a plugin action
+   * declared `category: "mutate"` (refused before dispatch) or the
+   * plugin's ABAP source itself contains a database write or COMMIT
+   * WORK/ROLLBACK WORK statement (refused at load time). Built-in tools
+   * unaffected either way.
+   */
   | "FLUID_PLUGIN_MUTATE_DISABLED"
-  /** The target ABAP object already exists and isn't owned by this fluid run. */
+  /**
+   * The target ABAP object is owned by something outside this fluid run:
+   * it already exists and isn't owned by this fluid run, or its provenance
+   * marker names an abapsmith version strictly newer than this build's
+   * (classified `newer`, never overwritten; `details.installed_version`,
+   * `.our_version`, `.hint`), or two loaded fluid tools — built-in or
+   * plugin — declare the same object name, refusing the second claimant at
+   * load time and naming both tool ids.
+   */
   | "FLUID_OBJECT_CONFLICT"
   /** The fluid manifest on disk failed validation. */
   | "FLUID_MANIFEST_INVALID"

@@ -64,6 +64,7 @@ function makeTool(opts: {
   className: string;
   origin?: "builtin" | "plugin";
   actions?: readonly FluidActionSpec[];
+  internal?: boolean;
 }): LoadedFluidTool {
   const cls = opts.className.toLowerCase();
   const source = `CLASS ${cls} DEFINITION PUBLIC.\nENDCLASS.\nCLASS ${cls} IMPLEMENTATION.\nENDCLASS.`;
@@ -75,6 +76,7 @@ function makeTool(opts: {
     objects: [{ name: opts.className, type: "CLAS/OC", description: "demo class", source: { text: source } }],
     entry: opts.className,
     actions: opts.actions ?? [RUN_ACTION],
+    ...(opts.internal !== undefined ? { internal: opts.internal } : {}),
   };
   const sources = new Map([[opts.className, source]]);
   return {
@@ -347,6 +349,115 @@ describe("purity", () => {
     // returning any fixed one-tool/one-action payload would pass here undetected.
     expect(payload.tools[0]!.id).toBe("aaa");
     expect(payload.tools[0]!.actions[0]!.name).toBe(RUN_ACTION.name);
+  });
+});
+
+// --- 9. worked example prefers a read action (finding 9) ---
+
+describe("buildFluidDescription worked example prefers a read action", () => {
+  const MUTATE_FIRST: FluidActionSpec = {
+    name: "create_thing",
+    category: "mutate",
+    description: "creates a thing",
+    input: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
+    output: { type: "object" },
+  };
+  const READ_LATER: FluidActionSpec = {
+    name: "get_thing",
+    category: "read",
+    description: "reads a thing",
+    input: { type: "object", properties: { id: { type: "string" } } },
+    output: { type: "object" },
+  };
+
+  it("names a later action of the same (first) tool over that tool's own first (mutate) action", () => {
+    const tool = makeTool({ id: "aaa", className: "ZCL_ZMCP_X_AAA", actions: [MUTATE_FIRST, READ_LATER] });
+    const out = buildFluidDescription(toolSetOf([tool]));
+    expect(out).toContain(`action="${READ_LATER.name}"`);
+    expect(out).not.toContain(`action="${MUTATE_FIRST.name}"`);
+  });
+
+  it("names a read action of a later tool when the first tool carries no read action at all", () => {
+    const mutateOnly = makeTool({ id: "aaa", className: "ZCL_ZMCP_X_AAA", actions: [MUTATE_FIRST] });
+    const readTool = makeTool({ id: "bbb", className: "ZCL_ZMCP_X_BBB", actions: [READ_LATER] });
+    const out = buildFluidDescription(toolSetOf([mutateOnly, readTool]));
+    expect(out).toContain(`tool="bbb", action="${READ_LATER.name}"`);
+  });
+
+  it("falls back to the first tool's first action when no read action exists anywhere", () => {
+    const mutateOnly = makeTool({ id: "aaa", className: "ZCL_ZMCP_X_AAA", actions: [MUTATE_FIRST] });
+    const out = buildFluidDescription(toolSetOf([mutateOnly]));
+    expect(out).toContain(`tool="aaa", action="${MUTATE_FIRST.name}"`);
+  });
+});
+
+// --- 10. exampleArgs orders required keys first (finding 16) ---
+
+describe("buildFluidDescription worked example orders required args first", () => {
+  it("includes a required key declared third in the example, ahead of the two earlier non-required keys", () => {
+    const action: FluidActionSpec = {
+      name: "run",
+      category: "read",
+      description: "test action with a late-declared required key",
+      input: {
+        type: "object",
+        properties: {
+          alpha: { type: "string" },
+          beta: { type: "string" },
+          gamma: { type: "string" },
+        },
+        required: ["gamma"],
+      },
+      output: { type: "object" },
+    };
+    const tool = makeTool({ id: "aaa", className: "ZCL_ZMCP_X_AAA", actions: [action] });
+    const out = buildFluidDescription(toolSetOf([tool]));
+    // slice(0, 2) keeps the count at two args; gamma must be one of them even
+    // though it is declared third, and alpha/beta (both non-required) must
+    // yield to it in the ordering.
+    expect(out).toContain('"gamma"');
+  });
+});
+
+// --- 11. internal tools are excluded from the route index, not from describe/info (finding 13) ---
+
+describe("internal tools", () => {
+  it("are absent from the route index and worked example, but present in buildFluidDescribe/buildFluidInfoBlock flagged internal: true", () => {
+    const internalTool = makeTool({
+      id: "rt",
+      className: "ZCL_ZMCP_FLUID_RT",
+      actions: [RUN_ACTION],
+      internal: true,
+    });
+    const routable = makeTool({ id: "aaa", className: "ZCL_ZMCP_X_AAA" });
+    const toolSet = toolSetOf([internalTool, routable]);
+
+    const description = buildFluidDescription(toolSet);
+    expect(description).not.toContain("  rt:");
+    expect(description).not.toContain('tool="rt"');
+    expect(description).toContain("  aaa:");
+
+    const payload = buildFluidDescribe(toolSet);
+    const rtDescribed = payload.tools.find((t) => t.id === "rt");
+    const aaaDescribed = payload.tools.find((t) => t.id === "aaa");
+    expect(rtDescribed?.internal).toBe(true);
+    expect(aaaDescribed?.internal).toBeUndefined();
+
+    const info = buildFluidInfoBlock({ cfg: cfg(), toolSet });
+    const rtInfo = info.tools.find((t) => t.id === "rt");
+    const aaaInfo = info.tools.find((t) => t.id === "aaa");
+    expect(rtInfo?.internal).toBe(true);
+    expect(aaaInfo?.internal).toBeUndefined();
+  });
+
+  it("does not count toward route-index emptiness when it is the only loaded tool: buildFluidDescribe/buildFluidInfoBlock still report it", () => {
+    const internalOnly = toolSetOf([
+      makeTool({ id: "rt", className: "ZCL_ZMCP_FLUID_RT", actions: [RUN_ACTION], internal: true }),
+    ]);
+    const payload = buildFluidDescribe(internalOnly);
+    expect(payload.tools.map((t) => t.id)).toEqual(["rt"]);
+    const info = buildFluidInfoBlock({ cfg: cfg(), toolSet: internalOnly });
+    expect(info.tools.map((t) => t.id)).toEqual(["rt"]);
   });
 });
 

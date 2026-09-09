@@ -63,6 +63,14 @@ export interface FluidManifest {
   readonly objects: readonly FluidObjectSpec[];
   readonly entry: string;
   readonly actions: readonly FluidActionSpec[];
+  /**
+   * Framework plumbing rather than a tool a caller should be routed to (the
+   * shared `rt` runtime is the only current example). Additive and
+   * backward-compatible — absent/false means routable, so `contract` stays
+   * "1.0" — and `manifestVersion` never reads it, so setting or clearing it
+   * moves no deploy-version hash.
+   */
+  readonly internal?: boolean;
 }
 
 /** A manifest plus its resolved ABAP sources and computed version. */
@@ -282,6 +290,8 @@ const FluidManifestObjectSchema = z.object({
   objects: z.array(FluidObjectSpecSchema).min(1),
   entry: z.string().min(1),
   actions: z.array(FluidActionSpecSchema).min(1),
+  // Additive: absent/false means routable, so contract stays "1.0".
+  internal: z.boolean().optional(),
 });
 
 export const FluidManifestSchema: z.ZodType<FluidManifest> = FluidManifestObjectSchema.superRefine(

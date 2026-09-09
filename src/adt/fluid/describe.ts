@@ -87,15 +87,42 @@ function exampleValueFor(schema: FluidJsonSchema | undefined): unknown {
   }
 }
 
-/** Up to two plausible arg keys from an action's input schema, or `{}` when it declares none. */
+/**
+ * Up to two plausible arg keys from an action's input schema, or `{}` when it
+ * declares none. Required keys sort first (in `required`'s own order) so a
+ * schema with more than two properties still yields a satisfiable example
+ * instead of one missing a key the schema demands.
+ */
 function exampleArgs(action: FluidActionSpec): Record<string, unknown> {
   const props = action.input.properties;
   if (!props) return {};
+  const required = action.input.required ?? [];
+  const declared = Object.keys(props);
+  const ordered = [
+    ...required.filter((key) => declared.includes(key)),
+    ...declared.filter((key) => !required.includes(key)),
+  ];
   const args: Record<string, unknown> = {};
-  for (const key of Object.keys(props).slice(0, 2)) {
+  for (const key of ordered.slice(0, 2)) {
     args[key] = exampleValueFor(props[key]);
   }
   return args;
+}
+
+/**
+ * The first read action, scanning routable tools in `sortedTools` order and
+ * each tool's own actions in declaration order — a worked example built from
+ * this never leads with a mutate when a read action is available anywhere.
+ */
+function firstReadAction(
+  tools: readonly LoadedFluidTool[],
+): { readonly tool: LoadedFluidTool; readonly action: FluidActionSpec } | undefined {
+  for (const tool of tools) {
+    for (const action of tool.manifest.actions) {
+      if (action.category === "read") return { tool, action };
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -116,17 +143,28 @@ export function buildFluidDescription(toolSet: FluidToolSet): string {
     return `${header}\nNo fluid tools are loaded.`;
   }
 
-  const actionLines = tools.map((t) => renderToolActionsLine(toolLabel(t), t.manifest.actions)).join("\n");
+  // Internal tools (framework plumbing, e.g. `rt`) are a classification, not
+  // an elision: they're never routed to, so they're left out of the route
+  // index and the worked example below it entirely — not counted, not
+  // summarized, not hinted at. `op:"describe"`/`op:"list"` still show them,
+  // flagged.
+  const routableTools = tools.filter((t) => t.manifest.internal !== true);
+  const actionLines = routableTools.map((t) => renderToolActionsLine(toolLabel(t), t.manifest.actions)).join("\n");
   const lines = [header, "tools.actions (category):", actionLines];
 
-  const firstTool = tools[0];
+  const firstTool = routableTools[0];
   const firstAction = firstTool?.manifest.actions[0];
-  if (firstTool !== undefined && firstAction !== undefined) {
-    const args = exampleArgs(firstAction);
+  const fallback =
+    firstTool !== undefined && firstAction !== undefined ? { tool: firstTool, action: firstAction } : undefined;
+  const example = firstReadAction(routableTools) ?? fallback;
+  if (example !== undefined) {
+    const args = exampleArgs(example.action);
     lines.push(
-      `abap_fluid(tool="${firstTool.manifest.id}", action="${firstAction.name}", args=${JSON.stringify(args)})`,
+      `abap_fluid(tool="${example.tool.manifest.id}", action="${example.action.name}", args=${JSON.stringify(args)})`,
     );
-    lines.push(`abap_fluid(op="describe", tool="${firstTool.manifest.id}")  — full input/output schemas for one tool`);
+    lines.push(
+      `abap_fluid(op="describe", tool="${example.tool.manifest.id}")  — full input/output schemas for one tool`,
+    );
   }
 
   return lines.join("\n");
@@ -159,6 +197,8 @@ export interface FluidDescribeTool {
   readonly entry: string;
   readonly objects: readonly FluidDescribeObject[];
   readonly actions: readonly FluidDescribeAction[];
+  /** Present (and true) only for framework plumbing excluded from the route index — see `FluidManifest.internal`. */
+  readonly internal?: boolean;
 }
 
 export interface FluidDescribePayload {
@@ -189,6 +229,7 @@ function toDescribeTool(t: LoadedFluidTool): FluidDescribeTool {
     entry: t.manifest.entry,
     objects: t.manifest.objects.map((o) => ({ name: o.name, type: o.type, description: o.description })),
     actions: t.manifest.actions.map(toDescribeAction),
+    ...(t.manifest.internal === true ? { internal: true } : {}),
   };
 }
 
@@ -234,6 +275,8 @@ export interface FluidInfoToolSummary {
   readonly origin: "builtin" | "plugin";
   readonly version: string;
   readonly actions: readonly string[];
+  /** Present (and true) only for framework plumbing excluded from the route index — see `FluidManifest.internal`. */
+  readonly internal?: boolean;
 }
 
 /** As far as `SafetyGate.config` actually exposes it — `undefined` when no gate was given at all. */
@@ -270,6 +313,7 @@ export function buildFluidInfoBlock(deps: FluidInfoDeps): FluidInfoBlock {
     origin: t.origin,
     version: t.version,
     actions: t.manifest.actions.map((a) => a.name),
+    ...(t.manifest.internal === true ? { internal: true } : {}),
   }));
 
   const g = deps.safety?.config;

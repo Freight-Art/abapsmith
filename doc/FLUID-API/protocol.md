@@ -106,9 +106,13 @@ Emitted last, exactly once, closing the transcript.
   such — never as empty success.** The existing ABAP-dump translation
   applies unchanged; a truncated console read is not silently treated
   as a call that returned nothing.
-- Console lines that are not frames are kept and reported alongside a
-  dump, not silently discarded — a stray `WRITE` from broken operator
-  code is diagnostic evidence, not noise.
+- Console lines that are not frames are kept, not silently discarded —
+  a stray `WRITE` from broken operator code is diagnostic evidence, not
+  noise. It is reported as a `warnings` entry on the result, whether the
+  call succeeds or fails. A value whose `OUTC`/`OUTE` reassembly could
+  not be parsed is reported the same way, but only when an `ERR` frame
+  already explained the failure — otherwise the reassembly failure
+  itself is the error.
 
 ### No caps
 

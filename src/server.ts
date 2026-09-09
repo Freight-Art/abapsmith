@@ -53,9 +53,10 @@ import { builtinFluidToolSet, registerFluidTool } from "./tools/fluid.js";
 import { registerV2Tools } from "./tools/v2/register.js";
 import { BUILTIN_FLUID_TOOLS } from "./adt/fluid/builtin/index.js";
 import type { FluidToolSet } from "./adt/fluid/plugin-loader.js";
+import { SERVER_VERSION } from "./version.js";
 
 export const SERVER_NAME = "abapsmith";
-export const SERVER_VERSION = "0.3.0";
+export { SERVER_VERSION };
 
 export interface ServerOptions extends ConnectionOptions {
   /** Injectable for tests; defaults to `journalConfigFromEnv()`. */

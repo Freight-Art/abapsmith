@@ -21,6 +21,7 @@ import { isAbapError, type AbapError } from "../src/adt/errors.js";
 import { systemKey } from "../src/journal.js";
 import { dispatch } from "../src/adt/fluid/dispatch.js";
 import { ensureFluidTool, resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
+import { SERVER_VERSION } from "../src/version.js";
 import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
 import { readFluidRegistry } from "../src/adt/fluid/registry.js";
 import {
@@ -382,6 +383,11 @@ describe("classic tool — warm cache", () => {
   });
 });
 
+// Mirrors ensure.ts's own `withDeployedVersionMarker` — not exported, so
+// reconstructed here rather than pulled in, to pin the exact line every
+// deployed fluid object now carries prepended to its source.
+const DEPLOYED_VERSION_MARKER = `* abapsmith fluid v${SERVER_VERSION}\n`;
+
 describe("classic tool — version bump", () => {
   it("rewrites exactly the changed object and no other", async () => {
     const bumpedSource = `${classicSources.get(CLASSIC_BODY_CLASS)}\n* bumped for this test`;
@@ -414,7 +420,13 @@ describe("classic tool — version bump", () => {
     expect(putsAfterBump.filter((c) => c.url === BODY_URI)).toHaveLength(1);
     expect(putsAfterBump.filter((c) => c.url === RUNTIME_URI)).toEqual([]);
     expect(bumpResult.deployed).toBe(true);
-    expect(store.get(CLASSIC_BODY_CLASS)?.source).toBe(bumpedSource);
+    // Every write now prepends a `* abapsmith fluid v<version>` provenance
+    // marker (ensure.ts's `withDeployedVersionMarker`) — pin that the marker
+    // is there AND that what follows it is exactly the bumped source, rather
+    // than loosening this to a substring check.
+    const bodySource = store.get(CLASSIC_BODY_CLASS)?.source ?? "";
+    expect(bodySource.startsWith(DEPLOYED_VERSION_MARKER)).toBe(true);
+    expect(bodySource.slice(DEPLOYED_VERSION_MARKER.length)).toBe(bumpedSource);
     expect(store.get(FLUID_RUNTIME_CLASS)?.source).toBe(runtimeSourceAfterFirst);
   });
 });

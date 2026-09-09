@@ -9,7 +9,8 @@ import type { AbapConnection } from "../connection.js";
 import type { Config } from "../../config.js";
 import type { SafetyGate } from "../../safety.js";
 import { systemKey } from "../../journal.js";
-import { AbapError, describeUnknownError } from "../errors.js";
+import { SERVER_VERSION } from "../../version.js";
+import { AbapError, describeUnknownError, isAbapError } from "../errors.js";
 import { discloseBridgeResidue, type BridgeResidueStage } from "../bridge-residue.js";
 import {
   authorizeMutation,
@@ -28,9 +29,10 @@ import { FLUID_PACKAGE, LEGACY_FLUID_PACKAGES, isReservedFluidName, ensureFluidP
 import { forgetManifest, readFluidRegistry, recordManifest } from "./registry.js";
 import type { FluidObjectSpec, FluidObjectType, LoadedFluidTool } from "./manifest.js";
 import { fluidDisabledReason, type FluidConfigFields } from "./enabled.js";
+import { FLUID_RUNTIME_CLASS, fluidRuntimeTool } from "./abap/runtime.js";
 
 export type FluidObjectState =
-  | "absent" | "present" | "stale" | "inactive" | "broken" | "foreign" | "legacy";
+  | "absent" | "present" | "stale" | "inactive" | "broken" | "foreign" | "legacy" | "newer";
 
 export interface FluidObjectStatus {
   readonly name: string;
@@ -67,6 +69,50 @@ interface Classification {
   readonly resolved: ResolvedTarget;
   readonly state: FluidObjectState;
   readonly foundIn?: string;
+  /** set for `newer` — the abapsmith version the installed source's marker names */
+  readonly installedVersion?: string;
+}
+
+// Provenance stamped into the TEXT ENSURE ACTUALLY DEPLOYS, never into a
+// manifest source or the version hash that keys the registry cache (see
+// `manifestVersion` — computed straight from `LoadedFluidTool.sources`,
+// which never sees this line). One ABAP comment line, same idea as the
+// generated-header line `invokerSource` puts atop an invoker (invoke.ts:194),
+// just one layer down: this is what lets a second abapsmith release sharing
+// the system recognise an object a NEWER release already owns instead of
+// classifying a mere etag difference as `stale` and rewriting it forever.
+const DEPLOYED_VERSION_MARKER_RE = /^\* abapsmith fluid v(\S+)\r?\n/;
+
+function withDeployedVersionMarker(source: string): string {
+  return `* abapsmith fluid v${SERVER_VERSION}\n${source}`;
+}
+
+/** `undefined` when the installed text carries no marker at all — an object a pre-marker abapsmith deployed. */
+function readDeployedVersion(installedSource: string): string | undefined {
+  return DEPLOYED_VERSION_MARKER_RE.exec(installedSource)?.[1];
+}
+
+function stripDeployedVersionMarker(installedSource: string): string {
+  return installedSource.replace(DEPLOYED_VERSION_MARKER_RE, "");
+}
+
+/**
+ * `major.minor.patch` only — the one shape `SERVER_VERSION` has ever taken,
+ * and there is no semver dependency in this repo to reach for instead.
+ * `undefined` for either input means "not comparable", never "not newer": the
+ * caller falls back to today's plain content comparison rather than acting on
+ * a guess.
+ */
+function isNewerVersion(a: string, b: string): boolean | undefined {
+  const pa = /^(\d+)\.(\d+)\.(\d+)/.exec(a.trim());
+  const pb = /^(\d+)\.(\d+)\.(\d+)/.exec(b.trim());
+  if (!pa || !pb) return undefined;
+  for (let i = 1; i <= 3; i++) {
+    const na = Number(pa[i]);
+    const nb = Number(pb[i]);
+    if (na !== nb) return na > nb;
+  }
+  return false;
 }
 
 async function classifyOne(
@@ -100,13 +146,23 @@ async function classifyOne(
     );
   }
 
-  if (canonicalEtag(read.source ?? "") !== canonicalEtag(expectedSource)) {
+  const installed = read.source ?? "";
+  const installedVersion = readDeployedVersion(installed);
+  if (installedVersion !== undefined && isNewerVersion(installedVersion, SERVER_VERSION) === true) {
+    return { resolved, state: "newer", installedVersion };
+  }
+
+  // Marker stripped from the installed side only — `expectedSource` is the
+  // raw manifest source and never carries one. An object a pre-marker
+  // abapsmith deployed (no marker at all) compares exactly as it always did:
+  // lacking the marker is not by itself a content difference.
+  if (canonicalEtag(stripDeployedVersionMarker(installed)) !== canonicalEtag(expectedSource)) {
     return { resolved, state: "stale" };
   }
   if (resolved.activation !== "active-is-current") {
     return { resolved, state: "inactive" };
   }
-  const check = await checkSource(conn, resolved, expectedSource);
+  const check = await checkSource(conn, resolved, withDeployedVersionMarker(expectedSource));
   return { resolved, state: check.ok ? "present" : "broken" };
 }
 
@@ -208,6 +264,20 @@ function foreignConflictError(obj: FluidObjectSpec, foundIn: string, tool: Loade
     { name: obj.name, type: obj.type, foundIn, tool: tool.manifest.id },
     `abapsmith will not delete or overwrite an object it does not own. Rename ${obj.name} in the ` +
       `manifest, or move/delete the existing object out of ${foundIn} yourself.`,
+  );
+}
+
+function newerVersionConflictError(
+  obj: FluidObjectSpec,
+  tool: LoadedFluidTool,
+  installedVersion: string,
+): AbapError {
+  return new AbapError(
+    "FLUID_OBJECT_CONFLICT",
+    `${obj.type} ${obj.name} was deployed by abapsmith v${installedVersion}, newer than this ` +
+      `abapsmith (v${SERVER_VERSION}). Nothing was changed.`,
+    { name: obj.name, type: obj.type, installed_version: installedVersion, our_version: SERVER_VERSION, tool: tool.manifest.id },
+    "upgrade abapsmith or run abap_fluid op=remove",
   );
 }
 
@@ -353,26 +423,59 @@ async function deployAndVerify(
   }
 }
 
-async function ensureOneObject(
+// SAP reuses `ExceptionResourceAlreadyExists` for two unrelated things: a
+// genuine duplicate-create race, and (per write.test.ts's own
+// DDIC_REJECT_XML fixture, "a syntax problem mislabelled as AlreadyExists")
+// an ordinary syntax/save failure that happens to get the same exception
+// type. Both `translateWriteFailure`'s CHECK_FAILED path (write.ts, the PUT
+// after a skeleton create) and `translateAdtError`'s generic ADT_ERROR
+// catch-all (session.ts, the vendor `createObject()` call CLAS/OC and INTF/OI
+// actually go through) put the raw SAP exception type into
+// `details.adtExceptionType` regardless of which one throws — so matching on
+// that field, not on the wrapping `AbapError.code`, is the one signal that
+// survives either path.
+function isCreateConflict(e: unknown): boolean {
+  return isAbapError(e) && e.details["adtExceptionType"] === "ExceptionResourceAlreadyExists";
+}
+
+async function actOnClassification(
   conn: AbapConnection,
   gate: SafetyGate,
   ledgerKey: string,
   tool: LoadedFluidTool,
   obj: FluidObjectSpec,
   expectedSource: string,
+  c: Classification,
+  // False only on the one re-probed retry below, so a second "absent" create
+  // race in a row (or a genuine syntax failure the retry's re-probe still
+  // reads back as "absent") propagates instead of looping.
+  allowCreateConflictRetry: boolean,
 ): Promise<{ status: FluidObjectStatus; wrote: boolean }> {
-  const c = await classifyOne(conn, obj, expectedSource);
+  const markedSource = withDeployedVersionMarker(expectedSource);
 
   switch (c.state) {
     case "present":
       return { status: objectStatus(obj, c), wrote: false };
+
+    case "newer":
+      throw newerVersionConflictError(obj, tool, c.installedVersion ?? "unknown");
 
     case "foreign":
       throw foreignConflictError(obj, c.foundIn ?? "", tool);
 
     case "absent":
     case "stale": {
-      await deployAndVerify(conn, gate, ledgerKey, tool, obj, expectedSource);
+      try {
+        await deployAndVerify(conn, gate, ledgerKey, tool, obj, markedSource);
+      } catch (e) {
+        if (c.state === "absent" && allowCreateConflictRetry && isCreateConflict(e)) {
+          const reclassified = await classifyOne(conn, obj, expectedSource);
+          if (reclassified.state !== "absent") {
+            return actOnClassification(conn, gate, ledgerKey, tool, obj, expectedSource, reclassified, false);
+          }
+        }
+        throw e;
+      }
       return { status: { name: obj.name, type: obj.type, state: "present" }, wrote: true };
     }
 
@@ -400,7 +503,7 @@ async function ensureOneObject(
       // This write is the first request after the DELETE, exactly where the
       // dead-session corpse (see writeAndActivateOnce's doc) surfaces — give
       // it the one-shot revive.
-      await deployAndVerify(conn, gate, ledgerKey, tool, obj, expectedSource, true);
+      await deployAndVerify(conn, gate, ledgerKey, tool, obj, markedSource, true);
       return { status: { name: obj.name, type: obj.type, state: "present" }, wrote: true };
     }
 
@@ -413,7 +516,7 @@ async function ensureOneObject(
       assertNoErrors(activation, {
         what: `Activate fluid object ${obj.name}`,
         name: obj.name,
-        source: expectedSource,
+        source: markedSource,
       });
       return { status: { name: obj.name, type: obj.type, state: "present" }, wrote: false };
     }
@@ -444,8 +547,8 @@ async function ensureOneObject(
         );
       }
       // First request after the DELETE — same one-shot revive as "legacy".
-      const write = await deployAndVerify(conn, gate, ledgerKey, tool, obj, expectedSource, true);
-      const recheck = await checkSource(conn, write.target, expectedSource);
+      const write = await deployAndVerify(conn, gate, ledgerKey, tool, obj, markedSource, true);
+      const recheck = await checkSource(conn, write.target, markedSource);
       // Still broken after one repair must not loop and must not be cached:
       // ensureFluidTool already declines to recordManifest unless every
       // status is "present", so reporting "broken" again here is enough —
@@ -456,6 +559,18 @@ async function ensureOneObject(
       };
     }
   }
+}
+
+async function ensureOneObject(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  ledgerKey: string,
+  tool: LoadedFluidTool,
+  obj: FluidObjectSpec,
+  expectedSource: string,
+): Promise<{ status: FluidObjectStatus; wrote: boolean }> {
+  const c = await classifyOne(conn, obj, expectedSource);
+  return actOnClassification(conn, gate, ledgerKey, tool, obj, expectedSource, c, true);
 }
 
 export async function ensureFluidTool(
@@ -506,6 +621,35 @@ export async function ensureFluidTool(
   }
 
   return { toolId: tool.manifest.id, version: tool.version, deployed, objects: statuses };
+}
+
+/**
+ * Deploy the shared fluid runtime class ({@link FLUID_RUNTIME_CLASS}) a
+ * plugin tool needs before it can run, unless something has already put it
+ * there. Two things make this a no-op: `tool` is not plugin-authored (a
+ * builtin manifest bundles its own copy of the runtime object straight into
+ * `manifest.objects`/`sources`, the same way `core.ts` does — `ensureFluidTool`
+ * on `tool` itself already deploys it, so a second deploy here would be
+ * redundant), or `tool`'s own manifest already lists the runtime class for
+ * the same reason. Otherwise this deploys {@link fluidRuntimeTool} exactly as
+ * `ensureFluidTool` deploys any other tool.
+ */
+export async function ensureFluidRuntimeFor(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  cfg: Config,
+  tool: LoadedFluidTool,
+  ctx?: FluidCallContext,
+): Promise<void> {
+  if (tool.origin !== "plugin") return;
+  if (tool.manifest.objects.some((o) => o.name === FLUID_RUNTIME_CLASS)) return;
+
+  const runtimeCtx: FluidCallContext = ctx ?? {
+    tool: tool.manifest.id,
+    action: "ensure-runtime",
+    op: "run",
+  };
+  await ensureFluidTool(conn, gate, cfg, fluidRuntimeTool, runtimeCtx);
 }
 
 /**

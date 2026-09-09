@@ -19,13 +19,21 @@ import {
   type FluidManifest,
   type LoadedFluidTool,
 } from "./manifest.js";
-import { reviewFluidAbap } from "./static-review.js";
+import { reviewFluidAbap, scanFluidCapabilities } from "./static-review.js";
 
 export interface RefusedFluidPlugin {
   readonly path: string;
   readonly id?: string;
-  readonly code: "FLUID_MANIFEST_INVALID" | "FLUID_PLUGINS_DISABLED";
+  readonly code:
+    | "FLUID_MANIFEST_INVALID"
+    | "FLUID_PLUGINS_DISABLED"
+    | "FLUID_PLUGIN_MUTATE_DISABLED"
+    | "SAFETY_DENIED"
+    | "FLUID_OBJECT_CONFLICT"
+    | "BAD_INPUT";
   readonly reason: string;
+  /** Set only on a `SAFETY_DENIED` refusal, naming the ceiling flag that would lift it. */
+  readonly rule?: string;
 }
 
 export interface FluidToolSet {
@@ -35,7 +43,10 @@ export interface FluidToolSet {
 }
 
 /** Everything the loader reads. A full `Config` satisfies it. */
-export type FluidLoaderConfig = Pick<Config, "fluidPlugins" | "allowFluidPlugins">;
+export type FluidLoaderConfig = Pick<
+  Config,
+  "fluidPlugins" | "allowFluidPlugins" | "allowFluidPluginMutate" | "allowFluidCallFm"
+>;
 
 /** A built-in tool as authored in TypeScript, before it is versioned. */
 export interface FluidBuiltinSource {
@@ -92,9 +103,22 @@ interface PluginLoadResult {
   readonly warning?: string;
 }
 
-async function loadPlugin(dir: string, knownIds: ReadonlySet<string>): Promise<PluginLoadResult> {
+async function loadPlugin(
+  dir: string,
+  knownIds: ReadonlySet<string>,
+  claimedObjects: ReadonlyMap<string, string>,
+  cfg: FluidLoaderConfig,
+): Promise<PluginLoadResult> {
   const refuse = (reason: string, id?: string): PluginLoadResult => ({
     refusal: { path: dir, id, code: "FLUID_MANIFEST_INVALID", reason },
+  });
+  const refuseAs = (
+    code: RefusedFluidPlugin["code"],
+    reason: string,
+    id?: string,
+    rule?: string,
+  ): PluginLoadResult => ({
+    refusal: rule !== undefined ? { path: dir, id, code, reason, rule } : { path: dir, id, code, reason },
   });
 
   let raw: string;
@@ -147,6 +171,19 @@ async function loadPlugin(dir: string, knownIds: ReadonlySet<string>): Promise<P
         id,
       );
     }
+    // Per-manifest duplicate names are already caught by
+    // FluidManifestSchema's superRefine; this catches the cross-manifest
+    // case it can't see — two different tools both claiming the same ABAP
+    // object name, which would make loading order decide who actually
+    // owns it in SAP.
+    const owner = claimedObjects.get(obj.name);
+    if (owner !== undefined) {
+      return refuseAs(
+        "FLUID_OBJECT_CONFLICT",
+        `object "${obj.name}" is already claimed by tool "${owner}"; refusing tool "${id}"`,
+        id,
+      );
+    }
   }
 
   // `dir` is already a real path — resolved once, at discovery time, in
@@ -195,6 +232,42 @@ async function loadPlugin(dir: string, knownIds: ReadonlySet<string>): Promise<P
     }
   }
 
+  // A second, separately-reported scan: not a shipped prohibition (those
+  // are refused above, unconditionally), but a capability that requires an
+  // explicit operator ceiling before this plugin may load at all. Declared
+  // `category: "mutate"`/targets are gated per-request in dispatch.ts; this
+  // covers what an action with no `targets` — or a plain CALL FUNCTION not
+  // wrapped in any declared category — would otherwise slip past.
+  let mutateHit: { readonly object: string; readonly file: string; readonly line: number } | undefined;
+  let callFmHit: { readonly object: string; readonly file: string; readonly line: number } | undefined;
+  for (const obj of manifest.objects) {
+    const source = sources.get(obj.name) ?? "";
+    const file = "file" in obj.source ? obj.source.file : "";
+    for (const finding of scanFluidCapabilities(obj.name, source)) {
+      if (mutateHit === undefined && (finding.capability === "db-write" || finding.capability === "commit-rollback")) {
+        mutateHit = { object: obj.name, file, line: finding.line };
+      }
+      if (callFmHit === undefined && finding.capability === "call-function") {
+        callFmHit = { object: obj.name, file, line: finding.line };
+      }
+    }
+  }
+  if (mutateHit !== undefined && !cfg.allowFluidPluginMutate) {
+    return refuseAs(
+      "FLUID_PLUGIN_MUTATE_DISABLED",
+      `object "${mutateHit.object}" (${mutateHit.file}:${mutateHit.line}) contains a database write or COMMIT WORK/ROLLBACK WORK statement; ABAP_ALLOW_FLUID_PLUGIN_MUTATE is off`,
+      id,
+    );
+  }
+  if (callFmHit !== undefined && !cfg.allowFluidCallFm) {
+    return refuseAs(
+      "SAFETY_DENIED",
+      `object "${callFmHit.object}" (${callFmHit.file}:${callFmHit.line}) contains CALL FUNCTION; ABAP_ALLOW_FLUID_CALL_FM is off`,
+      id,
+      "ABAP_ALLOW_FLUID_CALL_FM",
+    );
+  }
+
   const tool: LoadedFluidTool = {
     manifest,
     origin: "plugin",
@@ -212,6 +285,11 @@ export async function loadFluidTools(
   const tools = new Map<string, LoadedFluidTool>();
   const refused: RefusedFluidPlugin[] = [];
   const warnings: string[] = [];
+  // object name -> id of the tool (built-in or plugin) that claims it,
+  // threaded through the whole run so the second of two tools declaring
+  // the same ABAP object name is refused rather than silently shadowing
+  // the first (Finding 7).
+  const claimedObjects = new Map<string, string>();
 
   for (const builtin of builtins ?? []) {
     tools.set(builtin.manifest.id, {
@@ -220,16 +298,20 @@ export async function loadFluidTools(
       sources: builtin.sources,
       version: manifestVersion(builtin.manifest, builtin.sources),
     });
+    for (const obj of builtin.manifest.objects) {
+      claimedObjects.set(obj.name, builtin.manifest.id);
+    }
   }
 
   for (const rawRoot of cfg.fluidPlugins) {
     const root = path.resolve(rawRoot);
     const listed = await listPluginDirs(root);
     if ("error" in listed) {
-      // FLUID_MANIFEST_INVALID is not a perfect fit for an unreadable root,
-      // but the refusal union is fixed by the loader's contract and this is
-      // the only non-disabled code available.
-      refused.push({ path: root, code: "FLUID_MANIFEST_INVALID", reason: `cannot read plugin root: ${listed.error}` });
+      refused.push({
+        path: root,
+        code: "BAD_INPUT",
+        reason: `cannot read plugin root "${root}": ${listed.error}`,
+      });
       continue;
     }
 
@@ -238,9 +320,12 @@ export async function loadFluidTools(
         refused.push({ path: dir, code: "FLUID_PLUGINS_DISABLED", reason: "ABAP_ALLOW_FLUID_PLUGINS is off" });
         continue;
       }
-      const result = await loadPlugin(dir, new Set(tools.keys()));
+      const result = await loadPlugin(dir, new Set(tools.keys()), claimedObjects, cfg);
       if (result.tool) {
         tools.set(result.tool.manifest.id, result.tool);
+        for (const obj of result.tool.manifest.objects) {
+          claimedObjects.set(obj.name, result.tool.manifest.id);
+        }
         if (result.warning) warnings.push(result.warning);
       } else if (result.refusal) {
         refused.push(result.refusal);

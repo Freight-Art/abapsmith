@@ -184,6 +184,105 @@ function splitStatements(blankedLines: readonly string[]): readonly LogicalState
   return statements;
 }
 
+export type FluidCapability = "db-write" | "commit-rollback" | "call-function";
+
+export interface FluidCapabilityFinding {
+  readonly object: string;
+  readonly line: number;
+  readonly capability: FluidCapability;
+  readonly text: string;
+}
+
+// Prefixes conventionally used for internal-table variables in ABAP,
+// distinguishing "this MODIFY/INSERT targets a database table" from "this
+// targets an internal table" for the statement shapes below where the
+// grammar itself doesn't say which — the loader's ceiling only needs a
+// good-enough signal here, not a symbol table.
+const ITAB_NAME_RE = /^(lt_|it_|gt_|ct_|mt_)/i;
+
+const COMMIT_ROLLBACK_RE = /^(COMMIT|ROLLBACK)\s+WORK\b/i;
+const UPDATE_STMT_RE = /^UPDATE\s+\S/i;
+const DELETE_FROM_RE = /^DELETE\s+FROM\s+\S/i;
+const INSERT_NATIVE_SQL_RE = /^INSERT\s+INTO\s+\S+\s+VALUES\b/i;
+const INSERT_INTO_ITAB_RE = /\bINTO\s+(?:TABLE\s+)?\S+/i;
+const INSERT_DB_FROM_RE = /^INSERT\s+\S+\s+FROM\b/i;
+const MODIFY_SCREEN_RE = /^MODIFY\s+SCREEN\b/i;
+const MODIFY_TARGET_RE = /^MODIFY\s+(?:TABLE\s+)?(\S+)/i;
+
+// Statement-shape rules telling a database write apart from the
+// syntactically similar internal-table statement that shares its keyword:
+//   - UPDATE has no internal-table form in ABAP (MODIFY is used for
+//     internal tables), so any statement starting with UPDATE is a
+//     database write.
+//   - DELETE FROM <dbtab> is the only DELETE shape with FROM immediately
+//     after the keyword. `DELETE ADJACENT DUPLICATES FROM lt_x` puts
+//     "ADJACENT DUPLICATES" between DELETE and FROM, and plain
+//     `DELETE lt_x` / `DELETE TABLE lt_x` omit FROM entirely, so neither
+//     matches this shape — no separate exclusion is needed for them.
+//   - INSERT INTO <dbtab> VALUES (...) is native SQL's insert form and is
+//     checked first; any other INTO in the statement (`INSERT wa INTO
+//     itab.`, `INSERT wa INTO TABLE itab.`) is Open SQL's internal-table
+//     form, since INTO always names the target there. INSERT <dbtab> FROM
+//     wa / FROM TABLE itab is Open SQL's other database form and has no
+//     internal-table equivalent.
+//   - MODIFY SCREEN changes dynpro field attributes, not a table.
+//     Otherwise MODIFY [TABLE] <name> is a database write unless <name>
+//     looks like an internal table by the lt_/it_/gt_/ct_/mt_ convention.
+function classifiesAsDbWrite(statement: string): boolean {
+  if (UPDATE_STMT_RE.test(statement)) return true;
+  if (DELETE_FROM_RE.test(statement)) return true;
+  if (INSERT_NATIVE_SQL_RE.test(statement)) return true;
+  if (INSERT_INTO_ITAB_RE.test(statement)) return false;
+  if (INSERT_DB_FROM_RE.test(statement)) return true;
+  if (MODIFY_SCREEN_RE.test(statement)) return false;
+  const modifyTarget = MODIFY_TARGET_RE.exec(statement);
+  if (modifyTarget) {
+    const target = modifyTarget[1];
+    return target !== undefined && !ITAB_NAME_RE.test(target);
+  }
+  return false;
+}
+
+/**
+ * Scans plugin ABAP for the statement shapes a fluid plugin cannot ship
+ * without an explicit ceiling: a database write (UPDATE/INSERT/MODIFY/
+ * DELETE against a database table, not an internal table), COMMIT WORK /
+ * ROLLBACK WORK, and CALL FUNCTION. This is a second, separately-reported
+ * pass over the same statement list `reviewFluidAbap` builds — it does not
+ * extend `FLUID_SHIPPED_PROHIBITIONS` and never refuses anything on its
+ * own; the plugin loader decides what to do with what it finds here, against
+ * `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` / `ABAP_ALLOW_FLUID_CALL_FM`.
+ */
+export function scanFluidCapabilities(
+  objectName: string,
+  source: string,
+): readonly FluidCapabilityFinding[] {
+  const blankedLines = source.split(/\r\n|\r|\n/).map(blankCommentLine);
+  const statements = splitStatements(blankedLines);
+  const findings: FluidCapabilityFinding[] = [];
+
+  for (const stmt of statements) {
+    let capability: FluidCapability | undefined;
+    if (classifiesAsDbWrite(stmt.normalized)) {
+      capability = "db-write";
+    } else if (COMMIT_ROLLBACK_RE.test(stmt.normalized)) {
+      capability = "commit-rollback";
+    } else if (CALL_FUNCTION_RE.test(stmt.normalized)) {
+      capability = "call-function";
+    }
+    if (capability !== undefined) {
+      findings.push({
+        object: objectName,
+        line: stmt.startLine,
+        capability,
+        text: truncateText(stmt.normalized, ECHO_LINE_MAX),
+      });
+    }
+  }
+
+  return findings;
+}
+
 export function reviewFluidAbap(
   objectName: string,
   source: string,
