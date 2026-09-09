@@ -65,6 +65,7 @@ elided anywhere.
 | `category` | yes | `read`, `execute` or `mutate`. Classifies the action for gating: `read` and `execute` need no per-call consent beyond the plugin gate; `mutate` additionally needs `targets` and, for a plugin, `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` plus a `confirm` echo of `<tool>.<action>`. See [safety.md](safety.md). |
 | `input` / `output` | yes | A `FluidJsonSchema` object — the documented subset below. Input is validated before any network call; output after the transcript is parsed. |
 | `targets` | only on `mutate` | JSON Pointers into the action's own arguments naming the object, package and transport the safety gate must judge, before any ABAP is generated. |
+| `internal` | no, default `false` | Additive — absent or `false` means routable, so `contract` stays `"1.0"`. `true` marks the tool as framework plumbing rather than something a caller should be routed to: it is omitted from the route index rendered in the `abap_fluid` tool description, but `list` and `describe` still show it, flagged `internal: true`. See `doc/FLUID-API/tool.md`. |
 
 ## Compatibility policy
 

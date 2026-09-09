@@ -48,6 +48,31 @@ version was set to `0.3.0`, which is intended.
   SAP authorisations). `core.call_fm` is the widest blast radius in this feature, and the control
   on it is authorisation-shaped: the flag only decides whether abapsmith will issue the call, not
   what the call can do — that's the SAP authorisation concept's job.
+- Every fluid object now carries a provenance marker naming the abapsmith version that deployed
+  it. When an installed object's marker names a version strictly newer than the one running,
+  classification reports a new `newer` state — distinct from `stale`/`present`/etc — and `run`/
+  `repair` refuse to touch it (`FLUID_OBJECT_CONFLICT`, with `installed_version`/`our_version`
+  details and a hint to upgrade abapsmith or run `abap_fluid op=remove`), so two abapsmith
+  releases pointed at the same system can no longer treat each other's deploys as ordinary drift
+  and rewrite them back and forth. `status`/`verify` report `newer` like any other state.
+- A manifest may set `internal: true` (currently only the framework's own `rt` tool) to mark a
+  tool as framework plumbing rather than something a caller should be routed to: it is left out of
+  the `abap_fluid` tool description's route index and worked example, while `list`/`describe`
+  still show it in full, flagged `internal: true`. Additive — `contract` stays `"1.0"`.
+- `FluidRunResult`, and the `FLUID_ACTION_FAILED` error's details on failure, now carry
+  `warnings`: human-readable notes for stray non-frame console output and for a value whose
+  `OUTC`/`OUTE` reassembly could not be parsed. Neither ever fails a call on its own; both were
+  previously silent.
+- A plugin's ABAP source is now scanned at load time for a database-write statement or `COMMIT
+  WORK`/`ROLLBACK WORK` (gated by `ABAP_ALLOW_FLUID_PLUGIN_MUTATE`) and for `CALL FUNCTION` in any
+  form (gated by `ABAP_ALLOW_FLUID_CALL_FM`), in addition to the per-call gating those flags
+  already did based on an action's declared `category`. Either statement found with its flag off
+  refuses the whole plugin (`FLUID_PLUGIN_MUTATE_DISABLED` or `SAFETY_DENIED`), naming the object,
+  file and line — closing the gap where an action with no `targets`, or a plain `CALL FUNCTION`
+  outside any declared `mutate` action, previously loaded unchallenged.
+- The loader now also refuses a plugin whose manifest claims an ABAP object name a different tool
+  — built-in or another plugin, whichever loaded first — already claimed (`FLUID_OBJECT_CONFLICT`,
+  naming both tool ids); previously only a duplicate name inside the same manifest was caught.
 
 ### Changed
 

@@ -83,6 +83,34 @@ even answer "is this deployed" honestly without being able to deploy, since
 nothing in it is guaranteed pre-installed), not about these three ops
 individually needing write access to do their own zero-network work.
 
+## `internal` tools and the route index
+
+`buildFluidDescription` (`src/adt/fluid/describe.ts`) builds the tool
+description `abap_fluid` hands the caller. Most of it is a "route
+index" — one line per loaded tool's actions — plus one worked example
+call, so a model deciding whether to call `abap_fluid` at all can see
+what is reachable without a separate `describe` round trip first. A
+manifest's `internal: true` field
+excludes that tool from this route index and from the worked example
+entirely: not truncated, not summarized, not hinted at with a count of
+"N more" — simply not one of the tools a caller is being routed to.
+
+This is a classification, not an elision. Nothing about the tool is
+hidden: `op="list"` and `op="describe"` still return it in full, each
+flagged `internal: true` so a caller that does look can tell it apart
+from a routable tool. The field only changes what the route index
+promotes as "things to call"; it changes no gating, no schema
+validation, and nothing about whether the tool can actually be called —
+an internal tool's actions run through `dispatch()` exactly like any
+other tool's.
+
+The framework's own `rt` tool (`src/adt/fluid/abap/runtime.ts`) is the
+first and, as of this writing, only user of the field: its `ping` and
+`fail` actions exist to exercise the wire protocol itself, not as
+something an operator or agent should be routed to for ordinary work,
+so `rt` carries `internal: true` and is left out of the route index
+while remaining fully visible and callable.
+
 ## `remove`'s package caveat
 
 `remove` deletes abapsmith-owned ABAP objects out of `$ABAPSMITH_FLUID_API`

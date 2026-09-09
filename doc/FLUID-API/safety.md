@@ -15,9 +15,14 @@ gate would otherwise refuse — the gate is still the last word.
    `FLUID_PLUGINS_DISABLED`.
 4. **Plugin action with `category: "mutate"`?** `ABAP_ALLOW_FLUID_PLUGIN_MUTATE`
    must be on, and the call must carry a `confirm` argument that echoes
-   exactly `<tool>.<action>`. Refusal: `FLUID_PLUGIN_MUTATE_DISABLED`.
+   exactly `<tool>.<action>`. Refusal: `FLUID_PLUGIN_MUTATE_DISABLED`. This
+   is the per-call half of the gate: the same flag also governs a
+   load-time check described below, which can refuse the whole plugin
+   before any call is ever made.
 5. **`core.call_fm`?** `ABAP_ALLOW_FLUID_CALL_FM` must be on, and the call
-   must carry the same `confirm` echo when `commit: true`.
+   must carry the same `confirm` echo when `commit: true`. Same split as
+   step 4: this is the per-call half, and the flag also governs a
+   load-time check below.
 6. **The action's `input` schema**, validated offline, before any network
    call.
 7. **`targets`** — the manifest's JSON Pointers are resolved against the
@@ -41,6 +46,22 @@ Offline, before the first network call. Two parts:
   `CALL FUNCTION ... DESTINATION`, `SUBMIT ... VIA JOB`, dynamic
   `CALL METHOD (...)`. Operators may add rules of their own; they can
   never remove a shipped rule.
+
+A separate capability scan runs after the static review passes, over the
+same source text, looking for two more statement classes: a
+database-write statement or `COMMIT WORK`/`ROLLBACK WORK` (gated by
+`ABAP_ALLOW_FLUID_PLUGIN_MUTATE`), and `CALL FUNCTION` in any form, not
+only the `DESTINATION` form the prohibition list above already blocks
+outright (gated by `ABAP_ALLOW_FLUID_CALL_FM`). Unlike the prohibition
+list, these two are not blocked outright — they are refused only when
+their flag is off, and the refusal (`FLUID_PLUGIN_MUTATE_DISABLED` or
+`SAFETY_DENIED` with rule `ABAP_ALLOW_FLUID_CALL_FM`) takes down the
+*whole plugin* at load time, naming the object, file, and line, rather
+than gating the one action whose declared `category` happens to match.
+This is the same kind of statement-text scan as the rest of static
+review, with the same limit: it is a lint, not a sandbox, and it runs
+once, offline, before the plugin ever makes a call. See
+[authoring.md](authoring.md) for the exact loader step.
 
 Stated plainly, not hedged: a plugin runs with the technical user's full
 authorisations. The static review is a lint, and it offers no
@@ -77,12 +98,41 @@ When `ABAP_ALLOW_FLUID_PLUGINS` is off, the built-ins still load, and
 each configured-but-unused plugin path is reported as
 `FLUID_PLUGINS_DISABLED` rather than silently ignored.
 
-The full validation order — envelope schema, contract major, id shape and
-uniqueness, name namespace, `entry` presence, source-file path resolution,
-action schema parsing, static review — is in
-[authoring.md](authoring.md).
+A plugin object name colliding with a name a different tool already
+claimed — built-in or plugin, whichever loaded first — is a distinct
+refusal from the namespace check: `FLUID_OBJECT_CONFLICT`, naming both
+tool ids. This is a load-time check, unrelated to the same-named
+`FLUID_OBJECT_CONFLICT` a deployed object already in a foreign package
+can raise later (see "Object ownership and relocation" below) — the
+code is shared, the two situations are not.
 
-## Object ownership and relocation
+An unreadable configured plugin root (a path that does not exist, or
+that the process cannot read) is reported under a configuration-error
+code, distinct from the manifest-validation codes below, since nothing
+about the operator's ABAP or manifest is at fault.
+
+The full validation order — envelope schema, contract major, id shape and
+uniqueness, name namespace, cross-tool name uniqueness, `entry` presence,
+source-file path resolution, action schema parsing, static review, the
+capability scan — is in [authoring.md](authoring.md).
+
+## Object lifecycle, ownership and relocation
+
+Every fluid ABAP object is classified into exactly one of eight states
+before `run` decides whether to deploy, repair, relocate, or refuse.
+`status` and `verify` report the same classification directly; `run`
+and `repair` act on it.
+
+| State | Meaning |
+|---|---|
+| `absent` | The object does not exist yet. Deployed fresh. |
+| `present` | Exists, content and activation both match the manifest. Nothing to do. |
+| `stale` | Exists, but its content no longer matches the manifest. Redeployed (content rewritten). |
+| `inactive` | Content matches, but the object is not active-is-current. Activated in place. |
+| `broken` | Content matches and the object is active, but activation checks still report errors on it. Repaired by delete-and-recreate. |
+| `foreign` | Under a reserved abapsmith prefix, but in a package abapsmith does not own. Never touched — see below. |
+| `legacy` | Under a reserved prefix, in one of the known pre-fluid packages (`$TMP` or `$ZMCP_HELPERS`). Relocated into `$ABAPSMITH_FLUID_API`. |
+| `newer` | Deployed by a newer abapsmith release than the one running. Never touched — see below. |
 
 `ZCL_ZMCP_` and `ZIF_ZMCP_` are reserved to abapsmith on any system it
 touches.
@@ -98,6 +148,26 @@ packages — not either alone.
 
 An object under a reserved prefix in any other package is `foreign`:
 `FLUID_OBJECT_CONFLICT`. It is never deleted and never overwritten.
+
+### `newer`: two abapsmith releases sharing one system
+
+Every object abapsmith deploys carries a provenance marker naming the
+abapsmith version that wrote it. When an object's installed marker
+names a version strictly newer than the one currently running,
+classification stops at `newer` before any content comparison — the
+object is never rewritten, activated, or deleted. Refusal:
+`FLUID_OBJECT_CONFLICT`, with details `{installed_version, our_version,
+hint: "upgrade abapsmith or run abap_fluid op=remove"}`.
+
+Without this check, two abapsmith releases pointed at the same SAP
+system would treat each other's deploys as ordinary content drift and
+rewrite each other's classes back and forth on alternate calls,
+forever. An object whose marker names an **equal or older** version is
+rewritten exactly as before — including a same-version dev build, which
+still redeploys on a content-hash mismatch, since two dev builds of the
+same version are not distinguishable by version alone. `status` and
+`verify` report `newer` like any other state; only `run`/`repair`'s
+deploy path refuses to act on it.
 
 ## Journalling
 
@@ -116,7 +186,7 @@ failure can never fail a mutation that already happened.
 | `FLUID_API_DISABLED` | `ABAP_FLUID_API` is off, or abapsmith is read-only in any of the five senses of [README.md](README.md). Carries a `reason` discriminator, `"flag"` or `"read-only"`, and the deciding `field`. |
 | `FLUID_PLUGINS_DISABLED` | A plugin tool is invoked while `ABAP_ALLOW_FLUID_PLUGINS` is off. |
 | `FLUID_PLUGIN_MUTATE_DISABLED` | A plugin `mutate` action is invoked while `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` is off, or without the required `confirm` echo. |
-| `FLUID_OBJECT_CONFLICT` | A reserved-prefix object is found in a package that is neither the fluid package nor a legacy package (`foreign`), or a redeploy still does not match after one retry. |
+| `FLUID_OBJECT_CONFLICT` | A reserved-prefix object is found in a package that is neither the fluid package nor a legacy package (`foreign`); a redeploy still does not match after one retry; a deployed object carries a provenance marker naming a newer abapsmith version than the one running (`newer`); or, at load time, two tools (built-in or plugin) claim the same ABAP object name. |
 | `FLUID_MANIFEST_INVALID` | A manifest or plugin envelope fails validation — schema, contract major, id shape or uniqueness, namespace, `entry` presence, source-file resolution, or action schema. |
 | `FLUID_ACTION_FAILED` | The ABAP side reports an `ERR` frame during a call. |
 | `FLUID_PROTOCOL_ERROR` | An unparseable or malformed frame on the wire, or a generated ABAP line over 255 characters, caught offline before the first network call and naming the offending line. |
