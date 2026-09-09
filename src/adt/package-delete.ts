@@ -105,13 +105,6 @@ export interface PackageDeleteParams {
 /** Prefix of the tagged evidence lines listing what is still inside the package. */
 export const PKG_CONTENT_PREFIX = "ZMCP-PKG-CONTENT>";
 
-/**
- * Prefix marking a content query that hit its `UP TO 21 ROWS` ceiling.
- * Not exported — callers see this via {@link parsePackageContents}'s
- * `truncated` flag, not the raw prefix.
- */
-const PKG_CONTENT_TRUNCATED_PREFIX = "ZMCP-PKG-CONTENT-TRUNCATED>";
-
 export interface PackageContent {
   /** "OBJECT" for a TADIR row, "SUBPKG" for a child package. */
   kind: "OBJECT" | "SUBPKG";
@@ -121,20 +114,15 @@ export interface PackageContent {
 }
 
 /**
- * Parses `ZMCP-PKG-CONTENT>` / `ZMCP-PKG-CONTENT-TRUNCATED>` lines out of a
- * classrun transcript. Mirrors `./package-create.ts`'s `parseTdevcLine`
- * discipline (malformed rows dropped, not half-trusted), extended to collect
- * every match since a non-empty package can have many.
+ * Parses `ZMCP-PKG-CONTENT>` lines out of a classrun transcript. Mirrors
+ * `./package-create.ts`'s `parseTdevcLine` discipline (malformed rows
+ * dropped, not half-trusted), extended to collect every match since a
+ * non-empty package can have many.
  */
-export function parsePackageContents(raw: string): { contents: PackageContent[]; truncated: boolean } {
+export function parsePackageContents(raw: string): { contents: PackageContent[] } {
   const contents: PackageContent[] = [];
-  let truncated = false;
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
-    if (trimmed.startsWith(PKG_CONTENT_TRUNCATED_PREFIX)) {
-      truncated = true;
-      continue;
-    }
     if (!trimmed.startsWith(PKG_CONTENT_PREFIX)) continue;
     const rest = trimmed.slice(PKG_CONTENT_PREFIX.length).trim();
     const fields: Record<string, string> = {};
@@ -158,7 +146,7 @@ export function parsePackageContents(raw: string): { contents: PackageContent[];
     if (kind !== "OBJECT" && kind !== "SUBPKG") continue;
     contents.push({ kind, pgmid, object, name });
   }
-  return { contents, truncated };
+  return { contents };
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +175,7 @@ export async function deletePackageViaBridge(
      */
     corrSource?: "named" | "auto";
   },
-): Promise<{ run: RunResult; transcript: DdicTranscript; contents: PackageContent[]; truncated: boolean }> {
+): Promise<{ run: RunResult; transcript: DdicTranscript; contents: PackageContent[] }> {
   // 1 — safe standalone.
   const packageName = assertEnhIdentifier(params.packageName, "packageName", PACKAGE_RULES);
   const corrNr = assertOptionalCorrNr(params.corrNr);
@@ -220,19 +208,18 @@ export async function deletePackageViaBridge(
   //      (live incident: OBJECT_LOCKED_BY_OTHER_USER short-dumped here
   //      before the guard existed).
   const beforeAssert = (transcript: DdicTranscript): void => {
-    const { contents, truncated } = parsePackageContents(transcript.raw);
+    const { contents } = parsePackageContents(transcript.raw);
     if (contents.length > 0) {
       const listed = contents
         .map((c) => `${c.kind === "SUBPKG" ? "sub-package" : "object"} ${c.pgmid} ${c.object} ${c.name}`)
         .join(", ");
       throw new AbapError(
         "CHECK_FAILED",
-        `Package ${packageName} is not empty and was NOT deleted. It still contains: ${listed}` +
-          (truncated ? " (and more - this list was capped at 20)." : ".") +
+        `Package ${packageName} is not empty and was NOT deleted. It still contains: ${listed}.` +
           " Empty the package first (move or delete its objects and sub-packages, or reassign its " +
           "sub-packages elsewhere) and retry — abapsmith will not delete a package's contents on the " +
           "caller's behalf.",
-        { packageName, contents, truncated },
+        { packageName, contents },
       );
     }
     if (transcript.errorLine?.startsWith(`${SET_CHANGEABLE_STEP} failed`)) {
@@ -261,9 +248,9 @@ export async function deletePackageViaBridge(
   });
 
   // 4 — success path: nothing was found (a non-empty package's own contents
-  // already threw, above, out of beforeAssert), so this is always [] / false
-  // here — parsed the same way for symmetry with the error path rather than
+  // already threw, above, out of beforeAssert), so this is always [] here —
+  // parsed the same way for symmetry with the error path rather than
   // hardcoded, so a future change to either path can't silently drift apart.
-  const { contents, truncated } = parsePackageContents(transcript.raw);
-  return { run, transcript, contents, truncated };
+  const { contents } = parsePackageContents(transcript.raw);
+  return { run, transcript, contents };
 }

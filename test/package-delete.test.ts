@@ -168,7 +168,6 @@ describe("parsePackageContents", () => {
         { kind: "SUBPKG", pgmid: "R3TR", object: "DEVC", name: "ZTM_CHILD" },
         { kind: "OBJECT", pgmid: "R3TR", object: "CLAS", name: "ZCL_BAR" },
       ],
-      truncated: false,
     });
   });
 
@@ -179,15 +178,16 @@ describe("parsePackageContents", () => {
     ]);
   });
 
-  it("a ZMCP-PKG-CONTENT-TRUNCATED> marker sets truncated:true and is not itself parsed as a content row", () => {
-    const raw = [objRow("ZCL_FOO"), "ZMCP-PKG-CONTENT-TRUNCATED> SOURCE=TADIR"].join("\n");
-    const { contents, truncated } = parsePackageContents(raw);
-    expect(truncated).toBe(true);
-    expect(contents).toEqual([{ kind: "OBJECT", pgmid: "R3TR", object: "CLAS", name: "ZCL_FOO" }]);
+  it("parses well past the old 20-row cap with no loss — every row comes back", () => {
+    const names = Array.from({ length: 37 }, (_, i) => `ZCL_FOO${i}`);
+    const raw = names.map(objRow).join("\n");
+    const { contents } = parsePackageContents(raw);
+    expect(contents).toHaveLength(37);
+    expect(contents.map((c) => c.name)).toEqual(names);
   });
 
-  it("empty input gives { contents: [], truncated: false }", () => {
-    expect(parsePackageContents("")).toEqual({ contents: [], truncated: false });
+  it("empty input gives { contents: [] }", () => {
+    expect(parsePackageContents("")).toEqual({ contents: [] });
   });
 });
 
@@ -242,12 +242,7 @@ describe("abap-package.ts's delete_package method (closed template — regressio
   });
 
   it("emits PKG-EMPTY, PKG-DELETED, PKG-GONE, in that source order", () => {
-    // The method also emits ZMCP-PKG-CONTENT-TRUNCATED> lines (content-evidence
-    // gathering) via the same line(...) call — filter down to the three
-    // milestone status tags this test cares about.
-    const tags = [...DELETE_METHOD.matchAll(/line\(\s*'([^']+)'\s*\)/g)]
-      .map((m) => m[1]!)
-      .filter((t) => t === "PKG-EMPTY" || t === "PKG-DELETED" || t === "PKG-GONE");
+    const tags = [...DELETE_METHOD.matchAll(/line\(\s*'([^']+)'\s*\)/g)].map((m) => m[1]!);
     expect(tags).toEqual(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]);
   });
 
@@ -412,11 +407,10 @@ describe("deletePackageViaBridge happy path", () => {
   it("transportable: PKG-EMPTY, PKG-DELETED, PKG-GONE resolves, contents is empty", async () => {
     const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
     const { conn, adt } = await connected(fake.route);
-    const { transcript, contents, truncated } = await deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS);
+    const { transcript, contents } = await deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS);
     expect(transcript.tags).toEqual(["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"]);
     expect(transcript.errorLine).toBeUndefined();
     expect(contents).toEqual([]);
-    expect(truncated).toBe(false);
     expect(adt.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
   });
 
@@ -452,15 +446,17 @@ describe("a non-empty package is refused, naming what it still contains — not 
     expect(err.message).toContain("ZTM_CHILD");
   });
 
-  it("the truncation case still refuses (not a false 'looks small enough' pass)", async () => {
-    const fake = classicFake({
-      action: "delete_package",
-      lines: () => [objRow("ZCL_KEPT"), "ZMCP-PKG-CONTENT-TRUNCATED> SOURCE=TADIR"],
-    });
+  it("a package with more than 20 objects lists every one of them, with no 'capped' text", async () => {
+    const names = Array.from({ length: 25 }, (_, i) => `ZCL_KEPT${i}`);
+    const fake = classicFake({ action: "delete_package", lines: () => names.map(objRow) });
     const { conn } = await connected(fake.route);
     const err = await catchErr(deletePackageViaBridge(conn, allowingGate(), TRANSPORT_PARAMS));
     expect(err.code).toBe("CHECK_FAILED");
-    expect(err.message).toContain("ZCL_KEPT");
+    for (const name of names) {
+      expect(err.message).toContain(name);
+    }
+    expect(err.message).not.toContain("capped");
+    expect((err.details as { contents?: unknown[] } | undefined)?.contents).toHaveLength(25);
   });
 });
 

@@ -354,18 +354,11 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
     ENDLOOP.
     rv_json = rv_json && ']'.
 
-    DATA lv_status_done   TYPE i VALUE 0.
-    DATA lv_status_capped TYPE abap_bool VALUE abap_false.
-    DATA lv_fkeys_total   TYPE i VALUE 0.
-    DATA lv_fkeys_capped  TYPE abap_bool VALUE abap_false.
-    DATA lv_status        TYPE gui_status.
-    DATA lv_fkeys_json    TYPE string.
+    DATA lv_fkeys_total TYPE i VALUE 0.
+    DATA lv_status      TYPE gui_status.
+    DATA lv_fkeys_json  TYPE string.
     CLEAR lv_fkeys_json.
     LOOP AT lt_sta INTO ls_sta.
-      IF lv_status_done >= 30.
-        lv_status_capped = abap_true.
-        EXIT.
-      ENDIF.
       lv_status = ls_sta-code.
       CLEAR lt_fkeys.
       CALL FUNCTION 'RS_CUA_GET_STATUS'
@@ -384,41 +377,22 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
       IF sy-subrc = 0.
         LOOP AT lt_fkeys INTO DATA(ls_fkey).
           IF ls_fkey-code IS NOT INITIAL.
-            IF lv_fkeys_total < 350.
-              IF lv_fkeys_json IS NOT INITIAL.
-                lv_fkeys_json = lv_fkeys_json && ','.
-              ENDIF.
-              lv_fkeys_json = lv_fkeys_json && |\{"status":"{ zcl_zmcp_fluid_rt=>esc( lv_status ) }"|.
-              lv_fkeys_json = lv_fkeys_json && |,"code":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-code ) }"|.
-              lv_fkeys_json = lv_fkeys_json && |,"text":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-text ) }"|.
-              lv_fkeys_json = lv_fkeys_json &&
-                |,"quickinfo":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-quickinfo ) }"}|.
-              lv_fkeys_total = lv_fkeys_total + 1.
-            ELSE.
-              lv_fkeys_capped = abap_true.
+            IF lv_fkeys_json IS NOT INITIAL.
+              lv_fkeys_json = lv_fkeys_json && ','.
             ENDIF.
+            lv_fkeys_json = lv_fkeys_json && |\{"status":"{ zcl_zmcp_fluid_rt=>esc( lv_status ) }"|.
+            lv_fkeys_json = lv_fkeys_json && |,"code":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-code ) }"|.
+            lv_fkeys_json = lv_fkeys_json && |,"text":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-text ) }"|.
+            lv_fkeys_json = lv_fkeys_json &&
+              |,"quickinfo":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-quickinfo ) }"}|.
+            lv_fkeys_total = lv_fkeys_total + 1.
           ENDIF.
         ENDLOOP.
       ENDIF.
-      lv_status_done = lv_status_done + 1.
     ENDLOOP.
-
-    DATA lv_status_capped_j TYPE string VALUE 'false'.
-    DATA lv_fkeys_capped_j  TYPE string VALUE 'false'.
-    IF lv_status_capped = abap_true.
-      lv_status_capped_j = 'true'.
-    ENDIF.
-    IF lv_fkeys_capped = abap_true.
-      lv_fkeys_capped_j = 'true'.
-    ENDIF.
 
     rv_json = rv_json && |,"fkeysCount":{ lv_fkeys_total }|.
     rv_json = rv_json && |,"fkeys":[{ lv_fkeys_json }]|.
-    rv_json = rv_json && |,"statusLoop":\{"done":{ lv_status_done }|.
-    rv_json = rv_json && |,"total":{ lines( lt_sta ) }|.
-    rv_json = rv_json && |,"capped":{ lv_status_capped_j }}|.
-    rv_json = rv_json && |,"fkeyCap":\{"emitted":{ lv_fkeys_total }|.
-    rv_json = rv_json && |,"capped":{ lv_fkeys_capped_j }}|.
   ENDMETHOD.
 
 ENDCLASS.
@@ -551,26 +525,7 @@ export const uiManifest: FluidManifest = {
               },
               description: "One RSEUL_KEYS row from RS_CUA_GET_STATUS, empty-code rows dropped.",
             },
-            description: "Union of per-status buttons across up to 30 statuses.",
-          },
-          statusLoop: {
-            type: "object",
-            required: ["done", "total", "capped"],
-            description: "Per-status RS_CUA_GET_STATUS loop summary; capped means fkeys is incomplete.",
-            properties: {
-              done: { type: "integer" },
-              total: { type: "integer" },
-              capped: { type: "boolean" },
-            },
-          },
-          fkeyCap: {
-            type: "object",
-            required: ["emitted", "capped"],
-            description: "FKEY row-cap summary; capped means fkeys is incomplete.",
-            properties: {
-              emitted: { type: "integer" },
-              capped: { type: "boolean" },
-            },
+            description: "Union of per-status buttons across every status.",
           },
           noCua: {
             type: "object",

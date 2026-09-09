@@ -40,7 +40,6 @@ import { AbapError } from "../adt/errors.js";
 import {
   runUiBridge,
   uiBridgeClassName,
-  UI_FKEY_ROW_CAP,
   type UiBdcField,
   type UiBdcScreen,
   type UiBridgeResult,
@@ -379,18 +378,6 @@ function buildScreenResponse(query: UiScreenQuery, result: UiBridgeResult, maxCh
   if (t.noCua) {
     notes.push(`No GUI status defined for program ${t.noCua.program} — this is normal, not an error.`);
   }
-  if (t.statusLoop?.capped) {
-    notes.push(
-      `GUI status button lookup was capped at ${t.statusLoop.done} of ${t.statusLoop.total} statuses — ` +
-        "FUNCTION KEYS below is an INCOMPLETE list, not the full set.",
-    );
-  }
-  if (t.fkeyCap?.capped) {
-    notes.push(
-      `FUNCTION KEYS was capped at ${UI_FKEY_ROW_CAP} rows — this is an INCOMPLETE list of the buttons found.`,
-    );
-  }
-
   return buildResponse({
     header: {
       mode: "screen",
@@ -403,11 +390,6 @@ function buildScreenResponse(query: UiScreenQuery, result: UiBridgeResult, maxCh
       statusCount: t.statusCount,
       functionsCount: t.functionsCount,
       fkeysCount: t.fkeysCount,
-      statusLoopDone: t.statusLoop?.done,
-      statusLoopTotal: t.statusLoop?.total,
-      statusLoopCapped: t.statusLoop?.capped,
-      fkeyCapEmitted: t.fkeyCap?.emitted,
-      fkeyCapCapped: t.fkeyCap?.capped,
       bridgeClass: result.bridgeClass,
       bridgeRefreshed: result.bridgeRefreshed,
     },

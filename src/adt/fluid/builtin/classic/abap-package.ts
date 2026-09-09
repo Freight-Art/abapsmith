@@ -170,17 +170,13 @@ export const packagePart: ClassicAbapPart = {
   ENDMETHOD.
 
   METHOD delete_package.
-    DATA: ls_tdevc            TYPE tdevc,
-          lt_subpkg           TYPE STANDARD TABLE OF tdevc WITH EMPTY KEY,
-          ls_subpkg           TYPE tdevc,
-          lt_tadir            TYPE STANDARD TABLE OF tadir WITH EMPTY KEY,
-          ls_tadir            TYPE tadir,
-          lo_package          TYPE REF TO if_package,
-          lv_content_count    TYPE i,
-          lv_subpkg_count     TYPE i,
-          lv_tadir_count      TYPE i,
-          lv_subpkg_truncated TYPE abap_bool,
-          lv_tadir_truncated  TYPE abap_bool.
+    DATA: ls_tdevc          TYPE tdevc,
+          lt_subpkg         TYPE STANDARD TABLE OF tdevc WITH EMPTY KEY,
+          ls_subpkg         TYPE tdevc,
+          lt_tadir          TYPE STANDARD TABLE OF tadir WITH EMPTY KEY,
+          ls_tadir          TYPE tadir,
+          lo_package        TYPE REF TO if_package,
+          lv_content_count  TYPE i.
     DATA lv_package TYPE devclass.
     lv_package = s( 'package_name' ).
     DATA lv_corr_nr TYPE trkorr.
@@ -195,32 +191,15 @@ export const packagePart: ClassicAbapPart = {
     ENDIF.
 
     " Step 2 - gather emptiness evidence first: sub-packages (TDEVC-PARENTCL)
-    " and objects (TADIR-DEVCLASS), UP TO 21 ROWS so a 21st row signals more.
-    SELECT * FROM tdevc UP TO 21 ROWS INTO TABLE @lt_subpkg WHERE parentcl = @lv_package.
-    lv_subpkg_count = lines( lt_subpkg ).
-    IF lv_subpkg_count > 20.
-      lv_subpkg_truncated = abap_true.
-    ENDIF.
+    " and objects (TADIR-DEVCLASS).
+    SELECT * FROM tdevc INTO TABLE @lt_subpkg WHERE parentcl = @lv_package.
     LOOP AT lt_subpkg INTO ls_subpkg.
-      IF sy-tabix > 20.
-        CONTINUE.
-      ENDIF.
       lv_content_count = lv_content_count + 1.
       line( |ZMCP-PKG-CONTENT> KIND=SUBPKG PGMID=R3TR OBJECT=DEVC NAME={ ls_subpkg-devclass }| ).
     ENDLOOP.
-    IF lv_subpkg_truncated = abap_true.
-      line( 'ZMCP-PKG-CONTENT-TRUNCATED> SOURCE=SUBPKG' ).
-    ENDIF.
 
-    SELECT * FROM tadir UP TO 21 ROWS INTO TABLE @lt_tadir WHERE devclass = @lv_package.
-    lv_tadir_count = lines( lt_tadir ).
-    IF lv_tadir_count > 20.
-      lv_tadir_truncated = abap_true.
-    ENDIF.
+    SELECT * FROM tadir INTO TABLE @lt_tadir WHERE devclass = @lv_package.
     LOOP AT lt_tadir INTO ls_tadir.
-      IF sy-tabix > 20.
-        CONTINUE.
-      ENDIF.
       " The package's own R3TR DEVC row in TADIR is filtered here, in the
       " LOOP, rather than in the SQL WHERE clause, deliberately.
       IF ls_tadir-pgmid = 'R3TR' AND ls_tadir-object = 'DEVC' AND ls_tadir-obj_name = lv_package.
@@ -229,9 +208,6 @@ export const packagePart: ClassicAbapPart = {
       lv_content_count = lv_content_count + 1.
       line( |ZMCP-PKG-CONTENT> KIND=OBJECT PGMID={ ls_tadir-pgmid } OBJECT={ ls_tadir-object } NAME={ ls_tadir-obj_name }| ).
     ENDLOOP.
-    IF lv_tadir_truncated = abap_true.
-      line( 'ZMCP-PKG-CONTENT-TRUNCATED> SOURCE=TADIR' ).
-    ENDIF.
 
     " Step 3 - delete is only attempted on a provably empty package; any
     " content found above stops here before CL_PACKAGE_FACTORY is touched.

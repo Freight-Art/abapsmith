@@ -54,9 +54,7 @@ import {
   PROGRAM_MAX,
   TCODE_MAX,
   UI_BRIDGE_CLASS_PREFIX,
-  UI_FKEY_ROW_CAP,
   UI_LINE_PREFIX,
-  UI_STATUS_LOOP_CAP,
   uiBridgeClassName,
   uiBridgeSource,
   type UiPressQuery,
@@ -930,71 +928,44 @@ describe("parseUiTranscript — screen mode FIELD/FLOW/STATUS/FKEY rows and coun
     expect(byStatus("STATUS_B")).toEqual(["CANC"]);
   });
 
-  it("parses STATUS_LOOP into a structured {done,total,capped}, uncapped case", () => {
-    const raw = `${UI_LINE_PREFIX}STATUS_LOOP done=[3] total=[3] capped=[ ]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.statusLoop).toEqual({ done: 3, total: 3, capped: false });
-  });
-
-  it("parses STATUS_LOOP with capped=[X] as capped: true — the tool must be able to detect and disclose truncation", () => {
-    const raw = `${UI_LINE_PREFIX}STATUS_LOOP done=[${UI_STATUS_LOOP_CAP}] total=[45] capped=[X]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.statusLoop).toEqual({ done: UI_STATUS_LOOP_CAP, total: 45, capped: true });
-  });
-
-  it("parses FKEY_CAP into a structured {emitted,capped}, uncapped case", () => {
-    const raw = `${UI_LINE_PREFIX}FKEY_CAP emitted=[3] capped=[ ]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.fkeyCap).toEqual({ emitted: 3, capped: false });
-  });
-
-  it("parses FKEY_CAP with capped=[X] as capped: true — the tool must be able to detect and disclose row truncation the same way it does for STATUS_LOOP", () => {
-    const raw = `${UI_LINE_PREFIX}FKEY_CAP emitted=[${UI_FKEY_ROW_CAP}] capped=[X]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.fkeyCap).toEqual({ emitted: UI_FKEY_ROW_CAP, capped: true });
-  });
-
-  it("fkeysCount (from COUNT_FKEYS) equals fkeyCap.emitted and the actual number of FKEY rows parsed — the header can never again overstate the body", () => {
-    const raw =
-      `${UI_LINE_PREFIX}COUNT_FKEYS 2\n` +
-      `${UI_LINE_PREFIX}FKEY status=[SAVE] code=[F3] text=[Back] quickinfo=[Back to previous screen]\n` +
-      `${UI_LINE_PREFIX}FKEY status=[SAVE] code=[F15] text=[Exit] quickinfo=[Exit]\n` +
-      `${UI_LINE_PREFIX}FKEY_CAP emitted=[2] capped=[ ]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.fkeysCount).toBe(2);
-    expect(result.fkeyCap).toEqual({ emitted: 2, capped: false });
-    expect(result.fkeys).toHaveLength(result.fkeysCount as number);
-    expect(result.fkeys).toHaveLength(result.fkeyCap!.emitted);
-  });
-
-  it("both STATUS_LOOP and FKEY_CAP can be capped on the same transcript (SAPLSVIM trips both live) — the two facts are independent and both must survive parsing", () => {
-    const raw =
-      `${UI_LINE_PREFIX}COUNT_FKEYS ${UI_FKEY_ROW_CAP}\n` +
-      `${UI_LINE_PREFIX}FKEY_CAP emitted=[${UI_FKEY_ROW_CAP}] capped=[X]\n` +
-      `${UI_LINE_PREFIX}STATUS_LOOP done=[${UI_STATUS_LOOP_CAP}] total=[59] capped=[X]\n`;
-    const result = parseUiTranscript(raw);
-    expect(result.statusLoop).toEqual({ done: UI_STATUS_LOOP_CAP, total: 59, capped: true });
-    expect(result.fkeyCap).toEqual({ emitted: UI_FKEY_ROW_CAP, capped: true });
-    expect(result.fkeysCount).toBe(UI_FKEY_ROW_CAP);
-  });
-
-  it("a transcript with more FKEY rows than UI_FKEY_ROW_CAP is handled coherently (defensive: the generator should never produce this by construction, but the parser must not choke or silently misreport if it ever did)", () => {
-    const overCapCount = UI_FKEY_ROW_CAP + 5;
+  it("a screen with more than 30 statuses comes back with every status's FKEY rows, not just the first 30", () => {
+    const statusCount = 35;
     const fkeyLines = Array.from(
-      { length: overCapCount },
+      { length: statusCount },
+      (_, i) => `${UI_LINE_PREFIX}FKEY status=[STATUS_${i}] code=[F1] text=[t${i}] quickinfo=[q${i}]\n`,
+    ).join("");
+    const raw = `${UI_LINE_PREFIX}COUNT_FKEYS ${statusCount}\n${fkeyLines}`;
+    const result = parseUiTranscript(raw);
+    const distinctStatuses = new Set(result.fkeys.map((r) => r.status));
+    expect(distinctStatuses.size).toBe(statusCount);
+    expect(result.fkeys).toHaveLength(statusCount);
+    expect(result.fkeysCount).toBe(statusCount);
+  });
+
+  it("a screen with more than 350 FKEY rows comes back with every row, none dropped", () => {
+    const rowCount = 355;
+    const fkeyLines = Array.from(
+      { length: rowCount },
       (_, i) => `${UI_LINE_PREFIX}FKEY status=[SAVE] code=[F${i}] text=[t${i}] quickinfo=[q${i}]\n`,
     ).join("");
-    const raw = `${UI_LINE_PREFIX}COUNT_FKEYS ${overCapCount}\n${fkeyLines}${UI_LINE_PREFIX}FKEY_CAP emitted=[${overCapCount}] capped=[ ]\n`;
+    const raw = `${UI_LINE_PREFIX}COUNT_FKEYS ${rowCount}\n${fkeyLines}`;
     const result = parseUiTranscript(raw);
-    // The parser itself never enforces the cap — it faithfully reports
-    // whatever the transcript actually contains, so a caller can tell
-    // "the ABAP-side guarantee held" (fkeysCount === fkeys.length) from
-    // "the header disagrees with the body" (the SAPLSVIM defect this whole
-    // fix exists to prevent) rather than one of those facts going missing.
-    expect(result.fkeys).toHaveLength(overCapCount);
-    expect(result.fkeysCount).toBe(overCapCount);
-    expect(result.fkeyCap).toEqual({ emitted: overCapCount, capped: false });
+    expect(result.fkeys).toHaveLength(rowCount);
+    expect(result.fkeysCount).toBe(rowCount);
     expect(result.fkeysCount).toBe(result.fkeys.length);
+  });
+
+  it("a stray legacy STATUS_LOOP/FKEY_CAP line (from a stale deployed bridge class) is ignored, not read back as a cap disclosure", () => {
+    const raw =
+      `${UI_LINE_PREFIX}COUNT_FKEYS 1\n` +
+      `${UI_LINE_PREFIX}FKEY status=[SAVE] code=[F3] text=[Back] quickinfo=[Back to previous screen]\n` +
+      `${UI_LINE_PREFIX}FKEY_CAP emitted=[350] capped=[X]\n` +
+      `${UI_LINE_PREFIX}STATUS_LOOP done=[30] total=[59] capped=[X]\n`;
+    const result = parseUiTranscript(raw);
+    expect((result as Record<string, unknown>).fkeyCap).toBeUndefined();
+    expect((result as Record<string, unknown>).statusLoop).toBeUndefined();
+    expect(result.fkeys).toHaveLength(1);
+    expect(result.fkeysCount).toBe(1);
   });
 
   it("parses NOCUA as a normal outcome (no GUI status defined), separate from statusList/functions/fkeys which stay empty", () => {
@@ -1009,37 +980,6 @@ describe("parseUiTranscript — screen mode FIELD/FLOW/STATUS/FKEY rows and coun
     expect(result.fkeys).toEqual([]);
     // NOCUA must never be routed through diagnostics — it is not an error.
     expect(result.diagnostics).toEqual([]);
-  });
-});
-
-describe("UI_FKEY_ROW_CAP (INVARIANT)", () => {
-  it("is small enough to actually serve its purpose: worst-case FKEY emission must fit well inside the response budget", () => {
-    // Every cap-wiring test elsewhere (parseUiTranscript's FKEY_CAP tests,
-    // and this constant's mirror as a literal `350` in the fluid ABAP at
-    // src/adt/fluid/builtin/ui.ts) interpolates UI_FKEY_ROW_CAP into its own
-    // expectation, so they all pass for ANY value — including a value large
-    // enough that the cap does nothing. They verify the wiring; this verifies
-    // the cap is worth having. Raising UI_FKEY_ROW_CAP to a number that
-    // defeats it must fail HERE, loudly, rather than sail through green.
-    // This invariant is independent of screen vs. press or of which module
-    // generates the FKEY rows — it is a fact about the constant itself.
-    //
-    // The numbers are the ones in UI_FKEY_ROW_CAP's own doc comment, so the
-    // documented rationale and the enforced invariant cannot drift apart:
-    //   - an emitted FKEY line runs ~80 characters, measured from real output
-    //     (`UI> FKEY status=[LISTE_ALV] code=[ONLI] text=[...] quickinfo=[...]`)
-    //   - the response budget is cfg.maxResponseChars, default 60,000
-    //     (src/config.ts — `ABAP_MAX_RESPONSE_CHARS ?? 60_000`)
-    //   - FIELDS, FLOW LOGIC and FUNCTION CODES share that same budget, and
-    //     FUNCTION CODES alone measured 176 rows live on SAPLSETB, so FKEYS
-    //     must stay under HALF of it or it will crowd them out — which is the
-    //     exact live defect this cap exists to prevent (SAPLSVIM: header
-    //     reported fkeysCount=778, body delivered 442, tail silently dropped).
-    const FKEY_LINE_CHARS = 80;
-    const DEFAULT_MAX_RESPONSE_CHARS = 60_000;
-    const worstCase = UI_FKEY_ROW_CAP * FKEY_LINE_CHARS;
-
-    expect(worstCase).toBeLessThanOrEqual(DEFAULT_MAX_RESPONSE_CHARS / 2);
   });
 });
 

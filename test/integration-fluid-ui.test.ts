@@ -245,8 +245,6 @@ dw("live A4H ui fluid tool ($ABAPSMITH_FLUID_API, read-only screen inspection)",
       functions?: readonly { code: string; text: string; type: string }[];
       fkeysCount?: number;
       fkeys?: readonly { status: string; code: string; text: string; quickinfo: string }[];
-      statusLoop?: { done: number; total: number; capped: boolean };
-      fkeyCap?: { emitted: number; capped: boolean };
       noCua?: { program: string; note: string };
     };
     expect(typeof out.program).toBe("string");
@@ -303,13 +301,6 @@ dw("live A4H ui fluid tool ($ABAPSMITH_FLUID_API, read-only screen inspection)",
         expect(typeof fkey.code).toBe("string");
         expect(fkey.code.length).toBeGreaterThan(0);
       }
-      expect(out.statusLoop).toBeDefined();
-      expect(typeof out.statusLoop?.done).toBe("number");
-      expect(typeof out.statusLoop?.total).toBe("number");
-      expect(typeof out.statusLoop?.capped).toBe("boolean");
-      expect(out.fkeyCap).toBeDefined();
-      expect(typeof out.fkeyCap?.emitted).toBe("number");
-      expect(typeof out.fkeyCap?.capped).toBe("boolean");
     } else {
       expect(out.noCua?.program).toBe(out.program);
       expect(typeof out.noCua?.note).toBe("string");

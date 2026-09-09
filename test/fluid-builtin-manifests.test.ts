@@ -1,11 +1,8 @@
 // FluidManifestSchema is only invoked from plugin-loader.ts, so builtin manifests are otherwise never validated.
 import { describe, expect, it } from "vitest";
 import { BUILTIN_FLUID_TOOLS } from "../src/adt/fluid/builtin/index.js";
-import { CLASSIC_BODY_CLASS, CLASSIC_TOOL_ID } from "../src/adt/fluid/builtin/classic.js";
-import { packagePart } from "../src/adt/fluid/builtin/classic/abap-package.js";
 import { FluidManifestSchema } from "../src/adt/fluid/manifest.js";
 import { FLUID_ABAP_LINE_MAX, reviewFluidAbap } from "../src/adt/fluid/static-review.js";
-import { UI_FKEY_ROW_CAP, UI_STATUS_LOOP_CAP } from "../src/adt/ui-runtime.js";
 
 const tools = BUILTIN_FLUID_TOOLS.map((tool) => [tool.manifest.id, tool] as const);
 
@@ -112,35 +109,15 @@ describe("BUILTIN_FLUID_TOOLS manifests", () => {
 // `UP TO <n> ROWS` (a dynamic `UP TO @lv_max ROWS`, where the caller's own argument controls the
 // bound and 0 means unlimited per ABAP's own rule for that construct — see core/abap-select.ts —
 // is not this), and a `c_max_rows`-style constant declared to enforce one in ABAP.
-//
-// classic/abap-package.ts's own `UP TO 21 ROWS` selects are the one legitimate exception: that
-// code is not returning a result set the caller asked for, it is proving whether a package is
-// EMPTY so it can refuse to delete a non-empty one — one row is sufficient to reach that yes/no
-// decision, at most 20 are listed as human-readable evidence, and it emits an explicit
-// `ZMCP-PKG-CONTENT-TRUNCATED>` marker when it stopped early. Removing that bound would mean
-// selecting every TADIR row in a large package to answer a yes/no question: strictly worse
-// behaviour, not better. The exemption below is keyed to that file's own exported source (so a
-// changed row count there still self-exempts) and to the specific object it compiles into, not to
-// the literal string "UP TO 21 ROWS" — a broad string exemption would let a genuine cap slip back
-// into that same file later without tripping this pin.
 const HARDCODED_ROWS_CAP_RE = /\bUP TO\s+\d+\s+ROWS\b/gi;
 const MAX_ROWS_CONSTANT_RE = /\bCONSTANTS\b(?:(?!\.).){0,120}?\bMAX\b(?:(?!\.).){0,120}?\bROWS?\b/gis;
 
-const PACKAGE_EMPTINESS_ROW_CAPS = new Set(
-  [...packagePart.source.matchAll(HARDCODED_ROWS_CAP_RE)].map((m) => m[0]),
-);
-
-function isExemptRowCap(toolId: string, objName: string, match: string): boolean {
-  return toolId === CLASSIC_TOOL_ID && objName === CLASSIC_BODY_CLASS && PACKAGE_EMPTINESS_ROW_CAPS.has(match);
-}
-
 describe("BUILTIN_FLUID_TOOLS manifests: no hardcoded row caps", () => {
-  it.each(tools)('%s: no source hardcodes a row cap via "UP TO <n> ROWS"', (id, tool) => {
+  it.each(tools)('%s: no source hardcodes a row cap via "UP TO <n> ROWS"', (_id, tool) => {
     for (const obj of tool.manifest.objects) {
       const source = tool.sources.get(obj.name) ?? "";
       const matches = [...source.matchAll(HARDCODED_ROWS_CAP_RE)].map((m) => m[0]);
-      const unexempted = matches.filter((m) => !isExemptRowCap(id, obj.name, m));
-      expect(unexempted, `"${obj.name}" hardcodes a row cap: ${JSON.stringify(unexempted)}`).toEqual([]);
+      expect(matches, `"${obj.name}" hardcodes a row cap: ${JSON.stringify(matches)}`).toEqual([]);
     }
   });
 
@@ -153,92 +130,18 @@ describe("BUILTIN_FLUID_TOOLS manifests: no hardcoded row caps", () => {
   });
 });
 
-// The two regexes above catch the SQL-shaped cap (`UP TO n ROWS`) and a constant declared to
-// enforce one. Neither catches the third shape: a bare numeric guard on a running counter inside an
-// ABAP loop, which truncates just as silently — `IF lv_total < 350. ... ELSE. lv_capped = abap_true.`
-// The `ui` body carries exactly two of those, ported verbatim from the pre-fluid `ui-runtime.ts`
-// generator, and they are the only ones in any builtin.
-//
-// They are deliberately kept rather than removed, and each earns its keep differently: the status
-// bound limits how many `RS_CUA_GET_STATUS` calls one screen read makes (a call-count guard, not an
-// output cap — ~32ms warm each), and the FKEY bound stops the row set from silently losing its tail
-// to `buildResponse`'s character budget further downstream (SAPLSVIM reported 778 rows and
-// delivered 442 before it existed). Both disclose themselves in the result via a `capped` flag, so
-// no caller is told a truncated list is complete.
-//
-// What was NOT safe was leaving them as bare literals. `UI_STATUS_LOOP_CAP`/`UI_FKEY_ROW_CAP` are
-// still exported from `ui-runtime.ts` and still drive the caller-facing disclosure text in
-// `tools/ui.ts` and the budget invariant in `ui-runtime.test.ts`, but after the reroute the ABAP
-// that actually enforces the bound hardcodes the numbers instead of interpolating them. Nothing
-// tied the two together, so lowering `UI_FKEY_ROW_CAP` would have changed every message about the
-// cap while the deployed body kept truncating at 350 — a disclosure that lies about its own bound.
-// These two assertions are that tie. A third `_capped` flag appearing in any builtin fails the
-// count check below rather than slipping in unpinned.
-const UI_BODY_CLASS = "ZCL_ZMCP_FLUID_UI";
-
-describe("BUILTIN_FLUID_TOOLS: emitted-output caps mirror their named constant", () => {
-  const uiTool = BUILTIN_FLUID_TOOLS.find((t) => t.manifest.id === "ui");
-  const uiSource = uiTool?.sources.get(UI_BODY_CLASS) ?? "";
-
-  it("the ui body is present and readable, or every assertion below is vacuous", () => {
-    expect(uiTool, "no builtin fluid tool with id 'ui'").toBeDefined();
-    expect(uiSource.length, `${UI_BODY_CLASS} source is empty`).toBeGreaterThan(0);
-  });
-
-  it(`the per-status RS_CUA_GET_STATUS loop bound in ABAP is UI_STATUS_LOOP_CAP (${UI_STATUS_LOOP_CAP})`, () => {
-    expect(
-      uiSource,
-      `${UI_BODY_CLASS} must bound its status loop at UI_STATUS_LOOP_CAP; if that constant changed, change the ABAP too`,
-    ).toContain(`lv_status_done >= ${UI_STATUS_LOOP_CAP}`);
-  });
-
-  it(`the FKEY row bound in ABAP is UI_FKEY_ROW_CAP (${UI_FKEY_ROW_CAP})`, () => {
-    expect(
-      uiSource,
-      `${UI_BODY_CLASS} must bound its FKEY emission at UI_FKEY_ROW_CAP; tools/ui.ts discloses that number to the caller`,
-    ).toContain(`lv_fkeys_total < ${UI_FKEY_ROW_CAP}`);
-  });
-
-  // The two assertions above tie the ABAP that enforces each bound to its named constant. They do
-  // not cover the third place the number appears: the manifest's own output-schema `description`
-  // strings, which are what `abap_fluid describe` shows an agent deciding whether a result is
-  // complete. `ui`'s `fkeys` description says "across up to 30 statuses" as a bare literal, so
-  // lowering UI_STATUS_LOOP_CAP would leave the manifest advertising a bound the body no longer
-  // has — the same class of lie the ABAP assertions exist to prevent, one layer up. Scanning every
-  // builtin manifest for the phrasing (rather than reaching into `ui`'s fkeys node by path) means a
-  // second action that repeats the sentence is pinned too. The expectation is an exact list, in the
-  // style of the `_capped` check below, so that a rewording which drops the sentence fails loudly
-  // here instead of quietly turning this assertion vacuous.
-  it(`the manifest descriptions that quote a status bound quote UI_STATUS_LOOP_CAP (${UI_STATUS_LOOP_CAP})`, () => {
-    const quoted: string[] = [];
-    for (const tool of BUILTIN_FLUID_TOOLS) {
-      for (const m of JSON.stringify(tool.manifest).matchAll(/up to (\d+) statuses/g)) {
-        quoted.push(`${tool.manifest.id}: ${m[1]}`);
-      }
-    }
-    expect(
-      quoted.sort(),
-      "a manifest description names a status bound that is not UI_STATUS_LOOP_CAP; change the description, or the constant and the ABAP with it",
-    ).toEqual([`ui: ${UI_STATUS_LOOP_CAP}`]);
-  });
-
-  it("no builtin's ABAP raises a truncation flag that is not one of the two pinned above", () => {
+describe("BUILTIN_FLUID_TOOLS manifests: no undisclosed truncation flag", () => {
+  it("no builtin's ABAP raises a `_capped` flag", () => {
     const found: string[] = [];
     for (const tool of BUILTIN_FLUID_TOOLS) {
       for (const obj of tool.manifest.objects) {
         const source = tool.sources.get(obj.name) ?? "";
-        // Anchored to the start of a statement and required to end in `.` so this counts
-        // ASSIGNMENTS that raise the flag, not the `IF lv_x_capped = abap_true.` comparisons
-        // that later read it back when rendering the JSON.
         for (const m of source.matchAll(/^[ \t]*(\w*_capped)\s*=\s*abap_true\s*\./gim)) {
           found.push(`${tool.manifest.id}/${obj.name}: ${m[1]}`);
         }
       }
     }
-    expect(found.sort()).toEqual([
-      `ui/${UI_BODY_CLASS}: lv_fkeys_capped`,
-      `ui/${UI_BODY_CLASS}: lv_status_capped`,
-    ]);
+    expect(found.sort()).toEqual([]);
   });
 });
 

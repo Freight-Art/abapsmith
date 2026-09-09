@@ -299,23 +299,6 @@ export function uiBridgeClassName(q: UiBridgeQuery): string {
 /** Line prefix for structured output; `ERR_LINE_PREFIX` (from run.ts, "ZMCP-ERR> ") is reused for diagnostics. */
 export const UI_LINE_PREFIX = "UI> ";
 
-/**
- * Cap on per-status `RS_CUA_GET_STATUS` calls in screen mode (~32ms warm each;
- * ~674ms total for SAPLSETB's 21 statuses — see archive). When exceeded, the
- * transcript's STATUS_LOOP line reports `capped=1`; callers must disclose it.
- */
-export const UI_STATUS_LOOP_CAP = 30;
-
-/**
- * Cap on total FKEY rows emitted across all statuses. Added after
- * `buildResponse`'s char budget silently dropped rows past the header's
- * count on a real transcript (SAPLSVIM: header said 778, body had 442 — see
- * archive) — capping at the source avoids the transport doing it silently.
- * When hit, the transcript's FKEY_CAP line reports `capped=1`; callers must
- * disclose it, same as {@link UI_STATUS_LOOP_CAP}.
- */
-export const UI_FKEY_ROW_CAP = 350;
-
 /** ADT's PUT rejects a source line over this length with `ExceptionResourceBadRequest`/`TooLongLine`. */
 const ABAP_MAX_LINE_LEN = 255;
 
@@ -541,25 +524,15 @@ export interface UiTranscriptResult {
   functionsCount?: number;
   functions: Record<string, string>[];
   /**
-   * Union of per-status buttons across up to {@link UI_STATUS_LOOP_CAP}
-   * statuses. Fixed `{status, code, text, quickinfo}` projection off
-   * `RSEUL_KEYS`; `status` is attributed from the loop variable sent to
-   * RS_CUA_GET_STATUS, not `RSEUL_KEYS-STATUS` (unverified whether that FM
-   * populates it). Empty-`code` rows are dropped. `fkeysCount` totals across
-   * all statuses, not per status.
+   * Union of per-status buttons across every status. Fixed
+   * `{status, code, text, quickinfo}` projection off `RSEUL_KEYS`; `status`
+   * is attributed from the loop variable sent to RS_CUA_GET_STATUS, not
+   * `RSEUL_KEYS-STATUS` (unverified whether that FM populates it).
+   * Empty-`code` rows are dropped. `fkeysCount` totals across all statuses,
+   * not per status.
    */
   fkeysCount?: number;
   fkeys: Record<string, string>[];
-  /** Capped per-status RS_CUA_GET_STATUS loop summary. When `capped`, `fkeys` is incomplete — callers must disclose this. */
-  statusLoop?: { done: number; total: number; capped: boolean };
-  /**
-   * {@link UI_FKEY_ROW_CAP} row-cap summary — a separate fact from
-   * `statusLoop`: that says whether every status got a lookup, this says
-   * whether every found button was reported (either, both, or neither can be
-   * true; SAPLSVIM trips both — see archive). When `capped`, `fkeys` is
-   * incomplete — callers must disclose this.
-   */
-  fkeyCap?: { emitted: number; capped: boolean };
   /** Set when RS_CUA_INTERNAL_FETCH returned sy-subrc=1 (NOT_FOUND) — normal for a program with no GUI status, not an error. */
   noCua?: { program: string; note: string };
   press?: UiPressResult;
@@ -663,23 +636,6 @@ export function parseUiTranscript(raw: string): UiTranscriptResult {
       case "FKEY":
         result.fkeys.push(fields);
         break;
-      case "FKEY_CAP": {
-        const emitted = Number(fields.emitted ?? "");
-        const capped = fields.capped === "X" || fields.capped === "1" || fields.capped === "true";
-        if (!Number.isNaN(emitted)) {
-          result.fkeyCap = { emitted, capped };
-        }
-        break;
-      }
-      case "STATUS_LOOP": {
-        const done = Number(fields.done ?? "");
-        const total = Number(fields.total ?? "");
-        const capped = fields.capped === "X" || fields.capped === "1" || fields.capped === "true";
-        if (!Number.isNaN(done) && !Number.isNaN(total)) {
-          result.statusLoop = { done, total, capped };
-        }
-        break;
-      }
       case "NOCUA":
         result.noCua = { program: fields.program ?? "", note: fields.note ?? "" };
         break;
@@ -783,8 +739,6 @@ interface UiFluidScreenPayload {
   functions?: Record<string, string>[];
   fkeysCount?: number;
   fkeys?: Record<string, string>[];
-  statusLoop?: { done: number; total: number; capped: boolean };
-  fkeyCap?: { emitted: number; capped: boolean };
   noCua?: { program: string; note: string };
 }
 
@@ -827,8 +781,6 @@ function toUiTranscriptResult(payload: UiFluidScreenPayload): UiTranscriptResult
     functions: payload.functions ?? [],
     ...(payload.fkeysCount !== undefined ? { fkeysCount: payload.fkeysCount } : {}),
     fkeys: payload.fkeys ?? [],
-    ...(payload.statusLoop ? { statusLoop: payload.statusLoop } : {}),
-    ...(payload.fkeyCap ? { fkeyCap: payload.fkeyCap } : {}),
     ...(payload.noCua ? { noCua: payload.noCua } : {}),
     diagnostics: [],
     droppedLines: 0,
