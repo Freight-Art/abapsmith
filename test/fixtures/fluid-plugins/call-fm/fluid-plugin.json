@@ -1,0 +1,17 @@
+{
+  "contract": "1.0",
+  "id": "callfm",
+  "title": "CALL FUNCTION fluid plugin",
+  "description": "Loader fixture: a plain CALL FUNCTION (no DESTINATION) not wrapped in any declared action target.",
+  "objects": [
+    { "name": "ZCL_ZMCP_X_CALLFM", "type": "CLAS/OC", "description": "fluid: callfm body",
+      "source": { "file": "abap/zcl_zmcp_x_callfm.abap" } }
+  ],
+  "entry": "ZCL_ZMCP_X_CALLFM",
+  "actions": [
+    { "name": "ping", "category": "read", "description": "Replies with a fixed string.",
+      "input": { "type": "object" },
+      "output": { "type": "object", "required": ["reply"],
+                  "properties": { "reply": { "type": "string" } } } }
+  ]
+}

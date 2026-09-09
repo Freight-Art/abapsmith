@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   reviewFluidAbap,
+  scanFluidCapabilities,
   FLUID_ABAP_LINE_MAX,
   FLUID_SHIPPED_PROHIBITIONS,
 } from "../src/adt/fluid/static-review.js";
@@ -285,6 +286,115 @@ describe("trailing comments", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]?.rule).toBe("exec-sql");
     expect(findings[0]?.line).toBe(2);
+  });
+});
+
+describe("scanFluidCapabilities: db-write", () => {
+  it("fires on UPDATE <dbtab> SET ...", () => {
+    const findings = scanFluidCapabilities(OBJ, "UPDATE zdbtab SET field1 = 'X' WHERE key1 = 1.");
+    expect(findings).toEqual([{ object: OBJ, line: 1, capability: "db-write", text: "UPDATE zdbtab SET field1 = 'X' WHERE key1 = 1" }]);
+  });
+
+  it("fires on explicit DELETE FROM <dbtab> ...", () => {
+    const findings = scanFluidCapabilities(OBJ, "DELETE FROM zdbtab WHERE key1 = 1.");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.capability).toBe("db-write");
+    expect(findings[0]?.line).toBe(1);
+  });
+
+  it("fires on native-SQL INSERT INTO <dbtab> VALUES (...)", () => {
+    const findings = scanFluidCapabilities(OBJ, "INSERT INTO zdbtab VALUES ( 1 ).");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.capability).toBe("db-write");
+    expect(findings[0]?.line).toBe(1);
+  });
+
+  it("fires on Open SQL INSERT <dbtab> FROM wa", () => {
+    const findings = scanFluidCapabilities(OBJ, "INSERT zdbtab FROM wa.");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.capability).toBe("db-write");
+    expect(findings[0]?.line).toBe(1);
+  });
+
+  it("fires on MODIFY <dbtab> FROM wa", () => {
+    const findings = scanFluidCapabilities(OBJ, "MODIFY zdbtab FROM wa.");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.capability).toBe("db-write");
+    expect(findings[0]?.line).toBe(1);
+  });
+
+  it("does not fire on DELETE ADJACENT DUPLICATES FROM lt_x (internal-table dedup)", () => {
+    const findings = scanFluidCapabilities(OBJ, "DELETE ADJACENT DUPLICATES FROM lt_x.");
+    expect(findings).toEqual([]);
+  });
+
+  it("does not fire on INSERT lv_x INTO TABLE lt_y (internal-table insert)", () => {
+    const findings = scanFluidCapabilities(OBJ, "INSERT lv_x INTO TABLE lt_y.");
+    expect(findings).toEqual([]);
+  });
+
+  it("does not fire on MODIFY lt_x FROM wa (internal table, by naming convention)", () => {
+    const findings = scanFluidCapabilities(OBJ, "MODIFY lt_x FROM wa.");
+    expect(findings).toEqual([]);
+  });
+
+  it("does not fire on a plain DELETE lt_x (internal table, no FROM)", () => {
+    const findings = scanFluidCapabilities(OBJ, "DELETE lt_x.");
+    expect(findings).toEqual([]);
+  });
+
+  it("does not fire on MODIFY SCREEN (dynpro attribute change, not a table)", () => {
+    const findings = scanFluidCapabilities(OBJ, "MODIFY SCREEN.");
+    expect(findings).toEqual([]);
+  });
+
+  it("is not part of reviewFluidAbap's own findings — a database write is not a shipped prohibition", () => {
+    const findings = reviewFluidAbap(OBJ, "UPDATE zdbtab SET field1 = 'X' WHERE key1 = 1.");
+    expect(findings).toEqual([]);
+  });
+
+  it("a full-line * comment mentioning UPDATE produces no capability finding", () => {
+    const findings = scanFluidCapabilities(OBJ, "* UPDATE zdbtab SET field1 = 'X'.");
+    expect(findings).toEqual([]);
+  });
+});
+
+describe("scanFluidCapabilities: commit-rollback", () => {
+  it("fires on COMMIT WORK", () => {
+    const findings = scanFluidCapabilities(OBJ, "COMMIT WORK.");
+    expect(findings).toEqual([{ object: OBJ, line: 1, capability: "commit-rollback", text: "COMMIT WORK" }]);
+  });
+
+  it("fires on ROLLBACK WORK", () => {
+    const findings = scanFluidCapabilities(OBJ, "ROLLBACK WORK.");
+    expect(findings).toEqual([{ object: OBJ, line: 1, capability: "commit-rollback", text: "ROLLBACK WORK" }]);
+  });
+
+  it("is not part of reviewFluidAbap's own findings — COMMIT WORK is not a shipped prohibition", () => {
+    const findings = reviewFluidAbap(OBJ, "COMMIT WORK.");
+    expect(findings).toEqual([]);
+  });
+});
+
+describe("scanFluidCapabilities: call-function", () => {
+  it("fires on a plain CALL FUNCTION with no DESTINATION", () => {
+    const findings = scanFluidCapabilities(OBJ, "CALL FUNCTION 'Z_RFC'.");
+    expect(findings).toEqual([{ object: OBJ, line: 1, capability: "call-function", text: "CALL FUNCTION 'Z_RFC'" }]);
+  });
+
+  it("also fires on CALL FUNCTION ... DESTINATION, independently of the shipped call-function-destination rule", () => {
+    const capability = scanFluidCapabilities(OBJ, "CALL FUNCTION 'Z_RFC' DESTINATION 'RFC_DEST'.");
+    expect(capability).toHaveLength(1);
+    expect(capability[0]?.capability).toBe("call-function");
+
+    const shipped = reviewFluidAbap(OBJ, "CALL FUNCTION 'Z_RFC' DESTINATION 'RFC_DEST'.");
+    expect(shipped).toHaveLength(1);
+    expect(shipped[0]?.rule).toBe("call-function-destination");
+  });
+
+  it("is not part of reviewFluidAbap's own findings — a plain CALL FUNCTION is not a shipped prohibition", () => {
+    const findings = reviewFluidAbap(OBJ, "CALL FUNCTION 'Z_RFC'.");
+    expect(findings).toEqual([]);
   });
 });
 

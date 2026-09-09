@@ -1,0 +1,17 @@
+{
+  "contract": "1.0",
+  "id": "foo_bar",
+  "title": "foo_bar fluid plugin",
+  "description": "Loader fixture: object-name collision pair with foo, declaring ZCL_ZMCP_X_FOO_BAR exactly.",
+  "objects": [
+    { "name": "ZCL_ZMCP_X_FOO_BAR", "type": "CLAS/OC", "description": "fluid: foo_bar body",
+      "source": { "file": "abap/zcl_zmcp_x_foo_bar.abap" } }
+  ],
+  "entry": "ZCL_ZMCP_X_FOO_BAR",
+  "actions": [
+    { "name": "ping", "category": "read", "description": "Replies with a fixed string.",
+      "input": { "type": "object" },
+      "output": { "type": "object", "required": ["reply"],
+                  "properties": { "reply": { "type": "string" } } } }
+  ]
+}

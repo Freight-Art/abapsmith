@@ -12,6 +12,11 @@ import {
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "fluid-plugins");
 const HELLO_DIR = join(FIXTURES, "hello");
 const BAD_NAMESPACE_DIR = join(FIXTURES, "bad-namespace");
+const DB_WRITE_DIR = join(FIXTURES, "db-write");
+const COMMIT_WORK_DIR = join(FIXTURES, "commit-work");
+const CALL_FM_DIR = join(FIXTURES, "call-fm");
+const FOO_DIR = join(FIXTURES, "foo");
+const FOO_BAR_DIR = join(FIXTURES, "foo_bar");
 
 let dir: string;
 
@@ -23,9 +28,16 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-const cfg = (roots: readonly string[], allow = true): FluidLoaderConfig => ({
+const cfg = (
+  roots: readonly string[],
+  allow = true,
+  allowMutate = false,
+  allowCallFm = false,
+): FluidLoaderConfig => ({
   fluidPlugins: [...roots],
   allowFluidPlugins: allow,
+  allowFluidPluginMutate: allowMutate,
+  allowFluidCallFm: allowCallFm,
 });
 
 const HELLO_MANIFEST = {
@@ -111,6 +123,20 @@ async function isolatedRoot(childName: string, target: string): Promise<string> 
   return root;
 }
 
+// Same isolation as isolatedRoot above, but for tests that need several
+// already-committed fixtures visible to the same loadFluidTools call (e.g.
+// a cross-plugin conflict, which only shows up when both sides are
+// discovered together) without pulling in every other sibling under the
+// shared fixtures directory.
+async function isolatedRootWith(children: readonly { readonly name: string; readonly target: string }[]): Promise<string> {
+  const root = join(dir, `root-${children.map((c) => c.name).join("-")}`);
+  await mkdir(root, { recursive: true });
+  for (const { name, target } of children) {
+    await symlink(target, join(root, name), "dir");
+  }
+  return root;
+}
+
 const builtin = (id: string): FluidBuiltinSource => ({
   manifest: {
     contract: "1.0",
@@ -164,7 +190,14 @@ describe("bad-namespace fixture", () => {
 
 describe("a root holding both fixtures", () => {
   it("loads a good plugin and refuses a bad one from the same call", async () => {
-    const result = await loadFluidTools(cfg([FIXTURES]));
+    // Isolated to exactly these two fixtures (not the whole shared
+    // fixtures directory) so adding further sibling fixture directories
+    // under test/fixtures/fluid-plugins/ never changes what this test sees.
+    const root = await isolatedRootWith([
+      { name: "hello", target: HELLO_DIR },
+      { name: "bad-namespace", target: BAD_NAMESPACE_DIR },
+    ]);
+    const result = await loadFluidTools(cfg([root]));
     expect(result.tools.size).toBe(1);
     expect(result.tools.has("hello")).toBe(true);
     expect(result.refused).toHaveLength(1);
@@ -407,7 +440,11 @@ describe("root discovery", () => {
     const result = await loadFluidTools(cfg([missingRoot]));
     expect(result.refused).toHaveLength(1);
     expect(result.refused[0]?.path).toBe(missingRoot);
-    expect(result.refused[0]?.code).toBe("FLUID_MANIFEST_INVALID");
+    // Not FLUID_MANIFEST_INVALID: no manifest was ever read here, the
+    // configured root itself couldn't be listed. BAD_INPUT is the repo's
+    // documented fallback for "no dedicated code" (see src/adt/write.ts).
+    expect(result.refused[0]?.code).toBe("BAD_INPUT");
+    expect(result.refused[0]?.reason).toContain(missingRoot);
     expect(result.tools.size).toBe(0);
   });
 
@@ -428,5 +465,117 @@ describe("empty configuration", () => {
     expect(result.tools.get("beta")?.origin).toBe("builtin");
     expect(result.refused).toEqual([]);
     expect(result.warnings).toEqual([]);
+  });
+});
+
+describe("plugin mutate gate", () => {
+  it("refuses a plugin whose ABAP contains a database write when ABAP_ALLOW_FLUID_PLUGIN_MUTATE is off", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("db-write", DB_WRITE_DIR)]));
+    expect(result.tools.size).toBe(0);
+    expect(result.refused).toHaveLength(1);
+    const refusal = result.refused[0];
+    if (!refusal) throw new Error("unreachable");
+    expect(refusal.code).toBe("FLUID_PLUGIN_MUTATE_DISABLED");
+    expect(refusal.id).toBe("dbwrite");
+    expect(refusal.reason).toMatch(/ZCL_ZMCP_X_DBWRITE/);
+    expect(refusal.reason).toMatch(/\.abap:9\b/);
+  });
+
+  it("loads the same plugin once ABAP_ALLOW_FLUID_PLUGIN_MUTATE is on", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("db-write", DB_WRITE_DIR)], true, true));
+    expect(result.refused).toEqual([]);
+    expect(result.tools.has("dbwrite")).toBe(true);
+  });
+
+  it("refuses a plugin whose ABAP contains COMMIT WORK when ABAP_ALLOW_FLUID_PLUGIN_MUTATE is off", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("commit-work", COMMIT_WORK_DIR)]));
+    expect(result.tools.size).toBe(0);
+    expect(result.refused).toHaveLength(1);
+    const refusal = result.refused[0];
+    if (!refusal) throw new Error("unreachable");
+    expect(refusal.code).toBe("FLUID_PLUGIN_MUTATE_DISABLED");
+    expect(refusal.id).toBe("commitwk");
+    expect(refusal.reason).toMatch(/ZCL_ZMCP_X_COMMITWK/);
+    expect(refusal.reason).toMatch(/\.abap:9\b/);
+  });
+
+  it("loads the COMMIT WORK plugin once ABAP_ALLOW_FLUID_PLUGIN_MUTATE is on", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("commit-work", COMMIT_WORK_DIR)], true, true));
+    expect(result.refused).toEqual([]);
+    expect(result.tools.has("commitwk")).toBe(true);
+  });
+});
+
+describe("plugin CALL FUNCTION gate", () => {
+  it("refuses a plugin whose ABAP contains a plain CALL FUNCTION when ABAP_ALLOW_FLUID_CALL_FM is off", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("call-fm", CALL_FM_DIR)]));
+    expect(result.tools.size).toBe(0);
+    expect(result.refused).toHaveLength(1);
+    const refusal = result.refused[0];
+    if (!refusal) throw new Error("unreachable");
+    expect(refusal.code).toBe("SAFETY_DENIED");
+    expect(refusal.rule).toBe("ABAP_ALLOW_FLUID_CALL_FM");
+    expect(refusal.id).toBe("callfm");
+    expect(refusal.reason).toMatch(/ZCL_ZMCP_X_CALLFM/);
+    expect(refusal.reason).toMatch(/\.abap:9\b/);
+  });
+
+  it("loads the same plugin once ABAP_ALLOW_FLUID_CALL_FM is on", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("call-fm", CALL_FM_DIR)], true, false, true));
+    expect(result.refused).toEqual([]);
+    expect(result.tools.has("callfm")).toBe(true);
+  });
+});
+
+describe("cross-plugin object-name conflict", () => {
+  it("refuses the second-discovered plugin claiming an object name another loaded tool already owns, naming both tool ids", async () => {
+    const root = await isolatedRootWith([
+      { name: "foo", target: FOO_DIR },
+      { name: "foo_bar", target: FOO_BAR_DIR },
+    ]);
+    const result = await loadFluidTools(cfg([root]));
+    expect(result.tools.size).toBe(1);
+    expect(result.tools.has("foo")).toBe(true);
+    expect(result.refused).toHaveLength(1);
+    const refusal = result.refused[0];
+    if (!refusal) throw new Error("unreachable");
+    expect(refusal.code).toBe("FLUID_OBJECT_CONFLICT");
+    expect(refusal.id).toBe("foo_bar");
+    expect(refusal.reason).toMatch(/ZCL_ZMCP_X_FOO_BAR/);
+    expect(refusal.reason).toMatch(/foo/);
+    expect(refusal.reason).toMatch(/foo_bar/);
+  });
+
+  it("refuses a plugin whose object name is already claimed by a built-in, naming both tool ids", async () => {
+    const sneaky: FluidBuiltinSource = {
+      manifest: {
+        contract: "1.0",
+        id: "sneaky",
+        title: "sneaky builtin",
+        description: "builtin fixture claiming the hello plugin's object name",
+        objects: [{ name: "ZCL_ZMCP_X_HELLO", type: "CLAS/OC", description: "d", source: { text: "CLASS x." } }],
+        entry: "ZCL_ZMCP_X_HELLO",
+        actions: [
+          {
+            name: "ping",
+            category: "read",
+            description: "d",
+            input: { type: "object" },
+            output: { type: "object" },
+          },
+        ],
+      },
+      sources: new Map([["ZCL_ZMCP_X_HELLO", "CLASS x."]]),
+    };
+    const result = await loadFluidTools(cfg([await isolatedRoot("hello", HELLO_DIR)]), [sneaky]);
+    expect(result.tools.size).toBe(1);
+    expect(result.tools.has("sneaky")).toBe(true);
+    expect(result.refused).toHaveLength(1);
+    const refusal = result.refused[0];
+    if (!refusal) throw new Error("unreachable");
+    expect(refusal.code).toBe("FLUID_OBJECT_CONFLICT");
+    expect(refusal.id).toBe("hello");
+    expect(refusal.reason).toMatch(/ZCL_ZMCP_X_HELLO/);
+    expect(refusal.reason).toMatch(/sneaky/);
   });
 });
