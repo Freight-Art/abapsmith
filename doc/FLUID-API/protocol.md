@@ -185,8 +185,10 @@ entry point, in this order:
    `output` schema.
 8. Journal, where applicable. Framework deploys, relocations and
    `remove` are not journalled — they are generated scaffolding.
-   Plugin `mutate` runs are journalled post-hoc, marked irreversible
-   unless the manifest names an undo action.
+   Every `mutate` run, built-in or plugin, is journalled post-hoc and
+   marked irreversible with no before-image — this framework never
+   reads the ABAP-side state a fluid action touches, so there is
+   nothing to undo.
 
 Steps 1, 2 and 4 are safety checks; see [safety.md](safety.md) for the
 full ordering and the ordinary ceilings that sit above all of it.

@@ -195,10 +195,20 @@ deploy path refuses to act on it.
 Framework deploys, relocations and `remove` are not journalled — this is
 abapsmith's own generated scaffolding, not operator content.
 
-Plugin `mutate` runs are journalled, marked irreversible unless the
-manifest names an undo action, and journalled post-hoc: the mutation is
-already real by the time the journal entry is written, so a journalling
-failure can never fail a mutation that already happened.
+Every `mutate` run through `abap_fluid` — built-in or plugin alike — is
+journalled post-hoc: the mutation is already real by the time the journal
+entry is written, so a journalling failure can never fail a mutation that
+already happened, only warn about it. The entry is marked irreversible
+with no before-image (`beforeCapture: "unknown"`): this framework never
+reads the ABAP-side state a fluid action touches, so there is no undo to
+offer. What it does record is what was done — the object ref is
+`<tool>.<action>` and the description carries the canonical args JSON,
+truncated past ~500 chars.
+
+The legacy owning tools — `abap_enh`, `abap_img_edit`, `abap_ui`,
+classic-call, customizing-request — route through the same dispatch
+without a journal and write their own richer entries, with before-images
+and undo support, so nothing is double-journalled.
 
 ## Error codes
 

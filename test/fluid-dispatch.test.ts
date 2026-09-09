@@ -1180,6 +1180,60 @@ describe("dispatch — journal", () => {
     expect(entries[0]?.irreversible).toBe(true);
   });
 
+  // Mirrors the plugin case immediately above: a builtin mutate action must be
+  // journalled just the same now that the call site journals every
+  // `category === "mutate"` action, builtin and plugin alike, rather than
+  // only plugin ones.
+  it("journals a builtin mutate action post-hoc", async () => {
+    const tool = makeManifestTool({
+      id: "builtinjournal",
+      className: "ZCL_BUILTINJOURNAL",
+      actions: [MUTATE_ACTION],
+      origin: "builtin",
+    });
+    const args = { foo: "bar", n: 1 };
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "commit", outs: [{}] }),
+    });
+    const { conn } = await connected(route);
+    const journal = new Journal({ dir: path.join(tmp, "journal"), enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
+    const d = depsFor(conn, gate(), tool, { journal });
+
+    await dispatch(d, {
+      tool: tool.manifest.id,
+      action: "commit",
+      args,
+    });
+
+    const entries = await journal.list({ object: `${tool.manifest.id}.commit` });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.outcome).toBe("succeeded");
+    expect(entries[0]?.irreversible).toBe(true);
+    expect(entries[0]?.beforeCapture).toBe("unknown");
+    const argsText = canonicalArgsJson(args);
+    expect(entries[0]?.object.description).toBe(
+      `fluid builtin mutate: ${tool.manifest.id}.commit args=${argsText}`,
+    );
+    expect(entries[0]?.object.description).toContain(argsText);
+  });
+
+  // A non-mutate builtin action (here: `execute`/read-category) must never be
+  // journalled — the call site only journals `action.category === "mutate"`.
+  it("does not journal a builtin action whose category is not mutate", async () => {
+    const tool = makeManifestTool({ id: "builtinreadjournal", className: "ZCL_BUILTINREADJOURNAL", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn } = await connected(route);
+    const journal = new Journal({ dir: path.join(tmp, "journal"), enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
+    const d = depsFor(conn, gate(), tool, { journal });
+
+    await dispatch(d, { tool: tool.manifest.id, action: "run", args: {} });
+
+    const entries = await journal.list({ object: `${tool.manifest.id}.run` });
+    expect(entries).toHaveLength(0);
+  });
+
   // A committed mutation must be journalled even when a later, purely local
   // check (here: output-schema validation) rejects the call — the ABAP-side
   // COMMIT WORK already happened by the time that check runs, and losing the
@@ -1248,6 +1302,40 @@ describe("dispatch — journal", () => {
         action: "commit",
         args: {},
         confirm: `${tool.manifest.id}.commit`,
+      }),
+    );
+
+    expect(err.code).toBe("FLUID_ACTION_FAILED");
+    const entries = await journal.list({ object: `${tool.manifest.id}.commit` });
+    expect(entries).toHaveLength(0);
+  });
+
+  it("a builtin mutate action with an ERR frame is never journalled", async () => {
+    const tool = makeManifestTool({
+      id: "builtinerrjournal",
+      className: "ZCL_BUILTINERRJOURNAL",
+      actions: [MUTATE_ACTION],
+      origin: "builtin",
+    });
+    const { route } = dynamicFluidRoute({
+      transcript: () =>
+        buildTranscript({
+          id: tool.manifest.id,
+          ver: tool.version,
+          action: "commit",
+          errs: [{ kind: "exception", step: "commit", text: "boom" }],
+          end: { rc: 8 },
+        }),
+    });
+    const { conn } = await connected(route);
+    const journal = new Journal({ dir: path.join(tmp, "journal"), enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
+    const d = depsFor(conn, gate(), tool, { journal });
+
+    const err = await catchErr(
+      dispatch(d, {
+        tool: tool.manifest.id,
+        action: "commit",
+        args: {},
       }),
     );
 

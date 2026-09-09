@@ -99783,24 +99783,27 @@ function assertTargetsAgainstGate(gate, action, args, origin) {
     ...corr !== void 0 ? { corr } : {}
   });
 }
-async function journalFluidMutate(deps, req, sysKey) {
+var JOURNAL_ARGS_MAX = 500;
+async function journalFluidMutate(deps, req, sysKey, origin) {
   const journal = deps.journal;
   if (!journal) return;
+  const argsText = truncateText(canonicalArgsJson(req.args), JOURNAL_ARGS_MAX);
   const object3 = {
     name: `${req.tool}.${req.action}`,
     type: "FLUID",
     uri: "",
     package: FLUID_PACKAGE,
-    description: `fluid plugin mutate: ${req.tool}.${req.action}`
+    description: `fluid ${origin} mutate: ${req.tool}.${req.action} args=${argsText}`
   };
   const beginInput2 = {
     operation: "update",
     object: object3,
     existedBefore: true,
-    // No before-image exists for whatever ABAP-side state a plugin action touched — this framework
+    // No before-image exists for whatever ABAP-side state a fluid action touched — this framework
     // never reads it, so "captured"/"failed" would both overstate what is known.
     beforeCapture: "unknown",
-    // No generic undo exists for an arbitrary plugin mutate action.
+    // No generic undo exists for an arbitrary fluid mutate action, builtin or plugin — this
+    // framework never captures a before-image for one.
     irreversible: true,
     systemKey: sysKey,
     ...req.corrNr !== void 0 ? { corrNr: req.corrNr } : {},
@@ -100021,8 +100024,8 @@ async function dispatch2(deps, req) {
       );
     }
   }
-  if (tool.origin === "plugin" && action.category === "mutate" && deps.journal) {
-    await journalFluidMutate(deps, req, sysKey);
+  if (action.category === "mutate" && deps.journal) {
+    await journalFluidMutate(deps, req, sysKey, tool.origin);
   }
   let result;
   if (action.output.type === "array") {
