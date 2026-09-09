@@ -231,7 +231,24 @@ dw("live A4H ui fluid tool ($ABAPSMITH_FLUID_API, read-only screen inspection)",
     expect(result.tool).toBe(UI_TOOL_ID);
     expect(result.action).toBe("screen");
 
-    const out = result.result as { program: string; dynpro: string; fields: readonly { name: string }[] };
+    const out = result.result as {
+      tcode?: { tcode: string; program: string; dynpro: string; cinfo: string; kind: string; bdcApplies?: boolean };
+      program: string;
+      dynpro: string;
+      header?: Record<string, string>;
+      fields: readonly { name: string }[];
+      flowCount?: number;
+      flow?: readonly Record<string, string>[];
+      statusCount?: number;
+      statusList?: readonly Record<string, string>[];
+      functionsCount?: number;
+      functions?: readonly { code: string; text: string; type: string }[];
+      fkeysCount?: number;
+      fkeys?: readonly { status: string; code: string; text: string; quickinfo: string }[];
+      statusLoop?: { done: number; total: number; capped: boolean };
+      fkeyCap?: { emitted: number; capped: boolean };
+      noCua?: { program: string; note: string };
+    };
     expect(typeof out.program).toBe("string");
     expect(out.program.length).toBeGreaterThan(0);
     expect(typeof out.dynpro).toBe("string");
@@ -241,6 +258,61 @@ dw("live A4H ui fluid tool ($ABAPSMITH_FLUID_API, read-only screen inspection)",
     for (const field of out.fields) {
       expect(typeof field.name).toBe("string");
       expect(field.name.length).toBeGreaterThan(0);
+    }
+
+    // Resolved by tcode: `tcode` must be present, self-consistent with the
+    // top-level program/dynpro, and carry a `kind` classified from TSTC-CINFO.
+    expect(out.tcode).toBeDefined();
+    expect(out.tcode?.tcode).toBe("SE16");
+    expect(out.tcode?.program).toBe(out.program);
+    expect(out.tcode?.dynpro).toBe(out.dynpro);
+    expect(typeof out.tcode?.cinfo).toBe("string");
+    expect(["dialog", "report", "unrecognised"]).toContain(out.tcode?.kind);
+
+    // `header` is always emitted (unconditional in the ABAP body), even if empty.
+    expect(out.header).toBeDefined();
+    expect(typeof out.header).toBe("object");
+
+    // Flow logic is always emitted alongside fields.
+    expect(typeof out.flowCount).toBe("number");
+    expect(Array.isArray(out.flow)).toBe(true);
+    expect(out.flow?.length).toBe(out.flowCount);
+
+    // CUA fetch (RS_CUA_INTERNAL_FETCH) has exactly two normal outcomes for a
+    // live dialog transaction's dynpro: a GUI status was found (statusList/
+    // functions/fkeys populated) or none was (noCua) — never both, never neither.
+    const hasCua = out.statusCount !== undefined;
+    const hasNoCua = out.noCua !== undefined;
+    expect(hasCua !== hasNoCua).toBe(true);
+    if (hasCua) {
+      expect(Array.isArray(out.statusList)).toBe(true);
+      expect(out.statusList?.length).toBe(out.statusCount);
+      expect(typeof out.functionsCount).toBe("number");
+      expect(Array.isArray(out.functions)).toBe(true);
+      expect(out.functions?.length).toBe(out.functionsCount);
+      for (const fn of out.functions ?? []) {
+        expect(typeof fn.code).toBe("string");
+        expect(typeof fn.text).toBe("string");
+        expect(typeof fn.type).toBe("string");
+      }
+      expect(typeof out.fkeysCount).toBe("number");
+      expect(Array.isArray(out.fkeys)).toBe(true);
+      expect(out.fkeys?.length).toBe(out.fkeysCount);
+      for (const fkey of out.fkeys ?? []) {
+        expect(typeof fkey.status).toBe("string");
+        expect(typeof fkey.code).toBe("string");
+        expect(fkey.code.length).toBeGreaterThan(0);
+      }
+      expect(out.statusLoop).toBeDefined();
+      expect(typeof out.statusLoop?.done).toBe("number");
+      expect(typeof out.statusLoop?.total).toBe("number");
+      expect(typeof out.statusLoop?.capped).toBe("boolean");
+      expect(out.fkeyCap).toBeDefined();
+      expect(typeof out.fkeyCap?.emitted).toBe("number");
+      expect(typeof out.fkeyCap?.capped).toBe("boolean");
+    } else {
+      expect(out.noCua?.program).toBe(out.program);
+      expect(typeof out.noCua?.note).toBe("string");
     }
 
     // Step 3 below re-resolves this exact program/dynpro through the second
@@ -254,10 +326,17 @@ dw("live A4H ui fluid tool ($ABAPSMITH_FLUID_API, read-only screen inspection)",
       action: "screen",
       args: secondFormArgs,
     });
-    const out2 = second.result as { program: string; dynpro: string; fields: readonly { name: string }[] };
+    const out2 = second.result as {
+      tcode?: unknown;
+      program: string;
+      dynpro: string;
+      fields: readonly { name: string }[];
+    };
     expect(out2.program).toBe(first.program);
     expect(out2.dynpro).toBe(first.dynpro);
     expect(out2.fields.length).toBe(first.fields.length);
+    // Resolved directly by program+dynpro: no TSTC lookup, so no `tcode` object.
+    expect(out2.tcode).toBeUndefined();
   }, 180_000);
 
   it("ui.screen given a tcode that cannot exist is reported as a genuine failure, not silently as success", async () => {

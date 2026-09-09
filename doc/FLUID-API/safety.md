@@ -21,10 +21,31 @@ gate would otherwise refuse — the gate is still the last word.
 6. **The action's `input` schema**, validated offline, before any network
    call.
 7. **`targets`** — the manifest's JSON Pointers are resolved against the
-   arguments, and the resulting object, package and transport are judged
-   by the safety gate, before any ABAP is generated. Without this step the
+   arguments, and the resulting object, package and transport are handed
+   to the safety gate, before any ABAP is generated. Without this step the
    gate would only ever see the invoker class's own harmless URI, never
    the object the action actually acts on.
+
+   Handed to the gate is not the same as independently checked, and the
+   difference matters when writing a manifest. The gate's **transport**
+   allowlist (`ABAP_ALLOW_TRANSPORTS`) is reached only inside its
+   `needsTransport` branch, which requires a **known, non-`$`** package —
+   so an action that declares a `transport` pointer but no `package`
+   pointer passes a transport number the allowlist never looks at. That
+   declaration still documents intent and still reaches the journal, but
+   it enforces nothing on its own. An action that records anything in CTS
+   should declare the full `{object, package, transport}` triple; where
+   the package genuinely is not knowable without an extra network read,
+   say so at the declaration rather than leaving a lone `transport`
+   pointer to read like a control.
+
+   An action may also declare `targets: {}` — present but empty. That is
+   meaningfully different from omitting `targets`, which skips the gate
+   call entirely: an empty object still routes through it, so the write
+   ceilings apply and, with no package resolved, the package allowlist
+   falls to its fail-closed branch (nothing matches unless the allowlist
+   holds the literal `*`). Use it for a mutate that genuinely acts on no
+   named repository object, and say why in a comment at the declaration.
 8. **The ordinary ceilings**, unchanged and above all of it: productive or
    inconclusive system, the write-lockout latch, `ABAP_MODE`, a read-only
    session. Deploying is a write plus an activate; running is an execute.

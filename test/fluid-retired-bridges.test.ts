@@ -16,7 +16,7 @@ import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { SafetyGate } from "../src/safety.js";
-import { LEGACY_FLUID_PACKAGES } from "../src/adt/fluid/package.js";
+import { LEGACY_FLUID_PACKAGES, FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 import {
   RETIRED_BRIDGE_CLASSES,
   probeRetiredBridges,
@@ -24,6 +24,7 @@ import {
   type FluidLease,
   type RetiredBridgeProbe,
 } from "../src/adt/fluid/retired.js";
+import { BRIDGE_CLASS as ENH_BRIDGE_CLASS } from "../src/adt/enhancement-bridge.js";
 
 // --- fake HttpClient plumbing (mirrors test/fluid-ensure.test.ts) ----------
 
@@ -169,7 +170,7 @@ interface ObjState {
 
 const ALL_RETIRED_NAMES: readonly string[] = RETIRED_BRIDGE_CLASSES.map((c) => c.name);
 
-/** Every one of the ten fixed names gets an entry (defaulting to absent) — `probeRetiredBridges` always GETs all ten, so an unrouted name would break every scenario. */
+/** Every fixed name in RETIRED_BRIDGE_CLASSES gets an entry (defaulting to absent) — `probeRetiredBridges` always GETs all of them, so an unrouted name would break every scenario. Derived from the list rather than a literal count, so adding a retired class needs no edit here. */
 function defaultStore(overrides: Record<string, Partial<ObjState>> = {}): Record<string, ObjState> {
   const store: Record<string, ObjState> = {};
   for (const name of ALL_RETIRED_NAMES) {
@@ -270,12 +271,34 @@ describe("RETIRED_BRIDGE_CLASSES — the static list", () => {
     "ZCL_ZMCP_DDIC_DPKG",
     "ZCL_ZMCP_DDIC_TREN",
     "ZCL_ZMCP_IMG_WPROBE",
+    "ZCL_ZMCP_IMG_WAPPLY",
+    "ZCL_ZMCP_CTS_WREQ",
+    "ZCL_ZMCP_ENH_CSPOT",
+    "ZCL_ZMCP_ENH_ADEF",
+    "ZCL_ZMCP_ENH_FDEF",
+    "ZCL_ZMCP_ENH_CIMPL",
+    "ZCL_ZMCP_ENH_FVAL",
   ];
 
-  it("has exactly ten entries, named exactly the nine DDIC bridges plus IMG_WPROBE", () => {
-    expect(RETIRED_BRIDGE_CLASSES.length).toBe(10);
+  it("has exactly seventeen entries: nine DDIC bridges, IMG_WPROBE/IMG_WAPPLY/CTS_WREQ, and the five ENH create bridges", () => {
+    expect(RETIRED_BRIDGE_CLASSES.length).toBe(17);
     const names = RETIRED_BRIDGE_CLASSES.map((c) => c.name).slice().sort();
     expect(names).toEqual(EXPECTED_NAMES.slice().sort());
+  });
+
+  // The one fixed-name enhancement bridge that must NOT be on the list. `abap_enh exercise` did
+  // not move onto ZCL_ZMCP_FLUID_ENH (builtin/enh.ts explains why: it needs dynamic dispatch), so
+  // ZCL_ZMCP_ENH_EXEC is still generated on every `exercise` call. Listing it would make
+  // `abap_fluid remove` delete a class the very next `exercise` re-deploys, and would report a
+  // live bridge as retired leftovers in `status`. Asserted against enhancement-bridge.ts's own
+  // surviving BRIDGE_CLASS map rather than a repeated literal, so that moving `exercise` onto the
+  // fluid API later fails here and forces the list to be revisited in the same edit.
+  it("does not list ZCL_ZMCP_ENH_EXEC, which abap_enh exercise still generates", () => {
+    const names = RETIRED_BRIDGE_CLASSES.map((c) => c.name);
+    expect(Object.values(ENH_BRIDGE_CLASS)).toEqual(["ZCL_ZMCP_ENH_EXEC"]);
+    for (const live of Object.values(ENH_BRIDGE_CLASS)) {
+      expect(names).not.toContain(live);
+    }
   });
 
   it("every entry has no duplicate name", () => {
@@ -289,9 +312,9 @@ describe("RETIRED_BRIDGE_CLASSES — the static list", () => {
     }
   });
 
-  it("every entry's packageName is one of LEGACY_FLUID_PACKAGES", () => {
+  it("every entry's packageName is one of LEGACY_FLUID_PACKAGES or FLUID_PACKAGE", () => {
     for (const entry of RETIRED_BRIDGE_CLASSES) {
-      expect(LEGACY_FLUID_PACKAGES).toContain(entry.packageName);
+      expect([...LEGACY_FLUID_PACKAGES, FLUID_PACKAGE]).toContain(entry.packageName);
     }
   });
 });
@@ -303,7 +326,7 @@ describe("probeRetiredBridges", () => {
 
     const probes = await probeRetiredBridges(conn);
 
-    expect(probes).toHaveLength(10);
+    expect(probes).toHaveLength(ALL_RETIRED_NAMES.length);
     for (const p of probes) {
       expect(p.state).toBe("absent");
     }
@@ -467,7 +490,7 @@ describe("reapRetiredBridges", () => {
 
     const results = await reapRetiredBridges(gate(), lease);
 
-    expect(results).toHaveLength(10);
+    expect(results).toHaveLength(ALL_RETIRED_NAMES.length);
     for (const r of results) {
       expect(r.outcome).toBe("already-absent");
     }
@@ -475,9 +498,12 @@ describe("reapRetiredBridges", () => {
   });
 
   it("regression: with more than five retired classes present, every one is deleted, and no single connection is ever asked to do more than one delete", async () => {
-    // All ten. `AbapConnection.LOGON_ENDPOINT_LIFETIME_CEILING` is 5 — this
+    // Every retired name at once. `AbapConnection.LOGON_ENDPOINT_LIFETIME_CEILING` is 5 — this
     // is exactly the shape that used to strand five classes undeleted when
-    // the reap shared one connection and revived it between deletes.
+    // the reap shared one connection and revived it between deletes. The
+    // counts below are derived from the list, not written as literals: this
+    // case is about the per-delete connection discipline, and a literal would
+    // make growing RETIRED_BRIDGE_CLASSES look like a regression here.
     const store = defaultStore(
       Object.fromEntries(ALL_RETIRED_NAMES.map((n) => [n, { exists: true, packageName: "$TMP", source: SOURCE_TEXT(n) }])),
     );
@@ -485,7 +511,7 @@ describe("reapRetiredBridges", () => {
 
     const results = await reapRetiredBridges(gate(), lease);
 
-    expect(results).toHaveLength(10);
+    expect(results).toHaveLength(ALL_RETIRED_NAMES.length);
     for (const r of results) {
       expect(r.outcome).toBe("deleted");
     }
@@ -495,8 +521,8 @@ describe("reapRetiredBridges", () => {
 
     // One lease call for the probe, plus exactly one per delete — never a
     // shared connection asked to carry more than one delete.
-    expect(deletesPerLeaseCall).toHaveLength(11);
-    expect(deletesPerLeaseCall.reduce((a, b) => a + b, 0)).toBe(10);
+    expect(deletesPerLeaseCall).toHaveLength(ALL_RETIRED_NAMES.length + 1);
+    expect(deletesPerLeaseCall.reduce((a, b) => a + b, 0)).toBe(ALL_RETIRED_NAMES.length);
     expect(deletesPerLeaseCall.every((n) => n <= 1)).toBe(true);
   });
 });

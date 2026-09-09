@@ -261,7 +261,7 @@ export const WIDTH_TRUNCATION_MARKER = "capture width and may be truncated";
 /** The only execution collection in the discovery document. */
 export const CLASSRUN_PATH = "/sap/bc/adt/oo/classrun/";
 
-const BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_RUN_";
+export const BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_RUN_";
 /**
  * ABAP repository object names are 30 characters. Exported because every
  * bridge-name builder in the codebase needs the same ceiling

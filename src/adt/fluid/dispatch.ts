@@ -44,6 +44,13 @@ export interface FluidRunRequest {
   readonly args: unknown;
   readonly confirm?: string;
   readonly corrNr?: string;
+  /**
+   * Set when a dedicated MCP tool reroutes through `dispatch()` instead of
+   * deploying its own bridge — mirrors `DeployBridgeOptions.caller` in run.ts
+   * so a `FLUID_API_DISABLED` refusal names the tool the caller actually
+   * invoked, not the internal fluid tool/action `dispatch` runs it as.
+   */
+  readonly caller?: { readonly tool: string; readonly action: string };
 }
 
 export interface FluidRunResult {
@@ -56,6 +63,21 @@ export interface FluidRunResult {
   readonly result: unknown;
 }
 
+/**
+ * `req.caller`, when set, is who a user-facing refusal names — the MCP tool a
+ * reroute answers to, not the internal fluid tool/action `dispatch` runs it
+ * as. Absent, every field is exactly what it always was: the fluid tool/action
+ * itself, dot-joined for `who` — abap_fluid's own direct calls have no
+ * separate caller and must not shift by one character.
+ */
+function callerAttribution(req: FluidRunRequest): { readonly tool: string; readonly action: string; readonly who: string } {
+  return {
+    tool: req.caller?.tool ?? req.tool,
+    action: req.caller?.action ?? req.action,
+    who: req.caller ? `${req.caller.tool} ${req.caller.action}` : `${req.tool}.${req.action}`,
+  };
+}
+
 /** Mirrors ensure.ts's module-private `fluidDisabledError`, minus tool/object context this check runs before resolving. */
 function dispatchDisabledError(
   reason: NonNullable<ReturnType<typeof fluidDisabledReason>>,
@@ -63,17 +85,16 @@ function dispatchDisabledError(
   req: FluidRunRequest,
 ): AbapError {
   const flagEnabled = cfg.fluidApi !== false;
+  const { tool, action, who } = callerAttribution(req);
   const details: Record<string, unknown> = {
     reason: reason.kind,
     ...(reason.kind === "flag" ? {} : { field: reason.field }),
     flag: "ABAP_FLUID_API",
     flagEnabled,
     package: FLUID_PACKAGE,
-    tool: req.tool,
-    action: req.action,
+    tool,
+    action,
   };
-
-  const who = `${req.tool}.${req.action}`;
 
   const message =
     reason.kind === "flag"
@@ -323,10 +344,11 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
 
   const inputErrors = validateAgainstSchema(req.args, action.input, "args");
   if (inputErrors.length > 0) {
+    const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
     throw new AbapError(
       "BAD_INPUT",
-      `${req.tool}.${req.action}: invalid arguments.`,
-      { tool: req.tool, action: req.action, messages: inputErrors },
+      `${who}: invalid arguments.`,
+      { tool: attrTool, action: attrAction, messages: inputErrors },
     );
   }
 
@@ -502,30 +524,33 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
 
   const transcript = parseFluidConsole(run.output);
   if (transcript.errors.length > 0) {
+    const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
     throw new AbapError(
       "FLUID_ACTION_FAILED",
-      `${req.tool}.${req.action} reported ${transcript.errors.length} error frame(s).`,
-      { tool: req.tool, action: req.action, frames: transcript.errors },
+      `${who} reported ${transcript.errors.length} error frame(s).`,
+      { tool: attrTool, action: attrAction, frames: transcript.errors },
     );
   }
   // Checked only once ERR is ruled out above: a mid-run abort after the invoker's CATCH arm
   // prints ERR but never reaches END must surface as the plugin's own failure, not this.
   if (!transcript.end) {
+    const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
     throw new AbapError(
       "FLUID_PROTOCOL_ERROR",
-      `${req.tool}.${req.action}: the fluid transcript has no END frame and reported no errors — the ` +
+      `${who}: the fluid transcript has no END frame and reported no errors — the ` +
         `ABAP side dumped before it could report anything.`,
-      { tool: req.tool, action: req.action },
+      { tool: attrTool, action: attrAction },
     );
   }
 
   const begin = transcript.begin;
   if (begin && (begin.id !== req.tool || begin.action !== req.action)) {
+    const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
     throw new AbapError(
       "FLUID_PROTOCOL_ERROR",
-      `${req.tool}.${req.action}: the transcript's BEGIN frame reports ${begin.id}.${begin.action}, not the ` +
+      `${who}: the transcript's BEGIN frame reports ${begin.id}.${begin.action}, not the ` +
         `requested call — a stale invoker class or program buffer served a different action.`,
-      { tool: req.tool, action: req.action, beginId: begin.id, beginAction: begin.action },
+      { tool: attrTool, action: attrAction, beginId: begin.id, beginAction: begin.action },
     );
   }
   // Checked only once identity is confirmed above — ver is meaningless to act on when the BEGIN
@@ -548,19 +573,21 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
     // No declared output shape — the action legitimately emits nothing. An END with zero OUT and
     // zero ERR (both already ruled out as failure above) is success, not a silently-swallowed body.
     if (transcript.values.length !== 0) {
+      const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
       throw new AbapError(
         "FLUID_PROTOCOL_ERROR",
-        `${req.tool}.${req.action}: expected no output value (void), got ${transcript.values.length}.`,
-        { tool: req.tool, action: req.action, count: transcript.values.length },
+        `${who}: expected no output value (void), got ${transcript.values.length}.`,
+        { tool: attrTool, action: attrAction, count: transcript.values.length },
       );
     }
     result = undefined;
   } else {
     if (transcript.values.length !== 1) {
+      const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
       throw new AbapError(
         "FLUID_PROTOCOL_ERROR",
-        `${req.tool}.${req.action}: expected exactly one output value, got ${transcript.values.length}.`,
-        { tool: req.tool, action: req.action, count: transcript.values.length },
+        `${who}: expected exactly one output value, got ${transcript.values.length}.`,
+        { tool: attrTool, action: attrAction, count: transcript.values.length },
       );
     }
     result = transcript.values[0];
@@ -568,10 +595,11 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
 
   const outputErrors = validateAgainstSchema(result, action.output, "result");
   if (outputErrors.length > 0) {
+    const { tool: attrTool, action: attrAction, who } = callerAttribution(req);
     throw new AbapError(
       "FLUID_PROTOCOL_ERROR",
-      `${req.tool}.${req.action}: output did not match the declared schema.`,
-      { tool: req.tool, action: req.action, messages: outputErrors },
+      `${who}: output did not match the declared schema.`,
+      { tool: attrTool, action: attrAction, messages: outputErrors },
     );
   }
 

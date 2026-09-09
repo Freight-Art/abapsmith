@@ -22,9 +22,10 @@
   server, keeps 200 entries / 30 days by default, and covers `abap_write`,
   `abap_transport`, the enhancement tools, `abap_activate`, and the BOPF writes
   (`abap_bopf_edit` create/update and `abap_bopf_delete`). It does **not** cover
-  the FPM tools, which write through generated classruns — there is no
-  before/after image abapsmith controls, so their changes are real and not
-  undoable here.
+  `abap_fpm_read mode:"locks"` — the one FPM path that mutates anything, and it
+  writes through a generated classrun, so there is no before/after image
+  abapsmith controls and its changes are real and not undoable here. The other
+  FPM modes dispatch against the reused fluid `fpm` body class and only read.
 - **Journalled does not mean undoable.** BOPF writes were excluded from the
   journal entirely until journalling was added for them — unlike FPM, the BOPF tools
   mutate through ordinary ADT REST verbs, so there is a real before-image to

@@ -411,6 +411,250 @@ describe("dispatch — enable gates", () => {
   });
 });
 
+describe("dispatch — caller attribution in FLUID_API_DISABLED", () => {
+  it("without a caller, names the fluid tool/action exactly as before (dot-separated)", async () => {
+    const tool = makeManifestTool({ id: "ui", className: "ZCL_CALLERLESS", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool, { cfg: cfg({ fluidApi: false }) });
+
+    const err = await catchErr(dispatch(d, { tool: "ui", action: "run", args: {} }));
+
+    expect(err.code).toBe("FLUID_API_DISABLED");
+    expect(err.details.tool).toBe("ui");
+    expect(err.details.action).toBe("run");
+    expect(err.message).toBe(
+      "The fluid API is disabled (ABAP_FLUID_API=false). ui.run was not run — nothing was " +
+        "deployed, checked, or changed.",
+    );
+  });
+
+  it("with a caller, the refusal names the caller — not the internal fluid tool/action", async () => {
+    const tool = makeManifestTool({ id: "ui", className: "ZCL_CALLERFUL", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool, { cfg: cfg({ fluidApi: false }) });
+
+    const err = await catchErr(
+      dispatch(d, { tool: "ui", action: "run", args: {}, caller: { tool: "abap_ui", action: "screen" } }),
+    );
+
+    expect(err.code).toBe("FLUID_API_DISABLED");
+    expect(err.details.tool).toBe("abap_ui");
+    expect(err.details.action).toBe("screen");
+    expect(err.message).toContain("abap_ui screen");
+    expect(err.message).toBe(
+      "The fluid API is disabled (ABAP_FLUID_API=false). abap_ui screen was not run — nothing was " +
+        "deployed, checked, or changed.",
+    );
+  });
+
+  it("with a caller, the read-only refusal also names the caller", async () => {
+    const tool = makeManifestTool({ id: "fpm_read", className: "ZCL_CALLERRO", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn } = await connected(route);
+    const d = depsFor(conn, gate(), tool, { cfg: cfg({ abapMode: "read" }) });
+
+    const err = await catchErr(
+      dispatch(d, { tool: "fpm_read", action: "run", args: {}, caller: { tool: "abap_fpm_read", action: "find" } }),
+    );
+
+    expect(err.code).toBe("FLUID_API_DISABLED");
+    expect(err.details.tool).toBe("abap_fpm_read");
+    expect(err.details.action).toBe("find");
+    expect(err.message).toContain("abap_fpm_read find");
+  });
+});
+
+describe("dispatch — caller attribution in ordinary (non-disabled) failures", () => {
+  const REQUIRED_FIELD_ACTION: FluidActionSpec = {
+    name: "run",
+    category: "execute",
+    description: "run, requiring a field so bad input is easy to trigger",
+    input: { type: "object", required: ["x"], properties: { x: { type: "string" } } },
+    output: { type: "object" },
+  };
+
+  const CALLER = { tool: "abap_ui", action: "screen" } as const;
+
+  it("BAD_INPUT (invalid arguments): caller present names it, caller absent is byte-identical", async () => {
+    const tool = makeManifestTool({ id: "badargs", className: "ZCL_BADARGS", actions: [REQUIRED_FIELD_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn: connA } = await connected(route);
+    const noCaller = await catchErr(dispatch(depsFor(connA, gate(), tool), { tool: tool.manifest.id, action: "run", args: {} }));
+    expect(noCaller.code).toBe("BAD_INPUT");
+    expect(noCaller.message).toBe(`${tool.manifest.id}.run: invalid arguments.`);
+    expect(noCaller.details.tool).toBe(tool.manifest.id);
+    expect(noCaller.details.action).toBe("run");
+
+    const { conn: connB } = await connected(route);
+    const withCaller = await catchErr(
+      dispatch(depsFor(connB, gate(), tool), { tool: tool.manifest.id, action: "run", args: {}, caller: CALLER }),
+    );
+    expect(withCaller.code).toBe("BAD_INPUT");
+    expect(withCaller.message).toBe("abap_ui screen: invalid arguments.");
+    expect(withCaller.details.tool).toBe("abap_ui");
+    expect(withCaller.details.action).toBe("screen");
+  });
+
+  it("FLUID_ACTION_FAILED: caller present names it, caller absent is byte-identical", async () => {
+    const tool = makeManifestTool({ id: "actfail", className: "ZCL_ACTFAIL", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () =>
+        buildTranscript({
+          id: tool.manifest.id,
+          ver: tool.version,
+          action: "run",
+          errs: [{ kind: "exception", step: "run", text: "boom" }],
+          end: { rc: 8 },
+        }),
+    });
+    const { conn: connA } = await connected(route);
+    const noCaller = await catchErr(dispatch(depsFor(connA, gate(), tool), { tool: tool.manifest.id, action: "run", args: {} }));
+    expect(noCaller.code).toBe("FLUID_ACTION_FAILED");
+    expect(noCaller.message).toBe(`${tool.manifest.id}.run reported 1 error frame(s).`);
+    expect(noCaller.details.tool).toBe(tool.manifest.id);
+    expect(noCaller.details.action).toBe("run");
+
+    const { conn: connB } = await connected(route);
+    const withCaller = await catchErr(
+      dispatch(depsFor(connB, gate(), tool), { tool: tool.manifest.id, action: "run", args: {}, caller: CALLER }),
+    );
+    expect(withCaller.code).toBe("FLUID_ACTION_FAILED");
+    expect(withCaller.message).toBe("abap_ui screen reported 1 error frame(s).");
+    expect(withCaller.details.tool).toBe("abap_ui");
+    expect(withCaller.details.action).toBe("screen");
+  });
+
+  it("FLUID_PROTOCOL_ERROR (no END frame): caller present names it, caller absent is byte-identical", async () => {
+    const tool = makeManifestTool({ id: "noend2", className: "ZCL_NOEND2", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ ver: tool.version, action: "run", end: null }),
+    });
+    const { conn: connA } = await connected(route);
+    const noCaller = await catchErr(dispatch(depsFor(connA, gate(), tool), { tool: tool.manifest.id, action: "run", args: {} }));
+    expect(noCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(noCaller.message).toBe(
+      `${tool.manifest.id}.run: the fluid transcript has no END frame and reported no errors — the ` +
+        `ABAP side dumped before it could report anything.`,
+    );
+    expect(noCaller.details.tool).toBe(tool.manifest.id);
+
+    const { conn: connB } = await connected(route);
+    const withCaller = await catchErr(
+      dispatch(depsFor(connB, gate(), tool), { tool: tool.manifest.id, action: "run", args: {}, caller: CALLER }),
+    );
+    expect(withCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(withCaller.message).toBe(
+      "abap_ui screen: the fluid transcript has no END frame and reported no errors — the " +
+        "ABAP side dumped before it could report anything.",
+    );
+    expect(withCaller.details.tool).toBe("abap_ui");
+    expect(withCaller.details.action).toBe("screen");
+  });
+
+  it("FLUID_PROTOCOL_ERROR (BEGIN mismatch): caller present names it, caller absent is byte-identical", async () => {
+    const tool = makeManifestTool({ id: "actmis2", className: "ZCL_ACTMIS2", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "other", outs: [{}] }),
+    });
+    const { conn: connA } = await connected(route);
+    const noCaller = await catchErr(dispatch(depsFor(connA, gate(), tool), { tool: tool.manifest.id, action: "run", args: {} }));
+    expect(noCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(noCaller.message).toBe(
+      `${tool.manifest.id}.run: the transcript's BEGIN frame reports ${tool.manifest.id}.other, not the ` +
+        `requested call — a stale invoker class or program buffer served a different action.`,
+    );
+
+    const { conn: connB } = await connected(route);
+    const withCaller = await catchErr(
+      dispatch(depsFor(connB, gate(), tool), { tool: tool.manifest.id, action: "run", args: {}, caller: CALLER }),
+    );
+    expect(withCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(withCaller.message).toBe(
+      `abap_ui screen: the transcript's BEGIN frame reports ${tool.manifest.id}.other, not the ` +
+        `requested call — a stale invoker class or program buffer served a different action.`,
+    );
+    expect(withCaller.details.tool).toBe("abap_ui");
+    expect(withCaller.details.action).toBe("screen");
+  });
+
+  it("FLUID_PROTOCOL_ERROR (output value count, void case): caller present names it, caller absent is byte-identical", async () => {
+    const tool = makeManifestTool({ id: "voidout2", className: "ZCL_VOIDOUT2", actions: [VOID_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn: connA } = await connected(route);
+    const noCaller = await catchErr(dispatch(depsFor(connA, gate(), tool), { tool: tool.manifest.id, action: "run", args: {} }));
+    expect(noCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(noCaller.message).toBe(`${tool.manifest.id}.run: expected no output value (void), got 1.`);
+
+    const { conn: connB } = await connected(route);
+    const withCaller = await catchErr(
+      dispatch(depsFor(connB, gate(), tool), { tool: tool.manifest.id, action: "run", args: {}, caller: CALLER }),
+    );
+    expect(withCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(withCaller.message).toBe("abap_ui screen: expected no output value (void), got 1.");
+    expect(withCaller.details.tool).toBe("abap_ui");
+    expect(withCaller.details.action).toBe("screen");
+  });
+
+  it("FLUID_PROTOCOL_ERROR (output value count, non-void case): caller present names it, caller absent is byte-identical", async () => {
+    const tool = makeManifestTool({ id: "silentend2", className: "ZCL_SILENTEND2", actions: [READ_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run" }),
+    });
+    const { conn: connA } = await connected(route);
+    const noCaller = await catchErr(dispatch(depsFor(connA, gate(), tool), { tool: tool.manifest.id, action: "run", args: {} }));
+    expect(noCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(noCaller.message).toBe(`${tool.manifest.id}.run: expected exactly one output value, got 0.`);
+
+    const { conn: connB } = await connected(route);
+    const withCaller = await catchErr(
+      dispatch(depsFor(connB, gate(), tool), { tool: tool.manifest.id, action: "run", args: {}, caller: CALLER }),
+    );
+    expect(withCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(withCaller.message).toBe("abap_ui screen: expected exactly one output value, got 0.");
+    expect(withCaller.details.tool).toBe("abap_ui");
+    expect(withCaller.details.action).toBe("screen");
+  });
+
+  it("FLUID_PROTOCOL_ERROR (output schema violation): caller present names it, caller absent is byte-identical", async () => {
+    const STRICT_EXECUTE_ACTION: FluidActionSpec = {
+      name: "run",
+      category: "execute",
+      description: "run, with an output schema the fixture transcript will violate",
+      input: { type: "object" },
+      output: { type: "object", required: ["ok"], properties: { ok: { type: "boolean" } } },
+    };
+    const tool = makeManifestTool({ id: "badoutschema", className: "ZCL_BADOUTSCHEMA", actions: [STRICT_EXECUTE_ACTION] });
+    const { route } = dynamicFluidRoute({
+      transcript: () => buildTranscript({ id: tool.manifest.id, ver: tool.version, action: "run", outs: [{}] }),
+    });
+    const { conn: connA } = await connected(route);
+    const noCaller = await catchErr(dispatch(depsFor(connA, gate(), tool), { tool: tool.manifest.id, action: "run", args: {} }));
+    expect(noCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(noCaller.message).toBe(`${tool.manifest.id}.run: output did not match the declared schema.`);
+
+    const { conn: connB } = await connected(route);
+    const withCaller = await catchErr(
+      dispatch(depsFor(connB, gate(), tool), { tool: tool.manifest.id, action: "run", args: {}, caller: CALLER }),
+    );
+    expect(withCaller.code).toBe("FLUID_PROTOCOL_ERROR");
+    expect(withCaller.message).toBe("abap_ui screen: output did not match the declared schema.");
+    expect(withCaller.details.tool).toBe("abap_ui");
+    expect(withCaller.details.action).toBe("screen");
+  });
+});
+
 describe("dispatch — targets reach the gate before any invoker exists", () => {
   it("gates the action's own resolved target before issuing any HTTP request", async () => {
     const tool = makeManifestTool({ id: "ordtool", className: "ZCL_ORDTOOL", actions: [TARGETED_ACTION] });

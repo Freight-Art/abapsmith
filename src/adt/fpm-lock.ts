@@ -73,10 +73,13 @@ const CONFIG_TYPE_LEN = 2;
 const CONFIG_VAR_LEN = 6;
 
 /**
- * Strict NUMC2 validation for a lock key's `config_type`. Deliberately stricter than
- * `fpm-runtime.ts`'s `assertConfigType`, which defaults a missing value to `"00"` and trims —
- * neither is acceptable on a lock key: a default locks a config the caller never named, and a
- * trim hides whitespace where a NUMC2 belongs. Rejects `undefined`, `""`, `"0"`, `"000"`, `"0A"`.
+ * Strict NUMC2 validation for a lock key's `config_type`. Deliberately stricter than the read
+ * path, which defaults a missing value to `"00"` twice over — in `src/tools/fpm.ts`'s `buildQuery`
+ * (`input.config_type ?? "00"`) and again in the fluid `fpm` body when the argument arrives
+ * initial (`src/adt/fluid/builtin/fpm.ts`). Neither the default nor surrounding whitespace is
+ * acceptable on a lock key: a default locks a config the caller never named, and whitespace hides
+ * where a NUMC2 belongs. (The read path no longer trims either — it just never inspects the value
+ * this closely.) Rejects `undefined`, `""`, `"0"`, `"000"`, `"0A"`.
  */
 export function assertLockConfigType(value: string | undefined): string {
   if (typeof value !== "string" || !/^[0-9]{2}$/.test(value)) {
@@ -517,9 +520,8 @@ function lockDiscriminator(q: FpmLockInspectQuery | FpmLockedOperation): string 
 }
 
 /**
- * Deterministic `FLUID_PACKAGE` bridge-class name, mirroring `fpmBridgeClassName`: hashed from a
- * canonical serialisation of every input so identical requests reuse one class instead of
- * churning `FLUID_PACKAGE`.
+ * Deterministic `FLUID_PACKAGE` bridge-class name: hashed from a canonical serialisation of every
+ * input so identical requests reuse one class instead of churning `FLUID_PACKAGE`.
  */
 export function fpmLockBridgeClassName(q: FpmLockInspectQuery | FpmLockedOperation): string {
   const hashHexLen = MAX_NAME - FPM_LOCK_BRIDGE_CLASS_PREFIX.length;
@@ -536,8 +538,12 @@ export function fpmLockBridgeClassName(q: FpmLockInspectQuery | FpmLockedOperati
 // ---------------------------------------------------------------------------
 
 /**
- * Last gate before a value becomes executable ABAP text. REFUSES rather than escapes (mirrors
- * `buildLikePattern` in `fpm-runtime.ts`) — an escaped-and-trusted quote is a bug waiting to happen.
+ * Last gate before a value becomes executable ABAP text. REFUSES rather than escapes — an
+ * escaped-and-trusted quote is a bug waiting to happen. This stance now stands alone: the FPM read
+ * path it used to mirror no longer builds ABAP source at all, so its LIKE pattern is assembled
+ * inside ABAP and bound as a host variable with `ESCAPE '#'` (`src/adt/fluid/builtin/fpm.ts`) —
+ * escaping is correct there precisely because the value is data, never source. This module still
+ * generates source, so refusal is still correct here.
  */
 function abapLiteral(value: string, what: string): string {
   if (/['\r\n]/.test(value) || /[\u0000-\u001F]/.test(value)) {

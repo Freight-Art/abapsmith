@@ -64,7 +64,7 @@ returns the ordinary `FLUID_API_DISABLED` refusal, not the info block — see
 | `args` | object | `run` only | `{}` | The action's arguments, validated against that action's declared input schema. |
 | `confirm` | string | `remove`: yes (must be exactly `"remove"`) | — | Also passed through to `run` for actions that themselves declare a confirmation requirement. |
 | `corr_nr` | string | no | unset | Transport request for the deployment. `$ABAPSMITH_FLUID_API` is a local (`$`) package, so this is normally left unset. |
-| `scope` | enum `tool` \| `invokers` \| `all` | `remove` only | `tool` | `tool`: delete the named tool's own manifest objects. `invokers`: delete only the generated per-call `ZCL_ZMCP_I_*` invoker classes. `all`: delete every abapsmith-owned object in `$ABAPSMITH_FLUID_API`. |
+| `scope` | enum `tool` \| `invokers` \| `dynamic` \| `all` | `remove` only | `tool` | `tool`: delete the named tool's own manifest objects. `invokers`: delete only the generated per-call `ZCL_ZMCP_I_*` invoker classes. `dynamic`: delete only the per-call dynamic bridge classes (see "Dynamic bridges" below). `all`: delete every abapsmith-owned object in `$ABAPSMITH_FLUID_API`. |
 
 For `describe`, `verify` and `repair`, an explicit `tool: ""` is treated
 exactly like omitting `tool` — describe-all, verify-all, or whole-system
@@ -118,23 +118,25 @@ contract, the abap mode, whether the connection is read-only, how many
 tools are loaded, and what abapsmith's local registry believes is
 currently deployed (tool id, contract, version, objects, `deployedAt`).
 Reads the local registry file under `ABAP_STATE_DIR`, then — best effort,
-over one shared connection attempt — runs two further read-only probes: a
+over one shared connection attempt — runs three further read-only probes: a
 `RETIRED BRIDGE CLASSES` section (which retired pre-fluid bridge classes
-are still present) and an `INVOKER CLASSES` section (a per-tool invoker
-count, see "Invoker classes" below). Neither probe mutates anything. If
+are still present), an `INVOKER CLASSES` section (a per-tool invoker
+count, see "Invoker classes" below), and a `DYNAMIC BRIDGES` section (see
+"Dynamic bridges" below). No probe mutates anything. All three read the
+system rather than the registry, so what they report is observed, not
+believed — unlike the registry summary above them, which is a cache. If
 the connection attempt itself fails, the local-registry answer above still
-renders in full, and both sections render their own
+renders in full, and all three sections render their own
 `(probe unavailable: ...)` line instead of failing the whole call.
 
-The two probes **degrade independently** once connected. Only the invoker
-probe can still fail on its own after that point — listing the package or
-reading one invoker's source can throw — in which case `INVOKER CLASSES`
-alone shows `(probe unavailable: ...)` while `RETIRED BRIDGE CLASSES`,
-which already succeeded, renders normally. The retired-bridge probe itself
+The three probes **degrade independently** once connected. The invoker and
+dynamic-bridge probes can each still fail on their own after that point —
+listing the package or reading one class's source can throw — in which case
+that section alone shows `(probe unavailable: ...)` while the others, which
+already succeeded, render normally. The retired-bridge probe itself
 never throws (an unreadable class is reported per-row as `unknown`
-instead), so the reverse — `RETIRED BRIDGE CLASSES` unavailable while
-`INVOKER CLASSES` succeeds — only happens when the initial connection
-attempt fails outright, which blanks both sections at once.
+instead), so `RETIRED BRIDGE CLASSES` is unavailable only when the initial
+connection attempt fails outright, which blanks all three sections at once.
 
 `status`'s invoker probe attributes every `ZCL_ZMCP_I_<hash8>` invoker
 class present in `$ABAPSMITH_FLUID_API` to a tool — one source read per
@@ -212,9 +214,12 @@ Pruning first re-probes every one of that tool's invokers present in
 invoker count from growing without bound in practice.
 
 The ordinary authorized delete path means the safety gate's package
-allowlist applies to the reap like any other write. Nine of the ten
-retired classes live in `$TMP`, but `ZCL_ZMCP_IMG_WPROBE` lives
-in `$ZMCP_HELPERS`, so reaping that one class needs `$ZMCP_HELPERS` in
+allowlist applies to the reap like any other write. Of the twelve
+retired classes, nine live in `$TMP` and two — `ZCL_ZMCP_IMG_WAPPLY` and
+`ZCL_ZMCP_CTS_WREQ`, the static IMG write and customizing-request
+bridges superseded by the `img` fluid tool — were deployed into
+`$ABAPSMITH_FLUID_API` itself. `ZCL_ZMCP_IMG_WPROBE` is the odd one out:
+it lives in `$ZMCP_HELPERS`, so reaping that one class needs `$ZMCP_HELPERS` in
 `ABAP_ALLOW_PACKAGES` — which it would be on any system that created the
 class in the first place. Where it is not, the gate refuses the delete and
 the class is reported `failed` with the gate's own reason, e.g.:
@@ -290,9 +295,9 @@ and exact, and so is attributing or checking each one, just at the cost
 of one source read per invoker:
 
 - **`status`** counts invokers per tool (see `status` above) — both the
-  total and the per-tool breakdown are exact, and the retired-bridge and
-  invoker probes degrade independently rather than failing the whole call
-  when a probe can't run.
+  total and the per-tool breakdown are exact, and `status`'s three probes
+  degrade independently rather than failing the whole call when one of
+  them can't run.
 - **`repair` with a `tool`** prunes that tool's *stale* invokers: those
   whose source attributes them to that tool, parses a version, and that
   version differs from the tool's current version. An invoker whose source
@@ -301,6 +306,38 @@ of one source read per invoker:
   Whole-system `repair` (no `tool`) does not prune invokers at all. This
   pruning is what keeps the invoker count bounded in practice, since
   every invoker present is checked on every call.
+
+## Dynamic bridges
+
+Most abapsmith tools that once generated a per-call `IF_OO_ADT_CLASSRUN`
+bridge class now run through the fluid API instead. Five paths still
+generate one, because each needs to emit ABAP built from the caller's own
+input rather than drive a fixed body with JSON arguments:
+
+| Family | Tool path | Class names |
+|---|---|---|
+| BOPF test bridges | `abap_bopf_test` | `ZCL_ZMCP_BO_*` |
+| Enhancement exercise bridges | `abap_enh` with `operation: "exercise"` | `ZCL_ZMCP_ENH_EXEC` |
+| FPM lock-mode bridges | `abap_fpm_read` with `mode: "locks"` | `ZCL_ZMCP_FPMLK_*` |
+| Run report bridges | `abap_run` | `ZCL_ZMCP_RUN_*` |
+| UI press bridges | `abap_ui` with `mode: "press"` | `ZCL_ZMCP_UI_*` |
+
+These are a deliberate remainder, not an oversight. The fluid runtime
+passes arguments as a JSON object of scalars and string arrays, which is
+enough for a fixed body but not for these five, whose generated ABAP
+varies with the caller's request — a BOPF scenario's node graph, a
+dynpro's field list, a report's selection screen.
+
+`status` reports them in its `DYNAMIC BRIDGES` section, by family and
+count, from a live probe of `$ABAPSMITH_FLUID_API` rather than from the
+registry cache. `remove` with `scope: "dynamic"` deletes exactly these
+five families. `scope: "all"` already deleted them before that scope
+existed — every one of these names is reserved (`ZCL_ZMCP_*`) and `all`
+matches on the reserved-name rule — so `dynamic` narrows the sweep, it
+does not widen `all`.
+
+Each family's classes accumulate the same way invokers do, and are cleaned
+up the same way: per-delete write leases, as described under `remove`.
 
 ## Safety
 

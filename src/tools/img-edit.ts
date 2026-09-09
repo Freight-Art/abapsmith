@@ -45,7 +45,6 @@ import { FLUID_PACKAGE } from "../adt/fluid/package.js";
 import { imgManifest } from "../adt/fluid/builtin/img.js";
 import { IMG_DEFAULT_LANGUAGE, IMG_LANGUAGE_RE, assertImgLanguage } from "../adt/img-query.js";
 import {
-  IMGW_BRIDGE_CLASS,
   validateApplyPlan,
   type ImgProbePlan,
   type ImgApplyPlan,
@@ -54,7 +53,6 @@ import {
   type ImgWriteValueRow,
 } from "../adt/img-write-bridge.js";
 import {
-  CUSTOMIZING_REQUEST_CLASS,
   type CustomizingRequestPlan,
   type CustomizingRequestTranscript,
 } from "../adt/customizing-request.js";
@@ -413,9 +411,9 @@ function splitClientField(table: ResolvedTable, objectLabel: string): { clientFi
         "BAD_INPUT",
         `"${objectLabel}" resolves to base table ${table.table}, which is client-independent (no CLNT-typed ` +
           "key field) — this tool cannot write a client-independent table at all, through this path or the " +
-          "table/key_fields/client_field expert escape hatch: the generated apply class always sets a client " +
-          "field from sy-mandt, which a table shaped this way does not have. Maintain this table by hand " +
-          "(SM30/SM34) instead.",
+          "table/key_fields/client_field expert escape hatch: the shared apply class refuses outright, before " +
+          "touching any row, when the declared client field is not a component of the table — which a table " +
+          "shaped this way never has. Maintain this table by hand (SM30/SM34) instead.",
         { table: table.table },
       );
     }
@@ -918,8 +916,8 @@ interface RowChangeSummary {
 /**
  * Measures what an armed upsert actually did to each row, from the apply transcript's
  * before/after images — never assumed from the caller's own input. Transcript row numbers are
- * 1-based (`rowNo = i + 1` in `imgApplySource`, img-write-bridge.ts) while `args.rows`/the
- * rendered table are 0-based, so row `i` here is looked up as transcript row `i + 1`.
+ * 1-based (`lv_ri + 1` in the `apply` action's generated ABAP, src/adt/fluid/builtin/img.ts) while
+ * `args.rows`/the rendered table are 0-based, so row `i` here is looked up as transcript row `i + 1`.
  */
 function rowChangeSummaries(rows: RowEditArgs["rows"], t: ImgApplyResult["transcript"]): RowChangeSummary[] {
   const beforePresent = groupByRow(t.before);
@@ -1097,8 +1095,8 @@ function rowDeleteSummaries(rows: RowEditArgs["rows"], t: ImgApplyResult["transc
       return { changed: "unknown", description: "no after-image reported for this row" };
     }
     // From here the row is confirmed absent after the delete — the only question is whether it was
-    // ever there to begin with. The generator's before-image SELECT (see `imgApplySource`'s delete
-    // branch, img-write-bridge.ts) always emits exactly one of BVAL/BABSENT for a row it reaches
+    // ever there to begin with. The `apply` action's before-image SELECT (see its delete branch,
+    // src/adt/fluid/builtin/img.ts) always emits exactly one of BVAL/BABSENT for a row it reaches
     // this far for, so `beforePresent` is the only marker checked; anything not confirmed present
     // is reported as the "nothing to delete" case rather than guessed as a deletion.
     if (beforePresent.has(rowNo)) return { changed: "yes", description: "deleted" };
@@ -1456,7 +1454,7 @@ async function runProbeAndApply(
     language: args.language,
   };
   const probe = await deps.pool.withWrite("abap_img_edit", imgManifest.entry, (conn) =>
-    runImgProbe(conn, deps.safety, probePlan, deps.cfg),
+    runImgProbe(conn, deps.safety, probePlan, deps.cfg, mode),
   );
 
   const verdict = evaluateReal(args, mode, probe, deps.safety);
@@ -1478,12 +1476,12 @@ async function runProbeAndApply(
 
   deps.safety.assert(
     "write",
-    { name: IMGW_BRIDGE_CLASS.apply, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+    { name: imgManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
 
-  const apply = await deps.pool.withWrite("abap_img_edit", IMGW_BRIDGE_CLASS.apply, (conn) =>
-    runImgApply(conn, deps.safety, applyPlan),
+  const apply = await deps.pool.withWrite("abap_img_edit", imgManifest.entry, (conn) =>
+    runImgApply(conn, deps.safety, applyPlan, deps.cfg, mode),
   );
 
   const failure = applyFailure(mode, args.rows, apply);
@@ -1632,14 +1630,14 @@ async function runCreateRequestMode(deps: ImgEditToolDeps, input: ImgEditInput):
   deps.safety.assert("read");
   deps.safety.assert(
     "write",
-    { name: CUSTOMIZING_REQUEST_CLASS, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+    { name: imgManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
 
   await deps.ensureConnected();
 
-  const result = await deps.pool.withWrite("abap_img_edit", CUSTOMIZING_REQUEST_CLASS, (conn) =>
-    runCreateCustomizingRequest(conn, deps.safety, plan),
+  const result = await deps.pool.withWrite("abap_img_edit", imgManifest.entry, (conn) =>
+    runCreateCustomizingRequest(conn, deps.safety, plan, deps.cfg),
   );
 
   // Addition beyond the strict minimum: journal the created request the same way

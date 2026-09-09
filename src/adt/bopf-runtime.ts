@@ -145,7 +145,7 @@ export interface BopfTestScenario {
 
 /** 12 chars, leaving 18 of the 30-char ABAP name limit (run.ts's report
  *  bridge uses `ZCL_ZMCP_RUN_`, 13 chars / 17 budget). */
-const BOPF_BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_BO_";
+export const BOPF_BRIDGE_CLASS_PREFIX = "ZCL_ZMCP_BO_";
 /** Hex digits of the disambiguating hash appended to truncated names. */
 const HASH_LEN = 6;
 

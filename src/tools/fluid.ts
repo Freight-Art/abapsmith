@@ -53,6 +53,11 @@ import {
   type FluidInvokerPrune,
 } from "../adt/fluid/invokers.js";
 import {
+  isDynamicBridgeName,
+  listDynamicBridges,
+  type DynamicBridgeClass,
+} from "../adt/fluid/dynamic-bridges.js";
+import {
   buildFluidDescribe,
   buildFluidDescription,
   buildFluidInfoBlock,
@@ -77,8 +82,9 @@ export const fluidInputSchema = {
     .enum(FLUID_OPS)
     .optional()
     .describe(
-      'What to do. Defaults to "run" whenever tool/action/args/confirm/corr_nr/scope is given; a ' +
-        "call with none of those returns the catalogue instead. list/describe touch no network; " +
+      'What to do. Defaults to "run" whenever `tool` or `action` is given without `op`; a call ' +
+        "with none of `op`/`tool`/`action` returns the catalogue instead (other fields such as " +
+        "`args`/`confirm`/`corr_nr`/`scope` do not affect this). list/describe touch no network; " +
         "status reads the local registry plus a best-effort probe of retired pre-fluid bridge " +
         "classes and invoker classes per tool. verify asks the system what is actually deployed. " +
         "run (the default) executes one action, deploying or repairing first if needed. repair " +
@@ -113,27 +119,38 @@ export const fluidInputSchema = {
     .optional()
     .describe("Transport request number, forwarded to run for a mutating action that targets a transportable object."),
   scope: z
-    .enum(["tool", "invokers", "all"])
+    .enum(["tool", "invokers", "all", "dynamic"])
     .optional()
     .describe(
       'remove only. "tool" (default) deletes one tool\'s manifest objects (needs `tool`). ' +
         '"invokers" deletes every generated per-call invoker class ' +
-        "(ZCL_ZMCP_I_xxxxxxxx). \"all\" deletes every abapsmith-owned object in " +
-        `${FLUID_PACKAGE}. The package itself is never deleted.`,
+        '(ZCL_ZMCP_I_xxxxxxxx). "dynamic" deletes every generated per-call dynamic-bridge class ' +
+        "(the abap_bopf_test/abap_ui/abap_enh/abap_fpm_read/abap_run tool paths that deploy fresh " +
+        'ABAP per call — see `status`\'s "dynamic bridges" section). "all" deletes every ' +
+        `abapsmith-owned object in ${FLUID_PACKAGE}, which already includes both of the above. ` +
+        "The package itself is never deleted.",
     ),
 };
 
 const FluidInputSchema = z.object(fluidInputSchema);
 type FluidInput = z.infer<typeof FluidInputSchema>;
 
+/**
+ * The actual bare-call rule (`op`'s `.describe()` text above must keep
+ * saying exactly this): `args`/`confirm`/`corr_nr`/`scope` never make a call
+ * non-bare on their own — only `op`, `tool`, or `action` do.
+ */
+export function isBareFluidCall(a: FluidInput): boolean {
+  return a.op === undefined && a.tool === undefined && a.action === undefined;
+}
+
 // -------------------------------------------------------------------- deps ---
 
 /**
- * Deviates from the S2 brief's sketch (`{ conn, cfg, gate, toolSet }`):
- * connections are leased per request from the `SessionPool` (like every
- * other registrar in `src/tools/`), never held across a call, so `conn`
- * would be stale by the time the handler ran — hence `pool` +
- * `ensureConnected` + `errorResult`, matching `data-preview.ts`,
+ * `pool` + `ensureConnected` + `errorResult`, not a held `conn`: connections
+ * are leased per request from the `SessionPool` (like every other registrar
+ * in `src/tools/`), never held across a call, so a stored `conn` field would
+ * already be stale by the time a handler ran. Matches `data-preview.ts`,
  * `transport.ts`, etc. `gate` is named `safety` for the same
  * repo-convention reason (every other `*ToolDeps` interface calls it that).
  */
@@ -168,11 +185,9 @@ function mustGetTool(toolSet: FluidToolSet, id: string): LoadedFluidTool {
 
 /**
  * Same shape as `ensure.ts`'s module-private `fluidDisabledError` and
- * `dispatch.ts`'s module-private `dispatchDisabledError` — those two files
- * are outside my file set (other agents own `ensure.ts`; `dispatch.ts` is
- * S2 core, not mine to edit either), so this is a deliberate third,
- * op-agnostic copy of the same error shape rather than an import of either
- * module-private helper (neither is exported).
+ * `dispatch.ts`'s module-private `dispatchDisabledError` — neither is
+ * exported, so this is a deliberate third, op-agnostic copy of the same
+ * error shape rather than an import of either module-private helper.
  */
 function fluidApiDisabledError(
   reason: FluidDisabledReason,
@@ -211,7 +226,7 @@ function fluidApiDisabledError(
 }
 
 /**
- * At the top of every op, per the brief: catches connected ceilings
+ * At the top of every op: catches connected ceilings
  * (productive system, write lockout, failed role probe) that are unknowable
  * at registration time. Cheap before `ensureConnected()` (zero HTTP), which
  * is what keeps list/describe zero-network while still refusing once the
@@ -445,6 +460,42 @@ function renderInvokerCountsSection(
   };
 }
 
+const DYNAMIC_BRIDGE_REMOVE_NOTE =
+  'op:"remove" with scope:"dynamic" deletes every one of these; scope:"all" already includes ' +
+  "them too, since they are all reserved (ZCL_ZMCP_*) names.";
+
+/**
+ * The five tool paths that deploy one generated ABAP bridge class per call
+ * (`../adt/fluid/dynamic-bridges.ts`) rather than running a fixed manifest.
+ * Degrades the same way `renderRetiredBridgeSection`/`renderInvokerCountsSection`
+ * do; grouped by family (not by raw prefix) so the note can name the tool
+ * path a caller would otherwise have no way to connect a bare class name to.
+ */
+function renderDynamicBridgeSection(
+  bridges: readonly DynamicBridgeClass[] | undefined,
+  error: string | undefined,
+): { title: string; content: string } {
+  const title = "DYNAMIC BRIDGES";
+  if (error !== undefined) return { title, content: `(probe unavailable: ${error})` };
+
+  const all = bridges ?? [];
+  if (all.length === 0) return { title, content: "(none — no per-call dynamic-bridge classes exist)" };
+
+  const byLabel = new Map<string, { tool: string; count: number }>();
+  for (const b of all) {
+    const entry = byLabel.get(b.label);
+    if (entry) entry.count += 1;
+    else byLabel.set(b.label, { tool: b.tool, count: 1 });
+  }
+  const rows = [...byLabel.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([label, { tool, count }]) => ({ family: label, tool, count: String(count) }));
+  return {
+    title,
+    content: textTable(rows, ["family", "tool", "count"]) + "\n\n" + DYNAMIC_BRIDGE_REMOVE_NOTE,
+  };
+}
+
 async function renderStatus(deps: FluidToolDeps): Promise<string> {
   const key = systemKey(deps.cfg);
   const registry = await readFluidRegistry(deps.cfg, key);
@@ -465,10 +516,15 @@ async function renderStatus(deps: FluidToolDeps): Promise<string> {
   // sharing the one lease below rather than opening a second connection.
   let retired: readonly RetiredBridgeProbe[] | undefined;
   let invokers: readonly FluidInvokerProbe[] | undefined;
+  let dynamicBridges: readonly DynamicBridgeClass[] | undefined;
   let probeError: string | undefined;
   let invokerProbeError: string | undefined;
+  let dynamicBridgeProbeError: string | undefined;
   try {
     await deps.ensureConnected();
+    const manifestObjectNames = new Set(
+      [...deps.toolSet.tools.values()].flatMap((t) => t.manifest.objects.map((o) => o.name.trim().toUpperCase())),
+    );
     const probed = await deps.pool.withRead("abap_fluid.status", async (conn) => {
       const retiredProbe = await probeRetiredBridges(conn);
       let invokerProbe: readonly FluidInvokerProbe[] | undefined;
@@ -479,11 +535,20 @@ async function renderStatus(deps: FluidToolDeps): Promise<string> {
       } catch (e) {
         invokerErr = describeUnknownError(e);
       }
-      return { retiredProbe, invokerProbe, invokerErr };
+      let dynamicBridgeProbe: readonly DynamicBridgeClass[] | undefined;
+      let dynamicBridgeErr: string | undefined;
+      try {
+        dynamicBridgeProbe = await listDynamicBridges(conn, manifestObjectNames);
+      } catch (e) {
+        dynamicBridgeErr = describeUnknownError(e);
+      }
+      return { retiredProbe, invokerProbe, invokerErr, dynamicBridgeProbe, dynamicBridgeErr };
     });
     retired = probed.retiredProbe;
     invokers = probed.invokerProbe;
     invokerProbeError = probed.invokerErr;
+    dynamicBridges = probed.dynamicBridgeProbe;
+    dynamicBridgeProbeError = probed.dynamicBridgeErr;
   } catch (e) {
     probeError = describeUnknownError(e);
   }
@@ -502,6 +567,7 @@ async function renderStatus(deps: FluidToolDeps): Promise<string> {
     sections: [
       renderRetiredBridgeSection(retired, probeError),
       renderInvokerCountsSection(invokers, probeError ?? invokerProbeError),
+      renderDynamicBridgeSection(dynamicBridges, probeError ?? dynamicBridgeProbeError),
     ],
     notes: [
       "The local registry is what abapsmith BELIEVES is deployed on this system — a cache, not " +
@@ -618,27 +684,58 @@ async function runRepair(deps: FluidToolDeps, a: FluidInput): Promise<string> {
 
   const key = systemKey(deps.cfg);
   const results: EnsureFluidToolResult[] = [];
-  await deps.pool.withWrite("abap_fluid.repair", undefined, async (conn) => {
-    for (const t of targets) {
-      // MUST run before `ensureFluidTool`: its cache short-circuits on a
-      // matching registry entry and returns immediately, `deployed: false`,
-      // every object hardcoded "present" — no server round trip at all —
-      // which is exactly the opposite of what `repair` is for.
-      await forgetManifest(deps.cfg, key, t.manifest.id);
-      results.push(
-        await ensureFluidTool(conn, deps.safety, deps.cfg, t, {
+  // One fresh lease PER tool. The lease-splitting half has precedent —
+  // `runRemove`'s per-delete loop below and `reapRetiredBridges`/`pruneInvokers`
+  // (`retired.ts`/`invokers.ts`) split for the same reason. The `markDead` half
+  // does NOT: this is the only `markDead` caller outside `connection.ts` and
+  // `pool.ts`, because those three loops delete through a path that surfaces
+  // `SESSION_DEAD` to the pool, and this one does not (see below).
+  // `ensureFluidTool`'s "legacy"/"broken" repair branches (`ensure.ts`)
+  // delete-then-recreate the object, and a delete kills the ADT session
+  // server-side. `LOGON_ENDPOINT_LIFETIME_CEILING` is per connection
+  // instance, so sharing one connection across every tool in the batch would
+  // wedge partway through once enough tools needed a delete.
+  //
+  // A separate `withWrite` call per tool is not sufficient on its own:
+  // `AdtSessionPool.tryTake` always hands out the warmest idle slot, and
+  // `ensure.ts`'s one-shot revive (`writeAndActivateOnce`) heals a
+  // delete-killed session on the SAME connection object rather than letting
+  // it surface as `SESSION_DEAD` — the one signal the pool's own dead-slot
+  // detection (`AdtSessionPool.isSlotDead`) looks for. A connection revived
+  // this way looks perfectly alive at `release()` time and goes right back
+  // into the idle pool for the next tool's lease to pick up, so its
+  // `logonEndpointRequestCount` keeps accumulating across the whole batch
+  // exactly as it did before this loop was split. `conn.markDead()` below
+  // forces what the pool cannot infer on its own: retire the connection this
+  // tool's repair may have revived so the next tool starts a fresh one,
+  // mirroring how `AdtSessionPool.seatPrimary` avoids the identical
+  // "immortal primary bricks permanently on its Nth revival" failure for the
+  // pinned primary connection.
+  for (const t of targets) {
+    // MUST run before `ensureFluidTool`: its cache short-circuits on a
+    // matching registry entry and returns immediately, `deployed: false`,
+    // every object hardcoded "present" — no server round trip at all —
+    // which is exactly the opposite of what `repair` is for.
+    await forgetManifest(deps.cfg, key, t.manifest.id);
+    results.push(
+      await deps.pool.withWrite("abap_fluid.repair", undefined, async (conn) => {
+        const result = await ensureFluidTool(conn, deps.safety, deps.cfg, t, {
           tool: t.manifest.id,
           action: "(repair)",
           op: "repair",
-        }),
-      );
-    }
-  });
+        });
+        conn.markDead("abap_fluid.repair: retiring after this tool's ensure pass so the next tool cannot inherit its logon-ceiling budget");
+        return result;
+      }),
+    );
+  }
 
-  // Reap (no `tool`) or prune (named `tool`) — never both. Must run LAST:
-  // the ensure loop above needs a live connection for the whole loop, and
-  // each reap/prune delete takes its own short-lived lease (never the
-  // ensure loop's), so this has to start only after that lease is released.
+  // Reap (no `tool`) or prune (named `tool`) — never both, and only after
+  // every target above has already been ensured: both are cleanup passes
+  // over the package as a whole, and running them first would sweep against
+  // a not-yet-repaired package. Not a lease constraint (each target above
+  // already retires its own connection when its lease ends) — just result
+  // ordering.
   let reaped: readonly RetiredBridgeReap[] | undefined;
   let pruned: readonly FluidInvokerPrune[] | undefined;
   let invokerProbeError: string | undefined;
@@ -718,7 +815,7 @@ type RemoveOutcome = FluidDeleteTarget & { readonly outcome: "deleted" | "alread
 async function removeTargets(
   conn: AbapConnection,
   toolSet: FluidToolSet,
-  scope: "tool" | "invokers" | "all",
+  scope: "tool" | "invokers" | "all" | "dynamic",
   toolId: string | undefined,
 ): Promise<{ targets: readonly FluidDeleteTarget[]; unmappable: ReadonlyArray<{ type: string; name: string }> }> {
   if (scope === "tool") {
@@ -733,7 +830,8 @@ async function removeTargets(
     const name = n.OBJECT_NAME ?? "";
     const type = n.OBJECT_TYPE ?? "";
     if (!name) continue;
-    const wanted = scope === "invokers" ? INVOKER_NAME_RE.test(name) : isReservedFluidName(name);
+    const wanted =
+      scope === "invokers" ? INVOKER_NAME_RE.test(name) : scope === "dynamic" ? isDynamicBridgeName(name) : isReservedFluidName(name);
     if (!wanted) continue;
     if (type === "CLAS/OC" || type === "INTF/OI") {
       targets.push({ type, name });
@@ -865,9 +963,8 @@ export function registerFluidTool(mcp: McpServer, deps: FluidToolDeps): void {
     async (rawArgs) => {
       try {
         const a = rawArgs as FluidInput;
-        const isBareCall = a.op === undefined && a.tool === undefined && a.action === undefined;
 
-        if (isBareCall) {
+        if (isBareFluidCall(a)) {
           requireFluidEnabled(deps, { op: "catalogue" });
           return ok(renderInfoBlock(deps));
         }

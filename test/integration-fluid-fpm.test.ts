@@ -89,6 +89,8 @@ import { FLUID_PACKAGE } from "../src/adt/fluid/package.js";
 import { manifestVersion, validateAgainstSchema, type LoadedFluidTool } from "../src/adt/fluid/manifest.js";
 import { invokerName } from "../src/adt/fluid/invoke.js";
 import { fpmManifest, fpmSources } from "../src/adt/fluid/builtin/fpm.js";
+import { runFpmRead, type FpmFindQuery, type FpmOutlineQuery, type FpmAppQuery } from "../src/adt/fpm-runtime.js";
+import { ERR_LINE_PREFIX } from "../src/adt/run.js";
 import { authorizeMutation, deleteObject } from "../src/adt/write.js";
 import { parsePackageRef } from "../src/adt/package-ref.js";
 import { forgetManifest } from "../src/adt/fluid/registry.js";
@@ -113,6 +115,19 @@ const FIND_ARGS = { query: "*" };
 const BAD_CONFIG_ID = "ZZZZ_NO_SUCH_CFG";
 const OUTLINE_ARGS = { config_id: BAD_CONFIG_ID };
 const APP_ARGS = { config_id: BAD_CONFIG_ID };
+
+// `runFpmRead` (src/adt/fpm-runtime.ts) is the adapter `abap_fpm_read` calls
+// instead of raw `dispatch()` — its `fpmDispatchArgs()` always fills in
+// `config_type`/`config_var`/`resolve` keys the raw dispatch args above omit
+// (see FpmFindQuery/FpmOutlineQuery/FpmAppQuery), so each query below is
+// content-addressed to a DIFFERENT invoker class than FIND_ARGS/OUTLINE_ARGS/
+// APP_ARGS and needs its own cleanup entry in afterAll.
+const RUNTIME_FIND_QUERY: FpmFindQuery = { mode: "find", configType: "00", queryPattern: "*" };
+const RUNTIME_FIND_ARGS = { config_type: "00", query: "*" };
+const RUNTIME_OUTLINE_QUERY: FpmOutlineQuery = { mode: "outline", configId: BAD_CONFIG_ID, configType: "00", configVar: "" };
+const RUNTIME_OUTLINE_ARGS = { config_id: BAD_CONFIG_ID, config_type: "00", config_var: "" };
+const RUNTIME_APP_QUERY: FpmAppQuery = { mode: "app", configId: BAD_CONFIG_ID, resolve: false };
+const RUNTIME_APP_ARGS = { config_id: BAD_CONFIG_ID, resolve: false };
 
 dw("live A4H fpm fluid tool ($ABAPSMITH_FLUID_API, read-only FPM/FBI config inspection)", () => {
   let conn: AbapConnection;
@@ -207,6 +222,9 @@ dw("live A4H fpm fluid tool ($ABAPSMITH_FLUID_API, read-only FPM/FBI config insp
       invokerName(FPM_TOOL_ID, "find", FIND_ARGS, fpmManifest.contract),
       invokerName(FPM_TOOL_ID, "outline", OUTLINE_ARGS, fpmManifest.contract),
       invokerName(FPM_TOOL_ID, "app", APP_ARGS, fpmManifest.contract),
+      invokerName(FPM_TOOL_ID, "find", RUNTIME_FIND_ARGS, fpmManifest.contract),
+      invokerName(FPM_TOOL_ID, "outline", RUNTIME_OUTLINE_ARGS, fpmManifest.contract),
+      invokerName(FPM_TOOL_ID, "app", RUNTIME_APP_ARGS, fpmManifest.contract),
     ];
     for (const name of invokerNames) await deleteIfPresent(name);
     await deleteIfPresent(FPM_BODY_CLASS);
@@ -281,5 +299,92 @@ dw("live A4H fpm fluid tool ($ABAPSMITH_FLUID_API, read-only FPM/FBI config insp
     await expect(
       dispatch(deps, { tool: FPM_TOOL_ID, action: "app", args: APP_ARGS }),
     ).rejects.toMatchObject({ code: "FLUID_ACTION_FAILED" });
+  }, 120_000);
+
+  // -------------------------------------------------------------------------
+  // The tests above dispatch `fpm` directly. `abap_fpm_read` never does that —
+  // it goes through `runFpmRead` (src/adt/fpm-runtime.ts), which builds its
+  // own dispatch args from a query object and reshapes the raw dispatch
+  // result into `FpmReadResult`/`FpmTranscriptResult`. That arg-building and
+  // result-mapping has zero live coverage above: a raw `dispatch()` call
+  // cannot exercise it. The three tests below close that gap, asserting on
+  // the SAME mapped fields the offline suite (test/fpm-runtime.test.ts)
+  // asserts, so a live/offline divergence in the mapping — not in `dispatch`
+  // itself, already covered above — is what would fail here.
+  // -------------------------------------------------------------------------
+
+  it("runFpmRead(find) round-trips through the adapter: mapped FpmReadResult, any rows well-typed", async () => {
+    assertUsable();
+
+    const result = await runFpmRead(conn, RUNTIME_FIND_QUERY, GATE);
+
+    expect(result.query).toEqual(RUNTIME_FIND_QUERY);
+    expect(result.bridgeClass).toBe(FPM_BODY_CLASS);
+    expect(typeof result.bridgeRefreshed).toBe("boolean");
+    expect(result.outputComplete).toBe(true);
+    expect(typeof result.bodyBytes).toBe("number");
+
+    const { transcript } = result;
+    expect(transcript.count).toBe(transcript.configs.length);
+    expect(transcript.outlineXml).toBeUndefined();
+    expect(transcript.outlineMeta).toBeUndefined();
+    expect(transcript.appNodes).toEqual([]);
+    expect(transcript.diagnostics).toEqual([]);
+    expect(transcript.droppedLines).toBe(0);
+    // Same honesty constraint as the raw-dispatch find test above: a bare
+    // appliance may legitimately have zero matching configs. When rows ARE
+    // present, every mapped field must be the camelCase FpmConfigRow shape
+    // runFpmRead's own row mapper produces (config_id -> configId, etc.) —
+    // this is exactly what a raw dispatch call would never exercise.
+    for (const row of transcript.configs) {
+      expect(typeof row.configId).toBe("string");
+      expect(typeof row.configType).toBe("string");
+      expect(typeof row.configVar).toBe("string");
+      expect(typeof row.component).toBe("string");
+      expect(typeof row.description).toBe("string");
+      expect(typeof row.devclass).toBe("string");
+    }
+  }, 120_000);
+
+  it("runFpmRead(outline) on a config_id that cannot exist returns the mapped not-found diagnostic, not a rejection", async () => {
+    assertUsable();
+
+    // builtin/fpm.ts's `outline` method (config_type defaulting to "00", as
+    // here) reads via cl_wdr_cfg_persistence_utils=>read_comp_config_from_db
+    // wrapped in TRY/CATCH cx_root — the same branch the raw-dispatch outline
+    // test above already confirms rejects with FLUID_ACTION_FAILED for this
+    // exact BAD_CONFIG_ID. `outlineNotFoundDiagnostic` (fpm-runtime.ts)
+    // recognizes that frame shape (kind:"exception", step:
+    // "read_comp_config_from_db") and `runFpmRead` maps it to a graceful
+    // FpmReadResult instead of rethrowing — this is the mapping a raw
+    // dispatch call cannot exercise, and what this pin proves.
+    const result = await runFpmRead(conn, RUNTIME_OUTLINE_QUERY, GATE);
+
+    expect(result.query).toEqual(RUNTIME_OUTLINE_QUERY);
+    expect(result.bridgeClass).toBe(FPM_BODY_CLASS);
+    expect(result.outputComplete).toBe(true);
+    expect(result.bodyBytes).toBe(0);
+
+    const { transcript } = result;
+    expect(transcript.configs).toEqual([]);
+    expect(transcript.outlineXml).toBeUndefined();
+    expect(transcript.outlineMeta).toBeUndefined();
+    expect(transcript.appNodes).toEqual([]);
+    expect(transcript.droppedLines).toBe(0);
+    expect(transcript.diagnostics).toHaveLength(1);
+    expect(transcript.diagnostics[0]?.startsWith(ERR_LINE_PREFIX)).toBe(true);
+  }, 120_000);
+
+  it("runFpmRead(app) on a config_id that cannot exist rejects with FLUID_ACTION_FAILED (no not-found mapping for app)", async () => {
+    assertUsable();
+
+    // Unlike outline, runFpmRead's catch block that maps a not-found frame to
+    // a graceful result is scoped to `query.mode === "outline"` only — `app`
+    // has no such special-casing, so this must still reject. Pinning that the
+    // adapter does NOT swallow this error is as important as pinning that it
+    // DOES swallow outline's — a mapping bug could go either way.
+    await expect(runFpmRead(conn, RUNTIME_APP_QUERY, GATE)).rejects.toMatchObject({
+      code: "FLUID_ACTION_FAILED",
+    });
   }, 120_000);
 });

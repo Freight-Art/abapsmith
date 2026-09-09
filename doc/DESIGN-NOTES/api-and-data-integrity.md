@@ -4,7 +4,7 @@ Why some decisions look odd from the outside. Each entry states the rejected
 alternative and what decided it. See also [Safety and concurrency
 design](safety-and-concurrency.md) for the session- and auth-level notes.
 
-## Nothing is installed on the ABAP system
+## No product code is installed on the ABAP system
 
 **Instead of:** shipping a `Z` ICF service or ABAP-side helper package that the
 server calls.
@@ -14,15 +14,23 @@ this space do exactly that. It also means an installation, a transport, a
 version-skew problem between the Node and ABAP sides, and a change to the
 system you're trying to be careful with.
 
-This server installs nothing. Where ADT's REST surface has no endpoint —
-report execution, BOPF runtime, FPM configuration reads, some enhancement
-operations — it generates a **throwaway `$TMP` classrun bridge**
-(`IF_OO_ADT_CLASSRUN`), runs it, and reads its list output. The bridge is an
-ordinary object in the same namespace and package the safety gate already
+This server installs no product code, and nothing outside one package it
+creates for itself: `$ABAPSMITH_FLUID_API`, whose contents it owns and can
+delete. Where ADT's REST surface has no endpoint it runs its own ABAP there,
+in one of two shapes. Report execution, BOPF runtime, `abap_ui press`,
+`abap_enh exercise` and `abap_fpm_read mode:"locks"` generate a **per-call
+classrun bridge** (`IF_OO_ADT_CLASSRUN`), run it, and read its list output.
+FPM configuration reads, `abap_ui` screen discovery, IMG customizing writes
+and the enhancement create family instead dispatch against a **static body
+class** reused across calls, reached through an invoker class named by a hash
+of `{tool, action, args, contract}`. Either way the generated object is an
+ordinary one in the same namespace and package the safety gate already
 governs, so it inherits every existing control instead of needing new ones.
 
 The cost is honest: bridge execution is slower than a native endpoint, cold
-execution slower still, and anything the bridge cannot express is simply
+execution slower still — though on the fluid route that cold cost is paid
+once per distinct invoker, which is to say per distinct argument shape,
+rather than once per call — and anything neither shape can express is simply
 unreachable.
 
 ## Tool schemas are treated as a budget

@@ -3,7 +3,7 @@
  * `./transports.ts`'s workbench-request helpers for the one CTS shape they
  * cannot produce.
  *
- * Why a generated bridge class instead of a plain ADT call: a prior
+ * Why ABAP run on the system instead of a plain ADT call: a prior
  * discovery pass tried the two ADT routes that create transport requests
  * and neither produced a real customizing request headlessly.
  * `abap_transport create` (`kind: workbench`) always yields `tm:type="K"`.
@@ -23,15 +23,16 @@
  * `TRINT_INSERT_NEW_COMM` (`WI_TRFUNCTION = 'W'`). This module uses the
  * former.
  *
- * Same delivery mechanism as `./img-write-bridge.ts`: a generated
- * `IF_OO_ADT_CLASSRUN` class, deployed into `FLUID_PACKAGE`
- * (`./fluid/package.ts`), never `$TMP`. This module only generates the
- * class source and parses its transcript — deploying and executing it is a
- * caller concern, same division of labor as the IMG write bridge.
+ * The ABAP that makes that call is the `create_request` action of the fluid
+ * `img` tool (`ZCL_ZMCP_FLUID_IMG`, `./fluid/builtin/img.ts`), reached
+ * through `dispatch()` by `runCreateCustomizingRequest` in `./img-write.ts`.
+ * This module only validates the plan and parses the `CTSW>` transcript the
+ * action writes — the same division of labor `./img-write-bridge.ts` keeps
+ * for the probe and apply actions.
  */
 
 import { AbapError } from "./errors.js";
-import { ddicBridgeSource, DDIC_ERR_PREFIX } from "./ddic-bridge.js";
+import { DDIC_ERR_PREFIX } from "./ddic-bridge.js";
 import { abapLiteral, assertAbapText } from "./enhancement-templates.js";
 import { ERR_LINE_PREFIX } from "./run.js";
 
@@ -60,7 +61,8 @@ export const CUSTREQ_DESCRIPTION_MAX = 60;
  * `abap_transport list`), so the call is accepted at all and does create a
  * type-`W` request. `ET_TASK_HEADERS` came back empty on that call, which
  * is why `IT_USERS` is now populated — see the comment at its call site in
- * `customizingRequestBody` for the full finding. The second call, on
+ * `ZCL_ZMCP_FLUID_IMG`'s `create_request` method (`src/adt/fluid/builtin/img.ts`)
+ * for the full finding. The second call, on
  * 2026-09-06, ran the current code, passing `IT_USERS` with exactly one
  * `SY-UNAME` row, and also succeeded: `sy-subrc` came back 0, and a
  * type-`W` request was created together with a type-`Q` task. That
@@ -194,138 +196,6 @@ export function validateCustomizingRequestPlan(p: CustomizingRequestPlan): void 
 }
 
 // ---------------------------------------------------------------------------
-// Source generation
-// ---------------------------------------------------------------------------
-
-function customizingRequestBody(p: CustomizingRequestPlan): string[] {
-  const P = CUSTOMIZING_REQUEST_FM.params;
-  const X = CUSTOMIZING_REQUEST_FM.exceptions;
-  const textLit = abapLiteral(p.description);
-
-  const exportingLines = [`    ${P.type} = 'W'`, `    ${P.text} = ${textLit}`];
-  if (p.owner !== undefined) {
-    exportingLines.push(`    ${P.owner} = ${abapLiteral(p.owner)}`);
-  }
-  // IT_USERS: live on 2026-09-05, calling this FM from this server with no user row at
-  // all, sy-subrc came back 0 and a type-W request WAS created, but ET_TASK_HEADERS came
-  // back empty — the generated code as it existed then read no task and RETURNed before
-  // ever printing the request number, so the request was created and its number thrown
-  // away, orphaned. The fix tried next — a single `INSERT sy-uname INTO TABLE lt_users.`
-  // — failed to *activate* on 2026-09-06 with:
-  //   E line 26 col 31  "SY-UNAME" and the row type of "LT_USERS" are incompatible.
-  // which falsifies the earlier "line type and table kind of SCTS_USERS were not
-  // measured" note on both counts. Now measured live from this system's own DD40L/DD03L:
-  // SCTS_USERS (TTYP/DA, package SCTS_REQ) is DD40L ROWTYPE SCTS_USER, ROWKIND S
-  // (structured row type), ACCESSMODE T (standard table), KEYDEF D / KEYKIND N
-  // (non-unique default key); SCTS_USER's DD03L rows are exactly two fields — USER
-  // (position 0001, rollname TR_AS4USER, CHAR) and TYPE (position 0002, rollname
-  // TRFUNCTION, CHAR). So the row is built field-by-field below (`ls_user-user` /
-  // `ls_user-type`) instead of assigning SY-UNAME straight into the table line.
-  // `INSERT ... INTO TABLE` (below) is still used rather than `APPEND`: valid for
-  // standard, sorted and hashed tables alike, so the table kind was never what broke —
-  // it was always the row's structure. `ls_user-type = 'Q'` assumes 'Q' (customizing
-  // task, TRFUNCTION's value for a task under a type-W request) is the task type this FM
-  // wants for IT_USERS-TYPE; that is still UNPROVEN from here — DD40L/DD03L say what the
-  // field is called and typed, not what value the FM expects there. A wrong guess on the
-  // field names above still fails at *activation*, before the FM is ever called, so it
-  // still can never create an orphaned request; a wrong guess on 'Q' itself would only
-  // surface on a live call, which is exactly what a round-3 read-back of TASKTYPE (see
-  // the out->write below) is for.
-  exportingLines.push(`    ${P.users} = lt_users`);
-
-  return [
-    "DATA ls_request_header TYPE trwbo_request_header.",
-    "DATA lt_task_headers TYPE trwbo_request_headers.",
-    "DATA ls_task_header TYPE trwbo_request_header.",
-    "DATA lt_users TYPE scts_users.",
-    "DATA ls_user TYPE scts_user.",
-    "DATA lv_msg TYPE string.",
-    "DATA lv_exc TYPE string.",
-    "",
-    "ls_user-user = sy-uname.",
-    "ls_user-type = 'Q'.",
-    "INSERT ls_user INTO TABLE lt_users.",
-    "",
-    `CALL FUNCTION '${CUSTOMIZING_REQUEST_FM.fm}'`,
-    "  EXPORTING",
-    ...exportingLines,
-    "  IMPORTING",
-    `    ${P.requestHeader} = ls_request_header`,
-    `    ${P.taskHeaders}   = lt_task_headers`,
-    "  EXCEPTIONS",
-    `    ${X.insertFailed}  = 1`,
-    `    ${X.enqueueFailed} = 2`,
-    "    OTHERS = 3.",
-    "IF sy-subrc <> 0.",
-    "  CASE sy-subrc.",
-    "    WHEN 1.",
-    `      lv_exc = '${X.insertFailed.toUpperCase()}'.`,
-    "    WHEN 2.",
-    `      lv_exc = '${X.enqueueFailed.toUpperCase()}'.`,
-    "    WHEN OTHERS.",
-    "      lv_exc = 'OTHERS'.",
-    "  ENDCASE.",
-    // CTS FMs report the real reason via sy-msg*, not the exception name — see the
-    // module header and img-write-bridge.ts's CTS_INSERT_FM note for the same finding.
-    "  MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno",
-    "    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.",
-    `  out->write( |${CUSTREQ_LINE_PREFIX}ERROR exception=[{ lv_exc }] len=[{ strlen( lv_msg ) }] value=[{ lv_msg }]| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "",
-    "IF ls_request_header-trkorr IS INITIAL.",
-    `  out->write( |${CUSTREQ_LINE_PREFIX}ERROR exception=[NO_REQUEST] len=[0] value=[]| ).`,
-    "  RETURN.",
-    "ENDIF.",
-    "",
-    `out->write( |${CUSTREQ_LINE_PREFIX}REQUEST len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
-    "",
-    "READ TABLE lt_task_headers INTO ls_task_header INDEX 1.",
-    "IF sy-subrc <> 0.",
-    // Row-recording decision: corr_nr is still passed straight through to
-    // TR_OBJECTS_CHECK/TR_OBJECTS_INSERT unchanged by the row-recording path; that path
-    // itself performs no task-less check. Whether CTS accepts rows recorded against a
-    // request with no task under it is unknown from here — a further reason the
-    // task-less condition is instead reported loudly here, carrying the request number,
-    // so the caller can add a task or delete the request. Refusing at row-recording time
-    // would mean recognising "this number names a task-less request", which requires
-    // reading CTS state that path does not read.
-    `  out->write( |${CUSTREQ_LINE_PREFIX}WARN code=[NO_TASK] len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).`,
-    "ELSE.",
-    `  out->write( |${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]| ).`,
-    // TRWBO_REQUEST_HEADER-TRFUNCTION is NOT measured from this system — only SCTS_USER's
-    // USER/TYPE fields were (see the IT_USERS comment above). Emitted so a live round-3
-    // read-back can prove or disprove the 'Q' guess passed as IT_USERS-TYPE above; a wrong
-    // field name here fails activation before the FM ever runs, the same cheap failure
-    // mode as a wrong SCTS_USER field name. Its own `out->write`/`CTSW>` line, not extra
-    // fields tacked onto the TASK line above: every other line here (REQUEST, TASK, WARN,
-    // ERROR) is `head len=[n] value=[v]`, and `extractCustReqValue`/the CUSTREQ_*_RE
-    // patterns are all built on exactly one `len=[n] value=[v]` pair per line — a combined
-    // `TASK <number> TYPE <x>` line would need its own bespoke two-value regex instead of
-    // reusing that shape, for one field that is genuinely a second, independent value.
-    `  out->write( |${CUSTREQ_LINE_PREFIX}TASKTYPE len=[{ strlen( ls_task_header-trfunction ) }] value=[{ ls_task_header-trfunction }]| ).`,
-    "ENDIF.",
-  ];
-}
-
-/**
- * The whole generated class source for creating one customizing request.
- * `ddicBridgeSource` (`./ddic-bridge.ts`) is where the 255-char-per-line
- * ceiling is actually enforced (it walks every generated line and throws
- * `CHECK_FAILED` on the first one over `ABAP_SOURCE_LINE_MAX`) — this
- * function does not duplicate that check, it relies on going through
- * `ddicBridgeSource` for every line it emits, same as `imgProbeSource`/
- * `imgApplySource` in `./img-write-bridge.ts`. Because `description` is
- * caller-supplied and gets embedded as a quoted literal on the `iv_text`
- * line, that reliance is the thing actually being pinned by this module's
- * "stays within the line ceiling" test.
- */
-export function customizingRequestSource(p: CustomizingRequestPlan): string {
-  validateCustomizingRequestPlan(p);
-  return ddicBridgeSource(CUSTOMIZING_REQUEST_CLASS, [], customizingRequestBody(p));
-}
-
-// ---------------------------------------------------------------------------
 // Transcript
 // ---------------------------------------------------------------------------
 
@@ -376,8 +246,9 @@ const CUSTREQ_WARN_RE = /^code=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
  * the expected shape, is silently skipped — never thrown. Never routes a
  * `REQUEST`/`TASK` value into `errors`, and never reads a `trkorr`-shaped
  * value out of an `ERROR` line — `ERROR` and `REQUEST` are still mutually
- * exclusive by construction in {@link customizingRequestBody} (every path
- * either returns after writing exactly one `ERROR` line, or falls through
+ * exclusive by construction in `ZCL_ZMCP_FLUID_IMG`'s `create_request` method
+ * (`src/adt/fluid/builtin/img.ts`) (every path either returns after writing
+ * exactly one `ERROR` line, or falls through
  * to write `REQUEST`). What follows a `REQUEST` line is no longer fixed,
  * though: it is followed by *either* a `TASK` line immediately followed by
  * a `TASKTYPE` line (a task was found — `TASKTYPE` carries
@@ -386,18 +257,18 @@ const CUSTREQ_WARN_RE = /^code=\[([A-Za-z0-9_]{1,30})\] len=\[(\d+)\] value=\[/;
  * both, and never neither. `taskType` without `task` is not a shape this
  * bridge produces.
  *
- * A line missing the `CTSW> ` prefix is not automatically ignored, though:
- * a failure inside the `TRY`/`CATCH` scaffold `ddicBridgeSource` wraps every
- * generated class in (an uncaught exception, a `cx_root` the scaffold's own
- * `CATCH` reports) never gets a `CTSW> ` line at all — it comes back on the
- * scaffold's own prefixes, `DDIC_ERR_PREFIX` (`./ddic-bridge.ts`) or
- * `ERR_LINE_PREFIX` (`./run.ts`), reused here rather than re-declared, the
- * same two constants `parseImgWriteTranscript` routes into its own `errors`.
- * Treating those as just more unrecognized non-`CTSW> ` lines — silently
- * ignored — would turn a real scaffold failure into an empty, error-free
- * result indistinguishable from a clean run that produced nothing, which is
- * the worst outcome for a write path. So they are routed into `errors` here
- * too; every other non-`CTSW> ` line is still ignored.
+ * A line missing the `CTSW> ` prefix is not automatically ignored, though.
+ * An exception the fluid body class does not catch itself is reported by
+ * the fluid runtime as an `ERR` frame, which `dispatch()` turns into a
+ * thrown error before this parser ever sees the transcript. The two
+ * transcript-level error prefixes the body class's sibling actions use,
+ * `DDIC_ERR_PREFIX` (`./ddic-bridge.ts`) and `ERR_LINE_PREFIX` (`./run.ts`),
+ * are still routed into `errors` here — reused rather than re-declared, the
+ * same two constants `parseImgWriteTranscript` routes into its own `errors`
+ * — so that a failure reported on either of them can never come back as an
+ * empty, error-free result indistinguishable from a clean run that produced
+ * nothing, which is the worst outcome for a write path. Every other
+ * non-`CTSW> ` line is still ignored.
  */
 export function parseCustomizingRequestTranscript(text: string): CustomizingRequestTranscript {
   const result: CustomizingRequestTranscript = { errors: [], warnings: [] };

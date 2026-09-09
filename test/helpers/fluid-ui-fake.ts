@@ -1,25 +1,20 @@
 /**
- * Shared fake-ADT plumbing for the fluid `img` tool's three actions
- * (`preview`, `apply`, `create_request`), used by img-write.test.ts and
- * img-edit-tool.test.ts. Two things live here:
+ * Shared fake-ADT plumbing for the fluid `ui` tool's `screen` action, used by
+ * ui-runtime.test.ts, ui-system-key.test.ts and integration-fluid-ui.test.ts.
+ * Modeled directly on test/helpers/fluid-img-fake.ts. Two things live here:
  *
- * - `imgProbeConsole`: wraps a plain `IMGW>`/`CTSW>`/`ZMCP-DDIC-ERR>`
- *   transcript (the same fixture text `parseImgWriteTranscript`/
- *   `parseCustomizingRequestTranscript` have always consumed) into the fluid
- *   console frame grammar `src/adt/fluid/protocol.ts` expects — one `OUT`
- *   frame per line, bracketed by `BEGIN`/`END`. The name is a holdover from
- *   when only the probe used it; `opts.action` (default `"preview"`) picks
- *   which action's transcript this is, since `dispatch()` rejects a BEGIN
- *   frame whose `action` doesn't match the request it was sent for. Every
- *   one of `imgManifest`'s actions declares an array-of-string output, so
- *   `dispatch()` hands back `res.result` as exactly that array of OUT
- *   payloads, and the `img-write.ts` caller re-joins them with `\n` before
- *   parsing — hence one line per frame, not one frame holding the whole
- *   array.
+ * - `uiScreenConsole`: wraps a single already-built JSON payload (the shape
+ *   `toUiTranscriptResult` in src/adt/ui-runtime.ts expects to reshape) into
+ *   the fluid console frame grammar src/adt/fluid/protocol.ts expects.
+ *   `uiManifest`'s `screen` action declares a `type: "object"` output, so
+ *   `dispatch()` requires exactly one OUT value and hands it back verbatim as
+ *   `res.result` — unlike img's array-of-string output (one OUT frame per
+ *   line), ui's screen console carries exactly one OUT frame, whose payload
+ *   is the whole object.
  *
- * - `dynamicImgFluidRoute`: auto-vivifying class store for the two class
- *   shapes the fluid img probe ever deploys — the fixed body class
- *   (`imgManifest.entry`) and the content-hash invoker `dispatch()` computes
+ * - `dynamicUiFluidRoute`: auto-vivifying class store for the two class
+ *   shapes the fluid ui screen probe ever deploys — the fixed body class
+ *   (`uiManifest.entry`) and the content-hash invoker `dispatch()` computes
  *   at runtime (`ZCL_ZMCP_I_[0-9A-F]{8}`, src/adt/fluid/invoke.ts). Same
  *   idiom as test/fluid-dispatch.test.ts's `dynamicFluidRoute`, generalized
  *   with `activationError`/`classrunOverride` hooks so the same store can
@@ -29,8 +24,9 @@
  *   under each test file's own `baseRoute`.
  */
 import type { HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
-import { imgManifest, imgSources } from "../../src/adt/fluid/builtin/img.js";
+import { uiManifest, uiSources } from "../../src/adt/fluid/builtin/ui.js";
 import { manifestVersion } from "../../src/adt/fluid/manifest.js";
+import { FLUID_RUNTIME_CLASS } from "../../src/adt/fluid/abap/runtime.js";
 
 const resp = (status: number, body = "", headers: Record<string, unknown> = {}): HttpClientResponse =>
   ({ status, statusText: String(status), body, headers }) as unknown as HttpClientResponse;
@@ -84,28 +80,23 @@ function nameFromClassUrl(url: string): string | undefined {
   return rest.toUpperCase();
 }
 
-/** The only two class shapes the fluid img probe ever deploys: the fixed body class, or a content-hash invoker (src/adt/fluid/invoke.ts). */
-export function isImgFluidClass(name: string): boolean {
-  return name === imgManifest.entry || /^ZCL_ZMCP_I_[0-9A-F]{8}$/.test(name);
+/** The three class shapes the fluid ui screen probe ever deploys: the shared fluid runtime class, the fixed body class, or a content-hash invoker (src/adt/fluid/invoke.ts). Unlike test/helpers/fluid-img-fake.ts (which predates the runtime class being its own deployed manifest object and needs a separate runtimeClassRoute at each call site), this fake owns its own file and folds all three in here. */
+export function isUiFluidClass(name: string): boolean {
+  return name === uiManifest.entry || name === FLUID_RUNTIME_CLASS || /^ZCL_ZMCP_I_[0-9A-F]{8}$/.test(name);
 }
 
-export const imgManifestVersion: string = manifestVersion(imgManifest, imgSources);
+export const uiManifestVersion: string = manifestVersion(uiManifest, uiSources);
 
-/** One `OUT` frame per line of `raw`, bracketed by BEGIN (id: "img", action: `opts.action`) and END. */
-export function imgProbeConsole(
-  raw: string,
-  opts: { action?: string; ver?: string; rc?: number; truncated?: boolean } = {},
+/** A single `OUT` frame carrying `payload` whole, bracketed by BEGIN (id: "ui", action: "screen") and END — `ui.screen`'s output is `type: "object"`, so `dispatch()` requires exactly one OUT value and hands it back verbatim. */
+export function uiScreenConsole(
+  payload: Record<string, unknown>,
+  opts: { ver?: string; rc?: number; truncated?: boolean } = {},
 ): string {
-  const lines = raw.split("\n").filter((l) => l.length > 0);
-  const frame = (name: string, payload: unknown) => `ZMCP-H>${name} ${JSON.stringify(payload)}`;
+  const frame = (name: string, body: unknown) => `ZMCP-H>${name} ${JSON.stringify(body)}`;
+  const raw = JSON.stringify(payload);
   const out = [
-    frame("BEGIN", {
-      id: "img",
-      action: opts.action ?? "preview",
-      ver: opts.ver ?? imgManifestVersion,
-      contract: imgManifest.contract,
-    }),
-    ...lines.map((l) => frame("OUT", l)),
+    frame("BEGIN", { id: "ui", action: "screen", ver: opts.ver ?? uiManifestVersion, contract: uiManifest.contract }),
+    frame("OUT", payload),
     frame("END", { rc: opts.rc ?? 0, outBytes: raw.length, truncated: opts.truncated ?? false, ms: 1 }),
   ];
   return out.join("\n") + "\n";
@@ -118,19 +109,19 @@ interface ObjState {
   active: boolean;
 }
 
-export interface ImgFluidRouteOptions {
-  /** classrun output for the invoker's execution — normally built with `imgProbeConsole`. */
+export interface UiFluidRouteOptions {
+  /** classrun output for the invoker's execution — normally built with `uiScreenConsole`. */
   transcript: () => string;
   /** Bridge deploy package name embedded in class-create bodies and classDocXml's packageRef. */
   packageName: string;
   /** When set, activation of a class satisfying `matches` answers with this XML instead of a bare success — same shape as img-write.test.ts's bridgeActivationRefused/bridgeActivationDuplicateDeclaration. */
   activationError?: { matches: (className: string) => boolean; xml: (className: string) => string };
-  /** When set, classrun for any fluid img class is answered by this instead of `transcript()` — for a below-activation scaffold failure (e.g. classrun itself 500s). */
+  /** When set, classrun for any fluid ui class is answered by this instead of `transcript()` — for a below-activation scaffold failure (e.g. classrun itself 500s). */
   classrunOverride?: (o: HttpClientOptions) => HttpClientResponse;
 }
 
-export function dynamicImgFluidRoute(
-  opts: ImgFluidRouteOptions,
+export function dynamicUiFluidRoute(
+  opts: UiFluidRouteOptions,
 ): (o: HttpClientOptions) => HttpClientResponse | undefined {
   const store = new Map<string, ObjState>();
   const at = (name: string): ObjState => {
@@ -149,7 +140,7 @@ export function dynamicImgFluidRoute(
     if (o.url === "/sap/bc/adt/oo/classes" && method === "POST") {
       const m = /adtcore:name="([^"]+)"/.exec(o.body ?? "");
       const name = (m?.[1] ?? "").toUpperCase();
-      if (!isImgFluidClass(name)) return undefined;
+      if (!isUiFluidClass(name)) return undefined;
       const prior = store.get(name);
       store.set(name, { exists: true, packageName: opts.packageName, source: prior?.source, active: false });
       return resp(200, "", OK_TEXT);
@@ -158,7 +149,7 @@ export function dynamicImgFluidRoute(
     if (o.url === "/sap/bc/adt/activation" && method === "POST") {
       const m = /adtcore:name="([^"]+)"/.exec(o.body ?? "");
       const name = (m?.[1] ?? "").toUpperCase();
-      if (!isImgFluidClass(name)) return undefined;
+      if (!isUiFluidClass(name)) return undefined;
       if (opts.activationError?.matches(name)) return resp(200, opts.activationError.xml(name), OK_XML);
       const st = store.get(name);
       if (st) st.active = true;
@@ -171,7 +162,7 @@ export function dynamicImgFluidRoute(
     }
 
     const name = nameFromClassUrl(o.url);
-    if (name !== undefined && isImgFluidClass(name)) {
+    if (name !== undefined && isUiFluidClass(name)) {
       const st = at(name);
       const isSrc = o.url.endsWith("/source/main");
       if (!isSrc && method === "GET" && !qs._action) {

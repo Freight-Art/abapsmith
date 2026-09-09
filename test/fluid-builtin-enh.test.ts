@@ -121,15 +121,20 @@ describe("enh ABAP reads package_name/corr_nr via RT input helpers, not regex", 
 });
 
 describe("enh action names track BRIDGE_CLASS", () => {
-  it("has exactly one action per BRIDGE_CLASS key EXCEPT exercise, camelCase to snake_case", () => {
-    // exercise is deliberately not ported (see enh.ts's header/WHEN OTHERS
-    // comment: a statically-deployed body class cannot bind a BAdI handle
-    // whose type is only known at runtime), so it is excluded here on
-    // purpose — not a gap this test failed to notice.
-    const expected = Object.keys(BRIDGE_CLASS)
-      .filter((k) => k !== "exercise")
-      .map((k) => k.replace(/([A-Z])/g, "_$1").toLowerCase())
-      .sort();
+  // Before the S12 reroute, BRIDGE_CLASS carried one key per per-call bridge
+  // (createSpot, addBadiDef, addFilterDef, createImpl, setFilterValues,
+  // exercise) and this test derived `expected` from
+  // `Object.keys(BRIDGE_CLASS)` itself, camelCase-to-snake_case, so the
+  // manifest's action list could never silently drift from the bridge
+  // constant. Five of those six operations now dispatch through this static
+  // fluid body instead of a per-call bridge, so `BRIDGE_CLASS` was shrunk to
+  // just `{ exercise: "ZCL_ZMCP_ENH_EXEC" }` (see enhancement-bridge.ts) —
+  // deriving `expected` from it now would just assert `actual` equals `[]`,
+  // which passes vacuously and proves nothing. `MUTATING_ACTIONS` (this
+  // file's own manifest-shape source of truth, used throughout the describe
+  // blocks above) is the replacement fixed list.
+  it("has exactly the five MUTATING_ACTIONS as manifest actions, camelCase to snake_case", () => {
+    const expected = [...MUTATING_ACTIONS].sort();
     const actual = enhManifest.actions.map((a) => a.name).sort();
     expect(actual).toEqual(expected);
   });

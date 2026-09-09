@@ -489,9 +489,11 @@ export const ConfigSchema = z.object({
    * flag together — neither alone reaches `press`, and this flag can only
    * narrow admin further, never substitute for it.
    *
-   * `screen` mode (discovery) is NOT gated by this flag — it only deploys a
-   * throwaway `$TMP` bridge class (like `abap_fpm_read`), gated by ordinary
-   * write capability instead.
+   * `screen` mode (discovery) is NOT gated by this flag — it only dispatches
+   * against the reused fluid body class `ZCL_ZMCP_FLUID_UI` and a
+   * content-addressed invoker in `$ABAPSMITH_FLUID_API` (exactly as
+   * `abap_fpm_read`'s read modes do), gated by ordinary write capability
+   * instead.
    */
   allowUiPress: z.boolean().default(false),
   /**

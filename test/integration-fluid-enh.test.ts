@@ -24,7 +24,17 @@
  *     right interface, with `singleUse` round-tripped correctly. This
  *     exercises a second action and proves the JSON scanner reads more
  *     than one input field.
- *  3. An HONEST FAILURE PATH — `add_badi_def` against a spot name that was
+ *  3. `add_filter_def` — dispatched against the very BAdI definition
+ *     `add_badi_def` just added, attaching one filter declaration to it.
+ *     The ABAP body re-derives the definition first (`get_badi_def` /
+ *     `delete_badi_def` / `add_badi_def` with the filter appended), so the
+ *     independent read-back below also re-confirms the definition's own
+ *     fields (interface binding, `singleUse`) survived that round trip
+ *     untouched, not just that the filter landed. No new object is created —
+ *     this attaches to the same spot `create_spot`/`add_badi_def` already
+ *     made and `afterAll` already deletes, so it needs no cleanup of its
+ *     own beyond the extra invoker class (see below).
+ *  4. An HONEST FAILURE PATH — `add_badi_def` against a spot name that was
  *     never created — asserted to reject with `FLUID_ACTION_FAILED`. This
  *     is the assertion that matters most: a CATCH arm that forgets
  *     `zcl_zmcp_fluid_rt=>err` reads as success at the ABAP layer, and only
@@ -40,6 +50,16 @@
  * safely unwind. Leaving them out is the honest choice; inventing a
  * throwaway implementing class here would be residue on a system other
  * suites depend on.
+ *
+ * Also NOT exercised live, deliberately and permanently, not a gap: the
+ * legacy (non-fluid) `abap_enh` operation `exercise`. It stays on its own
+ * generated `ZCL_ZMCP_ENH_EXEC` classrun bridge — `builtin/enh.ts`'s own
+ * comment explains why it cannot move onto this static fluid body (it needs
+ * a compile-time `DATA lo_badi TYPE REF TO <badi_name>` built from a runtime
+ * string, which is dynamic dispatch and forbidden by `reviewFluidAbap`).
+ * There is nothing here to pin: `exercise` never reaches `dispatch()` at
+ * all, so it is out of scope for a *fluid* integration suite by
+ * construction, not by oversight.
  *
  * PACKAGE PLACEMENT — READ THIS BEFORE CHANGING THE ASSERTIONS BELOW.
  * `package_name` and `corr_nr` are now REQUIRED (not optional) on every
@@ -125,6 +145,8 @@ const SPOT_NAME = `ZMCP_ENH_${randomSuffix}`;
 const NONEXISTENT_SPOT = `ZMCP_ENH_NOPE_${randomSuffix}`;
 const BADI_NAME = `ZMCP_BADI_${randomSuffix}`;
 const IFACE_NAME = `ZIF_MCP_ENH_${randomSuffix}`;
+const FILTER_NAME = `ZMCP_FLT_${randomSuffix}`;
+const FILTER_TEXT = "abapsmith S12 live filter def";
 
 // package_name: FLUID_PACKAGE on every mutating call below — the live
 // appliance is shared, and this run is only permitted to write into
@@ -145,6 +167,15 @@ const ADD_BADI_DEF_ARGS = {
   interface_name: IFACE_NAME,
   single_use: true,
   short_text: "abapsmith S5b live BAdI def",
+  package_name: FLUID_PACKAGE,
+  corr_nr: "",
+};
+const ADD_FILTER_DEF_ARGS = {
+  spot_name: SPOT_NAME,
+  badi_name: BADI_NAME,
+  filter_name: FILTER_NAME,
+  filter_type: "C",
+  filter_text: FILTER_TEXT,
   package_name: FLUID_PACKAGE,
   corr_nr: "",
 };
@@ -345,6 +376,7 @@ dw("live A4H enh fluid tool ($ABAPSMITH_FLUID_API, BAdI enhancement spot/impleme
     const invokerNames = [
       invokerName(ENH_TOOL_ID, "create_spot", CREATE_SPOT_ARGS, enhManifest.contract),
       invokerName(ENH_TOOL_ID, "add_badi_def", ADD_BADI_DEF_ARGS, enhManifest.contract),
+      invokerName(ENH_TOOL_ID, "add_filter_def", ADD_FILTER_DEF_ARGS, enhManifest.contract),
       invokerName(ENH_TOOL_ID, "add_badi_def", BAD_ADD_BADI_DEF_ARGS, enhManifest.contract),
     ];
     for (const name of invokerNames) await deleteClassIfPresent(name);
@@ -451,6 +483,37 @@ dw("live A4H enh fluid tool ($ABAPSMITH_FLUID_API, BAdI enhancement spot/impleme
     expect(def).toBeDefined();
     expect(def!.interfaceRef?.name?.toUpperCase()).toBe(IFACE_NAME);
     expect(def!.singleUse).toBe(true);
+  }, 120_000);
+
+  it("enh.add_filter_def adds a filter declaration to the BAdI def just added: dispatch succeeds, output is schema-valid, and an independent read-back shows the filter bound to the right definition", async () => {
+    assertUsable();
+    const deps: FluidDeps = { conn, cfg, gate: GATE, tools };
+
+    const result = await dispatch(deps, { tool: ENH_TOOL_ID, action: "add_filter_def", args: ADD_FILTER_DEF_ARGS });
+
+    expect(result.tool).toBe(ENH_TOOL_ID);
+    expect(result.action).toBe("add_filter_def");
+    const out = result.result as { added: boolean };
+    expect(out.added).toBe(true);
+
+    const spec = enhManifest.actions.find((a) => a.name === "add_filter_def");
+    expect(spec).toBeDefined();
+    expect(validateAgainstSchema(out, spec!.output, "result")).toEqual([]);
+
+    // Independent read-back — never trust dispatch's own success report. The
+    // ABAP body deletes then re-adds the whole BAdI def entry to attach the
+    // filter (get_badi_def / delete_badi_def / add_badi_def), so this also
+    // re-confirms the definition's own fields survived that round trip, not
+    // just that the filter landed.
+    const spot = await readEnhancementSpot(conn, SPOT_NAME);
+    const def = spot.data.badiDefinitions.find((d) => d.name.toUpperCase() === BADI_NAME);
+    expect(def).toBeDefined();
+    expect(def!.interfaceRef?.name?.toUpperCase()).toBe(IFACE_NAME);
+    expect(def!.singleUse).toBe(true);
+    const filter = def!.filters.find((f) => f.filterName?.toUpperCase() === FILTER_NAME);
+    expect(filter).toBeDefined();
+    expect(filter!.filterType).toBe("C");
+    expect(filter!.shorttext).toBe(FILTER_TEXT);
   }, 120_000);
 
   it("enh.add_badi_def against a spot name that was never created is reported as a genuine failure, not silently as success", async () => {

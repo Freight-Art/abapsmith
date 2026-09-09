@@ -99,3 +99,49 @@ describe("imgSources — ABAP source content", () => {
     },
   );
 });
+
+// Regression guard for a real reachability gap found by review, not a live incident: the expert
+// escape hatch (`table`/`key_fields`/`client_field` given directly, bypassing `splitClientField`'s
+// CLNT-typed-field derivation) plus `allow_cross_client: true` can name a genuinely
+// client-independent table, which `img-write-policy.ts`'s cross-client rule (rule 7) only refuses
+// when `allowCrossClient !== true` — it never checks whether the declared client field actually
+// exists on the table. Before this guard, `apply`'s ABAP body silently no-opped an absent client
+// field (`ASSIGN COMPONENT ... IF sy-subrc = 0. <fs_val> = sy-mandt. ENDIF.`) and fell straight
+// through to a real MODIFY/DELETE — reaching a live write the documented guarantee ("this tool
+// cannot write a client-independent table at all") said was impossible. There is no ABAP
+// interpreter here to execute `apply` and observe the refusal directly, so this pins the guard's
+// presence and position in the shipped source text instead: it must exist, it must run before
+// either MODIFY or DELETE (never after), and it must actually refuse (report an error, clear
+// rv_ok, and return) rather than merely look up the field.
+describe("ZCL_ZMCP_FLUID_IMG's apply refuses a client field absent from the table before writing", () => {
+  it("checks the client field is a real component, before MODIFY/DELETE, and actually refuses when it isn't", () => {
+    const source = imgSources.get("ZCL_ZMCP_FLUID_IMG");
+    expect(source).toBeDefined();
+    if (source === undefined) return;
+
+    const applyStart = source.indexOf("METHOD apply.");
+    expect(applyStart, "METHOD apply. not found").toBeGreaterThan(-1);
+    const applyEnd = source.indexOf("ENDMETHOD.", applyStart);
+    expect(applyEnd, "ENDMETHOD. after METHOD apply. not found").toBeGreaterThan(applyStart);
+    const body = source.slice(applyStart, applyEnd);
+
+    const guardIdx = body.indexOf(
+      "READ TABLE lt_comp INTO ls_comp WITH KEY name = to_upper( iv_client_field )",
+    );
+    expect(guardIdx, "apply must look up iv_client_field as a real component of the table").toBeGreaterThan(-1);
+
+    const modifyIdx = body.indexOf("MODIFY (lv_table_upper)");
+    const deleteIdx = body.indexOf("DELETE (lv_table_upper)");
+    expect(modifyIdx, "MODIFY (lv_table_upper) not found").toBeGreaterThan(-1);
+    expect(deleteIdx, "DELETE (lv_table_upper) not found").toBeGreaterThan(-1);
+    expect(guardIdx, "client-field guard must run before MODIFY").toBeLessThan(modifyIdx);
+    expect(guardIdx, "client-field guard must run before DELETE").toBeLessThan(deleteIdx);
+
+    const guardBlockEnd = body.indexOf("ENDIF.", guardIdx);
+    expect(guardBlockEnd, "no ENDIF. closing the client-field guard").toBeGreaterThan(guardIdx);
+    const guardBlock = body.slice(guardIdx, guardBlockEnd);
+    expect(guardBlock, "guard must actually report a refusal").toContain("zcl_zmcp_fluid_rt=>err(");
+    expect(guardBlock, "guard must clear rv_ok").toContain("rv_ok = abap_false");
+    expect(guardBlock, "guard must RETURN, not merely record the refusal").toContain("RETURN.");
+  });
+});

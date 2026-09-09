@@ -29,7 +29,9 @@
  * just scalars. `CONVERSION_EXIT_ALPHA_INPUT` is the standard ALPHA
  * conversion exit, used only to prove the IMPORTING-parameter bind path
  * (`INPUT` -> `OUTPUT`); its exact padded output width is not pinned here.
- * `RETIRED_BRIDGE_CLASSES` (`ZCL_ZMCP_DDIC_*`, `ZCL_ZMCP_IMG_WPROBE`) is the
+ * `RETIRED_BRIDGE_CLASSES` (`ZCL_ZMCP_DDIC_*`, `ZCL_ZMCP_IMG_WPROBE`,
+ * `ZCL_ZMCP_IMG_WAPPLY`, `ZCL_ZMCP_CTS_WREQ`, `ZCL_ZMCP_ENH_C*`/`_ADEF`/
+ * `_FDEF`/`_FVAL` — but never `ZCL_ZMCP_ENH_EXEC`, which is still live) is the
  * closed, static list of pre-fluid-API bridge classes; this suite proves
  * `probeRetiredBridges`/`reapRetiredBridges` against whatever the appliance
  * actually has (tolerating total absence as the normal case) — it never

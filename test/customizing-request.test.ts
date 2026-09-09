@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
-import { ABAP_SOURCE_LINE_MAX, DDIC_ERR_PREFIX } from "../src/adt/ddic-bridge.js";
+import { DDIC_ERR_PREFIX } from "../src/adt/ddic-bridge.js";
 import { ERR_LINE_PREFIX } from "../src/adt/run.js";
 import {
   CUSTOMIZING_REQUEST_CLASS,
@@ -9,7 +9,6 @@ import {
   CUSTREQ_DESCRIPTION_MAX,
   type CustomizingRequestPlan,
   validateCustomizingRequestPlan,
-  customizingRequestSource,
   parseCustomizingRequestTranscript,
 } from "../src/adt/customizing-request.js";
 
@@ -28,14 +27,6 @@ function expectBadInput(fn: () => unknown): void {
     if (!isAbapError(e)) throw e;
     expect((e as AbapError).code).toBe("BAD_INPUT");
   }
-}
-
-function maxLineLength(source: string): number {
-  return Math.max(...source.split("\n").map((l) => l.length));
-}
-
-function countChar(s: string, ch: string): number {
-  return s.split(ch).length - 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,154 +131,6 @@ describe("validateCustomizingRequestPlan", () => {
 
   it("rejects an empty owner", () => {
     expectBadInput(() => validateCustomizingRequestPlan(basePlan({ owner: "" })));
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Source generation
-// ---------------------------------------------------------------------------
-
-describe("customizingRequestSource", () => {
-  it("names the fixed class and the FM, and passes IV_TYPE = 'W' exactly once", () => {
-    const src = customizingRequestSource(basePlan());
-    expect(src.toLowerCase()).toContain(CUSTOMIZING_REQUEST_CLASS.toLowerCase());
-    expect(src).toContain(`CALL FUNCTION '${CUSTOMIZING_REQUEST_FM.fm}'`);
-    const typeMatches = src.match(/iv_type = 'W'/g) ?? [];
-    expect(typeMatches.length).toBe(1);
-  });
-
-  it("never names $TMP and never contains a literal that looks like a transport number", () => {
-    const src = customizingRequestSource(basePlan());
-    expect(src).not.toContain("$TMP");
-    // TRKORR shape: one letter, two letters/digits, 'K', six digits — e.g. XXXK900001.
-    expect(src).not.toMatch(/\b[A-Z][A-Z0-9]{2}K[0-9]{6}\b/);
-  });
-
-  it("includes the owner literal when given, and omits IV_OWNER entirely when not", () => {
-    const withOwner = customizingRequestSource(basePlan({ owner: "DEVELOPER1" }));
-    expect(withOwner).toContain(`${CUSTOMIZING_REQUEST_FM.params.owner} = 'DEVELOPER1'`);
-
-    const withoutOwner = customizingRequestSource(basePlan());
-    expect(withoutOwner).not.toContain(CUSTOMIZING_REQUEST_FM.params.owner);
-  });
-
-  it("doubles an embedded single quote in the description, and the literal stays balanced", () => {
-    const src = customizingRequestSource(basePlan({ description: "caller's request" }));
-    expect(src).toContain("iv_text = 'caller''s request'");
-    // The whole iv_text literal has an even number of quote characters (each ' is doubled,
-    // plus the two literal-delimiting quotes) — an odd count would mean a quote broke out
-    // of the literal.
-    const iv_textLine = src.split("\n").find((l) => l.trim().startsWith("iv_text ="))!;
-    expect(iv_textLine).toBeDefined();
-    expect(countChar(iv_textLine, "'") % 2).toBe(0);
-  });
-
-  it("emits the CALL FUNCTION with EXCEPTIONS for both INSERT_FAILED and ENQUEUE_FAILED", () => {
-    const src = customizingRequestSource(basePlan());
-    expect(src).toContain(`${CUSTOMIZING_REQUEST_FM.exceptions.insertFailed}  = 1`);
-    expect(src).toContain(`${CUSTOMIZING_REQUEST_FM.exceptions.enqueueFailed} = 2`);
-    expect(src).toContain("OTHERS = 3.");
-  });
-
-  it("builds the error message from sy-msg* via MESSAGE ... INTO, not from the exception name alone", () => {
-    const src = customizingRequestSource(basePlan());
-    expect(src).toContain("MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno");
-    expect(src).toContain("WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.");
-    expect(src).toContain(`${CUSTREQ_LINE_PREFIX}ERROR exception=[{ lv_exc }] len=[{ strlen( lv_msg ) }] value=[{ lv_msg }]`);
-  });
-
-  it("emits REQUEST and TASK success lines reading TRKORR off the header/task-header, not literals", () => {
-    const src = customizingRequestSource(basePlan());
-    expect(src).toContain(`${CUSTREQ_LINE_PREFIX}REQUEST len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]`);
-    expect(src).toContain(`${CUSTREQ_LINE_PREFIX}TASK len=[{ strlen( ls_task_header-trkorr ) }] value=[{ ls_task_header-trkorr }]`);
-  });
-
-  it("emits a TASKTYPE line reading TRFUNCTION off the task header, right after TASK, inside the same ELSE branch", () => {
-    const src = customizingRequestSource(basePlan());
-    expect(src).toContain(
-      `${CUSTREQ_LINE_PREFIX}TASKTYPE len=[{ strlen( ls_task_header-trfunction ) }] value=[{ ls_task_header-trfunction }]`,
-    );
-    const lines = src.split("\n");
-    const taskIdx = lines.findIndex((l) => l.includes(`${CUSTREQ_LINE_PREFIX}TASK len=[`));
-    const taskTypeIdx = lines.findIndex((l) => l.includes(`${CUSTREQ_LINE_PREFIX}TASKTYPE len=[`));
-    expect(taskIdx).toBeGreaterThan(-1);
-    expect(taskTypeIdx).toBeGreaterThan(taskIdx);
-  });
-
-  it("stays within ABAP_SOURCE_LINE_MAX at the longest legal description, full of quotes to double, plus an owner", () => {
-    const description = "'".repeat(CUSTREQ_DESCRIPTION_MAX);
-    const src = customizingRequestSource({ description, owner: "A".repeat(12) });
-    expect(maxLineLength(src)).toBeLessThanOrEqual(ABAP_SOURCE_LINE_MAX);
-  });
-
-  it("declares lt_users/ls_user, builds the row field-by-field, and passes it_users = lt_users in EXPORTING", () => {
-    const src = customizingRequestSource(basePlan());
-    expect(src).toContain("DATA lt_users TYPE scts_users.");
-    expect(src).toContain(`${CUSTOMIZING_REQUEST_FM.params.users} = lt_users`);
-  });
-
-  it("pins the exact IT_USERS declaration/build lines, in order, and never assigns SY-UNAME straight into the table", () => {
-    const src = customizingRequestSource(basePlan());
-    const lines = src.split("\n").map((l) => l.trim());
-
-    const expected = [
-      "DATA lt_users TYPE scts_users.",
-      "DATA ls_user TYPE scts_user.",
-      "ls_user-user = sy-uname.",
-      "ls_user-type = 'Q'.",
-      "INSERT ls_user INTO TABLE lt_users.",
-    ];
-    // Each expected line must be present, and in this relative order — not just present
-    // anywhere, since e.g. a DATA declaration after the build lines would still compile
-    // to garbage semantics even though every string individually "appears".
-    let searchFrom = 0;
-    for (const line of expected) {
-      const idx = lines.indexOf(line, searchFrom);
-      expect(idx, `expected to find ${JSON.stringify(line)} at or after index ${searchFrom}`).toBeGreaterThanOrEqual(
-        searchFrom,
-      );
-      searchFrom = idx + 1;
-    }
-
-    // The old defect-B shape (INSERT sy-uname INTO TABLE ...) is gone entirely — that is
-    // exactly the line SY-UNAME/LT_USERS type incompatibility that failed activation live
-    // on 2026-09-06.
-    expect(src).not.toMatch(/INSERT sy-uname INTO TABLE/);
-  });
-
-  it("writes CTSW> REQUEST before reading lt_task_headers", () => {
-    const src = customizingRequestSource(basePlan());
-    const requestIdx = src.indexOf(`${CUSTREQ_LINE_PREFIX}REQUEST len=[`);
-    const readTaskIdx = src.indexOf("READ TABLE lt_task_headers INTO ls_task_header INDEX 1.");
-    expect(requestIdx).toBeGreaterThan(-1);
-    expect(readTaskIdx).toBeGreaterThan(-1);
-    expect(requestIdx).toBeLessThan(readTaskIdx);
-  });
-
-  it("reports a missing task as a WARN carrying the request number, not a RETURNing ERROR", () => {
-    const src = customizingRequestSource(basePlan());
-    expect(src).not.toContain("exception=[NO_TASK]");
-    expect(src).toContain(
-      `${CUSTREQ_LINE_PREFIX}WARN code=[NO_TASK] len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]`,
-    );
-    const lines = src.split("\n");
-    const warnIdx = lines.findIndex((l) => l.includes("WARN code=[NO_TASK]"));
-    expect(warnIdx).toBeGreaterThan(-1);
-    const elseIdx = lines.findIndex((l, i) => i > warnIdx && l.trim() === "ELSE.");
-    expect(elseIdx).toBeGreaterThan(warnIdx);
-    const between = lines.slice(warnIdx + 1, elseIdx);
-    expect(between.some((l) => l.trim() === "RETURN.")).toBe(false);
-  });
-
-  it("guards on ls_request_header-trkorr IS INITIAL, reporting NO_REQUEST, before the REQUEST write", () => {
-    const src = customizingRequestSource(basePlan());
-    expect(src).toContain("IF ls_request_header-trkorr IS INITIAL.");
-    expect(src).toContain(`${CUSTREQ_LINE_PREFIX}ERROR exception=[NO_REQUEST] len=[0] value=[]`);
-    const guardIdx = src.indexOf("IF ls_request_header-trkorr IS INITIAL.");
-    const requestIdx = src.indexOf(`${CUSTREQ_LINE_PREFIX}REQUEST len=[`);
-    expect(guardIdx).toBeGreaterThan(-1);
-    expect(requestIdx).toBeGreaterThan(-1);
-    expect(guardIdx).toBeLessThan(requestIdx);
   });
 });
 

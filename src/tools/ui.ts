@@ -49,6 +49,7 @@ import {
   type UiScreenQuery,
   type UiScreenTarget,
 } from "../adt/ui-runtime.js";
+import { uiManifest } from "../adt/fluid/builtin/ui.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, textTable } from "../compact.js";
@@ -295,20 +296,20 @@ function assertPressEnabled(cfg: UiToolDeps["cfg"]): void {
 
 /**
  * ui-runtime's pressBody() runs CALL TRANSACTION unconditionally with no
- * CINFO check (only screenBody() reads it) — left alone, a report tcode
- * would just run the report and ignore the scripted BDCDATA. This closes
- * that gap: an extra screen-mode precheck call reads TSTC-CINFO before
- * every press. An unrecognised CINFO value is refused too, conservatively.
+ * CINFO check (only the screen action's ABAP reads it) — left alone, a
+ * report tcode would just run the report and ignore the scripted BDCDATA.
+ * This closes that gap: an extra screen-mode precheck call reads TSTC-CINFO
+ * before every press. An unrecognised CINFO value is refused too,
+ * conservatively.
  */
 async function assertBdcApplies(deps: UiToolDeps, tcode: string): Promise<void> {
   const precheckQuery: UiScreenQuery = { mode: "screen", target: { by: "tcode", tcode } };
-  const precheckClass = uiBridgeClassName(precheckQuery);
   deps.safety.assert(
     "write",
-    { name: precheckClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
     { phase: "preflight" },
   );
-  const precheck = await deps.pool.withWrite("abap_ui", precheckClass, (conn) =>
+  const precheck = await deps.pool.withWrite("abap_ui", uiManifest.entry, (conn) =>
     runUiBridge(conn, precheckQuery, deps.safety),
   );
   const kind = precheck.transcript.tcode;
@@ -480,14 +481,17 @@ function buildPressResponse(query: UiPressQuery, result: UiBridgeResult, maxChar
 async function runScreenTool(deps: UiToolDeps, input: UiInput): Promise<CallToolResult> {
   const query = buildScreenQuery(input);
 
-  // Cheap, zero-network preflight — mirrors abap_fpm_read: bridge class name is a pure function of the query.
-  const bridgeClass = uiBridgeClassName(query);
+  // Cheap, zero-network preflight — screen dispatches against the fixed fluid body class, not a per-query generated one.
   deps.safety.assert("read");
-  deps.safety.assert("write", { name: bridgeClass, packageName: FLUID_PACKAGE, type: "CLAS/OC" }, { phase: "preflight" });
+  deps.safety.assert(
+    "write",
+    { name: uiManifest.entry, packageName: FLUID_PACKAGE, type: "CLAS/OC" },
+    { phase: "preflight" },
+  );
 
   await deps.ensureConnected();
 
-  const result = await deps.pool.withWrite("abap_ui", bridgeClass, (conn) =>
+  const result = await deps.pool.withWrite("abap_ui", uiManifest.entry, (conn) =>
     runUiBridge(conn, query, deps.safety),
   );
   return ok(buildScreenResponse(query, result, deps.cfg.maxResponseChars));
