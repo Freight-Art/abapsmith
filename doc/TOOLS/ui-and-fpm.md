@@ -73,10 +73,12 @@ logic/GUI status, or run a scripted transaction.
 
 **Availability**: case 1 — registered only when `canWrite`. `mode=press`
 additionally needs `ABAP_MODE=admin` **and** `ABAP_ALLOW_UI_PRESS=true`,
-checked at call time (not at registration). Both modes deploy a generated
-bridge (`runScreenTool` and `runPressTool` share `runUiBridge`), so with
-`ABAP_FLUID_API=false` `mode=screen` and `mode=press` both stay registered
-but refuse at call time with `FLUID_API_DISABLED`.
+checked at call time (not at registration). `mode=screen` dispatches
+through the fluid API's `ui` tool (static body class `ZCL_ZMCP_FLUID_UI`,
+action `screen`, plus a content-addressed invoker); `mode=press` still
+deploys a per-call generated bridge class. Both are gated on the same
+`FLUID_API_DISABLED` refusal, so with `ABAP_FLUID_API=false` `mode=screen`
+and `mode=press` both stay registered but refuse at call time.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|

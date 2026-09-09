@@ -213,16 +213,19 @@ Pruning first re-probes every one of that tool's invokers present in
 — then prunes whichever are stale. That pruning is itself what keeps the
 invoker count from growing without bound in practice.
 
-The ordinary authorized delete path means the safety gate's package
-allowlist applies to the reap like any other write. Of the twelve
-retired classes, nine live in `$TMP` and two — `ZCL_ZMCP_IMG_WAPPLY` and
-`ZCL_ZMCP_CTS_WREQ`, the static IMG write and customizing-request
-bridges superseded by the `img` fluid tool — were deployed into
-`$ABAPSMITH_FLUID_API` itself. `ZCL_ZMCP_IMG_WPROBE` is the odd one out:
-it lives in `$ZMCP_HELPERS`, so reaping that one class needs `$ZMCP_HELPERS` in
-`ABAP_ALLOW_PACKAGES` — which it would be on any system that created the
-class in the first place. Where it is not, the gate refuses the delete and
-the class is reported `failed` with the gate's own reason, e.g.:
+The ordinary authorized delete path means the safety gate's package allowlist
+applies to the reap like any other write. Of the seventeen retired classes,
+nine live in `$TMP` and seven were deployed into `$ABAPSMITH_FLUID_API` itself:
+`ZCL_ZMCP_IMG_WAPPLY` and `ZCL_ZMCP_CTS_WREQ` (the static IMG write and
+customizing-request bridges superseded by the `img` fluid tool), plus the five
+fixed-name enhancement create-family bridges — `ZCL_ZMCP_ENH_CSPOT`,
+`ZCL_ZMCP_ENH_ADEF`, `ZCL_ZMCP_ENH_FDEF`, `ZCL_ZMCP_ENH_CIMPL`,
+`ZCL_ZMCP_ENH_FVAL` — superseded by the `enh` fluid tool. `ZCL_ZMCP_IMG_WPROBE`
+is the odd one out: it lives in `$ZMCP_HELPERS`, so reaping that one class
+needs `$ZMCP_HELPERS` in `ABAP_ALLOW_PACKAGES` — which it would be on any
+system that created the class in the first place. Where it is not, the gate
+refuses the delete and the class is reported `failed` with the gate's own
+reason, e.g.:
 
 ```
 Package $ZMCP_HELPERS is not in the allowlist [$TMP, $ABAPSMITH_FLUID_API].

@@ -10,10 +10,10 @@ design](safety-and-concurrency.md) for the session- and auth-level notes.
 package that the server calls — or leaving every object type ADT can't reach
 permanently unreachable.
 
-abapsmith installs persistent, versioned ABAP classes — the two static body
-classes (`ZCL_ZMCP_FLUID_CLASSIC`, `ZCL_ZMCP_FLUID_CORE`; see
-`doc/TOOLS/abap-fluid.md`) plus a per-call invoker class for each distinct call
-— in the local package `$ABAPSMITH_FLUID_API`, created on first use of a
+abapsmith installs persistent, versioned ABAP classes — the fluid API's static
+body classes (see `doc/TOOLS/abap-fluid.md`; `abap_fluid op=list` enumerates
+every one currently loaded) plus a per-call invoker class for each distinct
+call — in the local package `$ABAPSMITH_FLUID_API`, created on first use of a
 function that needs one (`src/adt/fluid/package.ts:14`, `:57-70`;
 `src/adt/fluid/dispatch.ts:302-322`). The package is non-transportable
 (`softwareComponent: "LOCAL"`) and sits under superpackage `$TMP`.

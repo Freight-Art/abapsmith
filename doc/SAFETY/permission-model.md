@@ -82,7 +82,11 @@ and `ABAP_ALLOW_FLUID_CALL_FM`, are out-of-band for yet another reason: they
 gate the fluid API surface (`abap_fluid`) rather than disclosure or execution
 order. All three default off (`src/config.ts:743-747`), none is implied by
 another, and none widens `ABAP_MODE` — setting one cannot make a productive
-or write-locked-out system writable. See
+or write-locked-out system writable. `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` and
+`ABAP_ALLOW_FLUID_CALL_FM` are also each enforced at plugin load time, not
+only per call: a static source scan refuses to load a plugin object whose
+ABAP contains a database write or `COMMIT WORK`/`ROLLBACK WORK` without the
+former, or `CALL FUNCTION` in any form without the latter. See
 [CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md)
 for what each permits.
 
