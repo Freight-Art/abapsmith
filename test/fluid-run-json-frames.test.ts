@@ -52,7 +52,9 @@ describe("run tool OUT frames carry valid JSON (esc-wrapped list lines)", () => 
 describe("run tool ABAP source: JSON-valid OUT emission, no regex", () => {
   it("emits each list line through esc() inside a JSON string literal", () => {
     const source = runSources.get("ZCL_ZMCP_FLUID_RUN") ?? "";
-    expect(source).toContain('zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( lv_line ) }"| ).');
+    expect(source).toContain(
+      'zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_line ) ) }"| ).',
+    );
   });
 
   it("contains no FIND REGEX anywhere", () => {

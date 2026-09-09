@@ -61338,11 +61338,11 @@ CLASS zcl_zmcp_fluid_rt IMPLEMENTATION.
             rv_value = rv_value && lv_uc.
             lv_off = lv_off + 4.
           WHEN OTHERS.
-            rv_value = rv_value && lv_esc.
+            rv_value = rv_value && substring( val = iv_json off = lv_off len = 1 ).
         ENDCASE.
         lv_off = lv_off + 1.
       ELSE.
-        rv_value = rv_value && lv_ch.
+        rv_value = rv_value && substring( val = iv_json off = lv_off len = 1 ).
         lv_off = lv_off + 1.
       ENDIF.
     ENDWHILE.
@@ -61669,11 +61669,11 @@ var CORE_METHODS = `  METHOD run.
             rv_value = rv_value && lv_uc.
             lv_off = lv_off + 4.
           WHEN OTHERS.
-            rv_value = rv_value && lv_esc.
+            rv_value = rv_value && substring( val = iv_json off = lv_off len = 1 ).
         ENDCASE.
         lv_off = lv_off + 1.
       ELSE.
-        rv_value = rv_value && lv_ch.
+        rv_value = rv_value && substring( val = iv_json off = lv_off len = 1 ).
         lv_off = lv_off + 1.
       ENDIF.
     ENDWHILE.
@@ -63218,11 +63218,11 @@ var CORE_METHODS2 = `  METHOD run.
             rv_value = rv_value && lv_uc.
             lv_off = lv_off + 4.
           WHEN OTHERS.
-            rv_value = rv_value && lv_esc.
+            rv_value = rv_value && substring( val = iv_json off = lv_off len = 1 ).
         ENDCASE.
         lv_off = lv_off + 1.
       ELSE.
-        rv_value = rv_value && lv_ch.
+        rv_value = rv_value && substring( val = iv_json off = lv_off len = 1 ).
         lv_off = lv_off + 1.
       ENDIF.
     ENDWHILE.
@@ -66485,7 +66485,7 @@ CLASS zcl_zmcp_fluid_run IMPLEMENTATION.
     ENDTRY.
 
     LOOP AT lt_txt INTO DATA(lv_line).
-      zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( lv_line ) }"| ).
+      zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_line ) ) }"| ).
     ENDLOOP.
 
     zcl_zmcp_fluid_rt=>end( 0 ).
@@ -66696,7 +66696,7 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
         DATA lv_out TYPE string.
         lv_out = '{'.
         IF lv_have_tcode = abap_true.
-          lv_out = lv_out && |"tcode":{"tcode":"{ zcl_zmcp_fluid_rt=>esc( lv_tcode ) }"|.
+          lv_out = lv_out && |"tcode":\\{"tcode":"{ zcl_zmcp_fluid_rt=>esc( lv_tcode ) }"|.
           lv_out = lv_out && |,"program":"{ zcl_zmcp_fluid_rt=>esc( lv_prog_s ) }"|.
           lv_out = lv_out && |,"dynpro":"{ zcl_zmcp_fluid_rt=>esc( lv_dyn_s ) }"|.
           lv_out = lv_out && |,"cinfo":"{ zcl_zmcp_fluid_rt=>esc( lv_cinfo ) }"|.
@@ -66804,7 +66804,7 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
         ENDIF.
       ENDLOOP.
     ENDIF.
-    rv_json = |\\{{ lv_parts }}|.
+    rv_json = |\\{{ lv_parts }\\}|.
   ENDMETHOD.
 
   METHOD cua_json.
@@ -66843,7 +66843,7 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
         OTHERS          = 3.
     IF sy-subrc = 1.
       " NOT_FOUND is a normal outcome (program has no GUI status), not a fault.
-      rv_json = |,"noCua":{"program":"{ zcl_zmcp_fluid_rt=>esc( iv_prog_s ) }"|.
+      rv_json = |,"noCua":\\{"program":"{ zcl_zmcp_fluid_rt=>esc( iv_prog_s ) }"|.
       rv_json = rv_json && ',"note":"no GUI status defined for this program"}'.
       RETURN.
     ELSEIF sy-subrc <> 0.
@@ -66870,9 +66870,9 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
       IF sy-tabix > 1.
         rv_json = rv_json && ','.
       ENDIF.
-      rv_json = rv_json && |{"code":"{ zcl_zmcp_fluid_rt=>esc( ls_fun-code ) }"|.
-      rv_json = rv_json && |,"text":"{ zcl_zmcp_fluid_rt=>esc( ls_fun-fun_text ) }"|.
-      rv_json = rv_json && |,"type":"{ zcl_zmcp_fluid_rt=>esc( ls_fun-type ) }"}|.
+      rv_json = rv_json && |\\{"code":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_fun-code ) ) }"|.
+      rv_json = rv_json && |,"text":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_fun-fun_text ) ) }"|.
+      rv_json = rv_json && |,"type":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_fun-type ) ) }"\\}|.
     ENDLOOP.
     rv_json = rv_json && ']'.
 
@@ -66902,11 +66902,11 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
             IF lv_fkeys_json IS NOT INITIAL.
               lv_fkeys_json = lv_fkeys_json && ','.
             ENDIF.
-            lv_fkeys_json = lv_fkeys_json && |{"status":"{ zcl_zmcp_fluid_rt=>esc( lv_status ) }"|.
-            lv_fkeys_json = lv_fkeys_json && |,"code":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-code ) }"|.
-            lv_fkeys_json = lv_fkeys_json && |,"text":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-text ) }"|.
+            lv_fkeys_json = lv_fkeys_json && |\\{"status":"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_status ) ) }"|.
+            lv_fkeys_json = lv_fkeys_json && |,"code":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_fkey-code ) ) }"|.
+            lv_fkeys_json = lv_fkeys_json && |,"text":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_fkey-text ) ) }"|.
             lv_fkeys_json = lv_fkeys_json &&
-              |,"quickinfo":"{ zcl_zmcp_fluid_rt=>esc( ls_fkey-quickinfo ) }"}|.
+              |,"quickinfo":"{ zcl_zmcp_fluid_rt=>esc( CONV string( ls_fkey-quickinfo ) ) }"\\}|.
             lv_fkeys_total = lv_fkeys_total + 1.
           ENDIF.
         ENDLOOP.
