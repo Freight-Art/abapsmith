@@ -32,6 +32,20 @@
  *     everything staleInvokers doesn't flag (current-version rt, anything
  *     unrelated) survives.
  *
+ * One additional, self-contained test (not part of the numbered rt sequence
+ * above — it runs the builtin `classic` tool instead, and cleans up after
+ * itself rather than depending on later steps) proves the journal side of
+ * dispatch.ts's own change: every `category === "mutate"` action is now
+ * journalled post-hoc, builtin and plugin alike, not only plugin ones. It
+ * runs `classic.create_transaction` for real (a throwaway `$TMP` transaction
+ * — the same create/delete pattern `test/integration-fluid-classic.test.ts`
+ * already exercises live) via the exact same `abap_fluid` handler this file
+ * tests everywhere else, then reads the entry back out of a real, enabled
+ * `Journal` rooted in its own mkdtemp'd directory (construction pattern
+ * copied from `test/integration-fluid-plugin.test.ts`'s `tmpRoot`) — never
+ * the developer's own abapsmith journal.
+ *
+
  * Steps 7 and 8 are deliberately last: 7 deletes `ZCL_ZMCP_FLUID_RT`, which
  * (like every ABAP class delete over ADT) kills the stateful session
  * server-side — the next request gets `400 Session Timed Out` /
@@ -47,16 +61,20 @@
  * Step 8 MUST leave `ZCL_ZMCP_FLUID_RT` deployed and working, since other
  * live suites/slices sharing this appliance depend on it existing.
  *
- * SAFETY: touches only `$ABAPSMITH_FLUID_API` and `ZCL_ZMCP_*` objects
- * (`allowPackages: ["$TMP", FLUID_PACKAGE]`, matching the sibling suite).
- * Never creates a transport, never touches system settings. `afterAll` does
- * NOT delete `ZCL_ZMCP_FLUID_RT` (step 8 deliberately restores it) — it only
- * closes the connection and, best-effort, deletes the one per-call invoker
- * class (`ZCL_ZMCP_I_xxxxxxxx`) that `rt.ping` with `args: {}` generates
+ * SAFETY: touches only `$ABAPSMITH_FLUID_API`/`ZCL_ZMCP_*` objects and, for
+ * the journal test only, one throwaway `ZMCP_S9_*` `$TMP` transaction it
+ * creates and deletes itself within that same test (`allowPackages: ["$TMP",
+ * FLUID_PACKAGE]`, matching the sibling suite). Never creates a transport,
+ * never touches system settings. `afterAll` does NOT delete
+ * `ZCL_ZMCP_FLUID_RT` (step 8 deliberately restores it) — it only closes the
+ * connection and, best-effort, deletes the one per-call invoker class
+ * (`ZCL_ZMCP_I_xxxxxxxx`) that `rt.ping` with `args: {}` generates
  * (content-hash-addressed, so steps 4 and 8 produce the SAME invoker name —
- * one cleanup covers both), tolerating failures without masking a real one.
+ * one cleanup covers both), tolerating failures without masking a real one,
+ * then removes the journal test's own mkdtemp'd directory.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -123,6 +141,8 @@ dw("live A4H abap_fluid tool handler (write path, rt through the MCP tool)", () 
   let conn: AbapConnection;
   let safety: SafetyGate;
   let tools: Map<string, { handler: (args: unknown) => Promise<CallToolResult> }>;
+  let journal: Journal;
+  let journalDir: string;
   const breaker = new AuthCircuitBreaker();
 
   const assertUsable = () => {
@@ -193,6 +213,17 @@ dw("live A4H abap_fluid tool handler (write path, rt through the MCP tool)", () 
     });
 
     const cfg = { ...base, readOnly: false, allowPackages: ["$TMP", FLUID_PACKAGE] };
+    // `journal` is required on `FluidToolDeps` (test/journal-contract.test.ts) and, since
+    // dispatch.ts now journals every `category === "mutate"` action (builtin and plugin
+    // alike, not only plugin), this suite enables it for real — rooted in its own fresh
+    // mkdtemp'd directory (construction pattern copied from
+    // test/integration-fluid-plugin.test.ts's `tmpRoot`) so it never touches the real
+    // journal a developer's own abapsmith session writes to.
+    journalDir = await mkdtemp(path.join(os.tmpdir(), "abapsmith-integration-fluid-tool-"));
+    journal = new Journal(
+      { dir: path.join(journalDir, "journal"), enabled: true, maxEntries: 200, maxAgeDays: 30 },
+      base.sid,
+    );
     const deps: FluidToolDeps = {
       pool: fakePool(),
       cfg,
@@ -202,12 +233,7 @@ dw("live A4H abap_fluid tool handler (write path, rt through the MCP tool)", () 
       },
       errorResult,
       toolSet: builtinFluidToolSet(BUILTIN_FLUID_TOOLS),
-      // `journal` is required on `FluidToolDeps` (test/journal-contract.test.ts) — disabled
-      // here since this suite doesn't exercise journalling.
-      journal: new Journal(
-        { dir: path.join(os.tmpdir(), "abapsmith-integration-fluid-tool-unused"), enabled: false, maxEntries: 1, maxAgeDays: 1 },
-        "TST",
-      ),
+      journal,
     };
     const { mcp, tools: registered } = fakeMcp();
     registerFluidTool(mcp, deps);
@@ -242,6 +268,7 @@ dw("live A4H abap_fluid tool handler (write path, rt through the MCP tool)", () 
       console.warn(`afterAll: failed to clean up invoker ${invoker} — remove it by hand if it exists.`, e);
     }
     await conn?.shutdown("test-end");
+    if (journalDir) await rm(journalDir, { recursive: true, force: true });
   }, 90_000);
 
   it("1. bare call returns the catalogue, naming the rt tool", async () => {
@@ -279,6 +306,56 @@ dw("live A4H abap_fluid tool handler (write path, rt through the MCP tool)", () 
     // the deployed class really is running the version this suite loaded,
     // not a stale one left over from a previous slice/run.
     expect(text).toContain(`"ver": "${fluidRuntimeTool.version}"`);
+  }, 120_000);
+
+  // Not part of the numbered rt sequence — see the module doc comment above.
+  // Runs a real builtin mutate action (`classic.create_transaction`) through
+  // the exact same `abap_fluid` handler under test everywhere else in this
+  // file, then confirms `dispatch()` journalled it post-hoc: before this
+  // change, only a PLUGIN mutate action was journalled; now every
+  // `category === "mutate"` action is, builtin included.
+  it('4b. op:"run" tool:"classic" action:"create_transaction" leaves exactly one settled journal entry', async () => {
+    assertUsable();
+    const tcode = `ZMCP_S9_${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    let created = false;
+    try {
+      const text = okText(
+        await invoke(tools, {
+          op: "run",
+          tool: "classic",
+          action: "create_transaction",
+          args: {
+            tcode,
+            program: "DEMO_LIST_SYSTEM_FIELDS",
+            description: "S9 fluid journal live check",
+            package_name: "$TMP",
+            corr_nr: "",
+          },
+        }),
+      );
+      created = true;
+      expect(text).toContain("RESULT");
+
+      const entries = await journal.list({ object: "classic.create_transaction" });
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.outcome).toBe("succeeded");
+      expect(entries[0]?.irreversible).toBe(true);
+      expect(entries[0]?.object.description).toMatch(/^fluid builtin mutate: classic\.create_transaction args=/);
+      expect(entries[0]?.object.description).toContain(tcode);
+    } finally {
+      if (created) {
+        try {
+          await invoke(tools, {
+            op: "run",
+            tool: "classic",
+            action: "delete_transaction",
+            args: { tcode, package_name: "$TMP" },
+          });
+        } catch (e) {
+          console.warn(`afterAll: failed to clean up throwaway transaction ${tcode} — remove it by hand if it exists.`, e);
+        }
+      }
+    }
   }, 120_000);
 
   it('5. op:"status" shows rt as deployed in the local registry', async () => {

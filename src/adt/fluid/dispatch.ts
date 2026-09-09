@@ -32,6 +32,7 @@ import {
   type FluidCategory,
   type LoadedFluidTool,
 } from "./manifest.js";
+import { truncateText } from "../../truncate.js";
 
 export interface FluidDeps {
   readonly conn: AbapConnection;
@@ -205,29 +206,41 @@ function assertTargetsAgainstGate(
   });
 }
 
+/** Bounds the args JSON recorded in the journal description; truncation is disclosed by `truncateText`. */
+const JOURNAL_ARGS_MAX = 500;
+
+/**
+ * Journals one fluid mutate action's completion — builtin or plugin alike. No before-image is
+ * ever captured (see below), so this is always a bare "it happened" entry rather than a
+ * richer, undoable one.
+ */
 async function journalFluidMutate(
   deps: FluidDeps,
   req: FluidRunRequest,
   sysKey: string,
+  origin: LoadedFluidTool["origin"],
 ): Promise<void> {
   const journal = deps.journal;
   if (!journal) return;
+
+  const argsText = truncateText(canonicalArgsJson(req.args), JOURNAL_ARGS_MAX);
 
   const object: JournalObjectRef = {
     name: `${req.tool}.${req.action}`,
     type: "FLUID",
     uri: "",
     package: FLUID_PACKAGE,
-    description: `fluid plugin mutate: ${req.tool}.${req.action}`,
+    description: `fluid ${origin} mutate: ${req.tool}.${req.action} args=${argsText}`,
   };
   const beginInput: JournalBeginInput = {
     operation: "update",
     object,
     existedBefore: true,
-    // No before-image exists for whatever ABAP-side state a plugin action touched — this framework
+    // No before-image exists for whatever ABAP-side state a fluid action touched — this framework
     // never reads it, so "captured"/"failed" would both overstate what is known.
     beforeCapture: "unknown",
-    // No generic undo exists for an arbitrary plugin mutate action.
+    // No generic undo exists for an arbitrary fluid mutate action, builtin or plugin — this
+    // framework never captures a before-image for one.
     irreversible: true,
     systemKey: sysKey,
     ...(req.corrNr !== undefined ? { corrNr: req.corrNr } : {}),
@@ -658,9 +671,13 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
 
   // No ERR frame (checked above) means the invoker's own COMMIT WORK already ran — the mutation
   // is real regardless of what a later, purely local check (output shape) thinks of it, so it
-  // must be journalled here rather than after checks that can still throw.
-  if (tool.origin === "plugin" && action.category === "mutate" && deps.journal) {
-    await journalFluidMutate(deps, req, sysKey);
+  // must be journalled here rather than after checks that can still throw. This covers BOTH
+  // builtin and plugin mutate actions: a builtin mutate reached through the `abap_fluid` MCP tool
+  // is journalled here; the legacy owning tools — abap_enh, abap_img_edit, abap_ui, classic-call,
+  // customizing-request — call dispatch() WITHOUT a journal and write their own richer entries
+  // with before-images, so they are not double-journalled.
+  if (action.category === "mutate" && deps.journal) {
+    await journalFluidMutate(deps, req, sysKey, tool.origin);
   }
 
   let result: unknown;
