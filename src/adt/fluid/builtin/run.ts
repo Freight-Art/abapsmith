@@ -119,7 +119,7 @@ CLASS zcl_zmcp_fluid_run IMPLEMENTATION.
     ENDTRY.
 
     LOOP AT lt_txt INTO DATA(lv_line).
-      zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( lv_line ) }"| ).
+      zcl_zmcp_fluid_rt=>out( |"{ zcl_zmcp_fluid_rt=>esc( CONV string( lv_line ) ) }"| ).
     ENDLOOP.
 
     zcl_zmcp_fluid_rt=>end( 0 ).

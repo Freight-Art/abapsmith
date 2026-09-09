@@ -265,7 +265,9 @@ dw("live A4H ui fluid tool ($ABAPSMITH_FLUID_API, read-only screen inspection)",
     expect(out.tcode?.program).toBe(out.program);
     expect(out.tcode?.dynpro).toBe(out.dynpro);
     expect(typeof out.tcode?.cinfo).toBe("string");
-    expect(["dialog", "report", "unrecognised"]).toContain(out.tcode?.kind);
+    // `kind` is human-readable prose (same wording as the pre-fluid ui runtime
+    // and what abap_ui quotes in its refusal text), classified by its prefix.
+    expect(out.tcode?.kind).toMatch(/^(dialog|report|unrecognised) transaction/);
 
     // `header` is always emitted (unconditional in the ABAP body), even if empty.
     expect(out.header).toBeDefined();
