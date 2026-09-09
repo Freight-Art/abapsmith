@@ -79,14 +79,38 @@ version was set to `0.3.0`, which is intended.
 - Generated objects that earlier releases wrote to `$ZMCP_HELPERS` or `$TMP` are relocated to
   `$ABAPSMITH_FLUID_API` the first time a loaded manifest that names them runs, by
   delete-then-recreate — an ABAP object can't change package, so this is a move, not a copy, and
-  only objects a manifest actually names are ever touched. The ten retired pre-fluid bridge
-  classes are a separate, closed list: `abap_fluid(op="status")` reports each present/moved/unknown
-  class individually, folding an all-absent result into a single aggregate "none" line rather
-  than listing absent classes, and `abap_fluid(op="repair")` (with no `tool`) deletes the present
-  ones. abapsmith never deletes a package: `$ZMCP_HELPERS` is the one it used to create, and an
-  operator may drop it by hand once `status` shows it empty. `$TMP` is SAP's own standard
-  local-development package, not abapsmith's, and is never something to drop — only the leftover
-  `ZCL_ZMCP_*` objects inside it are left for the operator to clean up.
+  only objects a manifest actually names are ever touched. The retired pre-fluid bridge classes
+  are a separate, closed list — ten from before the fluid API existed, plus seven retired since
+  (the IMG write-apply and customizing-request-creation bridges, and `abap_enh`'s five create-family
+  bridges, all superseded now that those paths dispatch against a fluid body class), seventeen in
+  all: `abap_fluid(op="status")` reports each present/moved/unknown class individually, folding an
+  all-absent result into a single aggregate "none" line rather than listing absent classes, and
+  `abap_fluid(op="repair")` (with no `tool`) deletes the present ones. abapsmith never deletes a
+  package: `$ZMCP_HELPERS` is the one it used to create, and an operator may drop it by hand once
+  `status` shows it empty. `$TMP` is SAP's own standard local-development package, not abapsmith's,
+  and is never something to drop — only the leftover `ZCL_ZMCP_*` objects inside it are left for
+  the operator to clean up.
+- `abap_fpm_read` (`find`, `outline` and `app`), `abap_ui` (`screen`), `abap_enh`'s create family
+  (`create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`, `set_filter_values`), and
+  `abap_img_edit`'s `apply` and `create_request` now dispatch against the fluid API's static body
+  classes (`ZCL_ZMCP_FLUID_FPM`/`_UI`/`_ENH`/`_IMG`) through a content-addressed invoker, instead
+  of generating a throwaway `IF_OO_ADT_CLASSRUN` bridge class per call. Each tool keeps its own
+  name, zod schema, annotations, domain gates and response shape; a refusal still names the
+  dedicated tool, not `abap_fluid`. `abap_bopf_test`, `abap_ui` `press`, `abap_enh` `exercise`,
+  `abap_fpm_read` `mode:"locks"`, and `abap_run`'s report execution still generate a per-call
+  bridge, by design, because there is no fixed manifest to dispatch to when the ABAP has to be
+  built fresh from the caller's own input every call.
+- `abap_fluid status` gained a `DYNAMIC BRIDGES` section listing the five per-call bridge families
+  that remain (`abap_bopf_test`, `abap_ui` `press`, `abap_enh` `exercise`, `abap_fpm_read`
+  `mode:"locks"`, and `abap_run`'s report bridge), and `abap_fluid remove` gained an additive
+  `scope: "dynamic"` that deletes every one of them.
+- Removed the 50-row cap on `abap_img` preview reads and the 200-row cap on `abap_fpm_read`
+  `find` queries (both its `WDY_CONFIG_APPL` and `WDY_CONFIG_DATA` branches); both now return
+  every matching row. `abap_package delete`'s evidence listing (the TDEVC/TADIR contents shown
+  before a non-empty package delete is refused) no longer caps at 20 rows either.
+- Removed `abap_ui mode:"screen"`'s own caps too — the 30-status button-lookup loop and the
+  350-row FKEY emission limit are both gone, since the response layer's own truncation already
+  discloses when it cuts, and these caps were destroying data a step earlier than that.
 - Generated invoker classes (`ZCL_ZMCP_I_...`) now accumulate in `$ABAPSMITH_FLUID_API` — each
   distinct call shape gets its own class, and nothing deletes them automatically.
   `abap_fluid(op="status")` counts them per tool, `repair(tool=...)` prunes stale ones, and
@@ -114,6 +138,10 @@ version was set to `0.3.0`, which is intended.
 - The MCP `initialize` response now reports the real package version. `SERVER_VERSION` was
   hard-coded at `0.3.0` while `package.json` had already moved to `0.4.0`; it's now read from
   `package.json` at runtime so the two can't drift again.
+- `img.apply`'s expert `client_field` escape hatch bypassed the same client-field split every
+  other write path goes through, so `allow_cross_client: true` on a genuinely client-independent
+  table could reach a live `MODIFY`/`DELETE` with a silently no-op client stamp. It now refuses
+  upfront when the declared `client_field` is not a component of the target table.
 
 ## [0.4.0] - 2026-09-06
 
