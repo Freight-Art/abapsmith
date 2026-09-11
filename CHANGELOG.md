@@ -14,6 +14,9 @@ version was set to `0.3.0`, which is intended.
 
 ### Added
 
+- New skill `abapsmith-write-a-fluid-plugin`: the plugin layout, manifest, body-class skeleton,
+  the argument-scanner and static-review limits, and the operator's enable-and-restart step, so a
+  model asked to add a fluid tool does not have to rediscover `doc/FLUID-API/` on its own.
 - abapsmith now installs a small set of generated ABAP objects into the connected SAP system,
   rather than leaving nothing behind between calls. They go into a local, non-transportable
   package, `$ABAPSMITH_FLUID_API`, which abapsmith creates on first use of a function that needs
