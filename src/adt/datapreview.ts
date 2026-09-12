@@ -358,7 +358,7 @@ export function classifyPreviewFailure(e: unknown, ctx: ErrorContext): AbapError
 export function classifyFilteredPreviewFailure(e: unknown, ctx: ErrorContext, sql: string): AbapError {
   const err = classifyPreviewFailure(e, ctx);
   if (err.code !== "ADT_ERROR") {
-    return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+    return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable }); // re-wrap: preserves the classified error's own retryability verbatim, only `sql` is added
   }
 
   const message = err.message;
@@ -386,7 +386,7 @@ export function classifyFilteredPreviewFailure(e: unknown, ctx: ErrorContext, sq
       "With distinct, every order_by field must also appear in columns.",
     );
   }
-  return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+  return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable }); // re-wrap: preserves the classified error's own retryability verbatim, only `sql` is added
 }
 
 // ----------------------------------------------------------------- preview ---
