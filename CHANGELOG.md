@@ -12,6 +12,23 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-09-12
+
+### Fixed
+
+- `abap_img_edit` now discloses the maintenance-view checks it cannot run.
+  The tool writes rows with a plain `MODIFY`/`DELETE` on the base table, so
+  the view's event routines (for `TB003`, `V_TB003_CHECK_DEFAULT` and
+  `V_TB003_RESET_DFLT`, which SM30 runs to enforce `STND_ROLECAT`) never
+  execute. Every preview and armed response now carries a
+  `--- CHECKS NOT RUN ---` section naming the root maintenance views over the
+  table, their registered TVIMF event routines, the written fields' check
+  tables and domains, and any written value that is outside a domain's fixed
+  values (reported as "SM30 would have rejected this input; this tool does
+  not", not refused). When nothing is registered the section says so and
+  that only DDIC typing was enforced. Write semantics, arguments and the
+  confirmation gate are unchanged (issue #62).
+
 ## [0.5.4] - 2026-09-12
 
 ### Fixed

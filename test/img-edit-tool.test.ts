@@ -2228,3 +2228,267 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
     });
   });
 });
+
+// ===========================================================================
+// CHECKS NOT RUN disclosure (issue #62): abap_img_edit writes the base table
+// directly, so none of the maintenance view's own checks (TVIMF event
+// routines, DD03L check tables, DD07L fixed values) ever run. `readImgChecks`
+// (src/adt/img-checks.ts) is a read-only diagnostic side-read of the same
+// DDIC catalog a human maintaining the view through SM30 would implicitly
+// rely on; `readChecksSafely`/`checksSection`/`checksNotesFor` (src/tools/
+// img-edit.ts) fold its result into a "CHECKS NOT RUN" section on both
+// preview and armed responses. These fixtures reproduce the *live*
+// 2026-09-12-measured DDIC shape for TB003/V_TB003 (see this module's git
+// history / the issue for the actual SAP read): a TB003 row copied from
+// BUP001 carried STND_ROLECAT=X, which SM30 refuses via V_TB003's
+// maintenance event routine V_TB003_CHECK_DEFAULT — `preview` said nothing
+// about it before this feature existed.
+// ===========================================================================
+
+describe("abap_img_edit — CHECKS NOT RUN disclosure (issue #62, TB003/V_TB003)", () => {
+  const TB003_ARGS = {
+    table: "TB003",
+    key_fields: ["ROLE"],
+    view: "V_TB003",
+    master_type: "VDAT" as const,
+    corr_nr: "A4HK900001",
+  };
+
+  /** `buildViewsOverTableQuery(["TB003"])` — DD26S root views over TB003, live-measured. */
+  const TB003_VIEWS_OVER_TABLE_BODY = body({
+    VIEWNAME: ["H_TB003", "IBPROLE", "V_TB003"],
+    TABNAME: ["TB003", "TB003", "TB003"],
+    TABPOS: ["0001", "0001", "0001"],
+  });
+
+  /**
+   * `buildViewMaintenanceEventsQuery(["V_TB003", "TB003", "H_TB003", "IBPROLE"])` — TVIMF,
+   * live-measured: only V_TB003 has registered event routines.
+   */
+  const TB003_MAINTENANCE_EVENTS_BODY = body({
+    TABNAME: ["V_TB003", "V_TB003"],
+    EVENT: ["01", "13"],
+    FORMNAME: ["V_TB003_CHECK_DEFAULT", "V_TB003_RESET_DFLT"],
+  });
+
+  /** `buildDomainValueTextsQuery(["MAINTEVENT"], "E")` — DD07T, live-measured (only the 2 codes this fixture's events use). */
+  const TB003_MAINTEVENT_TEXTS_BODY = body({
+    DOMNAME: ["MAINTEVENT", "MAINTEVENT"],
+    DOMVALUE_L: ["01", "13"],
+    DDTEXT: ["Before saving the data in the database", "Exit editing (exit main function module)"],
+  });
+
+  /** `buildTableFieldChecksQuery(["TB003"])` — DD03L, live-measured, all 8 fields. */
+  const TB003_FIELD_CHECKS_BODY = body({
+    TABNAME: Array(8).fill("TB003"),
+    FIELDNAME: ["CLIENT", "ROLE", "ROLECATEGORY", "STND_ROLECAT", ".INCLUDE", "BPVIEW", "XSUPPRESS", "POSNR"],
+    POSITION: ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008"],
+    CHECKTABLE: ["T000", "", "TB003A", "", "", "TBZ0", "", ""],
+    DOMNAME: ["MANDT", "BU_ROLE", "BU_ROLECAT", "XFELD", "", "BU_RLTYP", "XFELD", "NUM3"],
+  });
+
+  /**
+   * `buildDomainFixedValuesQuery(["BU_ROLECAT", "XFELD"])` — live-measured: BU_ROLECAT has NO
+   * DD07L rows at all (a domain with no fixed values is not an error — see img-catalog.ts's own
+   * note on `domainValue`), so only XFELD's 2 rows come back.
+   */
+  const TB003_FIXED_VALUES_BODY = body({
+    DOMNAME: ["XFELD", "XFELD"],
+    VALPOS: ["0001", "0002"],
+    DOMVALUE_L: ["X", ""],
+    DOMVALUE_H: ["", ""],
+    APPVAL: ["", ""],
+  });
+
+  /** The 5-call queue `readImgChecks` issues, in exact step order, when `checkValues` is true. */
+  const TB003_CHECK_BODIES = [
+    TB003_VIEWS_OVER_TABLE_BODY,
+    TB003_MAINTENANCE_EVENTS_BODY,
+    TB003_MAINTEVENT_TEXTS_BODY,
+    TB003_FIELD_CHECKS_BODY,
+    TB003_FIXED_VALUES_BODY,
+  ];
+
+  /** Existing row: ROLE=BUP001, ROLECATEGORY=01, STND_ROLECAT blank (not yet the "standard" role category). */
+  const PROBE_TRANSCRIPT_TB003 =
+    `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+    `IMGW> TABLE table=[tb003] delclass=[C] clidep=[X]\n` +
+    `IMGW> FLD table=[tb003] field=[ROLE] key=[X] type=[CHAR] len=[12] rollname=[BU_ROLE]\n` +
+    `IMGW> FLD table=[tb003] field=[ROLECATEGORY] key=[] type=[CHAR] len=[2] rollname=[BU_ROLECAT]\n` +
+    `IMGW> FLD table=[tb003] field=[STND_ROLECAT] key=[] type=[CHAR] len=[1] rollname=[XFELD]\n` +
+    `IMGW> BVAL row=[1] field=[ROLE] len=[6] value=[BUP001]\n` +
+    `IMGW> BVAL row=[1] field=[ROLECATEGORY] len=[2] value=[01]\n` +
+    `IMGW> BVAL row=[1] field=[STND_ROLECAT] len=[0] value=[]\n` +
+    `IMGW> PROBED rows=[1]\n`;
+
+  /** Live defect: the copied row's STND_ROLECAT is set to "X" (a legal XFELD fixed value — the maintenance-event routine, not a domain fixed-value check, is what SM30 would have refused). */
+  const APPLY_TRANSCRIPT_TB003_UPSERT =
+    `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+    `IMGW> TABLE table=[tb003] delclass=[C] clidep=[X]\n` +
+    `IMGW> BVAL row=[1] field=[ROLECATEGORY] len=[2] value=[01]\n` +
+    `IMGW> BVAL row=[1] field=[STND_ROLECAT] len=[0] value=[]\n` +
+    `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[6] value=[BUP001]\n` +
+    `IMGW> AVAL row=[1] field=[ROLECATEGORY] len=[2] value=[01]\n` +
+    `IMGW> AVAL row=[1] field=[STND_ROLECAT] len=[1] value=[X]\n` +
+    `IMGW> APPLIED rows=[1]\n`;
+
+  it("preview discloses the TB003/V_TB003 maintenance-event routine and check table a plain MODIFY skips", async () => {
+    const route = resolutionRoute(TB003_CHECK_BODIES, { preview: () => resp(200, PROBE_TRANSCRIPT_TB003) });
+    const { conn, inner } = await connected(route);
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      ...TB003_ARGS,
+      rows: [{ key: { ROLE: "BUP001" }, values: { ROLECATEGORY: "01", STND_ROLECAT: "X" } }],
+    });
+    const text = okText(result);
+
+    expect(text).toContain("--- CHECKS NOT RUN ---");
+    expect(text).toContain("This tool writes the base table directly.");
+    // The maintenance event routine SM30 would have run for this write, and what its "01" event
+    // code means — this is the exact live gap issue #62 is about.
+    expect(text).toContain("V_TB003_CHECK_DEFAULT");
+    expect(text).toContain("Before saving the data in the database");
+    // The check table for ROLECATEGORY (a field this write also sets) — a foreign-key check a
+    // plain MODIFY never verifies.
+    expect(text).toContain("TB003A");
+
+    expect(probeRan(inner)).toBe(true);
+    expect(actionRan(inner, "apply")).toBe(false);
+  });
+
+  it("an armed upsert renders the same CHECKS NOT RUN section as preview, in addition to the SM30-bypass note", async () => {
+    await withJournal(async (journal) => {
+      const route = resolutionRoute(TB003_CHECK_BODIES, {
+        preview: () => resp(200, PROBE_TRANSCRIPT_TB003),
+        apply: () => resp(200, APPLY_TRANSCRIPT_TB003_UPSERT),
+      });
+      const { conn, inner } = await connected(route);
+      const { tools } = await registered(conn, { journal });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "upsert",
+        ...TB003_ARGS,
+        confirm: "TB003",
+        rows: [{ key: { ROLE: "BUP001" }, values: { ROLECATEGORY: "01", STND_ROLECAT: "X" } }],
+      });
+      const text = okText(result);
+
+      expect(text).toContain("--- CHECKS NOT RUN ---");
+      expect(text).toContain("V_TB003_CHECK_DEFAULT");
+      expect(text).toContain("Before saving the data in the database");
+      expect(text).toContain("TB003A");
+      // The pre-existing SM30-bypass note still fires on an armed write — the new disclosure is
+      // additive, not a replacement.
+      expect(text).toContain("table-maintenance-generator events");
+
+      expect(probeRan(inner)).toBe(true);
+      expect(actionRan(inner, "apply")).toBe(true);
+    });
+  });
+
+  it('a check-metadata read that throws (a transport failure, not a malformed row) still renders a normal preview, naming the failure as "The check metadata could not be read ("', async () => {
+    let freestyleCalls = 0;
+    const rest = multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_TB003) });
+    const route = (o: HttpClientOptions): HttpClientResponse => {
+      if (o.url.includes("/datapreview/freestyle")) {
+        freestyleCalls += 1;
+        if (freestyleCalls === 1) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+        // The very first check query (DD26S) blows up — a genuine transport-level failure, which
+        // `readImgChecks`'s own contract says must propagate (it is `readChecksSafely`, not
+        // `readImgChecks` itself, that is responsible for turning this into a short failure
+        // string instead of throwing out of the tool call).
+        const r = resp(500, "<exc:exception/>", { "content-type": "application/xml" });
+        throw new HttpClientException("Request failed with status code 500", "500", 500, undefined, o, r);
+      }
+      return rest(o);
+    };
+    const { conn, inner } = await connected(route);
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      ...TB003_ARGS,
+      rows: [{ key: { ROLE: "BUP001" }, values: { ROLECATEGORY: "01", STND_ROLECAT: "X" } }],
+    });
+    const text = okText(result);
+
+    // The preview itself is unaffected — CURRENT ROWS/PROSPECTIVE CHANGE still render normally.
+    expect(text).toContain("--- CURRENT ROWS ---");
+    expect(text).toContain("--- CHECKS NOT RUN ---");
+    expect(text).toContain("The check metadata could not be read (");
+    expect(text).toContain("Request failed with status code 500");
+    expect(text).not.toContain("V_TB003_CHECK_DEFAULT");
+
+    expect(probeRan(inner)).toBe(true);
+    expect(actionRan(inner, "apply")).toBe(false);
+  });
+
+  it("mode: delete does not check written values, so it never issues the DD07L fixed-values read", async () => {
+    const PROBE_TRANSCRIPT_TB003_DELETE =
+      `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+      `IMGW> TABLE table=[tb003] delclass=[C] clidep=[X]\n` +
+      `IMGW> FLD table=[tb003] field=[ROLE] key=[X] type=[CHAR] len=[12] rollname=[BU_ROLE]\n` +
+      `IMGW> BVAL row=[1] field=[ROLE] len=[6] value=[BUP001]\n` +
+      `IMGW> PROBED rows=[1]\n`;
+    const APPLY_TRANSCRIPT_TB003_DELETE =
+      `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+      `IMGW> TABLE table=[tb003] delclass=[C] clidep=[X]\n` +
+      `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[6] value=[BUP001]\n` +
+      `IMGW> AABSENT row=[1]\n` +
+      `IMGW> APPLIED rows=[1]\n`;
+    // Only 4 bodies: DD26S, TVIMF, DD07T, DD03L — no DD07L, since `checkValues: mode !== "delete"`
+    // makes `valueFields` (and therefore `valueFieldsWithDomain`) empty regardless of what DD03L
+    // reports. `resolutionRoute` throws loudly on any freestyle call past this queue's end, so an
+    // unexpected 5th (DD07L) call fails the test outright rather than silently passing.
+    const route = resolutionRoute(
+      [TB003_VIEWS_OVER_TABLE_BODY, TB003_MAINTENANCE_EVENTS_BODY, TB003_MAINTEVENT_TEXTS_BODY, TB003_FIELD_CHECKS_BODY],
+      { preview: () => resp(200, PROBE_TRANSCRIPT_TB003_DELETE), apply: () => resp(200, APPLY_TRANSCRIPT_TB003_DELETE) },
+    );
+    const { conn, inner } = await connected(route);
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "delete",
+      ...TB003_ARGS,
+      confirm: "TB003",
+      rows: [{ key: { ROLE: "BUP001" } }],
+    });
+    const text = okText(result);
+
+    expect(text).toContain("--- CHECKS NOT RUN ---");
+    expect(text).toContain("V_TB003_CHECK_DEFAULT");
+    const domainValuesQuery = inner.calls.find((c) => typeof c.body === "string" && c.body.includes("FROM DD07L"));
+    expect(domainValuesQuery).toBeUndefined();
+
+    expect(probeRan(inner)).toBe(true);
+    expect(actionRan(inner, "apply")).toBe(true);
+  });
+
+  it("checksNotesFor's two note types render with exact wording: the maintenance-event note and the fixed-value note", async () => {
+    // Same TB003/V_TB003 catalog shape, but STND_ROLECAT is written as "Q" — not a fixed value of
+    // domain XFELD ("X" or "" per TB003_FIXED_VALUES_BODY) — so both note types fire together.
+    const route = resolutionRoute(TB003_CHECK_BODIES, { preview: () => resp(200, PROBE_TRANSCRIPT_TB003) });
+    const { conn } = await connected(route);
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "preview",
+      ...TB003_ARGS,
+      rows: [{ key: { ROLE: "BUP001" }, values: { ROLECATEGORY: "01", STND_ROLECAT: "Q" } }],
+    });
+    const text = okText(result);
+
+    // Verbatim per `checksNotesFor` (src/tools/img-edit.ts): 2 events registered for V_TB003.
+    expect(text).toContain(
+      "2 maintenance event routine(s) registered for V_TB003 will not run: " +
+        "V_TB003_CHECK_DEFAULT, V_TB003_RESET_DFLT. See CHECKS NOT RUN.",
+    );
+    // Verbatim per `checksNotesFor`: STND_ROLECAT="Q" is not one of XFELD's fixed values ("X", "").
+    expect(text).toContain(
+      'Field STND_ROLECAT: value "Q" is not one of domain XFELD\'s fixed values (X, ). ' +
+        "SM30 would have rejected this input; this tool does not.",
+    );
+  });
+});

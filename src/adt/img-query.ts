@@ -489,6 +489,21 @@ export function buildTableFieldsQuery(tableNames: readonly string[]): string {
   return buildSelect(cols.join(", "), tbl("ddicField"), where, `${table}, ${fld("ddicField", "position")}`);
 }
 
+/**
+ * DD03L check table and domain per field for a set of tables, active version
+ * only. A separate builder from `buildTableFieldsQuery` above, on purpose:
+ * that one already has callers and tests keyed to its exact column list, and
+ * this module's file header says builders are never "optimised" back into
+ * shared shapes once something else depends on them.
+ */
+export function buildTableFieldChecksQuery(tableNames: readonly string[]): string {
+  const table = fld("ddicField", "table");
+  const activeState = fld("ddicField", "activeState");
+  const cols = (["table", "field", "position", "checkTable", "domainName"] as const).map((c) => fld("ddicField", c));
+  const where = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl("ddicField"), where, `${table}, ${fld("ddicField", "position")}`);
+}
+
 /** DD02T table descriptions for a set of tables, active version only, in one language. */
 export function buildTableTextsQuery(tableNames: readonly string[], language: string): string {
   const table = fld("ddicTableText", "table");
@@ -536,6 +551,27 @@ export function buildViewBaseTablesQuery(viewNames: readonly string[]): string {
   return buildSelect(`${view}, ${table}, ${position}`, tbl("viewBaseTable"), where, `${view}, ${position}`);
 }
 
+/**
+ * DD26S views whose FIRST base table (TABPOS 0001) is one of `tableNames`,
+ * active version only. Root-only on purpose: a table shows up as a
+ * *secondary* base table of dozens of unrelated views (TB003 has 18 DD26S
+ * rows, only 3 with TABPOS 0001), and a view that merely joins the table in
+ * is not a plausible maintenance view for it — only the views the table is
+ * the root of are.
+ */
+export function buildViewsOverTableQuery(tableNames: readonly string[]): string {
+  const view = fld("viewBaseTable", "view");
+  const activeState = fld("viewBaseTable", "activeState");
+  const table = fld("viewBaseTable", "table");
+  const position = fld("viewBaseTable", "position");
+  const where = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${position} = ${sqlLiteral("0001")}`,
+    inClause(table, tableNames, "tableNames", assertEntityName),
+  ];
+  return buildSelect(`${view}, ${table}, ${position}`, tbl("viewBaseTable"), where, view);
+}
+
 /** DD27S field list for a set of views, active version only, ordered for display. */
 export function buildViewFieldsQuery(viewNames: readonly string[]): string {
   const view = fld("viewField", "view");
@@ -562,6 +598,43 @@ export function buildTransactionTextsQuery(tcodes: readonly string[], language: 
     inClause(tcode, tcodes, "tcodes", assertTransactionCode),
   ];
   return buildSelect(`${tcode}, ${text}`, tbl("transactionText"), where);
+}
+
+/**
+ * TVIMF maintenance event routines registered for a set of view (or table)
+ * names. No AS4LOCAL predicate — TVIMF has no such column (see the catalog
+ * note on `IMG_CATALOG.viewMaintenanceEvent`).
+ */
+export function buildViewMaintenanceEventsQuery(viewNames: readonly string[]): string {
+  const view = fld("viewMaintenanceEvent", "view");
+  const event = fld("viewMaintenanceEvent", "event");
+  const formName = fld("viewMaintenanceEvent", "formName");
+  const where = [inClause(view, viewNames, "viewNames", assertEntityName)];
+  return buildSelect(`${view}, ${event}, ${formName}`, tbl("viewMaintenanceEvent"), where, `${view}, ${event}`);
+}
+
+/** DD07L fixed values for a set of domains, active version only. */
+export function buildDomainFixedValuesQuery(domainNames: readonly string[]): string {
+  const domain = fld("domainValue", "domain");
+  const activeState = fld("domainValue", "activeState");
+  const cols = (["domain", "position", "valueLow", "valueHigh", "appendValue"] as const).map((c) => fld("domainValue", c));
+  const where = [`${activeState} = ${sqlLiteral("A")}`, inClause(domain, domainNames, "domainNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl("domainValue"), where, `${domain}, ${fld("domainValue", "position")}`);
+}
+
+/** DD07T fixed-value texts for a set of domains in one language, active version only. */
+export function buildDomainValueTextsQuery(domainNames: readonly string[], language: string): string {
+  const domain = fld("domainValueText", "domain");
+  const activeState = fld("domainValueText", "activeState");
+  const lang = fld("domainValueText", "language");
+  const valueLow = fld("domainValueText", "valueLow");
+  const text = fld("domainValueText", "text");
+  const where = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(domain, domainNames, "domainNames", assertEntityName),
+  ];
+  return buildSelect(`${domain}, ${valueLow}, ${text}`, tbl("domainValueText"), where, `${domain}, ${valueLow}`);
 }
 
 // -------------------------------------------------------------- tree walk ---

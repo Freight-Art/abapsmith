@@ -34102,7 +34102,7 @@ var require_tablecontents = __commonJS({
     exports2.servicePreviewUrl = exports2.parseBindingDetails = exports2.decodeQueryResult = exports2.extractBindingLinks = exports2.parseServiceBinding = exports2.TypeKinds = void 0;
     exports2.parseQueryResponse = parseQueryResponse;
     exports2.tableContents = tableContents;
-    exports2.runQuery = runQuery;
+    exports2.runQuery = runQuery2;
     exports2.bindingDetails = bindingDetails;
     var AdtException_1 = require_AdtException();
     var utilities_1 = require_utilities();
@@ -34272,7 +34272,7 @@ var require_tablecontents = __commonJS({
         return (0, exports2.decodeQueryResult)(queryResult);
       return queryResult;
     }
-    async function runQuery(h, sqlQuery, rowNumber = 100, decode3 = true) {
+    async function runQuery2(h, sqlQuery, rowNumber = 100, decode3 = true) {
       const qs = { rowNumber };
       const headers = { Accept: "application/*", "Content-Type": "text/plain" };
       const response = await h.request(`/sap/bc/adt/datapreview/freestyle`, { qs, headers, method: "POST", body: sqlQuery });
@@ -119727,6 +119727,7 @@ function registerFpmTools(mcp, deps) {
 
 // src/adt/img-catalog.ts
 var MEASURED_NOTE = "measured 2026-09-05";
+var MEASURED_NOTE_CHECKS = "measured 2026-09-12";
 var IMG_CATALOG = Object.freeze({
   ddicTable: Object.freeze({
     table: "DD02L",
@@ -119761,7 +119762,9 @@ var IMG_CATALOG = Object.freeze({
       dataElement: "ROLLNAME",
       dataType: "DATATYPE",
       length: "LENG",
-      activeState: "AS4LOCAL"
+      activeState: "AS4LOCAL",
+      checkTable: "CHECKTABLE",
+      domainName: "DOMNAME"
     }),
     confidence: "high"
   }),
@@ -120006,6 +120009,42 @@ var IMG_CATALOG = Object.freeze({
     }),
     confidence: "high",
     note: MEASURED_NOTE + ": ID is the tree's GUID, not a mnemonic \u2014 WHERE id IN ('SIMG','SIMG_ALL','IMG','CUST') returned 0 rows (TTREET has no text rows for those ids either), so the reference IMG has to be found by title text in TNODEIMGT rather than by a well-known id. TTREE's own column literally named TREE_ID is blank on every row seen (filtering on tree_id IN (...) with real tree ids returned 0 rows; filtering the same tree by id = '<guid>' found it immediately, with TREE_ID blank in the returned row) \u2014 a tree's identity lives in TTREE.ID, and TREE_ID must never be used as a join key or lookup column."
+  }),
+  domainValue: Object.freeze({
+    table: "DD07L",
+    fields: Object.freeze({
+      domain: "DOMNAME",
+      position: "VALPOS",
+      valueLow: "DOMVALUE_L",
+      valueHigh: "DOMVALUE_H",
+      appendValue: "APPVAL",
+      activeState: "AS4LOCAL"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS + ": a domain with no fixed values simply has no rows here \u2014 that is not an error condition. A non-blank DOMVALUE_H means the row describes a RANGE of values, not a single fixed value, and must not be compared against a written value the same way a single-value row is."
+  }),
+  domainValueText: Object.freeze({
+    table: "DD07T",
+    fields: Object.freeze({
+      domain: "DOMNAME",
+      position: "VALPOS",
+      valueLow: "DOMVALUE_L",
+      language: "DDLANGUAGE",
+      text: "DDTEXT",
+      activeState: "AS4LOCAL"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  viewMaintenanceEvent: Object.freeze({
+    table: "TVIMF",
+    fields: Object.freeze({
+      view: "TABNAME",
+      event: "EVENT",
+      formName: "FORMNAME"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS + ": TVIMF has only these three columns \u2014 no client column and no AS4LOCAL column, so a query over it must not filter on an active-version flag the way most other catalog tables here do. TABNAME holds the maintenance view name (e.g. V_TB003), not the base table it maintains. EVENT is drawn from domain MAINTEVENT (see MAINTENANCE_EVENT_DOMAIN below)."
   })
 });
 var IMG_CATALOG_VERIFIED = true;
@@ -120016,6 +120055,7 @@ function lowConfidenceTables() {
 var IMG_ACTIVITY_REF_TYPE = "COBJ";
 var IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
 var IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"]);
+var MAINTENANCE_EVENT_DOMAIN = "MAINTEVENT";
 
 // src/adt/datapreview.ts
 var PLAIN_NAME_RE = /^[A-Z][A-Z0-9_]{0,29}$/;
@@ -120398,6 +120438,13 @@ function buildTableFieldsQuery(tableNames) {
   const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
   return buildSelect(cols.join(", "), tbl("ddicField"), where2, `${table}, ${fld("ddicField", "position")}`);
 }
+function buildTableFieldChecksQuery(tableNames) {
+  const table = fld("ddicField", "table");
+  const activeState = fld("ddicField", "activeState");
+  const cols = ["table", "field", "position", "checkTable", "domainName"].map((c) => fld("ddicField", c));
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl("ddicField"), where2, `${table}, ${fld("ddicField", "position")}`);
+}
 function buildTableTextsQuery(tableNames, language) {
   const table = fld("ddicTableText", "table");
   const activeState = fld("ddicTableText", "activeState");
@@ -120437,6 +120484,18 @@ function buildViewBaseTablesQuery(viewNames) {
   const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(view, viewNames, "viewNames", assertEntityName)];
   return buildSelect(`${view}, ${table}, ${position}`, tbl("viewBaseTable"), where2, `${view}, ${position}`);
 }
+function buildViewsOverTableQuery(tableNames) {
+  const view = fld("viewBaseTable", "view");
+  const activeState = fld("viewBaseTable", "activeState");
+  const table = fld("viewBaseTable", "table");
+  const position = fld("viewBaseTable", "position");
+  const where2 = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${position} = ${sqlLiteral("0001")}`,
+    inClause(table, tableNames, "tableNames", assertEntityName)
+  ];
+  return buildSelect(`${view}, ${table}, ${position}`, tbl("viewBaseTable"), where2, view);
+}
 function buildViewFieldsQuery(viewNames) {
   const view = fld("viewField", "view");
   const activeState = fld("viewField", "activeState");
@@ -120458,6 +120517,33 @@ function buildTransactionTextsQuery(tcodes, language) {
     inClause(tcode, tcodes, "tcodes", assertTransactionCode2)
   ];
   return buildSelect(`${tcode}, ${text3}`, tbl("transactionText"), where2);
+}
+function buildViewMaintenanceEventsQuery(viewNames) {
+  const view = fld("viewMaintenanceEvent", "view");
+  const event = fld("viewMaintenanceEvent", "event");
+  const formName = fld("viewMaintenanceEvent", "formName");
+  const where2 = [inClause(view, viewNames, "viewNames", assertEntityName)];
+  return buildSelect(`${view}, ${event}, ${formName}`, tbl("viewMaintenanceEvent"), where2, `${view}, ${event}`);
+}
+function buildDomainFixedValuesQuery(domainNames) {
+  const domain2 = fld("domainValue", "domain");
+  const activeState = fld("domainValue", "activeState");
+  const cols = ["domain", "position", "valueLow", "valueHigh", "appendValue"].map((c) => fld("domainValue", c));
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(domain2, domainNames, "domainNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl("domainValue"), where2, `${domain2}, ${fld("domainValue", "position")}`);
+}
+function buildDomainValueTextsQuery(domainNames, language) {
+  const domain2 = fld("domainValueText", "domain");
+  const activeState = fld("domainValueText", "activeState");
+  const lang = fld("domainValueText", "language");
+  const valueLow = fld("domainValueText", "valueLow");
+  const text3 = fld("domainValueText", "text");
+  const where2 = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(domain2, domainNames, "domainNames", assertEntityName)
+  ];
+  return buildSelect(`${domain2}, ${valueLow}, ${text3}`, tbl("domainValueText"), where2, `${domain2}, ${valueLow}`);
 }
 function buildTreeRootProbeQuery(language) {
   const treeId = fld("imgTreeNodeText", "treeId");
@@ -122525,6 +122611,210 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
   return { allowed: true, notes };
 }
 
+// src/adt/img-checks.ts
+function tbl3(key) {
+  return IMG_CATALOG[key].table;
+}
+function fld3(key, field) {
+  const fields = IMG_CATALOG[key].fields;
+  return fields[field];
+}
+var IMG_CHECKS_ROW_CAP = 200;
+var TVIMF_LOOKUP_MAX = 20;
+async function runQuery(conn, ctx, sql) {
+  const resp = await conn.dataPreviewFreestyle(sql, IMG_CHECKS_ROW_CAP);
+  ctx.statementsIssued++;
+  return toRecordSet(resp.body);
+}
+function serverNotes2(rs) {
+  return rs.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
+}
+function mapRows(rs, queryLabel, notes, fn) {
+  const out = [];
+  let skipped = 0;
+  for (const r of rs.records) {
+    const v = fn(r);
+    if (v === void 0) {
+      skipped++;
+      continue;
+    }
+    out.push(v);
+  }
+  if (skipped > 0) {
+    notes.push(`${queryLabel} returned ${skipped} row(s) with an unusable shape (an expected column was missing) \u2014 they were skipped.`);
+  }
+  return out;
+}
+function collectWrittenFields(rows, clientField, checkValues) {
+  const clientUpper = clientField.trim().toUpperCase();
+  const writtenFields = [];
+  const writtenSeen = /* @__PURE__ */ new Set();
+  const valueFields = [];
+  const valueSeen = /* @__PURE__ */ new Set();
+  const addWritten = (name) => {
+    const u = name.toUpperCase();
+    if (u === clientUpper) return;
+    if (!writtenSeen.has(u)) {
+      writtenSeen.add(u);
+      writtenFields.push(u);
+    }
+  };
+  const addValue = (name) => {
+    const u = name.toUpperCase();
+    if (u === clientUpper) return;
+    if (!valueSeen.has(u)) {
+      valueSeen.add(u);
+      valueFields.push(u);
+    }
+  };
+  for (const row2 of rows) {
+    for (const k of Object.keys(row2.key)) addWritten(k);
+    if (checkValues && row2.values) {
+      for (const k of Object.keys(row2.values)) {
+        addWritten(k);
+        addValue(k);
+      }
+    }
+  }
+  return { writtenFields, valueFields };
+}
+function readWrittenValue(row2, field) {
+  if (!row2.values) return void 0;
+  for (const [k, v] of Object.entries(row2.values)) {
+    if (k.toUpperCase() === field) return v;
+  }
+  return void 0;
+}
+async function readImgChecks(conn, q) {
+  const started = Date.now();
+  const ctx = { statementsIssued: 0 };
+  const notes = [];
+  const { writtenFields, valueFields } = collectWrittenFields(q.rows, q.clientField, q.checkValues);
+  const viewsRs = await runQuery(conn, ctx, buildViewsOverTableQuery([q.table]));
+  notes.push(...serverNotes2(viewsRs));
+  const candidateViews = mapRows(viewsRs, tbl3("viewBaseTable"), notes, (r) => r[fld3("viewBaseTable", "view")]);
+  const lookupOrder = [q.view, q.table, ...candidateViews];
+  const seen = /* @__PURE__ */ new Set();
+  const lookupSet = [];
+  for (const raw of lookupOrder) {
+    const v = raw.trim().toUpperCase();
+    if (v === "" || seen.has(v)) continue;
+    seen.add(v);
+    lookupSet.push(v);
+  }
+  const truncated = lookupSet.length > TVIMF_LOOKUP_MAX;
+  const views = truncated ? lookupSet.slice(0, TVIMF_LOOKUP_MAX) : lookupSet;
+  if (truncated) {
+    notes.push(
+      `The ${tbl3("viewMaintenanceEvent")} lookup covers ${views.length} of ${lookupSet.length} candidate view/table names \u2014 the rest were dropped.`
+    );
+  }
+  let events = [];
+  if (views.length > 0) {
+    const eventsRs = await runQuery(conn, ctx, buildViewMaintenanceEventsQuery(views));
+    notes.push(...serverNotes2(eventsRs));
+    events = mapRows(eventsRs, tbl3("viewMaintenanceEvent"), notes, (r) => {
+      const view = r[fld3("viewMaintenanceEvent", "view")];
+      const event = r[fld3("viewMaintenanceEvent", "event")];
+      const formName = r[fld3("viewMaintenanceEvent", "formName")];
+      if (view === void 0 || event === void 0 || formName === void 0) return void 0;
+      return { view, event, formName, description: "" };
+    });
+  }
+  if (events.length > 0) {
+    const codeToText = /* @__PURE__ */ new Map();
+    const textsRs = await runQuery(conn, ctx, buildDomainValueTextsQuery([MAINTENANCE_EVENT_DOMAIN], q.language));
+    notes.push(...serverNotes2(textsRs));
+    mapRows(textsRs, tbl3("domainValueText"), notes, (r) => {
+      const code = r[fld3("domainValueText", "valueLow")];
+      const text3 = r[fld3("domainValueText", "text")];
+      if (code === void 0 || text3 === void 0) return void 0;
+      codeToText.set(code, text3);
+      return true;
+    });
+    const missingCodes = /* @__PURE__ */ new Set();
+    events = events.map((e) => {
+      const description = codeToText.get(e.event);
+      if (description === void 0) missingCodes.add(e.event);
+      return { ...e, description: description ?? "" };
+    });
+    for (const code of missingCodes) {
+      notes.push(`No ${tbl3("domainValueText")} text for maintenance event code "${code}" (domain ${MAINTENANCE_EVENT_DOMAIN}, language "${q.language}").`);
+    }
+  }
+  const checkTables = [];
+  const domainByField = /* @__PURE__ */ new Map();
+  const fieldChecksRs = await runQuery(conn, ctx, buildTableFieldChecksQuery([q.table]));
+  notes.push(...serverNotes2(fieldChecksRs));
+  const fieldInfo = /* @__PURE__ */ new Map();
+  mapRows(fieldChecksRs, tbl3("ddicField"), notes, (r) => {
+    const field = r[fld3("ddicField", "field")];
+    const checkTable = r[fld3("ddicField", "checkTable")];
+    const domain2 = r[fld3("ddicField", "domainName")];
+    if (field === void 0 || checkTable === void 0 || domain2 === void 0) return void 0;
+    fieldInfo.set(field.toUpperCase(), { checkTable, domain: domain2 });
+    return true;
+  });
+  for (const field of writtenFields) {
+    const info = fieldInfo.get(field);
+    if (info === void 0) continue;
+    if (info.checkTable.trim() !== "") checkTables.push({ field, checkTable: info.checkTable.trim() });
+    if (info.domain.trim() !== "") domainByField.set(field, info.domain.trim());
+  }
+  const fixedValueFindings = [];
+  const valueFieldsWithDomain = valueFields.filter((f) => domainByField.has(f));
+  if (q.checkValues && valueFieldsWithDomain.length > 0) {
+    const domains = [...new Set(valueFieldsWithDomain.map((f) => domainByField.get(f)))];
+    const domainRowsMap = /* @__PURE__ */ new Map();
+    const domainValuesRs = await runQuery(conn, ctx, buildDomainFixedValuesQuery(domains));
+    notes.push(...serverNotes2(domainValuesRs));
+    mapRows(domainValuesRs, tbl3("domainValue"), notes, (r) => {
+      const domain2 = r[fld3("domainValue", "domain")];
+      const valueLow = r[fld3("domainValue", "valueLow")];
+      const valueHigh = r[fld3("domainValue", "valueHigh")];
+      if (domain2 === void 0 || valueLow === void 0 || valueHigh === void 0) return void 0;
+      const list5 = domainRowsMap.get(domain2);
+      if (list5) list5.push({ valueLow, valueHigh });
+      else domainRowsMap.set(domain2, [{ valueLow, valueHigh }]);
+      return true;
+    });
+    for (const field of valueFieldsWithDomain) {
+      const domain2 = domainByField.get(field);
+      const domainRows = domainRowsMap.get(domain2);
+      if (domainRows === void 0 || domainRows.length === 0) continue;
+      const isRange = domainRows.some((r) => r.valueHigh.trim() !== "");
+      if (isRange) {
+        notes.push(
+          `Field "${field}"'s domain "${domain2}" defines a value range (${tbl3("domainValue")}.${fld3("domainValue", "valueHigh")} is set on at least one row) \u2014 its written value was not checked against fixed values.`
+        );
+        continue;
+      }
+      const allowed = domainRows.map((r) => r.valueLow);
+      const emitted = /* @__PURE__ */ new Set();
+      for (const row2 of q.rows) {
+        const raw = readWrittenValue(row2, field);
+        if (raw === void 0) continue;
+        const trimmed = raw.trim();
+        if (trimmed === "") continue;
+        if (allowed.some((a) => a.trim().toUpperCase() === trimmed.toUpperCase())) continue;
+        if (emitted.has(trimmed)) continue;
+        emitted.add(trimmed);
+        fixedValueFindings.push({ field, domain: domain2, value: trimmed, allowed });
+      }
+    }
+  }
+  return {
+    table: q.table,
+    views,
+    events,
+    checkTables,
+    fixedValueFindings,
+    notes,
+    statementsIssued: ctx.statementsIssued,
+    durationMs: Date.now() - started
+  };
+}
+
 // src/tools/img-edit.ts
 var imgEditRowSchema = external_exports.object({
   key: external_exports.record(external_exports.string(), external_exports.string()).describe("Key field name -> value, one entry per key_fields."),
@@ -122896,6 +123186,88 @@ function evaluateReal(args, mode, probe3, safety) {
   }
   return verdict;
 }
+async function readChecksSafely(deps, args, mode) {
+  try {
+    return await deps.pool.withRead(
+      "abap_img_edit",
+      (conn) => readImgChecks(conn, {
+        table: args.table,
+        view: args.view,
+        clientField: args.clientField,
+        language: args.language,
+        checkValues: mode !== "delete",
+        rows: args.rows
+      })
+    );
+  } catch (e) {
+    return { failure: truncateText(e.message, MESSAGE_EXCERPT_MAX) };
+  }
+}
+function checksSection(checks) {
+  const parts = [
+    "This tool writes the base table directly. The maintenance dialog's own check logic does not run \u2014 below is what SM30 would have run for this data."
+  ];
+  if ("failure" in checks) {
+    parts.push(
+      `The check metadata could not be read (${checks.failure}), so nothing can be said about which checks SM30 would have run.`
+    );
+    return parts.join("\n\n");
+  }
+  const blocks = [];
+  if (checks.events.length) {
+    const rows = checks.events.map((e) => ({ view: e.view, event: e.event, when: e.description, routine: e.formName }));
+    blocks.push(
+      "Maintenance event routines registered in TVIMF (SM30 calls these; this tool does not):\n" + textTable(rows, ["view", "event", "when", "routine"])
+    );
+  }
+  if (checks.checkTables.length) {
+    const rows = checks.checkTables.map((c) => ({ field: c.field, check_table: c.checkTable }));
+    blocks.push(
+      "Check tables for the fields this call writes (foreign keys not verified):\n" + textTable(rows, ["field", "check_table"])
+    );
+  }
+  if (checks.fixedValueFindings.length) {
+    const rows = checks.fixedValueFindings.map((f) => ({
+      field: f.field,
+      domain: f.domain,
+      value: f.value === "" ? "''" : f.value,
+      allowed: f.allowed.join(", ")
+    }));
+    blocks.push(
+      "Written values that are not fixed values of their domain:\n" + textTable(rows, ["field", "domain", "value", "allowed"])
+    );
+  }
+  if (blocks.length === 0) {
+    parts.push(
+      "No maintenance event routines, check tables or domain fixed values were found for the fields this call writes \u2014 only DDIC typing was enforced here."
+    );
+  } else {
+    parts.push(...blocks);
+  }
+  if (checks.notes.length) {
+    parts.push(`Notes from the check-metadata read:
+${checks.notes.join("\n")}`);
+  }
+  return parts.join("\n\n");
+}
+function checksNotesFor(checks) {
+  if ("failure" in checks) return [];
+  const notes = [];
+  for (const f of checks.fixedValueFindings) {
+    notes.push(
+      `Field ${f.field}: value "${f.value}" is not one of domain ${f.domain}'s fixed values (${f.allowed.join(", ")}). SM30 would have rejected this input; this tool does not.`
+    );
+  }
+  if (checks.events.length) {
+    const formNames = checks.events.map((e) => e.formName);
+    const shownNames = formNames.length > 5 ? [...formNames.slice(0, 5), "..."] : formNames;
+    const viewsWithEvents = [...new Set(checks.events.map((e) => e.view))];
+    notes.push(
+      `${checks.events.length} maintenance event routine(s) registered for ${viewsWithEvents.join(", ")} will not run: ${shownNames.join(", ")}. See CHECKS NOT RUN.`
+    );
+  }
+  return notes;
+}
 function groupByRow(values) {
   const out = /* @__PURE__ */ new Map();
   for (const v of values) {
@@ -122951,14 +123323,16 @@ function renderResolvedSection(r, args) {
 function transportEntryPreview(args, table) {
   return `An armed upsert/delete would record ${args.rows.length} row(s) on transport object TABU ${table.table}, master ${args.masterType} ${args.view}. The actual E071K TABKEY value is computed server-side at apply time (see img-write-bridge.ts's ctsRecordFragment) and is not reproduced here \u2014 this line only names what kind of entry would be filed, not its bytes.`;
 }
-function renderPreview(args, probe3, notes, maxChars) {
+function renderPreview(args, probe3, notes, checks, maxChars) {
   const table = policyTableFromProbe(args, probe3);
   const filteredNotes = notes.filter((n) => n !== SM30_BYPASS_NOTE);
   const t = probe3.transcript;
   if (t.errors.length) filteredNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) filteredNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
+  filteredNotes.push(...checksNotesFor(checks));
   const sections = [
     { title: "CURRENT ROWS", content: currentRowsTable(args, probe3) },
+    { title: "CHECKS NOT RUN", content: checksSection(checks) },
     { title: "TRANSPORT ENTRY (DESCRIPTIVE ONLY)", content: transportEntryPreview(args, table) }
   ];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
@@ -123099,12 +123473,13 @@ function armedDeleteRowsTable(args, apply) {
   }));
   return textTable(rows, ["row", "key", "change", "changed", "result"]);
 }
-function renderArmed(mode, args, apply, notes, journalNote, maxChars) {
+function renderArmed(mode, args, apply, notes, checks, journalNote, maxChars) {
   const t = apply.transcript;
   const finalNotes = [...notes];
   if (journalNote) finalNotes.push(journalNote);
   if (t.errors.length) finalNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) finalNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
+  finalNotes.push(...checksNotesFor(checks));
   if (mode === "delete") {
     const deleteSummaries = rowDeleteSummaries(args.rows, t);
     const absentRows = deleteSummaries.reduce((acc, s, i) => {
@@ -123141,6 +123516,7 @@ ${textTable(trkeyRows, ["row", "tabkey", "trkorr", "recorded_order", "recorded_t
     }
   ] : [];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
+  sections.push({ title: "CHECKS NOT RUN", content: checksSection(checks) });
   return buildResponse({
     header: {
       mode,
@@ -123314,8 +123690,9 @@ async function runProbeAndApply(deps, mode, args, opts) {
   const planOp = mode === "preview" ? "upsert" : mode;
   const applyPlan = buildApplyPlan(args, planOp, table);
   validateApplyPlan(applyPlan);
+  const checks = await readChecksSafely(deps, args, mode);
   if (mode === "preview") {
-    return ok14(renderPreview(args, probe3, verdict.notes, deps.cfg.maxResponseChars));
+    return ok14(renderPreview(args, probe3, verdict.notes, checks, deps.cfg.maxResponseChars));
   }
   deps.safety.assert(
     "write",
@@ -123339,7 +123716,7 @@ async function runProbeAndApply(deps, mode, args, opts) {
       reasons: failure.reasons
     });
   }
-  return ok14(renderArmed(mode, args, apply, verdict.notes, journalNote, deps.cfg.maxResponseChars));
+  return ok14(renderArmed(mode, args, apply, verdict.notes, checks, journalNote, deps.cfg.maxResponseChars));
 }
 async function runRowEditMode(deps, mode, input) {
   rejectForMode2(mode, "description", input.description);

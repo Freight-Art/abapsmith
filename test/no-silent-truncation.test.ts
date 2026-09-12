@@ -327,6 +327,12 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
       "Keyset pager for abap_img mode: \"search\". The freestyle data-preview endpoint has no OFFSET, which is why this pager is hand-rolled at all: readImgSearch over-fetches limit + 1 rows from both the id-match and title-match queries before merging and sorting them, so it always knows whether a page was cut short. The dropped tail IS disclosed to the caller, structurally and in the same return value: the result carries page: { after: q.after, next, limit, more }, where `more` says a further page exists and `next` is the exact keyset cursor to pass back as `after` to fetch it. Nothing is withheld silently.",
   },
   {
+    file: "src/adt/img-checks.ts",
+    contains: "lookupSet.slice(0, TVIMF_LOOKUP_MAX)",
+    reason:
+      "Cap on the number of candidate view/table names sent to the TVIMF lookup, not on the check results themselves. When lookupSet exceeds TVIMF_LOOKUP_MAX, readImgChecks pushes an explicit note naming both counts — \"the lookup covers N of M candidate view/table names — the rest were dropped\" — onto the result's notes array, and those notes reach the caller through img-edit's response (see checksNotesFor in src/tools/img-edit.ts). The drop is disclosed, not silent.",
+  },
+  {
     file: "src/debug/render.ts",
     contains: "reachableTexts.slice(0, kept).reduce",
     reason:

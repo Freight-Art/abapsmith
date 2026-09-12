@@ -73,9 +73,11 @@ import {
 } from "../adt/img-write-policy.js";
 import { readImgShow, readImgObjects, type ImgObjectKind, type ImgReadConnection } from "../adt/img-read.js";
 import { resolveActivity, resolveObject, type ResolvedTable } from "../adt/img-resolve.js";
+import { readImgChecks, type ImgChecksResult } from "../adt/img-checks.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import { buildResponse, textTable } from "../compact.js";
+import { truncateText, MESSAGE_EXCERPT_MAX } from "../truncate.js";
 import type { SafetyGate } from "../safety.js";
 import {
   systemKey,
@@ -779,6 +781,151 @@ function evaluateReal(
 }
 
 // ---------------------------------------------------------------------------
+// Check-metadata disclosure (CHECKS NOT RUN)
+// ---------------------------------------------------------------------------
+
+/**
+ * Either the real read result, or a short reason it could not be produced —
+ * see `readChecksSafely`. Kept as a plain union (not an `undefined`) so
+ * `checksSection`/`checksNotesFor` have one value to switch on instead of
+ * two independent optionals that could disagree.
+ */
+type ChecksOutcome = ImgChecksResult | { readonly failure: string };
+
+/**
+ * Reads what SM30 would have run for this write — maintenance event
+ * routines (TVIMF), check tables, and domain fixed-value violations — purely
+ * so `preview`/the armed response can disclose it (issue #62: this tool
+ * writes the base table directly and none of that check logic ever runs).
+ *
+ * This is a diagnostic side-read, not part of the write path: every error it
+ * can raise (a network hiccup, a bridge failure, a parse error in
+ * `readImgChecks` itself) is caught here and turned into a short failure
+ * reason string instead of being thrown. Write semantics for rows that pass
+ * today must not change (issue #62 is explicit about this) — a broken
+ * check-metadata read must never prevent a preview from rendering or an
+ * armed upsert/delete from proceeding.
+ */
+async function readChecksSafely(
+  deps: ImgEditToolDeps,
+  args: RowEditArgs,
+  mode: "preview" | "upsert" | "delete",
+): Promise<ChecksOutcome> {
+  try {
+    return await deps.pool.withRead("abap_img_edit", (conn) =>
+      readImgChecks(conn, {
+        table: args.table,
+        view: args.view,
+        clientField: args.clientField,
+        language: args.language,
+        checkValues: mode !== "delete",
+        rows: args.rows,
+      }),
+    );
+  } catch (e) {
+    return { failure: truncateText((e as Error).message, MESSAGE_EXCERPT_MAX) };
+  }
+}
+
+/**
+ * Content for the "CHECKS NOT RUN" section — one function `renderPreview`
+ * and `renderArmed` both call, so the two paths can never render this
+ * disclosure differently (same reasoning as `requestedChangeCell` above).
+ */
+function checksSection(checks: ChecksOutcome): string {
+  const parts: string[] = [
+    "This tool writes the base table directly. The maintenance dialog's own check logic does not run — " +
+      "below is what SM30 would have run for this data.",
+  ];
+
+  if ("failure" in checks) {
+    parts.push(
+      `The check metadata could not be read (${checks.failure}), so nothing can be said about which checks SM30 would have run.`,
+    );
+    return parts.join("\n\n");
+  }
+
+  const blocks: string[] = [];
+
+  if (checks.events.length) {
+    const rows = checks.events.map((e) => ({ view: e.view, event: e.event, when: e.description, routine: e.formName }));
+    blocks.push(
+      "Maintenance event routines registered in TVIMF (SM30 calls these; this tool does not):\n" +
+        textTable(rows, ["view", "event", "when", "routine"]),
+    );
+  }
+
+  if (checks.checkTables.length) {
+    const rows = checks.checkTables.map((c) => ({ field: c.field, check_table: c.checkTable }));
+    blocks.push(
+      "Check tables for the fields this call writes (foreign keys not verified):\n" +
+        textTable(rows, ["field", "check_table"]),
+    );
+  }
+
+  if (checks.fixedValueFindings.length) {
+    const rows = checks.fixedValueFindings.map((f) => ({
+      field: f.field,
+      domain: f.domain,
+      value: f.value === "" ? "''" : f.value,
+      allowed: f.allowed.join(", "),
+    }));
+    blocks.push(
+      "Written values that are not fixed values of their domain:\n" + textTable(rows, ["field", "domain", "value", "allowed"]),
+    );
+  }
+
+  if (blocks.length === 0) {
+    parts.push(
+      "No maintenance event routines, check tables or domain fixed values were found for the fields this call writes — only DDIC typing was enforced here.",
+    );
+  } else {
+    parts.push(...blocks);
+  }
+
+  // Folded in here rather than into the response `notes` list too — see the module's CHECKS NOT RUN
+  // contract: one place for the read's own notes, not two that could drift.
+  if (checks.notes.length) {
+    parts.push(`Notes from the check-metadata read:\n${checks.notes.join("\n")}`);
+  }
+
+  return parts.join("\n\n");
+}
+
+/**
+ * The response `notes` entries this same read contributes, restated as flat
+ * notes (distinct from `checksSection`'s tables) so a caller that only reads
+ * `notes` still sees the two highest-signal findings — a fixed-value
+ * violation SM30 would have rejected outright, and a maintenance event
+ * routine that silently does not run. Empty when the read failed (that case
+ * is disclosed only in the CHECKS NOT RUN section, see `checksSection`) or
+ * found nothing.
+ */
+function checksNotesFor(checks: ChecksOutcome): string[] {
+  if ("failure" in checks) return [];
+  const notes: string[] = [];
+  for (const f of checks.fixedValueFindings) {
+    notes.push(
+      `Field ${f.field}: value "${f.value}" is not one of domain ${f.domain}'s fixed values (${f.allowed.join(", ")}). ` +
+        "SM30 would have rejected this input; this tool does not.",
+    );
+  }
+  if (checks.events.length) {
+    const formNames = checks.events.map((e) => e.formName);
+    const shownNames = formNames.length > 5 ? [...formNames.slice(0, 5), "..."] : formNames;
+    // Not `checks.views` — that is every name the TVIMF lookup covered, including names that
+    // turned out to have no events at all. Name only the views that actually appear in
+    // `checks.events`, so this note never implies a routine exists for a view that has none.
+    const viewsWithEvents = [...new Set(checks.events.map((e) => e.view))];
+    notes.push(
+      `${checks.events.length} maintenance event routine(s) registered for ${viewsWithEvents.join(", ")} will not run: ` +
+        `${shownNames.join(", ")}. See CHECKS NOT RUN.`,
+    );
+  }
+  return notes;
+}
+
+// ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
 
@@ -867,15 +1014,26 @@ function transportEntryPreview(args: RowEditArgs, table: PolicyTable): string {
   );
 }
 
-function renderPreview(args: RowEditArgs, probe: ImgProbeResult, notes: readonly string[], maxChars: number): string {
+function renderPreview(
+  args: RowEditArgs,
+  probe: ImgProbeResult,
+  notes: readonly string[],
+  checks: ChecksOutcome,
+  maxChars: number,
+): string {
   const table = policyTableFromProbe(args, probe);
+  // Nothing has been written yet for a preview to disclose a bypass of — see the module doc comment.
+  // The CHECKS NOT RUN section below says the same thing concretely (which specific checks would not
+  // have run), so keeping SM30_BYPASS_NOTE filtered out here avoids naming that same fact twice.
   const filteredNotes = notes.filter((n) => n !== SM30_BYPASS_NOTE);
   const t = probe.transcript;
   if (t.errors.length) filteredNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) filteredNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
+  filteredNotes.push(...checksNotesFor(checks));
 
   const sections = [
     { title: "CURRENT ROWS", content: currentRowsTable(args, probe) },
+    { title: "CHECKS NOT RUN", content: checksSection(checks) },
     { title: "TRANSPORT ENTRY (DESCRIPTIVE ONLY)", content: transportEntryPreview(args, table) },
   ];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
@@ -1122,6 +1280,7 @@ function renderArmed(
   args: RowEditArgs,
   apply: ImgApplyResult,
   notes: readonly string[],
+  checks: ChecksOutcome,
   journalNote: string | undefined,
   maxChars: number,
 ): string {
@@ -1130,6 +1289,7 @@ function renderArmed(
   if (journalNote) finalNotes.push(journalNote);
   if (t.errors.length) finalNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) finalNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
+  finalNotes.push(...checksNotesFor(checks));
 
   // Live defect fixed here: an armed delete of a row that does not exist used to render
   // `[ok] applied: N` with nothing telling the caller that nothing was actually deleted — the
@@ -1192,6 +1352,9 @@ function renderArmed(
       ]
     : [];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
+  // Last, after RESOLVED/TRANSPORT ENTRY RECORDED — same disclosure preview shows, restated for
+  // what was actually written rather than what was prospective.
+  sections.push({ title: "CHECKS NOT RUN", content: checksSection(checks) });
 
   return buildResponse({
     header: {
@@ -1470,8 +1633,13 @@ async function runProbeAndApply(
   const applyPlan = buildApplyPlan(args, planOp, table);
   validateApplyPlan(applyPlan);
 
+  // Diagnostic side-read, not part of the write path — see readChecksSafely's own doc comment. Its
+  // failure (caught inside readChecksSafely, never thrown here) must never stop a preview from
+  // rendering or an armed write from proceeding, so this runs unconditionally for both.
+  const checks = await readChecksSafely(deps, args, mode);
+
   if (mode === "preview") {
-    return ok(renderPreview(args, probe, verdict.notes, deps.cfg.maxResponseChars));
+    return ok(renderPreview(args, probe, verdict.notes, checks, deps.cfg.maxResponseChars));
   }
 
   deps.safety.assert(
@@ -1498,7 +1666,7 @@ async function runProbeAndApply(
     });
   }
 
-  return ok(renderArmed(mode, args, apply, verdict.notes, journalNote, deps.cfg.maxResponseChars));
+  return ok(renderArmed(mode, args, apply, verdict.notes, checks, journalNote, deps.cfg.maxResponseChars));
 }
 
 interface ResolveCallbackResult {
