@@ -13,22 +13,49 @@
  * reasoning behind co-locating these two helpers.
  */
 import { enhancementIntentFor, type EnhancedObjectRef } from "../adt/write.js";
+import { resolveIndexObjectInput } from "../adt/index-create.js";
 import { parseObjectRef } from "../adt/resolve.js";
 import { specForType } from "../adt/types.js";
 import { isEnhancementType } from "../safety.js";
 import type { EnhancementIntent } from "../safety.js";
 
+/** Case/whitespace-insensitive `type === "TABL/DI"` test, shared by {@link preflight} and {@link writeGateKey}. */
+function isIndexType(type: string | undefined): boolean {
+  return (type ?? "").trim().toUpperCase() === "TABL/DI";
+}
+
 /**
  * What the gate can know from the raw arguments alone — no connection, no
  * resolution, no network. `package` is only present when the caller named one;
  * the package rules are re-checked against the resolved object inside the tool.
+ *
+ * `base_table` only matters for `type: "TABL/DI"` (see below); every other
+ * caller omits it.
  */
-export function preflight(args: { object: string; type?: string; package?: string }): {
+export function preflight(args: {
+  object: string;
+  type?: string;
+  package?: string;
+  base_table?: string;
+}): {
   name: string;
   packageName?: string;
   superPackage?: string;
   type?: string;
 } {
+  if (isIndexType(args.type)) {
+    // TABL/DI has no ADT resource of its own (`src/adt/index-create.ts`'s
+    // header), so no `TypeSpec` in `src/adt/types.ts` carries a `parentPath`
+    // for it, and `parseObjectRef` below never gets a chance to split its
+    // parented "<TABLE>/<INDEX>" form — it throws the generic "Could not
+    // extract an ABAP object name" refusal instead, before the write
+    // handler's OWN `resolveIndexObjectInput` call (`src/tools/write.ts`)
+    // ever runs. Resolve it the same way, here, so this zero-network gate
+    // sees the bare index name — exactly what it already saw for the
+    // bare-name + `base_table` form, which was never broken.
+    const resolved = resolveIndexObjectInput(args.object, args.base_table);
+    return { name: resolved.object.trim().toUpperCase(), packageName: args.package, type: args.type };
+  }
   const parsed = parseObjectRef(args.object, specForType(args.type));
   const type = args.type ?? parsed.spec?.type;
   // DEVC/K: a package's own package is ITSELF; caller's `package` is the
@@ -58,9 +85,18 @@ export function preflight(args: { object: string; type?: string; package?: strin
  * `PARENT/NAME` function-module addressing so `FG/FM`, `FM in FG`, and bare
  * `FM` all land on the same gate slot (the bare name), since FM names are
  * system-wide unique.
+ *
+ * `baseTable` mirrors {@link preflight}'s `base_table`, for the same
+ * `type: "TABL/DI"` parented-form reason — every other caller omits it.
+ * Only the bare index name becomes the key (same as the pre-existing bare
+ * name + `base_table` form always used), not a compound with the base
+ * table: two different tables' same-named index sharing a gate slot is
+ * over-conservative serialization, not a correctness gap.
  */
-export function writeGateKey(object: string, type?: string): string | undefined {
-  const name = parseObjectRef(object, specForType(type)).name.trim().toUpperCase();
+export function writeGateKey(object: string, type?: string, baseTable?: string): string | undefined {
+  const name = isIndexType(type)
+    ? resolveIndexObjectInput(object, baseTable).object.trim().toUpperCase()
+    : parseObjectRef(object, specForType(type)).name.trim().toUpperCase();
   return name.length > 0 ? name : undefined;
 }
 

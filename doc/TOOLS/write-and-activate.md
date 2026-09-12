@@ -32,13 +32,31 @@ reaching SAP.
 | `software_component` | string | no | — | `DEVC/K` (package) only: `LOCAL`, or a transportable component (e.g. `HOME`) — the latter needs `corr_nr` unless the package is `$TMP`-local. |
 | `package_type` | string | no | `development` | `DEVC/K` only. |
 | `transport_layer` | string | no | — | `DEVC/K` only. |
-| `base_table` | string | no | — | `VIEW/DV` create only — the single base DDIC table. |
+| `base_table` | string | no | — | `VIEW/DV` create only — the single base DDIC table. Also accepted for `TABL/DI` create/delete — see "`TABL/DI` addressing" below; there it names the index's base table rather than a view's. |
 | `view_fields` | array\<string\> | no | — | `VIEW/DV` create only — the fields to project, in order. |
 | `program` | string | no (required for `TRAN/T`) | — | `TRAN/T` only — program the transaction starts. |
 | `affects` | object `{name, packageName, masterSystem?, spotName?}` | no (required for `ENHO/XHH`) | — | The object this write's target enhancement binds to. |
 | `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. |
 | `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for the bridge-only creates (`VIEW/DV`, `TRAN/T`), and for `DEVC/K`. |
 
+**`TABL/DI` addressing**: `abap_read` names a table secondary index as
+`<TABLE>/<INDEX>` (see `doc/TOOLS/read-and-search.md`'s "Catalog reads"
+section, e.g. `abap_read {"object":"ZTAB/Z01","type":"TABL/DI"}`) because
+`TABL/DI` has no ADT resource of its own to resolve a bare name against.
+`abap_write` now accepts both of the following for `object`, for both
+create and `mode=delete`:
+
+- The same parented form, alone: `{"object":"ZTAB/Z01","type":"TABL/DI"}`.
+  It is split into base table `ZTAB` and index `Z01`; `base_table` may be
+  omitted.
+- The bare index name plus `base_table`, unchanged from before:
+  `{"object":"Z01","type":"TABL/DI","base_table":"ZTAB"}`.
+
+`base_table` may be given alongside the parented form too, as long as it
+agrees with the table named in `object` — abapsmith never silently
+prefers one over the other. If the two disagree, or if `object` is a bare
+index name with no `base_table` at all, the call is refused `BAD_INPUT`
+naming both values (or both accepted forms) rather than guessing.
 **Class sub-includes (`include`)**: a `CLAS/OC` has five includes ADT
 exposes — `main`, `definitions` (CCDEF), `implementations` (CCIMP),
 `macros` (CCMAC) and `testclasses` (CCAU). `include` picks which one this

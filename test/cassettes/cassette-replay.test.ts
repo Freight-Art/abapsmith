@@ -117,6 +117,22 @@ const COVERED_CASSETTE_IDS = [
   "listener-hit-debuggee",
   "stack-read",
   "trigger-classrun-500-html",
+  "freestyle-authx-field-metadata",
+  "freestyle-dd04l-data-elements",
+  "freestyle-dd07v-fixed-values",
+  "freestyle-dd12v-no-index",
+  "freestyle-dd12v-table-indexes",
+  "freestyle-dd17s-index-fields",
+  "freestyle-tactt-activity-texts",
+  "freestyle-tactz-permitted-activities",
+  "freestyle-tobj-absent-object",
+  "freestyle-tobj-authorization-object",
+  "freestyle-tobjt-object-text",
+  "nodestructure-empty-package-zero-byte",
+  "nodestructure-package-with-objects",
+  "nodestructure-package-with-subpackages",
+  "package-header-customer",
+  "package-header-sap-standard",
 ] as const;
 
 // Generated ONCE for the whole suite, from every cassette on disk — mirrors

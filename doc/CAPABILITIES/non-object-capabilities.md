@@ -19,6 +19,7 @@
 | Source search | n/a | partial | n/a | n/a | n/a | mixed | Line-wise text scan (`abap_search mode=source`) over PROG/CLAS/INTF/FUGR/DDLS source, via the built-in `scan` fluid tool. `partial`, not `yes`: a scope (`packages` and/or a narrower-than-`*` `objects` pattern) is mandatory, a fixed 200-object ceiling applies, and it needs the fluid API (`ABAP_FLUID_API` on, `ABAP_MODE` not `read`) — a repository-wide, ungated scan is not reachable. Excludes comments by default (a per-line heuristic, not a parser). `live` (A4H, 2026-09-12): literal and regex line matching (including a spaced pattern), FUGR include resolution, DDLS/CDS reads, package/subpackage scope, the hit-cap/object-ceiling truncation report, and the comment heuristic. `tests`-only: the `abap_search mode=source` MCP dispatch path itself, since the live server runs a released bundle that predates this feature. |
 | Data preview | n/a | partial | no | n/a | n/a | mixed | One DDIC table or view per call, off by default, denylisted for sensitive tables, refused on any system that reports itself productive. No free-form SQL surface exists for callers — the catalog-driven SELECTs the IMG structure tool assembles server-side are not a caller-facing SQL surface either, since a caller never supplies or influences the statement text. |
 | IMG (customizing) navigation | no | partial | no | no | n/a | tests | Navigates the IMG structure only — activities, nodes, and the views/tables behind them — via the ADT freestyle data-preview endpoint, with SQL assembled server-side from a fixed catalog in `src/adt/img-catalog.ts`; every table in the catalog is measured against a live system and `IMG_CATALOG_VERIFIED` is `true`. Generates no ABAP and deploys nothing, so it runs under `ABAP_MODE=read`. Reading the customizing entries themselves is `abap_data_preview`'s job; changing them is `abap_img_edit`'s. |
+| Package (DEVC/K) navigation | no | yes | no | no | n/a | mixed | `abap_read {"object":"<PKG>","type":"DEVC/K"}` returns the package header (type, description, super package, software component, transport layer, application component, responsible) plus its node contents: a per-type object count, direct sub-packages, and the object rows themselves, each opened with an ordinary `abap_read`. `types` filters the rows to given kind codes; `depth` (1-3, default 1) recurses into sub-packages breadth-first, capped at 25 nodestructure round trips total, with a note naming any sub-package the cap left unexpanded. `offset`/`limit` page the row listing. An empty package answers HTTP 200 with a zero-byte body, reported as "no contents," not as an error. See the note below. |
 | IMG (customizing) write | no | partial | yes | yes | n/a | mixed | Writes a resolved base table's rows directly (a guarded `MODIFY`/`DELETE`), not through the view's own SM30-generated maintenance function module — its field-catalogue/dynamic-row-layout requirement was never established outside the SM30 dialog. Transport bookkeeping goes through the same CTS pair (`TR_OBJECTS_CHECK`/`TR_OBJECTS_INSERT`) SM30 itself uses, still interface-only knowledge, never called from here; `create_request` makes the type-`W` request via `TR_INSERT_REQUEST_WITH_TASKS`, called once from here on 2026-09-05 and confirmed working (a first-run defect with no task and a lost request number is why the tool now reports the number before checking for a task). Restricted to delivery classes `C`/`G`/`E`, at most 50 rows per call, and an armed write needs an exact `confirm` echo of the base table name. Generated helper classes go into the dedicated `$ABAPSMITH_FLUID_API` package, never `$TMP`. |
 | Running code | n/a | n/a | n/a | n/a | yes | live | Classes implementing the classrun interface, and classic reports through a generated bridge class. No interactive output. |
 | UI automation | n/a | yes | n/a | n/a | yes | mixed | Classic dynpro only, driven by generated batch input. Pressing commits immediately with no dry run and no rollback. |
@@ -152,6 +153,26 @@
   since the tree has no mnemonic id — a system
   whose customizing text is not English will see `tree` return nothing at
   the root, which is a text-match miss, not a broken catalog table.
+- **Package navigation.** `readPackage` (`src/adt/ddic.ts`) used to be
+  UNSUPPORTED; it now reads the ADT repository nodestructure endpoint
+  (`POST /sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=<NAME>`)
+  plus the package's own header (`GET /sap/bc/adt/packages/<lowercase-name>`).
+  Folder nodes the wire sends for every DEVC sub-kind (`DEVC/P`, `DEVC/I`,
+  `DEVC/N`, `DEVC/XS`, `DEVC/KI`, `DEVC/OC`, `DEVC/VT`) come back with an
+  empty `OBJECT_NAME`/`OBJECT_URI` and are dropped; a real sub-package is a
+  `DEVC/K` row with a name, matched exactly rather than by a `DEVC` prefix
+  match, so a future folder-kind addition cannot be misread as a
+  sub-package. `withShortDescriptions=true` still leaves a sub-package's own
+  `DESCRIPTION` empty on the wire — reported as-is, not filled in. Deleting
+  a package still only works while it is empty (graded on the object-types
+  table's own `DEVC/K` row, not here). Evidence is `mixed`: the underlying
+  nodestructure and package-header wire behavior is live-verified against
+  A4H, 2026-09-12 (`test/fixtures/live-captured/INDEX.md`, captures
+  852-857, 876-883 — including the zero-byte-body-on-empty-package shape,
+  captures 854 and 877-881), but the `abap_read` route itself — dispatch,
+  `types`/`depth` filtering, the 25-expansion cap, paging — has only been
+  exercised through cassette-replay tests on this branch, not end to end
+  against a live system.
 - **IMG write.** `abap_img_edit` writes a resolved base table's rows
   directly with a guarded `MODIFY`/`DELETE`, not through the view's own
   SM30-generated table-maintenance function module — building that

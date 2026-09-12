@@ -12,6 +12,20 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.13] - 2026-09-12
+
+### Added
+
+- `abap_read` of a package (`DEVC/K`) lists its contents (issue #74): header counts (`objects`, `sub_packages`, `depth`), a `SUB-PACKAGES` section, an `OBJECTS` table with type, name and description, a `types` filter of kind codes, `depth` (1–3) breadth-first recursion into sub-packages with a round-trip cap, and paging over large packages. A note names any sub-package that was listed but not expanded. Verified live on A4H against `$TMP` (390 objects, one sub-package).
+- `abap_read` of a table (`TABL/DT`) gains an `INDEXES` section, and a secondary index is readable on its own as `abap_read {"object":"<TABLE>/<INDEX>","type":"TABL/DI"}` from a DD12V/DD17S catalog read (issue #86).
+- `abap_read` of an authorization object (`SUSO/B`) renders its class, description, fields with their data elements and the permitted activities from TOBJ/TOBJT/TOBCT/TACTZ/TACTT/AUTHX/DD04L/DD07V (issue #87). Read-only; `abap_write` still refuses the type.
+- `abap_write` create and delete of a secondary index (`TABL/DI`) report a definitive verdict from a post-write catalog re-read — `verified`, `index_present`, `index_active` — instead of the bridge's own `ACTFAILED` flag, which is no longer surfaced in `markers`; a `TABL/DT` delete reads the table's indexes beforehand and reports them (issue #86).
+- `abap_write` accepts the same `<TABLE>/<INDEX>` slash form as `abap_read` for `TABL/DI`, with or without `base_table`; a `base_table` that disagrees with the table named in `object` is refused with `BAD_INPUT` naming both values (issue #74).
+
+### Fixed
+
+- Package listings paired each object with the wrong description: the `DESCRIPTION` column of ADT's nodestructure response is misaligned against `OBJECT_NAME` on the server side (reproduced with raw HTTP on A4H). Descriptions are now looked up by exact `(type, name)` key through the repository search, and an unresolved row renders empty and is counted in a note rather than guessed (issue #74).
+
 ## [0.5.12] - 2026-09-12
 
 ### Added

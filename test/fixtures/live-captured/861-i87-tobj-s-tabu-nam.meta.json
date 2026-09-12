@@ -1,0 +1,32 @@
+{
+  "n": 861,
+  "label": "i87-tobj-s-tabu-nam",
+  "expect": null,
+  "note": "TOBJ header row for an authorization object.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM tobj WHERE objct = 'S_TABU_NAM'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "5042",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "420142.000000"
+  },
+  "byteLength": 5042,
+  "zeroByteBody": false,
+  "sha256": "1439185515a6f2e0b9a5deea6d86bf393865ef0f8219943fd3059a00dae96017",
+  "utcTimestamp": "2026-09-12T13:24:23.108Z",
+  "durationMs": 526,
+  "sessionName": "A"
+}

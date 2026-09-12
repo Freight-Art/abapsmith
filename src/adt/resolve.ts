@@ -348,7 +348,15 @@ export async function resolveObject(
         "UNSUPPORTED",
         `${cap.label} (${code}) cannot be read by abapsmith. ${cap.unsupported.reason} ${TERMINAL_REFUSAL_NOTE}`,
         { type: code },
-        cap.unsupported.alternative,
+        // `catalogRead` types (SUSO/B) have no ADT resource to resolve a URI
+        // against either — resolveObject genuinely cannot serve them — but
+        // abap_read dispatches on the explicit type hint before this
+        // function ever runs, so the hint points there instead of the
+        // registry's own (write-focused) alternative text.
+        cap.catalogRead
+          ? `There is no ADT resource to resolve a URI against. abap_read {"object":"<name>","type":"${code}"} ` +
+            `renders it read-only from the catalog (${cap.catalogRead.from}) — name it as ${cap.catalogRead.nameForm}.`
+          : cap.unsupported.alternative,
         { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
       );
     }
@@ -361,11 +369,17 @@ export async function resolveObject(
         `${cap.label} (${code}) has no ADT-readable collection to resolve a URI against. ` +
           `${cap.bridgeCreate.adtRest} ${TERMINAL_REFUSAL_NOTE}`,
         { type: code },
-        // Registry-sourced when the create is refused, so this hint cannot
-        // send a caller to `abap_write` for a create `abap_write` will refuse.
-        cap.bridgeCreate.createRefused ??
-          "abapsmith can create this type through a generated classrun bridge (see abap_write), " +
-            "but cannot read one back.",
+        // Same catalogRead redirect as above — TABL/DI has no ADT resource
+        // either, but abap_read's explicit-type dispatch renders it from
+        // catalog tables before resolveObject is reached.
+        cap.catalogRead
+          ? `abap_read {"object":"<name>","type":"${code}"} renders it read-only from the catalog ` +
+            `(${cap.catalogRead.from}) — name it as ${cap.catalogRead.nameForm}.`
+          : // Registry-sourced when the create is refused, so this hint cannot
+            // send a caller to `abap_write` for a create `abap_write` will refuse.
+            cap.bridgeCreate.createRefused ??
+              "abapsmith can create this type through a generated classrun bridge (see abap_write), " +
+                "but cannot read one back.",
         { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
       );
     }
