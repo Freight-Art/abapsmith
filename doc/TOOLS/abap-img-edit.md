@@ -19,7 +19,11 @@ on that deployment, the same way any other bridge-backed tool is.
    `MODIFY`/`DELETE`, not through the generated table-maintenance function
    module SM30 itself uses. That means the view's foreign-key checks,
    fixed-value checks, and table-maintenance-generator events **do not
-   run** — only the row data changes. This is not an oversight: that
+   run** — only the row data changes. `preview`, `upsert`, and `delete`
+   now name what was skipped instead of only asserting that something
+   was — see "CHECKS NOT RUN" under "Mechanism" below — but naming a check
+   is not running it: no row is refused on account of anything that
+   section lists. This is not an oversight: that
    function module needs the view's field catalogue and dynamic row
    layout supplied by the caller, and nothing established how to build
    those outside the SM30 dialog
@@ -214,6 +218,60 @@ nothing about arming a write changes with this.
   and none of that is meaningful for a customizing request, which has no
   development class at all.
 
+### CHECKS NOT RUN
+
+`preview`, `upsert`, and `delete` responses all carry a `CHECKS NOT RUN`
+section, built for the resolved target table from read-only DDIC lookups —
+it does not run any check itself, only reads catalog metadata about what
+SM30 would have run. It lists:
+
+- **Maintenance event routines** registered in `TVIMF` for the resolved
+  view, the base table itself, and any other view whose first base table
+  (`DD26S` `TABPOS` `0001`) is that table — one row per view/event, giving
+  the view, the event code, the event's meaning (the `DD07T` text for
+  domain `MAINTEVENT`), and the routine name. These are the routines SM30
+  calls for this data; this tool does not call any of them.
+- **Check tables** (`DD03L` `CHECKTABLE`) of the fields the call writes —
+  the foreign keys this tool leaves unverified.
+- **Fixed-value violations**: any written value that is not one of its
+  field's domain's fixed values (`DD03L` `DOMNAME` → `DD07L`). Such a value
+  also surfaces as a note elsewhere in the response, not only in this
+  section.
+
+If the metadata read itself fails, the section says so instead of silently
+omitting itself.
+
+**Worked example.** This is the case that prompted the section: copying
+standard business-partner role `BUP001` into a new `TB003` row carried
+`STND_ROLECAT = 'X'` along with it. SM30 refuses that outright — a role
+category may have exactly one standard role — because view `V_TB003` has a
+maintenance event routine, `V_TB003_CHECK_DEFAULT`, registered against
+event `01` ("before saving the data in the database"), and that routine is
+what enforces the rule. Before this section existed, `mode=preview` printed
+the prospective `SET` line for that row and said nothing else about it.
+Now `preview` (and the armed `upsert`) for that same row also prints:
+
+```
+--- CHECKS NOT RUN ---
+This tool writes the base table directly. The maintenance dialog's own check logic does not run — below is what SM30 would have run for this data.
+
+Maintenance event routines registered in TVIMF (SM30 calls these; this tool does not):
+view     | event | when                                     | routine
+V_TB003  | 01    | Before saving the data in the database   | V_TB003_CHECK_DEFAULT
+V_TB003  | 13    | Exit editing (exit main function module) | V_TB003_RESET_DFLT
+
+Check tables for the fields this call writes (foreign keys not verified):
+field        | check_table
+ROLECATEGORY | TB003A
+```
+
+This section is informational only and never blocks anything: `preview`
+writes nothing at all, and the armed `upsert` still writes the row exactly
+as given. What changed is that `V_TB003_CHECK_DEFAULT` is now named before
+the call is armed, instead of a caller finding out the hard way that SM30
+would have refused the row. See "Known limitations" below for what this
+section deliberately does not catch.
+
 ## Parameters
 
 Every field name below is the literal wire key — pass it exactly as
@@ -319,7 +377,10 @@ this system use.
 - Does not run the target view's own foreign-key checks, fixed-value
   checks, or table-maintenance-generator events — only the row data is
   written, so validation the SM30 dialog would have performed did not
-  happen here. See point 1 above.
+  happen here. See point 1 above. `preview`, `upsert`, and `delete` now
+  name what was skipped, under `CHECKS NOT RUN` (see "Mechanism"), but
+  naming a check is not running it — no row is ever refused on the basis
+  of anything that section lists.
 - Does not create an IMG node, activity, or maintenance view.
 - Does not maintain any table outside the fixed delivery-class set
   (`C`/`G`/`E`); a SAP-delivered or system table is refused by name.
@@ -367,3 +428,20 @@ this system use.
   ignored. This is a consequence of preview and the armed call sharing one
   validator, not a new restriction on what can be written; a row `preview`
   now accepts is a row the armed call will accept as well.
+- **`CHECKS NOT RUN` under-reports by design.** The fixed-value check
+  skips a blank written value — a blank normally means "not set", not a
+  violation — and skips any domain with value ranges (`DD07L` `DOMVALUE_H`
+  non-blank) rather than trying to check a value against a range. The
+  comparison against a domain's fixed values is also case-insensitive: on
+  a live system, a field whose domain has no LOWERCASE flag is upper-cased
+  by the ABAP layer before it is ever compared against `DOMVALUE_L`, so a
+  value that differs from a fixed value only by case is not reported as a
+  violation — this avoids a false positive from a caller writing, say,
+  `"x"` into a field whose domain's fixed value is `"X"`. Naming a routine
+  (from the `TVIMF` listing) says only that a routine exists and where it
+  is registered — it does not say what the routine checks; read it in
+  SE80/SE37 if that matters. And the event list is drawn from every
+  plausible maintenance view of the table (the resolved view, the table
+  itself, and any view whose first base table is that table), so it can
+  list a view you are not actually maintaining through. All of these
+  choices favor under-reporting over a false alarm.
