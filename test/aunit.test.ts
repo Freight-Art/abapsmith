@@ -34,6 +34,16 @@ const FAILURE_META = JSON.parse(read("382-ut-testrun.meta.json")) as {
   responseStatus: number;
 };
 
+const ALLPASS_XML = read("852-i75-ut-testrun-allpass.xml");
+const ALLPASS_META = JSON.parse(read("852-i75-ut-testrun-allpass.meta.json")) as {
+  requestBody: string;
+};
+const COVERAGE_XML = read("853-i75-ut-testrun-coverage.xml");
+const COVERAGE_META = JSON.parse(read("853-i75-ut-testrun-coverage.meta.json")) as {
+  requestBody: string;
+};
+const RISK_EXCEEDED_XML = read("857-i75-ut-testrun-risk-exceeded.xml");
+
 describe("buildRunConfiguration", () => {
   it("reproduces the live-captured request body byte for byte", () => {
     // The capture ran with all three risk levels enabled, i.e. `critical`.
@@ -311,5 +321,142 @@ describe("parseRunResult — malformed bodies are never silently a pass", () => 
     expect(res.outcome).toBe("unknown");
     expect(res.outcome).not.toBe("passed");
     expect(res.reason).toMatch(/NOT a passing run/);
+  });
+});
+
+describe("coverage flag on the run configuration", () => {
+  it("keeps the captured coverage-off body byte for byte", () => {
+    const built = buildRunConfiguration("/sap/bc/adt/oo/classes/zcl_i75_probe", "harmless");
+    expect(built).toBe(ALLPASS_META.requestBody);
+  });
+
+  it("flips only the coverage attribute when coverage is asked for", () => {
+    const built = buildRunConfiguration("/sap/bc/adt/oo/classes/zcl_i75_probe", "harmless", {
+      coverage: true,
+    });
+    expect(built).toBe(COVERAGE_META.requestBody);
+
+    // The two captured bodies differ in exactly one place.
+    expect(ALLPASS_META.requestBody.replace('active="false"', 'active="true"')).toBe(
+      COVERAGE_META.requestBody,
+    );
+  });
+});
+
+describe("all-passed run, live-captured", () => {
+  // The FIRST all-passed ABAP Unit result ever captured from a real system —
+  // until #75, the passing outcome was only ever exercised by editing a
+  // captured FAILURE (stripping `<alerts>` out of capture 382). This fixture
+  // is the genuine wire shape ADT sends when nothing failed.
+  const res = parseRunResult(ALLPASS_XML);
+
+  it("reports outcome passed with both methods graded from real bytes", () => {
+    expect(res.outcome).toBe("passed");
+    expect(res.total).toBe(2);
+    expect(res.passed).toBe(2);
+    expect(res.failed).toBe(0);
+    expect(res.unknown).toBe(0);
+    expect(res.reason).toBeUndefined();
+
+    const methods = res.programs[0].classes[0].methods;
+    expect(methods.map((m) => m.name)).toEqual(["DOUBLES_A_POSITIVE", "TRIPLES_A_POSITIVE"]);
+    expect(methods.every((m) => m.verdict === "passed")).toBe(true);
+    expect(res.programs[0].classes[0].name).toBe("LTCL_PROBE");
+    expect(res.programs[0].classes[0].riskLevel).toBe("harmless");
+  });
+
+  it("carries no coverage URI when the run did not ask for one", () => {
+    expect(res.coverageUri).toBeUndefined();
+  });
+});
+
+describe("coverage measurement reference", () => {
+  it("extracts the measurement URI from <external><coverage>", () => {
+    const res = parseRunResult(COVERAGE_XML);
+    expect(res.coverageUri).toBe(
+      "/sap/bc/adt/runtime/traces/coverage/measurements/466F46C806601FE1ABD81597C42FC069",
+    );
+  });
+
+  it("leaves the verdicts and counts exactly as the coverage-off run", () => {
+    const off = parseRunResult(ALLPASS_XML);
+    const on = parseRunResult(COVERAGE_XML);
+    const pick = (r: typeof off) => ({
+      outcome: r.outcome,
+      total: r.total,
+      passed: r.passed,
+      failed: r.failed,
+      unknown: r.unknown,
+    });
+    expect(pick(on)).toEqual(pick(off));
+  });
+
+  it("ignores a coverage URI that is not a measurement resource", () => {
+    const xml =
+      '<?xml version="1.0"?><aunit:runResult xmlns:aunit="http://www.sap.com/adt/aunit">' +
+      '<external><coverage adtcore:uri="/sap/bc/adt/somewhere/else" xmlns:adtcore="http://www.sap.com/adt/core"/></external>' +
+      "</aunit:runResult>";
+    const res = parseRunResult(xml);
+    expect(res.coverageUri).toBeUndefined();
+  });
+});
+
+describe("risk level exceeded — live-captured", () => {
+  // Class source captured: `CLASS ltcl_norisk DEFINITION FOR TESTING.` — no
+  // RISK LEVEL, no DURATION. It activates fine, but a test class with no
+  // declared risk level defaults to a risk that exceeds this run's
+  // `harmless` ceiling, so ADT runs none of its methods and reports a
+  // run-level `tolerable` warning instead of a `<testMethods>` list.
+  // Captured against ZCL_I75_PROBE in $TMP on A4H, 2026-09-12
+  // (857-i75-ut-testrun-risk-exceeded.xml / .meta.json).
+  //
+  // This is the first LIVE evidence for `parseRunResult`'s "no test methods
+  // and no noTestClasses alert" branch of the `unknown` outcome — previously
+  // exercised only by hand-edited hypothetical XML (see
+  // "reports unknown when a run result has neither methods nor a
+  // noTestClasses alert" above). It says nothing about the OTHER `unknown`
+  // path — test methods that are present but whose XML the parser cannot
+  // grade (`unknown > 0`, covered by "counts ungraded methods separately and
+  // refuses to call the run passed" above) — which remains hand-written and
+  // still hypothetical.
+  const res = parseRunResult(RISK_EXCEEDED_XML);
+
+  it("reports unknown — neither passed nor no-tests", () => {
+    // A class whose tests were skipped for exceeding the risk limit is not
+    // the same answer as a class that has no test classes at all.
+    expect(res.outcome).toBe("unknown");
+    expect(res.outcome).not.toBe("passed");
+    expect(res.outcome).not.toBe("no-tests");
+  });
+
+  it("tallies zero on every count", () => {
+    expect(res.total).toBe(0);
+    expect(res.passed).toBe(0);
+    expect(res.failed).toBe(0);
+    expect(res.unknown).toBe(0);
+  });
+
+  it("names this as not a passing run", () => {
+    expect(res.reason).toBe(
+      "The run result contained no test methods and no noTestClasses alert, so it is not " +
+        "known whether anything ran. This is NOT a passing run.",
+    );
+  });
+
+  it("keeps the tolerable alert, attributed to the test class scope", () => {
+    // `<alerts>` sits directly under `<testClass>`, not under a method or the
+    // run, so `parseRunResult` attributes it with scope
+    // `test class LTCL_NORISK` — read from the actual attribution code, not
+    // assumed.
+    expect(res.otherAlerts).toHaveLength(1);
+    const alert = res.otherAlerts[0];
+    expect(alert.kind).toBe("warning");
+    expect(alert.severity).toBe("tolerable");
+    expect(alert.title).toBe("No execution, risk level of test class exceeds upper limit");
+    expect(alert.scope).toBe("test class LTCL_NORISK");
+  });
+
+  it("carries no coverage URI", () => {
+    expect(res.coverageUri).toBeUndefined();
   });
 });

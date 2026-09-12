@@ -26,6 +26,57 @@ entries are not auto-undoable. Activate entries have nothing to reverse.
 Enhancement objects (`ENHO/XH`, `ENHO/XHH`, `ENHS/XS`) are **never**
 undoable, even with `force:true` — this is a hard rule, not a default.
 
+**Class sub-includes.** A `CLAS/OC` write that targets `include=`
+`definitions`/`implementations`/`macros`/`testclasses` now addresses that
+include's own document, not the class's `main` source, so `mode=show`
+names which include the entry addressed and `mode=undo` restores that
+include specifically — it no longer touches `main`. Restoring a previous
+`testclasses` version this way is now `live`, confirmed against SAP A4H,
+2026-09-12, on class `ZCL_I75_UNDO`: a second version of the `testclasses`
+include was written, `mode=show` on that entry reported `include:
+testclasses` and the include-scoped warning, `mode=undo` reported `action:
+restore` / `activated: true`, and a following `abap_read { include:
+"testclasses" }` read back exactly the before-image bytes — the read-back
+etag equalled the entry's `beforeEtag`
+(`sha256:be7abc10f006180d9ffb48eafff05612`).
+
+`mode=undo` still refuses an entry when replaying it would require
+**deleting or recreating a class's own include** — ADT has no verb to
+delete a single include of a class, only the whole class, so there is
+nothing to replay onto. The refusal names the reason and the alternative:
+write a single (possibly comment-only) line into the include to empty it,
+rather than trying to remove it.
+
+A `delete` entry for a `CLAS/OC` now records all four local includes
+(`definitions`, `implementations`, `macros`, `testclasses`) captured under
+the same lock as the delete itself, in the entry's `parts`. `mode=show`
+lists them for a class-delete entry (the parts table's columns are
+`object`, `package` (when any part has one), `include`, `existed`,
+`capture`, `bytes` — the `include` column is what makes the four rows of a
+class-delete entry distinguishable), and `mode=undo` restores the class
+together with its local helpers and its unit tests — this no longer
+reports itself `PARTIAL` and no longer needs `force:true` for that reason
+alone. It still reports `PARTIAL` and still needs `force:true`, but only
+for whichever of the four includes could not be read at delete time — the
+rest are restored normally. This restore path is now `live`, confirmed
+against SAP A4H, 2026-09-12, on class `ZCL_I75_UNDO` in package `$TMP`:
+`abap_write mode=delete` produced a journal entry with four parts
+(`definitions`, `implementations`, `macros`, `testclasses`), all
+`beforeCapture: captured`; `mode=show` reported the class warning naming
+all four; `mode=undo` reported `action: recreate`, `performed: true`,
+`restoredIncludes: definitions, implementations, macros, testclasses`,
+`activated: true`; and a following `abap_test` on the recreated class ran
+the restored test class and reported PASSED — proof the `testclasses`
+include really came back active, which could not happen if only `main`
+had been restored.
+
+The first write to an include that does not yet exist is now recorded as
+a `create` entry with `confirmed-absent` provenance on its before-image
+(abapsmith checked and found nothing there), not as an `update` against a
+before-image that hashes an empty string — that was a defect in how these
+entries used to be recorded, not a documented behaviour, and this fix
+removes it.
+
 `mode=list` flags a `pending` entry older than 5 minutes as STRANDED — nobody
 knows whether that write landed. `mode=reconcile` is the escape hatch: once
 you have established the real outcome (by reading the object, or otherwise),

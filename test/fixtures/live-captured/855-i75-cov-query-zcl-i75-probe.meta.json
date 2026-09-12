@@ -1,0 +1,31 @@
+{
+  "n": 855,
+  "label": "i75-cov-query-zcl-i75-probe",
+  "expect": "per-class and per-method statement/branch/procedure coverage; NEVER_CALLED is 0 of 2 statements",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/runtime/traces/coverage/measurements/466F46C806601FE1ABD81597C42FC069",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Content-Type": "application/*",
+    "Accept": "application/*"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<cov:query xmlns:cov=\"http://www.sap.com/adt/cov\">\n  <adtcore:objectSets xmlns:adtcore=\"http://www.sap.com/adt/core\">\n    <objectSet kind=\"inclusive\">\n      <adtcore:objectReferences>\n        <adtcore:objectReference adtcore:uri=\"/sap/bc/adt/oo/classes/zcl_i75_probe\"/>\n      </adtcore:objectReferences>\n    </objectSet>\n  </adtcore:objectSets>\n</cov:query>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.coverage.measurements.v1+xml; charset=utf-8",
+    "content-length": "673",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "177621.000000"
+  },
+  "byteLength": 4891,
+  "zeroByteBody": false,
+  "sha256": "614f94014d81238dfaf2234dbed3cee018905bdb28c5f8626a0792ca9106128d",
+  "utcTimestamp": "2026-09-12T15:43:19.871Z",
+  "durationMs": 242,
+  "sessionName": "A"
+}

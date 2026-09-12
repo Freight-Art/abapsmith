@@ -85,6 +85,7 @@ import {
   deleteObject,
   isPackageType,
   MAX_DELETE_BATCH,
+  NO_JOURNAL,
   PACKAGE_SOFTWARE_COMPONENT_HINT,
   preflightPackageCorr,
   readCurrentSource,
@@ -516,6 +517,21 @@ function captureOf(img: BeforeImage): BeforeImageCapture {
   // (src/adt/write.ts) — kept as a guard for if that ever stops being true.
   if (!img.sourceReadable) return "failed";
   return img.source !== undefined ? "captured" : "failed";
+}
+
+/**
+ * `captureOf`, narrowed for a class SUB-INCLUDE write (`img.include` set).
+ * Written out explicitly rather than trusted to fall out of `captureOf`
+ * above: a sub-include's `existed` is only ever `false` on a confirmed 404
+ * of ITS OWN document (see `BeforeImage.absenceConfirmed` and
+ * `writeObject`'s `emitBeforeImage`), so "confirmed-absent" here is always
+ * real evidence, never `captureOf`'s generic (and here unreachable) "no read
+ * ever ran" fallback. Scoped to the sub-include case only — every other
+ * write path keeps using `captureOf` unchanged.
+ */
+function includeCaptureOf(img: BeforeImage): BeforeImageCapture {
+  if (img.source !== undefined) return "captured";
+  return img.absenceConfirmed ? "confirmed-absent" : "failed";
 }
 
 /**
@@ -1382,22 +1398,25 @@ export async function abapWrite(
     // The dangerous corner: `include` + `mode=delete`. ADT has
     // no per-include DELETE — `deleteObject` sends `DELETE {t.uri}`, the
     // CLASS URI — so `{mode:"delete", include:"testclasses"}` meaning "drop
-    // my test class" would instead delete the whole class, and undo can't
-    // restore it (its local includes were never captured; src/adt/undo.ts).
-    // Refused for every include value, including `main`, so callers never
-    // learn that `include` narrows a delete. Zero-network, before
-    // `authorizeMutation` — src/adt/write.ts refuses this too, for every
-    // other caller of `WriteTarget`; this is the cheap early copy.
+    // my test class" would instead delete the whole class AND its other
+    // includes. The journal now records all four local includes on a CLAS/OC
+    // delete (src/adt/write.ts's `deleteObject`), so undoing the WHOLE delete
+    // does bring them back — but there is still no verb that deletes one
+    // include on its own, so this is refused for every include value,
+    // including `main`, so callers never learn that `include` narrows a
+    // delete. Zero-network, before `authorizeMutation` — src/adt/write.ts
+    // refuses this too, for every other caller of `WriteTarget`; this is the
+    // cheap early copy.
     if (input.include !== undefined) {
       throw new AbapError(
         "BAD_INPUT",
         `\`include\` does not apply to mode=delete: ADT cannot delete one include of a class, only ` +
           `the whole class. Deleting ${target.name} because you asked to delete its ` +
-          `${input.include} would destroy its main source and its other includes too, and that ` +
-          `delete could not be undone — abapsmith's journal never captured the local includes.`,
+          `${input.include} would destroy its main source and its other includes too.`,
         { object: target.name, include: input.include, mode: "delete" },
         `To empty an include, WRITE it: {object, include:"${input.include}", source:"<the new, ` +
-          `possibly empty, content>"}. To delete the whole class, drop \`include\`.`,
+          `possibly empty, content>"}. To delete the whole class, drop \`include\` — its includes ` +
+          `are now recorded too, so abap_journal mode=undo on that delete restores all of them.`,
       );
     }
     // A PACKAGE_UNKNOWN refusal here is the fail-closed rule, deliberately
@@ -1436,6 +1455,22 @@ export async function abapWrite(
             // On begin(), not finish(): resolution is pre-flight, so the
             // request is already known — see BeforeImage.corrNr (src/adt/write.ts).
             ...(img.corrNr !== undefined ? { corrNr: img.corrNr } : {}),
+            // A CLAS/OC delete's four local includes (src/adt/write.ts's
+            // `deleteObject`) — recorded as `parts` so undo of the whole
+            // delete can restore each one, not just the main body. Each
+            // part's `object` is the class's own ref with `sourceUri`
+            // overridden to that include's document — the class identity is
+            // the same, only the document under discussion differs.
+            ...(img.includes?.length
+              ? {
+                  parts: img.includes.map((i) => ({
+                    object: { ...journalRef(img.target), sourceUri: i.sourceUri },
+                    existedBefore: i.existed,
+                    beforeCapture: i.capture,
+                    ...(i.source !== undefined ? { beforeSource: i.source } : {}),
+                  })),
+                }
+              : {}),
             systemKey: systemKey(conn.cfg),
             tool: "abap_write",
           };
@@ -1445,7 +1480,15 @@ export async function abapWrite(
         deleteObject(conn, authorized, {
           ...trOpts,
           ...(input.expect_etag ? { expectEtag: input.expect_etag } : {}),
-          onBeforeImage,
+          // `withJournalledMutation` (src/journal.ts) hands back a closure
+          // that is a harmless no-op when `journal` is undefined — but it is
+          // NOT `=== NO_JOURNAL`, so `deleteObject` cannot tell from the
+          // closure alone that nothing will ever be done with a captured
+          // before-image. Passing the literal sentinel here when there is no
+          // journal to write to lets a CLAS/OC delete's four sub-include
+          // reads (src/adt/write.ts's `deleteObject`) be skipped rather than
+          // spent for nothing.
+          onBeforeImage: journal !== undefined ? onBeforeImage : NO_JOURNAL,
           // DEVC/K runs through the classrun bridge, which needs the gate itself
           // even when no transport manager is wired.
           bridgeGate: gate,
@@ -1670,7 +1713,10 @@ export async function abapWrite(
           operation: img.existed ? "update" : "create",
           object: journalRef(img.target),
           existedBefore: img.existed,
-          beforeCapture: captureOf(img),
+          // A sub-include's absence is `confirmed-absent` evidence, not the
+          // generic `captureOf` path — see `includeCaptureOf`. Gated on
+          // `img.include` so every non-include write keeps `captureOf`.
+          beforeCapture: img.include !== undefined ? includeCaptureOf(img) : captureOf(img),
           ...(img.source !== undefined ? { beforeSource: img.source } : {}),
           // See the delete branch: begin(), since pre-flight resolution
           // already knows the request at this point.

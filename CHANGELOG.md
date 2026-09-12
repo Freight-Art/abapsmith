@@ -12,6 +12,18 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-09-12
+
+### Added
+
+- `abap_test` reports ABAP Unit coverage on request (issue #75): `coverage: true` runs the tests with coverage measurement and adds a `coverage: statement n/m (p%), branch …, procedure …` header field, a `COVERAGE` section with per-class and per-method rows, `UNCOVERED METHODS`, `COVERAGE NOT REPORTED FOR`, and `ALSO TOUCHED` (objects the run executed but did not measure). `coverage_for` extends the measured set beyond the objects under test; without `coverage` it is `BAD_INPUT` before any request. The measured set is capped at 10 objects because a coverage query over a full roster timed out at 60 s on A4H. A coverage failure degrades to a note and never changes the run outcome. Verified live on A4H, including the `UNCOVERED METHODS` wording.
+- Deleting a class records all four includes (`definitions`, `implementations`, `macros`, `testclasses`) in the journal entry, `abap_journal mode=show` lists them with an `include` column, and `mode=undo` recreates the class with every recorded include and activates once at the end, reporting `restoredIncludes`/`skippedIncludes`; a fully recorded recreate no longer needs `force` (issue #75). Undoing a write to a sub-include restores that include, not `main`. Verified live: delete, undo, and the restored test class ran again.
+- New skill `abapsmith-write-abap-unit-tests`; the ABAP Unit capability rows are re-graded from the live evidence.
+
+### Fixed
+
+- `test/undo.test.ts`'s fake class server answered the four include URIs with an empty 200, which read as "captured, empty"; it now answers 404 so absence is distinguishable from an empty include (issue #75).
+
 ## [0.5.11] - 2026-09-12
 
 ### Added

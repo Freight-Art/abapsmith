@@ -1,0 +1,31 @@
+{
+  "n": 852,
+  "label": "i75-ut-testrun-allpass",
+  "expect": "all-passed run: two passing test methods, no alerts anywhere",
+  "note": "Captured against ZCL_I75_PROBE in $TMP on A4H; the class and its testclasses include were written by abapsmith and deleted afterwards.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/abapunit/testruns",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Content-Type": "application/*",
+    "Accept": "application/*"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<aunit:runConfiguration xmlns:aunit=\"http://www.sap.com/adt/aunit\">\n  <external>\n    <coverage active=\"false\"/>\n  </external>\n  <options>\n    <uriType value=\"semantic\"/>\n    <testDeterminationStrategy sameProgram=\"true\" assignedTests=\"false\"/>\n    <testRiskLevels harmless=\"true\" dangerous=\"false\" critical=\"false\"/>\n    <testDurations short=\"true\" medium=\"true\" long=\"true\"/>\n    <withNavigationUri enabled=\"true\"/>\n  </options>\n  <adtcore:objectSets xmlns:adtcore=\"http://www.sap.com/adt/core\">\n    <objectSet kind=\"inclusive\">\n      <adtcore:objectReferences>\n        <adtcore:objectReference adtcore:uri=\"/sap/bc/adt/oo/classes/zcl_i75_probe\"/>\n      </adtcore:objectReferences>\n    </objectSet>\n  </adtcore:objectSets>\n</aunit:runConfiguration>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/xml; charset=utf-8",
+    "content-length": "370",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "209621.000000"
+  },
+  "byteLength": 1476,
+  "zeroByteBody": false,
+  "sha256": "be685a48f548cf254ac7348a6da3a60f967ea784029f32d511fb5f974445915e",
+  "utcTimestamp": "2026-09-12T15:43:17.910Z",
+  "durationMs": 269,
+  "sessionName": "A"
+}

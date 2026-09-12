@@ -35096,7 +35096,7 @@ var require_tracetypes = __commonJS({
       return { parentLink, dbaccesses, tables };
     };
     exports2.parseTraceDbAccess = parseTraceDbAccess;
-    var parseCount = (count) => {
+    var parseCount2 = (count) => {
       if ((0, utilities_1.isNumber)(count))
         return count;
       const [base, exp] = count.split("E").map(utilities_1.toInt);
@@ -35120,7 +35120,7 @@ var require_tracetypes = __commonJS({
           proceduralNetTime
         };
       });
-      const count = parseCount(raw["@_count"]);
+      const count = parseCount2(raw["@_count"]);
       return { ...(0, utilities_1.typedNodeAttr)(raw), count, parentLink, statements };
     };
     exports2.parseTraceStatements = parseTraceStatements;
@@ -101647,6 +101647,9 @@ function contentUri(t) {
 function subInclude(t) {
   return t.include !== void 0 && t.include !== "main" ? t.include : void 0;
 }
+var CLASS_SUB_INCLUDES = CLASS_INCLUDES.filter(
+  (i) => i !== "main"
+);
 function targetLabel(t) {
   const inc = subInclude(t);
   return inc ? `the ${inc} include of ${t.spec.label} ${t.name}` : `${t.spec.label} ${t.name}`;
@@ -102644,13 +102647,15 @@ async function writeObject(conn, target, opts) {
   const preflight2 = await preflightCorr(conn, t, opts, created ? "I" : "U", "write");
   const emitBeforeImage = async (source) => {
     if (!opts.onBeforeImage) return;
+    const sub = subInclude(t);
     await opts.onBeforeImage({
       source,
-      existed: t.exists,
+      existed: sub ? source !== void 0 : t.exists,
       sourceReadable: true,
       target: t,
       // See BeforeImage.include — an entry missing which document `source` came from replays into /source/main.
-      ...subInclude(t) ? { include: t.include } : {},
+      ...sub ? { include: t.include } : {},
+      ...sub && source === void 0 ? { absenceConfirmed: true } : {},
       ...preflight2?.kind === "transport" ? { corrNr: preflight2.corrNr } : {}
     });
   };
@@ -103288,11 +103293,20 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
     }
     previousSource = fresh.source;
     if (opts.onBeforeImage) {
+      const includes = t.type === "CLAS/OC" && opts.onBeforeImage !== NO_JOURNAL ? await Promise.all(
+        CLASS_SUB_INCLUDES.map(async (include) => {
+          const sourceUri = classIncludeUri(t.uri, include);
+          const r = await readCurrentSourceResult(conn, { ...t, include, sourceUri });
+          if (!r.ok) return { include, sourceUri, existed: false, capture: "failed" };
+          return r.source === void 0 ? { include, sourceUri, existed: false, capture: "confirmed-absent" } : { include, sourceUri, existed: true, source: r.source, capture: "captured" };
+        })
+      ) : void 0;
       await opts.onBeforeImage({
         source: previousSource,
         existed: t.exists,
         sourceReadable: true,
         target: t,
+        ...includes ? { includes } : {},
         ...preflight2?.kind === "transport" ? { corrNr: preflight2.corrNr } : {}
       });
     }
@@ -106333,15 +106347,19 @@ function enhancementUndoBlocked(type, op, name) {
   return `Undo of enhancement objects is refused outright \u2014 ${type} ${name} will not be touched. Three things the live A4H session found make this unsafe even in principle, not merely as a policy choice: a create attempt the server cleanly REFUSED still left a permanently undeletable phantom object behind ("ExceptionResourceDeletionFailure ... cannot be created without a package", no TADIR entry, unreadable via the ABAP API either); a delete the server reported as succeeded (ADT 200) still left TADIR and E071 rows behind indefinitely, so a 404 afterwards is never proof of removal; and on a landscape with \`tp\` misconfigured, a transportable create could not be deleted through ADT at all \u2014 the request and the package were both permanently stuck. Given that, "undo" for an enhancement \u2014 recreating one that was deleted, or deleting one that was created \u2014 is not an operation abapsmith can perform and then trust the result of. Reverse this deliberately through the ABAP enhancement UI (SE18/SE19/SE80), with the residue risk above in view.`;
 }
 function entryClassInclude(entry) {
-  const uri = entry.object.sourceUri;
+  return classIncludeFromSourceUri(entry.object.sourceUri);
+}
+function classIncludeFromSourceUri(uri) {
   if (uri === void 0) return void 0;
   const inc = specFromUri(uri)?.include;
   return inc !== void 0 && inc !== "main" ? inc : void 0;
 }
-function classIncludeBlocker(entry) {
+function classIncludeActionBlocker(entry, action) {
   const include = entryClassInclude(entry);
   if (!include) return void 0;
-  return `This entry records a write to the ${include} include of class ${entry.object.name} (${entry.object.sourceUri}), not to the class's main source. abapsmith restores a before-image through the ordinary write path, which addresses /source/main \u2014 so replaying this entry would write ${entry.object.name}'s ${include} include OVER its class body, destroying the real source and reporting it as a successful undo. That is refused rather than attempted. Nothing was changed. Restore the include by hand: read the recorded before-image (abap_journal mode=show), then write it back with abap_write using include="${include}". Include-aware undo is a known follow-up, not yet implemented.`;
+  if (action !== "delete" && action !== "recreate") return void 0;
+  const verb = action === "delete" ? "DELETE" : "RE-CREATE";
+  return `Undoing this entry would ${verb} the ${include} include of class ${entry.object.name}, and ADT has no operation that deletes or re-creates one include of a class on its own \u2014 deleteObject sends DELETE {classUri}, which would destroy ${entry.object.name}'s main source and all of its other includes too, not just this one. That is refused rather than attempted. Nothing was changed. To empty a class include, write a single comment line to it (e.g. \`*"* no local test classes\`) \u2014 abapsmith does not send an empty document, and there is no ADT verb that deletes an include on its own. Do that with abap_write include="${include}". This refusal cannot be overridden with force=true.`;
 }
 function packageRecreateBlocker(entry) {
   if (entry.operation !== "delete" || !isPackageType(entry.object.type)) return void 0;
@@ -106408,27 +106426,38 @@ function systemMismatchBlocker(entry, live) {
   if (recorded === connected) return void 0;
   return `This journal entry was recorded on SID ${entry.system || "(none)"} but abapsmith is connected to SID ${live.sid} (journal directory's system: ${live.journalSystem}). The entry predates system-key recording, so this is the WEAKER, SID-only check \u2014 it cannot even tell two hosts apart that share a SID, and it still says these are not the same system. Replaying the entry here would write one system's source onto another's object. This refusal cannot be overridden.`;
 }
-var CLASS_SUB_INCLUDES = CLASS_INCLUDES.filter((i) => i !== "main");
+var CLASS_SUB_INCLUDES2 = CLASS_INCLUDES.filter((i) => i !== "main");
 var INCLUDE_LABELS = {
   definitions: "definitions (CCDEF \u2014 local class/type definitions)",
   implementations: "implementations (CCIMP \u2014 local class implementations)",
   macros: "macros (CCMAC)",
   testclasses: "testclasses (CCAU \u2014 local test classes)"
 };
-var describeIncludes = () => CLASS_SUB_INCLUDES.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
+var describeIncludes = () => CLASS_SUB_INCLUDES2.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
+var describeSome = (incs) => incs.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
 function isClassEntry(entry) {
   return specForType(entry.object.type)?.kind === "CLAS";
+}
+function recordedClassIncludes(entry) {
+  const recorded = (entry.parts ?? []).filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+  return new Set(recorded);
 }
 function partialClassRestore(entry, action) {
   if (action !== "restore" && action !== "recreate") return void 0;
   if (!isClassEntry(entry)) return void 0;
+  if (entryClassInclude(entry)) return void 0;
+  const recorded = recordedClassIncludes(entry);
+  const unrestored = CLASS_SUB_INCLUDES2.filter((i) => !recorded.has(i));
+  if (unrestored.length === 0) return void 0;
+  const allMissing = unrestored.length === CLASS_SUB_INCLUDES2.length;
   return {
-    unrestored: [...CLASS_SUB_INCLUDES],
-    reason: action === "recreate" ? `Only the main include of class ${entry.object.name} was ever recorded, so only the main include is recreated. NOT restored: ${describeIncludes()}. The class that comes back is not the class that was deleted.` : `Only the main include of class ${entry.object.name} is covered by this undo. Its ${describeIncludes()} were never recorded, are not restored, and are not checked for drift \u2014 changes made there by anybody are invisible to abapsmith.`
+    unrestored,
+    reason: action === "recreate" ? allMissing ? `Only the main include of class ${entry.object.name} was ever recorded, so only the main include is recreated. NOT restored: ${describeIncludes()}. The class that comes back is not the class that was deleted.` : `${entry.object.name}'s main include plus its ${describeSome([...recorded])} ${recorded.size === 1 ? "is" : "are"} recorded and will be recreated. Its ${describeSome(unrestored)} ${unrestored.length === 1 ? "was" : "were"} not \u2014 the read that would have captured ${unrestored.length === 1 ? "it" : "them"} failed, so recreating it now would leave that gap silently.` : `Only the main include of class ${entry.object.name} is covered by this undo. Its ${describeIncludes()} were never recorded, are not restored, and are not checked for drift \u2014 changes made there by anybody are invisible to abapsmith.`
   };
 }
 function classRecreateBlocker(entry, partial2) {
-  return `${entry.object.name} is a CLASS, and abapsmith only ever recorded its MAIN include (/oo/classes/\u2026/source/main). Recreating it from the journal would produce a class that LOOKS intact and is not: its ` + describeIncludes() + ` were never captured and would come back EMPTY \u2014 every local helper and every unit test the deleted class had would be silently missing. Unrestored includes: ${partial2.unrestored.join(", ")}. If a main-include-only restore is genuinely what you want, repeat with force=true; the result will be reported as PARTIAL and you will have to put the local and test includes back by hand.`;
+  const recorded = CLASS_SUB_INCLUDES2.length - partial2.unrestored.length;
+  return `${entry.object.name} is a CLASS. ` + (recorded > 0 ? `abapsmith recorded its main include and ${recorded} of its ${CLASS_SUB_INCLUDES2.length} local includes when it was deleted, but the read for its ${describeSome(partial2.unrestored)} ${partial2.unrestored.length === 1 ? "did" : "each did"} not resolve` : "abapsmith only ever recorded its MAIN include (/oo/classes/\u2026/source/main)") + ". Recreating it from the journal would produce a class that LOOKS intact and is not: its " + describeSome(partial2.unrestored) + ` would come back EMPTY \u2014 any local helper or unit test held only there would be silently missing. Unrestored includes: ${partial2.unrestored.join(", ")}. If a partial restore is genuinely what you want, repeat with force=true; the result will be reported as PARTIAL and you will have to put the missing includes back by hand.`;
 }
 function plannedAction(entry) {
   if (entry.operation === "delete") return "recreate";
@@ -106589,7 +106618,8 @@ async function planUndo(conn, journal, entry) {
   const action = plannedAction(entry);
   const restoreSource = action === "delete" ? void 0 : await journal.beforeImage(entry);
   const transportWarning = await releasedTransportWarning(journal, entry);
-  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeBlocker(entry) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry);
+  const include = entryClassInclude(entry);
+  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeActionBlocker(entry, action) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry);
   if (localBlocker) {
     return {
       entry,
@@ -106620,7 +106650,8 @@ async function planUndo(conn, journal, entry) {
       name: entry.object.name,
       type: entry.object.type,
       packageName: entry.object.package,
-      ...entry.object.description ? { description: entry.object.description } : {}
+      ...entry.object.description ? { description: entry.object.description } : {},
+      ...include ? { include } : {}
     });
   }
   if (action !== "delete" && restoreSource === void 0) {
@@ -106877,6 +106908,8 @@ async function performUndo(conn, journal, entry, opts) {
   let check4;
   let checkUnavailable;
   let deleteUnverified;
+  const restoredIncludes = [];
+  const skippedIncludes = [];
   const liveKey = liveSystem(conn, journal).key;
   const captureFor = (img) => {
     if (img.source !== void 0) return "captured";
@@ -107006,6 +107039,77 @@ async function performUndo(conn, journal, entry, opts) {
         throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
       }
     }
+    const includeParts = (entry.parts ?? []).filter(
+      (p) => classIncludeFromSourceUri(p.object.sourceUri) !== void 0
+    );
+    for (const part of includeParts) {
+      const inc = classIncludeFromSourceUri(part.object.sourceUri);
+      if (part.beforeCapture === "confirmed-absent") {
+        continue;
+      }
+      if (part.beforeCapture !== "captured") {
+        skippedIncludes.push({
+          include: inc,
+          reason: `its before-image was never captured (beforeCapture="${part.beforeCapture}")`
+        });
+        continue;
+      }
+      const incSource = await journal.beforeImage({ ...entry, before: part.before });
+      if (incSource === void 0) {
+        skippedIncludes.push({
+          include: inc,
+          reason: "its recorded before-image blob is missing on disk (pruned by the retention policy, or the journal directory was cleaned)"
+        });
+        continue;
+      }
+      try {
+        const incTarget = await resolveWriteTarget(conn, {
+          name: entry.object.name,
+          type: entry.object.type,
+          packageName: entry.object.package,
+          ...entry.object.description ? { description: entry.object.description } : {},
+          include: inc
+        });
+        const incAuthorized = opts.assertAllowed(plan.action, incTarget);
+        await writeObject(conn, incAuthorized, {
+          source: incSource,
+          onBeforeImage: NO_JOURNAL,
+          ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {}
+        });
+        restoredIncludes.push(inc);
+      } catch (e) {
+        await settle({
+          outcome: "succeeded",
+          ...written.normalisedSource ? { afterSource: written.normalisedSource } : {},
+          ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {},
+          activation: {
+            attempted: Boolean(activation),
+            ...activation ? { activated: activation.activated } : {}
+          }
+        });
+        const notAttempted = includeParts.slice(includeParts.indexOf(part) + 1).map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+        throw new AbapError(
+          "CHECK_FAILED",
+          `abap_journal mode=undo of entry ${entry.id}: ${entry.object.name}'s main source WAS restored${activation ? activation.activated ? " and activated" : ", but activation did not complete" : ""}, but writing its recorded ${INCLUDE_LABELS[inc] ?? inc} back failed: ${e instanceof Error ? e.message : String(e)}. ${restoredIncludes.length ? `Already restored: ${restoredIncludes.join(", ")}. ` : "Nothing else was restored yet. "}Not attempted: ${notAttempted.length ? notAttempted.join(", ") : "none"}.`,
+          {
+            entry: entry.id,
+            object: entry.object.name,
+            restoredIncludes: [...restoredIncludes],
+            failedInclude: inc,
+            notAttempted,
+            ...undoEntryId !== void 0 ? { undoEntryId } : {}
+          },
+          "This undo's own journal entry is marked done \u2014 the class's main body is back. Write the failed include (and any listed as not attempted) by hand with abap_write, using the source shown by abap_journal mode=show for this entry."
+        );
+      }
+    }
+    if (restoredIncludes.length > 0 && (opts.activate ?? true)) {
+      try {
+        activation = await activateObject(conn, written.target);
+      } catch (e) {
+        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
+      }
+    }
     await settle({
       outcome: "succeeded",
       ...written.normalisedSource ? { afterSource: written.normalisedSource } : {},
@@ -107032,6 +107136,8 @@ async function performUndo(conn, journal, entry, opts) {
     ...checkUnavailable ? { checkUnavailable } : {},
     ...deleteUnverified ? { deleteUnverified } : {},
     ...activation ? { activation } : {},
+    ...restoredIncludes.length ? { restoredIncludes } : {},
+    ...skippedIncludes.length ? { skippedIncludes } : {},
     forced: Boolean(opts.force)
   };
 }
@@ -107077,15 +107183,27 @@ function row(e) {
 }
 var LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
 var LIST_COLUMNS_WITH_ACTOR = LIST_COLUMNS.flatMap((c) => c === "flags" ? ["actor", "flags"] : c);
+function includeFromSourceUri(uri) {
+  if (uri === void 0) return void 0;
+  const inc = specFromUri(uri)?.include;
+  return inc !== void 0 && inc !== "main" ? inc : void 0;
+}
+function entrySubInclude(e) {
+  return includeFromSourceUri(e.object.sourceUri);
+}
 function partRow(p) {
   return {
     object: `${p.object.type} ${p.object.name}`,
     package: p.object.package,
+    // A class-delete's four parts are all the same object/type/package — without
+    // naming the include, the ALSO TOUCHED rows are indistinguishable from each other.
+    include: includeFromSourceUri(p.object.sourceUri) ?? "-",
     existed: p.existedBefore ? "yes" : "no",
-    capture: p.beforeCapture
+    capture: p.beforeCapture,
+    bytes: p.before?.bytes !== void 0 ? String(p.before.bytes) : "-"
   };
 }
-var PART_COLUMNS = ["object", "existed", "capture"];
+var PART_COLUMNS = ["object", "include", "existed", "capture", "bytes"];
 var PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => c === "object" ? ["object", "package"] : c);
 function undoHint(e) {
   if (e.operation === "transport-release") {
@@ -107101,17 +107219,30 @@ function undoHint(e) {
   }
   const action = plannedAction(e);
   if (action === "delete") {
+    const includeRefusal = classIncludeActionBlocker(e, action);
+    if (includeRefusal) return `undo would DELETE this object, and WILL BE REFUSED: ${includeRefusal}`;
     const refusal = deleteEvidenceBlocker(e);
     return refusal ? `undo would DELETE this object, and WILL BE REFUSED: ${refusal}` : "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
   }
   if (action === "recreate") {
+    const includeRefusal = classIncludeActionBlocker(e, action);
+    if (includeRefusal) return `undo would RE-CREATE this object, and WILL BE REFUSED: ${includeRefusal}`;
     const refusal = packageRecreateBlocker(e);
     return refusal ? `undo would RE-CREATE this object, and WILL BE REFUSED: ${refusal}` : "undo would RE-CREATE this object from the before-image";
   }
   return "undo would restore the previous source";
 }
 function classWarning(e) {
+  const include = entrySubInclude(e);
+  if (include) {
+    return `This entry is about class ${e.object.name}'s ${include} include ONLY, not the whole class: its main body and its other local includes are each tracked (when abapsmith wrote them) by their own separate journal entries, and undoing THIS entry touches only this one document.`;
+  }
   if (!/^CLAS/i.test(e.object.type)) return void 0;
+  if (e.parts?.length) {
+    const recorded = e.parts.filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => includeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+    const unrecorded = e.parts.filter((p) => p.beforeCapture !== "captured" && p.beforeCapture !== "confirmed-absent").map((p) => includeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+    return `${e.object.name} is a CLASS. abapsmith recorded its main include` + (recorded.length ? ` plus its ${recorded.join(", ")} include(s)` : "") + " when it was deleted. Undoing that delete recreates every include recorded here, not just the main body." + (unrecorded.length ? ` Its ${unrecorded.join(", ")} include(s) could NOT be recorded (the read at delete time failed) and will NOT come back \u2014 recreating anyway is refused unless you pass force=true, and the result is reported PARTIAL.` : "");
+  }
   return `${e.object.name} is a CLASS and abapsmith records only its MAIN include. Its local definitions (CCDEF), local implementations (CCIMP), macros (CCMAC) and local test classes (CCAU) are NOT in this journal entry: they are not restored by an undo and changes to them are not detected as drift. Undoing a class DELETE therefore brings back a class without its local helpers or its unit tests, and is refused unless you pass force=true.`;
 }
 function requireJournal(journal) {
@@ -107370,6 +107501,11 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
         when: entry.ts,
         operation: entry.operation,
         object: `${entry.object.type} ${entry.object.name}`,
+        // Present only for an entry ABOUT one class sub-include (not the
+        // main body) — see `entrySubInclude`. Absent for every other entry,
+        // including a class-delete entry whose `parts` recorded includes
+        // alongside the main body (those are listed in ALSO TOUCHED below).
+        include: entrySubInclude(entry),
         uri: entry.object.uri,
         package: entry.object.package,
         existedBefore: entry.existedBefore,
@@ -107446,7 +107582,17 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
   }
   if (res.performed && res.partial) {
     notes.push(
-      `PARTIAL \u2014 this object was NOT fully ${res.plan.action === "recreate" ? "recreated" : "restored"}. ${res.partial.reason} Unrestored includes: ${res.partial.unrestored.join(", ")}. ` + (res.plan.action === "recreate" ? `${entry.object.name} is NOT the object that was deleted: what came back is its main include and nothing else. Restore the local and test includes from SAP's own version management (SE24 \u2192 Utilities \u2192 Versions) before trusting it, and do not run its unit tests expecting them to exist.` : "Drift in those includes was neither detected nor reverted.")
+      `PARTIAL \u2014 this object was NOT fully ${res.plan.action === "recreate" ? "recreated" : "restored"}. ${res.partial.reason} Unrestored includes: ${res.partial.unrestored.join(", ")}. ` + (res.plan.action === "recreate" ? `${entry.object.name} is NOT the object that was deleted: what came back is its main include${res.restoredIncludes?.length ? ` plus its ${res.restoredIncludes.join(", ")} include(s)` : ""}, not the ${res.partial.unrestored.join(", ")} include(s) \u2014 those were never recorded and are not restored. Restore them from SAP's own version management (SE24 \u2192 Utilities \u2192 Versions) before trusting it, and do not run its unit tests expecting them to exist unless testclasses is among what came back.` : "Drift in those includes was neither detected nor reverted.")
+    );
+  }
+  if (res.performed && res.restoredIncludes?.length) {
+    notes.push(
+      `Also restored: its ${res.restoredIncludes.join(", ")} include(s) \u2014 recorded alongside the main body when the class was deleted, written back and activated together with it.`
+    );
+  }
+  if (res.performed && res.skippedIncludes?.length) {
+    notes.push(
+      `NOT restored: ${res.skippedIncludes.map((s) => `its ${s.include} include (${s.reason})`).join("; ")}.`
     );
   }
   if (res.undoEntryId) {
@@ -107472,6 +107618,8 @@ ${msgs}`);
       action: res.plan.action,
       performed: res.performed,
       partial: res.partial ? `yes \u2014 ${res.partial.unrestored.join(", ")} NOT restored` : void 0,
+      restoredIncludes: res.restoredIncludes?.length ? res.restoredIncludes.join(", ") : void 0,
+      skippedIncludes: res.skippedIncludes?.length ? res.skippedIncludes.map((s) => s.include).join(", ") : void 0,
       forced: res.forced || void 0,
       driftDetected: res.plan.drift.drifted || void 0,
       newEntry: res.undoEntryId ?? (res.performed ? "NOT JOURNALLED" : void 0),
@@ -108787,13 +108935,14 @@ function registerReadTools(mcp, deps) {
 
 // src/adt/aunit.ts
 var AUNIT_TESTRUNS_URL = "/sap/bc/adt/abapunit/testruns";
+var COVERAGE_MEASUREMENT_PREFIX = "/sap/bc/adt/runtime/traces/coverage/measurements/";
 var RISK_LEVELS = ["harmless", "dangerous", "critical"];
-function buildRunConfiguration(objectUri, risk = "harmless") {
+function buildRunConfiguration(objectUri, risk = "harmless", opts = {}) {
   const on = (level) => RISK_LEVELS.indexOf(level) <= RISK_LEVELS.indexOf(risk) ? "true" : "false";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <aunit:runConfiguration xmlns:aunit="http://www.sap.com/adt/aunit">
   <external>
-    <coverage active="false"/>
+    <coverage active="${opts.coverage ? "true" : "false"}"/>
   </external>
   <options>
     <uriType value="semantic"/>
@@ -108946,6 +109095,10 @@ function parseRunResult(xml3) {
       "This is a wire-shape change, not a test failure. Do not read it as a passing run."
     );
   }
+  const externalNode = many2(root.external)[0];
+  const coverageNode = externalNode && isNode(externalNode.coverage) ? externalNode.coverage : void 0;
+  const coverageUriRaw = coverageNode ? attr2(coverageNode, "uri") : void 0;
+  const coverageUri = coverageUriRaw && coverageUriRaw.startsWith(COVERAGE_MEASUREMENT_PREFIX) ? coverageUriRaw : void 0;
   const otherAlerts = [];
   for (const a of parseAlerts(root.alerts)) otherAlerts.push({ ...a, scope: "run" });
   const programs = [];
@@ -109009,7 +109162,8 @@ function parseRunResult(xml3) {
         passed,
         failed,
         unknown: unknown2,
-        reason: noTests.title ?? 'ADT reported kind="noTestClasses": the object has no ABAP Unit test classes.'
+        reason: noTests.title ?? 'ADT reported kind="noTestClasses": the object has no ABAP Unit test classes.',
+        ...coverageUri ? { coverageUri } : {}
       };
     }
     return {
@@ -109020,11 +109174,21 @@ function parseRunResult(xml3) {
       passed,
       failed,
       unknown: unknown2,
-      reason: "The run result contained no test methods and no noTestClasses alert, so it is not known whether anything ran. This is NOT a passing run."
+      reason: "The run result contained no test methods and no noTestClasses alert, so it is not known whether anything ran. This is NOT a passing run.",
+      ...coverageUri ? { coverageUri } : {}
     };
   }
   if (failed > 0) {
-    return { outcome: "failed", programs, otherAlerts, total, passed, failed, unknown: unknown2 };
+    return {
+      outcome: "failed",
+      programs,
+      otherAlerts,
+      total,
+      passed,
+      failed,
+      unknown: unknown2,
+      ...coverageUri ? { coverageUri } : {}
+    };
   }
   if (unknown2 > 0) {
     return {
@@ -109035,17 +109199,174 @@ function parseRunResult(xml3) {
       passed,
       failed,
       unknown: unknown2,
-      reason: `${unknown2} of ${total} test method(s) carried XML this server does not recognise, so their verdict is unknown. Treat the run as UNVERIFIED, not as passing.`
+      reason: `${unknown2} of ${total} test method(s) carried XML this server does not recognise, so their verdict is unknown. Treat the run as UNVERIFIED, not as passing.`,
+      ...coverageUri ? { coverageUri } : {}
     };
   }
-  return { outcome: "passed", programs, otherAlerts, total, passed, failed, unknown: unknown2 };
+  return {
+    outcome: "passed",
+    programs,
+    otherAlerts,
+    total,
+    passed,
+    failed,
+    unknown: unknown2,
+    ...coverageUri ? { coverageUri } : {}
+  };
+}
+function coveredObjectsUrl(measurementUri) {
+  return `${measurementUri}/coveredobjects`;
+}
+function buildCoveredObjectsScope() {
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<cov:scope xmlns:cov="http://www.sap.com/adt/cov">\n  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core"/>\n  <cov:objectSelection/>\n</cov:scope>';
+}
+function parseCoveredObjects(xml3) {
+  let doc;
+  try {
+    doc = parser2.parse(xml3);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage scope is not parseable XML: ${e.message}`,
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const docNode = isNode(doc) ? doc : void 0;
+  const hasScope = docNode !== void 0 && "scope" in docNode;
+  if (!hasScope) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "ADT answered 200 but the body carries no <cov:scope> element.",
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const root = isNode(docNode.scope) ? docNode.scope : {};
+  const out = [];
+  for (const container of many2(root.coveredObjects)) {
+    for (const co of many2(container.coveredObject)) {
+      const ref2 = isNode(co.objectReference) ? co.objectReference : void 0;
+      if (!ref2) continue;
+      out.push({
+        name: attr2(ref2, "name") ?? "(unnamed object)",
+        ...attr2(ref2, "type") ? { type: attr2(ref2, "type") } : {},
+        ...attr2(ref2, "uri") ? { uri: attr2(ref2, "uri") } : {},
+        ...attr2(ref2, "packageName") ? { packageName: attr2(ref2, "packageName") } : {}
+      });
+    }
+  }
+  return out;
+}
+function buildCoverageQuery(objectUris) {
+  if (objectUris.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "buildCoverageQuery needs at least one object URI: an empty list would query the whole measurement, not the object the caller asked about."
+    );
+  }
+  const refs = objectUris.map((uri) => `        <adtcore:objectReference adtcore:uri="${escapeXmlAttribute(uri)}"/>
+`).join("");
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<cov:query xmlns:cov="http://www.sap.com/adt/cov">\n  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core">\n    <objectSet kind="inclusive">\n      <adtcore:objectReferences>\n' + refs + "      </adtcore:objectReferences>\n    </objectSet>\n  </adtcore:objectSets>\n</cov:query>";
+}
+var KNOWN_COVERAGE_TYPES = /* @__PURE__ */ new Set(["statement", "branch", "procedure"]);
+function parseCount(raw) {
+  if (raw === void 0 || !/^\d+$/.test(raw)) return void 0;
+  return parseInt(raw, 10);
+}
+function parseCoverageNode(node2) {
+  const ref2 = isNode(node2.objectReference) ? node2.objectReference : void 0;
+  const name = (ref2 ? attr2(ref2, "name") : void 0) ?? "(unnamed node)";
+  const unrecognised = [];
+  let statement;
+  let branch;
+  let procedure;
+  const coveragesContainer = isNode(node2.coverages) ? node2.coverages : void 0;
+  for (const cov of many2(coveragesContainer?.coverage)) {
+    const type = attr2(cov, "type");
+    if (type === void 0 || !KNOWN_COVERAGE_TYPES.has(type)) {
+      unrecognised.push(type ?? "coverage with no @type");
+      continue;
+    }
+    const totalRaw = attr2(cov, "total");
+    const executedRaw = attr2(cov, "executed");
+    const total = parseCount(totalRaw);
+    if (total === void 0) {
+      unrecognised.push(`${type} (unparseable total="${totalRaw ?? ""}")`);
+      continue;
+    }
+    const executed = parseCount(executedRaw);
+    if (executed === void 0) {
+      unrecognised.push(`${type} (unparseable executed="${executedRaw ?? ""}")`);
+      continue;
+    }
+    const ratio = { total, executed };
+    if (type === "statement") statement = ratio;
+    else if (type === "branch") branch = ratio;
+    else procedure = ratio;
+  }
+  const children = [];
+  const childContainer = isNode(node2.nodes) ? node2.nodes : void 0;
+  for (const child4 of many2(childContainer?.node)) children.push(parseCoverageNode(child4));
+  return {
+    name,
+    ...ref2 && attr2(ref2, "type") ? { type: attr2(ref2, "type") } : {},
+    ...ref2 && attr2(ref2, "uri") ? { uri: attr2(ref2, "uri") } : {},
+    ...ref2 && attr2(ref2, "description") ? { description: attr2(ref2, "description") } : {},
+    ...statement ? { statement } : {},
+    ...branch ? { branch } : {},
+    ...procedure ? { procedure } : {},
+    unrecognised,
+    children
+  };
+}
+function parseCoverageResult(xml3) {
+  let doc;
+  try {
+    doc = parser2.parse(xml3);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage result is not parseable XML: ${e.message}`,
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const docNode = isNode(doc) ? doc : void 0;
+  const hasResult = docNode !== void 0 && "result" in docNode;
+  if (!hasResult) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "ADT answered 200 but the body carries no <cov:result> element.",
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const root = isNode(docNode.result) ? docNode.result : {};
+  const topContainer = isNode(root.nodes) ? root.nodes : void 0;
+  const nodes = many2(topContainer?.node).map(parseCoverageNode);
+  return { measured: nodes.length > 0, nodes };
+}
+function findCoverageNode(result, name) {
+  const wantExact = name.toLowerCase();
+  const wantPrefix = `${wantExact} (`;
+  let exactMatch;
+  let prefixMatch;
+  const visit = (node2) => {
+    const lower = node2.name.toLowerCase();
+    if (exactMatch === void 0 && lower === wantExact) exactMatch = node2;
+    else if (prefixMatch === void 0 && lower.startsWith(wantPrefix)) prefixMatch = node2;
+    for (const child4 of node2.children) visit(child4);
+  };
+  for (const node2 of result.nodes) visit(node2);
+  return exactMatch ?? prefixMatch;
 }
 
 // src/tools/test.ts
 var testInputSchema = {
   object: external_exports.string().describe("Class, program or package to test."),
   type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC."),
-  risk_level: external_exports.enum(["harmless", "dangerous", "critical"]).optional().describe("Highest risk to run, cumulative from harmless. Default harmless.")
+  risk_level: external_exports.enum(["harmless", "dangerous", "critical"]).optional().describe("Highest risk to run, cumulative from harmless. Default harmless."),
+  coverage: external_exports.boolean().optional().describe("Also measure statement/branch/procedure coverage and report it per class and per method."),
+  coverage_for: external_exports.array(external_exports.string()).optional().describe(
+    "Objects to report coverage for. Default: the objects under test. Use this to report an object the tests exercise indirectly. Ignored unless coverage is true."
+  )
 };
 var TestInput = external_exports.object(testInputSchema);
 function renderStack(alert) {
@@ -109094,14 +109415,197 @@ function renderBody(res) {
   }
   return lines.join("\n").trim() || "(the run result contained no test methods and no alerts)";
 }
+var COVERAGE_FOCUS_CAP = 10;
+var ALSO_TOUCHED_SHOWN = 15;
+function formatRatio(label, r) {
+  if (!r) return `${label} not reported`;
+  if (r.total === 0) return `${label} n/a`;
+  return `${label} ${r.executed}/${r.total} (${Math.round(r.executed / r.total * 100)}%)`;
+}
+function renderCoverageRatios(node2) {
+  return [
+    formatRatio("statement", node2.statement),
+    formatRatio("branch", node2.branch),
+    formatRatio("procedure", node2.procedure)
+  ].join("  ");
+}
+function renderCoverageNodeLine(node2, indent) {
+  const unrecognised = node2.unrecognised.length ? `  [unrecognised coverage types: ${node2.unrecognised.join(", ")}]` : "";
+  return `${indent}${node2.name}  ${renderCoverageRatios(node2)}${unrecognised}`;
+}
+function addRatio(sum, r) {
+  if (!r) return;
+  sum.total += r.total;
+  sum.executed += r.executed;
+  sum.seen = true;
+}
+function formatRatioSum(label, s) {
+  if (!s.seen) return `${label} not reported`;
+  if (s.total === 0) return `${label} n/a`;
+  return `${label} ${s.executed}/${s.total} (${Math.round(s.executed / s.total * 100)}%)`;
+}
+async function buildCoverageSection(conn, res, obj, input, notes, hints) {
+  if (res.coverageUri === void 0) {
+    notes.push(
+      "Coverage was requested but the run result carried no measurement reference, so no coverage is reported. The PASSED/FAILED verdicts above are unaffected."
+    );
+    return void 0;
+  }
+  const coveredResp = await conn.post(coveredObjectsUrl(res.coverageUri), {
+    headers: { "Content-Type": "application/*", Accept: "application/*" },
+    body: buildCoveredObjectsScope()
+  });
+  if (coveredResp.status !== 200) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage covered-objects query for ${obj.name} answered HTTP ${coveredResp.status}.`,
+      { object: obj.name, status: coveredResp.status, url: coveredObjectsUrl(res.coverageUri) }
+    );
+  }
+  const roster = parseCoveredObjects(coveredResp.body);
+  const coverageForList = input.coverage_for ?? [];
+  const explicitScope = coverageForList.length > 0;
+  const requestedNames = explicitScope ? coverageForList : res.programs.map((p) => p.name);
+  let matches = [];
+  let notTouched = [];
+  for (const name of requestedNames) {
+    const entry = roster.find((o) => o.name.toLowerCase() === name.toLowerCase());
+    if (entry) matches.push({ requestedName: name, object: entry });
+    else notTouched.push(name);
+  }
+  if (!explicitScope && matches.length === 0) {
+    const entry = roster.find((o) => o.name.toLowerCase() === obj.name.toLowerCase());
+    matches = [{ requestedName: obj.name, object: entry ?? { name: obj.name, uri: obj.uri } }];
+    notTouched = [];
+  }
+  const toQuery = matches.slice(0, COVERAGE_FOCUS_CAP);
+  const skipped = matches.slice(COVERAGE_FOCUS_CAP);
+  if (skipped.length > 0) {
+    notes.push(
+      `Coverage focus was capped at ${COVERAGE_FOCUS_CAP} objects \u2014 querying the whole covered-objects roster timed out live against a real system. Not queried: ${skipped.map((m) => m.requestedName).join(", ")}.`
+    );
+  }
+  const queryable = toQuery.filter((m) => m.object.uri !== void 0);
+  const noUri = toQuery.filter((m) => m.object.uri === void 0);
+  let coverage;
+  if (queryable.length > 0) {
+    const focusUris = queryable.map((m) => m.object.uri).filter((u) => u !== void 0);
+    const queryResp = await conn.post(res.coverageUri, {
+      headers: { "Content-Type": "application/*", Accept: "application/*" },
+      body: buildCoverageQuery(focusUris)
+    });
+    if (queryResp.status !== 200) {
+      throw new AbapError(
+        "ADT_ERROR",
+        `Coverage measurement query for ${obj.name} answered HTTP ${queryResp.status}.`,
+        { object: obj.name, status: queryResp.status, url: res.coverageUri }
+      );
+    }
+    coverage = parseCoverageResult(queryResp.body);
+  } else if (toQuery.length > 0) {
+    notes.push(
+      `Coverage could not be queried for ${toQuery.map((m) => m.requestedName).join(", ")}: the covered-objects roster carried no URI for them.`
+    );
+  }
+  const lines = [];
+  const uncovered = [];
+  const notReported = [];
+  let anyAbsent = false;
+  const sums = {
+    statement: { total: 0, executed: 0, seen: false },
+    branch: { total: 0, executed: 0, seen: false },
+    procedure: { total: 0, executed: 0, seen: false }
+  };
+  for (const m of matches) {
+    if (skipped.includes(m)) {
+      lines.push(`${m.requestedName}  not queried (coverage focus capped at ${COVERAGE_FOCUS_CAP} objects)`);
+      continue;
+    }
+    if (noUri.includes(m)) {
+      lines.push(`${m.requestedName}  not queried (no object URI on the covered-objects roster)`);
+      continue;
+    }
+    const node2 = coverage ? findCoverageNode(coverage, m.requestedName) : void 0;
+    if (coverage?.measured && node2) {
+      lines.push(renderCoverageNodeLine(node2, ""));
+      for (const child4 of node2.children) {
+        lines.push(renderCoverageNodeLine(child4, "  "));
+        if (child4.statement) {
+          if (child4.statement.total > 0 && child4.statement.executed === 0) {
+            uncovered.push(
+              `${node2.name}->${child4.name}  (${child4.statement.executed}/${child4.statement.total} statements)`
+            );
+          }
+        } else {
+          notReported.push(`${node2.name}->${child4.name}`);
+        }
+      }
+      addRatio(sums.statement, node2.statement);
+      addRatio(sums.branch, node2.branch);
+      addRatio(sums.procedure, node2.procedure);
+    } else {
+      lines.push(`${m.requestedName}  not measured by this run`);
+      anyAbsent = true;
+    }
+  }
+  for (const name of notTouched) {
+    lines.push(`${name}  not touched by this run`);
+    anyAbsent = true;
+  }
+  if (anyAbsent) {
+    notes.push(
+      'Absence of measurement is not zero coverage: an object or method reported "not measured by this run" or "not touched by this run" was never observed by the coverage trace, which is different from having been observed and found uncovered.'
+    );
+  }
+  if (uncovered.length > 0) {
+    lines.push("", "UNCOVERED METHODS (0 of their statements ran):");
+    for (const u of uncovered) lines.push(`  ${u}`);
+    hints.push(
+      "An uncovered method ran zero of its statements. Read it with `abap_read method=\u2026` and add a test for it \u2014 the abapsmith-write-abap-unit-tests skill covers writing ABAP Unit tests."
+    );
+  }
+  if (notReported.length > 0) {
+    lines.push("", "COVERAGE NOT REPORTED FOR:");
+    for (const n of notReported) lines.push(`  ${n}`);
+  }
+  const focusNames = /* @__PURE__ */ new Set([...matches.map((m) => m.requestedName.toLowerCase()), ...notTouched.map((n) => n.toLowerCase())]);
+  const others = roster.filter((o) => !focusNames.has(o.name.toLowerCase()));
+  if (others.length > 0) {
+    lines.push("", "ALSO TOUCHED (not reported on \u2014 name one in coverage_for to measure it):");
+    for (const o of others.slice(0, ALSO_TOUCHED_SHOWN)) {
+      lines.push(`  ${o.name} (${o.type ?? "?"}, ${o.packageName ?? "?"})`);
+    }
+    if (others.length > ALSO_TOUCHED_SHOWN) {
+      lines.push(`  \u2026 and ${others.length - ALSO_TOUCHED_SHOWN} more (truncated)`);
+    }
+  }
+  const header = sums.statement.seen || sums.branch.seen || sums.procedure.seen ? [
+    formatRatioSum("statement", sums.statement),
+    formatRatioSum("branch", sums.branch),
+    formatRatioSum("procedure", sums.procedure)
+  ].join(", ") : void 0;
+  return { body: lines.join("\n"), ...header !== void 0 ? { header } : {} };
+}
 async function abapTest(conn, input, maxChars, gate) {
+  if (input.coverage_for !== void 0 && !input.coverage) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`coverage_for` was given without `coverage: true`. Coverage is only measured and reported when `coverage` is true; naming objects in `coverage_for` on their own would silently run with no coverage measured at all.",
+      { coverage: input.coverage ?? false, coverage_for: input.coverage_for },
+      "Set `coverage: true` alongside `coverage_for`."
+    );
+  }
   const obj = await resolveObject(conn, input.object, { type: input.type });
   gate.authorize("execute", { name: obj.name, packageName: obj.packageName, type: obj.type });
   const risk = input.risk_level ?? "harmless";
-  const body = buildRunConfiguration(obj.uri, risk);
+  const requestBody = buildRunConfiguration(
+    obj.uri,
+    risk,
+    input.coverage ? { coverage: true } : {}
+  );
   const resp = await conn.post(AUNIT_TESTRUNS_URL, {
     headers: { "Content-Type": "application/*", Accept: "application/*" },
-    body
+    body: requestBody
   });
   if (resp.status !== 200) {
     throw new AbapError(
@@ -109137,6 +109641,31 @@ async function abapTest(conn, input, maxChars, gate) {
     notes.push(`Run-level alert (${a.scope}): ${a.title ?? a.kind ?? "unnamed alert"}.`);
   }
   const outcomeLabel = res.outcome === "passed" ? "PASSED" : res.outcome === "failed" ? "FAILED" : res.outcome === "no-tests" ? "NO TESTS RAN (not a pass)" : "UNKNOWN (not a pass)";
+  const hints = res.outcome === "failed" ? [
+    "Line numbers are positions in the named INCLUDE (usually testclasses), not in the class main source. Read that include with abap_read."
+  ] : [];
+  let coverageBody;
+  let coverageHeader;
+  if (input.coverage) {
+    notes.push(
+      "Coverage was requested: this instruments the whole ABAP Unit session and runs slower than a plain test run."
+    );
+    try {
+      const section = await buildCoverageSection(conn, res, obj, input, notes, hints);
+      if (section) {
+        coverageBody = section.body;
+        coverageHeader = section.header;
+      }
+    } catch (e) {
+      notes.push(
+        `Coverage could not be retrieved: ${e instanceof Error ? e.message : String(e)}. The test result above is unaffected and still reflects the full run.`
+      );
+    }
+  }
+  const body = coverageBody !== void 0 ? `${renderBody(res)}
+
+COVERAGE
+${coverageBody}` : renderBody(res);
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -109147,14 +109676,13 @@ async function abapTest(conn, input, maxChars, gate) {
       passed: res.passed,
       failed: res.failed,
       // Surfaced only when non-zero — an ungraded method must never be missed.
-      unknown: res.unknown > 0 ? res.unknown : void 0
+      unknown: res.unknown > 0 ? res.unknown : void 0,
+      coverage: coverageHeader
     },
-    body: renderBody(res),
+    body,
     bodyLabel: "RESULTS",
     notes,
-    hints: res.outcome === "failed" ? [
-      "Line numbers are positions in the named INCLUDE (usually testclasses), not in the class main source. Read that include with abap_read."
-    ] : [],
+    hints,
     maxChars
   });
 }
@@ -109163,7 +109691,7 @@ function registerTestTools(mcp, deps) {
   mcp.registerTool(
     "abap_test",
     {
-      description: "Run ABAP Unit tests; reports each method's verdict. PASSED/FAILED/NO TESTS RAN/UNKNOWN \u2014 only PASSED is a pass. Needs write access, allowlisted package. Defaults to harmless-risk tests.",
+      description: "Run ABAP Unit tests; reports each method's verdict. PASSED/FAILED/NO TESTS RAN/UNKNOWN \u2014 only PASSED is a pass. Needs write access, allowlisted package. Defaults to harmless-risk tests. Opt-in coverage: coverage=true, optionally scoped with coverage_for.",
       inputSchema: testInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -110961,6 +111489,10 @@ function captureOf(img) {
   if (!img.sourceReadable) return "failed";
   return img.source !== void 0 ? "captured" : "failed";
 }
+function includeCaptureOf(img) {
+  if (img.source !== void 0) return "captured";
+  return img.absenceConfirmed ? "confirmed-absent" : "failed";
+}
 function deleteJournalNote(entryId, capture, type, name, kind) {
   if (capture === "captured" && kind === "package-metadata") {
     return `The package's metadata was journalled as ${entryId} before the delete \u2014 a package has no source, so that is the whole before-image, and abap_journal mode=undo will NOT re-create ${type} ${name} from it. Re-create it with abap_write type="DEVC/K" if you need it back.`;
@@ -111386,9 +111918,9 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     if (input.include !== void 0) {
       throw new AbapError(
         "BAD_INPUT",
-        `\`include\` does not apply to mode=delete: ADT cannot delete one include of a class, only the whole class. Deleting ${target.name} because you asked to delete its ${input.include} would destroy its main source and its other includes too, and that delete could not be undone \u2014 abapsmith's journal never captured the local includes.`,
+        `\`include\` does not apply to mode=delete: ADT cannot delete one include of a class, only the whole class. Deleting ${target.name} because you asked to delete its ${input.include} would destroy its main source and its other includes too.`,
         { object: target.name, include: input.include, mode: "delete" },
-        `To empty an include, WRITE it: {object, include:"${input.include}", source:"<the new, possibly empty, content>"}. To delete the whole class, drop \`include\`.`
+        `To empty an include, WRITE it: {object, include:"${input.include}", source:"<the new, possibly empty, content>"}. To delete the whole class, drop \`include\` \u2014 its includes are now recorded too, so abap_journal mode=undo on that delete restores all of them.`
       );
     }
     const authorized2 = await authorizeMutation(conn, gate, "delete", target);
@@ -111419,6 +111951,20 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
             // On begin(), not finish(): resolution is pre-flight, so the
             // request is already known — see BeforeImage.corrNr (src/adt/write.ts).
             ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
+            // A CLAS/OC delete's four local includes (src/adt/write.ts's
+            // `deleteObject`) — recorded as `parts` so undo of the whole
+            // delete can restore each one, not just the main body. Each
+            // part's `object` is the class's own ref with `sourceUri`
+            // overridden to that include's document — the class identity is
+            // the same, only the document under discussion differs.
+            ...img.includes?.length ? {
+              parts: img.includes.map((i) => ({
+                object: { ...journalRef(img.target), sourceUri: i.sourceUri },
+                existedBefore: i.existed,
+                beforeCapture: i.capture,
+                ...i.source !== void 0 ? { beforeSource: i.source } : {}
+              }))
+            } : {},
             systemKey: systemKey(conn.cfg),
             tool: "abap_write"
           };
@@ -111427,7 +111973,15 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       (onBeforeImage) => deleteObject(conn, authorized2, {
         ...trOpts,
         ...input.expect_etag ? { expectEtag: input.expect_etag } : {},
-        onBeforeImage,
+        // `withJournalledMutation` (src/journal.ts) hands back a closure
+        // that is a harmless no-op when `journal` is undefined — but it is
+        // NOT `=== NO_JOURNAL`, so `deleteObject` cannot tell from the
+        // closure alone that nothing will ever be done with a captured
+        // before-image. Passing the literal sentinel here when there is no
+        // journal to write to lets a CLAS/OC delete's four sub-include
+        // reads (src/adt/write.ts's `deleteObject`) be skipped rather than
+        // spent for nothing.
+        onBeforeImage: journal !== void 0 ? onBeforeImage : NO_JOURNAL,
         // DEVC/K runs through the classrun bridge, which needs the gate itself
         // even when no transport manager is wired.
         bridgeGate: gate
@@ -111565,7 +112119,10 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
           operation: img.existed ? "update" : "create",
           object: journalRef(img.target),
           existedBefore: img.existed,
-          beforeCapture: captureOf(img),
+          // A sub-include's absence is `confirmed-absent` evidence, not the
+          // generic `captureOf` path — see `includeCaptureOf`. Gated on
+          // `img.include` so every non-include write keeps `captureOf`.
+          beforeCapture: img.include !== void 0 ? includeCaptureOf(img) : captureOf(img),
           ...img.source !== void 0 ? { beforeSource: img.source } : {},
           // See the delete branch: begin(), since pre-flight resolution
           // already knows the request at this point.

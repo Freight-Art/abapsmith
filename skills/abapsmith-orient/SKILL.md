@@ -201,6 +201,7 @@ Default to `$TMP` unless the task says otherwise.
 | Domain, data element, table, table type | `abapsmith-create-ddic-objects` |
 | CDS + behavior + service binding | `abapsmith-create-a-rap-service` |
 | Class, interface, program, function group | `abapsmith-write-abap-source` |
+| Write or run ABAP Unit tests | `abapsmith-write-abap-unit-tests` |
 | BAdI, enhancement spot, source plug-in | `abapsmith-enhance-standard-code` |
 | BOPF business object | `abapsmith-edit-a-bopf-object` |
 | Browse IMG (SPRO) customizing structure | `abapsmith-browse-img-customizing` |

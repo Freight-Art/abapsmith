@@ -261,6 +261,18 @@ function scanForHandRolledTruncation(): Offense[] {
 
 const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
   {
+    file: "src/tools/test.ts",
+    contains: "matches.slice(0, COVERAGE_FOCUS_CAP)",
+    reason:
+      "Coverage focus cap (issue #75). The complement `matches.slice(COVERAGE_FOCUS_CAP)` is computed on the next line and every skipped object is NAMED in a note (`Not queried: …`), so the cap is disclosed to the caller and the dropped items are listed, not hidden.",
+  },
+  {
+    file: "src/tools/test.ts",
+    contains: "others.slice(0, ALSO_TOUCHED_SHOWN)",
+    reason:
+      "ALSO TOUCHED list on the coverage report (issue #75). When the roster exceeds the cap the list ends with `… and N more (truncated)`, so the omission is marked in the output; the objects are still reachable one at a time via coverage_for.",
+  },
+  {
     file: "src/adt/icf-classify.ts",
     contains: "body.slice(0, AUTH_MARKER_SCAN_BYTES)",
     reason:
