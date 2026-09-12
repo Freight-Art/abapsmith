@@ -10,7 +10,7 @@ tool under `abap_fluid` with no MCP registration. You write the files, the
 operator enables them, then you verify.
 
 ```
-1 choose id/actions → 2 manifest → 3 body class → 4 self-check → 5 hand off → 6 verify
+1 choose id/actions → 2 manifest → 3 body class → 4 check on the system → 5 self-check → 6 hand off → 7 verify
 ```
 
 ## 1. Choose the id and the actions
@@ -53,8 +53,18 @@ framework expects, which is not standard ABAP:
 - Escape values you interpolate into JSON with `esc( )`. It handles only backslash, quote,
   CRLF, LF, CR and tab; strip other control characters yourself.
 - Every line ≤ 255 characters.
+- Never `COMMIT WORK` in the body. The invoker commits after a `mutate` action and rolls back
+  when `rc` is non-zero; an `execute` action's database changes persist only with the request's
+  implicit commit. Do not claim otherwise in a manifest description.
 
-## 4. Self-check against the loader before handing off
+## 4. Syntax-check a scratch copy before the class is finished
+
+Plugins deploy only through the server, so check the source yourself: rename the class to
+`ZCL_<SOMETHING>_CHK`, `abap_write` it into `$TMP`, `abap_activate`, fix, repeat — after the first
+method, not after the last. Delete the scratch class before handing off. The ABAP traps that
+pass this check and fail at run time are in `abapsmith-write-abap-source`.
+
+## 5. Self-check against the loader before handing off
 
 The loader refuses the whole plugin, naming the file and line, on any of these:
 
@@ -65,9 +75,9 @@ The loader refuses the whole plugin, naming the file and line, on any of these:
 - An object name colliding with one another loaded tool already claims (`FLUID_OBJECT_CONFLICT`).
 - A `source.file` that resolves outside the plugin directory.
 
-Note which of the two flags the plugin needs; step 5 must ask for them.
+Note which of the two flags the plugin needs; step 6 must ask for them.
 
-## 5. Hand off to the operator — you cannot enable it
+## 6. Hand off to the operator — you cannot enable it
 
 Plugins load **once at server startup**, never mid-session. Tell the user to set these in the
 MCP server's env and restart it:
@@ -76,13 +86,13 @@ MCP server's env and restart it:
 |---|---|
 | `ABAP_FLUID_PLUGINS` | comma-separated absolute roots; each subdirectory with a `fluid-plugin.json` is one plugin |
 | `ABAP_ALLOW_FLUID_PLUGINS` | `true` — consent to run the ABAP there; the path alone is not consent |
-| `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` | `true` only if step 4 found a DB write or commit |
-| `ABAP_ALLOW_FLUID_CALL_FM` | `true` only if step 4 found `CALL FUNCTION` |
+| `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` | `true` if step 5 found a DB write or commit, or any action is `mutate` (the gate checks it per call) |
+| `ABAP_ALLOW_FLUID_CALL_FM` | `true` only if step 5 found `CALL FUNCTION` |
 
 `abap_fluid` exists on the default v1 surface only; v2 (`abap_do`) has no fluid entry point.
 Read-only mode or a productive system disables the fluid API entirely, plugins included.
 
-## 6. Verify after the restart
+## 7. Verify after the restart
 
 1. `abap_fluid(op="list")` — the id is present. If not, the same output lists it under
    `refused[]` with path, error code and reason. Then `op="describe", tool="<id>"` to confirm
@@ -90,6 +100,10 @@ Read-only mode or a productive system disables the fluid API entirely, plugins i
 2. `abap_fluid(tool="<id>", action="<read action>", args={…})` — first call deploys the objects
    into `$ABAPSMITH_FLUID_API`, then runs. A `mutate` call also needs `confirm: "<id>.<action>"`.
 3. `abap_fluid(op="verify", tool="<id>")` — what is actually on the system.
+
+Any source change after the restart needs another restart: `op="repair"` re-deploys the loaded
+version only. Batch every fix from one verify round, syntax-check them as in step 4, then ask
+for one restart.
 
 `FLUID_PLUGINS_DISABLED` means the path is set but consent is off. `FLUID_ACTION_FAILED` is
 your own `err` frame; the text is what you passed.

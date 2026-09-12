@@ -59,3 +59,28 @@
   `src/adt/types.ts` does not list is accepted when its group is listed
   (`ENHS/XB` is accepted, `ANY` is not), because honouring an unlisted
   sub-type is the point of the local filter above.
+
+- **`objectType=FUGR` narrows to function groups, not to "everything filed
+  under FUGR".** Captures `847-i64-quicksearch-fm-objecttype-fugr` (query
+  `BUP_ROLES_GET_ALL`, `objectType=FUGR`) comes back empty, while
+  `849-i64-quicksearch-group-objecttype-fugr` (query `BUDA`, the module's own
+  function group, same `objectType=FUGR`) finds it as `FUGR/F`; the untyped
+  `846-i64-quicksearch-fm-untyped` finds the module itself. So `FUGR` selects
+  function GROUPS only. `objectType=FUGR/FF` does return the module
+  (`848-i64-quicksearch-fm-objecttype-fugrff`), narrowing the claim in the
+  bullet above: that capture carries `adtcore:packageName` and drops only
+  `adtcore:description`, unlike the older typed captures 818/819, which drop
+  both — the captures don't say why, only that FUGR/FF differs from TABL
+  here. `objectType=FUGR/I` was observed to match nothing at all. Because of
+  this, `searchExact` in `src/adt/resolve.ts` sends no `objectType` for a
+  type whose spec has a `parentPath` (`FUGR/FF`, `FUGR/I`) and filters by
+  type locally instead — which is also what lets `abap_read
+  {"type":"FUGR/FF","object":"BUP_ROLES_GET_ALL"}` recover the group from
+  `adtcore:uri` on an untyped hit. Separately, capture
+  `850-i64-quicksearch-generated-fm-missing` (query `ENQUEUE_E_TABLE`,
+  untyped) comes back empty even though
+  `851-i64-fmodule-generated-read-200` reads that same module at
+  `/sap/bc/adt/functions/groups/etable/fmodules/enqueue_e_table` with a plain
+  200: quickSearch does not index generated function modules at all, so a
+  search miss for a `FUGR/FF` name is not proof of absence — the reason
+  `src/adt/write-verify.ts` keeps `FUGR/FF` in its search-blind set.
