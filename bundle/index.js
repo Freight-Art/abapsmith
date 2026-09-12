@@ -96537,6 +96537,9 @@ async function resolveObject(conn, input, opts = {}) {
   const parsed = parseObjectRef(input, forced);
   const spec = forced ?? parsed.spec;
   const certain = forced !== void 0 || parsed.via === "uri" || parsed.via === "typecode" || parsed.via === "keyword" || opts.trustHint === true;
+  if (spec && certain && spec.parentPath && !parsed.parent) {
+    return resolveParented(conn, spec, parsed);
+  }
   if (spec && certain && (!spec.parentPath || parsed.parent)) {
     const packageName = await lookupPackageName(conn, parsed.name, spec.type);
     return finish(conn, spec, parsed.name, parsed, { packageName });
@@ -96581,7 +96584,8 @@ async function resolveObject(conn, input, opts = {}) {
   return finishFromSearch(conn, usable[0].spec, usable[0].r, parsed);
 }
 async function searchExact(conn, name, type) {
-  const kind = type?.split("/")[0];
+  const spec = type ? specForType(type) : void 0;
+  const kind = spec?.parentPath ? void 0 : type?.split("/")[0];
   const results = await conn.adt.searchObject(name, kind, 25);
   const { refs: repaired } = repairSearchDescriptions(results);
   const exact = repaired.filter((r) => r["adtcore:name"]?.toUpperCase() === name.toUpperCase());
@@ -96606,10 +96610,38 @@ async function existsAt(conn, uri) {
 async function lookupPackageName(conn, name, type) {
   try {
     const results = await searchExact(conn, name, type);
-    return results[0]?.["adtcore:packageName"];
+    const matching = results.find((r) => r["adtcore:type"]?.toUpperCase() === type.toUpperCase());
+    return (matching ?? results[0])?.["adtcore:packageName"];
   } catch {
     return void 0;
   }
+}
+async function resolveParented(conn, spec, parsed) {
+  const rows = await searchExact(conn, parsed.name, spec.type);
+  const withParent = rows.filter((r) => r["adtcore:type"]?.toUpperCase() === spec.type.toUpperCase()).map((r) => ({ r, parent: specFromUri(cleanUri(r["adtcore:uri"]) ?? "")?.parent })).filter((x) => x.parent !== void 0);
+  const groups = [];
+  for (const { parent } of withParent) {
+    if (!groups.includes(parent)) groups.push(parent);
+  }
+  if (groups.length === 1) {
+    const match = withParent.find((x) => x.parent === groups[0]);
+    return finishFromSearch(conn, spec, match.r, parsed);
+  }
+  if (groups.length > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${spec.label} ${parsed.name} exists in ${groups.length} function groups (${groups.join(", ")}).`,
+      { name: parsed.name, type: spec.type, groups },
+      `Name the group: "${parsed.name} in ${groups[0]}" or "${groups[0]}/${parsed.name}".`
+    );
+  }
+  const why = spec.type === "FUGR/FF" ? `it does not index generated function modules (ENQUEUE_*, and others), which exist and read fine once the group is named` : `the search does not index ${spec.label.toLowerCase()}s at all`;
+  throw new AbapError(
+    "BAD_INPUT",
+    `${spec.label} ${parsed.name} needs its function group.`,
+    { name: parsed.name, type: spec.type },
+    `The repository search found no ${spec.label.toLowerCase()} called ${parsed.name} to take the group from \u2014 ${why}. Say "${parsed.name} in ZFG" or "ZFG/${parsed.name}".`
+  );
 }
 function finishFromSearch(conn, spec, r, parsed) {
   const uri = cleanUri(r["adtcore:uri"]);
@@ -96644,7 +96676,7 @@ function finish(conn, spec, name, parsed, extra) {
       "BAD_INPUT",
       `${spec.label} ${name} needs its function group.`,
       { name, type: spec.type },
-      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO".'
+      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO". abap_search {"query":"Z_FOO","type":"FUGR/FF"} lists the owning group in its `group` column.'
     );
   }
   const uri = cleanUri(extra.uri) ?? parsed.uri ?? buildUri(spec, name, parsed.parent);
@@ -96810,7 +96842,7 @@ async function verifyViaRepositorySearch(conn, objectName, expectType) {
         return {
           status: "indeterminate",
           uri,
-          reason: `The repository search returned 0 hits for ${objectName}, but it does not index ${expectType} at all \u2014 a zero-hit is the only answer it can give for this type, present or absent, so it is not evidence. Treated as unproven rather than confirmed-absent.`
+          reason: `The repository search returned 0 hits for ${objectName}, but it does not index every ${expectType}: a generated function module is present and readable while the search reports nothing, so a zero-hit here is not evidence of absence. Treated as unproven rather than confirmed-absent.`
         };
       }
       return { status: "confirmed-absent", uri, via: "repository-search" };
@@ -107434,6 +107466,14 @@ function registerTestTools(mcp, deps) {
 // src/tools/search.ts
 var DESCRIPTION_COL_WIDE = 70;
 var DESCRIPTION_COL_NARROW = 60;
+function groupFromUri(uri) {
+  if (!uri) return "";
+  try {
+    return specFromUri(uri)?.parent ?? "";
+  } catch {
+    return "";
+  }
+}
 var KNOWN_TYPES = [...new Set(TYPES.flatMap((t) => [t.kind, t.type]))].sort();
 var KNOWN_TYPE_GROUPS = new Set(TYPES.map((t) => t.type.split("/")[0]));
 function assertKnownType(type) {
@@ -107514,10 +107554,13 @@ async function searchObjects(conn, query, type, max, maxChars) {
   const rows = capped.map((r) => ({
     type: r["adtcore:type"] ?? "",
     name: r["adtcore:name"] ?? "",
+    group: groupFromUri(r["adtcore:uri"]),
     package: r["adtcore:packageName"] ?? "",
     description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_WIDE)
   }));
-  const body = rows.length ? [textTable(rows, ["type", "name", "package", "description"]), capLine, windowLine].filter((line) => line !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
+  const hasGroup = rows.some((r) => r.group !== "");
+  const columns = hasGroup ? ["type", "name", "group", "package", "description"] : ["type", "name", "package", "description"];
+  const body = rows.length ? [textTable(rows, columns), capLine, windowLine].filter((line) => line !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -107538,7 +107581,12 @@ async function searchObjects(conn, query, type, max, maxChars) {
     notes,
     // abap_search has no offset/paging parameter — `max` is the only lever, so
     // the hint must not promise one.
-    hints: ["Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200)."],
+    hints: [
+      "Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200).",
+      ...hasGroup ? [
+        "`group` is the function group a FUGR row lives in \u2014 `package` is the module's own package, not its group."
+      ] : []
+    ],
     maxChars
   });
 }
