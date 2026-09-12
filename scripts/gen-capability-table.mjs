@@ -131,8 +131,10 @@ const BRIDGE_DELETE_NOTE = {
     "that took effect, so the flag is noise, not a result. A base-table delete is " +
     "not blocked by an index still on it (round 1); a later cleanup deleted a base table " +
     "while its indexes' DD12V rows may still have existed, and whether the delete cascaded " +
-    "them away or left them orphaned is unverified — abap_data_preview has no WHERE filter, " +
-    "so a targeted check was not practical.",
+    "them away or left them orphaned is unverified — at the time abap_data_preview carried " +
+    "no WHERE filter, so a targeted check was not practical. It now takes a structured " +
+    "filter (issue #73), so such a check is possible, but this round's outcome was never " +
+    "re-checked and stays unverified.",
 };
 
 /** Buckets every type in the given REGISTRY and renders the generated block. Exported so tests can inspect the bucketing directly instead of re-deriving it from REGISTRY by hand. */
