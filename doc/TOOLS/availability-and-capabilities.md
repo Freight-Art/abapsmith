@@ -5,8 +5,9 @@ all, and whether a given call is refused at runtime. This page is about the
 **v1** tool surface (`ABAP_TOOL_SURFACE=v1`, the default) — v1 tool names
 throughout. See
 [TOOL-SURFACE-V2/README.md](../TOOL-SURFACE-V2/README.md) for how v2
-answers the same questions; it is structurally different, not just a
-renaming, so its rules are not repeated here. A v1 tool falls into exactly
+answers the same questions (v2 is deprecated and will be removed in 0.6.0,
+issue #76); it is structurally different, not just a renaming, so its
+rules are not repeated here. A v1 tool falls into exactly
 one of four cases:
 
 1. **Registration-gated — absent from `tools/list` entirely.** The

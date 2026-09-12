@@ -515,10 +515,17 @@ export const ConfigSchema = z.object({
    * Do not default this to v2 or drop v1 — a live paired A/B measured v2 at
    * +6.6% more expensive and +142% more tool errors than v1 for
    * statistically identical successful work, despite a genuine −87.6%
-   * schema-size cut. v2 is EXPERIMENTAL and NOT supported for production;
-   * known defects are intentionally not being fixed while
-   * it holds that status. Full measurement, reasoning, and the bar for
+   * schema-size cut. Full measurement, reasoning, and the bar for
    * revisiting this default: see the git history.
+   *
+   * As of this release, `"v2"` is DEPRECATED and scheduled for removal in
+   * 0.6.0 (issue #76; keep in sync with `V2_REMOVAL_RELEASE` in
+   * src/server.ts). The surface is frozen: no new tool routes and no defect
+   * fixes land on it. Setting `ABAP_TOOL_SURFACE=v2` logs a deprecation
+   * warning at startup and puts the same sentence in the server
+   * `instructions` (both driven by `V2_DEPRECATION_SENTENCE` in
+   * src/server.ts, so the operator-facing and model-facing wording cannot
+   * drift apart).
    *
    * Deliberately no `"both"` value: v2 reuses v1's tool names verbatim, so
    * registering both surfaces throws "Tool abap_read is already registered"

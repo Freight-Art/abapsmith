@@ -35,8 +35,9 @@ stale.
 
 ## The v2 tool surface (`ABAP_TOOL_SURFACE=v2`)
 
-Experimental, not supported for production use — see
+Deprecated, and will be removed outright in release 0.6.0 (issue #76) — see
 [doc/TOOL-SURFACE-V2/](../TOOL-SURFACE-V2/README.md) for known defects and
-status; they are not being fixed while it holds this status. Every
-limitation below applies to v2 as well as v1 unless noted otherwise — v2 is
-a thinner routing layer over the same core, not a separate implementation.
+status; they are not being fixed, since the surface is being removed
+regardless. Every limitation below applies to v2 as well as v1 unless noted
+otherwise — v2 is a thinner routing layer over the same core, not a
+separate implementation.

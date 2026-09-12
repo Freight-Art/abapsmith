@@ -172,7 +172,10 @@ Two surfaces ship. **`v1` is the default** — one tool per job:
 | Table rows | `abap_data_preview` |
 | Open in GUI / browser | `abap_ui`, `abap_open_url` |
 
-**`v2`** (`ABAP_TOOL_SURFACE=v2`) collapses the same capability into six:
+**`v2`** (`ABAP_TOOL_SURFACE=v2`) is deprecated and will be removed in
+release 0.6.0 (issue #76) — do not start new work against it. A model
+already talking to a v2 server still needs this mapping, though: it
+collapses the same capability into six:
 `abap_find`, `abap_read`, `abap_write`, `abap_debug`, `abap_adt`, and `abap_do` —
 which absorbs activation, execution, journal, transports, BOPF and enhancements as
 *actions*. Call `abap_do({})` for the catalogue. `abap_adt` is a GET-only raw ADT
@@ -204,8 +207,12 @@ Default to `$TMP` unless the task says otherwise.
 | Change an IMG (SPRO) customizing value | `abapsmith-maintain-img-customizing` |
 | Get a transport request, or release one | `abapsmith-put-work-on-a-transport` |
 | Undo a wrong write, or read undo's refusals | `abapsmith-recover-a-bad-write` |
+| Survey an unfamiliar package or object | `abapsmith-explore-a-package` |
+| Run ABAP Unit, and fix what fails | `abapsmith-run-tests-and-fix` |
+| ATC findings and quick fixes | `abapsmith-check-code-quality` |
+| A run short-dumped or gave a wrong value | `abapsmith-debug-a-failing-run` |
 
-Something failed at runtime: `abap_dumps` for the short dump, then `abap_debug`.
+Something failed at runtime: `abapsmith-debug-a-failing-run`.
 `abap_debug` only catches breakpoints it triggers itself (`run` is required on
 `action:"start"`) under the configured user — it cannot arm a listener and wait
 for someone else's session to hit it.
