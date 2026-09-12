@@ -142,8 +142,9 @@ nothing about arming a write changes with this.
   number) is required too. A successful armed call discloses that CTS entry directly, under a
   `TRANSPORT ENTRY RECORDED` section, instead of leaving a caller to look
   up `E071K` separately — there is no tool in this server that reads
-  `E071K` directly; `abap_data_preview` takes a bare `{table, object,
-  max_rows}`, no WHERE clause or SQL of any kind. The section prints an
+  `E071K` directly; `abap_data_preview` takes `{table, object, max_rows,
+  where, columns, order_by, distinct}` — a structured filter, never raw SQL
+  or a caller-supplied WHERE clause (see `doc/TOOLS/diagnostics.md`). The section prints an
   identity line of the form `R3TR TABU <TABLE> (master <MASTERTYPE>
   <VIEW>)`, above a per-row table whose `tabkey` column carries the
   client and key together (e.g. `001ZTMD`). If the bridge transcript

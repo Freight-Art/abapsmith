@@ -84,3 +84,35 @@
   200: quickSearch does not index generated function modules at all, so a
   search miss for a `FUGR/FF` name is not proof of absence — the reason
   `src/adt/write-verify.ts` keeps `FUGR/FF` in its search-blind set.
+
+- **`mode=source` has no ADT endpoint to sit on, and that shapes its
+  limits.** ADT offers no full-text search over source, so the scan
+  (`src/adt/source-scan.ts`, dispatched through the built-in `scan` fluid
+  tool in `src/adt/fluid/builtin/scan.ts`) reads TADIR for the object scope,
+  resolves each object's includes, `READ REPORT`s them, and matches lines
+  with `FIND ... PCRE` — one call per scope, not a server-side index. A
+  scope is mandatory (`packages` and/or an `objects` pattern narrower than
+  `*`); an unscoped, repository-wide call is refused `BAD_INPUT` rather than
+  attempted and left to time out. A fixed ceiling of 200 objects applies
+  even within a valid scope, and the response discloses the scope's real
+  object count so a scope that exceeds the ceiling is visible, not silently
+  truncated. Excluding comments (`include_comments=false`, the default) is a
+  per-line heuristic (`code_part()` in the generated ABAP) — it drops a
+  full-line `*`/`"` comment and cuts a line at the first `"` outside a
+  quoted literal — not a real tokenizer; a `"` inside a `|...|` string
+  template is its known blind spot, and DDLS/CDS source is always matched
+  in full text because CDS comments are not ABAP comments. The scan is a
+  separate fluid tool (`scan`) rather than a fourth action on
+  `ZCL_ZMCP_FLUID_CORE` specifically because `FIND ... PCRE` needs kernel
+  7.55+; isolating it means a pre-7.55 system loses only `scan`, not
+  `core.select`/`describe_fm`/`call_fm`. It also needs the fluid API
+  (`ABAP_FLUID_API` on, `ABAP_MODE` not `read`), unlike `mode=objects` and
+  `mode=where_used`, which stay pure reads; without the fluid API the call
+  refuses with `FLUID_API_DISABLED` rather than the mode disappearing from
+  the tool list. Evidence is mixed: the scan's ABAP mechanics (include
+  resolution, function-group include naming, DDLS retrieval, the TADIR/TDEVC
+  queries, `FIND ... PCRE` matching) were verified live on A4H (2026-09-12)
+  via a standalone probe class, but the end-to-end `abap_search mode=source`
+  MCP call has not been exercised against a live system — the reference
+  system runs a released bundle that predates this feature — so that path
+  is covered only by tests against a fake fluid runtime.

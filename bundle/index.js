@@ -66540,13 +66540,665 @@ var runSources = /* @__PURE__ */ new Map([
   ["ZCL_ZMCP_FLUID_RUN", RUN_SOURCE]
 ]);
 
-// src/adt/fluid/builtin/ui.ts
+// src/adt/fluid/builtin/scan.ts
+var SCAN_TOOL_ID = "scan";
+var SCAN_ACTION = "source";
+var SCAN_ENTRY_CLASS = "ZCL_ZMCP_FLUID_SCAN";
 var RUNTIME_SOURCE7 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
 if (RUNTIME_SOURCE7 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var RUNTIME_OBJECT7 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
 if (RUNTIME_OBJECT7 === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var SCAN_SOURCE = `CLASS zcl_zmcp_fluid_scan DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    CLASS-DATA gv_trunc    TYPE string.
+    CLASS-DATA gv_query    TYPE string.
+    CLASS-DATA gv_regex    TYPE abap_bool.
+    CLASS-DATA gv_case     TYPE abap_bool.
+    CLASS-DATA gv_comments TYPE abap_bool.
+    CLASS-DATA gv_max_hits TYPE i.
+    CLASS-DATA gv_pattern  TYPE string.
+
+    CLASS-METHODS source.
+
+    CLASS-METHODS num
+      IMPORTING
+        iv_path         TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE i.
+
+    CLASS-METHODS code_part
+      IMPORTING
+        iv_line        TYPE string
+      RETURNING
+        VALUE(rv_text) TYPE string.
+
+    CLASS-METHODS esc_like
+      IMPORTING
+        iv_raw         TYPE string
+      RETURNING
+        VALUE(rv_pat)  TYPE string.
+
+    CLASS-METHODS fugr_includes
+      IMPORTING
+        iv_group       TYPE string
+      RETURNING
+        VALUE(rt_inc)  TYPE string_table.
+
+    CLASS-METHODS scan_lines
+      IMPORTING
+        iv_otype TYPE string
+        iv_oname TYPE string
+        iv_inc   TYPE string
+        it_src   TYPE string_table
+      CHANGING
+        cv_stop  TYPE abap_bool
+        cv_hits  TYPE i.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_scan IMPLEMENTATION.
+
+  METHOD run.
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'scan' iv_action = iv_action ).
+
+    TRY.
+        zcl_zmcp_fluid_rt=>scan( iv_json ).
+        CASE iv_action.
+          WHEN 'source'.
+            source( ).
+          WHEN OTHERS.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+              iv_text = |unknown action "{ iv_action }"| ).
+        ENDCASE.
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = iv_action iv_text = lx_err->get_text( ) ).
+    ENDTRY.
+
+    IF zcl_zmcp_fluid_rt=>failed( ) = abap_true.
+      zcl_zmcp_fluid_rt=>end( iv_rc = 1 ).
+    ELSE.
+      zcl_zmcp_fluid_rt=>end( iv_rc = 0 iv_truncated = boolc( gv_trunc IS NOT INITIAL ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD num.
+    DATA(lv_raw) = zcl_zmcp_fluid_rt=>s( iv_path ).
+    TRY.
+        rv_value = lv_raw.
+      CATCH cx_root.
+        CLEAR rv_value.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD code_part.
+    CLEAR rv_text.
+    IF iv_line IS INITIAL.
+      RETURN.
+    ENDIF.
+    IF iv_line(1) = '*'.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_len) = strlen( iv_line ).
+    DATA(lv_i) = 0.
+    WHILE lv_i < lv_len AND iv_line+lv_i(1) = ' '.
+      lv_i = lv_i + 1.
+    ENDWHILE.
+    IF lv_i < lv_len AND iv_line+lv_i(1) = '"'.
+      RETURN.
+    ENDIF.
+
+    " Walks the line looking for a comment-starting '"' outside a string
+    " literal, toggling an "inside literal" flag on every unqualified '.
+    " Approximation: a '"' inside a |...| string template is read here as a
+    " comment start, same blind spot as elsewhere in this codebase's
+    " lightweight ABAP source heuristics.
+    DATA(lv_inside) = abap_false.
+    DATA(lv_cut) = lv_len.
+    DATA(lv_j) = 0.
+    WHILE lv_j < lv_len.
+      DATA(lv_ch) = iv_line+lv_j(1).
+      IF lv_ch = ''''.
+        IF lv_inside = abap_true.
+          lv_inside = abap_false.
+        ELSE.
+          lv_inside = abap_true.
+        ENDIF.
+      ELSEIF lv_ch = '"' AND lv_inside = abap_false.
+        lv_cut = lv_j.
+        EXIT.
+      ENDIF.
+      lv_j = lv_j + 1.
+    ENDWHILE.
+    rv_text = substring( val = iv_line len = lv_cut ).
+  ENDMETHOD.
+
+  METHOD esc_like.
+    rv_pat = iv_raw.
+    REPLACE ALL OCCURRENCES OF '#' IN rv_pat WITH '##'.
+    REPLACE ALL OCCURRENCES OF '_' IN rv_pat WITH '#_'.
+    REPLACE ALL OCCURRENCES OF '%' IN rv_pat WITH '#%'.
+  ENDMETHOD.
+
+  METHOD fugr_includes.
+    " Live-verified on A4H: group /DMO/TRAVEL_UPDATE_TASK has includes
+    " /DMO/LTRAVEL_UPDATE_TASK$01, ...TOP, ...U01 and main program
+    " /DMO/SAPLTRAVEL_UPDATE_TASK - for a namespaced group the namespace
+    " comes first, before the L/SAPL marker, not after it.
+    CLEAR rt_inc.
+    DATA lv_ns TYPE string.
+    DATA lv_rest TYPE string.
+    CLEAR: lv_ns, lv_rest.
+    lv_rest = iv_group.
+
+    IF iv_group IS NOT INITIAL AND iv_group(1) = '/'.
+      DATA(lv_nsoff) = find( val = iv_group sub = '/' off = 1 ).
+      IF lv_nsoff >= 0.
+        lv_ns   = substring( val = iv_group len = lv_nsoff + 1 ).
+        lv_rest = substring( val = iv_group off = lv_nsoff + 1 ).
+      ENDIF.
+    ENDIF.
+
+    DATA(lv_lprefix)   = lv_ns && 'L' && lv_rest.
+    DATA(lv_saplname)  = lv_ns && 'SAPL' && lv_rest.
+    DATA(lv_pat)       = esc_like( lv_lprefix ) && '%'.
+    DATA(lv_group_pat) = esc_like( iv_group ) && '%'.
+
+    " Prefix over-match guard: L<this group>% also matches a sibling group
+    " whose name extends this one (e.g. group ZFG's "LZFG%" also matches
+    " ZFGX's includes). When more than one FUGR object shares this prefix,
+    " accept only prognames whose remainder is exactly 3 characters (TOP,
+    " UXX, U01, $01, F01, ...) - the shape every generated include name has.
+    " Trade-off, stated plainly: under the strict rule, a hand-made include
+    " with a longer name on a group that has a prefix-sharing sibling is not
+    " scanned.
+    DATA(lv_sibling_count) = 0.
+    SELECT COUNT( * ) FROM tadir
+      WHERE pgmid = 'R3TR' AND object = 'FUGR' AND obj_name LIKE @lv_group_pat ESCAPE '#'
+      INTO @lv_sibling_count.
+
+    SELECT progname FROM reposrc
+      WHERE progname LIKE @lv_pat ESCAPE '#' AND r3state = 'A'
+      INTO TABLE @DATA(lt_fpg).
+
+    DATA(lv_prefix_len) = strlen( lv_lprefix ).
+    LOOP AT lt_fpg INTO DATA(ls_fpg).
+      DATA(lv_pname) = |{ ls_fpg-progname }|.
+      IF lv_sibling_count > 1.
+        DATA(lv_remainder_len) = strlen( lv_pname ) - lv_prefix_len.
+        IF lv_remainder_len = 3.
+          APPEND lv_pname TO rt_inc.
+        ENDIF.
+      ELSE.
+        APPEND lv_pname TO rt_inc.
+      ENDIF.
+    ENDLOOP.
+
+    " The main program is added separately; step 7 (READ REPORT) skips it
+    " when it has no source of its own.
+    APPEND lv_saplname TO rt_inc.
+  ENDMETHOD.
+
+  METHOD scan_lines.
+    DATA lv_no TYPE i.
+    DATA lv_off TYPE i.
+    CLEAR: lv_no, lv_off.
+
+    LOOP AT it_src INTO DATA(lv_line).
+      lv_no = sy-tabix.
+      DATA(lv_text) = lv_line.
+      IF gv_comments = abap_false AND iv_otype <> 'DDLS'.
+        lv_text = code_part( lv_line ).
+        IF lv_text IS INITIAL.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+
+      DATA(lv_hit) = abap_false.
+      IF gv_regex = abap_true.
+        IF gv_case = abap_true.
+          FIND PCRE gv_pattern IN lv_text MATCH OFFSET lv_off.
+        ELSE.
+          FIND PCRE gv_pattern IN lv_text IGNORING CASE MATCH OFFSET lv_off.
+        ENDIF.
+        IF sy-subrc = 0.
+          lv_hit = abap_true.
+        ENDIF.
+      ELSE.
+        " find( case = ... ) only accepts a constant, not a variable (live
+        " syntax check on A4H: "GV_CASE is not a constant"), so the two
+        " cases are spelled out.
+        IF gv_case = abap_true.
+          lv_off = find( val = lv_text sub = gv_query case = abap_true ).
+        ELSE.
+          lv_off = find( val = lv_text sub = gv_query case = abap_false ).
+        ENDIF.
+        IF lv_off >= 0.
+          lv_hit = abap_true.
+        ENDIF.
+      ENDIF.
+
+      IF lv_hit = abap_true.
+        cv_hits = cv_hits + 1.
+        DATA(lv_no_s) = |{ lv_no }|.
+        zcl_zmcp_fluid_rt=>out(
+          |\\{"kind":"hit","obj_type":"{ zcl_zmcp_fluid_rt=>esc( iv_otype ) }",| &&
+          |"obj_name":"{ zcl_zmcp_fluid_rt=>esc( iv_oname ) }",| &&
+          |"include":"{ zcl_zmcp_fluid_rt=>esc( iv_inc ) }",| &&
+          |"line":{ lv_no_s },| &&
+          |"text":"{ zcl_zmcp_fluid_rt=>esc( lv_line ) }"\\}| ).
+        IF cv_hits >= gv_max_hits.
+          gv_trunc = 'hits'.
+          cv_stop = abap_true.
+          EXIT.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD source.
+    DATA(lv_query)    = zcl_zmcp_fluid_rt=>s( 'query' ).
+    DATA(lv_regex)    = zcl_zmcp_fluid_rt=>b( 'regex' ).
+    DATA(lv_case)     = zcl_zmcp_fluid_rt=>b( 'case_sensitive' ).
+    DATA(lv_comments) = zcl_zmcp_fluid_rt=>b( 'include_comments' ).
+    DATA(lv_inc_sub)  = zcl_zmcp_fluid_rt=>b( 'include_subpackages' ).
+    DATA(lv_objects)  = zcl_zmcp_fluid_rt=>s( 'objects' ).
+    DATA(lv_max_hits)    = num( 'max_hits' ).
+    DATA(lv_max_objects) = num( 'max_objects' ).
+
+    IF lv_query IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'query is required' ).
+      RETURN.
+    ENDIF.
+    IF lv_max_hits <= 0.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = 'max_hits must be greater than zero' ).
+      RETURN.
+    ENDIF.
+    IF lv_max_objects <= 0.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = 'max_objects must be greater than zero' ).
+      RETURN.
+    ENDIF.
+
+    IF lv_regex = abap_true.
+      TRY.
+          " ABAP's FIND PCRE compiles with the extended (x) flag ON by
+          " default - live-verified on A4H: pattern 'FUNCTION B' does NOT
+          " match 'FUNCTION BRF_...', while '(?-x)FUNCTION B' does. Under x,
+          " literal spaces are ignored and '#' starts a pattern comment, so
+          " every caller pattern is prefixed with (?-x) to get the ordinary
+          " PCRE the caller expects. A caller who wants extended mode can
+          " still ask for it with a leading (?x).
+          gv_pattern = |(?-x){ lv_query }|.
+          FIND PCRE gv_pattern IN 'x'.
+        CATCH cx_root INTO DATA(lx_pcre).
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |invalid regex pattern "{ lv_query }": { lx_pcre->get_text( ) }| ).
+          RETURN.
+      ENDTRY.
+    ENDIF.
+
+    " types: empty list means all five.
+    DATA lt_type_r TYPE RANGE OF tadir-object.
+    CLEAR lt_type_r.
+    DATA(lv_ntypes) = zcl_zmcp_fluid_rt=>n( 'types' ).
+    IF lv_ntypes = 0.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'PROG' ) TO lt_type_r.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'CLAS' ) TO lt_type_r.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'INTF' ) TO lt_type_r.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'FUGR' ) TO lt_type_r.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'DDLS' ) TO lt_type_r.
+    ELSE.
+      DO lv_ntypes TIMES.
+        DATA(lv_ti_s) = |{ sy-index - 1 }|.
+        DATA(lv_type) = to_upper( zcl_zmcp_fluid_rt=>s( |types/{ lv_ti_s }| ) ).
+        IF lv_type <> 'PROG' AND lv_type <> 'CLAS' AND lv_type <> 'INTF' AND lv_type <> 'FUGR' AND lv_type <> 'DDLS'.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |unknown type "{ lv_type }" - expected PROG, CLAS, INTF, FUGR or DDLS| ).
+          RETURN.
+        ENDIF.
+        APPEND VALUE #( sign = 'I' option = 'EQ' low = lv_type ) TO lt_type_r.
+      ENDDO.
+    ENDIF.
+
+    " packages, with optional transitive subpackage expansion over
+    " TDEVC-PARENTCL (live-verified: TDEVC-PARENTCL = 'SABP_DEMOS' returns
+    " SABAP_DEMOS_CDS_FLIGHT, SABAP_DEMOS_SQL_CHESS).
+    TYPES: BEGIN OF ty_pkg,
+             devclass TYPE tdevc-devclass,
+           END OF ty_pkg.
+    DATA lt_seen     TYPE STANDARD TABLE OF ty_pkg WITH EMPTY KEY.
+    DATA lt_current  TYPE STANDARD TABLE OF ty_pkg WITH EMPTY KEY.
+    DATA lt_children TYPE STANDARD TABLE OF ty_pkg WITH EMPTY KEY.
+    CLEAR: lt_seen, lt_current, lt_children.
+
+    DATA(lv_npkg) = zcl_zmcp_fluid_rt=>n( 'packages' ).
+    DO lv_npkg TIMES.
+      DATA(lv_pi_s) = |{ sy-index - 1 }|.
+      APPEND VALUE ty_pkg( devclass = zcl_zmcp_fluid_rt=>s( |packages/{ lv_pi_s }| ) ) TO lt_seen.
+    ENDDO.
+    DATA(lv_has_pkg) = xsdbool( lt_seen IS NOT INITIAL ).
+
+    IF lv_inc_sub = abap_true AND lt_seen IS NOT INITIAL.
+      lt_current = lt_seen.
+      DO.
+        IF lt_current IS INITIAL.
+          EXIT.
+        ENDIF.
+        " Guard against an empty driver table before FOR ALL ENTRIES - an
+        " empty lt_current is already excluded by the check just above, kept
+        " here too since the loop reassigns lt_current every iteration.
+        CLEAR lt_children.
+        SELECT devclass FROM tdevc
+          FOR ALL ENTRIES IN @lt_current
+          WHERE parentcl = @lt_current-devclass
+          INTO TABLE @lt_children.
+        CLEAR lt_current.
+        LOOP AT lt_children INTO DATA(ls_child).
+          READ TABLE lt_seen WITH KEY devclass = ls_child-devclass TRANSPORTING NO FIELDS.
+          IF sy-subrc <> 0.
+            APPEND ls_child TO lt_seen.
+            APPEND ls_child TO lt_current.
+          ENDIF.
+        ENDLOOP.
+      ENDDO.
+    ENDIF.
+
+    DATA lt_pkg_r TYPE RANGE OF tadir-devclass.
+    CLEAR lt_pkg_r.
+    LOOP AT lt_seen INTO DATA(ls_seen).
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = ls_seen-devclass ) TO lt_pkg_r.
+    ENDLOOP.
+
+    " object-name scope: '*' -> '%', escaped the same way builtin/fpm.ts's
+    " find action escapes its query pattern.
+    DATA(lv_has_obj) = xsdbool( lv_objects IS NOT INITIAL ).
+    DATA(lv_objpat) = lv_objects.
+    IF lv_has_obj = abap_true.
+      lv_objpat = esc_like( lv_objpat ).
+      REPLACE ALL OCCURRENCES OF '*' IN lv_objpat WITH '%'.
+    ENDIF.
+
+    " Scope query: total first, honestly, then the fetch capped at
+    " max_objects + 1 so the ceiling is detected without reading a scope
+    " that may be far larger than the caller's ceiling.
+    DATA(lv_total) = 0.
+    SELECT COUNT( * ) FROM tadir
+      WHERE pgmid = 'R3TR' AND object IN @lt_type_r AND delflag = @abap_false
+        AND ( @lv_has_pkg = @abap_false OR devclass IN @lt_pkg_r )
+        AND ( @lv_has_obj = @abap_false OR obj_name LIKE @lv_objpat ESCAPE '#' )
+      INTO @lv_total.
+
+    DATA(lv_fetch) = lv_max_objects + 1.
+    TYPES: BEGIN OF ty_obj,
+             object   TYPE tadir-object,
+             obj_name TYPE tadir-obj_name,
+           END OF ty_obj.
+    DATA lt_obj TYPE STANDARD TABLE OF ty_obj WITH EMPTY KEY.
+    CLEAR lt_obj.
+    SELECT object, obj_name FROM tadir
+      WHERE pgmid = 'R3TR' AND object IN @lt_type_r AND delflag = @abap_false
+        AND ( @lv_has_pkg = @abap_false OR devclass IN @lt_pkg_r )
+        AND ( @lv_has_obj = @abap_false OR obj_name LIKE @lv_objpat ESCAPE '#' )
+      ORDER BY object, obj_name
+      INTO TABLE @lt_obj
+      UP TO @lv_fetch ROWS.
+
+    IF lines( lt_obj ) > lv_max_objects.
+      DATA(lv_from_idx) = lv_max_objects + 1.
+      DELETE lt_obj FROM lv_from_idx.
+      gv_trunc = 'objects'.
+    ENDIF.
+
+    gv_query    = lv_query.
+    gv_regex    = lv_regex.
+    gv_case     = lv_case.
+    gv_comments = lv_comments.
+    gv_max_hits = lv_max_hits.
+
+    DATA(lv_stop)              = abap_false.
+    DATA(lv_hits)              = 0.
+    DATA(lv_objects_scanned)   = 0.
+    DATA(lv_includes_scanned)  = 0.
+    DATA(lv_includes_skipped)  = 0.
+
+    LOOP AT lt_obj INTO DATA(ls_obj).
+      IF lv_stop = abap_true.
+        EXIT.
+      ENDIF.
+      lv_objects_scanned = lv_objects_scanned + 1.
+
+      DATA(lv_otype) = |{ ls_obj-object }|.
+      DATA(lv_oname) = |{ ls_obj-obj_name }|.
+
+      IF lv_otype = 'DDLS'.
+        " No include for a DDLS/CDS source - it is scanned as itself, and
+        " always matched in full: CDS comments are not ABAP comments, so
+        " code_part()'s heuristic does not apply to this branch.
+        DATA(lv_ddl) = ||.
+        SELECT SINGLE source FROM ddddlsrc WHERE ddlname = @lv_oname AND as4local = 'A' INTO @lv_ddl.
+        IF sy-subrc <> 0.
+          lv_includes_skipped = lv_includes_skipped + 1.
+          CONTINUE.
+        ENDIF.
+        " An inline @DATA(...) target is a syntax error on SPLIT ... INTO
+        " TABLE (hit live) - lt_ddl_src must be declared beforehand.
+        DATA lt_ddl_src TYPE TABLE OF string.
+        CLEAR lt_ddl_src.
+        " DDDDLSRC stores CRLF line ends (live-verified on A4H: splitting
+        " on newline alone leaves a trailing CR on every hit text).
+        REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf
+          IN lv_ddl WITH cl_abap_char_utilities=>newline.
+        SPLIT lv_ddl AT cl_abap_char_utilities=>newline INTO TABLE lt_ddl_src.
+        lv_includes_scanned = lv_includes_scanned + 1.
+        scan_lines(
+          EXPORTING
+            iv_otype = lv_otype
+            iv_oname = lv_oname
+            iv_inc   = lv_oname
+            it_src   = lt_ddl_src
+          CHANGING
+            cv_stop  = lv_stop
+            cv_hits  = lv_hits ).
+        CONTINUE.
+      ENDIF.
+
+      DATA lt_inc TYPE string_table.
+      CLEAR lt_inc.
+      CASE lv_otype.
+        WHEN 'PROG'.
+          APPEND lv_oname TO lt_inc.
+        WHEN 'CLAS'.
+          TRY.
+              " get_all_class_includes takes SEOCLSNAME (C(30)), not a
+              " string - live syntax check on A4H rejects lv_oname here.
+              DATA lv_clsname TYPE seoclsname.
+              lv_clsname = lv_oname.
+              DATA(lt_all) = cl_oo_classname_service=>get_all_class_includes( lv_clsname ).
+              LOOP AT lt_all INTO DATA(lv_ci).
+                APPEND lv_ci TO lt_inc.
+              ENDLOOP.
+            CATCH cx_root.
+              " No includes could be resolved for this class; it contributes
+              " zero includes rather than failing the whole scan.
+          ENDTRY.
+        WHEN 'INTF'.
+          DATA(lv_ipat) = esc_like( |{ lv_oname WIDTH = 30 PAD = '=' }| ) && '%'.
+          SELECT progname FROM reposrc
+            WHERE progname LIKE @lv_ipat ESCAPE '#' AND r3state = 'A'
+            INTO TABLE @DATA(lt_ipg).
+          LOOP AT lt_ipg INTO DATA(ls_ipg).
+            APPEND |{ ls_ipg-progname }| TO lt_inc.
+          ENDLOOP.
+        WHEN 'FUGR'.
+          lt_inc = fugr_includes( lv_oname ).
+      ENDCASE.
+
+      LOOP AT lt_inc INTO DATA(lv_incname).
+        IF lv_stop = abap_true.
+          EXIT.
+        ENDIF.
+        DATA lt_src TYPE TABLE OF string.
+        CLEAR lt_src.
+        " READ REPORT needs a character-like flat field, not a STRING
+        " (live syntax check on A4H).
+        DATA lv_prog TYPE progname.
+        lv_prog = lv_incname.
+        READ REPORT lv_prog INTO lt_src.
+        IF sy-subrc <> 0.
+          lv_includes_skipped = lv_includes_skipped + 1.
+          CONTINUE.
+        ENDIF.
+        lv_includes_scanned = lv_includes_scanned + 1.
+        scan_lines(
+          EXPORTING
+            iv_otype = lv_otype
+            iv_oname = lv_oname
+            iv_inc   = lv_incname
+            it_src   = lt_src
+          CHANGING
+            cv_stop  = lv_stop
+            cv_hits  = lv_hits ).
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(lv_total_s)          = |{ lv_total }|.
+    DATA(lv_scanned_s)        = |{ lv_objects_scanned }|.
+    DATA(lv_inc_scanned_s)    = |{ lv_includes_scanned }|.
+    DATA(lv_inc_skipped_s)    = |{ lv_includes_skipped }|.
+    DATA(lv_hits_s)           = |{ lv_hits }|.
+    zcl_zmcp_fluid_rt=>out(
+      |\\{"kind":"summary","objects_total":{ lv_total_s },| &&
+      |"objects_scanned":{ lv_scanned_s },| &&
+      |"includes_scanned":{ lv_inc_scanned_s },| &&
+      |"includes_skipped":{ lv_inc_skipped_s },| &&
+      |"hits":{ lv_hits_s },| &&
+      |"truncated":"{ zcl_zmcp_fluid_rt=>esc( gv_trunc ) }"\\}| ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var scanManifest = {
+  contract: FLUID_CONTRACT,
+  id: "scan",
+  title: "Source scan",
+  description: "Scans ABAP source text of the objects in a named scope, line by line.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      description: RUNTIME_OBJECT7.description,
+      source: { text: RUNTIME_SOURCE7 }
+    },
+    {
+      name: SCAN_ENTRY_CLASS,
+      type: "CLAS/OC",
+      description: "fluid: line-wise source scan over a package/name scope",
+      source: { text: SCAN_SOURCE }
+    }
+  ],
+  entry: SCAN_ENTRY_CLASS,
+  actions: [
+    {
+      name: SCAN_ACTION,
+      category: "read",
+      description: "Reads each object's source line by line and returns the lines that match.",
+      input: {
+        type: "object",
+        required: ["query", "max_hits", "max_objects"],
+        properties: {
+          query: {
+            type: "string",
+            maxLength: 255,
+            description: "Literal substring, or a PCRE pattern when regex is true."
+          },
+          regex: { type: "boolean", description: "Treat query as a PCRE pattern instead of a literal substring." },
+          case_sensitive: { type: "boolean", description: "Default false." },
+          include_comments: { type: "boolean", description: "Also match comment text. Default false." },
+          packages: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: "Package scope (TADIR-DEVCLASS)."
+          },
+          include_subpackages: {
+            type: "boolean",
+            description: "Walk TDEVC-PARENTCL down from each named package."
+          },
+          objects: {
+            type: "string",
+            maxLength: 40,
+            description: "Object-name scope, '*' wildcard. Combined with packages by AND."
+          },
+          types: {
+            type: "array",
+            items: { type: "string", maxLength: 4 },
+            description: "TADIR object types: PROG CLAS INTF FUGR DDLS. Omit for all five."
+          },
+          max_hits: {
+            type: "integer",
+            minimum: 1,
+            description: "Scanning stops at this many hits and the result says so."
+          },
+          max_objects: {
+            type: "integer",
+            minimum: 1,
+            description: "Object ceiling; the result reports how many objects the scope really holds."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        description: 'One kind="hit" row per matching line, then exactly one final kind="summary" row.',
+        items: {
+          type: "object",
+          required: ["kind"],
+          properties: {
+            kind: { type: "string" },
+            obj_type: { type: "string" },
+            obj_name: { type: "string" },
+            include: { type: "string" },
+            line: { type: "integer" },
+            text: { type: "string" },
+            objects_total: { type: "integer" },
+            objects_scanned: { type: "integer" },
+            includes_scanned: { type: "integer" },
+            includes_skipped: { type: "integer" },
+            hits: { type: "integer" },
+            truncated: { type: "string" }
+          }
+        }
+      }
+    }
+  ]
+};
+var scanSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE7],
+  [SCAN_ENTRY_CLASS, SCAN_SOURCE]
+]);
+
+// src/adt/fluid/builtin/ui.ts
+var RUNTIME_SOURCE8 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE8 === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT8 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT8 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var UI_SOURCE = `CLASS zcl_zmcp_fluid_ui DEFINITION
@@ -66929,8 +67581,8 @@ var uiManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT7.description,
-      source: { text: RUNTIME_SOURCE7 }
+      description: RUNTIME_OBJECT8.description,
+      source: { text: RUNTIME_SOURCE8 }
     },
     {
       name: "ZCL_ZMCP_FLUID_UI",
@@ -67061,7 +67713,7 @@ var uiManifest = {
   ]
 };
 var uiSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE7],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE8],
   ["ZCL_ZMCP_FLUID_UI", UI_SOURCE]
 ]);
 
@@ -67074,6 +67726,7 @@ var BUILTIN_FLUID_TOOLS = [
   { manifest: imgManifest, sources: imgSources },
   { manifest: fluidRuntimeManifest, sources: fluidRuntimeSources },
   { manifest: runManifest, sources: runSources },
+  { manifest: scanManifest, sources: scanSources },
   { manifest: uiManifest, sources: uiSources }
 ];
 
@@ -74264,7 +74917,7 @@ var REGISTRY = {
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
       via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from the fluid `classic` tool's `delete_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of the bridge that was then ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of the then-ZCL_ZMCP_DDIC_DINDX bridge) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above had therefore never executed live before round 4. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the non-unique Z01 and the unique-with-client-field Z02 were each deleted with INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 returned NOT_FOUND from the DD12V pre-check, and the deployed then-ZCL_ZMCP_DDIC_DINDX body read back with the new read-back variable and no line over 255. So the ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both deletes while all three read-backs came back empty, so what the flag itself means is still not established, only that it does not mean the rows survived.",
-      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and abap_data_preview was confirmed live to carry no WHERE filter, so a targeted DD12V check was not practical."
+      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and at the time abap_data_preview carried no WHERE filter, so a targeted DD12V check was not practical. It now takes a structured filter (issue #73), so such a check is possible, but this round's outcome was never re-checked and stays unverified."
     }
   }
 };
@@ -91877,12 +92530,21 @@ var AbapConnection = class {
    * body, not a bare entity name.
    *
    * **Invariant that matters: the caller must have assembled `sql` itself
-   * from fixed identifiers and validated values. No string that reached
-   * abapsmith from a tool argument may be passed here.** The one module
-   * allowed to call this is `src/adt/img-query.ts` (the IMG catalog reader,
-   * built from `img-catalog.ts`'s frozen table/field list); `probeT000()`
-   * (`system-role.ts`) has its own separate, no-retry route to this same URL
-   * and must never be merged with this one.
+   * from fixed identifiers (or the server's own column metadata) and
+   * validated values. No string that reached abapsmith from a tool argument
+   * may be passed here.** Two modules are permitted to call this:
+   *   - `src/adt/img-query.ts` (the IMG catalog reader, built from
+   *     `img-catalog.ts`'s frozen table/field list);
+   *   - `src/adt/datapreview.ts` (issue #73's structured `where`/`columns`/
+   *     `order_by` filter on `abap_data_preview`), whose statement is
+   *     compiled by `src/adt/datapreview-filter.ts` from a prior metadata
+   *     probe's own column list, never from caller-supplied identifiers.
+   * The invariant is unchanged in substance for both: every identifier in
+   * the rendered SQL is taken from a fixed catalog or from the server's own
+   * column metadata, and every value is rendered as a typed, quoted literal
+   * — a caller-supplied SQL STRING is still never accepted from either.
+   * `probeT000()` (`system-role.ts`) has its own separate, no-retry route to
+   * this same URL and must never be merged with this one.
    *
    * Same shape as `dataPreviewDdic` above: bypasses `post()`/`raw()`'s
    * `READ_ONLY` guard (a read exposed over POST), goes through `request()`
@@ -97679,19 +98341,19 @@ function parseFqlQuery(text3) {
   let i = 0;
   const peek = () => tokens[i];
   let failure;
-  const fail3 = (message, token) => {
+  const fail4 = (message, token) => {
     failure ??= token ? `${message} at offset ${token.pos}` : message;
     return void 0;
   };
   const parseNode = (depth) => {
-    if (depth > 64) return fail3("the query nests too deeply to parse");
+    if (depth > 64) return fail4("the query nests too deeply to parse");
     const head = peek();
-    if (!head) return fail3("unexpected end of query; expected an operator or `and`/`or`");
-    if (head.kind !== "word") return fail3(`unexpected '${head.kind}'`, head);
+    if (!head) return fail4("unexpected end of query; expected an operator or `and`/`or`");
+    if (head.kind !== "word") return fail4(`unexpected '${head.kind}'`, head);
     i += 1;
     const open = peek();
     if (!open || open.kind !== "(") {
-      return fail3(`expected '(' after '${head.text}'`, open ?? head);
+      return fail4(`expected '(' after '${head.text}'`, open ?? head);
     }
     i += 1;
     const lower = head.text.toLowerCase();
@@ -97707,7 +98369,7 @@ function parseFqlQuery(text3) {
         if (!child4) return void 0;
         children.push(child4);
         const next = peek();
-        if (!next) return fail3(`unclosed '${head.text} (' \u2014 expected ')'`);
+        if (!next) return fail4(`unclosed '${head.text} (' \u2014 expected ')'`);
         if (next.kind === ",") {
           i += 1;
           continue;
@@ -97716,23 +98378,23 @@ function parseFqlQuery(text3) {
           i += 1;
           return { kind: "junction", junction: lower, children };
         }
-        return fail3(`expected ',' or ')'`, next);
+        return fail4(`expected ',' or ')'`, next);
       }
     }
     const attrToken = peek();
     if (!attrToken || attrToken.kind !== "word") {
-      return fail3(`expected an attribute name after '${head.text} ('`, attrToken);
+      return fail4(`expected an attribute name after '${head.text} ('`, attrToken);
     }
     i += 1;
     const operands = [];
     for (; ; ) {
       const next = peek();
-      if (!next) return fail3(`unclosed '${head.text} (' \u2014 expected ')'`);
+      if (!next) return fail4(`unclosed '${head.text} (' \u2014 expected ')'`);
       if (next.kind === ")") {
         i += 1;
         break;
       }
-      if (next.kind !== ",") return fail3(`expected ',' or ')'`, next);
+      if (next.kind !== ",") return fail4(`expected ',' or ')'`, next);
       i += 1;
       const parts = [];
       for (; ; ) {
@@ -107874,6 +108536,121 @@ function registerTestTools(mcp, deps) {
   );
 }
 
+// src/adt/source-scan.ts
+var SOURCE_SCAN_TYPES = ["PROG", "CLAS", "INTF", "FUGR", "DDLS"];
+var SOURCE_SCAN_OBJECT_CEILING = 200;
+var SCAN_TOOLS = /* @__PURE__ */ new Map([
+  [
+    SCAN_TOOL_ID,
+    {
+      manifest: scanManifest,
+      origin: "builtin",
+      sources: scanSources,
+      version: manifestVersion(scanManifest, scanSources)
+    }
+  ]
+]);
+function scanDispatchArgs(q) {
+  return {
+    query: q.query,
+    regex: q.regex,
+    case_sensitive: q.caseSensitive,
+    include_comments: q.includeComments,
+    ...q.packages.length > 0 ? { packages: q.packages } : {},
+    include_subpackages: q.includeSubpackages,
+    ...q.objects !== void 0 && q.objects !== "" ? { objects: q.objects } : {},
+    ...q.types.length > 0 ? { types: q.types } : {},
+    max_hits: q.maxHits,
+    max_objects: q.maxObjects
+  };
+}
+function fail2(reason, result) {
+  throw new AbapError(
+    "FLUID_PROTOCOL_ERROR",
+    `scan.source ${reason}`,
+    { tool: SCAN_TOOL_ID, action: SCAN_ACTION, result }
+  );
+}
+function isHitRow(r) {
+  return typeof r["obj_type"] === "string" && typeof r["obj_name"] === "string" && typeof r["include"] === "string" && typeof r["line"] === "number" && typeof r["text"] === "string";
+}
+function isSummaryRow(r) {
+  return typeof r["objects_total"] === "number" && typeof r["objects_scanned"] === "number" && typeof r["includes_scanned"] === "number" && typeof r["includes_skipped"] === "number" && typeof r["hits"] === "number" && (r["truncated"] === "" || r["truncated"] === "hits" || r["truncated"] === "objects");
+}
+function mapScanRows(rows) {
+  if (!Array.isArray(rows)) {
+    fail2("returned a result that is not an array", rows);
+  }
+  const hits = [];
+  let summary;
+  for (let i = 0; i < rows.length; i++) {
+    const row2 = rows[i];
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+      fail2(`row ${i} is not an object`, rows);
+    }
+    const r = row2;
+    if (r["kind"] !== "hit" && r["kind"] !== "summary") {
+      fail2(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
+    }
+    if (r["kind"] === "hit") {
+      if (!isHitRow(r)) {
+        fail2(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
+      }
+      if (summary !== void 0) {
+        fail2(`row ${i} is a hit row after the summary row`, rows);
+      }
+      hits.push({
+        objType: r.obj_type,
+        objName: r.obj_name,
+        include: r.include,
+        line: r.line,
+        text: r.text
+      });
+      continue;
+    }
+    if (summary !== void 0) {
+      fail2("returned more than one summary row", rows);
+    }
+    if (!isSummaryRow(r)) {
+      fail2(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+    }
+    if (i !== rows.length - 1) {
+      fail2("returned a summary row that is not the last element", rows);
+    }
+    summary = {
+      objectsTotal: r.objects_total,
+      objectsScanned: r.objects_scanned,
+      includesScanned: r.includes_scanned,
+      includesSkipped: r.includes_skipped,
+      hits: r.hits,
+      truncated: r.truncated
+    };
+  }
+  if (summary === void 0) {
+    fail2("did not return a summary row", rows);
+  }
+  return { hits, summary };
+}
+async function runSourceScan(conn, q, gate) {
+  const started = Date.now();
+  const res = await dispatch2(
+    { conn, cfg: conn.cfg, gate, tools: SCAN_TOOLS },
+    {
+      tool: SCAN_TOOL_ID,
+      action: SCAN_ACTION,
+      args: scanDispatchArgs(q),
+      // Names the MCP-facing tool/action in a FLUID_API_DISABLED refusal — see FluidRunRequest.caller's doc.
+      caller: { tool: "abap_search", action: "source" }
+    }
+  );
+  return {
+    sid: conn.cfg.sid,
+    ...mapScanRows(res.result),
+    ms: Date.now() - started,
+    truncated: res.truncated
+  };
+}
+
 // src/tools/search.ts
 var DESCRIPTION_COL_WIDE = 70;
 var DESCRIPTION_COL_NARROW = 60;
@@ -107900,14 +108677,23 @@ function assertKnownType(type) {
   );
 }
 var searchInputSchema = {
-  query: external_exports.string().describe("Name pattern (mode=objects) or target object (mode=where_used)."),
-  mode: external_exports.enum(["objects", "where_used"]).optional().describe('Default "objects".'),
+  query: external_exports.string().describe("Name pattern (mode=objects), target object (mode=where_used), or literal/regex text (mode=source)."),
+  mode: external_exports.enum(["objects", "where_used", "source"]).optional().describe(
+    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code.'
+  ),
   type: external_exports.string().optional().describe(
-    `ADT type filter. One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
+    `ADT type filter (mode=objects/where_used only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
   ),
   max: external_exports.number().int().positive().max(200).optional().describe(
-    "Default 50 rows; narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
-  )
+    "Default 50 rows (mode=objects/where_used) or 100 hits (mode=source); narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
+  ),
+  packages: external_exports.array(external_exports.string()).max(20).optional().describe("mode=source: package scope (TADIR-DEVCLASS). Required unless `objects` is given."),
+  include_subpackages: external_exports.boolean().optional().describe("mode=source: also scan every package transitively under `packages` (TDEVC-PARENTCL)."),
+  objects: external_exports.string().optional().describe('mode=source: object-name pattern (wildcards `*`), e.g. "ZCL_MY_*". Alternative/addition to `packages`.'),
+  types: external_exports.array(external_exports.string()).max(10).optional().describe(`mode=source: object types to scan. One of: ${SOURCE_SCAN_TYPES.join(" ")}. Default: all five.`),
+  regex: external_exports.boolean().optional().describe("mode=source: treat `query` as a PCRE pattern instead of literal text."),
+  case_sensitive: external_exports.boolean().optional().describe("mode=source: default false."),
+  include_comments: external_exports.boolean().optional().describe("mode=source: also match inside comments (heuristic, line-local). Default false.")
 };
 var SearchInput = external_exports.object(searchInputSchema);
 async function abapSearch(conn, input, maxChars) {
@@ -108052,23 +108838,240 @@ ${capLine}` : "") : "(no references found)",
     maxChars
   });
 }
+var DEFAULT_SOURCE_MAX_HITS = 100;
+var SOURCE_ONLY_FIELDS = [
+  "packages",
+  "include_subpackages",
+  "objects",
+  "types",
+  "regex",
+  "case_sensitive",
+  "include_comments"
+];
+function assertNoSourceOnlyFields(input, mode) {
+  const passed = SOURCE_ONLY_FIELDS.filter((f) => {
+    const v = input[f];
+    return v !== void 0 && !(Array.isArray(v) && v.length === 0);
+  });
+  if (passed.length > 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `mode="${mode}" does not use ${passed.map((f) => `\`${f}\``).join(", ")} \u2014 those parameters only apply to mode="source".`,
+      { mode, fields: passed },
+      'Omit them, or set mode="source" to run a source-text scan.'
+    );
+  }
+}
+var PATTERN_CHARS = /^[A-Za-z0-9_$*/]+$/;
+function assertValidPattern(value, field) {
+  if (!PATTERN_CHARS.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `\`${field}\` "${value}" is not a valid pattern \u2014 only letters, digits, "_", "$", "/" and the "*" wildcard are meaningful here.`,
+      { field, value }
+    );
+  }
+}
+function buildSourceScanQuery(input) {
+  if (input.type !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'mode="source" does not use `type` \u2014 pass `types` instead (any of PROG, CLAS, INTF, FUGR, DDLS).',
+      { type: input.type }
+    );
+  }
+  const query = input.query.trim();
+  if (!query) {
+    throw new AbapError("BAD_INPUT", 'mode="source" requires a non-empty `query`.', {});
+  }
+  if (query.length > 255) {
+    throw new AbapError("BAD_INPUT", `\`query\` is ${query.length} characters; mode="source" allows at most 255.`, {
+      length: query.length
+    });
+  }
+  const packages = (input.packages ?? []).map((p) => p.trim()).filter((p) => p !== "");
+  packages.forEach((p) => assertValidPattern(p, "packages"));
+  const objectsRaw = input.objects?.trim();
+  const objects = objectsRaw === "" ? void 0 : objectsRaw;
+  if (objects !== void 0) assertValidPattern(objects, "objects");
+  if (packages.length === 0 && (objects === void 0 || objects === "*")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'mode="source" needs a scope: pass `packages` (one or more), `objects` (a name pattern narrower than "*"), or both.',
+      {},
+      'Try packages: ["Z_MY_PACKAGE"], or objects: "ZCL_MY_*".'
+    );
+  }
+  const typesRaw = input.types ?? [];
+  const types = [...new Set(typesRaw.map((t) => t.trim().toUpperCase()).filter((t) => t !== ""))];
+  for (const t of types) {
+    if (!SOURCE_SCAN_TYPES.includes(t)) {
+      throw new AbapError("BAD_INPUT", `\`types\` entry "${t}" is not one of: ${SOURCE_SCAN_TYPES.join(", ")}.`, {
+        type: t,
+        allowed: SOURCE_SCAN_TYPES
+      });
+    }
+  }
+  return {
+    query,
+    regex: input.regex ?? false,
+    caseSensitive: input.case_sensitive ?? false,
+    includeComments: input.include_comments ?? false,
+    packages,
+    includeSubpackages: input.include_subpackages ?? false,
+    objects,
+    types,
+    maxHits: input.max ?? DEFAULT_SOURCE_MAX_HITS,
+    maxObjects: SOURCE_SCAN_OBJECT_CEILING
+  };
+}
+var CLAS_INCLUDE_SUFFIX = [
+  ["CCDEF", "definitions"],
+  ["CCIMP", "implementations"],
+  ["CCMAC", "macros"],
+  ["CCAU", "testclasses"]
+];
+var READ_WINDOW_MARGIN = 10;
+var READ_WINDOW_LIMIT = 40;
+function readHint(hit) {
+  const off = Math.max(1, hit.line - READ_WINDOW_MARGIN);
+  switch (hit.objType) {
+    case "PROG":
+    case "FUGR":
+      return `abap_read object="${hit.include}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+    case "DDLS":
+      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+    case "INTF":
+      return `abap_read object="${hit.objName}" \u2014 interface source is a single document, no offset needed.`;
+    case "CLAS": {
+      const mapped = CLAS_INCLUDE_SUFFIX.find(([suffix]) => hit.include.endsWith(suffix));
+      if (mapped) {
+        const [, include] = mapped;
+        return `abap_read object="${hit.objName}" include="${include}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+      }
+      return `abap_read object="${hit.objName}" \u2014 the match was in include "${hit.include}" (a method or the main class source); the reported line number is include-local and does NOT transfer to an offset on the class as a whole. Use \`method="<name>"\` to narrow, or read the class outline first.`;
+    }
+    default:
+      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+  }
+}
+function scopeLabel(q) {
+  const parts = [];
+  if (q.packages.length) parts.push(`packages=${q.packages.join(",")}`);
+  if (q.objects) parts.push(`objects=${q.objects}`);
+  return parts.join(" ");
+}
+function buildSourceResponse2(q, result, maxChars) {
+  const { hits, summary } = result;
+  const rows = hits.map((h) => ({
+    type: h.objType,
+    name: h.objName,
+    include: h.include,
+    line: String(h.line),
+    text: truncateForDisplay(h.text, 120)
+  }));
+  const objectsNotScanned = summary.objectsTotal - summary.objectsScanned;
+  const truncLine = summary.truncated === "hits" ? `--- TRUNCATED --- the hit cap (max=${q.maxHits}) was reached; more matches may exist beyond the last one shown. Raise \`max\` (<=200) or narrow \`query\`/scope.` : summary.truncated === "objects" ? `--- TRUNCATED --- ${objectsNotScanned} of ${summary.objectsTotal} object(s) in scope were not scanned (object ceiling ${q.maxObjects}). Narrow \`packages\`/\`objects\`/\`types\`.` : void 0;
+  const body = [rows.length ? textTable(rows, ["type", "name", "include", "line", "text"]) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
+  const exampleHints = (() => {
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const h of hits) {
+      if (seen.has(h.objType)) continue;
+      seen.add(h.objType);
+      out.push(readHint(h));
+      if (out.length >= 3) break;
+    }
+    return out;
+  })();
+  return buildResponse({
+    header: {
+      system: result.sid,
+      mode: "source",
+      query: q.query,
+      regex: q.regex || void 0,
+      case_sensitive: q.caseSensitive || void 0,
+      include_comments: q.includeComments || void 0,
+      scope: scopeLabel(q) || void 0,
+      include_subpackages: q.includeSubpackages || void 0,
+      types: q.types.length ? q.types.join(",") : void 0,
+      hits: summary.hits,
+      objectsScanned: summary.objectsScanned,
+      objectsTotal: summary.objectsTotal,
+      includesScanned: summary.includesScanned,
+      includesSkipped: summary.includesSkipped || void 0,
+      truncated: summary.truncated || void 0
+    },
+    body,
+    bodyLabel: "MATCHES",
+    notes: [
+      // `notes` are ALWAYS shown (unlike `hints`, which `compact.ts`'s
+      // `buildResponse` only renders when the response is incomplete) — the
+      // concrete abap_read follow-up has to survive a response that fits
+      // fully, so it lives here, not in `hints`.
+      ...exampleHints.length > 0 ? ["Read around a hit with abap_read:", ...exampleHints] : [],
+      "Line numbers are include-local: for CLAS/FUGR hits, `line` counts from the top of the matching include (a method's own program, not the class as a whole), not from the object.",
+      ...summary.includesSkipped > 0 ? [
+        `${summary.includesSkipped} include(s) could not be read (e.g. a generated or inconsistent include) and are NOT represented in the results above \u2014 this is a gap, not proof those includes have no match.`
+      ] : [],
+      "include_comments=false strips comments with a per-line heuristic (`code_part()`), which can misjudge a line whose quote/comment state depends on the previous line. DDLS/CDS sources have no ABAP comment syntax, so they are always matched in full text regardless of include_comments.",
+      'This is a text scan, not a call graph: it finds literal/regex matches wherever they sit (strings, comments, dead code). Use mode="where_used" instead when what you actually want is real static references to one object.'
+    ],
+    hints: [
+      "Raise `max` (<=200) for more hits, or narrow `query`/`packages`/`objects`/`types` instead of widening scope."
+    ],
+    maxChars
+  });
+}
 var ok7 = (text3) => ({ content: [{ type: "text", text: text3 }] });
 function registerSearchTools(mcp, deps) {
   mcp.registerTool(
     "abap_search",
     {
       title: "Search ABAP repository",
-      description: "Find objects by name pattern (mode=objects, wildcards *) or list consumers (mode=where_used); 20+ seconds on wide fan-in \u2014 narrow by type/query first.",
+      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
     async (args) => {
       try {
+        const input = args;
+        const mode = input.mode ?? "objects";
+        if (mode === "source") {
+          const q = buildSourceScanQuery(input);
+          await deps.ensureConnected();
+          deps.safety.assert("read");
+          const disabled = fluidDisabledReason(deps.cfg, deps.safety);
+          if (disabled) {
+            throw dispatchDisabledError(disabled, deps.cfg, {
+              tool: SCAN_TOOL_ID,
+              action: SCAN_ACTION,
+              args: scanDispatchArgs(q),
+              caller: { tool: "abap_search", action: "source" }
+            });
+          }
+          deps.safety.assert(
+            "write",
+            {
+              name: SCAN_ENTRY_CLASS,
+              packageName: FLUID_PACKAGE,
+              type: "CLAS/OC"
+            },
+            { phase: "preflight" }
+          );
+          const res2 = await deps.pool.withWrite(
+            "abap_search",
+            SCAN_ENTRY_CLASS,
+            (conn) => runSourceScan(conn, q, deps.safety)
+          );
+          return ok7(buildSourceResponse2(q, res2, deps.cfg.maxResponseChars).text);
+        }
+        assertNoSourceOnlyFields(input, mode);
         await deps.ensureConnected();
         deps.safety.assert("read");
         const res = await deps.pool.withRead(
           "abap_search",
-          (conn) => abapSearch(conn, args, deps.cfg.maxResponseChars)
+          (conn) => abapSearch(conn, input, deps.cfg.maxResponseChars)
         );
         return ok7(res.text);
       } catch (e) {
@@ -113145,7 +114148,7 @@ var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef
 var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
 
 // src/adt/bopf-xml.ts
-function fail2(message, details = {}) {
+function fail3(message, details = {}) {
   throw new AbapError(
     "BAD_INPUT",
     `BOPF XML: ${message}`,
@@ -113176,15 +114179,15 @@ function decodeEntityAt(xml3, ampIndex) {
   for (const [entity, char] of PREDEFINED_ENTITIES) {
     if (xml3.startsWith(entity, ampIndex)) return { char, next: ampIndex + entity.length };
   }
-  fail2(
+  fail3(
     "unsupported entity reference \u2014 only the five predefined XML entities (&amp; &lt; &gt; &apos; &quot;) are accepted",
     { at: ampIndex }
   );
 }
 function scanModel(xmlText2) {
-  if (!xmlText2.startsWith("<?xml")) fail2("document does not start with an XML declaration (`<?xml ... ?>`)");
+  if (!xmlText2.startsWith("<?xml")) fail3("document does not start with an XML declaration (`<?xml ... ?>`)");
   const declEnd = xmlText2.indexOf("?>", 5);
-  if (declEnd === -1) fail2("unterminated XML declaration");
+  if (declEnd === -1) fail3("unterminated XML declaration");
   const n = xmlText2.length;
   const tokens = [];
   const stack = [];
@@ -113193,7 +114196,7 @@ function scanModel(xmlText2) {
     const c = xmlText2.charAt(i);
     if (c !== "<") {
       if (!WS.test(c)) {
-        fail2(
+        fail3(
           stack.length === 0 ? "unexpected content outside the root element" : "text content is not supported inside BOPF elements (every element here is attribute-only or container-only)",
           { at: i }
         );
@@ -113201,21 +114204,21 @@ function scanModel(xmlText2) {
       i++;
       continue;
     }
-    if (xmlText2.startsWith("<!--", i)) fail2("XML comments are not supported", { at: i });
-    if (xmlText2.startsWith("<![CDATA[", i)) fail2("CDATA sections are not supported", { at: i });
-    if (xmlText2.startsWith("<!DOCTYPE", i)) fail2("a DOCTYPE declaration is not supported", { at: i });
-    if (xmlText2.startsWith("<!", i)) fail2("unrecognized '<!' construct", { at: i });
-    if (xmlText2.startsWith("<?", i)) fail2("a processing instruction after the XML declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!--", i)) fail3("XML comments are not supported", { at: i });
+    if (xmlText2.startsWith("<![CDATA[", i)) fail3("CDATA sections are not supported", { at: i });
+    if (xmlText2.startsWith("<!DOCTYPE", i)) fail3("a DOCTYPE declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!", i)) fail3("unrecognized '<!' construct", { at: i });
+    if (xmlText2.startsWith("<?", i)) fail3("a processing instruction after the XML declaration is not supported", { at: i });
     if (xmlText2.startsWith("</", i)) {
       const name2 = matchNameAt(xmlText2, i + 2);
-      if (name2 === void 0) fail2("malformed closing tag", { at: i });
+      if (name2 === void 0) fail3("malformed closing tag", { at: i });
       let j2 = skipWs(xmlText2, i + 2 + name2.length);
-      if (xmlText2.charAt(j2) !== ">") fail2("malformed closing tag: expected '>'", { at: j2 });
+      if (xmlText2.charAt(j2) !== ">") fail3("malformed closing tag: expected '>'", { at: j2 });
       const closeEnd = j2 + 1;
       const top = stack.pop();
-      if (!top) fail2("unexpected closing tag with no matching open element", { at: i, name: name2 });
+      if (!top) fail3("unexpected closing tag with no matching open element", { at: i, name: name2 });
       if (top.name !== name2) {
-        fail2(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
+        fail3(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
       }
       tokens.push({
         kind: "container",
@@ -113231,7 +114234,7 @@ function scanModel(xmlText2) {
       continue;
     }
     const name = matchNameAt(xmlText2, i + 1);
-    if (name === void 0) fail2("malformed tag: expected an element name", { at: i });
+    if (name === void 0) fail3("malformed tag: expected an element name", { at: i });
     let j = i + 1 + name.length;
     const attrStart = j;
     const attrs = /* @__PURE__ */ new Map();
@@ -113248,23 +114251,23 @@ function scanModel(xmlText2) {
         break;
       }
       const attrName = matchNameAt(xmlText2, j);
-      if (attrName === void 0) fail2(`unexpected character inside <${name}>`, { at: j });
+      if (attrName === void 0) fail3(`unexpected character inside <${name}>`, { at: j });
       j += attrName.length;
       j = skipWs(xmlText2, j);
-      if (xmlText2.charAt(j) !== "=") fail2(`expected '=' after attribute "${attrName}"`, { at: j });
+      if (xmlText2.charAt(j) !== "=") fail3(`expected '=' after attribute "${attrName}"`, { at: j });
       j = skipWs(xmlText2, j + 1);
       const quote = xmlText2.charAt(j);
-      if (quote !== '"' && quote !== "'") fail2(`expected a quote to start the value of "${attrName}"`, { at: j });
+      if (quote !== '"' && quote !== "'") fail3(`expected a quote to start the value of "${attrName}"`, { at: j });
       j++;
       let value = "";
       for (; ; ) {
-        if (j >= n) fail2(`unterminated attribute value for "${attrName}"`, { at: j });
+        if (j >= n) fail3(`unterminated attribute value for "${attrName}"`, { at: j });
         const vc = xmlText2.charAt(j);
         if (vc === quote) {
           j++;
           break;
         }
-        if (vc === "<") fail2(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
+        if (vc === "<") fail3(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
         if (vc === "&") {
           const decoded = decodeEntityAt(xmlText2, j);
           value += decoded.char;
@@ -113274,7 +114277,7 @@ function scanModel(xmlText2) {
         value += vc;
         j++;
       }
-      if (attrs.has(attrName)) fail2(`duplicate attribute "${attrName}"`, { at: j });
+      if (attrs.has(attrName)) fail3(`duplicate attribute "${attrName}"`, { at: j });
       attrs.set(attrName, value);
     }
     if (selfClosing) {
@@ -113293,9 +114296,9 @@ function scanModel(xmlText2) {
     }
     i = j;
   }
-  if (stack.length > 0) fail2(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
+  if (stack.length > 0) fail3(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
   const roots = tokens.filter((t) => t.depth === 0);
-  if (roots.length !== 1) fail2(`document must have exactly one root element (found ${roots.length})`);
+  if (roots.length !== 1) fail3(`document must have exactly one root element (found ${roots.length})`);
   tokens.sort((a, b) => a.openStart - b.openStart);
   return tokens;
 }
@@ -113353,7 +114356,7 @@ var PLURAL_BARE = {
 };
 function insertionPoint(tokens, nodeTok, kind) {
   if (nodeTok.kind !== "container") {
-    fail2("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
+    fail3("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
   }
   const targetBare = PLURAL_BARE[kind];
   const targetIdx = NODE_CHILD_ORDER.indexOf(targetBare);
@@ -113369,19 +114372,19 @@ function insertionPoint(tokens, nodeTok, kind) {
   return insertAt;
 }
 function splice(xml3, at, text3) {
-  if (at < 0 || at > xml3.length) fail2("splice offset out of range", { at, length: xml3.length });
+  if (at < 0 || at > xml3.length) fail3("splice offset out of range", { at, length: xml3.length });
   return xml3.slice(0, at) + text3 + xml3.slice(at);
 }
 function spliceOut(xml3, range) {
   if (range.start < 0 || range.end > xml3.length || range.start > range.end) {
-    fail2("splice-out range out of bounds", { range, length: xml3.length });
+    fail3("splice-out range out of bounds", { range, length: xml3.length });
   }
   return xml3.slice(0, range.start) + xml3.slice(range.end);
 }
 function promoteToContainer(xml3, token) {
   if (token.kind === "container") return xml3;
   const tagText = xml3.slice(token.openStart, token.openEnd);
-  if (!tagText.endsWith("/>")) fail2("expected a self-closing tag ending in '/>'", { at: token.openStart });
+  if (!tagText.endsWith("/>")) fail3("expected a self-closing tag ending in '/>'", { at: token.openStart });
   const opened = tagText.slice(0, -2) + ">";
   return xml3.slice(0, token.openStart) + opened + `</${token.name}>` + xml3.slice(token.openEnd);
 }
@@ -113406,7 +114409,7 @@ function patchOpenTagAttrs(xml3, token, attrs) {
 }
 function spliceInsertChild(xml3, tokens, nodeName, kind, fragment, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail3(`node "${nodeName}" not found`, { node: nodeName });
   if (nodeTok.kind === "empty") {
     const opened = promoteToContainer(xml3, nodeTok);
     const insertAt = nodeTok.openEnd - 1;
@@ -113455,7 +114458,7 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder)
 }
 function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail3(`node "${nodeName}" not found`, { node: nodeName });
   return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
@@ -113845,10 +114848,10 @@ function parseModel(xmlText2) {
   try {
     parsed = xmlParser2.parse(xmlText2) ?? {};
   } catch (e) {
-    fail2(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
+    fail3(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
   }
   const root = xnode2(parsed.businessObject);
-  if (!root) fail2("not a BOPF business object document (no <bo:businessObject> root element)");
+  if (!root) fail3("not a BOPF business object document (no <bo:businessObject> root element)");
   return {
     name: xattr2(root, "name") ?? "",
     type: xattr2(root, "type") ?? "",
@@ -120248,6 +121251,342 @@ var IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
 var IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"]);
 var MAINTENANCE_EVENT_DOMAIN = "MAINTEVENT";
 
+// src/adt/datapreview-filter.ts
+var PREVIEW_OPS = ["eq", "ne", "lt", "le", "gt", "ge", "like", "in", "is_null"];
+var MAX_WHERE_CONDITIONS = 20;
+var MAX_ORDER_BY = 10;
+var MAX_COLUMNS = 100;
+var MAX_IN_VALUES = 50;
+var MAX_VALUE_LENGTH = 255;
+var PREVIEW_SQL_LINE_MAX = 255;
+var PREVIEW_OPS_LIST = PREVIEW_OPS.join(", ");
+var FREESTYLE_BANNED_WORD_RE = new RegExp(`\\b(?:${FREESTYLE_BANNED_KEYWORDS.join("|")})\\b`, "i");
+function isEmptyFilter(filter) {
+  if (filter === void 0) return true;
+  const noWhere = filter.where === void 0 || filter.where.length === 0;
+  const noColumns = filter.columns === void 0 || filter.columns.length === 0;
+  const noOrderBy = filter.orderBy === void 0 || filter.orderBy.length === 0;
+  return noWhere && noColumns && noOrderBy && filter.distinct !== true;
+}
+function isFiniteNumber(v) {
+  return typeof v === "number" && Number.isFinite(v);
+}
+function isPreviewValue(v) {
+  return typeof v === "string" || isFiniteNumber(v);
+}
+function assertNoBannedWord(value, what) {
+  const hit = FREESTYLE_BANNED_WORD_RE.exec(value);
+  if (hit) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} contains the word "${hit[0]}", which the freestyle endpoint's own banned-keyword guard refuses anywhere in the statement, even inside a quoted literal. Refusing here with a clearer message than that guard's.`,
+      { what, value, word: hit[0] }
+    );
+  }
+}
+function assertCondition(cond, index) {
+  const label = `where[${index}]`;
+  if (typeof cond.field !== "string" || cond.field.trim() === "") {
+    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: cond.field });
+  }
+  if (!PREVIEW_OPS.includes(cond.op)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label}.op "${String(cond.op)}" is not a recognised operator \u2014 accepted values are: ${PREVIEW_OPS_LIST}.`,
+      { what: `${label}.op`, value: cond.op }
+    );
+  }
+  if (cond.op === "is_null") {
+    if (cond.value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has op "is_null" but also supplies a "value" \u2014 is_null takes no value; refusing rather than silently ignoring it.`,
+        { what: `${label}.value`, value: cond.value }
+      );
+    }
+    return;
+  }
+  if (cond.op === "in") {
+    if (!Array.isArray(cond.value) || cond.value.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has op "in" but "value" is not a non-empty array.`,
+        { what: `${label}.value`, value: cond.value }
+      );
+    }
+    if (cond.value.length > MAX_IN_VALUES) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has ${cond.value.length} values in its "in" list, over the ${MAX_IN_VALUES}-value cap per condition.`,
+        { what: `${label}.value`, count: cond.value.length, cap: MAX_IN_VALUES }
+      );
+    }
+    cond.value.forEach((v) => assertScalarValue(v, cond.field));
+    return;
+  }
+  if (cond.value === void 0) {
+    throw new AbapError("BAD_INPUT", `${label} (op "${cond.op}") requires a "value".`, { what: `${label}.value`, op: cond.op });
+  }
+  if (Array.isArray(cond.value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label} (op "${cond.op}") must not supply an array "value" \u2014 only "in" takes a list.`,
+      { what: `${label}.value`, op: cond.op }
+    );
+  }
+  assertScalarValue(cond.value, cond.field);
+}
+function assertScalarValue(v, field) {
+  const what = `where value for ${field}`;
+  if (!isPreviewValue(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} must be a string or a finite number, got ${JSON.stringify(v)}.`,
+      { field, value: v }
+    );
+  }
+  if (typeof v === "string") {
+    const checked = assertAbapText(v, what, MAX_VALUE_LENGTH);
+    assertNoBannedWord(checked, what);
+  }
+}
+function assertOrder(order, index) {
+  const label = `order_by[${index}]`;
+  if (typeof order.field !== "string" || order.field.trim() === "") {
+    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: order.field });
+  }
+  if (order.direction !== void 0 && order.direction !== "asc" && order.direction !== "desc") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label}.direction "${String(order.direction)}" must be "asc" or "desc" (or omitted).`,
+      { what: `${label}.direction`, value: order.direction }
+    );
+  }
+}
+function assertFilterShape(filter) {
+  const where2 = filter.where ?? [];
+  if (where2.length > MAX_WHERE_CONDITIONS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"where" has ${where2.length} conditions, over the ${MAX_WHERE_CONDITIONS}-condition cap.`,
+      { count: where2.length, cap: MAX_WHERE_CONDITIONS }
+    );
+  }
+  where2.forEach((cond, i) => assertCondition(cond, i));
+  const columns = filter.columns ?? [];
+  if (columns.length > MAX_COLUMNS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"columns" has ${columns.length} entries, over the ${MAX_COLUMNS}-column cap.`,
+      { count: columns.length, cap: MAX_COLUMNS }
+    );
+  }
+  columns.forEach((c, i) => {
+    if (typeof c !== "string" || c.trim() === "") {
+      throw new AbapError("BAD_INPUT", `columns[${i}] must be a non-empty string.`, { what: `columns[${i}]`, value: c });
+    }
+  });
+  const seenColumns = /* @__PURE__ */ new Set();
+  for (const c of columns) {
+    const key = c.toUpperCase();
+    if (seenColumns.has(key)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `"columns" names "${c}" more than once (case-insensitive) \u2014 a projection lists each column at most once.`,
+        { what: "columns", value: c }
+      );
+    }
+    seenColumns.add(key);
+  }
+  const orderBy = filter.orderBy ?? [];
+  if (orderBy.length > MAX_ORDER_BY) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"order_by" has ${orderBy.length} entries, over the ${MAX_ORDER_BY}-entry cap.`,
+      { count: orderBy.length, cap: MAX_ORDER_BY }
+    );
+  }
+  orderBy.forEach((o, i) => assertOrder(o, i));
+}
+var NUMERIC_TYPE_CODES = /* @__PURE__ */ new Set(["P", "I", "b", "s", "8", "F", "a", "e"]);
+var INTEGER_TYPE_CODES = /* @__PURE__ */ new Set(["I", "b", "s", "8"]);
+var DECIMAL_TYPE_CODES = /* @__PURE__ */ new Set(["P", "F", "a", "e"]);
+var INTEGER_SHAPE_RE = /^-?\d+$/;
+var DECIMAL_SHAPE_RE = /^-?\d+(\.\d+)?$/;
+var DATE_SHAPE_RE = /^(\d{4})-?(\d{2})-?(\d{2})$/;
+var TIME_SHAPE_RE = /^(\d{2}):?(\d{2}):?(\d{2})$/;
+function renderLiteral(value, column, what) {
+  const type = column.type;
+  const asString = String(value);
+  if (INTEGER_TYPE_CODES.has(type)) {
+    if (!INTEGER_SHAPE_RE.test(asString)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected an integer, e.g. "300".`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return asString;
+  }
+  if (DECIMAL_TYPE_CODES.has(type)) {
+    if (!DECIMAL_SHAPE_RE.test(asString)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected a decimal, e.g. "422.94". Rendered as a quoted literal \u2014 an unquoted decimal is a syntax error on this endpoint.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(asString);
+  }
+  if (type === "D") {
+    const m = DATE_SHAPE_RE.exec(asString);
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "D") \u2014 expected YYYYMMDD or YYYY-MM-DD.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
+  }
+  if (type === "T") {
+    const m = TIME_SHAPE_RE.exec(asString);
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "T") \u2014 expected HHMMSS or HH:MM:SS.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
+  }
+  return abapLiteral(asString);
+}
+var OP_SYMBOL = {
+  eq: "=",
+  ne: "<>",
+  lt: "<",
+  le: "<=",
+  gt: ">",
+  ge: ">="
+};
+function resolveField(field, byUpper, what) {
+  const col = byUpper.get(field.toUpperCase());
+  if (!col) {
+    const known = [...byUpper.values()].map((c) => c.name).join(", ");
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${field}" is not a column of this entity. Known columns: ${known}.`,
+      { what, value: field, known: [...byUpper.values()].map((c) => c.name) }
+    );
+  }
+  return { name: col.name, column: col };
+}
+function renderCondition(cond, byUpper, index, clientFieldName) {
+  const label = `where[${index}]`;
+  const { name, column } = resolveField(cond.field, byUpper, `${label}.field`);
+  if (clientFieldName !== void 0 && name.toUpperCase() === clientFieldName.toUpperCase()) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `where[${index}] refers to the client field "${name}" \u2014 the compiler refuses that: 'The client field "${name}" cannot be specified in the WHERE condition. Client handling is performed by the compiler.'`,
+      { what: `${label}.field`, field: name },
+      "The read is already scoped to the logon client \u2014 drop this condition."
+    );
+  }
+  if (cond.op === "is_null") {
+    return `${name} IS NULL`;
+  }
+  if (cond.op === "like") {
+    if (NUMERIC_TYPE_CODES.has(column.type)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `where[${index}] uses "like" on ${name}, a numeric field (type "${column.type}") \u2014 'A LIKE condition can only be used with character-like fields.'`,
+        { what: `${label}.op`, field: name, type: column.type },
+        "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
+      );
+    }
+    const pattern = assertAbapText(String(cond.value), `${label}.value`, MAX_VALUE_LENGTH);
+    const escaped = pattern.replace(/'/g, "''");
+    return `${name} LIKE '${escaped}' ESCAPE '#'`;
+  }
+  if (cond.op === "in") {
+    const values = cond.value;
+    const literals = values.map((v, i) => renderLiteral(v, column, `${label}.value[${i}]`));
+    return inPredicate(name, literals);
+  }
+  const literal2 = renderLiteral(cond.value, column, `${label}.value`);
+  return `${name} ${OP_SYMBOL[cond.op]} ${literal2}`;
+}
+var IN_LIST_ITEMS_PER_LINE = 5;
+function inPredicate(column, literals) {
+  if (literals.length <= IN_LIST_ITEMS_PER_LINE) {
+    return `${column} IN (${literals.join(", ")})`;
+  }
+  const lines = [`${column} IN (`];
+  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE) {
+    const chunk2 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE).join(", ");
+    const isLast = i + IN_LIST_ITEMS_PER_LINE >= literals.length;
+    lines.push(`  ${chunk2}${isLast ? "" : ","}`);
+  }
+  lines.push(")");
+  return lines.join("\n");
+}
+function renderPreviewSelect(table, filter, columns) {
+  assertFilterShape(filter);
+  const byUpper = /* @__PURE__ */ new Map();
+  for (const c of columns) byUpper.set(c.name.toUpperCase(), c);
+  const first = columns[0];
+  const clientFieldName = first && first.type === "C" && (first.name.toUpperCase() === "MANDT" || first.name.toUpperCase() === "CLIENT") ? first.name : void 0;
+  const where2 = filter.where ?? [];
+  const whereParts = where2.map((cond, i) => renderCondition(cond, byUpper, i, clientFieldName));
+  const rawColumns = filter.columns ?? [];
+  const resolvedColumns = rawColumns.map((c, i) => resolveField(c, byUpper, `columns[${i}]`));
+  const projected = resolvedColumns.map((r) => r.name);
+  const orderBy = filter.orderBy ?? [];
+  const resolvedOrder = orderBy.map((o, i) => ({
+    ...resolveField(o.field, byUpper, `order_by[${i}].field`),
+    direction: o.direction ?? "asc"
+  }));
+  if (filter.distinct === true && projected.length > 0 && resolvedOrder.length > 0) {
+    const projectedUpper = new Set(projected.map((p) => p.toUpperCase()));
+    resolvedOrder.forEach((o, i) => {
+      if (!projectedUpper.has(o.name.toUpperCase())) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `order_by[${i}] names "${o.name}", which is not in "columns" \u2014 with distinct: true, 'The field "${o.name}" from the ORDER BY clause is missing in the SELECT list.'`,
+          { what: `order_by[${i}].field`, field: o.name },
+          "With distinct, every order_by field must also appear in columns."
+        );
+      }
+    });
+  }
+  const selectKeyword = filter.distinct === true ? "SELECT DISTINCT" : "SELECT";
+  const selectLines = projected.length === 0 ? [`${selectKeyword} *`] : [selectKeyword, ...projected.map((name, i) => `  ${name}${i === projected.length - 1 ? "" : ","}`)];
+  const lines = [...selectLines, `FROM ${table}`];
+  whereParts.forEach((part, i) => {
+    const partLines = part.split("\n");
+    partLines.forEach((pl, j) => {
+      if (j === 0) lines.push(`${i === 0 ? "WHERE" : "  AND"} ${pl}`);
+      else lines.push(pl);
+    });
+  });
+  if (resolvedOrder.length > 0) {
+    const orderByClause = resolvedOrder.map((o) => `${o.name} ${o.direction === "desc" ? "DESCENDING" : "ASCENDING"}`).join(", ");
+    lines.push(`ORDER BY ${orderByClause}`);
+  }
+  const statement = lines.join("\n");
+  statement.split("\n").forEach((line, i) => {
+    if (line.length > PREVIEW_SQL_LINE_MAX) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated preview query line ${i + 1} is ${line.length} chars, over the freestyle endpoint's ${PREVIEW_SQL_LINE_MAX}-char request-body line limit \u2014 the request body wraps at that width, so a longer line would be corrupted on the wire.`,
+        { line: i + 1, length: line.length }
+      );
+    }
+  });
+  return statement;
+}
+
 // src/adt/datapreview.ts
 var PLAIN_NAME_RE = /^[A-Z][A-Z0-9_]{0,29}$/;
 var NAMESPACED_NAME_RE = /^\/[A-Z0-9_]{1,10}\/[A-Z0-9_]{1,30}$/;
@@ -120314,7 +121653,15 @@ function parsePreviewBody(body) {
     const parsed = Number.parseInt(totalRowsRaw, 10);
     if (Number.isFinite(parsed)) totalRows = parsed;
   }
-  return { columns, rows, messages, ...totalRows === void 0 ? {} : { totalRows } };
+  const executedQueryStringRaw = table.executedQueryString;
+  const executedQueryString = typeof executedQueryStringRaw === "string" && executedQueryStringRaw.trim() !== "" ? executedQueryStringRaw : void 0;
+  return {
+    columns,
+    rows,
+    messages,
+    ...totalRows === void 0 ? {} : { totalRows },
+    ...executedQueryString === void 0 ? {} : { executedQueryString }
+  };
 }
 function classifyPreviewFailure(e, ctx) {
   const err = translateAdtError(e, ctx);
@@ -120339,6 +121686,38 @@ function classifyPreviewFailure(e, ctx) {
   }
   return err;
 }
+function classifyFilteredPreviewFailure(e, ctx, sql) {
+  const err = classifyPreviewFailure(e, ctx);
+  if (err.code !== "ADT_ERROR") {
+    return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+  }
+  const message = err.message;
+  if (/client field .* cannot be specified in the where condition/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "The read is already scoped to the logon client \u2014 drop the where condition on the client field."
+    );
+  }
+  if (/like condition can only be used with character-like fields/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
+    );
+  }
+  if (/from the order by clause is missing in the select list/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "With distinct, every order_by field must also appear in columns."
+    );
+  }
+  return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+}
 async function previewDdicEntity(conn, input) {
   const table = normaliseEntityName(input.table);
   if (!isValidDdicEntityName(table)) {
@@ -120346,7 +121725,7 @@ async function previewDdicEntity(conn, input) {
       "BAD_INPUT",
       `'${String(input.table)}' is not a valid DDIC table or view name.`,
       { table: String(input.table) },
-      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity \u2014 it has no WHERE clause and accepts no SQL."
+      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity; narrow it with the structured where/columns/order_by parameters, never with SQL text."
     );
   }
   const { maxRows } = input;
@@ -120359,22 +121738,72 @@ async function previewDdicEntity(conn, input) {
     );
   }
   const ctx = { operation: "read", name: table, type: "TABL/DT" };
-  let body;
+  if (isEmptyFilter(input.filter)) {
+    let body2;
+    try {
+      const resp = await conn.dataPreviewDdic(table, maxRows);
+      body2 = resp.body;
+    } catch (e) {
+      throw classifyPreviewFailure(e, ctx);
+    }
+    const { columns: columns2, rows: rows2, messages: messages2 } = parsePreviewBody(body2);
+    const moreRowsExist2 = rows2.length > maxRows;
+    return {
+      table,
+      columns: columns2,
+      rows: moreRowsExist2 ? rows2.slice(0, maxRows) : rows2,
+      rowsRequested: maxRows,
+      moreRowsExist: moreRowsExist2,
+      messages: messages2
+    };
+  }
+  const filter = input.filter;
+  assertFilterShape(filter);
+  let probeBody;
   try {
-    const resp = await conn.dataPreviewDdic(table, maxRows);
-    body = resp.body;
+    const probeResp = await conn.dataPreviewDdic(table, 1);
+    probeBody = probeResp.body;
   } catch (e) {
     throw classifyPreviewFailure(e, ctx);
   }
-  const { columns, rows, messages } = parsePreviewBody(body);
-  const moreRowsExist = rows.length > maxRows;
+  const probe3 = parsePreviewBody(probeBody);
+  if (probe3.columns.length === 0) {
+    const firstMessage = probe3.messages[0];
+    if (firstMessage) {
+      throw new AbapError(
+        "ADT_ERROR",
+        `${table} answered with no columns: "${firstMessage.text}" (severity ${firstMessage.severity || "unstated"}).`,
+        { table, messages: probe3.messages },
+        "This entity does not support a filtered preview the way a plain table does \u2014 see the server's own message above."
+      );
+    }
+    throw new AbapError(
+      "NOT_FOUND",
+      `No DDIC table or view named ${table} exists on this system, or it has no columns to filter.`,
+      { table },
+      "Check the spelling, or look the object up first."
+    );
+  }
+  const sql = renderPreviewSelect(table, filter, probe3.columns);
+  let body;
+  try {
+    const resp = await conn.dataPreviewFreestyle(sql, maxRows);
+    body = resp.body;
+  } catch (e) {
+    throw classifyFilteredPreviewFailure(e, ctx, sql);
+  }
+  const { columns, rows, messages, totalRows, executedQueryString } = parsePreviewBody(body);
+  const moreRowsExist = totalRows !== void 0 ? totalRows > rows.length : rows.length > maxRows;
   return {
     table,
     columns,
-    rows: moreRowsExist ? rows.slice(0, maxRows) : rows,
+    rows,
     rowsRequested: maxRows,
     moreRowsExist,
-    messages
+    messages,
+    statement: sql,
+    ...executedQueryString === void 0 ? {} : { executedQueryString },
+    ...totalRows === void 0 ? {} : { totalRows }
   };
 }
 
@@ -120479,15 +121908,15 @@ function assertInList(values, what) {
   }
   return values;
 }
-var IN_LIST_ITEMS_PER_LINE = 5;
-function inPredicate(column, literals) {
-  if (literals.length <= IN_LIST_ITEMS_PER_LINE) {
+var IN_LIST_ITEMS_PER_LINE2 = 5;
+function inPredicate2(column, literals) {
+  if (literals.length <= IN_LIST_ITEMS_PER_LINE2) {
     return `${column} IN (${literals.join(", ")})`;
   }
   const lines = [`${column} IN (`];
-  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE) {
-    const chunk2 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE).join(", ");
-    const isLast = i + IN_LIST_ITEMS_PER_LINE >= literals.length;
+  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE2) {
+    const chunk2 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE2).join(", ");
+    const isLast = i + IN_LIST_ITEMS_PER_LINE2 >= literals.length;
     lines.push(`  ${chunk2}${isLast ? "" : ","}`);
   }
   lines.push(")");
@@ -120496,7 +121925,7 @@ function inPredicate(column, literals) {
 function inClause(column, values, what, assertValue) {
   const checked = assertInList(values, what);
   const literals = checked.map((v) => sqlLiteral(assertValue(v, what)));
-  return inPredicate(column, literals);
+  return inPredicate2(column, literals);
 }
 function afterPredicate(column, after, assertValue) {
   if (after === void 0) return void 0;
@@ -121832,7 +123261,7 @@ function nextHint(table) {
   if (table === void 0) {
     return "next: no single table resolved, so there is nothing to hand abap_data_preview.";
   }
-  return `next: read the entries with abap_data_preview {"table":"${table}"}. That tool is registered only when ABAP_ALLOW_DATA_PREVIEW=true, refuses on a system that is not proven non-productive, has no WHERE filter (it returns the first N rows of the whole table), and denies a built-in list of tables (src/safety.ts).`;
+  return `next: read the entries with abap_data_preview {"table":"${table}"}. That tool is registered only when ABAP_ALLOW_DATA_PREVIEW=true, refuses on a system that is not proven non-productive, denies a built-in list of tables (src/safety.ts), and accepts a structured \`where\` filter checked against the entity's own column list.`;
 }
 function nullableCount(n) {
   return n === null ? "" : String(n);
@@ -127191,6 +128620,31 @@ var dataPreviewInputSchema = {
   object: external_exports.string().optional().describe("Alias for table; table wins if both are given."),
   max_rows: external_exports.number().int().optional().describe(
     `Rows to return, clamped to the server's ceiling (clamp reported in the response). At least 1 \u2014 0 is refused, never read as "default".`
+  ),
+  where: external_exports.array(
+    external_exports.object({
+      field: external_exports.string().describe("DDIC field name, checked against the entity's own column list before anything is sent."),
+      op: external_exports.enum(PREVIEW_OPS).describe(
+        "Comparison operator: eq/ne/lt/le/gt/ge compare one typed value; like matches an SQL pattern (% = any run, _ = one character, # = escape character); in matches any of an array of values; is_null takes no value at all."
+      ),
+      value: external_exports.union([external_exports.string(), external_exports.number(), external_exports.array(external_exports.union([external_exports.string(), external_exports.number()]))]).optional().describe(
+        "Required for every op except is_null (which must omit it); an array only for op=in. Always rendered as a typed literal for the field's DDIC type \u2014 never concatenated as text."
+      )
+    })
+  ).optional().describe(
+    "Structured filter conditions, ANDed together (no OR, no free text). This does not widen what the technical user may read \u2014 the same S_TABU_* authorisations still apply to every row."
+  ),
+  columns: external_exports.array(external_exports.string()).optional().describe("Project only these DDIC fields, in this order, instead of every column on the entity."),
+  order_by: external_exports.array(
+    external_exports.object({
+      field: external_exports.string().describe("DDIC field name to sort by."),
+      direction: external_exports.enum(["asc", "desc"]).optional().describe('Sort direction; defaults to "asc" when omitted.')
+    })
+  ).optional().describe(
+    "Sort order, applied in array order (first field is the primary sort key). Required for keyset paging: order on a key and add a `gt`/`lt` where-condition on the last value seen."
+  ),
+  distinct: external_exports.boolean().optional().describe(
+    "Suppress duplicate rows. Requires every order_by field to also appear in columns \u2014 otherwise the sort key would not be part of what distinctness is computed over."
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
@@ -127218,6 +128672,7 @@ function renderPreview2(result, requested, maxChars) {
     });
     return rec;
   });
+  const filtered = result.statement !== void 0;
   const notes = [];
   if (result.rowsRequested < requested) {
     notes.push(
@@ -127225,8 +128680,9 @@ function renderPreview2(result, requested, maxChars) {
     );
   }
   if (result.moreRowsExist) {
+    const trueCount = result.totalRows !== void 0 && result.totalRows > result.rows.length ? ` The server reports ${result.totalRows} row(s) actually match \u2014 a firmer count than "more exist."` : "";
     notes.push(
-      `INCOMPLETE: ${result.table} holds more rows than the ${result.rowsRequested} shown. This is the first N rows in the table's own order, NOT a sample and NOT the whole table \u2014 do not conclude anything about rows you have not seen. There is no paging parameter and no WHERE clause on this tool; raise max_rows (up to the ceiling) or narrow the question another way.`
+      `INCOMPLETE: ${result.table} holds more rows than the ${result.rowsRequested} shown.${trueCount} This is the first N rows in the table's own order, NOT a sample and NOT the whole table \u2014 do not conclude anything about rows you have not seen. There is no offset/paging parameter, but you can narrow with \`where\`, project with \`columns\`, raise max_rows (up to the ceiling), or page by ordering on a key with \`order_by\` and adding a \`gt\` \`where\` condition on the last value you saw.`
     );
   }
   for (const m of result.messages) {
@@ -127237,11 +128693,22 @@ function renderPreview2(result, requested, maxChars) {
   }
   if (result.rows.length === 0) {
     notes.push(
-      result.messages.length === 0 ? `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a genuinely empty result, not a failure and not a truncation.` : (
+      result.messages.length !== 0 ? (
         // Replaces a bug where a parameterised CDS view's 200/0-col/0-row/"I" response was misread as a genuine empty table.
         `NOT READ: ${result.table} returned no rows, but that is NOT evidence it is empty. The server refused or curtailed the read in-band and said so in the message above. Do NOT conclude anything about the contents of ${result.table} from this response.`
-      )
+      ) : filtered ? `EMPTY: no row in ${result.table} matched the where filter. That is NOT evidence ${result.table} itself is empty \u2014 only that nothing satisfied the condition(s). The rendered statement is in STATEMENT above.` : `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a genuinely empty result, not a failure and not a truncation.`
     );
+  }
+  const sections = [];
+  if (result.columns.length) {
+    sections.push({ title: "COLUMNS (* = key)", content: columnSummary(result) });
+  }
+  if (filtered) {
+    const statementLines = [`sent: ${result.statement}`];
+    if (result.executedQueryString !== void 0) {
+      statementLines.push(`server compiled: ${result.executedQueryString}`);
+    }
+    sections.push({ title: "STATEMENT", content: statementLines.join("\n") });
   }
   return buildResponse({
     header: {
@@ -127249,9 +128716,11 @@ function renderPreview2(result, requested, maxChars) {
       columns: result.columns.length,
       rows_shown: result.rows.length,
       rows_requested: result.rowsRequested,
-      more_rows_exist: result.moreRowsExist
+      more_rows_exist: result.moreRowsExist,
+      filtered,
+      total_rows: result.totalRows
     },
-    sections: result.columns.length ? [{ title: "COLUMNS (* = key)", content: columnSummary(result) }] : [],
+    sections,
     body: rows.length ? textTable(rows, keys) : "(no rows)",
     bodyLabel: "ROWS",
     notes,
@@ -127265,7 +128734,7 @@ function registerDataPreviewTools(mcp, deps) {
     "abap_data_preview",
     {
       title: "Preview DDIC table data",
-      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. No WHERE/JOIN/aggregate; a name, not a statement. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused.`,
+      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused.`,
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -127298,13 +128767,23 @@ function registerDataPreviewTools(mcp, deps) {
           );
         }
         const effective = Math.min(requested, ceiling);
+        const filter = {
+          ...a.where === void 0 ? {} : { where: a.where },
+          ...a.columns === void 0 ? {} : { columns: a.columns },
+          ...a.order_by === void 0 ? {} : { orderBy: a.order_by },
+          ...a.distinct === void 0 ? {} : { distinct: a.distinct }
+        };
         const result = await deps.pool.withRead(
           "abap_data_preview",
-          (conn) => previewDdicEntity(conn, { table, maxRows: effective })
+          (conn) => previewDdicEntity(conn, {
+            table,
+            maxRows: effective,
+            ...isEmptyFilter(filter) ? {} : { filter }
+          })
         );
         const res = renderPreview2(result, requested, deps.cfg.maxResponseChars);
         audit(
-          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist}`
+          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist} filtered=${result.statement !== void 0}` + (result.totalRows === void 0 ? "" : ` total_rows=${result.totalRows}`)
         );
         return ok17(res.text);
       } catch (e) {

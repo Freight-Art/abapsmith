@@ -12,6 +12,30 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-09-12
+
+### Added
+
+- `abap_search mode=source` searches source text across the repository in one
+  call: literal or regex `query`, scope by `packages` (with
+  `include_subpackages`), `objects` pattern and `types`, `case_sensitive`,
+  `include_comments`, `max`. Hits carry object, include and include-local line
+  number; truncation is marked with honest object and hit counts. Backed by a
+  new built-in fluid tool `scan` (deployed on first use, kernel `FIND PCRE`),
+  so it needs the fluid API and a writable mode. (issue #72)
+
+## [0.5.8] - 2026-09-12
+
+### Added
+
+- `abap_data_preview` takes a structured filter: `where` (typed conditions
+  `eq`/`ne`/`gt`/`ge`/`lt`/`le`/`in`/`like`/`is_null` and friends), `columns`,
+  `order_by` and `distinct`. Fields are validated against the entity's own
+  column list (one probe request), literals are rendered by DDIC type, the
+  response carries `filtered`, `total_rows` and the statement that was sent
+  plus the server's compiled echo, and truncation explains keyset paging.
+  Unfiltered calls are byte-identical to before. (issue #73)
+
 ## [0.5.7] - 2026-09-12
 
 ### Fixed

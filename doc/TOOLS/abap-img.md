@@ -192,9 +192,14 @@ resolve the underlying base table itself with `kind: table`.
   separate constraints, named in full in the hint itself: it is gated by
   `ABAP_ALLOW_DATA_PREVIEW=true` (off by default, independent of
   `ABAP_MODE`); it refuses outright on a system that reports itself
-  productive or that this server could not prove non-productive; it has no
-  WHERE filter of any kind — a preview is always the first N rows of the
-  whole table, `abap_img`'s resolved name notwithstanding; and it denies a
+  productive or that this server could not prove non-productive; it takes
+  a structured filter — `where` (field/op/value conditions, ANDed),
+  `columns`, `order_by`, `distinct` — checked against the entity's own
+  column list before anything is sent, never raw SQL or a
+  caller-supplied WHERE clause; an unfiltered preview is still the first
+  N rows of the table in its own order, not a sample; there is no offset
+  or paging parameter — page by ordering on a key with `order_by` and
+  adding a `gt` condition on the last value seen; and it denies a
   built-in list of tables (credentials/security, payroll/HR, accounting
   documents, and personal data) that no setting can shrink, only grow via
   `ABAP_DATA_PREVIEW_DENY_TABLES`. See `doc/TOOLS/diagnostics.md`.

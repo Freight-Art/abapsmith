@@ -141,7 +141,7 @@ export interface RawResponse {
   headers: Record<string, unknown>;
 }
 
-/** ADT DDIC data preview — table named by query param, not Open-SQL, so there's nowhere to smuggle a WHERE/JOIN. The `freestyle` sibling takes real SQL and is reachable only through `dataPreviewFreestyle()` below, and only with SQL a module assembled itself from fixed identifiers — never a string that reached abapsmith from a tool argument. */
+/** ADT DDIC data preview — table named by query param, not Open-SQL, so there's nowhere to smuggle a WHERE/JOIN. The `freestyle` sibling takes real SQL and is reachable only through `dataPreviewFreestyle()` below, and only with SQL a module assembled itself from fixed identifiers (or the server's own column metadata) — never a string that reached abapsmith from a tool argument. */
 const DATA_PREVIEW_DDIC = "/sap/bc/adt/datapreview/ddic";
 /** The freestyle sibling of {@link DATA_PREVIEW_DDIC} — plain-text SQL SELECT as the POST body. See `dataPreviewFreestyle()`. */
 const DATA_PREVIEW_FREESTYLE = "/sap/bc/adt/datapreview/freestyle";
@@ -153,7 +153,7 @@ const FREESTYLE_MAX_LENGTH = 4000;
  * column or table name like `CREATE_DATE` is never refused — see the doc on
  * `dataPreviewFreestyle` for why that matters.
  */
-const FREESTYLE_BANNED_KEYWORDS = [
+export const FREESTYLE_BANNED_KEYWORDS = [
   "INSERT",
   "UPDATE",
   "DELETE",
@@ -1526,12 +1526,21 @@ export class AbapConnection {
    * body, not a bare entity name.
    *
    * **Invariant that matters: the caller must have assembled `sql` itself
-   * from fixed identifiers and validated values. No string that reached
-   * abapsmith from a tool argument may be passed here.** The one module
-   * allowed to call this is `src/adt/img-query.ts` (the IMG catalog reader,
-   * built from `img-catalog.ts`'s frozen table/field list); `probeT000()`
-   * (`system-role.ts`) has its own separate, no-retry route to this same URL
-   * and must never be merged with this one.
+   * from fixed identifiers (or the server's own column metadata) and
+   * validated values. No string that reached abapsmith from a tool argument
+   * may be passed here.** Two modules are permitted to call this:
+   *   - `src/adt/img-query.ts` (the IMG catalog reader, built from
+   *     `img-catalog.ts`'s frozen table/field list);
+   *   - `src/adt/datapreview.ts` (issue #73's structured `where`/`columns`/
+   *     `order_by` filter on `abap_data_preview`), whose statement is
+   *     compiled by `src/adt/datapreview-filter.ts` from a prior metadata
+   *     probe's own column list, never from caller-supplied identifiers.
+   * The invariant is unchanged in substance for both: every identifier in
+   * the rendered SQL is taken from a fixed catalog or from the server's own
+   * column metadata, and every value is rendered as a typed, quoted literal
+   * — a caller-supplied SQL STRING is still never accepted from either.
+   * `probeT000()` (`system-role.ts`) has its own separate, no-retry route to
+   * this same URL and must never be merged with this one.
    *
    * Same shape as `dataPreviewDdic` above: bypasses `post()`/`raw()`'s
    * `READ_ONLY` guard (a read exposed over POST), goes through `request()`

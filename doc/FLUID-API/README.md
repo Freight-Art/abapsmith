@@ -35,7 +35,7 @@ The framework is reached through exactly one MCP tool, `abap_fluid` — see
 
 ## Built-in tools
 
-Eight fluid tools ship built in. They are ordinary fluid tools — same
+Nine fluid tools ship built in. They are ordinary fluid tools — same
 manifest shape, same protocol, same gate — but they are compiled into
 abapsmith rather than loaded from a plugin directory, so
 `ABAP_ALLOW_FLUID_PLUGINS` and `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` do not
@@ -50,6 +50,7 @@ apply to them.
 | `img` | `preview`, `create_request`, `apply` | IMG customizing: row preview, customizing request creation, and the write itself. |
 | `rt` | `ping`, `fail` | Runtime self-test: proves the frame protocol end to end, including the error frame. |
 | `run` | `report` | Runs an ABAP report and captures its list output. |
+| `scan` | `source` | Line-wise source-text scan over a package/object scope (PROG, CLAS, INTF, FUGR, DDLS), backing `abap_search mode=source`. Kept out of `core` because its `FIND ... PCRE` matching needs kernel 7.55+; isolating it means a pre-7.55 system loses only `scan`. |
 | `ui` | `screen` | Dynpro field and flow-logic reads. |
 
 Most built-in actions back a dedicated abapsmith tool (`abap_img_edit`,
