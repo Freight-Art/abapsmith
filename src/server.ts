@@ -229,6 +229,24 @@ function stripSchemaKeyOnConnect(mcp: McpServer): void {
 }
 
 /**
+ * The release in which `ABAP_TOOL_SURFACE=v2` is removed outright (issue
+ * #76). Named here rather than spelled into two message strings, so the
+ * startup warning and the server `instructions` can never disagree about
+ * the date an operator is planning against.
+ */
+export const V2_REMOVAL_RELEASE = "0.6.0";
+
+/**
+ * The one deprecation sentence, shared by the stderr startup warning and by
+ * `instructionsFor`'s v2 branch — the operator reads the first, the model
+ * reads the second, and both must name the same removal release.
+ */
+export const V2_DEPRECATION_SENTENCE =
+  `ABAP_TOOL_SURFACE=v2 is DEPRECATED and will be REMOVED in ${V2_REMOVAL_RELEASE}. ` +
+  "The surface is frozen: no new tool routes and no defect fixes land on it. " +
+  "Move to v1 by unsetting ABAP_TOOL_SURFACE.";
+
+/**
  * The write-scope sentence `instructionsFor` embeds in both branches — the
  * whole point: rendered from the resolved config, not asserted as a
  * constant. `readOnly` is checked FIRST: in `read` mode
@@ -288,12 +306,12 @@ export function instructionsFor(
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   if (toolSurface === "v2") {
     // `instructions` is read once per session, not resent per `tools/list`
-    // like each tool's `description` — so the experimental warning belongs
+    // like each tool's `description` — so the deprecation warning belongs
     // here, outside the schema-byte budget test/tools-v2-budget.test.ts measures.
     return (
-      "Access to an SAP ABAP system over ADT, via 6 tools. EXPERIMENTAL SURFACE — not " +
-      "supported for production use; known defects are not being fixed while it holds " +
-      "this status. Prefer the v1 surface for anything that matters. Use abap_find to locate " +
+      "Access to an SAP ABAP system over ADT, via 6 tools. " +
+      V2_DEPRECATION_SENTENCE + " " +
+      "Use abap_find to locate " +
       "objects, abap_read to read source or DDIC definitions (outline=true first for " +
       "large classes, then method=), abap_write to create/change/delete (edit= splices a " +
       "unique match, method= replaces one method, source= is a full rewrite, " +
@@ -882,14 +900,15 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
         `[abapsmith] ready on stdio — ${cfg.sid} @ ${stripUrlCredentials(cfg.url)} as ${cfg.user} ` +
           `(${mode})${notConnectedSuffix}`,
       );
-      // Runtime half of the v2 "experimental" labelling (doc/TOOL-SURFACE-V2/README.md):
-      // a doc-only warning is easy to miss, so operators setting
-      // ABAP_TOOL_SURFACE=v2 get it on the channel they're already reading.
+      // Runtime half of the v2 deprecation (issue #76, doc/TOOL-SURFACE-V2/README.md):
+      // a doc-only banner is easy to miss, so an operator who set
+      // ABAP_TOOL_SURFACE=v2 gets the removal release on the channel they are
+      // already reading. Same sentence the model sees in `instructions`.
       if (cfg.toolSurface === "v2") {
         warn(
-          "[abapsmith] ABAP_TOOL_SURFACE=v2 — EXPERIMENTAL, NOT SUPPORTED FOR PRODUCTION USE. " +
-            "Known v2 defects will not be fixed while v2 holds this status. " +
-            "v1 is the supported surface — see doc/TOOL-SURFACE-V2/README.md.",
+          `[abapsmith] ${V2_DEPRECATION_SENTENCE} Four v1 tools (abap_data_preview, ` +
+            "abap_open_url, abap_dumps, abap_ui) never had a v2 route, and every tool added " +
+            "since widened the gap — see doc/TOOL-SURFACE-V2/README.md and the CHANGELOG.",
         );
       }
       warn(
