@@ -98,3 +98,53 @@ without abapsmith at all.
 
 `list` and `show` never touch the network. Only `undo` is a write, and it is
 gated exactly like any other write tool.
+
+## Pending entries, STRANDED, and reconcile
+
+`mode=list` flags a `pending` entry older than 5 minutes as STRANDED: the
+before-image was written and the outcome never was, which is what a crash
+mid-write looks like — nobody knows whether that write landed, and `undo`
+refuses a pending entry outright rather than guess.
+
+A `transport-remove-object` entry now means this literally: a `removeObject`
+call that CTS cleanly refused (`CTS_DUPLICATE_ENTRY`, `NOT_FOUND` — nothing
+was removed) settles `failed` immediately, not `pending`. Only a removal
+that touched at least one E071 row before failing, or a call whose response
+was lost outright (dropped connection, HTTP failure — the ABAP may have run
+and answered into thin air), stays `pending`. So a pending
+transport-remove-object entry is no longer a false alarm from an ordinary
+refusal — it is a genuinely unresolved write, worth chasing.
+
+Once you have established what actually happened to a pending entry — by
+reading the object (`abap_read`) and comparing it against `abap_journal
+mode=show`, or by other means — close it by hand:
+
+```json
+{ "mode": "reconcile", "entry": "20260731T134500123Z-a1b2c3", "outcome": "failed", "reason": "re-read ZTMD_I26_P1: source matches the before-image, nothing changed" }
+```
+
+`reconcile` is a **local** operation: no network call, no pool lease, no
+safety gate, nothing sent to SAP, and no SAP object or transport request is
+touched. It **deletes nothing** — the journal is append-only, so the
+before-image and every earlier line for the entry stay on disk; reconcile
+appends one patch line. It refuses an entry that is not `pending` (closing
+an already-observed outcome would destroy the only observed fact the entry
+carries), an unknown id, an empty `reason`, or a missing/invalid `outcome`.
+There is deliberately no `object` fallback for `entry`: guessing which
+stranded entry was meant and writing a false outcome into the audit trail is
+worse than refusing.
+
+The result is recorded as an **assertion**, not an observation — the entry
+gains a `reconciled` field (`at`, `reason`, `by?`) so a later reader can
+always tell a stated outcome from one abapsmith watched happen; `mode=list`
+shows it in `flags`, `mode=show` shows it as its own header field plus a
+note. Reconciling to `succeeded` makes the entry terminal, which means
+`mode=undo` will no longer refuse it for being `pending` and will replay its
+before-image — only assert `succeeded` once it is established that the write
+actually landed.
+
+`bin/abap-journal-reconcile` is the bulk counterpart: it probes the live
+system itself and classifies pending entries from observed evidence,
+settling them with `--apply`. Reach for it first, for entries whose live
+source can settle the question on its own; reach for `mode=reconcile` for
+the single entry the probe cannot settle and a human has resolved by hand.

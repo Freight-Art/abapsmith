@@ -12,6 +12,23 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-09-12
+
+### Fixed
+
+- `abap_transport operation=removeObject` refused by CTS (`CTS_DUPLICATE_ENTRY`)
+  left its `transport-remove-object` journal entry `pending` forever, so
+  `abap_journal mode=list` reported it as STRANDED although nothing on the
+  request had changed. A refusal whose ABAP transcript names no removed E071
+  row now settles the entry as `failed` (description suffixed `— refused,
+  nothing was removed`); a lost response or a failure after a removed row still
+  stays `pending`. New `abap_journal mode=reconcile entry=<id>
+  outcome=succeeded|failed reason=…` (v2: `abap_do action=journal_reconcile`)
+  closes a stale `pending` entry by hand with one appended patch line, refuses
+  anything already settled, takes no `object` fallback and makes no network
+  call; `list` shows a `reconciled` flag and `show` prints the reconciliation
+  (issue #66).
+
 ## [0.5.2] - 2026-09-12
 
 ### Fixed

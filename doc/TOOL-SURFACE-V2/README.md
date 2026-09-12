@@ -47,7 +47,7 @@ consolidates the same functionality into six:
 | `abap_activate` | `abap_do` (`activate`, `check`) |
 | `abap_run` | `abap_do` (`run`) |
 | `abap_test` | `abap_do` (`test`) |
-| `abap_journal` | `abap_do` (`journal_list`, `journal_show`, `undo`) |
+| `abap_journal` | `abap_do` (`journal_list`, `journal_show`, `undo`, `journal_reconcile`) |
 | `abap_transport` | `abap_do` (`transport_list`, `transport_show`, `transport_check`, `transport_users`, `transport_create`, `transport_add_user`, `transport_set_owner`, `transport_delete`) |
 | `abap_transport_release` | `abap_do` (`transport_release`) |
 | `abap_enh` | `abap_do` (`enh_write_description`, `enh_create_spot`, `enh_add_badi_def`, `enh_add_filter_def`, `enh_create_impl`, `enh_set_filter_values`, `enh_exercise`, `enh_discover_hook_anchors`, `enh_create_hook`) |
