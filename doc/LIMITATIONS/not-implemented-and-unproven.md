@@ -2,9 +2,31 @@
 
 ## Not implemented
 
-No runtime tracing, no profiling, no package tree navigation, and no
-source-code grep across the repository. `abap_search` searches object names
-and where-used, not source text.
+No runtime tracing, no profiling, and no package tree navigation.
+
+`abap_search mode=source` now scans source text line by line — see
+[doc/TOOLS/read-and-search.md](../TOOLS/read-and-search.md) — but it is
+narrower than a plain repository grep in several specific ways. There is no
+cross-system search: one call always targets the one connected system.
+There is no ranking or scoring of hits — every match is returned in scan
+order up to the hit cap, not sorted by relevance. A scope is mandatory
+(`packages` and/or an `objects` pattern narrower than `*`); a repository-
+wide scan is refused, and even within scope there is a fixed 200-object
+ceiling, so a package holding more objects than that is only partially
+scanned (the response says how many objects the scope actually holds, so
+this is disclosed rather than silent). Excluding comments (the default) is
+a per-line heuristic — it drops full-line `*`/`"` comments and cuts a line
+at the first `"` outside a quoted literal — not a real ABAP tokenizer; its
+known blind spot is a `"` inside a `|...|` string template. The scan runs
+as a separate built-in fluid tool (`scan`, not a `core` action) specifically
+because its `FIND ... PCRE` matching needs a 7.55-or-later kernel; it is
+gated behind the fluid API (`ABAP_FLUID_API` on, `ABAP_MODE` not `read`) and
+refuses at call time with `FLUID_API_DISABLED` on a system or session
+without that. And the end-to-end `abap_search mode=source` call path is
+itself unproven live: the scan's ABAP mechanics were verified on A4H via a
+standalone probe class, but the reference system runs a released bundle
+that predates this feature, so the MCP tool call itself is covered only by
+tests against a fake fluid runtime.
 
 ATC exists (`abap_atc`) but only as run-and-collect. Exemption proposals,
 exemption requests, contact-person lookup and check documentation are
