@@ -198,10 +198,17 @@
   base table is not blocked by a surviving secondary index; a later
   cleanup deleted a base table whose indexes' catalog rows may still have
   existed, and whether they were cascaded away or orphaned is unverified —
-  there is nothing to read back either way, and `abap_data_preview` has no
-  `WHERE` filter to target one. SE11 (the table's "Indexes" button) is the
-  only way to inspect one directly; the table itself stays writable here
-  as `TABL/DT`.
+  there is nothing to read back either way. At the time of that cleanup
+  (2026-09-05), `abap_data_preview` also had no way to target a specific
+  index's catalog row even if there had been something to read; that is no
+  longer the limiting factor — `abap_data_preview` now takes a structured
+  `where` filter (see `doc/TOOLS/diagnostics.md`), so a query like
+  `{"table":"DD12V","where":[{"field":"SQLTAB","op":"eq","value":"<table>"}]}`
+  is now practical. It still cannot answer this specific open question,
+  because `DD12V`/`DD17S` were never re-read after that cleanup and no
+  index name from it was recorded to look for. SE11 (the table's "Indexes"
+  button) is the only way to inspect one directly; the table itself stays
+  writable here as `TABL/DT`.
 
 ## FPM / Web Dynpro configuration is read-only, deliberately
 

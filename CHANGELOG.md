@@ -12,6 +12,18 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-09-12
+
+### Added
+
+- `abap_data_preview` takes a structured filter: `where` (typed conditions
+  `eq`/`ne`/`gt`/`ge`/`lt`/`le`/`in`/`like`/`is_null` and friends), `columns`,
+  `order_by` and `distinct`. Fields are validated against the entity's own
+  column list (one probe request), literals are rendered by DDIC type, the
+  response carries `filtered`, `total_rows` and the statement that was sent
+  plus the server's compiled echo, and truncation explains keyset paging.
+  Unfiltered calls are byte-identical to before. (issue #73)
+
 ## [0.5.7] - 2026-09-12
 
 ### Fixed

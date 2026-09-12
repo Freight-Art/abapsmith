@@ -230,9 +230,9 @@ function nextHint(table: string | undefined): string {
   }
   return (
     `next: read the entries with abap_data_preview {"table":"${table}"}. That tool is registered only ` +
-    "when ABAP_ALLOW_DATA_PREVIEW=true, refuses on a system that is not proven non-productive, has " +
-    "no WHERE filter (it returns the first N rows of the whole table), and denies a built-in list of " +
-    "tables (src/safety.ts)."
+    "when ABAP_ALLOW_DATA_PREVIEW=true, refuses on a system that is not proven non-productive, denies " +
+    "a built-in list of tables (src/safety.ts), and accepts a structured `where` filter checked " +
+    "against the entity's own column list."
   );
 }
 

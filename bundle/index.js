@@ -74264,7 +74264,7 @@ var REGISTRY = {
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
       via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from the fluid `classic` tool's `delete_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of the bridge that was then ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of the then-ZCL_ZMCP_DDIC_DINDX bridge) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above had therefore never executed live before round 4. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the non-unique Z01 and the unique-with-client-field Z02 were each deleted with INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 returned NOT_FOUND from the DD12V pre-check, and the deployed then-ZCL_ZMCP_DDIC_DINDX body read back with the new read-back variable and no line over 255. So the ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both deletes while all three read-backs came back empty, so what the flag itself means is still not established, only that it does not mean the rows survived.",
-      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and abap_data_preview was confirmed live to carry no WHERE filter, so a targeted DD12V check was not practical."
+      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and at the time abap_data_preview carried no WHERE filter, so a targeted DD12V check was not practical. It now takes a structured filter (issue #73), so such a check is possible, but this round's outcome was never re-checked and stays unverified."
     }
   }
 };
@@ -91877,12 +91877,21 @@ var AbapConnection = class {
    * body, not a bare entity name.
    *
    * **Invariant that matters: the caller must have assembled `sql` itself
-   * from fixed identifiers and validated values. No string that reached
-   * abapsmith from a tool argument may be passed here.** The one module
-   * allowed to call this is `src/adt/img-query.ts` (the IMG catalog reader,
-   * built from `img-catalog.ts`'s frozen table/field list); `probeT000()`
-   * (`system-role.ts`) has its own separate, no-retry route to this same URL
-   * and must never be merged with this one.
+   * from fixed identifiers (or the server's own column metadata) and
+   * validated values. No string that reached abapsmith from a tool argument
+   * may be passed here.** Two modules are permitted to call this:
+   *   - `src/adt/img-query.ts` (the IMG catalog reader, built from
+   *     `img-catalog.ts`'s frozen table/field list);
+   *   - `src/adt/datapreview.ts` (issue #73's structured `where`/`columns`/
+   *     `order_by` filter on `abap_data_preview`), whose statement is
+   *     compiled by `src/adt/datapreview-filter.ts` from a prior metadata
+   *     probe's own column list, never from caller-supplied identifiers.
+   * The invariant is unchanged in substance for both: every identifier in
+   * the rendered SQL is taken from a fixed catalog or from the server's own
+   * column metadata, and every value is rendered as a typed, quoted literal
+   * — a caller-supplied SQL STRING is still never accepted from either.
+   * `probeT000()` (`system-role.ts`) has its own separate, no-retry route to
+   * this same URL and must never be merged with this one.
    *
    * Same shape as `dataPreviewDdic` above: bypasses `post()`/`raw()`'s
    * `READ_ONLY` guard (a read exposed over POST), goes through `request()`
@@ -120248,6 +120257,342 @@ var IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
 var IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"]);
 var MAINTENANCE_EVENT_DOMAIN = "MAINTEVENT";
 
+// src/adt/datapreview-filter.ts
+var PREVIEW_OPS = ["eq", "ne", "lt", "le", "gt", "ge", "like", "in", "is_null"];
+var MAX_WHERE_CONDITIONS = 20;
+var MAX_ORDER_BY = 10;
+var MAX_COLUMNS = 100;
+var MAX_IN_VALUES = 50;
+var MAX_VALUE_LENGTH = 255;
+var PREVIEW_SQL_LINE_MAX = 255;
+var PREVIEW_OPS_LIST = PREVIEW_OPS.join(", ");
+var FREESTYLE_BANNED_WORD_RE = new RegExp(`\\b(?:${FREESTYLE_BANNED_KEYWORDS.join("|")})\\b`, "i");
+function isEmptyFilter(filter) {
+  if (filter === void 0) return true;
+  const noWhere = filter.where === void 0 || filter.where.length === 0;
+  const noColumns = filter.columns === void 0 || filter.columns.length === 0;
+  const noOrderBy = filter.orderBy === void 0 || filter.orderBy.length === 0;
+  return noWhere && noColumns && noOrderBy && filter.distinct !== true;
+}
+function isFiniteNumber(v) {
+  return typeof v === "number" && Number.isFinite(v);
+}
+function isPreviewValue(v) {
+  return typeof v === "string" || isFiniteNumber(v);
+}
+function assertNoBannedWord(value, what) {
+  const hit = FREESTYLE_BANNED_WORD_RE.exec(value);
+  if (hit) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} contains the word "${hit[0]}", which the freestyle endpoint's own banned-keyword guard refuses anywhere in the statement, even inside a quoted literal. Refusing here with a clearer message than that guard's.`,
+      { what, value, word: hit[0] }
+    );
+  }
+}
+function assertCondition(cond, index) {
+  const label = `where[${index}]`;
+  if (typeof cond.field !== "string" || cond.field.trim() === "") {
+    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: cond.field });
+  }
+  if (!PREVIEW_OPS.includes(cond.op)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label}.op "${String(cond.op)}" is not a recognised operator \u2014 accepted values are: ${PREVIEW_OPS_LIST}.`,
+      { what: `${label}.op`, value: cond.op }
+    );
+  }
+  if (cond.op === "is_null") {
+    if (cond.value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has op "is_null" but also supplies a "value" \u2014 is_null takes no value; refusing rather than silently ignoring it.`,
+        { what: `${label}.value`, value: cond.value }
+      );
+    }
+    return;
+  }
+  if (cond.op === "in") {
+    if (!Array.isArray(cond.value) || cond.value.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has op "in" but "value" is not a non-empty array.`,
+        { what: `${label}.value`, value: cond.value }
+      );
+    }
+    if (cond.value.length > MAX_IN_VALUES) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has ${cond.value.length} values in its "in" list, over the ${MAX_IN_VALUES}-value cap per condition.`,
+        { what: `${label}.value`, count: cond.value.length, cap: MAX_IN_VALUES }
+      );
+    }
+    cond.value.forEach((v) => assertScalarValue(v, cond.field));
+    return;
+  }
+  if (cond.value === void 0) {
+    throw new AbapError("BAD_INPUT", `${label} (op "${cond.op}") requires a "value".`, { what: `${label}.value`, op: cond.op });
+  }
+  if (Array.isArray(cond.value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label} (op "${cond.op}") must not supply an array "value" \u2014 only "in" takes a list.`,
+      { what: `${label}.value`, op: cond.op }
+    );
+  }
+  assertScalarValue(cond.value, cond.field);
+}
+function assertScalarValue(v, field) {
+  const what = `where value for ${field}`;
+  if (!isPreviewValue(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} must be a string or a finite number, got ${JSON.stringify(v)}.`,
+      { field, value: v }
+    );
+  }
+  if (typeof v === "string") {
+    const checked = assertAbapText(v, what, MAX_VALUE_LENGTH);
+    assertNoBannedWord(checked, what);
+  }
+}
+function assertOrder(order, index) {
+  const label = `order_by[${index}]`;
+  if (typeof order.field !== "string" || order.field.trim() === "") {
+    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: order.field });
+  }
+  if (order.direction !== void 0 && order.direction !== "asc" && order.direction !== "desc") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label}.direction "${String(order.direction)}" must be "asc" or "desc" (or omitted).`,
+      { what: `${label}.direction`, value: order.direction }
+    );
+  }
+}
+function assertFilterShape(filter) {
+  const where2 = filter.where ?? [];
+  if (where2.length > MAX_WHERE_CONDITIONS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"where" has ${where2.length} conditions, over the ${MAX_WHERE_CONDITIONS}-condition cap.`,
+      { count: where2.length, cap: MAX_WHERE_CONDITIONS }
+    );
+  }
+  where2.forEach((cond, i) => assertCondition(cond, i));
+  const columns = filter.columns ?? [];
+  if (columns.length > MAX_COLUMNS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"columns" has ${columns.length} entries, over the ${MAX_COLUMNS}-column cap.`,
+      { count: columns.length, cap: MAX_COLUMNS }
+    );
+  }
+  columns.forEach((c, i) => {
+    if (typeof c !== "string" || c.trim() === "") {
+      throw new AbapError("BAD_INPUT", `columns[${i}] must be a non-empty string.`, { what: `columns[${i}]`, value: c });
+    }
+  });
+  const seenColumns = /* @__PURE__ */ new Set();
+  for (const c of columns) {
+    const key = c.toUpperCase();
+    if (seenColumns.has(key)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `"columns" names "${c}" more than once (case-insensitive) \u2014 a projection lists each column at most once.`,
+        { what: "columns", value: c }
+      );
+    }
+    seenColumns.add(key);
+  }
+  const orderBy = filter.orderBy ?? [];
+  if (orderBy.length > MAX_ORDER_BY) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"order_by" has ${orderBy.length} entries, over the ${MAX_ORDER_BY}-entry cap.`,
+      { count: orderBy.length, cap: MAX_ORDER_BY }
+    );
+  }
+  orderBy.forEach((o, i) => assertOrder(o, i));
+}
+var NUMERIC_TYPE_CODES = /* @__PURE__ */ new Set(["P", "I", "b", "s", "8", "F", "a", "e"]);
+var INTEGER_TYPE_CODES = /* @__PURE__ */ new Set(["I", "b", "s", "8"]);
+var DECIMAL_TYPE_CODES = /* @__PURE__ */ new Set(["P", "F", "a", "e"]);
+var INTEGER_SHAPE_RE = /^-?\d+$/;
+var DECIMAL_SHAPE_RE = /^-?\d+(\.\d+)?$/;
+var DATE_SHAPE_RE = /^(\d{4})-?(\d{2})-?(\d{2})$/;
+var TIME_SHAPE_RE = /^(\d{2}):?(\d{2}):?(\d{2})$/;
+function renderLiteral(value, column, what) {
+  const type = column.type;
+  const asString = String(value);
+  if (INTEGER_TYPE_CODES.has(type)) {
+    if (!INTEGER_SHAPE_RE.test(asString)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected an integer, e.g. "300".`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return asString;
+  }
+  if (DECIMAL_TYPE_CODES.has(type)) {
+    if (!DECIMAL_SHAPE_RE.test(asString)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected a decimal, e.g. "422.94". Rendered as a quoted literal \u2014 an unquoted decimal is a syntax error on this endpoint.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(asString);
+  }
+  if (type === "D") {
+    const m = DATE_SHAPE_RE.exec(asString);
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "D") \u2014 expected YYYYMMDD or YYYY-MM-DD.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
+  }
+  if (type === "T") {
+    const m = TIME_SHAPE_RE.exec(asString);
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "T") \u2014 expected HHMMSS or HH:MM:SS.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
+  }
+  return abapLiteral(asString);
+}
+var OP_SYMBOL = {
+  eq: "=",
+  ne: "<>",
+  lt: "<",
+  le: "<=",
+  gt: ">",
+  ge: ">="
+};
+function resolveField(field, byUpper, what) {
+  const col = byUpper.get(field.toUpperCase());
+  if (!col) {
+    const known = [...byUpper.values()].map((c) => c.name).join(", ");
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${field}" is not a column of this entity. Known columns: ${known}.`,
+      { what, value: field, known: [...byUpper.values()].map((c) => c.name) }
+    );
+  }
+  return { name: col.name, column: col };
+}
+function renderCondition(cond, byUpper, index, clientFieldName) {
+  const label = `where[${index}]`;
+  const { name, column } = resolveField(cond.field, byUpper, `${label}.field`);
+  if (clientFieldName !== void 0 && name.toUpperCase() === clientFieldName.toUpperCase()) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `where[${index}] refers to the client field "${name}" \u2014 the compiler refuses that: 'The client field "${name}" cannot be specified in the WHERE condition. Client handling is performed by the compiler.'`,
+      { what: `${label}.field`, field: name },
+      "The read is already scoped to the logon client \u2014 drop this condition."
+    );
+  }
+  if (cond.op === "is_null") {
+    return `${name} IS NULL`;
+  }
+  if (cond.op === "like") {
+    if (NUMERIC_TYPE_CODES.has(column.type)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `where[${index}] uses "like" on ${name}, a numeric field (type "${column.type}") \u2014 'A LIKE condition can only be used with character-like fields.'`,
+        { what: `${label}.op`, field: name, type: column.type },
+        "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
+      );
+    }
+    const pattern = assertAbapText(String(cond.value), `${label}.value`, MAX_VALUE_LENGTH);
+    const escaped = pattern.replace(/'/g, "''");
+    return `${name} LIKE '${escaped}' ESCAPE '#'`;
+  }
+  if (cond.op === "in") {
+    const values = cond.value;
+    const literals = values.map((v, i) => renderLiteral(v, column, `${label}.value[${i}]`));
+    return inPredicate(name, literals);
+  }
+  const literal2 = renderLiteral(cond.value, column, `${label}.value`);
+  return `${name} ${OP_SYMBOL[cond.op]} ${literal2}`;
+}
+var IN_LIST_ITEMS_PER_LINE = 5;
+function inPredicate(column, literals) {
+  if (literals.length <= IN_LIST_ITEMS_PER_LINE) {
+    return `${column} IN (${literals.join(", ")})`;
+  }
+  const lines = [`${column} IN (`];
+  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE) {
+    const chunk2 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE).join(", ");
+    const isLast = i + IN_LIST_ITEMS_PER_LINE >= literals.length;
+    lines.push(`  ${chunk2}${isLast ? "" : ","}`);
+  }
+  lines.push(")");
+  return lines.join("\n");
+}
+function renderPreviewSelect(table, filter, columns) {
+  assertFilterShape(filter);
+  const byUpper = /* @__PURE__ */ new Map();
+  for (const c of columns) byUpper.set(c.name.toUpperCase(), c);
+  const first = columns[0];
+  const clientFieldName = first && first.type === "C" && (first.name.toUpperCase() === "MANDT" || first.name.toUpperCase() === "CLIENT") ? first.name : void 0;
+  const where2 = filter.where ?? [];
+  const whereParts = where2.map((cond, i) => renderCondition(cond, byUpper, i, clientFieldName));
+  const rawColumns = filter.columns ?? [];
+  const resolvedColumns = rawColumns.map((c, i) => resolveField(c, byUpper, `columns[${i}]`));
+  const projected = resolvedColumns.map((r) => r.name);
+  const orderBy = filter.orderBy ?? [];
+  const resolvedOrder = orderBy.map((o, i) => ({
+    ...resolveField(o.field, byUpper, `order_by[${i}].field`),
+    direction: o.direction ?? "asc"
+  }));
+  if (filter.distinct === true && projected.length > 0 && resolvedOrder.length > 0) {
+    const projectedUpper = new Set(projected.map((p) => p.toUpperCase()));
+    resolvedOrder.forEach((o, i) => {
+      if (!projectedUpper.has(o.name.toUpperCase())) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `order_by[${i}] names "${o.name}", which is not in "columns" \u2014 with distinct: true, 'The field "${o.name}" from the ORDER BY clause is missing in the SELECT list.'`,
+          { what: `order_by[${i}].field`, field: o.name },
+          "With distinct, every order_by field must also appear in columns."
+        );
+      }
+    });
+  }
+  const selectKeyword = filter.distinct === true ? "SELECT DISTINCT" : "SELECT";
+  const selectLines = projected.length === 0 ? [`${selectKeyword} *`] : [selectKeyword, ...projected.map((name, i) => `  ${name}${i === projected.length - 1 ? "" : ","}`)];
+  const lines = [...selectLines, `FROM ${table}`];
+  whereParts.forEach((part, i) => {
+    const partLines = part.split("\n");
+    partLines.forEach((pl, j) => {
+      if (j === 0) lines.push(`${i === 0 ? "WHERE" : "  AND"} ${pl}`);
+      else lines.push(pl);
+    });
+  });
+  if (resolvedOrder.length > 0) {
+    const orderByClause = resolvedOrder.map((o) => `${o.name} ${o.direction === "desc" ? "DESCENDING" : "ASCENDING"}`).join(", ");
+    lines.push(`ORDER BY ${orderByClause}`);
+  }
+  const statement = lines.join("\n");
+  statement.split("\n").forEach((line, i) => {
+    if (line.length > PREVIEW_SQL_LINE_MAX) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated preview query line ${i + 1} is ${line.length} chars, over the freestyle endpoint's ${PREVIEW_SQL_LINE_MAX}-char request-body line limit \u2014 the request body wraps at that width, so a longer line would be corrupted on the wire.`,
+        { line: i + 1, length: line.length }
+      );
+    }
+  });
+  return statement;
+}
+
 // src/adt/datapreview.ts
 var PLAIN_NAME_RE = /^[A-Z][A-Z0-9_]{0,29}$/;
 var NAMESPACED_NAME_RE = /^\/[A-Z0-9_]{1,10}\/[A-Z0-9_]{1,30}$/;
@@ -120314,7 +120659,15 @@ function parsePreviewBody(body) {
     const parsed = Number.parseInt(totalRowsRaw, 10);
     if (Number.isFinite(parsed)) totalRows = parsed;
   }
-  return { columns, rows, messages, ...totalRows === void 0 ? {} : { totalRows } };
+  const executedQueryStringRaw = table.executedQueryString;
+  const executedQueryString = typeof executedQueryStringRaw === "string" && executedQueryStringRaw.trim() !== "" ? executedQueryStringRaw : void 0;
+  return {
+    columns,
+    rows,
+    messages,
+    ...totalRows === void 0 ? {} : { totalRows },
+    ...executedQueryString === void 0 ? {} : { executedQueryString }
+  };
 }
 function classifyPreviewFailure(e, ctx) {
   const err = translateAdtError(e, ctx);
@@ -120339,6 +120692,38 @@ function classifyPreviewFailure(e, ctx) {
   }
   return err;
 }
+function classifyFilteredPreviewFailure(e, ctx, sql) {
+  const err = classifyPreviewFailure(e, ctx);
+  if (err.code !== "ADT_ERROR") {
+    return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+  }
+  const message = err.message;
+  if (/client field .* cannot be specified in the where condition/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "The read is already scoped to the logon client \u2014 drop the where condition on the client field."
+    );
+  }
+  if (/like condition can only be used with character-like fields/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
+    );
+  }
+  if (/from the order by clause is missing in the select list/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "With distinct, every order_by field must also appear in columns."
+    );
+  }
+  return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+}
 async function previewDdicEntity(conn, input) {
   const table = normaliseEntityName(input.table);
   if (!isValidDdicEntityName(table)) {
@@ -120346,7 +120731,7 @@ async function previewDdicEntity(conn, input) {
       "BAD_INPUT",
       `'${String(input.table)}' is not a valid DDIC table or view name.`,
       { table: String(input.table) },
-      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity \u2014 it has no WHERE clause and accepts no SQL."
+      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity; narrow it with the structured where/columns/order_by parameters, never with SQL text."
     );
   }
   const { maxRows } = input;
@@ -120359,22 +120744,72 @@ async function previewDdicEntity(conn, input) {
     );
   }
   const ctx = { operation: "read", name: table, type: "TABL/DT" };
-  let body;
+  if (isEmptyFilter(input.filter)) {
+    let body2;
+    try {
+      const resp = await conn.dataPreviewDdic(table, maxRows);
+      body2 = resp.body;
+    } catch (e) {
+      throw classifyPreviewFailure(e, ctx);
+    }
+    const { columns: columns2, rows: rows2, messages: messages2 } = parsePreviewBody(body2);
+    const moreRowsExist2 = rows2.length > maxRows;
+    return {
+      table,
+      columns: columns2,
+      rows: moreRowsExist2 ? rows2.slice(0, maxRows) : rows2,
+      rowsRequested: maxRows,
+      moreRowsExist: moreRowsExist2,
+      messages: messages2
+    };
+  }
+  const filter = input.filter;
+  assertFilterShape(filter);
+  let probeBody;
   try {
-    const resp = await conn.dataPreviewDdic(table, maxRows);
-    body = resp.body;
+    const probeResp = await conn.dataPreviewDdic(table, 1);
+    probeBody = probeResp.body;
   } catch (e) {
     throw classifyPreviewFailure(e, ctx);
   }
-  const { columns, rows, messages } = parsePreviewBody(body);
-  const moreRowsExist = rows.length > maxRows;
+  const probe3 = parsePreviewBody(probeBody);
+  if (probe3.columns.length === 0) {
+    const firstMessage = probe3.messages[0];
+    if (firstMessage) {
+      throw new AbapError(
+        "ADT_ERROR",
+        `${table} answered with no columns: "${firstMessage.text}" (severity ${firstMessage.severity || "unstated"}).`,
+        { table, messages: probe3.messages },
+        "This entity does not support a filtered preview the way a plain table does \u2014 see the server's own message above."
+      );
+    }
+    throw new AbapError(
+      "NOT_FOUND",
+      `No DDIC table or view named ${table} exists on this system, or it has no columns to filter.`,
+      { table },
+      "Check the spelling, or look the object up first."
+    );
+  }
+  const sql = renderPreviewSelect(table, filter, probe3.columns);
+  let body;
+  try {
+    const resp = await conn.dataPreviewFreestyle(sql, maxRows);
+    body = resp.body;
+  } catch (e) {
+    throw classifyFilteredPreviewFailure(e, ctx, sql);
+  }
+  const { columns, rows, messages, totalRows, executedQueryString } = parsePreviewBody(body);
+  const moreRowsExist = totalRows !== void 0 ? totalRows > rows.length : rows.length > maxRows;
   return {
     table,
     columns,
-    rows: moreRowsExist ? rows.slice(0, maxRows) : rows,
+    rows,
     rowsRequested: maxRows,
     moreRowsExist,
-    messages
+    messages,
+    statement: sql,
+    ...executedQueryString === void 0 ? {} : { executedQueryString },
+    ...totalRows === void 0 ? {} : { totalRows }
   };
 }
 
@@ -120479,15 +120914,15 @@ function assertInList(values, what) {
   }
   return values;
 }
-var IN_LIST_ITEMS_PER_LINE = 5;
-function inPredicate(column, literals) {
-  if (literals.length <= IN_LIST_ITEMS_PER_LINE) {
+var IN_LIST_ITEMS_PER_LINE2 = 5;
+function inPredicate2(column, literals) {
+  if (literals.length <= IN_LIST_ITEMS_PER_LINE2) {
     return `${column} IN (${literals.join(", ")})`;
   }
   const lines = [`${column} IN (`];
-  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE) {
-    const chunk2 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE).join(", ");
-    const isLast = i + IN_LIST_ITEMS_PER_LINE >= literals.length;
+  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE2) {
+    const chunk2 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE2).join(", ");
+    const isLast = i + IN_LIST_ITEMS_PER_LINE2 >= literals.length;
     lines.push(`  ${chunk2}${isLast ? "" : ","}`);
   }
   lines.push(")");
@@ -120496,7 +120931,7 @@ function inPredicate(column, literals) {
 function inClause(column, values, what, assertValue) {
   const checked = assertInList(values, what);
   const literals = checked.map((v) => sqlLiteral(assertValue(v, what)));
-  return inPredicate(column, literals);
+  return inPredicate2(column, literals);
 }
 function afterPredicate(column, after, assertValue) {
   if (after === void 0) return void 0;
@@ -121832,7 +122267,7 @@ function nextHint(table) {
   if (table === void 0) {
     return "next: no single table resolved, so there is nothing to hand abap_data_preview.";
   }
-  return `next: read the entries with abap_data_preview {"table":"${table}"}. That tool is registered only when ABAP_ALLOW_DATA_PREVIEW=true, refuses on a system that is not proven non-productive, has no WHERE filter (it returns the first N rows of the whole table), and denies a built-in list of tables (src/safety.ts).`;
+  return `next: read the entries with abap_data_preview {"table":"${table}"}. That tool is registered only when ABAP_ALLOW_DATA_PREVIEW=true, refuses on a system that is not proven non-productive, denies a built-in list of tables (src/safety.ts), and accepts a structured \`where\` filter checked against the entity's own column list.`;
 }
 function nullableCount(n) {
   return n === null ? "" : String(n);
@@ -127191,6 +127626,31 @@ var dataPreviewInputSchema = {
   object: external_exports.string().optional().describe("Alias for table; table wins if both are given."),
   max_rows: external_exports.number().int().optional().describe(
     `Rows to return, clamped to the server's ceiling (clamp reported in the response). At least 1 \u2014 0 is refused, never read as "default".`
+  ),
+  where: external_exports.array(
+    external_exports.object({
+      field: external_exports.string().describe("DDIC field name, checked against the entity's own column list before anything is sent."),
+      op: external_exports.enum(PREVIEW_OPS).describe(
+        "Comparison operator: eq/ne/lt/le/gt/ge compare one typed value; like matches an SQL pattern (% = any run, _ = one character, # = escape character); in matches any of an array of values; is_null takes no value at all."
+      ),
+      value: external_exports.union([external_exports.string(), external_exports.number(), external_exports.array(external_exports.union([external_exports.string(), external_exports.number()]))]).optional().describe(
+        "Required for every op except is_null (which must omit it); an array only for op=in. Always rendered as a typed literal for the field's DDIC type \u2014 never concatenated as text."
+      )
+    })
+  ).optional().describe(
+    "Structured filter conditions, ANDed together (no OR, no free text). This does not widen what the technical user may read \u2014 the same S_TABU_* authorisations still apply to every row."
+  ),
+  columns: external_exports.array(external_exports.string()).optional().describe("Project only these DDIC fields, in this order, instead of every column on the entity."),
+  order_by: external_exports.array(
+    external_exports.object({
+      field: external_exports.string().describe("DDIC field name to sort by."),
+      direction: external_exports.enum(["asc", "desc"]).optional().describe('Sort direction; defaults to "asc" when omitted.')
+    })
+  ).optional().describe(
+    "Sort order, applied in array order (first field is the primary sort key). Required for keyset paging: order on a key and add a `gt`/`lt` where-condition on the last value seen."
+  ),
+  distinct: external_exports.boolean().optional().describe(
+    "Suppress duplicate rows. Requires every order_by field to also appear in columns \u2014 otherwise the sort key would not be part of what distinctness is computed over."
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
@@ -127218,6 +127678,7 @@ function renderPreview2(result, requested, maxChars) {
     });
     return rec;
   });
+  const filtered = result.statement !== void 0;
   const notes = [];
   if (result.rowsRequested < requested) {
     notes.push(
@@ -127225,8 +127686,9 @@ function renderPreview2(result, requested, maxChars) {
     );
   }
   if (result.moreRowsExist) {
+    const trueCount = result.totalRows !== void 0 && result.totalRows > result.rows.length ? ` The server reports ${result.totalRows} row(s) actually match \u2014 a firmer count than "more exist."` : "";
     notes.push(
-      `INCOMPLETE: ${result.table} holds more rows than the ${result.rowsRequested} shown. This is the first N rows in the table's own order, NOT a sample and NOT the whole table \u2014 do not conclude anything about rows you have not seen. There is no paging parameter and no WHERE clause on this tool; raise max_rows (up to the ceiling) or narrow the question another way.`
+      `INCOMPLETE: ${result.table} holds more rows than the ${result.rowsRequested} shown.${trueCount} This is the first N rows in the table's own order, NOT a sample and NOT the whole table \u2014 do not conclude anything about rows you have not seen. There is no offset/paging parameter, but you can narrow with \`where\`, project with \`columns\`, raise max_rows (up to the ceiling), or page by ordering on a key with \`order_by\` and adding a \`gt\` \`where\` condition on the last value you saw.`
     );
   }
   for (const m of result.messages) {
@@ -127237,11 +127699,22 @@ function renderPreview2(result, requested, maxChars) {
   }
   if (result.rows.length === 0) {
     notes.push(
-      result.messages.length === 0 ? `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a genuinely empty result, not a failure and not a truncation.` : (
+      result.messages.length !== 0 ? (
         // Replaces a bug where a parameterised CDS view's 200/0-col/0-row/"I" response was misread as a genuine empty table.
         `NOT READ: ${result.table} returned no rows, but that is NOT evidence it is empty. The server refused or curtailed the read in-band and said so in the message above. Do NOT conclude anything about the contents of ${result.table} from this response.`
-      )
+      ) : filtered ? `EMPTY: no row in ${result.table} matched the where filter. That is NOT evidence ${result.table} itself is empty \u2014 only that nothing satisfied the condition(s). The rendered statement is in STATEMENT above.` : `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a genuinely empty result, not a failure and not a truncation.`
     );
+  }
+  const sections = [];
+  if (result.columns.length) {
+    sections.push({ title: "COLUMNS (* = key)", content: columnSummary(result) });
+  }
+  if (filtered) {
+    const statementLines = [`sent: ${result.statement}`];
+    if (result.executedQueryString !== void 0) {
+      statementLines.push(`server compiled: ${result.executedQueryString}`);
+    }
+    sections.push({ title: "STATEMENT", content: statementLines.join("\n") });
   }
   return buildResponse({
     header: {
@@ -127249,9 +127722,11 @@ function renderPreview2(result, requested, maxChars) {
       columns: result.columns.length,
       rows_shown: result.rows.length,
       rows_requested: result.rowsRequested,
-      more_rows_exist: result.moreRowsExist
+      more_rows_exist: result.moreRowsExist,
+      filtered,
+      total_rows: result.totalRows
     },
-    sections: result.columns.length ? [{ title: "COLUMNS (* = key)", content: columnSummary(result) }] : [],
+    sections,
     body: rows.length ? textTable(rows, keys) : "(no rows)",
     bodyLabel: "ROWS",
     notes,
@@ -127265,7 +127740,7 @@ function registerDataPreviewTools(mcp, deps) {
     "abap_data_preview",
     {
       title: "Preview DDIC table data",
-      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. No WHERE/JOIN/aggregate; a name, not a statement. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused.`,
+      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused.`,
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -127298,13 +127773,23 @@ function registerDataPreviewTools(mcp, deps) {
           );
         }
         const effective = Math.min(requested, ceiling);
+        const filter = {
+          ...a.where === void 0 ? {} : { where: a.where },
+          ...a.columns === void 0 ? {} : { columns: a.columns },
+          ...a.order_by === void 0 ? {} : { orderBy: a.order_by },
+          ...a.distinct === void 0 ? {} : { distinct: a.distinct }
+        };
         const result = await deps.pool.withRead(
           "abap_data_preview",
-          (conn) => previewDdicEntity(conn, { table, maxRows: effective })
+          (conn) => previewDdicEntity(conn, {
+            table,
+            maxRows: effective,
+            ...isEmptyFilter(filter) ? {} : { filter }
+          })
         );
         const res = renderPreview2(result, requested, deps.cfg.maxResponseChars);
         audit(
-          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist}`
+          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist} filtered=${result.statement !== void 0}` + (result.totalRows === void 0 ? "" : ` total_rows=${result.totalRows}`)
         );
         return ok17(res.text);
       } catch (e) {

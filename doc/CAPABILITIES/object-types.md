@@ -207,9 +207,11 @@ The `Object` column values are the registry `label` fields, unreworded.
   was not blocked live by a surviving index (round 1); a later cleanup
   deleted a base table while its indexes' `DD12V` rows may still have
   existed, and whether the delete cascaded them away or left them orphaned
-  is unverified — `abap_data_preview` has no `WHERE` filter, so a targeted
-  `DD12V` check was not practical. The transportable-package path is
-  unexercised.
+  is unverified — at the time `abap_data_preview` carried no `WHERE` filter,
+  so a targeted `DD12V` check was not practical. It now takes a structured
+  filter (issue #73), so such a check is possible, but this round's outcome
+  was never re-checked and stays unverified. The transportable-package path
+  is unexercised.
 - `ENHO/XH`, `ENHO/XHH`, `ENHS/XS` — created and deleted by `abap_enh`, not
   by `abap_write`; `abap_write` with `op: "delete"` refuses all three.
   Enhancement writes are double-gated on the `allowEnhancements` and

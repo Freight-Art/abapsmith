@@ -45,16 +45,18 @@ one table). That tool is a separate, much more restricted surface:
 - Registered only when `ABAP_ALLOW_DATA_PREVIEW=true` — off by default.
 - Refuses outright on a system that reports itself productive, or that
   cannot be proven otherwise.
-- **Has no WHERE filter of any kind.** A preview is always the first N rows
-  of the whole table, full stop.
+- Takes a structured filter — `where` (ANDed `{field, op, value}`
+  conditions), `columns` (projection), `order_by`, and `distinct` — so a
+  targeted lookup ("find the row for company code 1000") is practical
+  without pulling the whole table. It still takes no raw SQL or WHERE-clause
+  text from a caller; see `doc/TOOLS/diagnostics.md` for the parameter
+  shapes and the typed-literal rendering behind them.
+- Still no `JOIN`, no aggregate function, and no offset/paging parameter —
+  page by ordering on a key field and adding a `gt` condition on the last
+  value seen. One entity per call, and a filtered read costs one extra
+  probe request (to learn the entity's column list) before the actual read.
 - Denies a built-in list of tables (credentials, payroll/HR, accounting
   documents, and personal data) that no setting can shrink.
-
-That "first N rows, no filter" limit means `abap_data_preview` is **useless**
-for a table with millions of rows and a targeted question ("find the entry
-for company code 1000") — it will hand back an arbitrary early slice, not
-the row you want. It answers "what does this table's structure/first rows
-look like", not "what is this specific customizing value".
 
 To **change** a resolved table's rows, use `abap_img_edit`, not this tool —
 see `abapsmith-maintain-img-customizing`. It takes the same
