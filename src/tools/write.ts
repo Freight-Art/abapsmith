@@ -436,6 +436,23 @@ function transportNote(t: TransportInfo, abapMode?: string): string {
 }
 
 /**
+ * Replaces `transportNote` for a delete whose lock named a DIFFERENT request
+ * than the one this DELETE sent — `transportNote`'s "that is the number this
+ * write sent, after the safety gate approved it" clause is false in that
+ * case: the number the gate approved was NOT the number CTS recorded the
+ * deletion on, and this note says so instead of repeating the false claim.
+ */
+function corrNrNotHonouredNote(sent: string, recorded: string, type: string, name: string): string {
+  return (
+    `corr_nr ${sent} was not used: ${type} ${name} was locked by transport request ${recorded}, ` +
+    `and CTS recorded the deletion there. ${sent} is the number this DELETE sent on the wire; SAP ` +
+    "records a change on the request that already holds the object, and a second request cannot " +
+    "take it over. abapsmith did NOT re-read either request to confirm what is in it. To get the " +
+    `entry off ${recorded}, use abap_transport operation removeObject (ABAP_MODE=admin).`
+  );
+}
+
+/**
  * Short form of `TransportInfo` for the response header (`transportNote`
  * above carries the full explanation in `notes`). Same three-way switch on
  * `status` as `transportNote`.
@@ -1458,6 +1475,7 @@ export async function abapWrite(
         deleted: res.deleted,
         markers: res.markers?.join(" "),
         transport: transportHeaderText(res.transport),
+        ...(res.corrNrHonoured === false ? { corr_nr_honoured: false } : {}),
         journal: journalled ? entryId : "off (nothing recorded)",
       },
       notes: [
@@ -1481,10 +1499,16 @@ export async function abapWrite(
                 "after re-reading TDEVC once COMMIT WORK returns — not from a clean return alone.",
             ]
           : []),
-        // Package delete + real transport only; see packageDeleteTransportNote.
-        isPackageDelete && res.transport.status === "transport" && res.transport.corrNr !== undefined
-          ? packageDeleteTransportNote(res.transport.corrNr)
-          : transportNote(res.transport, gate.config?.abapMode),
+        // Three mutually exclusive cases, checked in order: (1) the caller's corr_nr was
+        // auto-resolved onto a DIFFERENT request than the lock named, so the ordinary
+        // transport note's "that is the number this write sent" claim would be false —
+        // corrNrNotHonouredNote replaces it rather than sitting alongside it; (2) package
+        // delete + real transport, see packageDeleteTransportNote; (3) the ordinary case.
+        res.corrNrHonoured === false && res.corrNrSent !== undefined && res.transport.corrNr !== undefined
+          ? corrNrNotHonouredNote(res.corrNrSent, res.transport.corrNr, res.target.type, res.target.name)
+          : isPackageDelete && res.transport.status === "transport" && res.transport.corrNr !== undefined
+            ? packageDeleteTransportNote(res.transport.corrNr)
+            : transportNote(res.transport, gate.config?.abapMode),
         // The verification could not settle either way — the DELETE was
         // accepted, but abapsmith cannot say whether the object is actually
         // gone. Only reachable when res.deleted === "unverified" (the
@@ -2350,6 +2374,15 @@ export interface ObjectDeleteOutcome {
   readonly journalEntry?: string;
   /** Set only on a failed delete (`ok: false`), including a contradicted (`deleted: false`) one. */
   readonly error?: { readonly code: string; readonly message: string };
+  /** The number this object's DELETE actually sent as `corrNr`; absent when it sent none. */
+  readonly corrNrSent?: string;
+  /**
+   * The request the lock named, which is where CTS recorded the deletion — set whenever
+   * `corrNrSent` is set and the lock named a request, whether or not the two agree.
+   */
+  readonly corrNrRecorded?: string;
+  /** `false` when `corrNrSent` and `corrNrRecorded` differ. The batch never names a `corr_nr` of its own, so this can only fire on auto-resolution. */
+  readonly corrNrHonoured?: boolean;
 }
 
 /**
@@ -2564,6 +2597,9 @@ export async function abapWriteBatchDelete(
             message: `${deleteNotConfirmedSentence(res.target.type, res.target.name, res.verification)}.`,
           },
           ...(entryId !== undefined ? { journalEntry: entryId } : {}),
+          ...(res.corrNrSent !== undefined ? { corrNrSent: res.corrNrSent } : {}),
+          ...(res.transport.corrNr !== undefined ? { corrNrRecorded: res.transport.corrNr } : {}),
+          ...(res.corrNrHonoured !== undefined ? { corrNrHonoured: res.corrNrHonoured } : {}),
         });
       } else {
         outcomes.push({
@@ -2573,6 +2609,9 @@ export async function abapWriteBatchDelete(
           ok: true,
           deleted: res.deleted,
           ...(entryId !== undefined ? { journalEntry: entryId } : {}),
+          ...(res.corrNrSent !== undefined ? { corrNrSent: res.corrNrSent } : {}),
+          ...(res.transport.corrNr !== undefined ? { corrNrRecorded: res.transport.corrNr } : {}),
+          ...(res.corrNrHonoured !== undefined ? { corrNrHonoured: res.corrNrHonoured } : {}),
         });
       }
     } catch (e) {
@@ -2617,10 +2656,17 @@ export async function abapWriteBatchDelete(
       const journalSuffix = o.journalEntry
         ? ` — journalled as ${o.journalEntry}`
         : " — NOT journalled (irreversible)";
+      // Only reachable via auto-resolution (the batch never names its own corr_nr), but
+      // still worth flagging per-object: the caller may not otherwise learn that CTS
+      // recorded this one on a different request than the one abapsmith resolved.
+      const corrNrSuffix =
+        o.corrNrHonoured === false && o.corrNrSent && o.corrNrRecorded
+          ? ` (corr_nr ${o.corrNrSent} was not used — ${o.name} was locked by ${o.corrNrRecorded} and CTS recorded the deletion there)`
+          : "";
       return o.deleted === "unverified"
         ? `${o.type} ${o.name}: deleted (UNVERIFIED — abapsmith could not confirm the object is ` +
-            `actually gone)${journalSuffix}`
-        : `${o.type} ${o.name}: deleted${journalSuffix}`;
+            `actually gone)${journalSuffix}${corrNrSuffix}`
+        : `${o.type} ${o.name}: deleted${journalSuffix}${corrNrSuffix}`;
     })
     .join("\n");
 
@@ -2652,6 +2698,9 @@ export async function abapWriteBatchDelete(
           ok: o.ok,
           deleted: o.deleted,
           ...(o.journalEntry !== undefined ? { journalEntry: o.journalEntry } : {}),
+          ...(o.corrNrSent !== undefined ? { corrNrSent: o.corrNrSent } : {}),
+          ...(o.corrNrRecorded !== undefined ? { corrNrRecorded: o.corrNrRecorded } : {}),
+          ...(o.corrNrHonoured !== undefined ? { corrNrHonoured: o.corrNrHonoured } : {}),
           error: o.error,
         })),
         body,

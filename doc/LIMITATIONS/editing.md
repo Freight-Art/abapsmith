@@ -77,6 +77,24 @@
   / `program` field descriptions say so up front (`src/tools/write.ts`); the
   registry documents it structurally too (`BRIDGE_DELETABLE_TYPES`,
   `src/adt/capabilities.ts`).
+- **A delete is recorded on the request that already holds the object, not
+  on the `corr_nr` you name.** SAP's CTS records a change against the
+  request that holds the object's lock entry; a second request cannot take
+  over that entry. Splitting create and delete across two requests to avoid
+  a duplicate E071 row therefore does not work — the deletion lands back in
+  the creating request regardless of what `corr_nr` names. abapsmith no
+  longer hides this: `src/adt/write.ts` compares the lock's `CORRNR` with
+  the number the `DELETE` would send and refuses (`TRANSPORT_ERROR`,
+  `details.reason: CORR_NR_NOT_HONOURED`) when the caller named the request,
+  or reports `corr_nr_honoured: false` and names both requests when the
+  request was auto-resolved. Observed live on A4H during v0.4.0 general
+  verification: an object created under one request was deleted with a
+  second, empty request passed as `corr_nr`, and `abap_transport show`
+  afterwards found the object's row on the creating request and nothing on
+  the other. The `removeObject` remedy for separating the two has its own
+  limitation — CTS refuses it once the request already holds two or more
+  E071 rows for the object — described above in the `VIEW/DV`/`TRAN/T`
+  delete bullet.
 - **A failed create can still leave an empty object behind, but not silently.**
   `writeObject` creates the object shell, then PUTs its content in a separate
   round trip (`src/adt/write.ts`). A rejected PUT goes through
