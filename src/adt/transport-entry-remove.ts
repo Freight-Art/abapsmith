@@ -94,8 +94,8 @@ export async function removeTransportEntryViaBridge(
         "TRINT_DELETE_COMM_OBJECT_KEYS counts the request's E071 rows matching PGMID+OBJECT+OBJ_NAME " +
           "and raises w_duplicate_entry (message TR 292) at two or more; TR_DELETE_COMM_OBJECT_KEYS has " +
           "no parameter naming which AS4POS to drop, and the guard has no bypass. E071's key is " +
-          "TRKORR+AS4POS, so the duplicate rows are legal and usually come from creating and then " +
-          "deleting the same object under one request. SE03's \"Unlock Objects (Expert Tool)\" does " +
+          "TRKORR+AS4POS, so the duplicate rows are legal — abapsmith cannot say what produced " +
+          "them here. SE03's \"Unlock Objects (Expert Tool)\" does " +
           "NOT fix this on its own — the refusal counts E071 rows, not locks. The remedy is outside " +
           "abapsmith: edit the request's object list in SE09/SE10 so at most one row remains for the " +
           "object, then retry removeObject; or release the request, which is irreversible.",

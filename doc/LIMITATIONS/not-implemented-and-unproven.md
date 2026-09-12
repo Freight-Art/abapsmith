@@ -33,8 +33,11 @@ qualified by activity or AS4POS — before touching anything: zero rows raises
 `n_object_entry_doesnt_exist` (`MESSAGE e101(tr)`), two or more raises
 `w_duplicate_entry` (`MESSAGE e292(tr)`), and only the exactly-one case
 proceeds. E071's primary key is TRKORR+AS4POS, not object identity, so two
-rows for the same object on one request are legal — creating an object and
-then deleting it under the same request is enough to record both. Censused
+rows for the same object on one request are legal, and have been observed
+live — but the obvious way to try to produce them does not: on A4H
+(2026-09-12), a request holding a create and a delete of the same class held
+one E071 row, not two, and `removeObject` succeeded with `removedCount: 1`.
+abapsmith does not know what reliably produces duplicate rows. Censused
 live on A4H, 2026-09-05: two stuck fixture tasks each turned out
 to hold exactly two E071 rows for their object (same pgmid/object/obj_name,
 activity blank, lockflag X, differing only by AS4POS), no E071K rows, and
@@ -54,11 +57,14 @@ when CTS set one, the `sy-msg*` T100 message, as a `msg=` fragment on the
 since `MESSAGE e292(tr)` carries no WITH operands.
 
 **Duplicate E071 entries for one object: no working function-module route to
-clear them.** You get into this by creating an object and then deleting it
-under the same transport request as `corr_nr`: CTS keeps both the creation's
-E071 row and the deletion's, and `TR_DELETE_COMM_OBJECT_KEYS` refuses to
-touch either while both are present (above). The request can then never be
-deleted through abapsmith: `abap_transport operation=delete` keeps returning
+clear them.** How a request ends up holding two E071 rows for the same
+object is not established. The obvious recipe — create an object, then
+delete it under the same transport request as `corr_nr` — was tried live on
+A4H on 2026-09-12 and produced one E071 row, not two; `removeObject` removed
+it cleanly. When a request does hold two rows for one object,
+`TR_DELETE_COMM_OBJECT_KEYS` refuses to touch either while both are present
+(above). The request can then never be deleted through abapsmith:
+`abap_transport operation=delete` keeps returning
 `TRANSPORT_LOCKED`, and `operation=removeObject` now refuses up front with
 `CTS_DUPLICATE_ENTRY` instead of attempting a call CTS is going to reject.
 No supported function-module route removes just one of the two rows:

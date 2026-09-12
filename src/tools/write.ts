@@ -215,7 +215,10 @@ export const writeInputSchema = {
       "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a " +
         "transportable package; optional for a VIEW/DV create, which resolves one under " +
         "ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T " +
-        "delete. TABL/DI delete: same package-derived requirement as its create, not refused.",
+        "delete. TABL/DI delete: same package-derived requirement as its create, not refused. " +
+        "If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: " +
+        "mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused " +
+        "outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing.",
     ),
   software_component: z.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: z.string().optional().describe("DEVC/K only. Default development."),
@@ -449,6 +452,27 @@ function corrNrNotHonouredNote(sent: string, recorded: string, type: string, nam
     "records a change on the request that already holds the object, and a second request cannot " +
     "take it over. abapsmith did NOT re-read either request to confirm what is in it. To get the " +
     `entry off ${recorded}, use abap_transport operation removeObject (ABAP_MODE=admin).`
+  );
+}
+
+/**
+ * Replaces `transportNote` for a WRITE whose caller named one `corr_nr` while
+ * CTS already had the object in another. `transportNote`'s "that is the
+ * number this write sent, after the safety gate approved it" is true of
+ * `used` but would let the caller believe their own number was honoured, so
+ * this says both numbers instead. Unlike a delete, the write is NOT refused:
+ * the object can only be recorded in the request that already holds it, and
+ * the PUT succeeded there.
+ */
+function corrNrOverriddenWriteNote(named: string, used: string, type: string, name: string): string {
+  return (
+    `corr_nr ${named} was overridden: ${type} ${name} is already recorded in transport request ` +
+    `${used}, so CTS records this change there and that is the number this write sent on the ` +
+    `wire — the safety gate judged ${used}, not ${named}. The write itself was NOT refused; a ` +
+    "transportable object can only be recorded in the request that already holds it. abapsmith " +
+    "did NOT re-read either request to confirm what is in it. To move the object off " +
+    `${used}, use abap_transport operation removeObject (ABAP_MODE=admin) first, then retry. ` +
+    "(A mode=delete in this situation IS refused — a delete's request cannot be redirected at all.)"
   );
 }
 
@@ -2048,7 +2072,11 @@ export async function abapWrite(
 
   // NOTE: `wantActivate && !check.ok` is unreachable here — it throws in the try block
   // above (G-05), so getting this far means either activation ran or activate=false.
-  const notes: string[] = [transportNote(written.transport, gate.config?.abapMode)];
+  const notes: string[] = [
+    written.corrNrOverrode !== undefined && written.corrNrSent !== undefined
+      ? corrNrOverriddenWriteNote(written.corrNrOverrode, written.corrNrSent, written.target.type, written.target.name)
+      : transportNote(written.transport, gate.config?.abapMode),
+  ];
   // Quote the resolver's own account of the transport decision, but only when its
   // trkorr provably matches the one this write actually used — a stale or
   // unrelated lastAutoDecision must never be attributed to this write.
@@ -2310,6 +2338,7 @@ export async function abapWrite(
       etag: finalEtag,
       previousEtag: written.previousEtag,
       transport: transportHeaderText(written.transport),
+      ...(written.corrNrOverrode !== undefined ? { corr_nr_honoured: false } : {}),
       check: propertiesShape
         ? "n/a (XML descriptor — validated by the server on write)"
         : check.ok

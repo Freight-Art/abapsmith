@@ -160,6 +160,15 @@ export type SessionTrResolution =
       readonly pinned: boolean;
       readonly source: SessionTrSource;
       readonly reason: string;
+      /**
+       * Set only when the caller named a `corr_nr` and the server imposed a
+       * DIFFERENT request (`source: "server-pin"`): the number the caller
+       * asked for, which this resolution overrode. Downstream callers need
+       * both numbers — the resolved `corrNr` is what goes on the wire, this
+       * is what the caller believed they were writing to. Absent everywhere
+       * else, including when the caller's number and the pin agree.
+       */
+      readonly overrodeCorrNr?: string;
     }
   | {
       readonly outcome: "denied";
@@ -328,6 +337,7 @@ function granted(
   corrNr: string,
   source: SessionTrSource,
   reason: string,
+  overrodeCorrNr?: string,
 ): SessionTrResolution {
   return {
     outcome: "transport",
@@ -336,6 +346,7 @@ function granted(
     pinned: source === "server-pin" || source === "config-pin",
     source,
     reason,
+    ...(overrodeCorrNr !== undefined ? { overrodeCorrNr } : {}),
   };
 }
 
@@ -765,14 +776,19 @@ export class SessionTransport implements SessionTrOwner {
     // Owner matches, or we cannot establish the connected user. Either way the
     // object is already in that request, so it is the only possible answer —
     // this is SAP imposing a request on us, not us adopting one.
-    const note =
-      wanted !== undefined && wanted !== pinnedTo.toUpperCase()
-        ? ` (overriding the requested ${wanted})`
-        : "";
+    //
+    // The caller asked for a different request than the one CTS already has
+    // the object in. The pin still wins — that is CTS's call, not ours — but
+    // the number the caller named is carried out of here rather than only
+    // being mentioned in prose: `preflightCorr` refuses deletes on it.
+    const overrode =
+      wanted !== undefined && wanted !== pinnedTo.toUpperCase() ? wanted : undefined;
+    const note = overrode !== undefined ? ` (overriding the requested ${overrode})` : "";
     return granted(
       pinnedTo,
       "server-pin",
       `${obj.name ?? obj.uri} is already recorded in request ${pinnedTo} — imposed by the server${note}.`,
+      overrode,
     );
   }
 

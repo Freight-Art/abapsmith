@@ -283,6 +283,13 @@ export type GatedCorr =
        * synthesising a fabricated "auto".
        */
       readonly source: "named" | "auto";
+      /**
+       * The `corr_nr` the caller named and the server overrode (see
+       * `SessionTrResolution.overrodeCorrNr`). Present only on the
+       * report-only PUT path — a delete with this set is refused inside
+       * `preflightCorr` and never reaches a `GatedCorr`.
+       */
+      readonly overrodeCorrNr?: string;
     };
 
 /** The one and only `local` value — there is nothing to vary. No brand needed: it type-checks as either `WriteCorr` or `GatedCorr`. */
@@ -358,6 +365,21 @@ export interface WriteResult {
    * would double the cost of every write for no new information.
    */
   previousSource?: string;
+  /**
+   * The `corr_nr` this PUT actually sent — the gate-approved, resolved
+   * number. Present only when the write was transportable.
+   */
+  corrNrSent?: string;
+  /**
+   * The `corr_nr` the CALLER named, when CTS overrode it because the object
+   * is already recorded in `corrNrSent` (see
+   * `SessionTrResolution.overrodeCorrNr`). Report-only: unlike a delete, a
+   * PUT is not refused for this — the write is recorded in the request that
+   * holds the object, which is the only request it could go in — but the
+   * tool response must say so rather than claim the caller's number was
+   * "the number this write sent".
+   */
+  corrNrOverrode?: string;
 }
 
 /**
@@ -1749,9 +1771,34 @@ export async function preflightCorr(
           : undefined,
     },
   );
+  // CTS already records this object in `res.corrNr` and the caller named a
+  // different request. A PUT can still be redirected (it reports the override
+  // instead — see `WriteResult.corrNrOverrode`), but a DELETE cannot: CTS
+  // records the deletion on the request that already holds the object, full
+  // stop. Refuse here, pre-lock, rather than delete the object and report
+  // afterwards that the caller's number was ignored.
+  if (op === "delete" && res.overrodeCorrNr !== undefined) {
+    throw corrNrNotHonoured(
+      {
+        name: t.name,
+        type: t.type,
+        uri: t.uri,
+        packageName: t.packageName,
+        label: specForType(t.type)?.label ?? t.type,
+      },
+      res.overrodeCorrNr,
+      res.corrNr,
+      "preflight",
+    );
+  }
   // Sole `as GatedCorr` in the codebase — minted here, right after the gate
   // judges the real TRKORR. `source` is the same value just asserted above.
-  return { kind: "transport", corrNr: res.corrNr, source } as GatedCorr;
+  return {
+    kind: "transport",
+    corrNr: res.corrNr,
+    source,
+    ...(res.overrodeCorrNr !== undefined ? { overrodeCorrNr: res.overrodeCorrNr } : {}),
+  } as GatedCorr;
 }
 
 /**
@@ -2164,19 +2211,33 @@ export function transportDivergence(
 }
 
 /**
- * A delete's target request is fixed the moment the object is locked — the
- * lock names `lockCorrNr`, the request CTS records the deletion in, and no
- * retry with a different `corr_nr` changes that (unlike `transportDivergence`,
- * where a PUT hasn't touched the server yet, so retrying with either number
- * still works). `named` is the `corr_nr` this call cannot honour; nothing was
- * deleted and the lock this refusal releases is the only thing that moved.
+ * A delete's target request is fixed earlier than the lock — CTS's
+ * `transportchecks` pre-flight already reports the request the object is
+ * recorded in (`SessionTrResolution.overrodeCorrNr`), before anything is
+ * locked; no retry with a different `corr_nr` changes that (unlike
+ * `transportDivergence`, where a PUT hasn't touched the server yet, so
+ * retrying with either number still works). `named` is the `corr_nr` this
+ * call cannot honour. This refusal fires from two places: pre-lock in
+ * `preflightCorr` (the common case — nothing is enqueued, so `stage:
+ * "preflight"`), and under the lock in `deleteObject` as a belt-and-braces
+ * backstop for the rarer case where the lock reports a request the
+ * pre-flight did not (`stage: "lock"`).
  */
-export function corrNrNotHonoured(t: ResolvedTarget, named: string, lockCorrNr: string): AbapError {
+export function corrNrNotHonoured(
+  t: { name: string; type: string; uri: string; packageName: string; label: string },
+  named: string,
+  lockCorrNr: string,
+  stage: "preflight" | "lock",
+): AbapError {
   return new AbapError(
     "TRANSPORT_ERROR",
-    `${t.spec.label} ${t.name} is locked by transport request ${lockCorrNr}, so CTS would ` +
+    `${t.label} ${t.name} is ${
+      stage === "lock" ? "locked by" : "already recorded in"
+    } transport request ${lockCorrNr}, so CTS would ` +
       `record its deletion there, not in ${named} — the corr_nr this call named cannot be ` +
-      `honoured. Nothing was deleted and the lock was released.`,
+      `honoured. ${
+        stage === "lock" ? "Nothing was deleted and the lock was released." : "Nothing was deleted; no lock was taken."
+      }`,
     {
       name: t.name,
       type: t.type,
@@ -2187,6 +2248,7 @@ export function corrNrNotHonoured(t: ResolvedTarget, named: string, lockCorrNr: 
       corrNrHonoured: false,
       deleted: false,
       reason: "CORR_NR_NOT_HONOURED",
+      stage,
     },
     `CTS records a change on the request that already holds the object; a second request ` +
       `cannot take it over. Delete again with corr_nr ${lockCorrNr} (that number is then ` +
@@ -3027,6 +3089,10 @@ export async function writeObject(
     // Post-lock bytes on the update path (step 4a), the pre-lock read on a
     // create — where they are `undefined` either way.
     previousSource,
+    ...(preflight?.kind === "transport" ? { corrNrSent: preflight.corrNr } : {}),
+    ...(preflight?.kind === "transport" && preflight.overrodeCorrNr !== undefined
+      ? { corrNrOverrode: preflight.overrodeCorrNr }
+      : {}),
   };
 }
 
@@ -4254,7 +4320,12 @@ export async function deleteObject(
         // anything is deleted rather than silently record the change under a
         // request nobody asked for.
         await session.unlock(t.uri);
-        throw corrNrNotHonoured(t, corr.corrNr, divergent);
+        throw corrNrNotHonoured(
+          { name: t.name, type: t.type, uri: t.uri, packageName: t.packageName, label: t.spec.label },
+          corr.corrNr,
+          divergent,
+          "lock",
+        );
       }
       // Nobody chose `corr.corrNr` — it was auto-resolved — so refusing helps
       // no one; CTS is going to record the deletion in `divergent` regardless.

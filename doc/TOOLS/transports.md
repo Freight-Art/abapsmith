@@ -41,8 +41,10 @@ notes on the response call this out.
 
 CTS refuses the underlying call outright when the request's object list
 holds two or more E071 rows for the object's PGMID+OBJECT+OBJ_NAME — legal
-because E071's key is TRKORR+AS4POS, not object identity, so creating an
-object and then deleting it under the same request records two rows for it.
+because E071's key is TRKORR+AS4POS, not object identity. Duplicates have
+been observed live, but not reliably produced: a request holding a create
+and a delete of the same class, tried live on A4H on 2026-09-12, held one
+row, not two, and `removeObject` removed it cleanly (`removedCount: 1`).
 `TR_DELETE_COMM_OBJECT_KEYS` (by way of `TRINT_DELETE_COMM_OBJECT_KEYS`)
 counts those rows before touching anything and raises `w_duplicate_entry`
 (`MESSAGE e292(tr)`) at two or more; exactly one row is the only case that

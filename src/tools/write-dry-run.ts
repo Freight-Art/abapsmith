@@ -52,10 +52,12 @@ function transportPreviewNote(target: ResolvedTarget, input: WriteInputV2): stri
       `A real write would send corr_nr "${input.corr_nr}" and re-judge it against the safety gate's ` +
       "transport allowlist once resolved — a second gate check this dry run did not make." +
       (input.mode === "delete"
-        ? " For a delete, a real call would also refuse outright if the object's lock reports a " +
-          "DIFFERENT request — SAP records a delete on the request that already holds the object, " +
-          "so a corr_nr you name cannot be honoured. This dry run took no lock, so it cannot tell " +
-          "you which request that is."
+        ? " For a delete, a real call would also refuse outright if CTS already records the object " +
+          "in a DIFFERENT request — decided pre-flight, before any lock is taken, so nothing is " +
+          "enqueued and nothing is deleted. SAP records a delete on the request that already holds " +
+          "the object, so a corr_nr you name cannot be honoured. This dry run does not ask CTS, so " +
+          "it cannot tell you which request that is. (A write in the same situation is NOT " +
+          "refused — it proceeds under the request CTS imposes and reports corr_nr_honoured: false.)"
         : "")
     );
   }
