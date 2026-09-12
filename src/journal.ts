@@ -5,7 +5,11 @@
  * before the mutation is attempted, `finish()` appends the outcome after. A
  * crash mid-write leaves a `pending` entry on disk with a readable
  * before-image; `list()`/`listPending()` surface it, and nothing here ever
- * auto-resolves a `pending` entry (see `settle()`).
+ * auto-resolves a `pending` entry (see `settle()`). A human can still close
+ * one deliberately, via `reconcile()`: it records the stated outcome, the
+ * stated reason and who stated it (`JournalEntry.reconciled`), so what the
+ * entry says happened is never confusable with what abapsmith itself
+ * observed happening.
  *
  * ADT does not hand back the bytes it was sent (CRLF→LF, trailing whitespace
  * and ALL trailing newlines stripped — see `canonicalSource()` in
@@ -268,6 +272,15 @@ export interface JournalEntry {
   outcome: JournalOutcome;
   error?: string;
   activation?: { attempted: boolean; activated?: boolean; messages?: string };
+  /**
+   * Set only when a human closed a `pending` entry by hand via `reconcile()`
+   * instead of the entry reaching its outcome the normal way (`settle()`/
+   * `finish()`). Absent — not `null` — on every entry that WAS observed
+   * settling. When present, `outcome` (and, for a reconciled failure,
+   * `error`) is the caller's ASSERTION about what happened, not something
+   * abapsmith itself watched happen; see {@link JournalReconciliation}.
+   */
+  reconciled?: JournalReconciliation;
   /** Set when this entry IS an undo of another entry. */
   undoOf?: string;
   /** Set when this entry HAS BEEN undone by a later entry (that entry's id). */
@@ -431,6 +444,55 @@ export type SettleResult =
       settled: false;
       reason: "disabled" | "unknown-entry" | "not-terminal" | "io-error";
       error?: string;
+    };
+
+/**
+ * Provenance of a `reconcile()`d outcome. A reconciled entry never went
+ * through the lock → PUT → unlock → activate round trip that would let
+ * abapsmith itself witness what happened to it — it was left `pending`,
+ * probably by a crash, and a human is now stating from outside what the
+ * outcome actually was. Every reader of the entry (undo, `abap_journal
+ * mode=list`, a human staring at the JSONL) has to be able to tell that
+ * apart from an outcome abapsmith recorded because it watched it happen —
+ * that is the entire reason this is its own field rather than just setting
+ * `outcome` and leaving no trace of how it got there.
+ */
+export interface JournalReconciliation {
+  /** When the reconciliation was recorded (ISO 8601). */
+  at: string;
+  /** The caller's stated reason, verbatim (trimmed). */
+  reason: string;
+  /** Who said so — `Journal.resolveActor()`. Absent, never a placeholder, same rule as `JournalEntry.actor`. */
+  by?: string;
+}
+
+/**
+ * Input to `Journal.reconcile()`. `pending` is the state being left, so it
+ * is not offered as an outcome to arrive at — same reasoning `settleInner()`
+ * applies to `patch.outcome === "pending"`.
+ */
+export interface JournalReconcileInput {
+  /** The terminal outcome the caller asserts. `pending` is the state being left, so it is not offered. */
+  outcome: "succeeded" | "failed";
+  /** Why the caller asserts it. Required and non-empty — an unexplained reconciliation is indistinguishable from a guess. */
+  reason: string;
+}
+
+/**
+ * The outcome of `reconcile()`. Modelled on `SettleResult` deliberately —
+ * same "say which failure it was" reasoning — with one extra arm:
+ * `already-settled`, because reconcile refuses to overwrite an outcome that
+ * was actually observed. Overwriting it would destroy the only observed
+ * fact the entry carries.
+ */
+export type ReconcileResult =
+  | { reconciled: true; entry: JournalEntry }
+  | {
+      reconciled: false;
+      reason: "disabled" | "unknown-entry" | "already-settled" | "io-error";
+      error?: string;
+      /** The entry as it stands, when there is one (`already-settled`, `io-error`). */
+      entry?: JournalEntry;
     };
 
 export const DEFAULT_MAX_ENTRIES = 200;
@@ -1256,6 +1318,85 @@ export class Journal {
 
     const merged: JournalEntry = { ...existing, ...record };
     return { result: { settled: true, entry: merged }, merged };
+  }
+
+  /**
+   * Close a `pending` entry by hand on an operator's say-so, WITHOUT
+   * abapsmith having observed the outcome and WITHOUT deleting anything —
+   * see `JournalEntry.reconciled`. This is how a false STRANDED entry (see
+   * `STALE_PENDING_MS`, src/tools/journal.ts) gets retired: the crash or
+   * timeout that left it `pending` is not something abapsmith can go back
+   * and watch happen, so a human states what happened instead, and that
+   * statement is recorded as a statement, never dressed up as a fact
+   * abapsmith itself witnessed.
+   *
+   * Deliberately does NOT run under `runExclusive`/the file lock, exactly
+   * like `settleInner()` above — same reasoning, kept in sync by hand so
+   * nobody "fixes" only one of them.
+   */
+  async reconcile(id: string, input: JournalReconcileInput): Promise<ReconcileResult> {
+    if (!this.enabled) return { reconciled: false, reason: "disabled" };
+    assertValidId(id); // a malformed id is a caller bug, not an outcome — same convention as settleInner()
+
+    if (input.outcome !== "succeeded" && input.outcome !== "failed") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Not a valid reconciled outcome: ${JSON.stringify(input.outcome)}. ` +
+          `"pending" is the state a reconciliation LEAVES, not one it can arrive at.`,
+        { outcome: input.outcome },
+        `Pass outcome: "succeeded" or "failed".`,
+      );
+    }
+
+    const reason = input.reason?.trim() ?? "";
+    if (!reason) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "A reconciliation must state why: the reason is the only evidence this entry will ever " +
+          "carry for its asserted outcome.",
+        { id },
+        "Pass a non-empty reason describing how the outcome is known.",
+      );
+    }
+
+    const existing = (await this.readAll()).get(id);
+    if (!existing) return { reconciled: false, reason: "unknown-entry" };
+
+    // reconcile() exists to close entries whose outcome was never recorded.
+    // Overwriting an outcome that WAS recorded would destroy the only
+    // observed fact the entry carries.
+    if (existing.outcome !== "pending") {
+      return { reconciled: false, reason: "already-settled", entry: existing };
+    }
+
+    const actor = this.resolveActor();
+    const reconciled: JournalReconciliation = {
+      at: new Date().toISOString(),
+      reason,
+      ...(actor ? { by: actor } : {}),
+    };
+
+    const record: Patch = { id, outcome: input.outcome, reconciled };
+    // A failed entry's `error` is what went wrong — here that is exactly
+    // what the caller stated, so the reason doubles as the error text.
+    if (input.outcome === "failed") record.error = reason;
+
+    try {
+      await this.append(record);
+    } catch (e) {
+      // Unlike settleInner(), nothing has happened on the server that the
+      // caller now has to be warned about on stderr — no mutation was made
+      // in the moment this call ran. The caller gets a total result and
+      // decides what to do next.
+      return {
+        reconciled: false,
+        reason: "io-error",
+        error: (e as Error).message,
+        entry: { ...existing, ...record },
+      };
+    }
+
+    return { reconciled: true, entry: { ...existing, ...record } };
   }
 
   /**

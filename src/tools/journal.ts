@@ -1,9 +1,11 @@
 /**
  * `abap_journal` — undo/audit trail for writes made through this codebase.
- * Three modes: `list`, `show` (with before-image), `undo` (revert).
+ * Four modes: `list`, `show` (with before-image), `undo` (revert),
+ * `reconcile` (close a stranded `pending` entry with a stated outcome).
  *
- * `list`/`show` are pure local reads — zero network calls, work with the
- * ABAP system unreachable. `undo` is a write and is gated like one.
+ * `list`/`show`/`reconcile` are pure local operations — zero network calls,
+ * work with the ABAP system unreachable; `reconcile` writes only to the
+ * local journal file, never to SAP. `undo` is a write and is gated like one.
  *
  * The tool description below is deliberately verbose (drift rule, force
  * flag) — see the git history.
@@ -31,9 +33,13 @@ import type { SafetyGate } from "../safety.js";
 
 export const journalInputSchema = {
   mode: z
-    .enum(["list", "show", "undo"])
+    .enum(["list", "show", "undo", "reconcile"])
     .optional()
-    .describe("list (default): recent writes. show: one entry incl. its before-image. undo: revert one entry."),
+    .describe(
+      "list (default): recent writes. show: one entry incl. its before-image. undo: revert one " +
+        "entry. reconcile: close a stranded pending entry with an outcome you establish and a " +
+        "stated reason.",
+    ),
   entry: z
     .string()
     .optional()
@@ -58,6 +64,20 @@ export const journalInputSchema = {
         "This OVERWRITES whatever that other change was. Read the object first.",
     ),
   activate: z.boolean().optional().describe("mode=undo: re-activate after restoring. Default true."),
+  outcome: z
+    .enum(["succeeded", "failed"])
+    .optional()
+    .describe(
+      "mode=reconcile: the outcome you are asserting for a `pending` entry. Required. " +
+        "`pending` is the state being left, so it is not offered.",
+    ),
+  reason: z
+    .string()
+    .optional()
+    .describe(
+      "mode=reconcile: how you established that outcome. Required, recorded verbatim on the " +
+        "entry, and the only evidence it will ever carry for the asserted outcome.",
+    ),
 };
 
 export const JournalInput = z.object(journalInputSchema);
@@ -66,7 +86,9 @@ export type JournalInput = z.infer<typeof JournalInput>;
 const shortId = (id: string) => id;
 
 function row(e: JournalEntry): Record<string, string> {
-  const undo = e.undoneBy ? "undone" : e.undoOf ? "is-undo" : "";
+  const flags = [e.undoneBy ? "undone" : e.undoOf ? "is-undo" : undefined, e.reconciled ? "reconciled" : undefined]
+    .filter(Boolean)
+    .join(" ");
   return {
     id: shortId(e.id),
     when: e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z"),
@@ -77,7 +99,7 @@ function row(e: JournalEntry): Record<string, string> {
     capture: e.beforeCapture,
     outcome: e.outcome,
     actor: e.actor ?? "",
-    flags: undo,
+    flags,
   };
 }
 
@@ -259,7 +281,11 @@ export async function abapJournal(
           "mid-write looks like: nobody knows whether those writes landed. They are NOT " +
           "usable undos — abapsmith refuses to undo a pending entry, because it cannot tell " +
           "what to undo. Read each object (abap_read), compare it against " +
-          "abap_journal mode=show, and resolve it deliberately.",
+          "abap_journal mode=show, and resolve it deliberately. Once you have established " +
+          "what actually happened to one of them, close it with abap_journal mode=reconcile " +
+          'entry=<id> outcome=succeeded|failed reason="…" — that records your finding on the ' +
+          "entry and deletes nothing. Entries whose live source settles the question can be " +
+          "classified in bulk by bin/abap-journal-reconcile.",
       );
     }
     if (pendingFresh.length) {
@@ -294,6 +320,137 @@ export async function abapJournal(
       bodyLabel: "WRITES (newest first)",
       notes,
       hints: ["abap_journal mode=show entry=<id> for the recorded source images."],
+      maxChars,
+    });
+  }
+
+  // -------------------------------------------------------- reconcile ----
+  // Deliberately BEFORE `pickEntry()` and never routed through it: reconcile
+  // closes exactly the entry the caller names, never an `object` fallback —
+  // guessing which stranded entry was meant and writing a false outcome into
+  // the audit trail is worse than refusing. Every refusal below is decided
+  // locally, so a bad call costs zero network requests, same as list/show.
+  if (mode === "reconcile") {
+    if (!input.entry) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode=reconcile needs `entry` — the id of the pending entry you are closing.",
+        {},
+        "abap_journal mode=list shows the ids, and names the stranded ones. There is no " +
+          "`object` fallback here: closing the wrong entry writes a false outcome into the " +
+          "audit trail, so reconcile insists on the exact id.",
+      );
+    }
+    if (!input.outcome) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode=reconcile needs `outcome`: \"succeeded\" or \"failed\". `pending` is the state " +
+          "being left, so it is not offered as something to arrive at.",
+        { entry: input.entry },
+        'Pass outcome: "succeeded" or "failed".',
+      );
+    }
+    const reason = input.reason?.trim() ?? "";
+    if (!reason) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode=reconcile needs a non-empty `reason`: abapsmith did not observe this entry's " +
+          "outcome, so the reason is all a later reader will ever have as evidence for it.",
+        { entry: input.entry },
+        "Pass reason describing how the outcome was established.",
+      );
+    }
+    const target = await j.get(input.entry);
+    if (!target) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `No journal entry ${input.entry}.`,
+        { entry: input.entry },
+        "Run abap_journal mode=list to see the ids that exist. Ids are dropped by the " +
+          "retention policy, so an old one may simply have aged out.",
+      );
+    }
+    if (target.outcome !== "pending") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${input.entry} already reads \`${target.outcome}\` — reconcile only closes an entry ` +
+          "whose outcome was never recorded. Overwriting an observed outcome would destroy " +
+          "the only observed fact this entry carries.",
+        { entry: target.id, outcome: target.outcome },
+        "Nothing to do here: the entry already has a real outcome.",
+      );
+    }
+
+    const res = await j.reconcile(target.id, { outcome: input.outcome, reason });
+    if (!res.reconciled) {
+      if (res.reason === "disabled") {
+        // Cannot normally happen: requireJournal() above already proved the
+        // journal is enabled. Kept as a defensive branch, not a live path.
+        throw new AbapError(
+          "UNSUPPORTED",
+          "The write journal is disabled, so there is nothing to reconcile.",
+          { entry: target.id },
+        );
+      }
+      if (res.reason === "unknown-entry") {
+        throw new AbapError(
+          "NOT_FOUND",
+          `${target.id} aged out of the retention window between being read and being reconciled.`,
+          { entry: target.id },
+          "Run abap_journal mode=list to see what still exists.",
+        );
+      }
+      if (res.reason === "already-settled") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${target.id} settled for real (outcome=${res.entry?.outcome}) between being read and ` +
+            "being reconciled — the observed outcome wins over the asserted one.",
+          { entry: target.id, outcome: res.entry?.outcome },
+          `Run abap_journal mode=show entry=${target.id} to see what it now says.`,
+        );
+      }
+      throw new AbapError(
+        "ADT_ERROR",
+        `Could not write the reconciliation for ${target.id}: ${res.error}. Nothing was written — ` +
+          `the entry still reads \`pending\`.`,
+        { entry: target.id, error: res.error },
+        "Retry mode=reconcile with the same outcome and reason.",
+      );
+    }
+
+    const notes: string[] = [`Recorded reason: ${reason}`];
+    notes.push(
+      "This changed the LOCAL journal only — nothing was sent to the system, no SAP object " +
+        "and no transport request was touched, and nothing was deleted: the before-image and " +
+        "every earlier line for this entry are still on disk.",
+    );
+    notes.push(
+      "The outcome is now recorded as an ASSERTION, not an observation: the entry carries " +
+        "`reconciled` with the reason and (when known) who stated it, so a later reader can " +
+        "tell it apart from an outcome abapsmith itself watched happen.",
+    );
+    if (res.entry.outcome === "succeeded") {
+      notes.push(
+        "The entry is now terminal, so mode=undo will no longer refuse it for being `pending` " +
+          "— undo replays the before-image, so only assert `succeeded` when it is established " +
+          "that the write landed.",
+      );
+    }
+
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        mode: "reconcile",
+        entry: res.entry.id,
+        operation: res.entry.operation,
+        object: `${res.entry.object.type} ${res.entry.object.name}`,
+        was: "pending",
+        outcome: res.entry.outcome,
+        by: res.entry.reconciled?.by,
+        at: res.entry.reconciled?.at,
+      },
+      notes,
+      hints: [`abap_journal mode=show entry=${res.entry.id}`],
       maxChars,
     });
   }
@@ -336,6 +493,14 @@ export async function abapJournal(
           "it with the images above to find out what actually happened.",
       );
     }
+    if (entry.reconciled) {
+      notes.push(
+        `This entry's outcome was RECONCILED BY HAND (at ${entry.reconciled.at}` +
+          (entry.reconciled.by ? `, by ${entry.reconciled.by}` : "") +
+          `), because: ${entry.reconciled.reason}. abapsmith did not observe that outcome; it ` +
+          "is a stated finding, and the entry stayed `pending` until someone stated it.",
+      );
+    }
     notes.push(
       `Before-image provenance: beforeCapture="${entry.beforeCapture}" — ` +
         (entry.beforeCapture === "captured"
@@ -373,6 +538,7 @@ export async function abapJournal(
         beforeCapture: entry.beforeCapture,
         beforeKind: entry.beforeKind,
         outcome: entry.outcome,
+        reconciled: entry.reconciled?.at,
         error: entry.error,
         beforeEtag: entry.before?.etag,
         beforeServerEtag: entry.before?.serverEtag,
@@ -573,8 +739,10 @@ const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }
 
 /**
  * Registers `abap_journal` on the MCP server — history/undo for everything
- * abapsmith wrote. `list`/`show` are pure local reads (no network, no gate);
- * `undo` is a write, gated on the object the journal already knows locally.
+ * abapsmith wrote. `list`/`show` are pure local reads; `reconcile` is a
+ * write, but only to the local journal file, never to SAP (no network, no
+ * gate). `undo` is the only mode that touches SAP, gated on the object the
+ * journal already knows locally.
  */
 export function registerJournalTools(mcp: McpServer, deps: JournalToolDeps): void {
   mcp.registerTool(
@@ -584,7 +752,8 @@ export function registerJournalTools(mcp: McpServer, deps: JournalToolDeps): voi
         "History and undo for writes abapsmith made. mode=list: recent writes with entry " +
         "ids. mode=show: one entry with its before-image. mode=undo: revert it — refuses " +
         "on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write " +
-        "for details.",
+        "for details. mode=reconcile: close a stranded `pending` entry with a stated outcome " +
+        "and reason — journal bookkeeping only, nothing is sent to SAP.",
       inputSchema: journalInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
@@ -618,11 +787,11 @@ export function registerJournalTools(mcp: McpServer, deps: JournalToolDeps): voi
             phase: t ? "final" : "preflight",
           });
         }
-        // list/show never touch the network: they work with the system down.
+        // list/show/reconcile never touch the network: they work with the system down.
         if (isUndo) await deps.ensureConnected();
         const run = (conn: AbapConnection) =>
           abapJournal(conn, args as JournalInput, deps.cfg.maxResponseChars, deps.journal, deps.safety);
-        // Only undo leases a slot — list/show put zero requests on the wire
+        // Only undo leases a slot — list/show/reconcile put zero requests on the wire
         // and must keep working with the system down / all slots held.
         const res = isUndo
           ? await deps.pool.withWrite("abap_journal", undoGateKey, run)

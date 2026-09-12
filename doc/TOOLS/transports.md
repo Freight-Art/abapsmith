@@ -64,6 +64,18 @@ one row remains for the object, then retry `removeObject`; or release the
 request (irreversible) — neither is something abapsmith can verify will
 succeed under a lock. See `doc/LIMITATIONS/not-implemented-and-unproven.md`.
 
+Journalling follows what the ABAP transcript actually proves. `removeObject`
+is journalled as `transport-remove-object`; a refusal like
+`CTS_DUPLICATE_ENTRY` or `NOT_FOUND` that removed nothing is now recorded
+straight away with outcome `failed` (description suffixed `— refused,
+nothing was removed`), not left `pending` — the transcript names no removed
+E071 row, so there is nothing to be unsure about. Only a removal that
+touched at least one row before failing partway through the loop, or a call
+whose response was lost entirely (dropped connection, HTTP failure — the
+ABAP may have run and answered into thin air), stays `pending` for a human
+to resolve with `abap_journal mode=reconcile` once the real outcome is
+known — see [doc/JOURNAL/undo-and-recovery.md](../JOURNAL/undo-and-recovery.md#pending-entries-stranded-and-reconcile).
+
 Example (dry-run delete):
 
 ```json

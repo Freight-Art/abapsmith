@@ -44,10 +44,28 @@ edited it. `force: true` overrides and **overwrites their change with no way bac
 
 **Pending / STRANDED.** The process died between the before-image and the outcome.
 abapsmith does not know whether the write ever reached the server, so `undo`
-refuses outright. Resolve by hand via the steps above.
-`bin/abap-journal-reconcile` automates the read-only comparison and classifies the
-entry `succeeded` / `failed` / `ambiguous`; with `--apply` it settles the first two
-locally. **It never fixes anything** — settling closes bookkeeping, nothing more.
+refuses outright. This is now a stronger signal than it used to be: a
+`transport-remove-object` entry no longer goes `pending` for an ordinary clean
+refusal (`CTS_DUPLICATE_ENTRY`, `NOT_FOUND` settle `failed` immediately, since
+the ABAP transcript proves nothing was removed) — a pending entry means the
+removal genuinely touched something before failing, or the response was lost
+outright. Resolve by hand via the steps above, then close it:
+
+```
+abap_journal mode=reconcile entry=<id> outcome=succeeded|failed reason="how you established this"
+```
+
+This is a **local** call only — no network, nothing sent to SAP, nothing deleted
+(the before-image and every earlier line stay on disk). It records your finding as
+an assertion, not an observation, and it refuses an entry that already has a real
+outcome. **Reconciling to `succeeded` makes the entry terminal and undoable** — `undo`
+will then replay its before-image — so only assert `succeeded` once the write is
+known to have landed. `bin/abap-journal-reconcile` automates the read-only
+comparison and classifies pending entries in bulk `succeeded` / `failed` /
+`ambiguous`; with `--apply` it settles the ones it can from observed evidence.
+`mode=reconcile` is the single-entry counterpart for whatever it leaves
+`ambiguous`. **Neither ever fixes anything on SAP** — settling closes bookkeeping,
+nothing more.
 
 **Delete-gate.** Undoing a `create` means deleting. That is authorised only when
 `beforeCapture` is `confirmed-absent`. `captured`, `failed` and `unknown` all refuse
