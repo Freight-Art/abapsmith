@@ -258,6 +258,70 @@ export function indexGateName(baseTable: string, indexName: string): string {
 }
 
 /**
+ * `TABL/DI` addressing for `abap_write`: until now only a bare index name
+ * plus a separate `base_table` worked. `abap_read` also accepts the parented
+ * slash form `"<TABLE>/<INDEX>"` (see `src/tools/read.ts`'s
+ * `readCatalogObject`) — TABL/DI has no ADT resource of its own, so no
+ * `TypeSpec` in `src/adt/types.ts` carries a `parentPath` for it (see this
+ * file's header), and the shared parser (`src/adt/resolve.ts`'s
+ * `parseObjectRef`) never gets a chance to split a slash-containing TABL/DI
+ * name on that basis. Passing the read form's object string to `abap_write`
+ * used to fall straight through to that parser's generic "Could not extract
+ * an ABAP object name" refusal — a FUGR/FF-flavored hint that means nothing
+ * for an index. This runs BEFORE that parser (from `src/tools/write.ts`'s
+ * `abapWrite`, ahead of `targetFromInput`) and resolves either accepted form
+ * into the bare-name + base_table shape {@link validate}/{@link
+ * validateDelete} above already expect. The bare-form-plus-`base_table`
+ * path — today's only working one — is untouched, purely additive:
+ *
+ * - slash form alone → split, done.
+ * - slash form + agreeing `base_table` → accept.
+ * - slash form + disagreeing `base_table` → refuse; never silently pick one.
+ * - bare form + `base_table` → unchanged.
+ * - bare form, no `base_table` → refuse, naming both accepted forms.
+ */
+export function resolveIndexObjectInput(
+  object: string,
+  baseTable: string | undefined,
+): { object: string; baseTable: string | undefined } {
+  const parts = object.split("/");
+  if (parts.length === 1) {
+    if (!baseTable?.trim()) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `"${object}" does not by itself name a table secondary index (TABL/DI): pass either ` +
+          `"<TABLE>/<INDEX>" (e.g. "ZTAB/Z01", the same form abap_read accepts) or the bare index ` +
+          `name plus base_table (e.g. object: "${object}", base_table: "ZTAB").`,
+        { object, type: "TABL/DI" },
+        'Add base_table, or address it as "<TABLE>/<INDEX>".',
+      );
+    }
+    return { object, baseTable };
+  }
+  if (parts.length !== 2 || parts[0]!.trim() === "" || parts[1]!.trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"${object}" is not a valid TABL/DI name: expected "<TABLE>/<INDEX>", e.g. "ZTAB/Z01".`,
+      { object, type: "TABL/DI" },
+      'Name it as "<TABLE>/<INDEX>", e.g. "ZTAB/Z01", or pass the bare index name with base_table.',
+    );
+  }
+  const [table, indexName] = parts as [string, string];
+  if (baseTable?.trim() && baseTable.trim().toUpperCase() !== table.trim().toUpperCase()) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `object ${JSON.stringify(object)} names base table ${JSON.stringify(table)}, but base_table ` +
+        `${JSON.stringify(baseTable)} was also given and disagrees — abapsmith will not silently ` +
+        "pick one.",
+      { object, base_table: baseTable, type: "TABL/DI" },
+      `Drop base_table to use ${JSON.stringify(table)} from object, or change object to ` +
+        `"${baseTable.trim()}/${indexName}" to match base_table.`,
+    );
+  }
+  return { object: indexName, baseTable: baseTable?.trim() || table };
+}
+
+/**
  * Every caller string validated once, so the classic action's args can never
  * carry a raw one. `packageName` stays branded on the way out; only the
  * plain-string form derived from it (`.name`) is used below, for
@@ -573,6 +637,28 @@ export async function createSecondaryIndex(
 }
 
 /**
+ * `transcript.tags`, minus any tag naming `ACTFAILED` (today just
+ * `INDEX-DELETED-ACTFAILED` — see `DDIC_TAGS`). `ACTFAILED` on its own was
+ * already established (this file's header, and {@link
+ * deleteSecondaryIndexViaBridge}'s doc comment below) to mean nothing
+ * reliable by itself — the FM can report it even when the index ends up
+ * gone as intended, which is exactly the live-observed case that produced
+ * it. Live-observed defect (issue #86 follow-up): `abap_write`'s response
+ * used to join `transcript.tags` verbatim into its caller-visible `markers`
+ * field, so a caller saw the literal string `INDEX-DELETED-ACTFAILED` with
+ * no way to tell, from that string alone, that the index was in fact
+ * deleted — `verified`/`index_present`/`index_active` (from {@link
+ * IndexVerdict}, the independent DD12V/DD17S re-read) already carry the
+ * fact a caller should act on, so the raw tag added confusion, not
+ * information. This filters `markers` only; `transcript.tags` and
+ * `transcript.raw` themselves are untouched and still carry the tag as
+ * evidence for anyone inspecting the transcript directly.
+ */
+export function callerVisibleIndexTags(tags: readonly DdicTag[]): DdicTag[] {
+  return tags.filter((t) => !t.includes("ACTFAILED"));
+}
+
+/**
  * Delete one secondary index over the fluid `classic` tool's `delete_index`
  * action. Gated as `op: "delete"` on the index itself; `activate: true` even
  * though this is a delete — `DD_INDEX_INTERFACE` is called with
@@ -590,6 +676,8 @@ export async function createSecondaryIndex(
  * `createSecondaryIndex`, a disagreement here never becomes an error: it is
  * carried out as `verdict` and left for the caller to report — see this
  * module's header comment for why create is the one narrow exception.
+ * {@link callerVisibleIndexTags} is what keeps the raw `ACTFAILED` tag this
+ * can carry out of the caller-visible response built in `src/tools/write.ts`.
  */
 export async function deleteSecondaryIndexViaBridge(
   conn: AbapConnection,

@@ -50,23 +50,39 @@ const read = (f: string): string => readFileSync(join(FIXTURES, f), "utf8");
 const Z_BADI_CHECK_HEADER = read("857-i74-package-header-z-badi-check.xml");
 /** Live capture 856 (A4H, 2026-09-12) — see file header. */
 const SABP_UNIT_CORE_RUNTIME_HEADER = read("856-i74-package-header-sabp-unit-core-runtime.xml");
+/**
+ * Live capture 884 (A4H, 2026-09-12) — the real, deliberately-misaligned
+ * $TMP nodestructure response: node structure DESCRIPTION values do not
+ * belong to the OBJECT_NAME they are serialised next to once a DEVC/K
+ * sub-package row is present. See test/fixtures/live-captured/INDEX.md.
+ */
+const TMP_NODESTRUCTURE_MISALIGNED = read("884-i74-nodestructure-tmp-misalignment.xml");
+/**
+ * Live capture 885 (A4H, 2026-09-12) — a filtered subset of the
+ * informationsystem/search response for the same $TMP read: every object
+ * keyed by (type, name) to its own, correct description, independent of
+ * wire position. See test/fixtures/live-captured/INDEX.md.
+ */
+const TMP_QUICKSEARCH_SUBSET = read("885-i74-quicksearch-tmp-subset.xml");
 
 interface Call {
   uri: string;
 }
 
+type GetOpts = { headers?: Record<string, string>; qs?: Record<string, string> };
+
 function stubConn(handlers: {
-  get?: (uri: string) => Promise<{ body: string }>;
+  get?: (uri: string, opts?: GetOpts) => Promise<{ body: string }>;
   nodeContents?: (parentType: string, name?: string) => Promise<unknown>;
   calls?: Call[];
 }): AbapConnection {
   const record = (uri: string) => handlers.calls?.push({ uri });
   return {
     cfg: { sid: "A4H" },
-    get: async (uri: string) => {
+    get: async (uri: string, opts?: GetOpts) => {
       record(uri);
       if (!handlers.get) throw new Error(`unexpected GET ${uri}`);
-      return handlers.get(uri);
+      return handlers.get(uri, opts);
     },
     adt: {
       nodeContents: async (parentType: string, name?: string) => {
@@ -76,6 +92,53 @@ function stubConn(handlers: {
       },
     },
   } as unknown as AbapConnection;
+}
+
+/**
+ * Parse the OBJECT_TYPE/OBJECT_NAME/DESCRIPTION of every named
+ * SEU_ADT_REPOSITORY_OBJ_NODE in a raw nodestructure capture, same shape
+ * `abap-adt-api`'s own `nodeContents` hands to `fetchPackageNodes` — used to
+ * feed the REAL, deliberately-misaligned live bytes of capture 884 into
+ * `readPackage` through the `nodeContents` stub, without pasting any of
+ * those bytes into this file.
+ */
+function parseNodestructureFixture(raw: string): Array<Record<string, string>> {
+  const nodes = [...raw.matchAll(/<SEU_ADT_REPOSITORY_OBJ_NODE>(.*?)<\/SEU_ADT_REPOSITORY_OBJ_NODE>/gs)];
+  const field = (n: string, tag: string): string => {
+    const m = n.match(new RegExp(`<${tag}>(.*?)</${tag}>`, "s"));
+    return m ? m[1] : "";
+  };
+  return nodes
+    .map((m) => ({
+      OBJECT_TYPE: field(m[1], "OBJECT_TYPE"),
+      OBJECT_NAME: field(m[1], "OBJECT_NAME"),
+      DESCRIPTION: field(m[1], "DESCRIPTION"),
+    }))
+    .filter((n) => n.OBJECT_NAME);
+}
+
+/**
+ * Build a minimal informationsystem/search response in the shape
+ * `fetchPackageDescriptionsForOne` parses (`adtcore:objectReferences` >
+ * `adtcore:objectReference`, `type`/`name`/`description` attributes) — the
+ * synthetic equivalent of `node()` above, for edge cases (a row missing
+ * from the keyed source, an HTTP failure) that a real capture cannot show
+ * on demand.
+ */
+function searchXml(entries: Array<{ type: string; name: string; description?: string }>): string {
+  const refs = entries
+    .map(
+      (e) =>
+        `<adtcore:objectReference adtcore:uri="/sap/bc/adt/x" adtcore:type="${e.type}" ` +
+        `adtcore:name="${e.name}" adtcore:packageName="ZPKG"` +
+        (e.description !== undefined ? ` adtcore:description="${e.description}"` : "") +
+        `/>`,
+    )
+    .join("");
+  return (
+    `<?xml version="1.0" encoding="utf-8"?>` +
+    `<adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">${refs}</adtcore:objectReferences>`
+  );
 }
 
 function pkg(name: string, uri: string): ResolvedObject {
@@ -233,6 +296,31 @@ describe("readPackage depth option", () => {
     expect(calls.filter((c) => c.uri.startsWith("nodeContents:"))).toHaveLength(1);
     expect(r.meta.depth).toBe(1);
     expect(r.meta.sub_packages).toBe(1);
+    // The sub-package is listed but its own contents were never fetched at
+    // this depth — say so, name it, and say how to go deeper, rather than
+    // let the listing be read as ZSUB's full contents.
+    const note = r.notes.find((n) => n.includes("sub-package(s) are listed but NOT expanded"));
+    expect(note).toBeDefined();
+    expect(note).toContain("ZSUB");
+    expect(note).toContain('abap_read {"object":"ZSUB","type":"DEVC/K"}');
+    expect(note).toMatch(/depth/);
+  });
+
+  it("bounds the sub-package note's name list to a reasonable number and says how many more when " +
+      "many sub-packages are discovered but unexpanded", async () => {
+    const subNames = Array.from({ length: 8 }, (_, i) => `ZSUB${i + 1}`);
+    const conn = stubConn({
+      nodeContents: async (_type, name) => {
+        if (name === "ZPKG") return { nodes: subNames.map((n) => node("DEVC/K", n, "")) };
+        throw new Error(`must not expand ${name} at default depth`);
+      },
+    });
+    const r = await readDdic(conn, pkg("ZPKG", "/sap/bc/adt/packages/zpkg"));
+    const note = r.notes.find((n) => n.includes("sub-package(s) are listed but NOT expanded"));
+    expect(note).toBeDefined();
+    expect(note).toContain("8 sub-package(s)");
+    for (const n of subNames.slice(0, 5)) expect(note).toContain(n);
+    expect(note).toMatch(/and 3 more/);
   });
 
   it("depth:2 expands one level of sub-packages, folding their objects into the same listing", async () => {
@@ -247,6 +335,11 @@ describe("readPackage depth option", () => {
     expect(r.meta.objects).toBe(3);
     expect(r.ddl).toContain("ZCL_B");
     expect(r.meta.depth).toBe(2);
+    // ZSUB — the only sub-package discovered — WAS expanded (its own
+    // contents, ZCL_B, were fetched and folded in). The "listed but NOT
+    // expanded" note must not fire when every discovered sub-package was
+    // in fact expanded.
+    expect(r.notes.join(" ")).not.toMatch(/sub-package\(s\) are listed but NOT expanded/);
   });
 
   it("depth beyond MAX_PACKAGE_DEPTH (3) is refused BAD_INPUT before any request is made", async () => {
@@ -283,5 +376,276 @@ describe("readPackage depth option", () => {
     for (const n of subNames.slice(0, 25)) {
       expect(notExpandedNote).not.toContain(n);
     }
+    // The 25 expanded sub-packages contributed no further DEVC/K rows of
+    // their own, so there is no depth-exhausted leftover here — a package
+    // must never be reported in both the MAX_PACKAGE_EXPANSIONS note and the
+    // "listed but NOT expanded" depth note.
+    expect(r.notes.join(" ")).not.toMatch(/sub-package\(s\) are listed but NOT expanded/);
+  });
+});
+
+describe("readPackage description resolution (issue #74 — live captures 884, 885)", () => {
+  it("each object gets its OWN description from informationsystem/search, not the node structure's " +
+      "misaligned wire DESCRIPTION — pinning ZTESTAI to 'test ai' and ZIF_APACK_MANIFEST to 'APACK: " +
+      "Manifest interface', their real descriptions, never the neighbouring row's value capture 884 " +
+      "actually sends on the wire", async () => {
+    const nodes = parseNodestructureFixture(TMP_NODESTRUCTURE_MISALIGNED);
+    // Confirm the fixture itself still carries the misalignment this test
+    // guards against, so a future fixture refresh can't silently make this
+    // test meaningless.
+    const wireZTestai = nodes.find((n) => n.OBJECT_NAME === "ZTESTAI");
+    expect(wireZTestai?.DESCRIPTION).toBe("Class ZCL_TMP_COUNT_SFLIGHT");
+    const wireApack = nodes.find((n) => n.OBJECT_NAME === "ZIF_APACK_MANIFEST");
+    expect(wireApack?.DESCRIPTION).toBe("test ai");
+
+    const conn = stubConn({
+      nodeContents: async (_type, name) => {
+        if (name === "$TMP") return { nodes };
+        return { nodes: [] };
+      },
+      get: async (uri, opts) => {
+        if (uri.includes("informationsystem/search") && opts?.qs?.packageName === "$TMP") {
+          return { body: TMP_QUICKSEARCH_SUBSET };
+        }
+        throw new Error(`unexpected GET ${uri} ${JSON.stringify(opts)}`);
+      },
+    });
+    const r = await readDdic(conn, pkg("$TMP", "/sap/bc/adt/packages/%24tmp"));
+    const lines = r.ddl.split("\n");
+    const ztestaiLine = lines.find((l) => l.includes("ZTESTAI"));
+    const apackLine = lines.find((l) => l.includes("ZIF_APACK_MANIFEST"));
+    expect(ztestaiLine).toContain("test ai");
+    expect(ztestaiLine).not.toContain("Class ZCL_TMP_COUNT_SFLIGHT");
+    expect(apackLine).toContain("APACK: Manifest interface");
+    expect(apackLine).not.toContain("test ai");
+  });
+
+  it("the sub-package row ($ABAPSMITH_FLUID_API under $TMP) carries its own keyed description, " +
+      "'abapsmith fluid API generated objects', in the SUB-PACKAGES section — not empty, and not " +
+      "$TMP's own description", async () => {
+    const nodes = parseNodestructureFixture(TMP_NODESTRUCTURE_MISALIGNED);
+    const conn = stubConn({
+      nodeContents: async (_type, name) => {
+        if (name === "$TMP") return { nodes };
+        return { nodes: [] };
+      },
+      get: async (uri, opts) => {
+        if (uri.includes("informationsystem/search") && opts?.qs?.packageName === "$TMP") {
+          return { body: TMP_QUICKSEARCH_SUBSET };
+        }
+        throw new Error(`unexpected GET ${uri} ${JSON.stringify(opts)}`);
+      },
+    });
+    const r = await readDdic(conn, pkg("$TMP", "/sap/bc/adt/packages/%24tmp"));
+    const subSection = r.sections.find((s) => s.title === "SUB-PACKAGES");
+    expect(subSection).toBeDefined();
+    expect(subSection!.content).toMatch(/\$ABAPSMITH_FLUID_API\s+abapsmith fluid API generated objects/);
+  });
+
+  it("a row absent from the keyed informationsystem/search source renders an EMPTY description — " +
+      "never the wire's (positionally unreliable) value — and the note counts it", async () => {
+    const conn = stubConn({
+      nodeContents: async () => ({
+        nodes: [
+          node("CLAS/OC", "ZCL_A", "wire value for ZCL_A — actually belongs to a different row"),
+          node("CLAS/OC", "ZCL_B", "wire value for ZCL_B — actually belongs to a different row"),
+        ],
+      }),
+      get: async (uri, opts) => {
+        if (uri.includes("informationsystem/search")) {
+          // Only ZCL_A is present in the keyed source; ZCL_B is not.
+          return { body: searchXml([{ type: "CLAS/OC", name: "ZCL_A", description: "Class A, for real" }]) };
+        }
+        throw new Error(`unexpected GET ${uri}`);
+      },
+    });
+    const r = await readDdic(conn, pkg("ZPKG", "/sap/bc/adt/packages/zpkg"));
+    const lines = r.ddl.split("\n");
+    const aLine = lines.find((l) => l.includes("ZCL_A"));
+    const bLine = lines.find((l) => l.includes("ZCL_B"));
+    expect(aLine).toContain("Class A, for real");
+    expect(bLine).not.toContain("wire value for ZCL_B");
+    // An empty description column renders as trailing whitespace, not a value.
+    expect(bLine?.trim().endsWith("ZCL_B")).toBe(true);
+    expect(r.notes.join(" ")).toMatch(/1 row\(s\) render with an empty description/);
+  });
+
+  it("the description lookup failing (HTTP error) leaves the listing intact — descriptions render " +
+      "empty and a note explains the failure, it is not a hard error", async () => {
+    const conn = stubConn({
+      nodeContents: async () => ({
+        nodes: [node("CLAS/OC", "ZCL_A", "wire value — must not be shown, lookup failed instead")],
+      }),
+      get: async (uri) => {
+        if (uri.includes("informationsystem/search")) {
+          throw new Error("simulated HTTP 500 from informationsystem/search");
+        }
+        // Header fetch — irrelevant to this test, answer with any parseable body.
+        return { body: Z_BADI_CHECK_HEADER };
+      },
+    });
+    const r = await readDdic(conn, pkg("ZPKG", "/sap/bc/adt/packages/zpkg"));
+    expect(r.ddl).toContain("ZCL_A");
+    const lines = r.ddl.split("\n");
+    const aLine = lines.find((l) => l.includes("ZCL_A"));
+    expect(aLine).not.toContain("wire value");
+    expect(r.notes.join(" ")).toMatch(/Description lookup failed for: ZPKG\/"Z\*"/);
+  });
+
+  it("rows are grouped by their first character and one informationsystem/search request is " +
+      "issued per distinct group — never one whole-package request", async () => {
+    const calls: Array<{ query?: string; packageName?: string }> = [];
+    const conn = stubConn({
+      nodeContents: async () => ({
+        nodes: [
+          node("CLAS/OC", "AAA_ONE", ""),
+          node("CLAS/OC", "BBB_TWO", ""),
+          node("CLAS/OC", "ZZZ_THREE", ""),
+        ],
+      }),
+      get: async (uri, opts) => {
+        if (!uri.includes("informationsystem/search")) throw new Error(`unexpected GET ${uri}`);
+        calls.push({ query: opts?.qs?.query, packageName: opts?.qs?.packageName });
+        const byLetter: Record<string, { name: string; description: string }> = {
+          A: { name: "AAA_ONE", description: "A description" },
+          B: { name: "BBB_TWO", description: "B description" },
+          Z: { name: "ZZZ_THREE", description: "Z description" },
+        };
+        const hit = byLetter[(opts?.qs?.query ?? "").charAt(0)];
+        return { body: hit ? searchXml([{ type: "CLAS/OC", ...hit }]) : searchXml([]) };
+      },
+    });
+    const r = await readDdic(conn, pkg("ZPKG", "/sap/bc/adt/packages/zpkg"));
+    // Three distinct starting characters among the rendered rows -> exactly
+    // three requests, each scoped to its own <char>* pattern, never a single
+    // query=* covering the whole package.
+    expect(calls).toHaveLength(3);
+    expect(new Set(calls.map((c) => c.query))).toEqual(new Set(["A*", "B*", "Z*"]));
+    expect(calls.every((c) => c.packageName === "ZPKG")).toBe(true);
+    expect(r.ddl).toContain("A description");
+    expect(r.ddl).toContain("B description");
+    expect(r.ddl).toContain("Z description");
+  });
+
+  it("a group whose request fails leaves ONLY that group's descriptions empty — a sibling group's " +
+      "successful lookup is unaffected", async () => {
+    const conn = stubConn({
+      nodeContents: async () => ({
+        nodes: [node("CLAS/OC", "AAA_ONE", ""), node("CLAS/OC", "BBB_TWO", "")],
+      }),
+      get: async (uri, opts) => {
+        if (!uri.includes("informationsystem/search")) throw new Error(`unexpected GET ${uri}`);
+        const q = opts?.qs?.query ?? "";
+        if (q.startsWith("A")) throw new Error("simulated HTTP 500 for the A* group");
+        return { body: searchXml([{ type: "CLAS/OC", name: "BBB_TWO", description: "B description" }]) };
+      },
+    });
+    const r = await readDdic(conn, pkg("ZPKG", "/sap/bc/adt/packages/zpkg"));
+    const lines = r.ddl.split("\n");
+    const aLine = lines.find((l) => l.includes("AAA_ONE"));
+    const bLine = lines.find((l) => l.includes("BBB_TWO"));
+    expect(aLine?.trim().endsWith("AAA_ONE")).toBe(true); // empty description column
+    expect(bLine).toContain("B description");
+    expect(r.notes.join(" ")).toMatch(/Description lookup failed for: ZPKG\/"A\*"/);
+    // The B group's own (successful) lookup must not be reported as failed —
+    // one group's failure must never bleed into another's result.
+    expect(r.notes.join(" ")).not.toMatch(/ZPKG\/"B\*"/);
+    // AAA_ONE's emptiness is already explained by the "Description lookup
+    // failed" note above; it must not ALSO be folded into the unresolved-
+    // description count (that would double-count the same row under two
+    // contradictory notes — one saying its group failed, the other saying
+    // informationsystem/search simply had no match for it).
+    expect(r.notes.join(" ")).not.toMatch(/row\(s\) render with an empty description/);
+  });
+
+  it("a failing group's own rows are never double-counted into the unresolved-description note — " +
+      "only genuinely-absent rows from the SUCCESSFUL group are counted (issue #74 double-count " +
+      "regression: fetchPackageDescriptions used a NUL separator, readPackage's rowGroupFailed " +
+      "checked a space, so the two could never match)", async () => {
+    const conn = stubConn({
+      nodeContents: async () => ({
+        nodes: [
+          node("CLAS/OC", "AAA_ONE", ""),
+          node("CLAS/OC", "BBB_TWO", ""),
+          node("CLAS/OC", "BBB_THREE", ""),
+        ],
+      }),
+      get: async (uri, opts) => {
+        if (!uri.includes("informationsystem/search")) throw new Error(`unexpected GET ${uri}`);
+        const q = opts?.qs?.query ?? "";
+        if (q.startsWith("A")) throw new Error("simulated HTTP 500 for the A* group");
+        // The B* group succeeds but only returns BBB_TWO — BBB_THREE is
+        // genuinely absent from the keyed source, independent of any failure.
+        return { body: searchXml([{ type: "CLAS/OC", name: "BBB_TWO", description: "B description" }]) };
+      },
+    });
+    const r = await readDdic(conn, pkg("ZPKG", "/sap/bc/adt/packages/zpkg"));
+    const notes = r.notes.join(" ");
+    expect(notes).toMatch(/Description lookup failed for: ZPKG\/"A\*"/);
+    // Exactly one row (BBB_THREE) is genuinely unresolved. AAA_ONE must NOT
+    // also be counted here just because its own group's request failed.
+    expect(notes).toMatch(/1 row\(s\) render with an empty description/);
+    expect(notes).not.toMatch(/2 row\(s\) render with an empty description/);
+  });
+
+  it("falls back to a single query=* request when the distinct-starting-character count exceeds " +
+      "PACKAGE_DESCRIPTION_GROUP_CAP, instead of an unbounded per-character fan-out", async () => {
+    // 36 distinct starting characters (A-Z, 0-9) — comfortably over the cap (30).
+    const letters = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"];
+    const names = letters.map((c) => `${c}NAME`);
+    const calls: Array<{ query?: string }> = [];
+    const conn = stubConn({
+      nodeContents: async () => ({ nodes: names.map((n) => node("CLAS/OC", n, "")) }),
+      get: async (uri, opts) => {
+        if (!uri.includes("informationsystem/search")) throw new Error(`unexpected GET ${uri}`);
+        calls.push({ query: opts?.qs?.query });
+        return {
+          body: searchXml(names.map((n) => ({ type: "CLAS/OC", name: n, description: `${n} desc` }))),
+        };
+      },
+    });
+    const r = await readDdic(conn, pkg("ZPKG", "/sap/bc/adt/packages/zpkg"));
+    // Over the cap: exactly one fallback request, scoped to the whole package.
+    expect(calls).toHaveLength(1);
+    expect(calls[0].query).toBe("*");
+    expect(r.ddl).toContain("ANAME desc");
+    expect(r.ddl).toContain("9NAME desc");
+    expect(r.notes.join(" ")).toMatch(
+      /used a single broader query instead of grouping by starting character/,
+    );
+  });
+
+  it("never runs more than DESCRIPTION_LOOKUP_CONCURRENCY (2) description-lookup requests at " +
+      "once, even with many prefix groups to resolve — an unbounded fan-out is what produced the " +
+      "live SessionBusyError this bounds (issue #74 follow-up)", async () => {
+    // 8 distinct starting characters -> 8 prefix-group tasks, comfortably
+    // under PACKAGE_DESCRIPTION_GROUP_CAP (30) so this exercises the normal
+    // per-character fan-out, not the whole-package fallback.
+    const letters = [..."ABCDEFGH"];
+    const names = letters.map((c) => `${c}NAME`);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const conn = stubConn({
+      nodeContents: async () => ({ nodes: names.map((n) => node("CLAS/OC", n, "")) }),
+      get: async (uri, opts) => {
+        if (!uri.includes("informationsystem/search")) throw new Error(`unexpected GET ${uri}`);
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        // A real delay forces genuine overlap between requests; without it
+        // everything would resolve synchronously-in-order and this test
+        // would pass trivially regardless of whether the pool is bounded.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight--;
+        const char = (opts?.qs?.query ?? "").charAt(0);
+        const name = `${char}NAME`;
+        return { body: searchXml([{ type: "CLAS/OC", name, description: `${name} desc` }]) };
+      },
+    });
+    const r = await readDdic(conn, pkg("ZPKG", "/sap/bc/adt/packages/zpkg"));
+    // The bound must actually be exercised (not incidentally 1 because the
+    // stub happened to resolve in order) and must never be exceeded.
+    expect(maxInFlight).toBe(2);
+    expect(r.ddl).toContain("ANAME desc");
+    expect(r.ddl).toContain("HNAME desc");
   });
 });

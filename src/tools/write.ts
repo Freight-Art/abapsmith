@@ -38,8 +38,10 @@ import { type DdicTranscript } from "../adt/ddic-bridge.js";
 import { discardedDescriptorValues, type DiscardedValue } from "../adt/descriptor-fidelity.js";
 import {
   assertSecondaryIndexTarget,
+  callerVisibleIndexTags,
   createSecondaryIndex,
   deleteSecondaryIndexViaBridge,
+  resolveIndexObjectInput,
   resolveIndexOwner,
 } from "../adt/index-create.js";
 import { readTableIndexes, type SecondaryIndexInfo } from "../adt/index-read.js";
@@ -1340,7 +1342,7 @@ export async function abapWrite(
     return abapWriteBatchDelete(conn, input.objects, maxChars, gate, journal, transport);
   }
 
-  const objectRef = input.object;
+  let objectRef = input.object;
   if (objectRef === undefined) {
     throw new AbapError(
       "BAD_INPUT",
@@ -1350,6 +1352,18 @@ export async function abapWrite(
       "Add `object: \"<name>\"` to write or delete one object, or `objects: [...]` with " +
         'mode: "delete" to delete several.',
     );
+  }
+
+  // TABL/DI has no ADT resource of its own (see src/adt/index-create.ts's
+  // header), so `targetFromInput` below (via the shared `parseObjectRef`)
+  // never learns to split its parented "<TABLE>/<INDEX>" form — the same
+  // form `abap_read` already accepts. Resolve that here, before
+  // `targetFromInput` ever sees `objectRef`, so both that form and the
+  // existing bare-name + `base_table` form reach it as a plain index name.
+  if ((input.type ?? "").trim().toUpperCase() === "TABL/DI") {
+    const resolved = resolveIndexObjectInput(objectRef, input.base_table);
+    objectRef = resolved.object;
+    input = { ...input, base_table: resolved.baseTable };
   }
 
   // Raise-only: a per-call verify:true escalates one write; verify:false is
@@ -4228,7 +4242,13 @@ async function abapDeleteIndexViaBridge(
       index_present: deleted.verdict.present,
       index_active: deleted.verdict.active,
       bridge_class: CLASSIC_BODY_CLASS,
-      markers: deleted.transcript.tags.join(" "),
+      // `callerVisibleIndexTags`, not the raw `transcript.tags`: an
+      // `ACTFAILED`-named tag can appear here even on a delete that fully
+      // succeeded (see that function's doc comment) — `verified`/
+      // `index_present`/`index_active` above already carry the fact a
+      // caller should act on, so the raw flag is filtered out of this
+      // field rather than left to read as an unexplained failure marker.
+      markers: callerVisibleIndexTags(deleted.transcript.tags).join(" "),
       journal: "off (not journalled — see notes)",
     },
     notes: [

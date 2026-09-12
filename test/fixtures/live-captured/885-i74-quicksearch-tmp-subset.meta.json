@@ -1,0 +1,30 @@
+{
+  "n": 885,
+  "label": "i74-quicksearch-tmp-subset",
+  "expect": "does GET .../repository/informationsystem/search?operation=quickSearch&query=*&packageName=$TMP resolve every object from capture 884's nodestructure listing to a correct, positionally-independent description?",
+  "note": "FILTERED SUBSET, not the full response — flagged explicitly here per the leak/size policy for this directory. The real live request (query=*, packageName=$TMP, maxResults=12000, same session as capture 884) returned ALL 11128 <adtcore:objectReference> elements filed under $TMP in a single 200 response of 2542396 bytes (sha256 17e29263b83523e5f4f2a3d2440d36acb0df4056162cd0f3581a49d464f6ea78 of the untouched response body — not committed, kept only long enough to build this file). That is too large to commit. This file keeps exactly the 389 <adtcore:objectReference> elements whose (adtcore:type, adtcore:name) pair exactly matches an (OBJECT_TYPE, OBJECT_NAME) pair from capture 884's 389 named nodes — selected by a straight key match over the real response, in their original relative order, byte-for-byte as SAP sent them. Nothing was invented, edited, or reordered; elements not in that 389-set were simply dropped, and the XML declaration plus the <adtcore:objectReferences> root wrapper were kept as-is. All 389 of 389 target objects were found in the real response (none missing) — the same claim the task description makes about A4H generally. Five spot checks against the ground-truth table in INDEX.md land exactly right here: DEVC/K $ABAPSMITH_FLUID_API -> 'abapsmith fluid API generated objects', CLAS/OC ZTESTAI -> 'test ai', INTF/OI ZIF_APACK_MANIFEST -> 'APACK: Manifest interface', CHKV/TYP ZABAP_CLOUD_DEVELOPMENT -> 'Default ATC variant for ABAP Cloud Development', OA2S ZAPI_TRAVEL_U_V2_0001 -> adtcore:description attribute absent entirely (empty/no description, not the string 'undefined' or '\"\"'). byteLength/sha256 below describe THIS committed subset file, not the full response.",
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=*&packageName=%24TMP&maxResults=12000&sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/xml; charset=utf-8",
+    "content-length": "2542396",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "20211016.000000"
+  },
+  "byteLength": 83696,
+  "zeroByteBody": false,
+  "sha256": "b7bc121428777d21d8a6e9c747a318aabc21447f15ca45f4f7a21482cdf3a8de",
+  "utcTimestamp": "2026-09-12T15:58:47.000Z",
+  "durationMs": 20910,
+  "sessionName": "A"
+}

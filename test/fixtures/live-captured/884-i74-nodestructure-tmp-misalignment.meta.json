@@ -1,0 +1,32 @@
+{
+  "n": 884,
+  "label": "i74-nodestructure-tmp-misalignment",
+  "expect": "does $TMP's nodestructure response pair each SEU_ADT_REPOSITORY_OBJ_NODE's DESCRIPTION with its own OBJECT_NAME, given it contains a DEVC/K sub-package row?",
+  "note": "Confirms the issue #74 defect directly on the wire: node 1 is the sub-package $ABAPSMITH_FLUID_API (DEVC/K), whose own <DESCRIPTION/> is empty on this node as usual, but its REAL description ('abapsmith fluid API generated objects') is not lost — it resurfaces on node 5 (CLAS/OC ZCL_I75_PROBE), four rows later. From node 5 onward every DESCRIPTION belongs to the PREVIOUS object, not its own: node 7 (CLAS/OC ZTESTAI) carries 'Class ZCL_TMP_COUNT_SFLIGHT' (node 6's own description), node 8 (INTF/OI ZIF_APACK_MANIFEST) carries 'test ai' (ZTESTAI's own description), node 12 (CHKV/TYP ZABAP_CLOUD_DEVELOPMENT) carries 'tmp', and node 13 (NROB/NRO BIM0000002) finally carries ZABAP_CLOUD_DEVELOPMENT's own real description ('Default ATC variant for ABAP Cloud Development'). The shift persists for the rest of the 389-row list; the true description of the very last object (Z_REF_PO_APPR) falls off the end and is never emitted anywhere. This is a server-side defect in the response payload itself, reproduced here with a raw curl POST and a regex over the raw XML bytes — not a parser artifact. See INDEX.md for the full ground-truth pairing table (five objects individually re-read at their own ADT resource: ZTESTAI, ZIF_APACK_MANIFEST, ZABAP_CLOUD_DEVELOPMENT, ZAPI_TRAVEL_U_V2_0001, $ABAPSMITH_FLUID_API). Paired with capture 885 (informationsystem/search for the same package), which resolves all 389 objects to their correct descriptions by (type, name) key instead of wire position.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=%24TMP&withShortDescriptions=true&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.as+xml; dataname=com.sap.adt.RepositoryObjectTreeContent",
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.RepositoryObjectTreeContent",
+    "content-length": "270875",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "223594.000000"
+  },
+  "byteLength": 270875,
+  "zeroByteBody": false,
+  "sha256": "feebca9f1582f1b090e151202e98fa32427607f69629b8eec7f977ea65ae70ca",
+  "utcTimestamp": "2026-09-12T15:56:12.000Z",
+  "durationMs": 461,
+  "sessionName": "A"
+}

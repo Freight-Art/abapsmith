@@ -66,10 +66,12 @@ import {
   INDEX_NAME_MAX,
   MAX_INDEX_FIELDS,
   assertSecondaryIndexTarget,
+  callerVisibleIndexTags,
   createSecondaryIndex,
   deleteSecondaryIndexViaBridge,
   indexBridgeErrorHook,
   indexGateName,
+  resolveIndexObjectInput,
   resolveIndexOwner,
   type IndexDeleteParams,
   type SecondaryIndexParams,
@@ -458,6 +460,85 @@ describe("assertSecondaryIndexTarget — local vs transportable package/corr_nr 
 describe("indexGateName", () => {
   it("embeds the base table so the gate's namespace allowlist has an owner-namespace signal", () => {
     expect(indexGateName(BASE_TABLE, "Z01")).toBe(`${BASE_TABLE}-Z01`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b — resolveIndexObjectInput, pure and zero-network: the abap_read-style
+// "<TABLE>/<INDEX>" form for abap_write, alongside the existing bare-name +
+// base_table form.
+// ---------------------------------------------------------------------------
+
+describe("resolveIndexObjectInput — TABL/DI addressing for abap_write", () => {
+  it("slash form alone splits into the bare index name and base_table", () => {
+    expect(resolveIndexObjectInput("ZTAB/Z01", undefined)).toEqual({
+      object: "Z01",
+      baseTable: "ZTAB",
+    });
+  });
+
+  it("slash form plus an AGREEING base_table is accepted", () => {
+    expect(resolveIndexObjectInput("ZTAB/Z01", "ZTAB")).toEqual({
+      object: "Z01",
+      baseTable: "ZTAB",
+    });
+  });
+
+  it("slash form plus a DISAGREEING base_table is refused BAD_INPUT naming both values", () => {
+    let err: AbapError | undefined;
+    try {
+      resolveIndexObjectInput("ZTAB/Z01", "ZOTHER");
+      throw new Error("expected a throw");
+    } catch (e) {
+      err = e as AbapError;
+    }
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("ZTAB");
+    expect(err.message).toContain("ZOTHER");
+    expect(err.hint).toContain("ZTAB");
+    expect(err.hint).toContain("ZOTHER");
+  });
+
+  it("bare form plus base_table is unchanged from today's only working path", () => {
+    expect(resolveIndexObjectInput("Z01", "ZTAB")).toEqual({
+      object: "Z01",
+      baseTable: "ZTAB",
+    });
+  });
+
+  it("bare form with no base_table is refused BAD_INPUT naming both accepted forms", () => {
+    let err: AbapError | undefined;
+    try {
+      resolveIndexObjectInput("Z01", undefined);
+      throw new Error("expected a throw");
+    } catch (e) {
+      err = e as AbapError;
+    }
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("<TABLE>/<INDEX>");
+    expect(err.message).toContain("base_table");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4c — callerVisibleIndexTags, pure: the delete-path fix for the ACTFAILED
+// leak into abap_write's response `markers` field (src/tools/write.ts).
+// ---------------------------------------------------------------------------
+
+describe("callerVisibleIndexTags — filters ACTFAILED-named tags for the caller-visible markers field", () => {
+  it("drops INDEX-DELETED-ACTFAILED but keeps the ordinary tags, in order", () => {
+    expect(callerVisibleIndexTags(["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"])).toEqual([
+      "INDEX-DELETED",
+      "INDEX-GONE",
+    ]);
+  });
+
+  it("is a no-op when no ACTFAILED-named tag is present", () => {
+    expect(callerVisibleIndexTags(["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"])).toEqual([
+      "INDEX-CREATED",
+      "INDEX-ACTIVE",
+      "INDEX-FIELDS",
+    ]);
   });
 });
 

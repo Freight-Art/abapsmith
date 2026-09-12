@@ -6273,6 +6273,99 @@ describe("abap_write → bridge creation: DEFECT 2 closed for TRAN/T (program ex
   });
 });
 
+// ---------------------------------------------------------------------------
+// TABL/DI delete: the ACTFAILED-leak regression (live-observed — see
+// doc/LIMITATIONS/editing.md's "No table secondary index (TABL/DI) change"
+// entry). `abap_write {"object":"Z01","type":"TABL/DI","base_table":"...",
+// "mode":"delete"}` once returned a response whose `markers` field carried
+// the literal string "INDEX-DELETED-ACTFAILED", even though `verified`/
+// `index_present`/`index_active` already told the caller the delete had, in
+// fact, fully succeeded. test/index-create.test.ts's own "no ACTFAILED"
+// regression guard only ever covered createSecondaryIndex's `run.output`/
+// `verdict.statement` — never abap_write's own response text, and never the
+// delete path that actually produced this defect. This is that guard, at
+// the level (and for the operation) the defect showed up: the `markers`
+// field abap_write's abapDeleteIndexViaBridge builds.
+// ---------------------------------------------------------------------------
+describe("abap_write → TABL/DI delete: ACTFAILED never reaches the caller-visible response", () => {
+  const gate = new SafetyGate({
+    readOnly: false,
+    allowPackages: ["*"],
+    allowNamePrefixes: ["*"],
+    allowTransports: ["*"],
+    writesLockedOut: false,
+  });
+  const MAX = 20_000;
+  const INDEX_NAME = "Z01";
+  // objectMetaRoute already answers TABL/DT for TABLE_URI with this name, package $TMP.
+  const BASE = "ZMCP_TEST_TAB";
+
+  const EMPTY_CATALOG_BODY =
+    '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData ' +
+    'xmlns:dataPreview="http://www.sap.com/adt/dataPreview"></dataPreview:tableData>';
+
+  /**
+   * Same reasoning as test/index-create.test.ts's `connectedWithCatalogReread`:
+   * `connected()`'s own `baseRoute` blanket-answers EVERY `/datapreview/
+   * freestyle` POST with the T000 probe body, which would swallow
+   * `deleteSecondaryIndexViaBridge`'s independent post-delete DD12V/DD17S
+   * re-read too (issue #86) — so this routes by SQL body content instead of
+   * reusing `connected()`.
+   */
+  async function connectedForIndexDelete(
+    fake: ReturnType<typeof classicFake>,
+    catalog: { dd12v: string; dd17s: string },
+  ): Promise<{ conn: AbapConnection; adt: FakeAdt }> {
+    const route: Route = (r) => {
+      if (r.url.includes("/compatibility/graph")) return resp(200, "<graph/>", LOGIN_HEADERS);
+      if (r.url.endsWith("/discovery")) return resp(200, "<service/>", OK_XML);
+      if (r.url.includes("/ato/settings")) return resp(200, "<settings/>", OK_XML);
+      if (r.url.includes("/datapreview/freestyle")) {
+        const sql = String(r.body ?? "").toLowerCase();
+        if (sql.includes("from t000")) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
+        if (sql.includes("dd12v")) return resp(200, catalog.dd12v, OK_XML);
+        if (sql.includes("dd17s")) return resp(200, catalog.dd17s, OK_XML);
+        return undefined;
+      }
+      return fake.route(r) ?? objectMetaRoute(r);
+    };
+    const adt = new FakeAdt(route);
+    const conn = new AbapConnection(cfg(), {
+      httpClient: adt,
+      log: () => {},
+      breaker: new AuthCircuitBreaker(),
+    });
+    await conn.connect();
+    adt.calls.length = 0;
+    return { conn, adt };
+  }
+
+  it("bridge reports INDEX-DELETED-ACTFAILED but the independent re-read finds the index truly gone — deleted:true, verified:true, index_present:false, and markers never contains ACTFAILED", async () => {
+    const fake = classicFake({
+      action: "delete_index",
+      lines: () => ["INDEX-DELETED-ACTFAILED", "INDEX-DELETED", "INDEX-GONE"],
+    });
+    const { conn } = await connectedForIndexDelete(fake, {
+      dd12v: EMPTY_CATALOG_BODY,
+      dd17s: EMPTY_CATALOG_BODY,
+    });
+    const result = await abapWrite(
+      conn,
+      { object: INDEX_NAME, type: "TABL/DI", base_table: BASE, mode: "delete" },
+      MAX,
+      gate,
+    );
+    expect(result.text).toMatch(/deleted:\s*true/);
+    expect(result.text).toMatch(/verified:\s*true/);
+    expect(result.text).toMatch(/index_present:\s*false/);
+    expect(result.text).toMatch(/index_active:\s*false/);
+    expect(result.text).not.toContain("ACTFAILED");
+    // The ordinary tags still reach the caller — only the ACTFAILED-named one is filtered.
+    expect(result.text).toMatch(/markers:.*INDEX-DELETED\b/);
+    expect(result.text).toMatch(/markers:.*INDEX-GONE\b/);
+  });
+});
+
 /**
  * ARCH-09 §5.2: a name that matches no convention used to be refused outright,
  * even when the object was sitting on the server. The refusal was correct for a

@@ -60,9 +60,7 @@ The body has up to two extra sections ahead of the row listing:
 - `OBJECTS BY TYPE` — a two-column count of rows by ADT type code (e.g.
   `CLAS/OC`, `DDLS/DF`), sorted by type.
 - `SUB-PACKAGES` — the package's direct (depth-1) sub-packages, name and
-  description. `DESCRIPTION` is empty here even though the request sets
-  `withShortDescriptions=true` — that is what the ADT node structure
-  endpoint sends on the wire (live-verified), not a rendering gap.
+  description.
 
 Below those, the row listing itself: one row per object directly under the
 package (and, at `depth` > 1, under its expanded sub-packages), each with
@@ -70,6 +68,52 @@ package (and, at `depth` > 1, under its expanded sub-packages), each with
 from. Rows are sorted by type then name — never by package — so `offset`/
 `limit` paging stays stable across calls regardless of which sub-package a
 row came from.
+
+`description` is never read from the node structure endpoint's own
+`DESCRIPTION` column: live-verified (issue #74, `test/fixtures/live-captured/`
+captures 884/885) that once a package's node list contains a `DEVC/K`
+sub-package row, the wire's `DESCRIPTION` values are misaligned against the
+`OBJECT_NAME` they are serialised next to — not by a constant offset, and
+that misalignment is invisible from a single row, so it cannot be corrected
+by re-shifting. Instead, every description is resolved by an exact
+`(type, name)` key lookup against
+`GET /sap/bc/adt/repository/informationsystem/search
+?operation=quickSearch&query=<pattern>&packageName=<pkg>`, scoped by name
+rather than pulled a whole package at a time: the names actually being
+rendered under each package are grouped by their first character, and one
+request is issued per distinct group (`query=Z*`, `query=B*`, …), merging
+every group's results into the same keyed `(type, name)` map. This exists
+because a single `query=*` per package hit its own `maxResults` cap on large
+packages — `$TMP` has 11128 objects system-wide under that packageName — and
+left the great majority of a 389-row rendered listing with an empty
+description; scoping each request to one starting character of the rows
+actually being shown keeps each request small and fast (live-verified
+against `$TMP`: `query=Z*` returned 243 entries in 2.9s, correctly resolving
+`ZTESTAI`) without giving up coverage. Only the rows actually being
+rendered — never rows a `types` filter or paging discarded — drive the
+groups. If a package's rendered rows span more distinct starting characters
+than a bounded cap (issue #74: `PACKAGE_DESCRIPTION_GROUP_CAP`, in the low
+tens), the fan-out is capped and a single broader `query=*` request is used
+instead, noted in the output; this keeps the number of requests bounded
+rather than open-ended. Each group's request is independent and individually
+non-fatal — one group's failure never empties another group's descriptions
+— and every request still carries its own bounded `maxResults` cap (retuned
+down for these narrower, per-prefix queries). A row that lookup can't
+resolve — because it genuinely has no description, or its group's request
+failed or was capped — renders an **empty** description, never a guessed or
+positional value, and a note counts how many rows that affected and names
+which group(s), if any, failed. A description lookup failure is never fatal
+to the read; the listing still renders in full with empty descriptions in
+the affected group(s) only.
+
+These requests are not all fired at once: at most 2 are in flight
+concurrently (across every package touched by one `abap_read`, not just
+within one package's own groups), and the header fetch runs to completion
+first rather than alongside them. This was tightened after a live run
+against `$TMP` (16 groups) fired all of them concurrently and 8 came back
+`SessionBusyError` — the ADT session queue serialises requests per
+connection, and 2 matches the connection pool's own default read
+concurrency.
 
 `types` restricts the listing to given kind codes (matched against the ADT
 type, e.g. `"CLAS"` matches `CLAS/OC`) before counting or paging. A `types`

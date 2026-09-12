@@ -710,3 +710,61 @@ caller-supplied object name must be length-validated client-side before it reach
 Re-run with the 10-character `Z_I87_NOPE`, the request captured as `873`, answers 200 with
 `totalRows` 0. The 400 attempt itself was not saved as a separate capture; only the corrected retry
 is on disk.
+
+## 2026-09-12 — nodestructure DESCRIPTION misalignment on $TMP, and the informationsystem/search fix (884-885)
+
+Same A4H appliance, client `001`, issue #74. These two captures confirm the root cause of a live
+defect: `abap_read {"object":"$TMP","type":"DEVC/K"}` was rendering object descriptions that belong
+to a DIFFERENT object.
+
+`884` is `POST /sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=%24TMP&withShortDescriptions=true`
+against `$TMP`, the same shape as `852`/`853`/`855`. `$TMP` has 404 `<SEU_ADT_REPOSITORY_OBJ_NODE>`
+elements, 389 of them carrying a real `OBJECT_NAME`. Node 1 is the sub-package `$ABAPSMITH_FLUID_API`
+(`DEVC/K`); like every sub-package row seen so far (`853`), its own `<DESCRIPTION/>` is empty on the
+wire. Unlike what earlier captures assumed, that description is not simply missing — it resurfaces
+FOUR ROWS LATER, on node 5 (`CLAS/OC ZCL_I75_PROBE`), which is not that class's own description at
+all. From node 5 on, every `<DESCRIPTION>` belongs to the PREVIOUS node, not its own, all the way to
+the end of the list, where the true final object's description falls off the end entirely and is
+never emitted anywhere. This is a defect in the response payload itself: reproduced with a raw
+`curl` POST and a plain regex over the raw XML bytes, independent of `abap-adt-api` or any parser in
+this codebase.
+
+Ground truth, each object individually re-read at its own ADT resource:
+
+| object | type | real description | what node position `884` misassigns to it |
+|---|---|---|---|
+| `$ABAPSMITH_FLUID_API` | `DEVC/K` | `abapsmith fluid API generated objects` | *(empty on its own node; own description appears 4 rows later)* |
+| `ZTESTAI` | `CLAS/OC` | `test ai` | `Class ZCL_TMP_COUNT_SFLIGHT` (the PREVIOUS node's real description) |
+| `ZIF_APACK_MANIFEST` | `INTF/OI` | `APACK: Manifest interface` | `test ai` (`ZTESTAI`'s real description) |
+| `ZABAP_CLOUD_DEVELOPMENT` | `CHKV/TYP` | `Default ATC variant for ABAP Cloud Development` | `tmp` |
+| `ZAPI_TRAVEL_U_V2_0001` | `OA2S` | *(no description attribute at all)* | `SIDs Characteristic 0FISCVARNT` |
+
+The misalignment is not a constant offset: the sub-package's own missing description reappears 4
+rows down (a one-time jump), and every row after that is off by exactly 1 — not 4 — until the list
+ends. A package with no sub-packages pairs correctly: none of `852`, `853`, `855` (no `DEVC/K` child
+in `853`'s own listing beyond its already-empty-by-design entries) show this drift, and `855`
+(`Z_BADI_CHECK`, no sub-packages at all) pairs every `DESCRIPTION` with its own `OBJECT_NAME`
+correctly. The defect only appears once a `DEVC/K` row is present in the node list.
+
+`885` is `GET /sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=*&packageName=$TMP`,
+the fix: keying descriptions by `(adtcore:type, adtcore:name)` instead of trusting wire position.
+The real live request (`maxResults=12000`) returned ALL 11128 `<adtcore:objectReference>` elements
+filed under `$TMP` — a single 2542396-byte response — and every one of `884`'s 389 named nodes
+resolved to a correct, non-drifting description by exact key match (389 of 389, no misses). That
+full response is far too large to commit (2.5 MB against captures elsewhere in this directory
+measured in kilobytes), so `885`'s committed body is a FILTERED SUBSET: only the 389
+`<adtcore:objectReference>` elements whose `(adtcore:type, adtcore:name)` pair matches one of `884`'s
+389 named nodes, kept byte-for-byte from the real response in their original relative order — see
+`885`'s `.meta.json` `note` field for the exact full-response byte count, element count and sha256
+this was filtered from. Nothing in the subset was invented or edited, only dropped.
+
+`packageName=$TMP` genuinely filters to that one package: of the 389 kept rows, 388 report
+`adtcore:packageName="$TMP"`; the one exception is `$ABAPSMITH_FLUID_API`'s own `DEVC/K` row, which
+(like every package's own self-row observed here) reports its OWN name as `packageName`, not its
+parent's — it is still a direct child of `$TMP`, just not contained "in" itself. No object actually
+contained inside `$ABAPSMITH_FLUID_API` appeared in the `packageName=$TMP` result set.
+
+One more wire fact worth keeping: when an object genuinely has no short description (`ZAPI_TRAVEL_U_V2_0001`,
+type `OA2S`), `informationsystem/search` OMITS the `adtcore:description` attribute entirely rather
+than emitting `adtcore:description=""`. A reader that does `attr ?? ""` handles this correctly; one
+that assumes the attribute is always present would need an explicit fallback.

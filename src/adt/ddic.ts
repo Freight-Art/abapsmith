@@ -922,6 +922,50 @@ const MAX_PACKAGE_DEPTH = 3;
  */
 const MAX_PACKAGE_EXPANSIONS = 25;
 
+/**
+ * Per-request `maxResults` cap for ONE prefix-grouped description lookup
+ * (`query=<char>*&packageName=<pkg>` — see buildDescriptionLookupTasks and
+ * fetchPackageDescriptions below). Issue #74 follow-up: a single `query=*` per package (the original
+ * design) hit ITS cap on large packages — `$TMP` has 11128 objects
+ * system-wide under that packageName — and left 388 of 389 rendered rows
+ * with an empty description. Scoping each request to one starting character
+ * of the names actually being rendered fixes that for the realistic case:
+ * live-timed against A4H 2026-09-12, `query=Z*&packageName=$TMP` returned
+ * 243 entries in 2.9s (correctly resolving `ZTESTAI`), and `query=B*` — the
+ * largest observed single-character group, since it matches every `B*`
+ * object under `$TMP` system-wide, not just the 389 rows actually rendered —
+ * returned 385 entries in 0.5s. A cap in the low thousands is generous
+ * headroom for one starting character while keeping each request fast.
+ */
+const PACKAGE_DESCRIPTION_PREFIX_LOOKUP_CAP = 2000;
+
+/**
+ * Max distinct starting characters (i.e. prefix-grouped requests) one
+ * package's rendered rows may be split into before falling back to a single
+ * whole-package query instead. Bounds the fan-out: without this, a package
+ * whose rendered names happen to span dozens of distinct starting
+ * characters would issue one request per character with no ceiling. The
+ * realistic case this issue targets ($TMP, 389 rendered rows) needs only 16
+ * groups — live-confirmed 2026-09-12 — comfortably under this cap; it exists
+ * for the pathological case, not the common one. When it fires, that is
+ * reported in a note (see PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP for the
+ * request it falls back to).
+ */
+const PACKAGE_DESCRIPTION_GROUP_CAP = 30;
+
+/**
+ * `maxResults` for the rare whole-package fallback query (see
+ * PACKAGE_DESCRIPTION_GROUP_CAP) issued instead of a per-prefix fan-out when
+ * a package's rendered rows span more distinct starting characters than
+ * that cap allows. Larger than PACKAGE_DESCRIPTION_PREFIX_LOOKUP_CAP because
+ * this path already accepts the cost of one big request in place of many
+ * small ones; still bounded (see the historical 20.9s / 12000-result timing
+ * on `$TMP` recorded against the old whole-package design, now
+ * superseded) — when even this cap is hit, that is reported the same way
+ * any other capped lookup is, not hidden.
+ */
+const PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP = 6000;
+
 interface PackageHeaderView {
   description?: string;
   responsible?: string;
@@ -1048,6 +1092,283 @@ async function fetchPackageNodes(
   }
 }
 
+// `nodeContents` above still asks for `withShortDescriptions=true` (the
+// vendor `abap-adt-api` wrapper hardcodes it — see
+// node_modules/abap-adt-api/build/api/nodeContents.js — there is no
+// unwrapped call that could omit it without giving up its zero-byte-body
+// tolerance documented on fetchPackageNodes). That flag is now cosmetic: the
+// DESCRIPTION it puts on the wire is exactly the misaligned field issue #74
+// is about, and abap_read no longer reads it (see the comment above the
+// `rows` map in readPackage). Leaving the flag on costs nothing measurable
+// and avoids touching a vendored code path for no benefit; it is not relied
+// on for anything.
+
+/** One `informationsystem/search` result, keyed the same way as `PackageObjectRow` (`type`, `name`). */
+interface PackageDescriptionEntry {
+  type: string;
+  name: string;
+  description: string;
+}
+
+/**
+ * Resolve descriptions for ONE (packageName, query-pattern) pair via
+ * `GET /sap/bc/adt/repository/informationsystem/search
+ * ?operation=quickSearch&query=<pattern>&packageName=<pkg>&maxResults=<cap>`.
+ * `pattern` is passed through the connection's existing `qs` encoding
+ * unmodified (e.g. `"Z*"`, `"/*"`, `"$*"`, or `"*"` for the whole-package
+ * fallback) — live-confirmed A4H 2026-09-12 that a literal pattern character
+ * (including `/` and `$`) round-trips correctly through that same
+ * single-encoding pipeline `packageName` already uses (`$TMP` already goes
+ * out on the wire as `packageName=%24TMP`). Manually pre-percent-encoding
+ * the pattern here would double-encode once `qs` encodes it again — verified
+ * live to silently return zero results (HTTP 200, empty body) rather than
+ * an error, so this must never be done.
+ *
+ * Live-verified A4H 2026-09-12 (captures 884/885): this endpoint pairs each
+ * object with its OWN description by (type, name), independent of any wire
+ * ordering — unlike the node structure endpoint's DESCRIPTION column, which
+ * is not positionally trustworthy once the package has a sub-package (see
+ * the comment on the `rows` map in readPackage). A sub-package's own row is
+ * included here too, filed under its PARENT's packageName, even though that
+ * row's own `packageName` attribute in the response points at itself, not
+ * its parent — a self-referential quirk of the wire format for package
+ * objects that does not affect this lookup, since the request is filtered
+ * server-side.
+ *
+ * An object legitimately without a description omits the
+ * `adtcore:description` attribute entirely rather than sending it empty
+ * (live-verified) — `xmlAttr` returning undefined for that row must not be
+ * confused with the row being absent from the response; both render an
+ * empty description, but only the latter counts as "unresolved" upstream.
+ *
+ * Any HTTP failure here is caught and reported via `failure`, never thrown:
+ * a description lookup failing must not turn a working package listing into
+ * a hard error (the same contract fetchPackageHeader already has), and —
+ * per fetchPackageDescriptions below — must not affect any OTHER task's
+ * results either.
+ */
+async function fetchPackageDescriptionsForOne(
+  conn: AbapConnection,
+  packageName: string,
+  query: string,
+  maxResults: number,
+): Promise<{ entries: PackageDescriptionEntry[]; failure?: string; hitCap: boolean }> {
+  let body: string;
+  try {
+    ({ body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
+      headers: { Accept: "application/xml" },
+      qs: {
+        operation: "quickSearch",
+        query,
+        packageName,
+        maxResults: String(maxResults),
+      },
+    }));
+  } catch (e) {
+    const ctx: ErrorContext = {
+      operation: "read package",
+      uri: "/sap/bc/adt/repository/informationsystem/search",
+      name: packageName,
+      type: "DEVC/K",
+    };
+    const err = classifyDdicFailure(e, ctx);
+    return { entries: [], failure: `${err.code} — ${err.message}`, hitCap: false };
+  }
+  try {
+    const doc = xml.parse(body) as Record<string, any>;
+    const root = doc.objectReferences ?? {};
+    const raw = root.objectReference;
+    const list: unknown[] = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    const entries: PackageDescriptionEntry[] = list
+      .map((n) => ({
+        type: xmlAttr(n, "type") ?? "",
+        name: xmlAttr(n, "name") ?? "",
+        description: xmlAttr(n, "description") ?? "",
+      }))
+      .filter((e) => e.type && e.name);
+    return { entries, hitCap: entries.length >= maxResults };
+  } catch (e) {
+    return {
+      entries: [],
+      failure: `search response did not parse as expected (${e instanceof Error ? e.message : String(e)})`,
+      hitCap: false,
+    };
+  }
+}
+
+/**
+ * Group render-contributing names by their first character, for one
+ * package's prefix-scoped description lookup. Callers must pass only names
+ * that survived `types` filtering and are actually about to be rendered —
+ * issue #74 is explicit that groups must never be derived from rows that
+ * were filtered or paged away.
+ */
+function groupNamesByFirstChar(names: readonly string[]): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
+  for (const name of names) {
+    if (!name) continue;
+    const char = name.charAt(0);
+    const group = groups.get(char);
+    if (group) group.push(name);
+    else groups.set(char, [name]);
+  }
+  return groups;
+}
+
+/**
+ * Run `fn` over `items` with at most `limit` calls in flight at once,
+ * resolving to results in the same order as `items`. A tiny local
+ * worker-pool helper (no new dependency) — see `DESCRIPTION_LOOKUP_CONCURRENCY`
+ * below for why this exists: an unbounded `Promise.all` fan-out over these
+ * same requests is what produced a live `SessionBusyError`.
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index] as T, index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
+/**
+ * Max description-lookup requests (`informationsystem/search`) allowed in
+ * flight at once, across ALL packages a single `readPackage` call touches —
+ * not just within one package's prefix groups. Live-observed against A4H
+ * 2026-09-12 reading `$TMP` (389 rendered rows, 16 distinct
+ * starting-character groups): firing all 16 group requests at once via
+ * `Promise.all` left 8 of them failing with `SessionBusyError: The ABAP
+ * session queue is full for
+ * "/sap/bc/adt/repository/informationsystem/search"; current holder is
+ * exclusive "/sap/bc/adt/packages/%24tmp"` — every row whose name started
+ * with S, T, U, 3, 4, 5, 6 or 7 rendered with an empty description as a
+ * result. The connection pool serialises requests per session, and its own
+ * default `readConcurrency` (src/config.ts) is 2 — matching that here,
+ * rather than picking a bigger number, is what keeps this fan-out from
+ * reproducing the same queue-full failure it is meant to fix.
+ */
+const DESCRIPTION_LOOKUP_CONCURRENCY = 2;
+
+/** One description-lookup request still to be issued, flattened across every package (see fetchPackageDescriptions). */
+interface DescriptionLookupTask {
+  packageName: string;
+  /** The `query` pattern to send: `<char>*`, or `*` for a whole-package fallback. */
+  query: string;
+  maxResults: number;
+  /** Group identifier used in notes/keys: a first character, or `"*"` for the whole-package fallback. */
+  char: string;
+  /** True when this task is a whole-package fallback (see PACKAGE_DESCRIPTION_GROUP_CAP), not a per-prefix group. */
+  fellBack: boolean;
+}
+
+/**
+ * Turn one package's rendered names into the description-lookup requests it
+ * needs: group by first character and one task per distinct group, unless
+ * the rendered names span more distinct starting characters than
+ * PACKAGE_DESCRIPTION_GROUP_CAP, in which case a single whole-package
+ * fallback task (PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP) replaces the
+ * per-character fan-out instead of leaving it unbounded. Does not issue any
+ * request itself — see fetchPackageDescriptions, which runs every
+ * package's tasks through one shared, bounded pool.
+ */
+function buildDescriptionLookupTasks(
+  packageName: string,
+  names: readonly string[],
+): DescriptionLookupTask[] {
+  const groups = groupNamesByFirstChar(names);
+  if (groups.size === 0) return [];
+  if (groups.size > PACKAGE_DESCRIPTION_GROUP_CAP) {
+    return [
+      {
+        packageName,
+        query: "*",
+        maxResults: PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP,
+        char: "*",
+        fellBack: true,
+      },
+    ];
+  }
+  return [...groups.keys()].map((char) => ({
+    packageName,
+    query: `${char}*`,
+    maxResults: PACKAGE_DESCRIPTION_PREFIX_LOOKUP_CAP,
+    char,
+    fellBack: false,
+  }));
+}
+
+/**
+ * Resolve descriptions for every package that actually contributed a row to
+ * what's about to be rendered. `namesByPackage` maps each such package to
+ * exactly the names that survived `types` filtering and are about to be
+ * rendered under it (see readPackage) — not every package visited while
+ * expanding the `depth`-frontier, most of which contribute nothing once
+ * `types` filtering runs.
+ *
+ * Every package's description-lookup requests (one per prefix group, or one
+ * whole-package fallback — see buildDescriptionLookupTasks) are flattened
+ * into a single list and run through ONE shared `mapWithConcurrency` pool
+ * bounded by `DESCRIPTION_LOOKUP_CONCURRENCY`, so the total number of these
+ * requests in flight at once is bounded across packages too, not just
+ * within one package's own groups — see DESCRIPTION_LOOKUP_CONCURRENCY for
+ * the live failure this avoids. Each task's request is independently
+ * non-fatal — a failing task leaves ONLY that task's names unresolved,
+ * never affecting any other task's results (issue #74 requirement). No
+ * retry is attempted here: bounding the concurrency to the pool's own
+ * default is what fixes the observed SessionBusyError, and a retry with no
+ * backoff would not help a failure that concurrency, not transience, caused.
+ */
+async function fetchPackageDescriptions(
+  conn: AbapConnection,
+  namesByPackage: ReadonlyMap<string, readonly string[]>,
+): Promise<{
+  map: Map<string, string>;
+  failures: string[];
+  capped: string[];
+  fellBack: string[];
+  /** Keys of the form `<packageName> <char>` (space-separated) — or `<packageName> *` for a failed fallback — whose request failed; see readPackage's unresolved-count accounting. */
+  failedGroups: Set<string>;
+}> {
+  const tasks = [...namesByPackage.entries()].flatMap(([packageName, names]) =>
+    buildDescriptionLookupTasks(packageName, names),
+  );
+
+  const results = await mapWithConcurrency(tasks, DESCRIPTION_LOOKUP_CONCURRENCY, async (task) => ({
+    task,
+    ...(await fetchPackageDescriptionsForOne(conn, task.packageName, task.query, task.maxResults)),
+  }));
+
+  const map = new Map<string, string>();
+  const failures: string[] = [];
+  const capped: string[] = [];
+  const fellBackSet = new Set<string>();
+  const failedGroups = new Set<string>();
+  for (const r of results) {
+    const { packageName, char, fellBack } = r.task;
+    if (fellBack) fellBackSet.add(packageName);
+    if (r.failure) {
+      failures.push(
+        fellBack
+          ? `${packageName} (fallback query, ${r.failure})`
+          : `${packageName}/"${char}*" (${r.failure})`,
+      );
+      failedGroups.add(`${packageName} ${char}`);
+      continue;
+    }
+    if (r.hitCap) capped.push(fellBack ? `${packageName} (fallback query)` : `${packageName}/"${char}*"`);
+    for (const e of r.entries) map.set(`${e.type}|${e.name}`, e.description);
+  }
+  return { map, failures, capped, fellBack: [...fellBackSet], failedGroups };
+}
+
 /** Trim + upper-case caller-supplied `types` entries once, up front. */
 function normalizedTypeFilters(types: readonly string[] | undefined): string[] {
   return (types ?? []).map((t) => t.trim().toUpperCase()).filter(Boolean);
@@ -1140,26 +1461,49 @@ async function readPackage(
       // empty-name filter ran first and removed every other DEVC/* folder
       // row; matching the prefix again here would silently let a future
       // reordering resurrect them as false sub-packages).
+      // `n.DESCRIPTION` is deliberately never read here. Issue #74, live
+      // capture 884 (test/fixtures/live-captured/884-i74-nodestructure-tmp-misalignment):
+      // when a package's node list contains a DEVC/K sub-package row, the
+      // wire's <DESCRIPTION> values are misaligned against the <OBJECT_NAME>
+      // they are serialised next to — not by a constant offset, and not
+      // fixable by "un-shifting". The sub-package's own missing description
+      // resurfaces several rows later, and from that point on every
+      // description belongs to the PREVIOUS row, all the way to the end of
+      // the list, where the true final object's description is dropped
+      // entirely. This is a defect in the response payload itself
+      // (reproduced with a raw curl + a regex over the raw bytes), not a
+      // parsing artifact. Descriptions are filled in below by an exact
+      // (type, name) key lookup against informationsystem/search instead
+      // (see fetchPackageDescriptions) — a row that key can't resolve stays
+      // empty, never a guessed/positional value.
       const rows: PackageObjectRow[] = nodes
         .filter((n) => n.OBJECT_NAME)
         .map((n) => ({
           packageName,
           type: n.OBJECT_TYPE ?? "",
           name: n.OBJECT_NAME ?? "",
-          description: (n.DESCRIPTION ?? "").replace(/\s+/g, " ").trim(),
+          description: "",
         }));
       allRows.push(...rows);
 
       const subs = rows.filter((r) => r.type.toUpperCase() === "DEVC/K");
       if (packageName === obj.name) {
-        // withShortDescriptions=true still leaves sub-package DESCRIPTION
-        // empty on the wire — captured as-is, called out in a note below.
-        directSubPackages = subs.map((s) => ({ name: s.name, description: s.description }));
+        directSubPackages = subs.map((s) => ({ name: s.name, description: "" }));
       }
       for (const s of subs) nextFrontier.push(s.name);
     }
     frontier = nextFrontier;
   }
+  // Whatever is still in `frontier` once the loop above ends is the set of
+  // sub-packages discovered at the deepest level actually processed, whose
+  // OWN contents were never fetched — either because `depth` ran out (this
+  // is the frontier for a level beyond `depth`) or because there was simply
+  // nothing further to discover (in which case it's empty and no note is
+  // needed). This is distinct from `notExpanded` (MAX_PACKAGE_EXPANSIONS):
+  // a package that hit that cap is `continue`d before it can contribute
+  // anything to `nextFrontier`, so it never appears here — the two lists
+  // never overlap and a package is never reported in both notes.
+  const unexpandedSubPackages = frontier;
 
   const matchedFilters = new Set(
     typeFilters.filter((f) => allRows.some((r) => rowMatchesTypeFilters(r.type, [f]))),
@@ -1176,6 +1520,78 @@ async function readPackage(
 
   const byType = new Map<string, number>();
   for (const r of sortedRows) byType.set(r.type, (byType.get(r.type) ?? 0) + 1);
+
+  // Descriptions are resolved by exact (type, name) key against
+  // informationsystem/search, never taken from the node structure's own
+  // DESCRIPTION column (see the comment above the `rows` map, and
+  // fetchPackageDescriptions). Only packages that actually contributed a
+  // row to `sortedRows` are looked up — not every package touched while
+  // expanding the depth-frontier, most of which a `types` filter can
+  // discard entirely. `obj.name` is added when there are direct
+  // sub-packages to describe even if none of its own rows survived the
+  // type filter (e.g. `types:["DEVC/K"]`).
+  const namesByPackage = new Map<string, string[]>();
+  for (const r of sortedRows) {
+    const list = namesByPackage.get(r.packageName);
+    if (list) list.push(r.name);
+    else namesByPackage.set(r.packageName, [r.name]);
+  }
+  if (directSubPackages.length) {
+    // A DEVC/K sub-package row can be filtered out of sortedRows by a
+    // `types` filter that excludes DEVC/K (it's still shown in the
+    // SUB-PACKAGES section, so its description still needs resolving) —
+    // add its name to obj.name's group if it isn't there already.
+    const list = namesByPackage.get(obj.name) ?? [];
+    for (const s of directSubPackages) if (!list.includes(s.name)) list.push(s.name);
+    namesByPackage.set(obj.name, list);
+  }
+
+  // Sequential, not concurrent: the header fetch (GET
+  // /sap/bc/adt/packages/<name>) is the same request the live SessionBusyError
+  // named as the exclusive holder blocking the description-lookup searches
+  // (see DESCRIPTION_LOOKUP_CONCURRENCY) — awaiting it first, before spending
+  // any of the description pool's slots, avoids adding it to that same
+  // queue. It is one request, so this costs nothing beyond fetchPackageHeader's
+  // own latency, and its existing best-effort/non-fatal contract is unchanged.
+  const { header, failure: headerFailure } = await fetchPackageHeader(conn, ctx);
+  const {
+    map: descriptions,
+    failures: descriptionFailures,
+    capped: descriptionCapped,
+    fellBack: descriptionFellBack,
+    failedGroups,
+  } = namesByPackage.size
+    ? await fetchPackageDescriptions(conn, namesByPackage)
+    : {
+        map: new Map<string, string>(),
+        failures: [] as string[],
+        capped: [] as string[],
+        fellBack: [] as string[],
+        failedGroups: new Set<string>(),
+      };
+
+  /** A row's own group failed (or its package's whole-package fallback failed) — its emptiness is already explained by the `descriptionFailures` note, so it must not be double-counted as "unresolved" too. */
+  const rowGroupFailed = (packageName: string, name: string): boolean =>
+    failedGroups.has(`${packageName} *`) || failedGroups.has(`${packageName} ${name.charAt(0)}`);
+
+  let unresolvedCount = 0;
+  for (const r of sortedRows) {
+    const key = `${r.type}|${r.name}`;
+    if (descriptions.has(key)) {
+      r.description = descriptions.get(key) ?? "";
+    } else {
+      r.description = "";
+      if (!rowGroupFailed(r.packageName, r.name)) unresolvedCount++;
+    }
+  }
+  for (const s of directSubPackages) {
+    const key = `DEVC/K|${s.name}`;
+    if (descriptions.has(key)) {
+      s.description = descriptions.get(key) ?? "";
+    } else if (!rowGroupFailed(obj.name, s.name)) {
+      unresolvedCount++;
+    }
+  }
 
   const columns = depth > 1 ? ["package", "type", "name", "description"] : ["type", "name", "description"];
   const ddl = sortedRows.length
@@ -1211,8 +1627,6 @@ async function readPackage(
     });
   }
 
-  const { header, failure: headerFailure } = await fetchPackageHeader(conn, ctx);
-
   const notes: string[] = [];
   if (emptyPackages.length) {
     notes.push(
@@ -1247,10 +1661,48 @@ async function readPackage(
         `.`,
     );
   }
-  if (directSubPackages.length) {
+  if (unexpandedSubPackages.length) {
+    const shown = unexpandedSubPackages.slice(0, 5);
+    const remaining = unexpandedSubPackages.length - shown.length;
     notes.push(
-      "Sub-package DESCRIPTION is empty on the wire even with withShortDescriptions=true — this is " +
-        "what the ADT node structure endpoint sends, not a rendering gap.",
+      `${unexpandedSubPackages.length} sub-package(s) are listed but NOT expanded: ` +
+        shown.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") +
+        (remaining > 0 ? `, and ${remaining} more` : "") +
+        `. OBJECTS below has a row for each of these sub-packages themselves, not their contents — ` +
+        `depth ${depth} did not reach inside them. Use a higher depth (up to ${MAX_PACKAGE_DEPTH}) to ` +
+        `expand them, or read one directly: abap_read {"object":"<name>","type":"DEVC/K"}.`,
+    );
+  }
+  if (descriptionFailures.length) {
+    notes.push(
+      `Description lookup failed for: ${descriptionFailures.join("; ")}. Affected rows render with ` +
+        `an EMPTY description rather than a guessed or positional value — the listing itself (type, ` +
+        `name, package) is otherwise unaffected, and other name-groups within the same package are ` +
+        `unaffected too (each group's lookup is independent).`,
+    );
+  }
+  if (descriptionFellBack.length) {
+    notes.push(
+      `Description lookup for package(s) ${descriptionFellBack.join(", ")} used a single broader ` +
+        `query instead of grouping by starting character, because rendered names there spanned more ` +
+        `than ${PACKAGE_DESCRIPTION_GROUP_CAP} distinct starting characters — see ` +
+        `PACKAGE_DESCRIPTION_GROUP_CAP. That request's own result cap is reported separately below if ` +
+        `it was hit.`,
+    );
+  }
+  if (descriptionCapped.length) {
+    notes.push(
+      `Description lookup hit its per-request result cap for: ${descriptionCapped.join(", ")} — ` +
+        `coverage there may be incomplete. Rows whose description could not be resolved render empty ` +
+        `rather than a guess.`,
+    );
+  }
+  if (unresolvedCount) {
+    notes.push(
+      `${unresolvedCount} row(s) render with an empty description because informationsystem/search ` +
+        `did not return a match for that exact (type, name) — this may mean the object genuinely has ` +
+        `no description, or that it fell outside the lookup's coverage; it is never filled with the ` +
+        `node structure's own (positionally unreliable) DESCRIPTION value.`,
     );
   }
   notes.push(

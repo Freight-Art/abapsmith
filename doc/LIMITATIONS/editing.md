@@ -212,7 +212,13 @@
   `index_active` — instead of the bridge's own claim. `ACTFAILED` is not
   surfaced to the caller at all any more, for either operation; a re-read
   that itself fails to run is reported as "not verified" with a reason,
-  never inferred from the flag. The same re-read resolves whether a
+  never inferred from the flag. Live-observed regression: a delete's
+  response `markers` field used to join the raw transcript tags verbatim,
+  so `INDEX-DELETED-ACTFAILED` still reached the caller there even though
+  nothing else in the response mentioned `ACTFAILED` — now filtered out of
+  `markers` too (`callerVisibleIndexTags`, `src/adt/index-create.ts`); the
+  underlying transcript still records the raw tag as evidence, it is only
+  the caller-visible field that omits it. The same re-read resolves whether a
   base-table delete cascades its secondary indexes away or leaves them
   orphaned: `abap_write`'s `TABL/DT` delete now reads the table's indexes
   immediately beforehand and reports what it found in the response, rather
