@@ -19,7 +19,12 @@ version was set to `0.3.0`, which is intended.
   syntax-check step, and the one-restart-per-fix-round rule for `op=repair`;
   `abapsmith-write-abap-source` gains the ABAP traps that activate cleanly and fail at run
   time (comments outside methods, `TYPE string`/`TYPE i` formals, untyped `CALL FUNCTION`
-  actuals, positional `INTO TABLE`, character tests on `C(n)`).
+  actuals, positional `INTO TABLE`, character tests on `C(n)`) and is split by object type:
+  `SKILL.md` keeps what applies to every source object and points at `classes.md`,
+  `function-modules.md`, `programs.md` and `enhancements.md` in the same directory, so a
+  reader loads only the file for the object being written. The skill tests
+  (`test/skills-example-shapes.test.ts`, `test/skills-tool-surface.test.ts`) now scan those
+  sibling files too.
 
 ## [0.5.0] - 2026-09-12
 
