@@ -198,9 +198,13 @@ const AUTH_REARM_POLL_MS = 1_000;
  * Each is a CONSTANT: nothing is derived from the cookie, token, client
  * secret or certificate in any way, so no secret value, hash or length can
  * reach the fingerprint `INSTALL_SALT` (`auth-latch.ts`) hashes onto disk.
- * Their only job is keeping the five auth methods off the same durable
- * auth-latch entry. The `cookie` value must stay byte-identical — changing it
- * would orphan latch entries written by earlier versions.
+ * Their only job is keeping the five auth methods off the same IN-PROCESS
+ * fingerprint entry. The durable file (`auth-latch.ts`) is keyed on url+user
+ * alone, deliberately: a 401 counts against `login/fails_to_user_lock` for
+ * that user whichever credential produced it, so a bearer-token 401 also
+ * latches a later password logon of the same user (observed live). The
+ * `cookie` value must stay byte-identical — changing it would orphan latch
+ * entries written by earlier versions.
  *
  * Consequence, deliberate: two OAuth clients (or two certificates) against the
  * same url+user share one latch entry, exactly as two different cookies
