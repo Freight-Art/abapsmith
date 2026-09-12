@@ -30,6 +30,7 @@ import {
   contentUri,
   deleteObject,
   isPackageType,
+  NO_JOURNAL,
   readCurrentSource,
   resolveWriteTarget,
   writeObject,
@@ -175,6 +176,32 @@ export interface UndoResult {
   deleteUnverified?: string;
   activation?: ActivationOutcome;
   forced: boolean;
+  /**
+   * Class sub-includes actually written back during a recreate, in addition
+   * to the main include — populated only when `entry.parts` recorded any
+   * (a CLAS/OC delete; see `BeforeImageInclude`/`deleteObject`). Empty/absent
+   * for every other undo, including a class UPDATE (never has parts) and a
+   * sub-include entry (`entryClassInclude` set — that undo IS the include).
+   *
+   * Verified live on SAP A4H (client 001), 2026-09-12, driving this branch's
+   * built dist directly: class ZCL_I75_UNDO in $TMP was written with main
+   * plus definitions, implementations and testclasses includes; `abap_write
+   * mode=delete` recorded four parts, all `captured`; `abap_journal
+   * mode=undo` reported action `recreate`, `restoredIncludes: definitions,
+   * implementations, macros, testclasses` and `activated: true`; a following
+   * `abap_test` on the recreated class ran the restored test class and
+   * reported PASSED, which it could not have done had only the main include
+   * come back.
+   */
+  restoredIncludes?: ClassInclude[];
+  /** Recorded includes that could NOT be written back, and why — see `restoredIncludes`. */
+  skippedIncludes?: SkippedInclude[];
+}
+
+/** One class sub-include `performUndo` recorded but did not (or could not) write back on recreate. */
+export interface SkippedInclude {
+  include: ClassInclude;
+  reason: string;
 }
 
 /**
@@ -258,42 +285,53 @@ export function enhancementUndoBlocked(type: string, op: "write" | "delete", nam
  * correctly.
  */
 function entryClassInclude(entry: JournalEntry): ClassInclude | undefined {
-  const uri = entry.object.sourceUri;
+  return classIncludeFromSourceUri(entry.object.sourceUri);
+}
+
+/** Same derivation as `entryClassInclude`, generalised to any recorded `sourceUri` — used for `entry.parts` too. */
+function classIncludeFromSourceUri(uri: string | undefined): ClassInclude | undefined {
   if (uri === undefined) return undefined;
   const inc = specFromUri(uri)?.include;
   return inc !== undefined && inc !== "main" ? inc : undefined;
 }
 
 /**
- * Closes a hole opened when class sub-includes (CCDEF/CCIMP/
- * CCMAC/CCAU) became writable: before that, no journal entry could carry a before-image
- * of one. Undo always replays a before-image through `/source/main` — so
- * without this check, undoing a CCAU write would write test-class source OVER
- * the class body and report it as a successful undo.
+ * FIX E4/include-aware undo — the include IS the authority, not a reason to
+ * refuse. `planUndo` now passes `entryClassInclude(entry)` into
+ * `resolveWriteTarget`, so a sub-include entry's plan addresses the include
+ * document itself (`.../includes/<name>`), not `/source/main` — the old
+ * hazard this function used to guard against (writing the include's bytes
+ * over the class body) cannot happen any more, for `restore` or `noop`.
  *
- * Refuses only when the recorded `sourceUri` names a non-`main` include, so
- * every entry from before include-tracking and every `main` write is unaffected. Re-derives the
- * include structurally from `sourceUri` rather than trusting
- * `BeforeImage.include` (`src/adt/write.ts`) directly, so it also covers
- * producers that forget to set that field — but a future include-aware undo
- * should make `BeforeImage.include` the authority and keep this as a
- * cross-check. Include-aware undo is a known follow-up; untested
- * against a live system when written. Full rationale:
- * the git history.
+ * What is still refused, and NOT forceable: `delete` (undo of the CREATION
+ * of an include — e.g. the first write of a `testclasses` include that did
+ * not exist before) and `recreate` (undo of a class DELETE whose journal
+ * entry only ever recorded this one include, so "recreating" it would mean
+ * fabricating a whole class from a single include's bytes). Neither has a
+ * real ADT operation behind it: `deleteObject` sends `DELETE {classUri}`,
+ * the CLASS URI — there is no verb that deletes or recreates one include on
+ * its own, only the whole object. Verified live against A4H on 2026-09-12:
+ * this refusal fires correctly for an undo-of-creation of a `testclasses`
+ * include, naming the class and pointing at the write-a-comment-line
+ * workaround below. The restore path (this function returning `undefined`
+ * for `action === "restore"`, letting `planUndo` address the include
+ * document directly) is NOT yet verified live — pending confirmation against
+ * A4H; this comment will be corrected once that runs.
  */
-function classIncludeBlocker(entry: JournalEntry): string | undefined {
+export function classIncludeActionBlocker(entry: JournalEntry, action: UndoAction): string | undefined {
   const include = entryClassInclude(entry);
   if (!include) return undefined;
+  if (action !== "delete" && action !== "recreate") return undefined;
+  const verb = action === "delete" ? "DELETE" : "RE-CREATE";
   return (
-    `This entry records a write to the ${include} include of class ${entry.object.name} ` +
-    `(${entry.object.sourceUri}), not to the class's main source. abapsmith restores a ` +
-    "before-image through the ordinary write path, which addresses /source/main — so " +
-    `replaying this entry would write ${entry.object.name}'s ${include} include OVER its ` +
-    "class body, destroying the real source and reporting it as a successful undo. " +
-    "That is refused rather than attempted. " +
-    "Nothing was changed. Restore the include by hand: read the recorded before-image " +
-    "(abap_journal mode=show), then write it back with abap_write using " +
-    `include="${include}". Include-aware undo is a known follow-up, not yet implemented.`
+    `Undoing this entry would ${verb} the ${include} include of class ${entry.object.name}, and ` +
+    "ADT has no operation that deletes or re-creates one include of a class on its own — " +
+    `deleteObject sends DELETE {classUri}, which would destroy ${entry.object.name}'s main ` +
+    "source and all of its other includes too, not just this one. That is refused rather than " +
+    "attempted. Nothing was changed. To empty a class include, write a single comment line to " +
+    "it (e.g. `*\"* no local test classes`) — abapsmith does not send an empty document, and " +
+    "there is no ADT verb that deletes an include on its own. Do that with " +
+    `abap_write include="${include}". This refusal cannot be overridden with force=true.`
   );
 }
 
@@ -492,22 +530,60 @@ const INCLUDE_LABELS: Record<string, string> = {
 };
 
 const describeIncludes = (): string => CLASS_SUB_INCLUDES.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
+const describeSome = (incs: readonly string[]): string => incs.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
 
 function isClassEntry(entry: JournalEntry): boolean {
   return specForType(entry.object.type)?.kind === "CLAS";
 }
 
-/** Non-undefined exactly when `action` writes source to a class. */
+/**
+ * Which sub-includes THIS entry has definitive before-image evidence for —
+ * i.e. `entry.parts` elements whose `beforeCapture` is "captured" or
+ * "confirmed-absent". A "failed" part is deliberately NOT counted: it means
+ * the read never resolved, so `existedBefore` for that document is a guess,
+ * same rule as `deleteEvidenceBlocker` applies to the primary object.
+ * `entry.parts` is only ever populated for a CLAS/OC delete
+ * (`deleteObject`'s four extra GETs) — a class UPDATE never has parts, so
+ * this is always empty there, which is what keeps `partialClassRestore`'s
+ * `restore` branch unchanged from before this fix.
+ */
+function recordedClassIncludes(entry: JournalEntry): ReadonlySet<ClassInclude> {
+  const recorded = (entry.parts ?? [])
+    .filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent")
+    .map((p) => classIncludeFromSourceUri(p.object.sourceUri))
+    .filter((i): i is ClassInclude => i !== undefined);
+  return new Set(recorded);
+}
+
+/**
+ * Non-undefined exactly when `action` writes source to a class AND leaves at
+ * least one of its four sub-includes uncovered. `undefined` for a
+ * sub-include entry (`entryClassInclude` set) — that entry is about ONE
+ * include, not a partial view of the whole class (see
+ * `classIncludeActionBlocker`) — and `undefined` once every sub-include is
+ * covered by `entry.parts` (a CLAS/OC delete that captured all four).
+ */
 function partialClassRestore(entry: JournalEntry, action: UndoAction): PartialRestore | undefined {
   if (action !== "restore" && action !== "recreate") return undefined;
   if (!isClassEntry(entry)) return undefined;
+  if (entryClassInclude(entry)) return undefined;
+  const recorded = recordedClassIncludes(entry);
+  const unrestored = CLASS_SUB_INCLUDES.filter((i) => !recorded.has(i as ClassInclude));
+  if (unrestored.length === 0) return undefined;
+  const allMissing = unrestored.length === CLASS_SUB_INCLUDES.length;
   return {
-    unrestored: [...CLASS_SUB_INCLUDES],
+    unrestored,
     reason:
       action === "recreate"
-        ? `Only the main include of class ${entry.object.name} was ever recorded, so only ` +
-          `the main include is recreated. NOT restored: ${describeIncludes()}. The class ` +
-          "that comes back is not the class that was deleted."
+        ? allMissing
+          ? `Only the main include of class ${entry.object.name} was ever recorded, so only ` +
+            `the main include is recreated. NOT restored: ${describeIncludes()}. The class ` +
+            "that comes back is not the class that was deleted."
+          : `${entry.object.name}'s main include plus its ${describeSome([...recorded])} ` +
+            `${recorded.size === 1 ? "is" : "are"} recorded and will be recreated. Its ` +
+            `${describeSome(unrestored)} ${unrestored.length === 1 ? "was" : "were"} not — ` +
+            `the read that would have captured ${unrestored.length === 1 ? "it" : "them"} ` +
+            "failed, so recreating it now would leave that gap silently."
         : `Only the main include of class ${entry.object.name} is covered by this undo. ` +
           `Its ${describeIncludes()} were never recorded, are not restored, and are not ` +
           "checked for drift — changes made there by anybody are invisible to abapsmith.",
@@ -515,17 +591,20 @@ function partialClassRestore(entry: JournalEntry, action: UndoAction): PartialRe
 }
 
 function classRecreateBlocker(entry: JournalEntry, partial: PartialRestore): string {
+  const recorded = CLASS_SUB_INCLUDES.length - partial.unrestored.length;
   return (
-    `${entry.object.name} is a CLASS, and abapsmith only ever recorded its MAIN include ` +
-    "(/oo/classes/…/source/main). Recreating it from the journal would produce a class " +
-    "that LOOKS intact and is not: its " +
-    describeIncludes() +
-    " were never captured and would come back EMPTY — every local helper and every unit " +
-    `test the deleted class had would be silently missing. Unrestored includes: ` +
-    `${partial.unrestored.join(", ")}. ` +
-    "If a main-include-only restore is genuinely what you want, repeat with force=true; " +
-    "the result will be reported as PARTIAL and you will have to put the local and test " +
-    "includes back by hand."
+    `${entry.object.name} is a CLASS. ` +
+    (recorded > 0
+      ? `abapsmith recorded its main include and ${recorded} of its ${CLASS_SUB_INCLUDES.length} ` +
+        `local includes when it was deleted, but the read for its ${describeSome(partial.unrestored)} ` +
+        `${partial.unrestored.length === 1 ? "did" : "each did"} not resolve`
+      : "abapsmith only ever recorded its MAIN include (/oo/classes/…/source/main)") +
+    ". Recreating it from the journal would produce a class that LOOKS intact and is not: its " +
+    describeSome(partial.unrestored) +
+    " would come back EMPTY — any local helper or unit test held only there would be silently " +
+    `missing. Unrestored includes: ${partial.unrestored.join(", ")}. ` +
+    "If a partial restore is genuinely what you want, repeat with force=true; the result will " +
+    "be reported as PARTIAL and you will have to put the missing includes back by hand."
   );
 }
 
@@ -847,6 +926,11 @@ export async function planUndo(
   const action = plannedAction(entry);
   const restoreSource = action === "delete" ? undefined : await journal.beforeImage(entry);
   const transportWarning = await releasedTransportWarning(journal, entry);
+  // Which class sub-include this entry is about, if any — the include IS the
+  // authority (see classIncludeActionBlocker's doc comment): everything
+  // downstream (probe, drift, the write target) must address THIS document,
+  // not /source/main.
+  const include = entryClassInclude(entry);
 
   // ---- purely local refusals, decided before a single request ------------
   // Order: system check first (an entry from another box is wrong about
@@ -855,7 +939,7 @@ export async function planUndo(
   const localBlocker =
     systemMismatchBlocker(entry, liveSystem(conn, journal)) ??
     undoBlocker(entry) ??
-    classIncludeBlocker(entry) ??
+    classIncludeActionBlocker(entry, action) ??
     packageRecreateBlocker(entry) ??
     deleteEvidenceBlocker(entry);
 
@@ -897,6 +981,7 @@ export async function planUndo(
       type: entry.object.type,
       packageName: entry.object.package,
       ...(entry.object.description ? { description: entry.object.description } : {}),
+      ...(include ? { include } : {}),
     });
   }
 
@@ -1376,6 +1461,8 @@ export async function performUndo(
   let check: CheckOutcome | undefined;
   let checkUnavailable: string | undefined;
   let deleteUnverified: string | undefined;
+  const restoredIncludes: ClassInclude[] = [];
+  const skippedIncludes: SkippedInclude[] = [];
 
   const liveKey = liveSystem(conn, journal).key;
 
@@ -1580,6 +1667,123 @@ export async function performUndo(
         throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
       }
     }
+
+    // Restore this class's recorded sub-includes (CCDEF/CCIMP/CCMAC/CCAU),
+    // added 2026-09-12 to close issue #75's core gap: a class recreate used
+    // to bring back only `/source/main`. `entry.parts` is populated ONLY by
+    // a CLAS/OC delete's four extra GETs (`deleteObject`, src/adt/write.ts)
+    // — a class UPDATE's entry never has parts, and a sub-include entry's
+    // own undo IS the include (see `entryClassInclude`/
+    // `classIncludeActionBlocker`) and never reaches this branch with parts
+    // of its own — so `includeParts` is empty, and this whole block a no-op,
+    // for every undo except a genuine class recreate-from-delete.
+    //
+    // Each include is written with `NO_JOURNAL`: it is not a separate,
+    // independently-undoable mutation, it is this ONE undo restoring a
+    // second document as part of putting the class back together. The main
+    // entry above already carries this undo's own journal record.
+    const includeParts = (entry.parts ?? []).filter(
+      (p) => classIncludeFromSourceUri(p.object.sourceUri) !== undefined,
+    );
+    for (const part of includeParts) {
+      const inc = classIncludeFromSourceUri(part.object.sourceUri) as ClassInclude;
+      if (part.beforeCapture === "confirmed-absent") {
+        // Positively known empty before the delete — a freshly recreated
+        // class already matches. Nothing to write, nothing lost: not a skip.
+        continue;
+      }
+      if (part.beforeCapture !== "captured") {
+        // "failed" (or a future capture value this code doesn't know about):
+        // the read never resolved, so there is no known text to put back —
+        // guessing "empty" here would silently destroy whatever was really
+        // there. Report it instead.
+        skippedIncludes.push({
+          include: inc,
+          reason: `its before-image was never captured (beforeCapture="${part.beforeCapture}")`,
+        });
+        continue;
+      }
+      const incSource = await journal.beforeImage({ ...entry, before: part.before });
+      if (incSource === undefined) {
+        skippedIncludes.push({
+          include: inc,
+          reason:
+            "its recorded before-image blob is missing on disk (pruned by the retention " +
+            "policy, or the journal directory was cleaned)",
+        });
+        continue;
+      }
+      try {
+        const incTarget = await resolveWriteTarget(conn, {
+          name: entry.object.name,
+          type: entry.object.type,
+          packageName: entry.object.package,
+          ...(entry.object.description ? { description: entry.object.description } : {}),
+          include: inc,
+        });
+        const incAuthorized = opts.assertAllowed(plan.action, incTarget);
+        await writeObject(conn, incAuthorized, {
+          source: incSource,
+          onBeforeImage: NO_JOURNAL,
+          ...(written.transport.corrNr ? { corrNr: written.transport.corrNr } : {}),
+        });
+        restoredIncludes.push(inc);
+      } catch (e) {
+        // The main include already landed (and, if reached here, activated)
+        // — settle THIS entry honestly as succeeded for what it did cover,
+        // then rethrow so the caller sees the include failure and does not
+        // mistake a partially-restored class for a clean undo.
+        await settle({
+          outcome: "succeeded",
+          ...(written.normalisedSource ? { afterSource: written.normalisedSource } : {}),
+          ...(written.transport.corrNr ? { corrNr: written.transport.corrNr } : {}),
+          activation: {
+            attempted: Boolean(activation),
+            ...(activation ? { activated: activation.activated } : {}),
+          },
+        });
+        const notAttempted = includeParts
+          .slice(includeParts.indexOf(part) + 1)
+          .map((p) => classIncludeFromSourceUri(p.object.sourceUri))
+          .filter((i): i is ClassInclude => i !== undefined);
+        throw new AbapError(
+          "CHECK_FAILED",
+          `abap_journal mode=undo of entry ${entry.id}: ${entry.object.name}'s main source WAS ` +
+            `restored${
+              activation ? (activation.activated ? " and activated" : ", but activation did not complete") : ""
+            }, but writing its recorded ${INCLUDE_LABELS[inc] ?? inc} back failed: ` +
+            `${e instanceof Error ? e.message : String(e)}. ` +
+            `${restoredIncludes.length ? `Already restored: ${restoredIncludes.join(", ")}. ` : "Nothing else was restored yet. "}` +
+            `Not attempted: ${notAttempted.length ? notAttempted.join(", ") : "none"}.`,
+          {
+            entry: entry.id,
+            object: entry.object.name,
+            restoredIncludes: [...restoredIncludes],
+            failedInclude: inc,
+            notAttempted,
+            ...(undoEntryId !== undefined ? { undoEntryId } : {}),
+          },
+          "This undo's own journal entry is marked done — the class's main body is back. " +
+            "Write the failed include (and any listed as not attempted) by hand with abap_write, " +
+            "using the source shown by abap_journal mode=show for this entry.",
+        );
+      }
+    }
+    if (restoredIncludes.length > 0 && (opts.activate ?? true)) {
+      // A second activation, deliberately: the first one above (if it ran)
+      // published only the main include — these includes did not exist as
+      // inactive versions yet at that point. `written.target` is still
+      // correct to activate against: it carries the CLASS's uri/name/type,
+      // and CCDEF/CCIMP/CCMAC/CCAU have no independent active/inactive
+      // version of their own (confirmed live 2026-08-18, A4H — see
+      // `writeObject`'s doc comment).
+      try {
+        activation = await activateObject(conn, written.target);
+      } catch (e) {
+        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
+      }
+    }
+
     await settle({
       outcome: "succeeded",
       ...(written.normalisedSource ? { afterSource: written.normalisedSource } : {}),
@@ -1608,6 +1812,8 @@ export async function performUndo(
     ...(checkUnavailable ? { checkUnavailable } : {}),
     ...(deleteUnverified ? { deleteUnverified } : {}),
     ...(activation ? { activation } : {}),
+    ...(restoredIncludes.length ? { restoredIncludes } : {}),
+    ...(skippedIncludes.length ? { skippedIncludes } : {}),
     forced: Boolean(opts.force),
   };
 }
