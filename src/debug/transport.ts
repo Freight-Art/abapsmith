@@ -204,10 +204,13 @@ function normalizeNodeHeaders(h: http.IncomingHttpHeaders): Record<string, strin
  */
 export interface RawHttpRequestFnOptions {
   /**
-   * Built by `buildInsecureHttpsAgent` (`src/adt/http-guard.ts`) from the SAME
-   * `conn.cfg.insecure` the ADT/axios stack uses — never re-derived locally.
-   * Only `rejectUnauthorized` is reused, not the socket pool (see `agent:
-   * false` below): this shares the TLS policy, not the pool.
+   * Built by `buildHttpsAgent` off `tlsCredentialsFromConfig(conn.cfg)`
+   * (`src/adt/http-guard.ts`, `src/auth/tls-credentials.ts`) — the SAME
+   * credentials the ADT/axios stack uses — never re-derived locally. Every TLS
+   * option this agent carries (verification policy, CA, client certificate)
+   * is reused, not just `rejectUnauthorized`; only the socket pool is not
+   * shared (see `agent: false` below): this shares the TLS policy, not the
+   * pool.
    */
   httpsAgent?: https.Agent;
 }
@@ -262,14 +265,37 @@ export function createRawHttpRequestFn(opts: RawHttpRequestFnOptions = {}): RawH
       // per-request option (not `agent: httpsAgent`) on the long-poll branch
       // so the override survives without adopting the shared Agent's pool
       // (confirmed empirically against a live system).
-      // Applies equally when tunnelling through a proxy: `rejectUnauthorized`
-      // governs the TLS handshake with the ORIGIN server at the far end of
+      // Applies equally when tunnelling through a proxy: these options
+      // govern the TLS handshake with the ORIGIN server at the far end of
       // the `CONNECT` tunnel, not the (plaintext, by convention) hop to the
       // proxy itself.
-      const insecureOverride =
-        isHttps && httpsAgent?.options.rejectUnauthorized === false
+      //
+      // Every TLS option the shared agent carries, re-applied as per-request
+      // options. `agent: false` (below) makes Node build a throwaway agent
+      // from these options alone, so anything NOT copied here is silently
+      // dropped: before client certificates existed only `rejectUnauthorized`
+      // mattered, and copying just that would now mean the long-poll connects
+      // without presenting the certificate while every other request presents
+      // it. Read off `httpsAgent.options` rather than re-deriving from config
+      // so there is still exactly one place that decides TLS policy
+      // (`buildHttpsAgent`, src/adt/http-guard.ts) — see
+      // test/tls-policy-agreement.test.ts.
+      const agentTlsOptions = isHttps ? httpsAgent?.options : undefined;
+      const tlsOverride = {
+        // Preserves today's behaviour exactly: only an explicit `false` is
+        // copied, never `true`/`undefined` (Node's own default already
+        // verifies).
+        ...(agentTlsOptions?.rejectUnauthorized === false
           ? { rejectUnauthorized: false as const }
-          : {};
+          : {}),
+        ...(agentTlsOptions?.ca !== undefined ? { ca: agentTlsOptions.ca } : {}),
+        ...(agentTlsOptions?.cert !== undefined ? { cert: agentTlsOptions.cert } : {}),
+        ...(agentTlsOptions?.key !== undefined ? { key: agentTlsOptions.key } : {}),
+        ...(agentTlsOptions?.pfx !== undefined ? { pfx: agentTlsOptions.pfx } : {}),
+        ...(agentTlsOptions?.passphrase !== undefined
+          ? { passphrase: agentTlsOptions.passphrase }
+          : {}),
+      };
 
       let options: http.RequestOptions;
       if (proxyPlan && isHttps) {
@@ -284,7 +310,7 @@ export function createRawHttpRequestFn(opts: RawHttpRequestFnOptions = {}): RawH
           method: req.method,
           headers: req.headers,
           agent: proxyPlan.agent,
-          ...insecureOverride,
+          ...tlsOverride,
         };
       } else if (proxyPlan) {
         // Forward-proxy (HTTP target): `proxyPlan.options` already retargets
@@ -304,10 +330,18 @@ export function createRawHttpRequestFn(opts: RawHttpRequestFnOptions = {}): RawH
         // to reuse directly for short-lived CSRF HEADs, no keep-alive hazard
         // there.
         options = req.longPoll
-          ? { method: req.method, headers: req.headers, agent: false, ...insecureOverride }
+          ? { method: req.method, headers: req.headers, agent: false, ...tlsOverride }
           : {
               method: req.method,
               headers: req.headers,
+              // The real shared agent, not `tlsOverride` — it already carries
+              // every TLS option (including the client certificate), and
+              // reusing it here (rather than rebuilding a throwaway one) is
+              // what makes this branch safe to pool. Left asymmetric with the
+              // long-poll/proxy branches above deliberately: those use
+              // `agent: false`/a fresh per-request agent and so need
+              // `tlsOverride` to avoid losing the credential; this one never
+              // does.
               ...(isHttps && httpsAgent ? { agent: httpsAgent } : {}),
             };
       }
@@ -1164,10 +1198,12 @@ export interface DebugLongPollOptions {
    */
   requestFn?: RawHttpRequestFn;
   /**
-   * TLS-verification agent, built by `buildInsecureHttpsAgent`
-   * (`src/adt/http-guard.ts`) from the same `ABAP_INSECURE` the ADT/axios
-   * stack uses. Ignored if `requestFn` is also supplied. `undefined`
-   * preserves the original behaviour: ordinary Node TLS verification.
+   * TLS agent, built by `buildHttpsAgent` off `tlsCredentialsFromConfig`
+   * (`src/adt/http-guard.ts`, `src/auth/tls-credentials.ts`) from the same
+   * config the ADT/axios stack uses — verification policy, CA bundle, and
+   * client certificate alike. Ignored if `requestFn` is also supplied.
+   * `undefined` preserves the original behaviour: ordinary Node TLS
+   * verification.
    *
    * Proxy awareness (`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY`) is
    * unconditional and independent of this option — `createRawHttpRequestFn`

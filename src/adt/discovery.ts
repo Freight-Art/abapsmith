@@ -37,6 +37,25 @@ export type Feature =
   | "textelements";
 
 /**
+ * A cloud tenant (an SAP BTP ABAP environment / steampunk system) publishes a
+ * visibly smaller discovery document than an on-premise system: no classic
+ * dynpro collections, no `$TMP`-style local-package semantics, and a
+ * restricted ABAP language version. That reduced document is handled by
+ * construction, not by a special case added for it — `capability()` already
+ * reports `"unsupported"` for any feature whose href markers are absent from
+ * a LOADED inventory (never `"unknown"`, and never a throw), and `ingest()`
+ * already reports `"empty"` rather than `"loaded"` for a document with zero
+ * collections. A smaller-but-nonempty inventory is exactly the `"loaded"` /
+ * per-feature-`"unsupported"` case this module was already built for.
+ *
+ * UNVERIFIED: no BTP ABAP environment was available to capture a real
+ * reduced discovery document from, so `test/discovery-cloud-tenant.test.ts`
+ * exercises this against a hand-built one instead — it proves the reduced-set
+ * path doesn't throw or misreport, not that it matches SAP's exact cloud
+ * collection list.
+ */
+
+/**
  * Feature → substrings that must appear in a collection href.
  * Matching on the href (not the title) keeps this language-independent.
  */

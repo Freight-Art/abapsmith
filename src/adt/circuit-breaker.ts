@@ -34,6 +34,7 @@
  */
 import { isSessionDeath } from "./session.js";
 import type { Config } from "../config.js";
+import type { AuthMethod } from "../auth/method.js";
 
 // The credential-fingerprint registry, auth latch, and ICF/HTML classifier
 // used to live here (this file was 4 modules in ~1700 lines). Now in
@@ -193,14 +194,28 @@ const AUTH_REARM_MAX_COOLDOWN_MS = 4 * 60 * 60_000;
 const AUTH_REARM_POLL_MS = 1_000;
 
 /**
- * Fed to `fingerprintCredentials` in place of a password when `cfg.password`
- * is `undefined` (cookie auth). A fixed string literal — never derived
- * from `cfg.sessionCookie` in any way, so no cookie name, value, hash or
- * length can reach the fingerprint that `INSTALL_SALT` (`auth-latch.ts`)
- * hashes onto disk. Its only job is keeping password-auth and cookie-auth
- * off the same durable auth-latch entry.
+ * Fixed literals standing in for "the credential" when there is no password.
+ * Each is a CONSTANT: nothing is derived from the cookie, token, client
+ * secret or certificate in any way, so no secret value, hash or length can
+ * reach the fingerprint `INSTALL_SALT` (`auth-latch.ts`) hashes onto disk.
+ * Their only job is keeping the five auth methods off the same IN-PROCESS
+ * fingerprint entry. The durable file (`auth-latch.ts`) is keyed on url+user
+ * alone, deliberately: a 401 counts against `login/fails_to_user_lock` for
+ * that user whichever credential produced it, so a bearer-token 401 also
+ * latches a later password logon of the same user (observed live). The
+ * `cookie` value must stay byte-identical — changing it would orphan latch
+ * entries written by earlier versions.
+ *
+ * Consequence, deliberate: two OAuth clients (or two certificates) against the
+ * same url+user share one latch entry, exactly as two different cookies
+ * already do. Distinguishing them would mean hashing the credential.
  */
-const NO_PASSWORD_CREDENTIAL_DISCRIMINATOR = " session-cookie-auth";
+const CREDENTIAL_DISCRIMINATORS: Record<Exclude<AuthMethod, "password">, string> = {
+  cookie: " session-cookie-auth",
+  certificate: " client-certificate-auth",
+  token: " bearer-token-auth",
+  oauth: " oauth-client-credentials-auth",
+};
 
 
 
@@ -340,7 +355,9 @@ export class AuthCircuitBreaker {
     const fingerprint = fingerprintCredentials(
       cfg.url,
       cfg.user,
-      cfg.password ?? NO_PASSWORD_CREDENTIAL_DISCRIMINATOR,
+      cfg.authMethod === "password"
+        ? (cfg.password ?? "")
+        : CREDENTIAL_DISCRIMINATORS[cfg.authMethod],
     );
     const prior = lookupTrippedFingerprint(fingerprint);
     if (prior) {

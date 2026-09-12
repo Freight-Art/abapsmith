@@ -12,6 +12,18 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.11] - 2026-09-12
+
+### Added
+
+- Four more credential methods next to password and session cookie, exactly one of which must be configured (issue #79): client certificate (`ABAP_CLIENT_CERT` as PEM or PKCS#12, `ABAP_CLIENT_KEY`, `ABAP_CLIENT_KEY_PASSPHRASE`), static bearer token (`ABAP_TOKEN`, reported as `AUTH_EXPIRED` when rejected, never refreshed), OAuth 2.0 client credentials (`ABAP_OAUTH_TOKEN_URL`/`ABAP_OAUTH_CLIENT_ID`/`ABAP_OAUTH_CLIENT_SECRET`/`ABAP_OAUTH_SCOPE`, cached token with one 401 refresh-and-retry and a failure cooldown, `AUTH_TOKEN_REFRESH_FAILED`), and a BTP service key (`ABAP_SERVICE_KEY`) that supplies the OAuth settings. `ABAP_CA_CERT` verifies the server certificate with any method. Configuring more than one credential refuses to start. Certificate, token and OAuth logon are unit-tested against fakes and marked `unverified` in `doc/CONFIGURATION/connection.md` and `doc/LIMITATIONS/authentication.md`; A4H offers none of them. Verified live on A4H: password logon unchanged, `ABAP_TOKEN` against a basic-auth system reports `AUTH_EXPIRED` naming the variable, and both the exactly-one-of rule and an unreadable certificate path are refused at startup with the offending variable named.
+- System-role detection records `tenantKind` (`on-premise`/`cloud`/`unknown`) from the already-fetched `ato/settings` body; it never feeds the productive-system gate (issue #80). Cloud-tenant detection is unverified: no cloud tenant was available.
+
+### Fixed
+
+- The debugger's long-poll request (`agent: false`) copied only `rejectUnauthorized` off the shared TLS agent, so on a certificate-authenticated system it would have connected without the client certificate; it now carries `ca`/`cert`/`key`/`pfx`/`passphrase` on both the direct and the proxy branch, proven by a local `requestCert: true` server in `test/tls-policy-agreement.test.ts` (issue #79).
+- `src/config.ts` promised a sy-uname mismatch report that nothing implemented; the promise is removed and the gap is documented in `doc/LIMITATIONS/authentication.md` (issue #79).
+
 ## [0.5.10] - 2026-09-12
 
 ### Deprecated
