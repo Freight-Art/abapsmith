@@ -23,6 +23,7 @@ import { AuthCircuitBreaker } from "./circuit-breaker.js";
 import { AUTH_LATCH_TTL_MS } from "./auth-latch.js";
 import { AbapError } from "./errors.js";
 import { captureErrorBody } from "../error-capture.js";
+import type { AuthMethod } from "../auth/method.js";
 
 /** Axios-level timeout when `GuardOptions.timeout` is not supplied. Must stay
  * equal to `src/config.ts`'s `timeoutMs` default — move them together. */
@@ -30,7 +31,15 @@ const DEFAULT_HTTP_TIMEOUT_MS = 60_000;
 
 export interface GuardOptions {
   baseURL: string;
+  /**
+   * Verification-only shorthand for `ABAP_INSECURE`. Superseded by {@link tls}
+   * when that is supplied; kept because most call sites (including most
+   * tests) only ever care about turning verification off, not about a CA
+   * bundle or a client certificate.
+   */
   insecure?: boolean;
+  /** Full TLS credential set (CA pin, client cert, verification policy). See {@link buildHttpsAgent}. */
+  tls?: TlsCredentials;
   timeout?: number;
   /**
    * When false (the default) `sap-client` is stripped from every request,
@@ -76,6 +85,30 @@ export interface GuardOptions {
    * disables injection entirely — password mode never calls this.
    */
   injectedCookies?: () => ReadonlyMap<string, string> | undefined;
+  /**
+   * The resolved auth method, for error hints only. Never affects routing.
+   */
+  authMethod?: AuthMethod;
+  /**
+   * Bearer credential for `ABAP_TOKEN` (static) or OAuth (fetched/cached by
+   * `OAuthTokenProvider`). A FUNCTION, never a value — see `injectedCookies`.
+   * May be async: the OAuth provider's first call performs a network fetch.
+   * Applied at step 2d, which also drops `auth` for the same reason 2c does.
+   */
+  bearerToken?: () => string | undefined | Promise<string | undefined>;
+  /**
+   * Discards the cached bearer and obtains a fresh one. Present ONLY in OAuth
+   * mode; its presence is what enables the single 401 refresh-and-retry at
+   * step 2f. Absent in every other mode, so every other mode's dispatch is
+   * byte-for-byte what it was before this option existed.
+   */
+  refreshBearerToken?: () => Promise<string | undefined>;
+  /**
+   * Certificate mode: the credential IS the TLS handshake, so no
+   * `Authorization` header and no `auth` may be sent at all. A function for
+   * symmetry with the others, and so the mode is read at dispatch time.
+   */
+  suppressBasicAuth?: () => boolean;
 }
 
 /** The header `AdtHTTP._request()` stamps from its `stateful` field. */
@@ -116,6 +149,23 @@ function mergeInjectedCookies(jarHeader: string, injected: ReadonlyMap<string, s
     if (held === undefined || held === "") merged.set(name, value);
   }
   return [...merged].map(([name, value]) => `${name}=${value}`).join("; ");
+}
+
+/**
+ * Copy of `headers` with every key whose lowercase form is `"authorization"`
+ * removed. Case-insensitive because the header is set by `abap-adt-api`, not
+ * by this file, so its casing is not under our control. `undefined` in,
+ * `undefined` out — nothing to strip.
+ */
+function stripAuthorizationHeader(
+  headers: HttpClientOptions["headers"],
+): HttpClientOptions["headers"] {
+  if (!headers) return headers;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== "authorization") out[key] = value;
+  }
+  return out;
 }
 
 /** Releases whatever {@link GuardOptions.acquire} handed out. Must be idempotent. */
@@ -500,18 +550,101 @@ export function transientOpenError(breaker: AuthCircuitBreaker): AbapError {
 }
 
 /**
+ * Everything this process needs to open a TLS connection to the ABAP system:
+ * the verification policy (`ABAP_INSECURE`), an optional CA bundle for the
+ * SERVER certificate (`ABAP_CA_CERT`), and optional X.509 CLIENT credentials
+ * (`ABAP_CLIENT_CERT`/`_KEY`/`_KEY_PASSPHRASE`). `ca` is deliberately
+ * independent of `insecure`: pinning a private CA is the opposite of turning
+ * verification off, and an operator must be able to do the first without the
+ * second.
+ */
+export interface TlsCredentials {
+  readonly insecure?: boolean;
+  readonly ca?: Buffer;
+  readonly cert?: Buffer;
+  readonly key?: Buffer;
+  readonly pfx?: Buffer;
+  readonly passphrase?: string;
+}
+
+/**
+ * Single source of truth for this process's TLS options. Also called (via
+ * `tlsCredentialsFromConfig`) by `src/debug/session.ts` for the debugger's raw
+ * `node:https` sockets, which cannot share axios's private agent instance —
+ * one function so the two stacks cannot drift, the way they once drifted on
+ * `ABAP_INSECURE`. See `test/tls-policy-agreement.test.ts`.
+ *
+ * Returns `undefined` when NOTHING is configured — "no agent, ordinary
+ * verification", not "verification is off".
+ */
+export function buildHttpsAgent(tls: TlsCredentials | undefined): https.Agent | undefined {
+  const options: https.AgentOptions = {};
+  let hasOption = false;
+  if (tls?.insecure) {
+    options.rejectUnauthorized = false;
+    hasOption = true;
+  }
+  if (tls?.ca) {
+    options.ca = tls.ca;
+    hasOption = true;
+  }
+  if (tls?.cert) {
+    options.cert = tls.cert;
+    hasOption = true;
+  }
+  if (tls?.key) {
+    options.key = tls.key;
+    hasOption = true;
+  }
+  if (tls?.pfx) {
+    options.pfx = tls.pfx;
+    hasOption = true;
+  }
+  if (tls?.passphrase !== undefined) {
+    options.passphrase = tls.passphrase;
+    hasOption = true;
+  }
+  return hasOption ? new https.Agent(options) : undefined;
+}
+
+/**
  * Single source of truth for this process's TLS-verification policy
  * (`ABAP_INSECURE`). Also called directly by `src/debug/transport.ts`'s raw
  * `node:https` long-poll/CSRF sockets, which cannot share axios's private
  * `httpsAgent` instance — calling this with the same `cfg.insecure` value
  * keeps both stacks on identical logic instead of a second copy that could
- * drift. See `test/http-guard-debug-transport-agreement.test.ts`.
+ * drift. See `test/tls-policy-agreement.test.ts`.
  *
  * Returns `undefined` when falsy — "no agent" (normal verification), not
  * "verification is off."
  */
 export function buildInsecureHttpsAgent(insecure: boolean | undefined): https.Agent | undefined {
-  return insecure ? new https.Agent({ rejectUnauthorized: false }) : undefined;
+  return buildHttpsAgent({ insecure });
+}
+
+/**
+ * Bare `POST`, `application/x-www-form-urlencoded`, for a URL that is NOT the
+ * ABAP system — currently only `src/adt/oauth.ts`'s default token-endpoint
+ * fetch. Lives here, not in `oauth.ts`, because this file is one of the three
+ * modules `test/http-guard-url-evasion.test.ts`'s CANARY test allows to open
+ * a socket ("exactly three modules can open a socket"); a second dialer in
+ * `oauth.ts` would trip that canary and silently grow the socket surface it
+ * exists to police. Deliberately not routed through `GuardedHttpClient`/
+ * `AxiosHttpClient`: those are wired to ONE ABAP base URL and inject ABAP
+ * Basic-auth/cookies, neither of which belongs on a request to a separate
+ * identity provider's token endpoint.
+ */
+export async function postFormUrlEncoded(
+  url: string,
+  body: URLSearchParams,
+): Promise<{ status: number; body: string }> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  const text = await res.text();
+  return { status: res.status, body: text };
 }
 
 export class GuardedHttpClient implements HttpClient {
@@ -522,6 +655,8 @@ export class GuardedHttpClient implements HttpClient {
   requestCount = 0;
   /** Number of requests refused locally because the breaker was open. */
   blockedCount = 0;
+  /** Number of requests re-sent once after a 401 with a refreshed bearer. */
+  refreshRetryCount = 0;
 
   /**
    * `breaker` IS REQUIRED — it used to default to `new AuthCircuitBreaker()`,
@@ -531,7 +666,7 @@ export class GuardedHttpClient implements HttpClient {
   constructor(opts: GuardOptions, breaker: AuthCircuitBreaker) {
     this.opts = opts;
     this.breaker = breaker;
-    const httpsAgent = buildInsecureHttpsAgent(opts.insecure);
+    const httpsAgent = buildHttpsAgent(this.opts.tls ?? { insecure: opts.insecure });
     this.inner =
       opts.inner ??
       new AxiosHttpClient(opts.baseURL, {
@@ -656,19 +791,108 @@ export class GuardedHttpClient implements HttpClient {
       delete opts.auth;
     }
 
+    // 2d. Bearer credential (ABAP_TOKEN, or an OAuth access token). Same rule
+    //     as 2c: an empty-password Basic attempt is a real failed logon against
+    //     SAP's lockout counter, so `auth` is dropped whenever a bearer is in
+    //     play. Header map is copied, never mutated — same rule as 2b.
+    //     `await` only when `bearerToken` is actually configured: an `await`
+    //     always yields at least one microtask even on a non-promise value,
+    //     and every mode without a bearer (password/cookie/certificate) must
+    //     stay synchronous through to `sendRaw()` — see
+    //     test/circuit-breaker-wiring.test.ts's "admits EXACTLY ONE probe"
+    //     assertion, which reads `inner.calls.length` synchronously right
+    //     after firing a concurrent burst.
+    const bearer = this.opts.bearerToken !== undefined ? await this.opts.bearerToken() : undefined;
+    if (bearer !== undefined) {
+      opts.headers = { ...(opts.headers ?? {}), Authorization: `Bearer ${bearer}` };
+      delete opts.auth;
+    } else if (this.opts.suppressBasicAuth?.() === true) {
+      // 2e. Certificate mode: the client certificate presented during the TLS
+      //     handshake IS the credential. Any Authorization header on top of it
+      //     is at best ignored and at worst a second, failing logon attempt
+      //     against the lockout counter. Stripped case-insensitively because
+      //     the header is set by abap-adt-api, not by this file.
+      opts.headers = stripAuthorizationHeader(opts.headers);
+      delete opts.auth;
+    }
+
     this.opts.onRequest?.(opts);
 
+    if (this.opts.refreshBearerToken === undefined) {
+      // Every mode except OAuth: one send, then the unchanged post-processing.
+      return this.settle(await this.sendRaw(opts), opts, isProbe);
+    }
+
+    // OAuth only. A 401 here is far more likely to be an access token that
+    // aged out than a revoked client, and the auth latch is one-way, so the
+    // refresh has to happen before `settle()` lets `breaker.inspect()` see the
+    // status. Exactly ONE retry, unconditionally — the provider's own failure
+    // cooldown (see `OAuthTokenProvider`) is what stops a revoked client
+    // hammering the token endpoint, and a second 401 falls through to
+    // `settle()` and trips the latch as it always did.
+    const first = await this.sendRaw(opts);
+    const status = first.response?.status ?? first.carried?.status;
+    if (status === 401) {
+      const fresh = await this.opts.refreshBearerToken();
+      if (fresh !== undefined) {
+        const retry: HttpClientOptions = {
+          ...opts,
+          headers: { ...stripAuthorizationHeader(opts.headers), Authorization: `Bearer ${fresh}` },
+        };
+        delete retry.auth;
+        this.refreshRetryCount++;
+        // The retry is a genuinely separate request on the wire — its own
+        // `requestCount` increment in `sendRaw()`, its own `Authorization`
+        // header — so `onRequest` (this server's request observer, used for
+        // journal/logging) must see it too. Without this, an observer that
+        // counted one call per `onRequest` invocation would under-report:
+        // two requests reached SAP but only one was ever recorded.
+        this.opts.onRequest?.(retry);
+        return this.settle(await this.sendRaw(retry), retry, isProbe);
+      }
+    }
+    return this.settle(first, opts, isProbe);
+  }
+
+  /**
+   * ONLY the network call and the exception/`.response` split — nothing that
+   * touches the breaker, `onResponse`, or throws. Split out of `dispatch()` so
+   * the OAuth 401 retry (step 2f) can send TWICE while `settle()` runs its
+   * full post-processing (including `breaker.inspect()`, which is what would
+   * latch a merely-expired token) only on whichever attempt is final.
+   */
+  private async sendRaw(
+    opts: HttpClientOptions,
+  ): Promise<{ response?: HttpClientResponse; error?: unknown; carried?: HttpClientResponse }> {
     this.requestCount++;
-    let response: HttpClientResponse | undefined;
     try {
-      response = await this.inner.request(opts);
+      const response = await this.inner.request(opts);
+      return { response };
     } catch (e) {
+      // Axios throws on >= 400; the response is carried on the exception.
+      return { error: e, carried: (e as HttpClientException)?.response };
+    }
+  }
+
+  /**
+   * Everything downstream of `sendRaw()` — EXACTLY the post-processing
+   * `dispatch()` used to run inline, moved rather than rewritten. Distinguish
+   * success/failure via `"error" in outcome`, not `outcome.error !==
+   * undefined`: a thrown value of `undefined` must still take the failure
+   * path, matching what a bare `try/catch` around `sendRaw()`'s call would do.
+   */
+  private settle(
+    outcome: { response?: HttpClientResponse; error?: unknown; carried?: HttpClientResponse },
+    opts: HttpClientOptions,
+    isProbe: boolean,
+  ): HttpClientResponse {
+    if ("error" in outcome) {
+      const e = outcome.error;
       // Forensic capture — no-op unless ABAPSMITH_BODY_DUMP_DIR is set. This is
       // the lowest layer where a response body still exists; `abap-adt-api`'s
       // `AdtException.fromResponse` may later drop it (AdtException.js:145-147).
       captureErrorBody("http-guard", opts.url, e);
-      // Axios throws on >= 400; the response is carried on the exception.
-      const carried = (e as HttpClientException)?.response;
+      const carried = outcome.carried;
       if (carried) {
         // `inspect()` drives both machines — don't also call
         // noteFailure()/recordTransientFailure() or failures double-count.
@@ -696,6 +920,7 @@ export class GuardedHttpClient implements HttpClient {
       throw e;
     }
 
+    const response = outcome.response as HttpClientResponse;
     this.opts.onResponse?.(opts, response);
 
     // 3. Inspect EVERY response — a 200 carrying the ICF logon page is still a

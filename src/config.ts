@@ -5,10 +5,25 @@
  * The password is never logged, never serialised, and never included in an
  * error message.
  */
+import { readFileSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
 import { isTrkorr } from "./adt/transports.js";
+import {
+  loadCaBundle,
+  loadClientCertMaterial,
+  type CaBundle,
+  type ClientCertMaterial,
+  type CredentialFileReader,
+} from "./auth/client-cert.js";
+import type { AuthMethod } from "./auth/method.js";
+import { parseServiceKey, type OAuthSettings } from "./auth/service-key.js";
+// Re-exported so a caller (e.g. `src/adt/*`) can import these credential
+// types from config.js directly rather than reaching into `src/auth/*`.
+export type { AuthMethod } from "./auth/method.js";
+export type { CaBundle, ClientCertMaterial } from "./auth/client-cert.js";
+export type { OAuthSettings } from "./auth/service-key.js";
 import { DEFAULT_MAX_CHARS } from "./compact.js";
 // Re-exported so config-only tests can pin `maxResponseChars`'s default
 // without importing compact.js directly (see test/system-role-probe-guard.test.ts).
@@ -266,6 +281,24 @@ export const ConfigSchema = z.object({
    * mirroring how `abapMode` is resolved outside the schema.
    */
   sessionCookie: z.custom<ReadonlyMap<string, string>>().optional(),
+  /**
+   * Which of the five mutually exclusive credential methods resolved.
+   * `loadConfig` always passes an explicit value. The schema default exists
+   * for the OTHER entry point — hand-built `ConfigSchema.parse({...})` calls
+   * (tests, and any caller assembling a Config directly) predate this field,
+   * and `"password"` is the only default that keeps their behaviour identical
+   * to what it was before five methods existed. The parsed type stays
+   * non-optional, so every consumer can read it unconditionally.
+   */
+  authMethod: z.custom<AuthMethod>().default("password"),
+  /** X.509 client-certificate material (ABAP_CLIENT_CERT/_KEY/_KEY_PASSPHRASE). Loaded off disk by `loadClientCertMaterial`; key material and passphrase are secret. */
+  clientCert: z.custom<ClientCertMaterial>().optional(),
+  /** CA bundle for verifying the SERVER certificate (ABAP_CA_CERT). Not a credential and not tied to an auth method — usable in all five, and independent of ABAP_INSECURE. */
+  caCert: z.custom<CaBundle>().optional(),
+  /** Static bearer token (ABAP_TOKEN). As sensitive as ABAP_PASSWORD. */
+  token: z.string().min(1).optional(),
+  /** OAuth 2.0 client-credentials settings (ABAP_OAUTH_* or ABAP_SERVICE_KEY). `clientSecret` is as sensitive as ABAP_PASSWORD. */
+  oauth: z.custom<OAuthSettings>().optional(),
   /**
    * Logon client — documentation only by default; see `sendClientParam`.
    * Appending `?sap-client=` breaks login on some systems (observed on A4H).
@@ -821,6 +854,12 @@ export interface LoadConfigOptions {
   /** Where warnings go. Defaults to stderr — stdout is the MCP transport. */
   warn?: (msg: string) => void;
   skipDotenv?: boolean;
+  /**
+   * Injectable so config tests can exercise certificate and service-key
+   * handling without touching the filesystem. Defaults to a plain
+   * `readFileSync` (no encoding — callers decode as needed).
+   */
+  readFile?: CredentialFileReader;
 }
 
 /**
@@ -857,6 +896,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
   if (!opts.skipDotenv) loadEnvFile();
   const env = opts.env ?? process.env;
   const warn = opts.warn ?? ((m: string) => process.stderr.write(m + "\n"));
+  const readFile = opts.readFile ?? ((p: string) => readFileSync(p));
 
   // Presence is the signal (even ""), in every ABAP_MODE — a typo'd name is a silent no-op otherwise.
   for (const name of Object.keys(env)
@@ -941,14 +981,37 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     }
   }
 
-  // ABAP_PASSWORD / ABAP_SESSION_COOKIE: exactly one credential source is
-  // required. Both "" and unset count as "not set" — same treatment
-  // ABAP_MODE gets above (abapModeIsSet), for the same reason: only the raw
-  // env var distinguishes unset from explicitly-empty, and neither should
-  // count as a real value.
+  // ABAP_PASSWORD / ABAP_SESSION_COOKIE / ABAP_CLIENT_CERT / ABAP_TOKEN /
+  // ABAP_OAUTH_* (or ABAP_SERVICE_KEY): exactly one of five credential
+  // methods is required. Both "" and unset count as "not set" — same
+  // treatment ABAP_MODE gets above (abapModeIsSet), for the same reason:
+  // only the raw env var distinguishes unset from explicitly-empty, and
+  // neither should count as a real value.
   const passwordIsSet = env.ABAP_PASSWORD !== undefined && env.ABAP_PASSWORD.trim() !== "";
   const rawSessionCookie = env.ABAP_SESSION_COOKIE;
   const sessionCookieIsSet = rawSessionCookie !== undefined && rawSessionCookie.trim() !== "";
+  // `nonBlank` collapses "unset" and "explicitly blank" into `undefined` in
+  // one step for the remaining credential-method env vars: each variable
+  // below both answers "is this configured?" (`!== undefined`) and carries
+  // its own value ready to use, without a second `env.X` read.
+  const nonBlank = (v: string | undefined): string | undefined =>
+    v !== undefined && v.trim() !== "" ? v : undefined;
+  const clientCertPath = nonBlank(env.ABAP_CLIENT_CERT);
+  const clientKeyPath = nonBlank(env.ABAP_CLIENT_KEY);
+  const clientKeyPassphrase = nonBlank(env.ABAP_CLIENT_KEY_PASSPHRASE);
+  const tokenValue = nonBlank(env.ABAP_TOKEN);
+  const serviceKeyPath = nonBlank(env.ABAP_SERVICE_KEY);
+  const oauthTokenUrl = nonBlank(env.ABAP_OAUTH_TOKEN_URL);
+  const oauthClientId = nonBlank(env.ABAP_OAUTH_CLIENT_ID);
+  const oauthClientSecret = nonBlank(env.ABAP_OAUTH_CLIENT_SECRET);
+  const oauthScope = nonBlank(env.ABAP_OAUTH_SCOPE);
+  // ABAP_OAUTH_SCOPE is an optional modifier, not a method marker on its
+  // own — set alone it does not count as "OAuth configured" (see
+  // `oauthIsSet` below); it gets a startup NOTE instead, not a rejection.
+  const oauthExplicitIsSet =
+    oauthTokenUrl !== undefined || oauthClientId !== undefined || oauthClientSecret !== undefined;
+  const oauthIsSet = serviceKeyPath !== undefined || oauthExplicitIsSet;
+
   let sessionCookie: ReadonlyMap<string, string> | undefined;
   let credentialIssue: string | undefined;
   if (sessionCookieIsSet) {
@@ -966,17 +1029,148 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
       sessionCookie = parsedCookie;
     }
   }
+
+  // ABAP_CLIENT_KEY/_KEY_PASSPHRASE only mean anything alongside
+  // ABAP_CLIENT_CERT — checked here, before the exactly-one-of count below,
+  // so a stray key with no cert wins over a generic "no credential
+  // configured" message that would send the operator looking in the wrong
+  // place. Neither variable is a credential-method marker on its own, so
+  // this is not one of the five `configuredMethods` entries below.
+  if (credentialIssue === undefined && clientCertPath === undefined) {
+    const orphanNames = [
+      ...(clientKeyPath !== undefined ? ["ABAP_CLIENT_KEY"] : []),
+      ...(clientKeyPassphrase !== undefined ? ["ABAP_CLIENT_KEY_PASSPHRASE"] : []),
+    ];
+    if (orphanNames.length > 0) {
+      credentialIssue =
+        `${orphanNames.join(" / ")} is set but ABAP_CLIENT_CERT is not — set ABAP_CLIENT_CERT ` +
+        "to the certificate (PEM) or PKCS#12 file.";
+    }
+  }
+
+  const configuredMethods: Array<{ method: AuthMethod; label: string }> = [];
+  if (passwordIsSet) configuredMethods.push({ method: "password", label: "ABAP_PASSWORD" });
+  if (sessionCookieIsSet) configuredMethods.push({ method: "cookie", label: "ABAP_SESSION_COOKIE" });
+  if (clientCertPath !== undefined) {
+    configuredMethods.push({ method: "certificate", label: "ABAP_CLIENT_CERT" });
+  }
+  if (tokenValue !== undefined) configuredMethods.push({ method: "token", label: "ABAP_TOKEN" });
+  if (oauthIsSet) {
+    configuredMethods.push({ method: "oauth", label: "ABAP_OAUTH_* / ABAP_SERVICE_KEY" });
+  }
+
   if (credentialIssue === undefined) {
-    if (passwordIsSet && sessionCookie !== undefined) {
-      // Not "suppress one at dispatch": a password the operator did not
+    if (configuredMethods.length > 1) {
+      // Not "suppress one at dispatch": a credential the operator did not
       // intend to be in play must not be observable by any later feature
       // gate, so this refuses to start rather than silently picking one.
       credentialIssue =
-        "both ABAP_PASSWORD and ABAP_SESSION_COOKIE are set — refusing to start rather than " +
-        "silently choosing one. Unset whichever one is not intended.";
-    } else if (!passwordIsSet && sessionCookie === undefined) {
+        `more than one credential is configured (${configuredMethods.map((m) => m.label).join(" and ")}) — ` +
+        "refusing to start rather than silently choosing one. Unset whichever one is not intended.";
+    } else if (configuredMethods.length === 0) {
       credentialIssue =
-        "no credential configured — set exactly one of ABAP_PASSWORD or ABAP_SESSION_COOKIE.";
+        "no credential configured — set exactly one of ABAP_PASSWORD, ABAP_SESSION_COOKIE, " +
+        "ABAP_CLIENT_CERT, ABAP_TOKEN, or the ABAP_OAUTH_* group (ABAP_OAUTH_TOKEN_URL + " +
+        "ABAP_OAUTH_CLIENT_ID + ABAP_OAUTH_CLIENT_SECRET, or ABAP_SERVICE_KEY).";
+    }
+  }
+
+  // Only when exactly one method resolved cleanly is it worth materialising
+  // — with more than one, or none, `credentialIssue` above already explains
+  // why, and building e.g. a `ClientCertMaterial` for a method that isn't
+  // even the one in play would be wasted I/O at best and a second,
+  // contradicting error at worst.
+  const resolvedMethod =
+    credentialIssue === undefined && configuredMethods.length === 1 ? configuredMethods[0] : undefined;
+  // `authMethod` must be a real (non-optional) value for `ConfigSchema` even
+  // on the failure path: `loadConfig` throws before `cfg` is ever built
+  // whenever `credentialIssue` is set, so this default is never actually
+  // observed by a caller — it only keeps the object passed to `safeParse`
+  // total.
+  const authMethod: AuthMethod = resolvedMethod?.method ?? "password";
+
+  let clientCert: ClientCertMaterial | undefined;
+  if (resolvedMethod?.method === "certificate" && clientCertPath !== undefined) {
+    const { material, issue } = loadClientCertMaterial(
+      {
+        certPath: clientCertPath,
+        ...(clientKeyPath !== undefined ? { keyPath: clientKeyPath } : {}),
+        ...(clientKeyPassphrase !== undefined ? { passphrase: clientKeyPassphrase } : {}),
+      },
+      readFile,
+    );
+    if (issue !== undefined) credentialIssue = issue;
+    else clientCert = material;
+  }
+
+  let oauth: OAuthSettings | undefined;
+  if (resolvedMethod?.method === "oauth") {
+    if (serviceKeyPath !== undefined && oauthExplicitIsSet) {
+      credentialIssue =
+        "both ABAP_SERVICE_KEY and explicit ABAP_OAUTH_* variables are set — refusing to start " +
+        "rather than silently choosing one. Unset whichever one is not intended.";
+    } else if (serviceKeyPath !== undefined) {
+      try {
+        const raw = readFile(serviceKeyPath).toString("utf8");
+        const { settings, issue } = parseServiceKey(serviceKeyPath, raw);
+        if (issue !== undefined) {
+          credentialIssue = issue;
+        } else if (settings !== undefined) {
+          oauth = oauthScope !== undefined ? { ...settings, scope: oauthScope } : settings;
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        credentialIssue = `ABAP_SERVICE_KEY (${serviceKeyPath}) could not be read: ${msg}.`;
+      }
+    } else if (oauthTokenUrl === undefined || oauthClientId === undefined || oauthClientSecret === undefined) {
+      const missing = [
+        ...(oauthTokenUrl === undefined ? ["ABAP_OAUTH_TOKEN_URL"] : []),
+        ...(oauthClientId === undefined ? ["ABAP_OAUTH_CLIENT_ID"] : []),
+        ...(oauthClientSecret === undefined ? ["ABAP_OAUTH_CLIENT_SECRET"] : []),
+      ];
+      credentialIssue =
+        `OAuth client-credentials configuration is incomplete — ${missing.join(", ")} ` +
+        `${missing.length === 1 ? "is" : "are"} not set. Set ABAP_OAUTH_TOKEN_URL, ` +
+        "ABAP_OAUTH_CLIENT_ID and ABAP_OAUTH_CLIENT_SECRET, or point ABAP_SERVICE_KEY at a BTP " +
+        "service-key JSON instead.";
+    } else {
+      // Never echoed on failure: ABAP_OAUTH_TOKEN_URL can legally carry
+      // credentials in its userinfo part, same reasoning as
+      // `stripUrlCredentials` elsewhere in this file.
+      let validUrl: boolean;
+      try {
+        const u = new URL(oauthTokenUrl);
+        validUrl = u.protocol === "http:" || u.protocol === "https:";
+      } catch {
+        validUrl = false;
+      }
+      if (!validUrl) {
+        credentialIssue = "ABAP_OAUTH_TOKEN_URL is not a valid absolute URL.";
+      } else {
+        oauth = {
+          tokenUrl: oauthTokenUrl,
+          clientId: oauthClientId,
+          clientSecret: oauthClientSecret,
+          ...(oauthScope !== undefined ? { scope: oauthScope } : {}),
+          source: "env",
+        };
+      }
+    }
+  }
+
+  // ABAP_CA_CERT verifies the SERVER certificate, not this client's
+  // identity, so it's independent of which credential method is in play —
+  // loaded here regardless of `resolvedMethod`, in every auth method. Any
+  // issue joins the same combined `credentialIssue` slot rather than
+  // opening a second throw site.
+  const caCertPath = nonBlank(env.ABAP_CA_CERT);
+  let caCert: CaBundle | undefined;
+  if (caCertPath !== undefined) {
+    const { bundle, issue } = loadCaBundle(caCertPath, readFile);
+    if (issue !== undefined) {
+      credentialIssue = credentialIssue !== undefined ? `${credentialIssue}; ${issue}` : issue;
+    } else {
+      caCert = bundle;
     }
   }
 
@@ -1068,6 +1262,11 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     // speaks for a missing/blank password now.
     password: passwordIsSet ? env.ABAP_PASSWORD : undefined,
     sessionCookie,
+    authMethod,
+    clientCert,
+    caCert,
+    token: tokenValue,
+    oauth,
     client: env.ABAP_CLIENT ?? "",
     sendClientParam: env.ABAP_SEND_CLIENT_PARAM,
     sid: env.ABAP_SID || "UNKNOWN",
@@ -1245,6 +1444,36 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
       "[abapsmith] WARNING: ABAP_INSECURE=true — TLS certificate verification is DISABLED. " +
         "Credentials are exposed to anyone who can intercept the connection. " +
         "Prefer NODE_EXTRA_CA_CERTS with your corporate CA bundle.",
+    );
+    if (cfg.caCert !== undefined) {
+      warn(
+        "[abapsmith] WARNING: ABAP_CA_CERT is set but ABAP_INSECURE=true turns certificate " +
+          "verification off entirely, so the CA bundle is never consulted. Unset ABAP_INSECURE " +
+          "to make ABAP_CA_CERT take effect.",
+      );
+    }
+  }
+  if (cfg.authMethod === "certificate") {
+    warn(
+      "[abapsmith] NOTE: ABAP_USER is not sent for logon in client-certificate mode — the " +
+        "effective SAP user is whatever the certificate maps to on the system. ABAP_USER is " +
+        "still used for journal attribution and the debugger identity, but abapsmith does NOT " +
+        "verify that mapping. If the certificate maps to a different user than ABAP_USER names, " +
+        "journal entries and the debugger identity will say ABAP_USER while the system attributes " +
+        "the actual work to the certificate's user — set ABAP_USER to match the certificate's " +
+        "mapped user yourself.",
+    );
+  }
+  if (oauthScope !== undefined && !oauthIsSet) {
+    warn(
+      "[abapsmith] NOTE: ABAP_OAUTH_SCOPE is set but no OAuth client-credentials configuration " +
+        "is — it has no effect on its own.",
+    );
+  }
+  if (cfg.authMethod === "token") {
+    warn(
+      "[abapsmith] NOTE: ABAP_TOKEN is a static bearer token: it is never refreshed. When it " +
+        "expires the server reports AUTH_EXPIRED and you must renew ABAP_TOKEN and restart.",
     );
   }
   if (/^http:\/\//i.test(cfg.url)) {
@@ -1656,6 +1885,30 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     password: cfg.password ? "***" : "(not set)",
     sessionCookie: cfg.sessionCookie ? "***" : "(not set)",
     sessionCookieNames: cfg.sessionCookie ? [...cfg.sessionCookie.keys()] : undefined,
+    authMethod: cfg.authMethod,
+    clientCert: cfg.clientCert
+      ? {
+          kind: cfg.clientCert.kind,
+          certPath: cfg.clientCert.certPath,
+          keyPath: cfg.clientCert.keyPath ?? "(not set)",
+          passphrase: cfg.clientCert.passphrase ? "***" : "(not set)",
+        }
+      : "(not set)",
+    caCert: cfg.caCert ? cfg.caCert.path : "(not set)",
+    token: cfg.token ? "***" : "(not set)",
+    oauth: cfg.oauth
+      ? {
+          tokenUrl: stripUrlCredentials(cfg.oauth.tokenUrl),
+          // A BTP `clientid` is only meaningful paired with its secret, so
+          // redacting it too keeps the rule "nothing from a credential ever
+          // reaches the config dump" absolute rather than case-by-case.
+          clientId: "***",
+          clientSecret: "***",
+          scope: cfg.oauth.scope ?? "(not set)",
+          source: cfg.oauth.source,
+          serviceKeyPath: cfg.oauth.serviceKeyPath ?? "(not set)",
+        }
+      : "(not set)",
     client: cfg.client || "(not sent)",
     sid: cfg.sid,
     insecure: cfg.insecure,
