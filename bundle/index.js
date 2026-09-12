@@ -133699,34 +133699,92 @@ function buildWorklistReadUrl(worklistId, opts = {}) {
   params.set("includeExemptedFindings", String(opts.includeExempted === true));
   return `${ATC_WORKLISTS_PATH}/${encodeURIComponent(worklistId)}?${params.toString()}`;
 }
-function buildAtcRunBody(objectUri, maxVerdicts) {
-  if (typeof objectUri !== "string" || objectUri.trim() === "") {
+var ATC_WORKLIST_DELETE_ACCEPT = "application/xml";
+function buildWorklistDeleteUrl(worklistId) {
+  assertWorklistId(worklistId);
+  return `${ATC_WORKLISTS_PATH}/${encodeURIComponent(worklistId)}`;
+}
+var ATC_CHECK_VARIANT_TYPE = "CHKV";
+var ATC_CHECK_VARIANT_SEARCH_ACCEPT = "application/xml";
+var ATC_CHECK_VARIANT_DEFAULT_MAX = 200;
+function buildCheckVariantSearchUrl(maxResults) {
+  let n = ATC_CHECK_VARIANT_DEFAULT_MAX;
+  if (maxResults !== void 0 && Number.isFinite(maxResults)) {
+    n = Math.trunc(maxResults);
+    if (n < 1) n = 1;
+    if (n > 500) n = 500;
+  }
+  const params = new URLSearchParams();
+  params.set("operation", "quickSearch");
+  params.set("query", "*");
+  params.set("maxResults", String(n));
+  params.set("objectType", ATC_CHECK_VARIANT_TYPE);
+  return `/sap/bc/adt/repository/informationsystem/search?${params.toString()}`;
+}
+var ATC_MAX_RUN_TARGETS = 50;
+function buildAtcRunBody(objectUris, maxVerdicts) {
+  if (!Array.isArray(objectUris) || objectUris.length === 0) {
     throw new AbapError(
       "BAD_INPUT",
-      "An ATC run needs an object URI to check.",
-      { objectUri },
-      "Resolve the object first; the run body carries its ADT URI, not its name."
+      "An ATC run needs at least one object URI to check.",
+      { objectUris },
+      "Resolve the object(s) first; the run body carries their ADT URIs, not their names."
     );
   }
-  if (objectUri.includes('"') || objectUri.includes("<") || objectUri.includes("&")) {
+  for (const objectUri of objectUris) {
+    if (typeof objectUri !== "string" || objectUri.trim() === "") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "An ATC run needs an object URI to check.",
+        { objectUri },
+        "Resolve the object first; the run body carries its ADT URI, not its name."
+      );
+    }
+    if (objectUri.includes('"') || objectUri.includes("<") || objectUri.includes("&")) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "That object URI contains characters that cannot go into the ATC run request.",
+        { objectUri },
+        "ADT object URIs are plain paths. Pass the object by name and let this server resolve it."
+      );
+    }
+  }
+  const deduped = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const objectUri of objectUris) {
+    if (seen.has(objectUri)) continue;
+    seen.add(objectUri);
+    deduped.push(objectUri);
+  }
+  if (deduped.length > ATC_MAX_RUN_TARGETS) {
     throw new AbapError(
       "BAD_INPUT",
-      "That object URI contains characters that cannot go into the ATC run request.",
-      { objectUri },
-      "ADT object URIs are plain paths. Pass the object by name and let this server resolve it."
+      `An ATC run against ${deduped.length} distinct objects exceeds the ${ATC_MAX_RUN_TARGETS}-object cap this client enforces.`,
+      { objectCount: deduped.length, cap: ATC_MAX_RUN_TARGETS },
+      `Split the run into batches of at most ${ATC_MAX_RUN_TARGETS} objects. A single package reference over 77 classes took 134 s on A4H; an unbounded object set risks a request this client's HTTP timeout cannot wait out.`
     );
   }
   const verdicts = clampMaxVerdicts(maxVerdicts);
+  const references = deduped.map((uri) => `				<adtcore:objectReference adtcore:uri="${uri}"/>
+`).join("");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <atc:run maximumVerdicts="${verdicts}" xmlns:atc="http://www.sap.com/adt/atc">
 	<objectSets xmlns:adtcore="http://www.sap.com/adt/core">
 		<objectSet kind="inclusive">
 			<adtcore:objectReferences>
-				<adtcore:objectReference adtcore:uri="${objectUri}"/>
-			</adtcore:objectReferences>
-		</objectSet>
-	</objectSets>
-</atc:run>`;
+` + references + "			</adtcore:objectReferences>\n		</objectSet>\n	</objectSets>\n</atc:run>";
+}
+function packageObjectUri(packageName) {
+  const trimmed = typeof packageName === "string" ? packageName.trim() : "";
+  if (trimmed === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "An ATC run against a package needs the package's name.",
+      { packageName },
+      "Pass the package name, e.g. Z_MY_PACKAGE or $TMP."
+    );
+  }
+  return `/sap/bc/adt/packages/${encodeURIComponent(trimmed.toLowerCase())}`;
 }
 function clampMaxVerdicts(requested) {
   if (requested === void 0 || !Number.isFinite(requested)) return ATC_DEFAULT_MAX_VERDICTS;
@@ -133816,7 +133874,13 @@ var REPEATABLE_JPATHS2 = /* @__PURE__ */ new Set([
   // worklist
   "worklist.objectSets.objectSet",
   "worklist.objects.object",
-  "worklist.objects.object.findings.finding"
+  "worklist.objects.object.findings.finding",
+  // finding documentation link — verified against `888` (jpath printed by
+  // driving this exact parser config over that fixture and inspecting the
+  // `isArray` callback's `jpath` argument, not guessed from the tag name).
+  "worklist.objects.object.findings.finding.link",
+  // check-variant list (a repository quickSearch result, not a worklist)
+  "objectReferences.objectReference"
 ]);
 function asRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
@@ -133923,6 +133987,7 @@ function parseAtcRunAck(body) {
     infos
   };
 }
+var DOCUMENTATION_LINK_REL = "http://www.sap.com/adt/relations/documentation";
 function parseAtcWorklist(body) {
   const doc = parseDocument(body, "worklist");
   const root = asRecord2(doc["worklist"]);
@@ -133979,6 +134044,8 @@ function parseObject(node2) {
 }
 function parseFinding(node2) {
   const quickfixInfo = attr5(node2, "quickfixInfo");
+  const documentationUri = findDocumentationUri(node2);
+  const quickFixes = parseQuickFixFlags(asRecord2(node2["quickfixes"]));
   return {
     uri: attrOrEmpty2(node2, "uri"),
     location: parseAtcLocation(attr5(node2, "location")),
@@ -133990,7 +134057,34 @@ function parseFinding(node2) {
     messageTitle: attrOrEmpty2(node2, "messageTitle"),
     exemptionKind: attrOrEmpty2(node2, "exemptionKind"),
     exemptionApproval: attrOrEmpty2(node2, "exemptionApproval"),
-    ...quickfixInfo === void 0 || quickfixInfo === "" ? {} : { quickfixInfo }
+    ...quickfixInfo === void 0 || quickfixInfo === "" ? {} : { quickfixInfo },
+    ...documentationUri === void 0 ? {} : { documentationUri },
+    ...quickFixes === void 0 ? {} : { quickFixes }
+  };
+}
+function findDocumentationUri(node2) {
+  for (const raw of asArray3(node2["link"])) {
+    const link = asRecord2(raw);
+    if (attr5(link, "rel") !== DOCUMENTATION_LINK_REL) continue;
+    const href = attr5(link, "href");
+    if (href !== void 0 && href !== "") return href;
+  }
+  return void 0;
+}
+function parseQuickFixFlags(node2) {
+  if (node2 === void 0) return void 0;
+  const manual = isXmlTrue2(attr5(node2, "manual"));
+  const automatic = isXmlTrue2(attr5(node2, "automatic"));
+  const pseudo = isXmlTrue2(attr5(node2, "pseudo"));
+  const aiBased = isXmlTrue2(attr5(node2, "aiBasedQF"));
+  const aiEnabled = isXmlTrue2(attr5(node2, "ai_enabled"));
+  return {
+    manual,
+    automatic,
+    pseudo,
+    aiBased,
+    aiEnabled,
+    any: manual || automatic || pseudo || aiBased
   };
 }
 function parsePriority(raw) {
@@ -134041,6 +134135,31 @@ function countFindings(findings) {
   }
   return { total: findings.length, errors, warnings, infos, other, exempted };
 }
+function parseCheckVariantList(body) {
+  const doc = parseDocument(body, "check variant list");
+  const rawRoot = doc["objectReferences"];
+  if (rawRoot === void 0) {
+    throw missingRoot("check variant list", "objectReferences", body);
+  }
+  const root = asRecord2(rawRoot);
+  const variants = [];
+  for (const raw of asArray3(root?.["objectReference"])) {
+    const node2 = asRecord2(raw);
+    const type = attrOrEmpty2(node2, "type");
+    if (!type.startsWith("CHKV")) continue;
+    const name = attr5(node2, "name");
+    if (name === void 0 || name === "") continue;
+    const description = attr5(node2, "description");
+    const packageName = attr5(node2, "packageName");
+    variants.push({
+      name,
+      uri: attrOrEmpty2(node2, "uri"),
+      ...description === void 0 || description === "" ? {} : { description },
+      ...packageName === void 0 || packageName === "" ? {} : { packageName }
+    });
+  }
+  return variants;
+}
 
 // src/adt/atc.ts
 function classifyAtcFailure(e, ctx) {
@@ -134053,6 +134172,15 @@ function classifyAtcFailure(e, ctx) {
     ...ctx.checkVariant === void 0 ? {} : { checkVariant: ctx.checkVariant },
     ...ctx.worklistId === void 0 ? {} : { worklistId: ctx.worklistId }
   };
+  if (status === void 0 && isTimeoutError(e)) {
+    const timeoutLabel = ctx.timeoutMs !== void 0 ? `ABAP_TIMEOUT_MS=${ctx.timeoutMs}` : "ABAP_TIMEOUT_MS";
+    return new AbapError(
+      "ADT_ERROR",
+      `The ATC ${ctx.operation === "atc.run" ? "run" : "request"} over ${ctx.name ?? ctx.uri ?? "the requested scope"} did not answer before the configured timeout (${timeoutLabel}) elapsed: ${err.message}`,
+      { ...extra, timeout: true },
+      "No response arrived, so it is unknown whether the run finished on the server. The worklist this run posted to (see the accompanying worklist id, when one was already known) persists on the server regardless \u2014 this server cannot delete ATC worklists \u2014 and worklists accumulate findings across every run ever made into them, so a later call over the same object/objects/package and check variant reuses that same worklist rather than starting a fresh one and will include any findings that run did manage to record. Raise ABAP_TIMEOUT_MS, or narrow the scope \u2014 fewer objects, a types filter, or a smaller package \u2014 so the run finishes inside the current timeout."
+    );
+  }
   if (status === 404) {
     return new AbapError(
       "UNSUPPORTED",
@@ -134096,12 +134224,26 @@ function stateFor(conn) {
   atcState.set(conn, created);
   return created;
 }
+function forgetCachedWorklist(conn, worklistId) {
+  const state = atcState.get(conn);
+  if (state === void 0) return;
+  for (const [variant, id] of state.worklists) {
+    if (id === worklistId) state.worklists.delete(variant);
+  }
+}
+var ATC_NAME_DISPLAY_MAX = 20;
+function namesLabel(names) {
+  if (names.length <= ATC_NAME_DISPLAY_MAX) return names.join(", ");
+  const shown = names.slice(0, ATC_NAME_DISPLAY_MAX);
+  return `${shown.join(", ")} \u2026 [truncated, ${shown.length} of ${names.length} shown]`;
+}
 async function fetchDefaultCheckVariant(conn) {
   const state = stateFor(conn);
   if (state.defaultVariant !== void 0) return state.defaultVariant;
   const ctx = {
     operation: "atc.customizing",
-    uri: ATC_CUSTOMIZING_PATH
+    uri: ATC_CUSTOMIZING_PATH,
+    timeoutMs: conn.cfg?.timeoutMs
   };
   let body;
   try {
@@ -134129,6 +134271,45 @@ async function fetchDefaultCheckVariant(conn) {
   state.defaultVariant = variant;
   return variant;
 }
+async function listCheckVariants(conn) {
+  const state = stateFor(conn);
+  if (state.checkVariants !== void 0) return state.checkVariants;
+  const url2 = buildCheckVariantSearchUrl();
+  const ctx = { operation: "atc.checkVariants", uri: url2, timeoutMs: conn.cfg?.timeoutMs };
+  let body;
+  try {
+    ({ body } = await conn.get(url2, {
+      headers: { Accept: ATC_CHECK_VARIANT_SEARCH_ACCEPT }
+    }));
+  } catch (e) {
+    throw classifyAtcFailure(e, ctx);
+  }
+  const variants = parseCheckVariantList(body);
+  state.checkVariants = variants;
+  return variants;
+}
+async function resolveCheckVariant(conn, requested) {
+  assertVariantName(requested);
+  let variants;
+  try {
+    variants = await listCheckVariants(conn);
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    return {
+      name: requested,
+      unvalidatedReason: `The check-variant list could not be read, so "${requested}" was not validated before use: ${reason}`
+    };
+  }
+  const match = variants.find((v) => v.name.toLowerCase() === requested.toLowerCase());
+  if (match !== void 0) return { name: match.name };
+  const available = namesLabel(variants.map((v) => v.name));
+  throw new AbapError(
+    "BAD_INPUT",
+    `"${requested}" is not a check variant this system lists (${variants.length} known).`,
+    { requested, availableCount: variants.length, available: variants.map((v) => v.name) },
+    `The server itself does not reject an unknown check variant name (it would create a real worklist for one anyway), so this is caught here instead. Known variants: ${available}.`
+  );
+}
 async function ensureAtcWorklist(conn, checkVariant, opts = {}) {
   assertVariantName(checkVariant);
   const state = stateFor(conn);
@@ -134137,7 +134318,12 @@ async function ensureAtcWorklist(conn, checkVariant, opts = {}) {
     if (cached2 !== void 0) return { worklistId: cached2, reused: true };
   }
   const url2 = buildWorklistCreateUrl(checkVariant);
-  const ctx = { operation: "atc.createWorklist", uri: url2, checkVariant };
+  const ctx = {
+    operation: "atc.createWorklist",
+    uri: url2,
+    checkVariant,
+    timeoutMs: conn.cfg?.timeoutMs
+  };
   let body;
   let status;
   try {
@@ -134160,15 +134346,67 @@ async function ensureAtcWorklist(conn, checkVariant, opts = {}) {
   state.worklists.set(checkVariant, worklistId);
   return { worklistId, reused: false };
 }
+async function deleteAtcWorklist(conn, worklistId) {
+  assertWorklistId(worklistId);
+  const url2 = buildWorklistDeleteUrl(worklistId);
+  const ctx = {
+    operation: "atc.deleteWorklist",
+    uri: url2,
+    worklistId,
+    timeoutMs: conn.cfg?.timeoutMs
+  };
+  try {
+    const resp = await conn.del(url2, { headers: { Accept: ATC_WORKLIST_DELETE_ACCEPT } });
+    if (resp.status >= 200 && resp.status < 300) {
+      forgetCachedWorklist(conn, worklistId);
+      return { worklistId, deleted: true, status: resp.status, cacheCleared: true };
+    }
+    return {
+      worklistId,
+      deleted: false,
+      status: resp.status,
+      reason: `HTTP ${resp.status}`,
+      cacheCleared: false
+    };
+  } catch (e) {
+    const err = classifyAtcFailure(e, ctx);
+    const status = atcFailureStatus(e, err);
+    const info = adtExceptionInfo(e);
+    const reason = info?.type !== void 0 && info.message !== "" ? `${info.type}: ${info.message}` : info?.message ?? err.message;
+    return {
+      worklistId,
+      deleted: false,
+      ...status === void 0 ? {} : { status },
+      reason,
+      cacheCleared: false
+    };
+  }
+}
 async function runAtcCheck(conn, request, authorized) {
+  if (!Array.isArray(authorized) || authorized.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "runAtcCheck was called with no authorized targets.",
+      { objectUris: request.objectUris },
+      'Every object an ATC run touches must first pass SafetyGate.authorize("execute", \u2026); an empty list means nothing was gated, so nothing can run.'
+    );
+  }
   conn.discovery.assertSupported("atc", "ATC (ABAP Test Cockpit) runs");
-  const objectName = authorized.target.name;
-  const checkVariant = request.checkVariant === void 0 ? await fetchDefaultCheckVariant(conn) : request.checkVariant;
-  assertVariantName(checkVariant);
+  const objectLabel = namesLabel(authorized.map((a) => a.target.name));
+  let checkVariant;
+  let variantUnvalidated;
+  if (request.checkVariant === void 0) {
+    checkVariant = await fetchDefaultCheckVariant(conn);
+  } else {
+    const resolved = await resolveCheckVariant(conn, request.checkVariant);
+    checkVariant = resolved.name;
+    variantUnvalidated = resolved.unvalidatedReason;
+  }
   const maxVerdicts = clampMaxVerdicts(request.maxVerdicts);
-  const runBody = buildAtcRunBody(request.objectUri, maxVerdicts);
+  const runBody = buildAtcRunBody(request.objectUris, maxVerdicts);
+  const targetCount = new Set(request.objectUris).size;
   let worklist = await ensureAtcWorklist(conn, checkVariant);
-  let ack = await postRun(conn, worklist.worklistId, runBody, checkVariant, objectName, {
+  let ack = await postRun(conn, worklist.worklistId, runBody, checkVariant, objectLabel, {
     retryable: worklist.reused
   });
   if (ack === "stale") {
@@ -134178,7 +134416,7 @@ async function runAtcCheck(conn, request, authorized) {
       worklist.worklistId,
       runBody,
       checkVariant,
-      objectName,
+      objectLabel,
       { retryable: false }
     );
     if (retried === "stale") {
@@ -134206,6 +134444,7 @@ async function runAtcCheck(conn, request, authorized) {
     });
   }
   const findings = flattenFindings(scoped);
+  const cleanup = request.autoCleanup === true ? await deleteAtcWorklist(conn, readId) : void 0;
   return {
     checkVariant,
     worklistId: readId,
@@ -134213,10 +134452,13 @@ async function runAtcCheck(conn, request, authorized) {
     scopedToLastRun: lastRun !== void 0,
     objectSetIsComplete: scoped.objectSetIsComplete,
     maxVerdicts,
+    targetCount,
+    ...variantUnvalidated === void 0 ? {} : { variantUnvalidated },
     infos: ack.infos,
     findings,
     counts: countFindings(findings),
-    worklist: scoped
+    worklist: scoped,
+    ...cleanup === void 0 ? {} : { cleanup }
   };
 }
 async function postRun(conn, worklistId, body, checkVariant, objectName, opts) {
@@ -134226,7 +134468,8 @@ async function postRun(conn, worklistId, body, checkVariant, objectName, opts) {
     uri: url2,
     name: objectName,
     checkVariant,
-    worklistId
+    worklistId,
+    timeoutMs: conn.cfg?.timeoutMs
   };
   let responseBody;
   try {
@@ -134247,7 +134490,8 @@ async function readWorklist(conn, worklistId, checkVariant, opts) {
     operation: "atc.worklist",
     uri: url2,
     checkVariant,
-    worklistId
+    worklistId,
+    timeoutMs: conn.cfg?.timeoutMs
   };
   let body;
   try {
@@ -134257,16 +134501,95 @@ async function readWorklist(conn, worklistId, checkVariant, opts) {
   }
   return parseAtcWorklist(body);
 }
+var ATC_MAX_PACKAGE_NODES = ATC_MAX_RUN_TARGETS;
+var ATC_MAX_PACKAGE_DEPTH = 8;
+function normalizePackageName(packageName) {
+  const trimmed = typeof packageName === "string" ? packageName.trim() : "";
+  if (trimmed === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "expandPackageTree needs a package name.",
+      { packageName },
+      "Pass the package name, e.g. Z_MY_PACKAGE or $TMP."
+    );
+  }
+  return trimmed.toUpperCase();
+}
+async function expandPackageTree(conn, packageName, opts = {}) {
+  const root = normalizePackageName(packageName);
+  if (opts.includeSubpackages !== true) return [root];
+  const seen = /* @__PURE__ */ new Set([root]);
+  const result = [root];
+  let frontier = [root];
+  let depth = 0;
+  while (frontier.length > 0) {
+    if (depth >= ATC_MAX_PACKAGE_DEPTH) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `The package tree under ${root} is deeper than the ${ATC_MAX_PACKAGE_DEPTH}-level cap this client enforces.`,
+        { root, depth, cap: ATC_MAX_PACKAGE_DEPTH },
+        "Expand a narrower sub-package instead of the whole tree."
+      );
+    }
+    depth += 1;
+    const next = [];
+    for (const pkg of frontier) {
+      const ctx = {
+        operation: "atc.packageTree",
+        name: pkg,
+        timeoutMs: conn.cfg?.timeoutMs
+      };
+      let nodes;
+      try {
+        nodes = (await conn.adt.nodeContents("DEVC/K", pkg)).nodes ?? [];
+      } catch (e) {
+        throw classifyAtcFailure(e, ctx);
+      }
+      for (const n of nodes) {
+        const type = (n.OBJECT_TYPE ?? "").toUpperCase();
+        const name = (n.OBJECT_NAME ?? "").trim().toUpperCase();
+        if (name === "" || !type.startsWith("DEVC")) continue;
+        if (seen.has(name)) continue;
+        if (result.length >= ATC_MAX_PACKAGE_NODES) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `${root} and its sub-packages exceed the ${ATC_MAX_PACKAGE_NODES}-package cap this client enforces.`,
+            { root, cap: ATC_MAX_PACKAGE_NODES },
+            `Expand a narrower sub-package, or split the run into batches of at most ${ATC_MAX_PACKAGE_NODES} packages.`
+          );
+        }
+        seen.add(name);
+        result.push(name);
+        next.push(name);
+      }
+    }
+    frontier = next;
+  }
+  return result;
+}
 
 // src/tools/atc.ts
 init_compact();
+var ATC_OPS = ["run", "variants", "delete_worklist"];
 var atcInputSchema = {
-  object: external_exports.string().describe("Class/program/function group/interface/package."),
-  type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC, when ambiguous."),
-  variant: external_exports.string().optional().describe("Check variant. Default: system."),
-  max_findings: external_exports.number().int().optional().describe(`Cap on findings. Default 100, max ${ATC_MAX_VERDICTS}.`),
-  include_exempted: external_exports.boolean().optional().describe("Include exempted findings. Default false."),
-  severity: external_exports.enum(["error", "warning", "info"]).optional().describe("Lowest severity, cumulative. Default info.")
+  op: external_exports.enum(ATC_OPS).optional().describe(`Operation. Default "run". One of: ${ATC_OPS.join(", ")}.`),
+  object: external_exports.string().optional().describe(
+    "Class/program/function group/interface/package. op=run only; exactly one of object/objects/package."
+  ),
+  objects: external_exports.array(external_exports.string()).optional().describe(
+    `Several objects to check in one run. op=run only; exactly one of object/objects/package. Max ${ATC_MAX_RUN_TARGETS}.`
+  ),
+  package: external_exports.string().optional().describe("Package to check. op=run only; exactly one of object/objects/package."),
+  include_subpackages: external_exports.boolean().optional().describe("With package: also check its subpackages. Default false. Only valid with package."),
+  type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC, when ambiguous. op=run only."),
+  variant: external_exports.string().optional().describe("Check variant. Default: system. op=run only."),
+  max_findings: external_exports.number().int().optional().describe(`Cap on findings. Default 100, max ${ATC_MAX_VERDICTS}. op=run only.`),
+  include_exempted: external_exports.boolean().optional().describe("Include exempted findings. Default false. op=run only."),
+  severity: external_exports.enum(["error", "warning", "info"]).optional().describe("Lowest severity, cumulative. Default info. op=run only."),
+  auto_cleanup: external_exports.boolean().optional().describe(
+    "Attempt to delete the worklist after reading findings. Default false. op=run only. On this server this is a documented refusal, not a guarantee \u2014 see the cleanup note."
+  ),
+  worklist_id: external_exports.string().optional().describe("Worklist id to delete. Required for, and only valid with, op=delete_worklist.")
 };
 var AtcInput = external_exports.object(atcInputSchema);
 var KNOWN_KEYS2 = new Set(Object.keys(AtcInput.shape));
@@ -134280,6 +134603,123 @@ function rejectUnknownArgs2(args) {
     `Parameters are: ${[...KNOWN_KEYS2].join(", ")}.`
   );
 }
+var RUN_KEYS = /* @__PURE__ */ new Set([
+  "object",
+  "objects",
+  "package",
+  "include_subpackages",
+  "type",
+  "variant",
+  "max_findings",
+  "include_exempted",
+  "severity",
+  "auto_cleanup"
+]);
+var DELETE_WORKLIST_KEYS = /* @__PURE__ */ new Set(["worklist_id"]);
+var OP_ALLOWED_KEYS = {
+  run: RUN_KEYS,
+  variants: /* @__PURE__ */ new Set(),
+  delete_worklist: DELETE_WORKLIST_KEYS
+};
+function resolveOp(args) {
+  const raw = args.op;
+  if (raw === void 0) return "run";
+  if (typeof raw === "string" && ATC_OPS.includes(raw)) {
+    return raw;
+  }
+  throw new AbapError(
+    "BAD_INPUT",
+    `abap_atc op must be one of ${ATC_OPS.join(", ")}; got ${JSON.stringify(raw)}.`,
+    { op: raw },
+    `Pass op as one of: ${ATC_OPS.join(", ")}.`
+  );
+}
+function validateOpArgs(args, op) {
+  const allowed = OP_ALLOWED_KEYS[op];
+  const irrelevant = Object.keys(args).filter(
+    (k) => k !== "op" && args[k] !== void 0 && !allowed.has(k)
+  );
+  if (irrelevant.length > 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_atc op="${op}" does not take ${irrelevant.map((k) => `\`${k}\``).join(", ")} \u2014 ` + (op === "variants" ? "listing check variants is a repository search with no per-object or run-shaping parameter." : "deleting a worklist only needs worklist_id."),
+      { op, irrelevant },
+      `Drop ${irrelevant.length === 1 ? "that parameter" : "those parameters"}${op !== "run" ? ', or set op="run" if you meant to run a check' : ""}.`
+    );
+  }
+  if (op === "delete_worklist") {
+    const id = args.worklist_id;
+    if (typeof id !== "string" || id.trim() === "") {
+      throw new AbapError(
+        "BAD_INPUT",
+        'abap_atc op="delete_worklist" needs worklist_id.',
+        { op },
+        `Pass the worklist id shown in a previous run's notes as worklist_id (the number after "Worklist " \u2014 e.g. "Worklist 12345 (created)" \u2014 or after "Cleanup: worklist").`
+      );
+    }
+    return;
+  }
+  if (op !== "run") return;
+  const scopeKeys = ["object", "objects", "package"].filter(
+    (k) => args[k] !== void 0
+  );
+  if (scopeKeys.length !== 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      scopeKeys.length === 0 ? "abap_atc needs exactly one of object, objects, package." : `abap_atc got more than one of ${scopeKeys.map((k) => `\`${k}\``).join(", ")} \u2014 exactly one names the run's scope.`,
+      { scopeKeys },
+      "Pass exactly one of object, objects, package."
+    );
+  }
+  if (args.include_subpackages !== void 0 && args.package === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`include_subpackages` only makes sense together with `package`.",
+      { include_subpackages: args.include_subpackages },
+      "Either add `package`, or drop `include_subpackages`."
+    );
+  }
+  if (args.objects !== void 0) {
+    const objs = args.objects;
+    if (!Array.isArray(objs) || objs.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "`objects` must be a non-empty array of object names.",
+        { objects: args.objects },
+        "Pass one or more names in `objects`, or use `object` for a single one."
+      );
+    }
+    if (objs.length > ATC_MAX_RUN_TARGETS) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `\`objects\` names ${objs.length} objects; abap_atc runs at most ${ATC_MAX_RUN_TARGETS} in one call.`,
+        { count: objs.length, max: ATC_MAX_RUN_TARGETS },
+        `Split into batches of at most ${ATC_MAX_RUN_TARGETS}.`
+      );
+    }
+  }
+}
+function preflightTargetsFor(args) {
+  const type = typeof args.type === "string" ? args.type : void 0;
+  if (typeof args.object === "string") {
+    return [preflight({ object: args.object, ...type === void 0 ? {} : { type } })];
+  }
+  if (Array.isArray(args.objects)) {
+    return args.objects.filter((o) => typeof o === "string").map((o) => preflight({ object: o, ...type === void 0 ? {} : { type } }));
+  }
+  if (typeof args.package === "string") {
+    return [preflight({ object: args.package, type: "DEVC/K" })];
+  }
+  return [];
+}
+var ATC_OBJECTS_LABEL_MAX = 10;
+function atcObjectsLabel(labels) {
+  if (labels.length <= ATC_OBJECTS_LABEL_MAX) {
+    return `${labels.length} objects (${labels.join(", ")})`;
+  }
+  const shown = labels.slice(0, ATC_OBJECTS_LABEL_MAX);
+  return `${labels.length} objects (${shown.join(", ")} \u2026 [truncated, ${shown.length} of ${labels.length} shown])`;
+}
 var SEVERITY_CEILING = {
   error: 1,
   warning: 2,
@@ -134288,18 +134728,65 @@ var SEVERITY_CEILING = {
 function where(f) {
   return f.location.line === void 0 ? f.objectName : `${f.objectName}:${f.location.line}`;
 }
-function renderFindings(findings) {
-  if (findings.length === 0) return "";
-  const rows = findings.map((f) => ({
+function quickFixLabel(f) {
+  const q = f.quickFixes;
+  if (!q) return "";
+  const kinds = [];
+  if (q.automatic) kinds.push("automatic");
+  if (q.manual) kinds.push("manual");
+  if (q.pseudo) kinds.push("pseudo");
+  if (q.aiBased) kinds.push("ai");
+  return kinds.join("+");
+}
+function findingRow(f, showFix) {
+  return {
     SEVERITY: priorityLabel(f.priority),
     WHERE: where(f),
     CHECK: f.checkTitle || f.checkId || "(unnamed check)",
     MESSAGE: f.messageTitle || `(message ${f.messageId})`,
-    ...f.exemptionKind === "" ? { EXEMPT: "" } : { EXEMPT: f.exemptionKind }
-  }));
+    ...showFix ? { FIX: quickFixLabel(f) } : {},
+    ...f.exemptionKind === "" ? {} : { EXEMPT: f.exemptionKind }
+  };
+}
+function findingColumns(findings) {
+  const showFix = findings.some((f) => f.quickFixes?.any === true);
   const anyExempt = findings.some((f) => f.exemptionKind !== "");
-  const columns = anyExempt ? ["SEVERITY", "WHERE", "CHECK", "MESSAGE", "EXEMPT"] : ["SEVERITY", "WHERE", "CHECK", "MESSAGE"];
+  const columns = [
+    "SEVERITY",
+    "WHERE",
+    "CHECK",
+    "MESSAGE",
+    ...showFix ? ["FIX"] : [],
+    ...anyExempt ? ["EXEMPT"] : []
+  ];
+  return { columns, showFix };
+}
+function renderFindings(findings) {
+  if (findings.length === 0) return "";
+  const { columns, showFix } = findingColumns(findings);
+  const rows = findings.map((f) => findingRow(f, showFix));
   return textTable(rows, columns);
+}
+function renderGroupedFindings(findings) {
+  if (findings.length === 0) return "";
+  const { columns, showFix } = findingColumns(findings);
+  const byObject = /* @__PURE__ */ new Map();
+  for (const f of findings) {
+    const key = `${f.objectType} ${f.objectName}`;
+    let group = byObject.get(key);
+    if (!group) {
+      group = [];
+      byObject.set(key, group);
+    }
+    group.push(f);
+  }
+  const blocks = [];
+  for (const [label, group] of byObject) {
+    const rows = group.map((f) => findingRow(f, showFix));
+    blocks.push(`${label} \u2014 ${group.length} finding(s)
+${textTable(rows, columns)}`);
+  }
+  return blocks.join("\n\n");
 }
 function renderAtcResult(result, input, maxChars) {
   const floor = SEVERITY_CEILING[input.severity ?? "info"] ?? 3;
@@ -134310,6 +134797,8 @@ function renderAtcResult(result, input, maxChars) {
     (f) => f.priority === 0 || f.priority <= floor
   );
   const suppressed = result.findings.length - shown.length;
+  const distinctObjects = new Set(result.findings.map((f) => `${f.objectType} ${f.objectName}`)).size;
+  const grouped = result.targetCount > 1 || distinctObjects > 1;
   const notes = [];
   if (result.findings.length === 0) {
     notes.push(
@@ -134333,15 +134822,47 @@ function renderAtcResult(result, input, maxChars) {
   }
   const seenInfos = /* @__PURE__ */ new Set();
   for (const info of result.infos) {
-    const key = `${info.type}\0${info.description}`;
+    const key = `${info.type} ${info.description}`;
     if (seenInfos.has(key)) continue;
     seenInfos.add(key);
     notes.push(`ATC: ${info.description || info.type}`);
   }
+  if (shown.length > 0) {
+    const showFix = shown.some((f) => f.quickFixes?.any === true);
+    notes.push(
+      showFix ? 'FIX column: manual/automatic/pseudo/ai marks which quick-fix kind ATC advertises for that finding (only "automatic" applies without review). Pass the finding to abap_quick_fix to inspect or apply it.' : "ATC advertised no quick fix for any finding shown (every quickfixes flag was false) \u2014 abap_quick_fix has nothing to apply here."
+    );
+  }
+  if (result.variantUnvalidated !== void 0) {
+    notes.push(
+      `Check variant "${result.checkVariant}" was used UNVALIDATED: ${result.variantUnvalidated} If it does not exist, ATC may have run a default variant instead or errored \u2014 check the ATC: notes.`
+    );
+  }
+  if (input.packageScoped === true || result.targetCount > 10) {
+    notes.push(
+      `TIMEOUT RISK: this run covered ${result.targetCount} object(s)${input.packageScoped === true ? " (package-scoped)" : ""}. ATC runs synchronously over ADT and a large scope can exceed ABAP_TIMEOUT_MS (default 60000ms) \u2014 one observed run of ~77 classes in a single package took 134s. If this call times out, its worklist survives on the server (see the next note) rather than vanishing, and a retry reuses it. Consider raising ABAP_TIMEOUT_MS for package-scoped runs.`
+    );
+  }
   notes.push(
-    `Worklist ${result.worklistId} (${result.worklistReused ? "reused" : "created"}) \u2014 ATC worklists persist on the server and this client cannot delete them. It reuses one per check variant per session rather than creating one per run.`
+    `Worklist ${result.worklistId} (${result.worklistReused ? "reused" : "created"}) \u2014 this server refuses to delete ATC worklists (DELETE returns 405) and its advertised deleteFindings action is a no-op, so worklists persist; this client reuses one per check variant rather than creating a new one per run.`
   );
+  if (result.cleanup) {
+    const cl = result.cleanup;
+    notes.push(
+      cl.deleted ? `Cleanup: worklist ${cl.worklistId} was deleted.` : `Cleanup: worklist ${cl.worklistId} was NOT deleted \u2014 the server refused${cl.status !== void 0 ? ` (HTTP ${cl.status})` : ""}${cl.reason ? `: ${cl.reason}.` : "."} ` + (cl.cacheCleared ? "This client forgot its cached worklist id anyway, so the next run creates a new one." : "This client kept its cached worklist id, so the next run reuses this same, still-undeleted worklist.")
+    );
+  }
   const c = result.counts;
+  const docs = /* @__PURE__ */ new Map();
+  for (const f of shown) {
+    if (f.documentationUri && !docs.has(f.checkId)) docs.set(f.checkId, f.documentationUri);
+  }
+  const sections = docs.size > 0 ? [
+    {
+      title: "DOCS",
+      content: [...docs.entries()].map(([id, uri]) => `${id}: ${uri}`).join("\n")
+    }
+  ] : void 0;
   return buildResponse({
     header: {
       object: input.objectLabel,
@@ -134354,9 +134875,11 @@ function renderAtcResult(result, input, maxChars) {
       // seeing, and a permanent `other: 0` is noise.
       other: c.other > 0 ? c.other : void 0,
       exempted: c.exempted > 0 ? c.exempted : void 0,
-      complete: result.objectSetIsComplete ? void 0 : "no"
+      complete: result.objectSetIsComplete ? void 0 : "no",
+      targets: result.targetCount > 1 ? result.targetCount : void 0
     },
-    body: renderFindings(shown),
+    ...sections ? { sections } : {},
+    body: grouped ? renderGroupedFindings(shown) : renderFindings(shown),
     bodyLabel: "FINDINGS",
     notes,
     hints: [
@@ -134365,31 +134888,161 @@ function renderAtcResult(result, input, maxChars) {
     maxChars
   });
 }
-async function abapAtc(conn, input, maxChars, gate) {
-  const obj = await resolveObject(conn, input.object, { type: input.type });
-  const objectUri = obj.sourceUri ?? obj.uri;
-  const authorized = gate.authorize("execute", {
-    name: obj.name,
-    ...obj.packageName === void 0 ? {} : { packageName: obj.packageName },
-    type: obj.type
+function renderCheckVariants(variants, maxChars, opts = {}) {
+  const anyDescription = variants.some((v) => v.description);
+  const anyPackage = variants.some((v) => v.packageName);
+  const markDefault = opts.defaultVariant !== void 0;
+  const isDefault = (name) => markDefault && name.toLowerCase() === opts.defaultVariant?.toLowerCase();
+  const columns = [
+    "NAME",
+    ...anyDescription ? ["DESCRIPTION"] : [],
+    ...anyPackage ? ["PACKAGE"] : [],
+    ...markDefault ? ["DEFAULT"] : []
+  ];
+  const rows = variants.map((v) => ({
+    NAME: v.name,
+    ...anyDescription ? { DESCRIPTION: v.description ?? "" } : {},
+    ...anyPackage ? { PACKAGE: v.packageName ?? "" } : {},
+    ...markDefault ? { DEFAULT: isDefault(v.name) ? "yes" : "" } : {}
+  }));
+  return buildResponse({
+    header: { variants: variants.length },
+    body: textTable(rows, columns),
+    bodyLabel: "CHECK VARIANTS",
+    notes: [
+      `${variants.length} check variant(s) found, in the server's own order. ` + (markDefault ? `DEFAULT marks "${opts.defaultVariant}" \u2014 this system's ATC customizing default.` : "The system default could not be determined, so no variant is marked DEFAULT" + (opts.defaultUnavailable ? `: ${opts.defaultUnavailable}` : "") + ".") + " Pass one of these NAMEs as `variant` to abap_atc, or omit it to use the default."
+    ],
+    hints: ['Pass a NAME here as `variant` to abap_atc op="run".'],
+    maxChars
   });
+}
+function renderWorklistCleanup(cleanup, maxChars) {
+  return buildResponse({
+    header: {
+      worklist: cleanup.worklistId,
+      deleted: cleanup.deleted,
+      status: cleanup.status,
+      cache_cleared: cleanup.cacheCleared
+    },
+    notes: [
+      cleanup.deleted ? `Worklist ${cleanup.worklistId} was deleted.` : `Worklist ${cleanup.worklistId} was NOT deleted \u2014 the server refused${cleanup.status !== void 0 ? ` (HTTP ${cleanup.status})` : ""}${cleanup.reason ? `: ${cleanup.reason}.` : "."} ` + (cleanup.cacheCleared ? "This client forgot its cached worklist id anyway, so the next run creates a new one." : "This client kept its cached worklist id, so the next run reuses this same, still-undeleted worklist.")
+    ],
+    maxChars
+  });
+}
+async function resolveAndAuthorizeObjects(conn, gate, objectNames, type) {
+  const uris = [];
+  const authorized = [];
+  const labels = [];
+  for (const name of objectNames) {
+    const obj = await resolveObject(conn, name, type === void 0 ? {} : { type });
+    uris.push(obj.sourceUri ?? obj.uri);
+    authorized.push(
+      gate.authorize("execute", {
+        name: obj.name,
+        ...obj.packageName === void 0 ? {} : { packageName: obj.packageName },
+        type: obj.type
+      })
+    );
+    labels.push(`${obj.type} ${obj.name}`);
+  }
+  return { uris, authorized, labels };
+}
+async function resolveAndAuthorizePackage(conn, gate, packageName, includeSubpackages) {
+  const pkg = await resolveObject(conn, packageName, { type: "DEVC/K" });
+  const names = await expandPackageTree(conn, pkg.name, { includeSubpackages });
+  const uris = [];
+  const authorized = [];
+  for (const name of names) {
+    uris.push(packageObjectUri(name));
+    authorized.push(gate.authorize("execute", { name, packageName: name, type: "DEVC/K" }));
+  }
+  const label = names.length > 1 ? `package ${pkg.name} (+${names.length - 1} subpackage(s), ${names.length} package(s) total)` : `package ${pkg.name}`;
+  return { uris, authorized, label, targetCount: names.length };
+}
+async function abapAtc(conn, input, maxChars, gate) {
+  let uris;
+  let authorized;
+  let objectLabel;
+  let packageScoped = false;
+  if (input.object !== void 0) {
+    const obj = await resolveObject(conn, input.object, input.type === void 0 ? {} : { type: input.type });
+    uris = [obj.sourceUri ?? obj.uri];
+    authorized = [
+      gate.authorize("execute", {
+        name: obj.name,
+        ...obj.packageName === void 0 ? {} : { packageName: obj.packageName },
+        type: obj.type
+      })
+    ];
+    objectLabel = `${obj.type} ${obj.name}`;
+  } else if (input.objects !== void 0) {
+    const r = await resolveAndAuthorizeObjects(conn, gate, input.objects, input.type);
+    uris = r.uris;
+    authorized = r.authorized;
+    objectLabel = atcObjectsLabel(r.labels);
+  } else if (input.package !== void 0) {
+    const r = await resolveAndAuthorizePackage(
+      conn,
+      gate,
+      input.package,
+      input.include_subpackages === true
+    );
+    uris = r.uris;
+    authorized = r.authorized;
+    objectLabel = r.label;
+    packageScoped = true;
+  } else {
+    throw new AbapError(
+      "BAD_INPUT",
+      'abap_atc op="run" needs exactly one of object, objects, package.',
+      {},
+      "Pass exactly one of object, objects, package."
+    );
+  }
   const result = await runAtcCheck(
     conn,
     {
-      objectUri,
+      objectUris: uris,
       ...input.variant === void 0 ? {} : { checkVariant: input.variant },
       ...input.max_findings === void 0 ? {} : { maxVerdicts: input.max_findings },
-      ...input.include_exempted === void 0 ? {} : { includeExempted: input.include_exempted }
+      ...input.include_exempted === void 0 ? {} : { includeExempted: input.include_exempted },
+      ...input.auto_cleanup === void 0 ? {} : { autoCleanup: input.auto_cleanup }
     },
     authorized
   );
   return renderAtcResult(
     result,
     {
-      objectLabel: `${obj.type} ${obj.name}`,
-      ...input.severity === void 0 ? {} : { severity: input.severity }
+      objectLabel,
+      ...input.severity === void 0 ? {} : { severity: input.severity },
+      packageScoped
     },
     maxChars
+  );
+}
+async function abapAtcVariants(conn, maxChars) {
+  const variants = await listCheckVariants(conn);
+  try {
+    const defaultVariant = await fetchDefaultCheckVariant(conn);
+    return renderCheckVariants(variants, maxChars, { defaultVariant });
+  } catch (e) {
+    const defaultUnavailable = e instanceof Error ? e.message : String(e);
+    return renderCheckVariants(variants, maxChars, { defaultUnavailable });
+  }
+}
+async function abapAtcDeleteWorklist(conn, worklistId, maxChars) {
+  const cleanup = await deleteAtcWorklist(conn, worklistId);
+  return renderWorklistCleanup(cleanup, maxChars);
+}
+function assertCanDeleteAtcWorklist(gate) {
+  const d = gate.evaluate("execute", void 0, {});
+  if (d.allowed || d.code === "SAFETY_DENIED") return;
+  throw new AbapError(
+    d.code ?? "READ_ONLY",
+    d.reason,
+    { operation: "atc.deleteWorklist", rule: d.rule },
+    d.hint ?? "Deleting an ATC worklist needs the same write capability as running ATC."
   );
 }
 var ok19 = (text3) => ({ content: [{ type: "text", text: text3 }] });
@@ -134397,15 +135050,15 @@ function registerAtcTools(mcp, deps) {
   mcp.registerTool(
     "abap_atc",
     {
-      description: "ATC static analysis; findings: severity, line, check, message. Without an IDE \u2014 it computes nothing SAP does not already compute. Clean means clean FOR THAT VARIANT. Execute-gated: needs ABAP_MODE=edit/admin, allowlisted package.",
+      description: 'ATC static analysis; findings: severity, line, check, message. Without an IDE \u2014 it computes nothing SAP does not already compute. Clean means clean FOR THAT VARIANT. Execute-gated: needs ABAP_MODE=edit/admin, allowlisted package. op="run" (default) checks object/objects/package; op="variants" lists check variants; op="delete_worklist" attempts to delete a worklist by id (a documented refusal on servers that return 405 for DELETE).',
       inputSchema: atcInputSchema,
       annotations: {
-        // Not read-only: the run creates a worklist row on the server.
+        // Not read-only: a run creates a worklist row on the server.
         readOnlyHint: false,
         // Not destructive: state is additive only; marking it destructive
         // would teach callers to ignore that flag.
         destructiveHint: false,
-        // Not idempotent: each call adds a worklist run, even if findings match.
+        // Not idempotent: each run adds a worklist run, even if findings match.
         idempotentHint: false,
         openWorldHint: true
       }
@@ -134414,13 +135067,33 @@ function registerAtcTools(mcp, deps) {
       try {
         const a = args ?? {};
         rejectUnknownArgs2(a);
-        deps.safety.assert("execute", preflight(a), {
-          phase: "preflight"
-        });
+        const op = resolveOp(a);
+        validateOpArgs(a, op);
+        if (op === "run") {
+          for (const pf of preflightTargetsFor(a)) {
+            deps.safety.assert("execute", pf, { phase: "preflight" });
+          }
+          await deps.ensureConnected();
+          const res2 = await deps.pool.withRead(
+            "abap_atc",
+            (conn) => abapAtc(conn, a, deps.cfg.maxResponseChars, deps.safety)
+          );
+          return ok19(res2.text);
+        }
+        if (op === "delete_worklist") {
+          assertCanDeleteAtcWorklist(deps.safety);
+          await deps.ensureConnected();
+          const worklistId = a.worklist_id;
+          const res2 = await deps.pool.withRead(
+            "abap_atc",
+            (conn) => abapAtcDeleteWorklist(conn, worklistId, deps.cfg.maxResponseChars)
+          );
+          return ok19(res2.text);
+        }
         await deps.ensureConnected();
         const res = await deps.pool.withRead(
           "abap_atc",
-          (conn) => abapAtc(conn, a, deps.cfg.maxResponseChars, deps.safety)
+          (conn) => abapAtcVariants(conn, deps.cfg.maxResponseChars)
         );
         return ok19(res.text);
       } catch (e) {

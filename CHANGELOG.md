@@ -12,6 +12,17 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.14] - 2026-09-12
+
+### Added
+
+- `abap_atc` covers the ATC workflow end to end (issue #78): `op: "variants"` lists the system's check variants from a repository quickSearch and marks the default from the ATC customizing read; a named `variant` is validated against that list and refused with `BAD_INPUT` before any run is posted; `objects` runs a group of objects in one request and reports the distinct target count; `package` runs a whole package, with `include_subpackages` discovering sub-packages first and a `TIMEOUT RISK` note on large scopes; `delete_worklist` and `auto_cleanup` report A4H's `405` refusal honestly — the worklist stays and keeps accumulating findings, and the `?action=deleteFindings` no-op is never used as a substitute. Verified live on A4H against `$TMP` and `$ABAPSMITH_FLUID_API`; eight new live captures (886–893) back the parsers.
+
+### Fixed
+
+- An ATC run that exceeds the request timeout is classified as a timeout, not a generic `ADT_ERROR`: the message says the outcome on the server is unknown, names the worklist it posted to when one is already known, and points at `ABAP_TIMEOUT_MS` or a narrower scope (issue #78).
+- The two disclosed ATC name-list cuts are allow-listed in the truncation lint with their `… [truncated, <shown> of <total> shown]` markers (issue #78).
+
 ## [0.5.13] - 2026-09-12
 
 ### Added
