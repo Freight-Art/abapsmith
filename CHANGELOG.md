@@ -12,6 +12,18 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-09-12
+
+### Added
+
+- `abap_search mode=source` searches source text across the repository in one
+  call: literal or regex `query`, scope by `packages` (with
+  `include_subpackages`), `objects` pattern and `types`, `case_sensitive`,
+  `include_comments`, `max`. Hits carry object, include and include-local line
+  number; truncation is marked with honest object and hit counts. Backed by a
+  new built-in fluid tool `scan` (deployed on first use, kernel `FIND PCRE`),
+  so it needs the fluid API and a writable mode. (issue #72)
+
 ## [0.5.8] - 2026-09-12
 
 ### Added
