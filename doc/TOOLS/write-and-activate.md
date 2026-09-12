@@ -222,7 +222,8 @@ unknown outcome; the journal's `pending | succeeded | failed` model has no
 value for "done, outcome unproven", so that entry is deliberately left
 `pending` and a warning is written to stderr instead of recording something
 the call did not establish — the same convention `abap_transport_release`
-uses. Re-read the object to see its state, and settle the entry by hand. An
+uses. Re-read the object to see its state, then settle the entry by hand with
+`abap_journal mode=reconcile` once its outcome is established. An
 object in a chunk that was never sent at all, because an earlier chunk
 failed first, settles `failed`, with an error saying so.
 

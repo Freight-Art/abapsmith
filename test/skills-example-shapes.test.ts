@@ -44,9 +44,15 @@ function listSkillFiles(): string[] {
     const skillFile = join(skillsDir, entry.name, "SKILL.md");
     try {
       readFileSync(skillFile, "utf8");
-      out.push(skillFile);
     } catch {
       // No SKILL.md in this directory — not this test's concern.
+      continue;
+    }
+    // A skill may split per-topic guidance into sibling `*.md` files that
+    // SKILL.md tells the reader to open (e.g. write-abap-source/classes.md);
+    // their worked examples and tool mentions count the same as SKILL.md's.
+    for (const f of readdirSync(join(skillsDir, entry.name))) {
+      if (f.endsWith(".md")) out.push(join(skillsDir, entry.name, f));
     }
   }
   return out.sort();

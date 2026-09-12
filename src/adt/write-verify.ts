@@ -239,13 +239,13 @@ export async function verifyViaVitBridge(
 }
 
 /**
- * Object types the repository search index cannot see at all.
- * `searchExact` sends only the top-level kind (`type?.split("/")[0]` →
- * `FUGR`), so a function module's own name can never come back as a
- * FUGR-kind hit — confirmed live by a positive control: the same
- * module name searched while absent, then again while demonstrably present
- * (TFDIR/FUNCTION_EXISTS/200 at both URIs), returned 0 hits both times.
- * Extend only with a positive control per type, never by assumption.
+ * Types where a zero-hit repository search proves nothing. `FUGR/FF`: an
+ * ordinary function module IS found by exact name (`searchExact` asks untyped
+ * for this type, capture 846-i64-quicksearch-fm-untyped), but a generated one
+ * is not indexed at all — `ENQUEUE_E_TABLE` returns an empty search result
+ * (capture 850-i64-quicksearch-generated-fm-missing) while a direct read of it
+ * returns 200 (capture 851-i64-fmodule-generated-read-200). So a miss here is
+ * still not absence.
  */
 const SEARCH_BLIND_TYPES = new Set(["FUGR/FF"]);
 
@@ -292,9 +292,10 @@ export async function verifyViaRepositorySearch(
           status: "indeterminate",
           uri,
           reason:
-            `The repository search returned 0 hits for ${objectName}, but it does not index ` +
-            `${expectType} at all — a zero-hit is the only answer it can give for this type, ` +
-            "present or absent, so it is not evidence. Treated as unproven rather than confirmed-absent.",
+            `The repository search returned 0 hits for ${objectName}, but it does not index every ` +
+            `${expectType}: a generated function module is present and readable while the search ` +
+            `reports nothing, so a zero-hit here is not evidence of absence. Treated as unproven ` +
+            "rather than confirmed-absent.",
         };
       }
       return { status: "confirmed-absent", uri, via: "repository-search" };

@@ -29,7 +29,16 @@ Read the source, metadata or outline of an ABAP object.
 Notes: response includes an etag (a content hash) — pass it back as
 `abap_write`'s `expect_etag` to detect a concurrent change before writing.
 `offset`/`limit` page long sources; a truncated response always names how to
-fetch the rest.
+fetch the rest. A function module named without its group — e.g.
+`{"type":"FUGR/FF","object":"BUP_ROLES_GET_ALL"}` — resolves on its own: the
+exact-name lookup goes out untyped and the group is read off the matching
+row's `adtcore:uri`, since neither the name nor `adtcore:packageName` carries
+it. This still refuses with `BAD_INPUT` when the search cannot settle the
+group — naming every candidate group if more than one function group has a
+module by that name, or asking for the group by hand if the search finds
+nothing at all, which happens for generated function modules (e.g.
+`ENQUEUE_E_TABLE`) that the repository search does not index: say
+`"ENQUEUE_E_TABLE in ETABLE"` or `"ETABLE/ENQUEUE_E_TABLE"`.
 
 ## abap_search
 
@@ -48,7 +57,13 @@ Notes: for `mode=where_used`, ADT's `usageReferences` endpoint ignores every
 known limit parameter and always returns the complete result set
 server-side — sometimes several MB and 10-20+ seconds. `max` is applied
 client-side, after the full fetch, so lowering it does not reduce the fetch
-cost; only a narrower `query` or `type` does.
+cost; only a narrower `query` or `type` does. `mode=objects` renders its
+usual four columns (type, name, package, description) unless at least one
+displayed row has a parent container in its ADT URI — a FUGR/FF function
+module or a FUGR/I function-group include — in which case a fifth `group`
+column is added, and the response carries a hint that `group` is the
+function group the row lives in while `package` remains the row's own
+package, not its group.
 
 ## abap_open_url
 

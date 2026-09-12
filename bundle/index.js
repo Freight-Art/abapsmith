@@ -94517,6 +94517,65 @@ var Journal = class _Journal {
     return { result: { settled: true, entry: merged }, merged };
   }
   /**
+   * Close a `pending` entry by hand on an operator's say-so, WITHOUT
+   * abapsmith having observed the outcome and WITHOUT deleting anything —
+   * see `JournalEntry.reconciled`. This is how a false STRANDED entry (see
+   * `STALE_PENDING_MS`, src/tools/journal.ts) gets retired: the crash or
+   * timeout that left it `pending` is not something abapsmith can go back
+   * and watch happen, so a human states what happened instead, and that
+   * statement is recorded as a statement, never dressed up as a fact
+   * abapsmith itself witnessed.
+   *
+   * Deliberately does NOT run under `runExclusive`/the file lock, exactly
+   * like `settleInner()` above — same reasoning, kept in sync by hand so
+   * nobody "fixes" only one of them.
+   */
+  async reconcile(id, input) {
+    if (!this.enabled) return { reconciled: false, reason: "disabled" };
+    assertValidId(id);
+    if (input.outcome !== "succeeded" && input.outcome !== "failed") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Not a valid reconciled outcome: ${JSON.stringify(input.outcome)}. "pending" is the state a reconciliation LEAVES, not one it can arrive at.`,
+        { outcome: input.outcome },
+        `Pass outcome: "succeeded" or "failed".`
+      );
+    }
+    const reason = input.reason?.trim() ?? "";
+    if (!reason) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "A reconciliation must state why: the reason is the only evidence this entry will ever carry for its asserted outcome.",
+        { id },
+        "Pass a non-empty reason describing how the outcome is known."
+      );
+    }
+    const existing = (await this.readAll()).get(id);
+    if (!existing) return { reconciled: false, reason: "unknown-entry" };
+    if (existing.outcome !== "pending") {
+      return { reconciled: false, reason: "already-settled", entry: existing };
+    }
+    const actor = this.resolveActor();
+    const reconciled = {
+      at: (/* @__PURE__ */ new Date()).toISOString(),
+      reason,
+      ...actor ? { by: actor } : {}
+    };
+    const record2 = { id, outcome: input.outcome, reconciled };
+    if (input.outcome === "failed") record2.error = reason;
+    try {
+      await this.append(record2);
+    } catch (e) {
+      return {
+        reconciled: false,
+        reason: "io-error",
+        error: e.message,
+        entry: { ...existing, ...record2 }
+      };
+    }
+    return { reconciled: true, entry: { ...existing, ...record2 } };
+  }
+  /**
    * Entries still sitting at `outcome: "pending"`, newest first. Nothing
    * sweeps them, so unless something *lists* them they accumulate invisibly.
    *
@@ -96537,6 +96596,9 @@ async function resolveObject(conn, input, opts = {}) {
   const parsed = parseObjectRef(input, forced);
   const spec = forced ?? parsed.spec;
   const certain = forced !== void 0 || parsed.via === "uri" || parsed.via === "typecode" || parsed.via === "keyword" || opts.trustHint === true;
+  if (spec && certain && spec.parentPath && !parsed.parent) {
+    return resolveParented(conn, spec, parsed);
+  }
   if (spec && certain && (!spec.parentPath || parsed.parent)) {
     const packageName = await lookupPackageName(conn, parsed.name, spec.type);
     return finish(conn, spec, parsed.name, parsed, { packageName });
@@ -96581,7 +96643,8 @@ async function resolveObject(conn, input, opts = {}) {
   return finishFromSearch(conn, usable[0].spec, usable[0].r, parsed);
 }
 async function searchExact(conn, name, type) {
-  const kind = type?.split("/")[0];
+  const spec = type ? specForType(type) : void 0;
+  const kind = spec?.parentPath ? void 0 : type?.split("/")[0];
   const results = await conn.adt.searchObject(name, kind, 25);
   const { refs: repaired } = repairSearchDescriptions(results);
   const exact = repaired.filter((r) => r["adtcore:name"]?.toUpperCase() === name.toUpperCase());
@@ -96606,10 +96669,38 @@ async function existsAt(conn, uri) {
 async function lookupPackageName(conn, name, type) {
   try {
     const results = await searchExact(conn, name, type);
-    return results[0]?.["adtcore:packageName"];
+    const matching = results.find((r) => r["adtcore:type"]?.toUpperCase() === type.toUpperCase());
+    return (matching ?? results[0])?.["adtcore:packageName"];
   } catch {
     return void 0;
   }
+}
+async function resolveParented(conn, spec, parsed) {
+  const rows = await searchExact(conn, parsed.name, spec.type);
+  const withParent = rows.filter((r) => r["adtcore:type"]?.toUpperCase() === spec.type.toUpperCase()).map((r) => ({ r, parent: specFromUri(cleanUri(r["adtcore:uri"]) ?? "")?.parent })).filter((x) => x.parent !== void 0);
+  const groups = [];
+  for (const { parent } of withParent) {
+    if (!groups.includes(parent)) groups.push(parent);
+  }
+  if (groups.length === 1) {
+    const match = withParent.find((x) => x.parent === groups[0]);
+    return finishFromSearch(conn, spec, match.r, parsed);
+  }
+  if (groups.length > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${spec.label} ${parsed.name} exists in ${groups.length} function groups (${groups.join(", ")}).`,
+      { name: parsed.name, type: spec.type, groups },
+      `Name the group: "${parsed.name} in ${groups[0]}" or "${groups[0]}/${parsed.name}".`
+    );
+  }
+  const why = spec.type === "FUGR/FF" ? `it does not index generated function modules (ENQUEUE_*, and others), which exist and read fine once the group is named` : `the search does not index ${spec.label.toLowerCase()}s at all`;
+  throw new AbapError(
+    "BAD_INPUT",
+    `${spec.label} ${parsed.name} needs its function group.`,
+    { name: parsed.name, type: spec.type },
+    `The repository search found no ${spec.label.toLowerCase()} called ${parsed.name} to take the group from \u2014 ${why}. Say "${parsed.name} in ZFG" or "ZFG/${parsed.name}".`
+  );
 }
 function finishFromSearch(conn, spec, r, parsed) {
   const uri = cleanUri(r["adtcore:uri"]);
@@ -96644,7 +96735,7 @@ function finish(conn, spec, name, parsed, extra) {
       "BAD_INPUT",
       `${spec.label} ${name} needs its function group.`,
       { name, type: spec.type },
-      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO".'
+      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO". abap_search {"query":"Z_FOO","type":"FUGR/FF"} lists the owning group in its `group` column.'
     );
   }
   const uri = cleanUri(extra.uri) ?? parsed.uri ?? buildUri(spec, name, parsed.parent);
@@ -96810,7 +96901,7 @@ async function verifyViaRepositorySearch(conn, objectName, expectType) {
         return {
           status: "indeterminate",
           uri,
-          reason: `The repository search returned 0 hits for ${objectName}, but it does not index ${expectType} at all \u2014 a zero-hit is the only answer it can give for this type, present or absent, so it is not evidence. Treated as unproven rather than confirmed-absent.`
+          reason: `The repository search returned 0 hits for ${objectName}, but it does not index every ${expectType}: a generated function module is present and readable while the search reports nothing, so a zero-hit here is not evidence of absence. Treated as unproven rather than confirmed-absent.`
         };
       }
       return { status: "confirmed-absent", uri, via: "repository-search" };
@@ -105536,7 +105627,9 @@ async function performUndo(conn, journal, entry, opts) {
 
 // src/tools/journal.ts
 var journalInputSchema = {
-  mode: external_exports.enum(["list", "show", "undo"]).optional().describe("list (default): recent writes. show: one entry incl. its before-image. undo: revert one entry."),
+  mode: external_exports.enum(["list", "show", "undo", "reconcile"]).optional().describe(
+    "list (default): recent writes. show: one entry incl. its before-image. undo: revert one entry. reconcile: close a stranded pending entry with an outcome you establish and a stated reason."
+  ),
   entry: external_exports.string().optional().describe("Journal entry id from mode=list. Required for show and undo unless `object` is given."),
   object: external_exports.string().optional().describe("Filter by object name; for undo, targets that object's most recent undoable entry."),
   limit: external_exports.number().min(1).max(999999).optional().describe("mode=list: entries to return. Default 20."),
@@ -105546,12 +105639,18 @@ var journalInputSchema = {
   force: external_exports.boolean().optional().describe(
     "mode=undo: proceed even though the object changed on the server after abapsmith wrote it. This OVERWRITES whatever that other change was. Read the object first."
   ),
-  activate: external_exports.boolean().optional().describe("mode=undo: re-activate after restoring. Default true.")
+  activate: external_exports.boolean().optional().describe("mode=undo: re-activate after restoring. Default true."),
+  outcome: external_exports.enum(["succeeded", "failed"]).optional().describe(
+    "mode=reconcile: the outcome you are asserting for a `pending` entry. Required. `pending` is the state being left, so it is not offered."
+  ),
+  reason: external_exports.string().optional().describe(
+    "mode=reconcile: how you established that outcome. Required, recorded verbatim on the entry, and the only evidence it will ever carry for the asserted outcome."
+  )
 };
 var JournalInput = external_exports.object(journalInputSchema);
 var shortId = (id) => id;
 function row(e) {
-  const undo2 = e.undoneBy ? "undone" : e.undoOf ? "is-undo" : "";
+  const flags = [e.undoneBy ? "undone" : e.undoOf ? "is-undo" : void 0, e.reconciled ? "reconciled" : void 0].filter(Boolean).join(" ");
   return {
     id: shortId(e.id),
     when: e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z"),
@@ -105562,7 +105661,7 @@ function row(e) {
     capture: e.beforeCapture,
     outcome: e.outcome,
     actor: e.actor ?? "",
-    flags: undo2
+    flags
   };
 }
 var LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
@@ -105679,7 +105778,7 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
     const notes2 = [];
     if (pendingStale.length) {
       notes2.push(
-        `STRANDED: ${pendingStale.length} journal entr${pendingStale.length === 1 ? "y is" : "ies are"} still \`pending\` after more than ${Math.round(STALE_PENDING_MS / 6e4)} minutes \u2014 ${pendingStale.map((e) => `${e.id} (${e.operation} ${e.object.name})`).join(", ")}. The before-image was written and the outcome never was, which is what a crash mid-write looks like: nobody knows whether those writes landed. They are NOT usable undos \u2014 abapsmith refuses to undo a pending entry, because it cannot tell what to undo. Read each object (abap_read), compare it against abap_journal mode=show, and resolve it deliberately.`
+        `STRANDED: ${pendingStale.length} journal entr${pendingStale.length === 1 ? "y is" : "ies are"} still \`pending\` after more than ${Math.round(STALE_PENDING_MS / 6e4)} minutes \u2014 ${pendingStale.map((e) => `${e.id} (${e.operation} ${e.object.name})`).join(", ")}. The before-image was written and the outcome never was, which is what a crash mid-write looks like: nobody knows whether those writes landed. They are NOT usable undos \u2014 abapsmith refuses to undo a pending entry, because it cannot tell what to undo. Read each object (abap_read), compare it against abap_journal mode=show, and resolve it deliberately. Once you have established what actually happened to one of them, close it with abap_journal mode=reconcile entry=<id> outcome=succeeded|failed reason="\u2026" \u2014 that records your finding on the entry and deletes nothing. Entries whose live source settles the question can be classified in bulk by bin/abap-journal-reconcile.`
       );
     }
     if (pendingFresh.length) {
@@ -105708,6 +105807,110 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
       maxChars
     });
   }
+  if (mode === "reconcile") {
+    if (!input.entry) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode=reconcile needs `entry` \u2014 the id of the pending entry you are closing.",
+        {},
+        "abap_journal mode=list shows the ids, and names the stranded ones. There is no `object` fallback here: closing the wrong entry writes a false outcome into the audit trail, so reconcile insists on the exact id."
+      );
+    }
+    if (!input.outcome) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'mode=reconcile needs `outcome`: "succeeded" or "failed". `pending` is the state being left, so it is not offered as something to arrive at.',
+        { entry: input.entry },
+        'Pass outcome: "succeeded" or "failed".'
+      );
+    }
+    const reason = input.reason?.trim() ?? "";
+    if (!reason) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode=reconcile needs a non-empty `reason`: abapsmith did not observe this entry's outcome, so the reason is all a later reader will ever have as evidence for it.",
+        { entry: input.entry },
+        "Pass reason describing how the outcome was established."
+      );
+    }
+    const target = await j.get(input.entry);
+    if (!target) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `No journal entry ${input.entry}.`,
+        { entry: input.entry },
+        "Run abap_journal mode=list to see the ids that exist. Ids are dropped by the retention policy, so an old one may simply have aged out."
+      );
+    }
+    if (target.outcome !== "pending") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${input.entry} already reads \`${target.outcome}\` \u2014 reconcile only closes an entry whose outcome was never recorded. Overwriting an observed outcome would destroy the only observed fact this entry carries.`,
+        { entry: target.id, outcome: target.outcome },
+        "Nothing to do here: the entry already has a real outcome."
+      );
+    }
+    const res2 = await j.reconcile(target.id, { outcome: input.outcome, reason });
+    if (!res2.reconciled) {
+      if (res2.reason === "disabled") {
+        throw new AbapError(
+          "UNSUPPORTED",
+          "The write journal is disabled, so there is nothing to reconcile.",
+          { entry: target.id }
+        );
+      }
+      if (res2.reason === "unknown-entry") {
+        throw new AbapError(
+          "NOT_FOUND",
+          `${target.id} aged out of the retention window between being read and being reconciled.`,
+          { entry: target.id },
+          "Run abap_journal mode=list to see what still exists."
+        );
+      }
+      if (res2.reason === "already-settled") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${target.id} settled for real (outcome=${res2.entry?.outcome}) between being read and being reconciled \u2014 the observed outcome wins over the asserted one.`,
+          { entry: target.id, outcome: res2.entry?.outcome },
+          `Run abap_journal mode=show entry=${target.id} to see what it now says.`
+        );
+      }
+      throw new AbapError(
+        "ADT_ERROR",
+        `Could not write the reconciliation for ${target.id}: ${res2.error}. Nothing was written \u2014 the entry still reads \`pending\`.`,
+        { entry: target.id, error: res2.error },
+        "Retry mode=reconcile with the same outcome and reason."
+      );
+    }
+    const notes2 = [`Recorded reason: ${reason}`];
+    notes2.push(
+      "This changed the LOCAL journal only \u2014 nothing was sent to the system, no SAP object and no transport request was touched, and nothing was deleted: the before-image and every earlier line for this entry are still on disk."
+    );
+    notes2.push(
+      "The outcome is now recorded as an ASSERTION, not an observation: the entry carries `reconciled` with the reason and (when known) who stated it, so a later reader can tell it apart from an outcome abapsmith itself watched happen."
+    );
+    if (res2.entry.outcome === "succeeded") {
+      notes2.push(
+        "The entry is now terminal, so mode=undo will no longer refuse it for being `pending` \u2014 undo replays the before-image, so only assert `succeeded` when it is established that the write landed."
+      );
+    }
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        mode: "reconcile",
+        entry: res2.entry.id,
+        operation: res2.entry.operation,
+        object: `${res2.entry.object.type} ${res2.entry.object.name}`,
+        was: "pending",
+        outcome: res2.entry.outcome,
+        by: res2.entry.reconciled?.by,
+        at: res2.entry.reconciled?.at
+      },
+      notes: notes2,
+      hints: [`abap_journal mode=show entry=${res2.entry.id}`],
+      maxChars
+    });
+  }
   const entry = await pickEntry(j, input, mode);
   if (mode === "show") {
     const before = await j.beforeImage(entry);
@@ -105730,6 +105933,11 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
     if (entry.outcome === "pending") {
       notes2.push(
         "THIS IS NOT A USABLE UNDO. The entry is still `pending`: abapsmith wrote the before-image and then never recorded an outcome, so it does not know whether the write reached the server at all. Undo refuses pending entries rather than guess which state to put the object back into. Read the object (abap_read) and compare it with the images above to find out what actually happened."
+      );
+    }
+    if (entry.reconciled) {
+      notes2.push(
+        `This entry's outcome was RECONCILED BY HAND (at ${entry.reconciled.at}` + (entry.reconciled.by ? `, by ${entry.reconciled.by}` : "") + `), because: ${entry.reconciled.reason}. abapsmith did not observe that outcome; it is a stated finding, and the entry stayed \`pending\` until someone stated it.`
       );
     }
     notes2.push(
@@ -105757,6 +105965,7 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
         beforeCapture: entry.beforeCapture,
         beforeKind: entry.beforeKind,
         outcome: entry.outcome,
+        reconciled: entry.reconciled?.at,
         error: entry.error,
         beforeEtag: entry.before?.etag,
         beforeServerEtag: entry.before?.serverEtag,
@@ -105888,7 +106097,7 @@ function registerJournalTools(mcp, deps) {
   mcp.registerTool(
     "abap_journal",
     {
-      description: "History and undo for writes abapsmith made. mode=list: recent writes with entry ids. mode=show: one entry with its before-image. mode=undo: revert it \u2014 refuses on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write for details.",
+      description: "History and undo for writes abapsmith made. mode=list: recent writes with entry ids. mode=show: one entry with its before-image. mode=undo: revert it \u2014 refuses on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write for details. mode=reconcile: close a stranded `pending` entry with a stated outcome and reason \u2014 journal bookkeeping only, nothing is sent to SAP.",
       inputSchema: journalInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -107434,6 +107643,14 @@ function registerTestTools(mcp, deps) {
 // src/tools/search.ts
 var DESCRIPTION_COL_WIDE = 70;
 var DESCRIPTION_COL_NARROW = 60;
+function groupFromUri(uri) {
+  if (!uri) return "";
+  try {
+    return specFromUri(uri)?.parent ?? "";
+  } catch {
+    return "";
+  }
+}
 var KNOWN_TYPES = [...new Set(TYPES.flatMap((t) => [t.kind, t.type]))].sort();
 var KNOWN_TYPE_GROUPS = new Set(TYPES.map((t) => t.type.split("/")[0]));
 function assertKnownType(type) {
@@ -107514,10 +107731,13 @@ async function searchObjects(conn, query, type, max, maxChars) {
   const rows = capped.map((r) => ({
     type: r["adtcore:type"] ?? "",
     name: r["adtcore:name"] ?? "",
+    group: groupFromUri(r["adtcore:uri"]),
     package: r["adtcore:packageName"] ?? "",
     description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_WIDE)
   }));
-  const body = rows.length ? [textTable(rows, ["type", "name", "package", "description"]), capLine, windowLine].filter((line) => line !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
+  const hasGroup = rows.some((r) => r.group !== "");
+  const columns = hasGroup ? ["type", "name", "group", "package", "description"] : ["type", "name", "package", "description"];
+  const body = rows.length ? [textTable(rows, columns), capLine, windowLine].filter((line) => line !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -107538,7 +107758,12 @@ async function searchObjects(conn, query, type, max, maxChars) {
     notes,
     // abap_search has no offset/paging parameter — `max` is the only lever, so
     // the hint must not promise one.
-    hints: ["Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200)."],
+    hints: [
+      "Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200).",
+      ...hasGroup ? [
+        "`group` is the function group a FUGR row lives in \u2014 `package` is the module's own package, not its group."
+      ] : []
+    ],
     maxChars
   });
 }
@@ -110882,6 +111107,7 @@ function registerWriteTools(mcp, deps) {
 }
 
 // src/adt/transport-entry-remove.ts
+var TREN_ROW_RE = /^ZMCP-TREN-ROW (\S+) (\S+) (\S+)/;
 async function removeTransportEntryViaBridge(conn, gate, params, proof) {
   void proof;
   const trkorr = assertTrkorr(params.trkorr, "removeTransportEntry");
@@ -110938,10 +111164,16 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
       holder = holderMatch[1];
       continue;
     }
-    const rowMatch = trimmed.match(/^ZMCP-TREN-ROW (\S+) (\S+) (\S+)/);
+    const rowMatch = trimmed.match(TREN_ROW_RE);
     if (rowMatch) removed.push({ pgmid: rowMatch[1], object: rowMatch[2], name: rowMatch[3] });
   }
   return { run: run2, transcript, holder, removed };
+}
+function removalTouchedNothing(e) {
+  if (!(e instanceof AbapError)) return false;
+  const raw = e.details.raw;
+  if (typeof raw !== "string") return false;
+  return !raw.split("\n").some((line) => TREN_ROW_RE.test(line.trim()));
 }
 
 // src/tools/transport.ts
@@ -111732,18 +111964,19 @@ async function opRemoveObject(conn, input, maxChars, gate, journal) {
   try {
     res = await removeTransportEntryViaBridge(conn, gate, { trkorr: holder.trkorr, objectName }, proof);
   } catch (e) {
+    const touchedNothing = removalTouchedNothing(e);
     await recordMutation(
       journal,
       {
         operation: "transport-remove-object",
         trkorr: holder.trkorr,
-        description: `removeObject ${objectName} from ${holder.trkorr}`,
+        description: touchedNothing ? `removeObject ${objectName} from ${holder.trkorr} \u2014 refused, nothing was removed` : `removeObject ${objectName} from ${holder.trkorr}`,
         existedBefore: true,
         beforeCapture: "captured",
         beforeSource: removeObjectBeforeImage(holder),
         tool: "abap_transport removeObject"
       },
-      { kind: "unproven", reason: e.message }
+      touchedNothing ? { kind: "failed", reason: `Refused, nothing was removed: ${e.message}` } : { kind: "unproven", reason: e.message }
     );
     throw enrichRemovalRefusal(e, objectOnSystem);
   }
@@ -131127,6 +131360,14 @@ var ABAP_DO_ACTIONS = [
     args: "(none \u2014 object is the entry id)"
   },
   {
+    action: "journal_reconcile",
+    group: "journal",
+    minMode: "edit",
+    v1: 'abap_journal({mode:"reconcile"})',
+    summary: "Close a stranded `pending` journal entry with a stated outcome and reason.",
+    args: "outcome (succeeded|failed), reason \u2014 object is the entry id"
+  },
+  {
     action: "undo",
     group: "journal",
     minMode: "edit",
@@ -131700,9 +131941,18 @@ var show = async (ctx, deps) => {
     { tool: "abap_do", args: { action: "undo", object: input.entry }, why: "Undo this entry, restoring the before-image." }
   ]);
 };
+var reconcile = async (ctx, deps) => {
+  const args = withField(withObject(ctx.args, "entry", ctx.object), "mode", "reconcile");
+  const input = parseV1(JournalInput, args);
+  const res = await abapJournal(deps.pool.primary(), input, deps.cfg.maxResponseChars, deps.journal, deps.safety);
+  return doOk(res.text, [
+    { tool: "abap_do", args: { action: "journal_list" }, why: "Confirm the entry no longer reads as stranded." }
+  ]);
+};
 var JOURNAL_HANDLERS = /* @__PURE__ */ new Map([
   ["journal_list", list3],
-  ["journal_show", show]
+  ["journal_show", show],
+  ["journal_reconcile", reconcile]
 ]);
 
 // src/tools/v2/handlers/do/transports.ts

@@ -43,6 +43,14 @@ one; how many are outstanding at any moment depends on how recently
 back into their entries. A patch line carries no `objectName`, `objectType`,
 or `timestamp` of its own.
 
+A human closing a `pending` entry by hand via `abap_journal mode=reconcile`
+appends the same kind of patch line, merged by `readAll()` exactly like a
+`settle()` patch — `{id, outcome, reconciled}`, e.g.:
+
+```json
+{"id":"20260731T134500123Z-a1b2c3","outcome":"failed","reconciled":{"at":"2026-09-12T10:03:11.000Z","reason":"re-read the object, source matches the before-image","by":"artemy"}}
+```
+
 The fields below are for the full-entry line; a patch line carries only the
 subset named above.
 
@@ -56,6 +64,7 @@ subset named above.
 | `beforeKind` | present only when `before` is not the object's own source — `"package-metadata"` for a package (`DEVC/K`) delete. The entry preserves the package's metadata document, and undo will not replay it. |
 | `before` / `after` | `{ etag, fingerprint, bytes, blob?, serverEtag? }` — raw etag and canonical fingerprint, both kept, for different jobs (see [Drift detection](undo-and-recovery.md#drift-detection)) |
 | `outcome` | `pending` \| `succeeded` \| `failed` |
+| `reconciled` | `{ at, reason, by? }` — present only when a human closed the entry by hand via `abap_journal mode=reconcile` instead of abapsmith observing the outcome itself; **absent, not `null`**, otherwise. `at` is when it was recorded, `reason` is the caller's stated evidence (verbatim), `by` is who stated it when known. Marks `outcome` (and, for `failed`, `error`) as an asserted finding rather than something abapsmith watched happen. |
 | `undoOf` / `undoneBy` | links between an entry and the entry that later undid it |
 | `irreversible` | set when no mechanism can undo this entry at all, even with `force` |
 | `actor` | who made the change — `ABAP_ACTOR` if set, else the MCP client's `clientInfo.name` if the transport handed one over, else **absent**. Never a placeholder: an entry with no known actor simply omits the field, and `abap_journal mode=list` drops the `actor` column entirely on a page where nothing has one. See `ABAP_ACTOR` in [doc/CONFIGURATION § Journal, diagnostics, and tooling](../CONFIGURATION/journal-diagnostics-and-tooling.md). |

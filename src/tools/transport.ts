@@ -67,6 +67,7 @@ import {
   type TrTask,
 } from "../adt/transports.js";
 import {
+  removalTouchedNothing,
   removeTransportEntryViaBridge,
   type TransportEntryRemoveResult,
 } from "../adt/transport-entry-remove.js";
@@ -1392,20 +1393,31 @@ async function opRemoveObject(
   try {
     res = await removeTransportEntryViaBridge(conn, gate, { trkorr: holder.trkorr, objectName }, proof);
   } catch (e) {
-    // The ABAP loop can fail after removing one row — a bare rethrow would
-    // leave a real mutation unrecorded.
+    // The ABAP loop can fail after removing one row, so a bare rethrow would
+    // leave a real mutation unrecorded — but most failures here are refusals
+    // that removed nothing (CTS_DUPLICATE_ENTRY, NOT_FOUND), and leaving
+    // THOSE `pending` makes `abap_journal mode=list` call them STRANDED,
+    // which tells the operator nobody knows whether the write landed when in
+    // fact nothing did. `removalTouchedNothing` reads the transcript for
+    // that difference: proven-untouched settles `failed`, everything else
+    // stays `unproven`.
+    const touchedNothing = removalTouchedNothing(e);
     await recordMutation(
       journal,
       {
         operation: "transport-remove-object",
         trkorr: holder.trkorr,
-        description: `removeObject ${objectName} from ${holder.trkorr}`,
+        description: touchedNothing
+          ? `removeObject ${objectName} from ${holder.trkorr} — refused, nothing was removed`
+          : `removeObject ${objectName} from ${holder.trkorr}`,
         existedBefore: true,
         beforeCapture: "captured",
         beforeSource: removeObjectBeforeImage(holder),
         tool: "abap_transport removeObject",
       },
-      { kind: "unproven", reason: (e as Error).message },
+      touchedNothing
+        ? { kind: "failed", reason: `Refused, nothing was removed: ${(e as Error).message}` }
+        : { kind: "unproven", reason: (e as Error).message },
     );
     throw enrichRemovalRefusal(e, objectOnSystem);
   }
