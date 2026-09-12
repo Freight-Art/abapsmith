@@ -35,6 +35,7 @@
  */
 
 import { type AbapErrorCode } from "./errors.js";
+import type { AuthMethod } from "../auth/method.js";
 
 /** The five `details.reason` strings this classifier can produce. */
 export type ConnectFailureReason =
@@ -56,7 +57,7 @@ export const CONNECT_FAILURE_REASONS: ReadonlySet<ConnectFailureReason> = new Se
 export interface ConnectFailureVerdict {
   readonly code: Extract<
     AbapErrorCode,
-    "AUTH_FAILED" | "SYSTEM_UNAVAILABLE" | "CONNECT_FAILED" | "ADT_ERROR"
+    "AUTH_FAILED" | "AUTH_EXPIRED" | "SYSTEM_UNAVAILABLE" | "CONNECT_FAILED" | "ADT_ERROR"
   >;
   readonly reason: ConnectFailureReason;
   /** The HTTP status this verdict was decided on, when one was found. */
@@ -147,6 +148,71 @@ const AUTH_HINT =
   "(repeated logon attempts lock the SAP user; login/fails_to_user_lock " +
   "defaults to 5). Fix ABAP_USER / ABAP_PASSWORD.";
 
+/**
+ * Shared opening for every non-password branch of {@link rejectedCredential},
+ * so the "was NOT retried" warning cannot drift between them. Repeated on
+ * purpose in every branch: the SAP lockout counter
+ * (`login/fails_to_user_lock`, default 5) does not care which credential
+ * shape was presented.
+ */
+const REJECTED_CREDENTIAL_PREAMBLE =
+  "Credentials were rejected and were NOT retried (repeated logon attempts " +
+  "lock the SAP user; login/fails_to_user_lock defaults to 5). ";
+
+/**
+ * The hint for a rejected credential, and the code that goes with it.
+ * Which variable an operator must actually change depends on how this server
+ * authenticates, so a single hardcoded "Fix ABAP_USER / ABAP_PASSWORD" is
+ * wrong in four of the five modes. The "was NOT retried" warning is repeated
+ * in every branch on purpose: the SAP lockout counter
+ * (`login/fails_to_user_lock`, default 5) does not care which credential
+ * shape was presented.
+ */
+function rejectedCredential(method: AuthMethod | undefined): {
+  code: Extract<AbapErrorCode, "AUTH_FAILED" | "AUTH_EXPIRED">;
+  hint: string;
+} {
+  switch (method) {
+    case "cookie":
+      return {
+        code: "AUTH_FAILED",
+        hint:
+          REJECTED_CREDENTIAL_PREAMBLE +
+          "The session cookie in ABAP_SESSION_COOKIE was rejected — it has most likely expired. " +
+          "Obtain a fresh cookie and restart the server.",
+      };
+    case "certificate":
+      return {
+        code: "AUTH_FAILED",
+        hint:
+          REJECTED_CREDENTIAL_PREAMBLE +
+          "The client certificate in ABAP_CLIENT_CERT was rejected by the ABAP system. Check that " +
+          "the certificate is not expired, that it is mapped to a user in transaction EXTID_DN / " +
+          "table USREXTID on this system, and that the ICF service accepts certificate logon.",
+      };
+    case "token":
+      return {
+        code: "AUTH_EXPIRED",
+        hint:
+          REJECTED_CREDENTIAL_PREAMBLE +
+          "The bearer token in ABAP_TOKEN was rejected — it has most likely expired. ABAP_TOKEN is " +
+          "static and is never refreshed: renew it and restart the server.",
+      };
+    case "oauth":
+      return {
+        code: "AUTH_EXPIRED",
+        hint:
+          REJECTED_CREDENTIAL_PREAMBLE +
+          "The OAuth access token was rejected even after one refresh. Check that the client in " +
+          "ABAP_OAUTH_CLIENT_ID (or ABAP_SERVICE_KEY) is still authorised on this tenant and that " +
+          "its scopes cover ADT.",
+      };
+    case "password":
+    case undefined:
+      return { code: "AUTH_FAILED", hint: AUTH_HINT };
+  }
+}
+
 function systemDownHint(status: number): string {
   return (
     `The ABAP system answered (HTTP ${status}) but is down or overloaded and ` +
@@ -183,8 +249,12 @@ const UNCLASSIFIED_HINT =
  * breaker's trip record directly and builds the verdict here instead of
  * duplicating it at the call site.
  */
-export function credentialsRejectedVerdict(status: number): ConnectFailureVerdict {
-  return { code: "AUTH_FAILED", reason: "credentials-rejected", status, hint: AUTH_HINT };
+export function credentialsRejectedVerdict(
+  status: number,
+  method?: AuthMethod,
+): ConnectFailureVerdict {
+  const { code, hint } = rejectedCredential(method);
+  return { code, reason: "credentials-rejected", status, hint };
 }
 
 /**
@@ -193,7 +263,7 @@ export function credentialsRejectedVerdict(status: number): ConnectFailureVerdic
  * See the module header for the verified vendor-rewrite hazard and the
  * (load-bearing, ordered) classification rules.
  */
-export function classifyConnectFailure(e: unknown): ConnectFailureVerdict {
+export function classifyConnectFailure(e: unknown, method?: AuthMethod): ConnectFailureVerdict {
   const transport = findTransportCode(e);
 
   // Step 1 — transport/TLS, before status is even read.
@@ -216,7 +286,8 @@ export function classifyConnectFailure(e: unknown): ConnectFailureVerdict {
 
   // Step 2.
   if (status === 401 || status === 403) {
-    return { code: "AUTH_FAILED", reason: "credentials-rejected", status, transport, hint: AUTH_HINT };
+    const { code, hint } = rejectedCredential(method);
+    return { code, reason: "credentials-rejected", status, transport, hint };
   }
 
   // Step 3.

@@ -43690,6 +43690,9 @@ var RETRYABILITY = {
   CIRCUIT_OPEN_TRANSIENT: "conditional",
   AUTH_FAILED: "terminal",
   // trips the circuit breaker; retrying risks locking a shared account
+  AUTH_EXPIRED: "terminal",
+  // renewing the token is an operator action outside the call; no argument fixes it
+  AUTH_TOKEN_REFRESH_FAILED: "conditional",
   SYSTEM_UNAVAILABLE: "conditional",
   CONNECT_FAILED: "conditional",
   NOT_CONNECTED: "conditional",
@@ -45450,7 +45453,12 @@ var DEFAULT_FAILURE_THRESHOLD = 3;
 var AUTH_REARM_BASE_COOLDOWN_MS = 15 * 6e4;
 var AUTH_REARM_MAX_COOLDOWN_MS = 4 * 60 * 6e4;
 var AUTH_REARM_POLL_MS = 1e3;
-var NO_PASSWORD_CREDENTIAL_DISCRIMINATOR = " session-cookie-auth";
+var CREDENTIAL_DISCRIMINATORS = {
+  cookie: " session-cookie-auth",
+  certificate: " client-certificate-auth",
+  token: " bearer-token-auth",
+  oauth: " oauth-client-credentials-auth"
+};
 function asResponseLike(input) {
   return isResponseLike(input) ? input : void 0;
 }
@@ -45545,7 +45553,7 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
     const fingerprint = fingerprintCredentials(
       cfg.url,
       cfg.user,
-      cfg.password ?? NO_PASSWORD_CREDENTIAL_DISCRIMINATOR
+      cfg.authMethod === "password" ? cfg.password ?? "" : CREDENTIAL_DISCRIMINATORS[cfg.authMethod]
     );
     const prior = lookupTrippedFingerprint(fingerprint);
     if (prior) {
@@ -68166,6 +68174,7 @@ async function loadFluidTools(cfg, builtins) {
 
 // src/config.ts
 var import_dotenv = __toESM(require_main(), 1);
+import { readFileSync as readFileSync3 } from "node:fs";
 
 // node_modules/fast-xml-parser/src/util.js
 var nameStartChar = ":A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD";
@@ -72970,6 +72979,131 @@ async function trRelease(conn, trkorr, proof) {
   };
 }
 
+// src/auth/client-cert.ts
+function readNamedFile(envVar, path8, readFile2) {
+  try {
+    return { ok: true, buf: readFile2(path8) };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, issue: `${envVar} (${path8}) could not be read: ${msg}.` };
+  }
+}
+function isPfxPath(path8) {
+  const lower = path8.toLowerCase();
+  return lower.endsWith(".pfx") || lower.endsWith(".p12");
+}
+function loadClientCertMaterial(spec, readFile2) {
+  const { certPath, keyPath, passphrase } = spec;
+  if (isPfxPath(certPath)) {
+    if (keyPath !== void 0) {
+      return {
+        issue: `ABAP_CLIENT_KEY is set but ABAP_CLIENT_CERT points at a PKCS#12 file (${certPath}) \u2014 a PFX already contains the private key. Unset ABAP_CLIENT_KEY.`
+      };
+    }
+    const pfxRead = readNamedFile("ABAP_CLIENT_CERT", certPath, readFile2);
+    if (!pfxRead.ok) return { issue: pfxRead.issue };
+    return {
+      material: {
+        pfx: pfxRead.buf,
+        ...passphrase !== void 0 ? { passphrase } : {},
+        kind: "pfx",
+        certPath
+      }
+    };
+  }
+  const certRead = readNamedFile("ABAP_CLIENT_CERT", certPath, readFile2);
+  if (!certRead.ok) return { issue: certRead.issue };
+  const certText = certRead.buf.toString("utf8");
+  if (!certText.includes("-----BEGIN")) {
+    return {
+      issue: `ABAP_CLIENT_CERT (${certPath}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM certificate, or at a .pfx/.p12 for PKCS#12.`
+    };
+  }
+  if (keyPath !== void 0) {
+    const keyRead = readNamedFile("ABAP_CLIENT_KEY", keyPath, readFile2);
+    if (!keyRead.ok) return { issue: keyRead.issue };
+    return {
+      material: {
+        cert: certRead.buf,
+        key: keyRead.buf,
+        ...passphrase !== void 0 ? { passphrase } : {},
+        kind: "pem",
+        certPath,
+        keyPath
+      }
+    };
+  }
+  if (!certText.includes("PRIVATE KEY-----")) {
+    return {
+      issue: `ABAP_CLIENT_CERT (${certPath}) is a PEM certificate with no private key in it and ABAP_CLIENT_KEY is not set \u2014 set ABAP_CLIENT_KEY to the PEM private-key file, or point ABAP_CLIENT_CERT at a PKCS#12 (.pfx/.p12) file that contains both.`
+    };
+  }
+  return {
+    material: {
+      cert: certRead.buf,
+      key: certRead.buf,
+      ...passphrase !== void 0 ? { passphrase } : {},
+      kind: "pem",
+      certPath
+    }
+  };
+}
+function loadCaBundle(path8, readFile2) {
+  const read = readNamedFile("ABAP_CA_CERT", path8, readFile2);
+  if (!read.ok) return { issue: read.issue };
+  if (!read.buf.toString("utf8").includes("-----BEGIN")) {
+    return {
+      issue: `ABAP_CA_CERT (${path8}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM CA certificate or bundle.`
+    };
+  }
+  return { bundle: { pem: read.buf, path: path8 } };
+}
+
+// src/auth/service-key.ts
+function joinFieldNames(names) {
+  if (names.length <= 1) return names.join("");
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+function parseServiceKey(path8, raw) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { issue: `ABAP_SERVICE_KEY (${path8}) is not valid JSON: ${msg}.` };
+  }
+  const uaa = parsed?.uaa;
+  const clientId = typeof uaa?.clientid === "string" ? uaa.clientid : void 0;
+  const clientSecret = typeof uaa?.clientsecret === "string" ? uaa.clientsecret : void 0;
+  const uaaUrl = typeof uaa?.url === "string" ? uaa.url : void 0;
+  const missing = [
+    ...clientId === void 0 ? ["uaa.clientid"] : [],
+    ...clientSecret === void 0 ? ["uaa.clientsecret"] : [],
+    ...uaaUrl === void 0 ? ["uaa.url"] : []
+  ];
+  if (missing.length > 0) {
+    return {
+      issue: `ABAP_SERVICE_KEY (${path8}) is missing ${joinFieldNames(missing)} \u2014 this does not look like an SAP BTP ABAP-environment service key.`
+    };
+  }
+  if (clientId === void 0 || clientSecret === void 0 || uaaUrl === void 0) {
+    return { issue: `ABAP_SERVICE_KEY (${path8}) is missing required uaa fields.` };
+  }
+  const tokenUrl = uaaUrl.endsWith("/oauth/token") ? uaaUrl : `${uaaUrl.replace(/\/+$/, "")}/oauth/token`;
+  const scope = typeof uaa?.scope === "string" && uaa.scope.length > 0 ? uaa.scope : void 0;
+  return {
+    settings: {
+      tokenUrl,
+      clientId,
+      clientSecret,
+      ...scope !== void 0 ? { scope } : {},
+      source: "service-key",
+      serviceKeyPath: path8
+    }
+  };
+}
+
 // src/mode.ts
 var ENHANCE_TARGETS_VALUES = ["none", "customer", "sap"];
 function parseAbapMode(raw) {
@@ -76432,6 +76566,24 @@ var ConfigSchema = external_exports.object({
    */
   sessionCookie: external_exports.custom().optional(),
   /**
+   * Which of the five mutually exclusive credential methods resolved.
+   * `loadConfig` always passes an explicit value. The schema default exists
+   * for the OTHER entry point — hand-built `ConfigSchema.parse({...})` calls
+   * (tests, and any caller assembling a Config directly) predate this field,
+   * and `"password"` is the only default that keeps their behaviour identical
+   * to what it was before five methods existed. The parsed type stays
+   * non-optional, so every consumer can read it unconditionally.
+   */
+  authMethod: external_exports.custom().default("password"),
+  /** X.509 client-certificate material (ABAP_CLIENT_CERT/_KEY/_KEY_PASSPHRASE). Loaded off disk by `loadClientCertMaterial`; key material and passphrase are secret. */
+  clientCert: external_exports.custom().optional(),
+  /** CA bundle for verifying the SERVER certificate (ABAP_CA_CERT). Not a credential and not tied to an auth method — usable in all five, and independent of ABAP_INSECURE. */
+  caCert: external_exports.custom().optional(),
+  /** Static bearer token (ABAP_TOKEN). As sensitive as ABAP_PASSWORD. */
+  token: external_exports.string().min(1).optional(),
+  /** OAuth 2.0 client-credentials settings (ABAP_OAUTH_* or ABAP_SERVICE_KEY). `clientSecret` is as sensitive as ABAP_PASSWORD. */
+  oauth: external_exports.custom().optional(),
+  /**
    * Logon client — documentation only by default; see `sendClientParam`.
    * Appending `?sap-client=` breaks login on some systems (observed on A4H).
    */
@@ -76669,10 +76821,17 @@ var ConfigSchema = external_exports.object({
    * Do not default this to v2 or drop v1 — a live paired A/B measured v2 at
    * +6.6% more expensive and +142% more tool errors than v1 for
    * statistically identical successful work, despite a genuine −87.6%
-   * schema-size cut. v2 is EXPERIMENTAL and NOT supported for production;
-   * known defects are intentionally not being fixed while
-   * it holds that status. Full measurement, reasoning, and the bar for
+   * schema-size cut. Full measurement, reasoning, and the bar for
    * revisiting this default: see the git history.
+   *
+   * As of this release, `"v2"` is DEPRECATED and scheduled for removal in
+   * 0.6.0 (issue #76; keep in sync with `V2_REMOVAL_RELEASE` in
+   * src/server.ts). The surface is frozen: no new tool routes and no defect
+   * fixes land on it. Setting `ABAP_TOOL_SURFACE=v2` logs a deprecation
+   * warning at startup and puts the same sentence in the server
+   * `instructions` (both driven by `V2_DEPRECATION_SENTENCE` in
+   * src/server.ts, so the operator-facing and model-facing wording cannot
+   * drift apart).
    *
    * Deliberately no `"both"` value: v2 reuses v1's tool names verbatim, so
    * registering both surfaces throws "Tool abap_read is already registered"
@@ -76947,6 +77106,7 @@ function loadConfig(opts = {}) {
   if (!opts.skipDotenv) loadEnvFile();
   const env = opts.env ?? process.env;
   const warn = opts.warn ?? ((m) => process.stderr.write(m + "\n"));
+  const readFile2 = opts.readFile ?? ((p) => readFileSync3(p));
   for (const name of Object.keys(env).filter((k) => k.startsWith("ABAP_ALLOW_") && !RECOGNISED_ABAP_ALLOW_ENV_VARS.includes(k)).sort()) {
     warn(
       `[abapsmith] WARNING: ${name} is not a setting this server reads \u2014 it is most likely a typo of one of the recognised ABAP_ALLOW_* flags (see doc/CONFIGURATION/permissions-and-allowlists.md) and has no effect.`
@@ -76990,6 +77150,18 @@ function loadConfig(opts = {}) {
   const passwordIsSet = env.ABAP_PASSWORD !== void 0 && env.ABAP_PASSWORD.trim() !== "";
   const rawSessionCookie = env.ABAP_SESSION_COOKIE;
   const sessionCookieIsSet = rawSessionCookie !== void 0 && rawSessionCookie.trim() !== "";
+  const nonBlank = (v) => v !== void 0 && v.trim() !== "" ? v : void 0;
+  const clientCertPath = nonBlank(env.ABAP_CLIENT_CERT);
+  const clientKeyPath = nonBlank(env.ABAP_CLIENT_KEY);
+  const clientKeyPassphrase = nonBlank(env.ABAP_CLIENT_KEY_PASSPHRASE);
+  const tokenValue = nonBlank(env.ABAP_TOKEN);
+  const serviceKeyPath = nonBlank(env.ABAP_SERVICE_KEY);
+  const oauthTokenUrl = nonBlank(env.ABAP_OAUTH_TOKEN_URL);
+  const oauthClientId = nonBlank(env.ABAP_OAUTH_CLIENT_ID);
+  const oauthClientSecret = nonBlank(env.ABAP_OAUTH_CLIENT_SECRET);
+  const oauthScope = nonBlank(env.ABAP_OAUTH_SCOPE);
+  const oauthExplicitIsSet = oauthTokenUrl !== void 0 || oauthClientId !== void 0 || oauthClientSecret !== void 0;
+  const oauthIsSet = serviceKeyPath !== void 0 || oauthExplicitIsSet;
   let sessionCookie;
   let credentialIssue;
   if (sessionCookieIsSet) {
@@ -77000,11 +77172,100 @@ function loadConfig(opts = {}) {
       sessionCookie = parsedCookie;
     }
   }
+  if (credentialIssue === void 0 && clientCertPath === void 0) {
+    const orphanNames = [
+      ...clientKeyPath !== void 0 ? ["ABAP_CLIENT_KEY"] : [],
+      ...clientKeyPassphrase !== void 0 ? ["ABAP_CLIENT_KEY_PASSPHRASE"] : []
+    ];
+    if (orphanNames.length > 0) {
+      credentialIssue = `${orphanNames.join(" / ")} is set but ABAP_CLIENT_CERT is not \u2014 set ABAP_CLIENT_CERT to the certificate (PEM) or PKCS#12 file.`;
+    }
+  }
+  const configuredMethods = [];
+  if (passwordIsSet) configuredMethods.push({ method: "password", label: "ABAP_PASSWORD" });
+  if (sessionCookieIsSet) configuredMethods.push({ method: "cookie", label: "ABAP_SESSION_COOKIE" });
+  if (clientCertPath !== void 0) {
+    configuredMethods.push({ method: "certificate", label: "ABAP_CLIENT_CERT" });
+  }
+  if (tokenValue !== void 0) configuredMethods.push({ method: "token", label: "ABAP_TOKEN" });
+  if (oauthIsSet) {
+    configuredMethods.push({ method: "oauth", label: "ABAP_OAUTH_* / ABAP_SERVICE_KEY" });
+  }
   if (credentialIssue === void 0) {
-    if (passwordIsSet && sessionCookie !== void 0) {
-      credentialIssue = "both ABAP_PASSWORD and ABAP_SESSION_COOKIE are set \u2014 refusing to start rather than silently choosing one. Unset whichever one is not intended.";
-    } else if (!passwordIsSet && sessionCookie === void 0) {
-      credentialIssue = "no credential configured \u2014 set exactly one of ABAP_PASSWORD or ABAP_SESSION_COOKIE.";
+    if (configuredMethods.length > 1) {
+      credentialIssue = `more than one credential is configured (${configuredMethods.map((m) => m.label).join(" and ")}) \u2014 refusing to start rather than silently choosing one. Unset whichever one is not intended.`;
+    } else if (configuredMethods.length === 0) {
+      credentialIssue = "no credential configured \u2014 set exactly one of ABAP_PASSWORD, ABAP_SESSION_COOKIE, ABAP_CLIENT_CERT, ABAP_TOKEN, or the ABAP_OAUTH_* group (ABAP_OAUTH_TOKEN_URL + ABAP_OAUTH_CLIENT_ID + ABAP_OAUTH_CLIENT_SECRET, or ABAP_SERVICE_KEY).";
+    }
+  }
+  const resolvedMethod = credentialIssue === void 0 && configuredMethods.length === 1 ? configuredMethods[0] : void 0;
+  const authMethod = resolvedMethod?.method ?? "password";
+  let clientCert;
+  if (resolvedMethod?.method === "certificate" && clientCertPath !== void 0) {
+    const { material, issue: issue3 } = loadClientCertMaterial(
+      {
+        certPath: clientCertPath,
+        ...clientKeyPath !== void 0 ? { keyPath: clientKeyPath } : {},
+        ...clientKeyPassphrase !== void 0 ? { passphrase: clientKeyPassphrase } : {}
+      },
+      readFile2
+    );
+    if (issue3 !== void 0) credentialIssue = issue3;
+    else clientCert = material;
+  }
+  let oauth;
+  if (resolvedMethod?.method === "oauth") {
+    if (serviceKeyPath !== void 0 && oauthExplicitIsSet) {
+      credentialIssue = "both ABAP_SERVICE_KEY and explicit ABAP_OAUTH_* variables are set \u2014 refusing to start rather than silently choosing one. Unset whichever one is not intended.";
+    } else if (serviceKeyPath !== void 0) {
+      try {
+        const raw = readFile2(serviceKeyPath).toString("utf8");
+        const { settings, issue: issue3 } = parseServiceKey(serviceKeyPath, raw);
+        if (issue3 !== void 0) {
+          credentialIssue = issue3;
+        } else if (settings !== void 0) {
+          oauth = oauthScope !== void 0 ? { ...settings, scope: oauthScope } : settings;
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        credentialIssue = `ABAP_SERVICE_KEY (${serviceKeyPath}) could not be read: ${msg}.`;
+      }
+    } else if (oauthTokenUrl === void 0 || oauthClientId === void 0 || oauthClientSecret === void 0) {
+      const missing = [
+        ...oauthTokenUrl === void 0 ? ["ABAP_OAUTH_TOKEN_URL"] : [],
+        ...oauthClientId === void 0 ? ["ABAP_OAUTH_CLIENT_ID"] : [],
+        ...oauthClientSecret === void 0 ? ["ABAP_OAUTH_CLIENT_SECRET"] : []
+      ];
+      credentialIssue = `OAuth client-credentials configuration is incomplete \u2014 ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not set. Set ABAP_OAUTH_TOKEN_URL, ABAP_OAUTH_CLIENT_ID and ABAP_OAUTH_CLIENT_SECRET, or point ABAP_SERVICE_KEY at a BTP service-key JSON instead.`;
+    } else {
+      let validUrl;
+      try {
+        const u = new URL(oauthTokenUrl);
+        validUrl = u.protocol === "http:" || u.protocol === "https:";
+      } catch {
+        validUrl = false;
+      }
+      if (!validUrl) {
+        credentialIssue = "ABAP_OAUTH_TOKEN_URL is not a valid absolute URL.";
+      } else {
+        oauth = {
+          tokenUrl: oauthTokenUrl,
+          clientId: oauthClientId,
+          clientSecret: oauthClientSecret,
+          ...oauthScope !== void 0 ? { scope: oauthScope } : {},
+          source: "env"
+        };
+      }
+    }
+  }
+  const caCertPath = nonBlank(env.ABAP_CA_CERT);
+  let caCert;
+  if (caCertPath !== void 0) {
+    const { bundle, issue: issue3 } = loadCaBundle(caCertPath, readFile2);
+    if (issue3 !== void 0) {
+      credentialIssue = credentialIssue !== void 0 ? `${credentialIssue}; ${issue3}` : issue3;
+    } else {
+      caCert = bundle;
     }
   }
   const allowDataPreview = boolFromEnv(env.ABAP_ALLOW_DATA_PREVIEW);
@@ -77047,6 +77308,11 @@ function loadConfig(opts = {}) {
     // speaks for a missing/blank password now.
     password: passwordIsSet ? env.ABAP_PASSWORD : void 0,
     sessionCookie,
+    authMethod,
+    clientCert,
+    caCert,
+    token: tokenValue,
+    oauth,
     client: env.ABAP_CLIENT ?? "",
     sendClientParam: env.ABAP_SEND_CLIENT_PARAM,
     sid: env.ABAP_SID || "UNKNOWN",
@@ -77164,6 +77430,26 @@ ${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues].jo
   if (cfg.insecure) {
     warn(
       "[abapsmith] WARNING: ABAP_INSECURE=true \u2014 TLS certificate verification is DISABLED. Credentials are exposed to anyone who can intercept the connection. Prefer NODE_EXTRA_CA_CERTS with your corporate CA bundle."
+    );
+    if (cfg.caCert !== void 0) {
+      warn(
+        "[abapsmith] WARNING: ABAP_CA_CERT is set but ABAP_INSECURE=true turns certificate verification off entirely, so the CA bundle is never consulted. Unset ABAP_INSECURE to make ABAP_CA_CERT take effect."
+      );
+    }
+  }
+  if (cfg.authMethod === "certificate") {
+    warn(
+      "[abapsmith] NOTE: ABAP_USER is not sent for logon in client-certificate mode \u2014 the effective SAP user is whatever the certificate maps to on the system. ABAP_USER is still used for journal attribution and the debugger identity, but abapsmith does NOT verify that mapping. If the certificate maps to a different user than ABAP_USER names, journal entries and the debugger identity will say ABAP_USER while the system attributes the actual work to the certificate's user \u2014 set ABAP_USER to match the certificate's mapped user yourself."
+    );
+  }
+  if (oauthScope !== void 0 && !oauthIsSet) {
+    warn(
+      "[abapsmith] NOTE: ABAP_OAUTH_SCOPE is set but no OAuth client-credentials configuration is \u2014 it has no effect on its own."
+    );
+  }
+  if (cfg.authMethod === "token") {
+    warn(
+      "[abapsmith] NOTE: ABAP_TOKEN is a static bearer token: it is never refreshed. When it expires the server reports AUTH_EXPIRED and you must renew ABAP_TOKEN and restart."
     );
   }
   if (/^http:\/\//i.test(cfg.url)) {
@@ -77316,6 +77602,26 @@ function redactConfigSecrets(cfg) {
     password: cfg.password ? "***" : "(not set)",
     sessionCookie: cfg.sessionCookie ? "***" : "(not set)",
     sessionCookieNames: cfg.sessionCookie ? [...cfg.sessionCookie.keys()] : void 0,
+    authMethod: cfg.authMethod,
+    clientCert: cfg.clientCert ? {
+      kind: cfg.clientCert.kind,
+      certPath: cfg.clientCert.certPath,
+      keyPath: cfg.clientCert.keyPath ?? "(not set)",
+      passphrase: cfg.clientCert.passphrase ? "***" : "(not set)"
+    } : "(not set)",
+    caCert: cfg.caCert ? cfg.caCert.path : "(not set)",
+    token: cfg.token ? "***" : "(not set)",
+    oauth: cfg.oauth ? {
+      tokenUrl: stripUrlCredentials(cfg.oauth.tokenUrl),
+      // A BTP `clientid` is only meaningful paired with its secret, so
+      // redacting it too keeps the rule "nothing from a credential ever
+      // reaches the config dump" absolute rather than case-by-case.
+      clientId: "***",
+      clientSecret: "***",
+      scope: cfg.oauth.scope ?? "(not set)",
+      source: cfg.oauth.source,
+      serviceKeyPath: cfg.oauth.serviceKeyPath ?? "(not set)"
+    } : "(not set)",
     client: cfg.client || "(not sent)",
     sid: cfg.sid,
     insecure: cfg.insecure,
@@ -77403,6 +77709,14 @@ function mergeInjectedCookies(jarHeader, injected) {
     if (held === void 0 || held === "") merged.set(name, value);
   }
   return [...merged].map(([name, value]) => `${name}=${value}`).join("; ");
+}
+function stripAuthorizationHeader(headers) {
+  if (!headers) return headers;
+  const out = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== "authorization") out[key] = value;
+  }
+  return out;
 }
 var NOOP_RELEASE = () => {
 };
@@ -77604,8 +77918,43 @@ function transientOpenError(breaker) {
     `The SAP system is struggling or unreachable. This is NOT a credentials problem and needs no restart \u2014 the breaker probes automatically ${waitMs !== void 0 ? `in ~${waitMs} ms` : "after the cooldown"} and closes again on the first successful response. Retry after that.`
   );
 }
-function buildInsecureHttpsAgent(insecure) {
-  return insecure ? new https.Agent({ rejectUnauthorized: false }) : void 0;
+function buildHttpsAgent(tls) {
+  const options = {};
+  let hasOption = false;
+  if (tls?.insecure) {
+    options.rejectUnauthorized = false;
+    hasOption = true;
+  }
+  if (tls?.ca) {
+    options.ca = tls.ca;
+    hasOption = true;
+  }
+  if (tls?.cert) {
+    options.cert = tls.cert;
+    hasOption = true;
+  }
+  if (tls?.key) {
+    options.key = tls.key;
+    hasOption = true;
+  }
+  if (tls?.pfx) {
+    options.pfx = tls.pfx;
+    hasOption = true;
+  }
+  if (tls?.passphrase !== void 0) {
+    options.passphrase = tls.passphrase;
+    hasOption = true;
+  }
+  return hasOption ? new https.Agent(options) : void 0;
+}
+async function postFormUrlEncoded(url2, body) {
+  const res = await fetch(url2, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: body.toString()
+  });
+  const text3 = await res.text();
+  return { status: res.status, body: text3 };
 }
 var GuardedHttpClient = class {
   breaker;
@@ -77615,6 +77964,8 @@ var GuardedHttpClient = class {
   requestCount = 0;
   /** Number of requests refused locally because the breaker was open. */
   blockedCount = 0;
+  /** Number of requests re-sent once after a 401 with a refreshed bearer. */
+  refreshRetryCount = 0;
   /**
    * `breaker` IS REQUIRED — it used to default to `new AuthCircuitBreaker()`,
    * which silently gated nothing shared (own private breaker/budget) while
@@ -77623,7 +77974,7 @@ var GuardedHttpClient = class {
   constructor(opts, breaker) {
     this.opts = opts;
     this.breaker = breaker;
-    const httpsAgent = buildInsecureHttpsAgent(opts.insecure);
+    const httpsAgent = buildHttpsAgent(this.opts.tls ?? { insecure: opts.insecure });
     this.inner = opts.inner ?? new import_AxiosHttpClient.AxiosHttpClient(opts.baseURL, {
       timeout: opts.timeout ?? DEFAULT_HTTP_TIMEOUT_MS,
       ...httpsAgent ? { httpsAgent } : {}
@@ -77697,14 +78048,63 @@ var GuardedHttpClient = class {
       opts.headers = headers;
       delete opts.auth;
     }
+    const bearer = this.opts.bearerToken !== void 0 ? await this.opts.bearerToken() : void 0;
+    if (bearer !== void 0) {
+      opts.headers = { ...opts.headers ?? {}, Authorization: `Bearer ${bearer}` };
+      delete opts.auth;
+    } else if (this.opts.suppressBasicAuth?.() === true) {
+      opts.headers = stripAuthorizationHeader(opts.headers);
+      delete opts.auth;
+    }
     this.opts.onRequest?.(opts);
+    if (this.opts.refreshBearerToken === void 0) {
+      return this.settle(await this.sendRaw(opts), opts, isProbe);
+    }
+    const first = await this.sendRaw(opts);
+    const status = first.response?.status ?? first.carried?.status;
+    if (status === 401) {
+      const fresh = await this.opts.refreshBearerToken();
+      if (fresh !== void 0) {
+        const retry = {
+          ...opts,
+          headers: { ...stripAuthorizationHeader(opts.headers), Authorization: `Bearer ${fresh}` }
+        };
+        delete retry.auth;
+        this.refreshRetryCount++;
+        this.opts.onRequest?.(retry);
+        return this.settle(await this.sendRaw(retry), retry, isProbe);
+      }
+    }
+    return this.settle(first, opts, isProbe);
+  }
+  /**
+   * ONLY the network call and the exception/`.response` split — nothing that
+   * touches the breaker, `onResponse`, or throws. Split out of `dispatch()` so
+   * the OAuth 401 retry (step 2f) can send TWICE while `settle()` runs its
+   * full post-processing (including `breaker.inspect()`, which is what would
+   * latch a merely-expired token) only on whichever attempt is final.
+   */
+  async sendRaw(opts) {
     this.requestCount++;
-    let response;
     try {
-      response = await this.inner.request(opts);
+      const response = await this.inner.request(opts);
+      return { response };
     } catch (e) {
+      return { error: e, carried: e?.response };
+    }
+  }
+  /**
+   * Everything downstream of `sendRaw()` — EXACTLY the post-processing
+   * `dispatch()` used to run inline, moved rather than rewritten. Distinguish
+   * success/failure via `"error" in outcome`, not `outcome.error !==
+   * undefined`: a thrown value of `undefined` must still take the failure
+   * path, matching what a bare `try/catch` around `sendRaw()`'s call would do.
+   */
+  settle(outcome, opts, isProbe) {
+    if ("error" in outcome) {
+      const e = outcome.error;
       captureErrorBody("http-guard", opts.url, e);
-      const carried = e?.response;
+      const carried = outcome.carried;
       if (carried) {
         this.breaker.inspect(carried, opts.url);
       } else {
@@ -77723,6 +78123,7 @@ var GuardedHttpClient = class {
       if (this.breaker.isTripped) throw circuitOpenError(this.breaker);
       throw e;
     }
+    const response = outcome.response;
     this.opts.onResponse?.(opts, response);
     this.breaker.inspect(response, opts.url);
     if (isProbe && this.breaker.status().probeInFlight) {
@@ -77732,6 +78133,18 @@ var GuardedHttpClient = class {
     return response;
   }
 };
+
+// src/auth/tls-credentials.ts
+function tlsCredentialsFromConfig(cfg) {
+  return {
+    ...cfg.insecure !== void 0 ? { insecure: cfg.insecure } : {},
+    ...cfg.caCert?.pem !== void 0 ? { ca: cfg.caCert.pem } : {},
+    ...cfg.clientCert?.cert !== void 0 ? { cert: cfg.clientCert.cert } : {},
+    ...cfg.clientCert?.key !== void 0 ? { key: cfg.clientCert.key } : {},
+    ...cfg.clientCert?.pfx !== void 0 ? { pfx: cfg.clientCert.pfx } : {},
+    ...cfg.clientCert?.passphrase !== void 0 ? { passphrase: cfg.clientCert.passphrase } : {}
+  };
+}
 
 // src/debug/client.ts
 import { createHash as createHash3, randomUUID } from "node:crypto";
@@ -79472,21 +79885,40 @@ function createRawHttpRequestFn(opts = {}) {
       return;
     }
     const transport = proxyPlan?.transport ?? (isHttps ? https3 : http2);
-    const insecureOverride = isHttps && httpsAgent?.options.rejectUnauthorized === false ? { rejectUnauthorized: false } : {};
+    const agentTlsOptions = isHttps ? httpsAgent?.options : void 0;
+    const tlsOverride = {
+      // Preserves today's behaviour exactly: only an explicit `false` is
+      // copied, never `true`/`undefined` (Node's own default already
+      // verifies).
+      ...agentTlsOptions?.rejectUnauthorized === false ? { rejectUnauthorized: false } : {},
+      ...agentTlsOptions?.ca !== void 0 ? { ca: agentTlsOptions.ca } : {},
+      ...agentTlsOptions?.cert !== void 0 ? { cert: agentTlsOptions.cert } : {},
+      ...agentTlsOptions?.key !== void 0 ? { key: agentTlsOptions.key } : {},
+      ...agentTlsOptions?.pfx !== void 0 ? { pfx: agentTlsOptions.pfx } : {},
+      ...agentTlsOptions?.passphrase !== void 0 ? { passphrase: agentTlsOptions.passphrase } : {}
+    };
     let options;
     if (proxyPlan && isHttps) {
       options = {
         method: req.method,
         headers: req.headers,
         agent: proxyPlan.agent,
-        ...insecureOverride
+        ...tlsOverride
       };
     } else if (proxyPlan) {
       options = req.longPoll ? { method: req.method, ...proxyPlan.options, agent: false } : { method: req.method, ...proxyPlan.options };
     } else {
-      options = req.longPoll ? { method: req.method, headers: req.headers, agent: false, ...insecureOverride } : {
+      options = req.longPoll ? { method: req.method, headers: req.headers, agent: false, ...tlsOverride } : {
         method: req.method,
         headers: req.headers,
+        // The real shared agent, not `tlsOverride` — it already carries
+        // every TLS option (including the client certificate), and
+        // reusing it here (rather than rebuilding a throwaway one) is
+        // what makes this branch safe to pool. Left asymmetric with the
+        // long-poll/proxy branches above deliberately: those use
+        // `agent: false`/a fresh per-request agent and so need
+        // `tlsOverride` to avoid losing the credential; this one never
+        // does.
         ...isHttps && httpsAgent ? { agent: httpsAgent } : {}
       };
     }
@@ -80970,7 +81402,7 @@ function createDebugClientForConnection(conn, opts) {
     }
     return jar;
   };
-  const httpsAgent = buildInsecureHttpsAgent(conn.cfg.insecure);
+  const httpsAgent = buildHttpsAgent(tlsCredentialsFromConfig(conn.cfg));
   const longPoll = new DebugLongPollClient({
     baseUrl: conn.cfg.url,
     breaker: conn.breaker,
@@ -90663,6 +91095,34 @@ function findStatus(e) {
   return void 0;
 }
 var AUTH_HINT = "Credentials were rejected by the ABAP system and were NOT retried (repeated logon attempts lock the SAP user; login/fails_to_user_lock defaults to 5). Fix ABAP_USER / ABAP_PASSWORD.";
+var REJECTED_CREDENTIAL_PREAMBLE = "Credentials were rejected and were NOT retried (repeated logon attempts lock the SAP user; login/fails_to_user_lock defaults to 5). ";
+function rejectedCredential(method) {
+  switch (method) {
+    case "cookie":
+      return {
+        code: "AUTH_FAILED",
+        hint: REJECTED_CREDENTIAL_PREAMBLE + "The session cookie in ABAP_SESSION_COOKIE was rejected \u2014 it has most likely expired. Obtain a fresh cookie and restart the server."
+      };
+    case "certificate":
+      return {
+        code: "AUTH_FAILED",
+        hint: REJECTED_CREDENTIAL_PREAMBLE + "The client certificate in ABAP_CLIENT_CERT was rejected by the ABAP system. Check that the certificate is not expired, that it is mapped to a user in transaction EXTID_DN / table USREXTID on this system, and that the ICF service accepts certificate logon."
+      };
+    case "token":
+      return {
+        code: "AUTH_EXPIRED",
+        hint: REJECTED_CREDENTIAL_PREAMBLE + "The bearer token in ABAP_TOKEN was rejected \u2014 it has most likely expired. ABAP_TOKEN is static and is never refreshed: renew it and restart the server."
+      };
+    case "oauth":
+      return {
+        code: "AUTH_EXPIRED",
+        hint: REJECTED_CREDENTIAL_PREAMBLE + "The OAuth access token was rejected even after one refresh. Check that the client in ABAP_OAUTH_CLIENT_ID (or ABAP_SERVICE_KEY) is still authorised on this tenant and that its scopes cover ADT."
+      };
+    case "password":
+    case void 0:
+      return { code: "AUTH_FAILED", hint: AUTH_HINT };
+  }
+}
 function systemDownHint(status) {
   return `The ABAP system answered (HTTP ${status}) but is down or overloaded and is refusing everyone \u2014 no credential was rejected, so do NOT change the password. Retrying will not help until the system recovers; check it with the Basis team, SM21, or the appliance console.`;
 }
@@ -90673,10 +91133,11 @@ function tlsHint(code) {
   return `The TLS handshake to the host failed (${code}) \u2014 this says nothing about the credentials. Check the server certificate, or ABAP_INSECURE if this is a self-signed/internal-CA sandbox.`;
 }
 var UNCLASSIFIED_HINT = "The cause of this connect failure could not be classified. Credentials were NOT retried. Both reachability and credentials are candidates \u2014 check ABAP_URL/DNS/VPN as well as ABAP_USER/ABAP_PASSWORD.";
-function credentialsRejectedVerdict(status) {
-  return { code: "AUTH_FAILED", reason: "credentials-rejected", status, hint: AUTH_HINT };
+function credentialsRejectedVerdict(status, method) {
+  const { code, hint } = rejectedCredential(method);
+  return { code, reason: "credentials-rejected", status, hint };
 }
-function classifyConnectFailure(e) {
+function classifyConnectFailure(e, method) {
   const transport = findTransportCode(e);
   if (transport && isTlsCode(transport)) {
     return { code: "CONNECT_FAILED", reason: "tls", transport, hint: tlsHint(transport) };
@@ -90691,7 +91152,8 @@ function classifyConnectFailure(e) {
   }
   const status = findStatus(e);
   if (status === 401 || status === 403) {
-    return { code: "AUTH_FAILED", reason: "credentials-rejected", status, transport, hint: AUTH_HINT };
+    const { code, hint } = rejectedCredential(method);
+    return { code, reason: "credentials-rejected", status, transport, hint };
   }
   if (status !== void 0 && status >= 500 && status <= 599) {
     return {
@@ -90704,6 +91166,150 @@ function classifyConnectFailure(e) {
   }
   return { code: "ADT_ERROR", reason: "connect-failed", status, transport, hint: UNCLASSIFIED_HINT };
 }
+
+// src/adt/oauth.ts
+var DEFAULT_REFRESH_SKEW_MS = 6e4;
+var DEFAULT_FAILURE_COOLDOWN_MS = 3e4;
+var ASSUMED_EXPIRES_IN_SECONDS = 3600;
+var defaultFetchToken = postFormUrlEncoded;
+var OAuthTokenProvider = class {
+  settings;
+  fetchToken;
+  now;
+  refreshSkewMs;
+  failureCooldownMs;
+  safeTokenUrl;
+  cached;
+  inFlight;
+  lastFailure;
+  constructor(opts) {
+    this.settings = opts.settings;
+    this.fetchToken = opts.fetchToken ?? defaultFetchToken;
+    this.now = opts.now ?? (() => Date.now());
+    this.refreshSkewMs = typeof opts.refreshSkewMs === "number" && opts.refreshSkewMs >= 0 ? opts.refreshSkewMs : DEFAULT_REFRESH_SKEW_MS;
+    this.failureCooldownMs = typeof opts.failureCooldownMs === "number" && opts.failureCooldownMs >= 0 ? opts.failureCooldownMs : DEFAULT_FAILURE_COOLDOWN_MS;
+    this.safeTokenUrl = stripUrlCredentials(this.settings.tokenUrl);
+  }
+  /**
+   * Returns a currently-valid access token, minting or refreshing one as
+   * needed. Concurrent callers during a refresh share the single in-flight
+   * request rather than each firing their own.
+   */
+  async getToken() {
+    const cached2 = this.cached;
+    if (cached2 && cached2.expiresAtMs - this.refreshSkewMs > this.now()) {
+      return cached2.token;
+    }
+    return this.refresh();
+  }
+  /**
+   * Discards any cached token and forces a fresh network round trip. Used by
+   * `GuardedHttpClient` exactly once per request, after a bearer draws a 401
+   * (see step 2f in `http-guard.ts`) — a merely-expired token should not
+   * trip the auth latch.
+   */
+  async forceRefresh() {
+    this.cached = void 0;
+    return this.refresh();
+  }
+  /** Diagnostic snapshot. Never includes the token or client secret. */
+  status() {
+    const cached2 = this.cached;
+    const inCooldown = this.inCooldownNow();
+    const result = {
+      hasToken: cached2 !== void 0,
+      inCooldown
+    };
+    if (cached2) {
+      result.expiresInMs = Math.max(0, cached2.expiresAtMs - this.now());
+    }
+    if (this.lastFailure) {
+      result.lastFailure = this.lastFailure.message;
+    }
+    return result;
+  }
+  inCooldownNow() {
+    const failure = this.lastFailure;
+    if (!failure) return false;
+    return this.now() < failure.atMs + this.failureCooldownMs;
+  }
+  refresh() {
+    if (this.inFlight) return this.inFlight;
+    if (this.inCooldownNow()) {
+      throw this.cooldownError();
+    }
+    const attempt = this.performRefresh().finally(() => {
+      this.inFlight = void 0;
+    });
+    this.inFlight = attempt;
+    return attempt;
+  }
+  async performRefresh() {
+    const body = new URLSearchParams();
+    body.set("grant_type", "client_credentials");
+    body.set("client_id", this.settings.clientId);
+    body.set("client_secret", this.settings.clientSecret);
+    if (this.settings.scope) body.set("scope", this.settings.scope);
+    let status;
+    let text3;
+    try {
+      const res = await this.fetchToken(this.settings.tokenUrl, body);
+      status = res.status;
+      text3 = res.body;
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+      throw this.refreshFailedError(void 0, `network error contacting the token endpoint: ${reason}`);
+    }
+    if (status !== 200) {
+      throw this.refreshFailedError(status);
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(text3);
+    } catch {
+      throw this.refreshFailedError(status, "the token endpoint's response was not valid JSON");
+    }
+    const token = parsed?.access_token;
+    if (typeof token !== "string" || token.length === 0) {
+      throw this.refreshFailedError(status, "the token endpoint's response had no access_token");
+    }
+    const rawExpiresIn = parsed.expires_in;
+    const expiresInSeconds = typeof rawExpiresIn === "number" && Number.isFinite(rawExpiresIn) && rawExpiresIn > 0 ? rawExpiresIn : ASSUMED_EXPIRES_IN_SECONDS;
+    this.lastFailure = void 0;
+    this.cached = { token, expiresAtMs: this.now() + expiresInSeconds * 1e3 };
+    return token;
+  }
+  /**
+   * Builds the structured `AUTH_TOKEN_REFRESH_FAILED` error and records the
+   * failure for the cooldown window. `details` carries only the redacted URL
+   * and, when known, the HTTP status — never the response body, which could
+   * echo back request parameters (including the client secret, on some
+   * misconfigured servers).
+   */
+  refreshFailedError(status, extra) {
+    const statusPart = status !== void 0 ? `HTTP ${status}` : "no response";
+    const message = extra ? `OAuth token refresh against ${this.safeTokenUrl} failed: ${extra} (${statusPart}).` : `OAuth token refresh against ${this.safeTokenUrl} failed (${statusPart}).`;
+    const details = { tokenUrl: this.safeTokenUrl };
+    if (status !== void 0) details.status = status;
+    const hint = this.remedyHint();
+    this.lastFailure = { message, atMs: this.now() };
+    return new AbapError("AUTH_TOKEN_REFRESH_FAILED", message, details, hint);
+  }
+  /**
+   * Thrown when a call arrives while a prior failure's cooldown is still in
+   * effect — no network attempt is made, and the cooldown clock is not
+   * restarted (only a real attempt, successful or not, moves `lastFailure`).
+   */
+  cooldownError() {
+    const message = `OAuth token refresh against ${this.safeTokenUrl} is in cooldown after a recent failure.`;
+    const details = { tokenUrl: this.safeTokenUrl };
+    return new AbapError("AUTH_TOKEN_REFRESH_FAILED", message, details, this.remedyHint());
+  }
+  remedyHint() {
+    const cooldownSeconds = Math.round(this.failureCooldownMs / 1e3);
+    return `Verify ABAP_OAUTH_CLIENT_ID/ABAP_OAUTH_CLIENT_SECRET (or the service key) and that the token endpoint is reachable. Another attempt will not be made for ${cooldownSeconds}s.`;
+  }
+};
 
 // src/adt/discovery.ts
 var FEATURE_HREFS = {
@@ -91520,7 +92126,10 @@ function classifyT000Response(resp, logonClient) {
     role: "inconclusive",
     client: logonClient,
     ccCategory,
-    reason
+    reason,
+    // T000 alone never observes a tenant kind — that only comes out of
+    // `ato/settings` in `escalateIfAtoSaysProductive`, which runs after this.
+    tenantKind: "unknown"
   });
   if (resp.status !== 200) {
     const snippet = truncateText((resp.body ?? "").replace(/\s+/g, " ").trim(), MESSAGE_EXCERPT_MAX);
@@ -91574,7 +92183,9 @@ function classifyT000Response(resp, logonClient) {
       role: "productive",
       client: logonClient,
       ccCategory: raw,
-      reason: `T000-CCCATEGORY = "P" (production) for logon client ${logonClient}.`
+      reason: `T000-CCCATEGORY = "P" (production) for logon client ${logonClient}.`,
+      // Same reasoning as `no()` above: T000 doesn't observe tenant kind.
+      tenantKind: "unknown"
     };
   }
   if (["T", "C", "D", "E", "S"].includes(cc)) {
@@ -91582,7 +92193,9 @@ function classifyT000Response(resp, logonClient) {
       role: "nonproductive",
       client: logonClient,
       ccCategory: raw,
-      reason: `T000-CCCATEGORY = "${cc}" (recognised non-productive client role) for logon client ${logonClient}.`
+      reason: `T000-CCCATEGORY = "${cc}" (recognised non-productive client role) for logon client ${logonClient}.`,
+      // Same reasoning as `no()` above: T000 doesn't observe tenant kind.
+      tenantKind: "unknown"
     };
   }
   return no(
@@ -91608,9 +92221,9 @@ async function probeT000(probes, cfg) {
     const cause = describeUnknownError(e);
     const reason = `T000 data-preview probe failed: ${cause}`;
     if (e.status === 0) {
-      return { role: "inconclusive", client, ccCategory: null, reason, probeFailure: cause };
+      return { role: "inconclusive", client, ccCategory: null, reason, probeFailure: cause, tenantKind: "unknown" };
     }
-    return { role: "inconclusive", client, ccCategory: null, reason };
+    return { role: "inconclusive", client, ccCategory: null, reason, tenantKind: "unknown" };
   }
 }
 async function escalateIfAtoSaysProductive(probes, detection) {
@@ -91619,18 +92232,22 @@ async function escalateIfAtoSaysProductive(probes, detection) {
     const { body } = await probes.getAtoSettings(ATO_SETTINGS, { headers: { Accept: "application/*" } });
     const attr9 = (name) => new RegExp(`${name}="([^"]*)"`, "i").exec(body)?.[1];
     const isProduction = attr9("isProductionSystem") ?? attr9("productionSystem");
+    const operationsType = attr9("operationsType")?.trim().toUpperCase();
+    const tenantKind = operationsType === "C" ? "cloud" : operationsType === "H" ? "on-premise" : "unknown";
     if (isAbapTrue(isProduction)) {
       return {
         role: "productive",
         client: detection.client,
         ccCategory: detection.ccCategory,
-        reason: `ato/settings reports isProductionSystem="${isProduction}". (T000 probe said: ${detection.reason})`
+        reason: `ato/settings reports isProductionSystem="${isProduction}". (T000 probe said: ${detection.reason})`,
+        tenantKind
       };
     }
+    return { ...detection, tenantKind };
   } catch (e) {
     probes.assertBreakerClosed();
     probes.log(
-      `[abapsmith] ato/settings probe failed (non-fatal \u2014 it can only escalate to productive): ${describeUnknownError(e)}`
+      `[abapsmith] ato/settings probe failed (non-fatal \u2014 it can only escalate to productive, and can only ADD a tenantKind observation, never remove or downgrade one): ${describeUnknownError(e)}`
     );
   }
   return detection;
@@ -91725,6 +92342,13 @@ var AbapConnection = class {
   discovery;
   guard;
   client;
+  /**
+   * OAuth access-token cache. One per connection, created only in `oauth`
+   * mode. Not shared across connections on purpose: the token is scoped to
+   * this connection's configured client, and a shared cache would outlive the
+   * config that produced it.
+   */
+  oauth;
   log;
   /**
    * THE session mutex for THIS connection's ADT session — one request in flight
@@ -91744,7 +92368,11 @@ var AbapConnection = class {
     role: "inconclusive",
     client: null,
     ccCategory: null,
-    reason: "Not connected yet \u2014 nothing has been probed."
+    reason: "Not connected yet \u2014 nothing has been probed.",
+    // Nothing has been probed yet, so no tenant observation exists either;
+    // see SystemRoleDetection.tenantKind in system-role.ts (observation
+    // only, never an input to `role`).
+    tenantKind: "unknown"
   };
   /**
    * Only ever holds a definitive (productive/nonproductive) answer. NOT reset on
@@ -91976,6 +92604,12 @@ var AbapConnection = class {
       waitTimeoutMs: cfg.sessionWaitMs + cfg.timeoutMs,
       log: this.log
     });
+    this.oauth = cfg.oauth ? new OAuthTokenProvider({ settings: cfg.oauth }) : void 0;
+    const oauthProvider = this.oauth;
+    const authOptions = cfg.authMethod === "token" ? { bearerToken: () => cfg.token } : cfg.authMethod === "oauth" && oauthProvider !== void 0 ? {
+      bearerToken: () => oauthProvider.getToken(),
+      refreshBearerToken: () => oauthProvider.forceRefresh()
+    } : cfg.authMethod === "certificate" ? { suppressBasicAuth: () => true } : {};
     this.guard = new GuardedHttpClient(
       {
         baseURL: cfg.url,
@@ -92001,6 +92635,17 @@ var AbapConnection = class {
         // config-layer guarantee (exactly one of password/sessionCookie) means
         // this is `undefined` whenever `cfg.password` is set.
         injectedCookies: () => cfg.sessionCookie,
+        // TLS policy AND client credentials in one place. Supersedes the bare
+        // `insecure` above (which stays for call sites that only care about
+        // verification): `tlsCredentialsFromConfig` is the single function
+        // `src/debug/session.ts` also calls, so the axios stack and the
+        // debugger's raw sockets cannot disagree about a client certificate
+        // the way they once disagreed about ABAP_INSECURE.
+        tls: tlsCredentialsFromConfig(cfg),
+        // Error hints only — which variable an operator must fix depends on
+        // how this server authenticates. Never affects routing.
+        authMethod: cfg.authMethod,
+        ...authOptions,
         ...opts.httpClient ? { inner: opts.httpClient } : {}
       },
       this.breaker
@@ -92011,9 +92656,14 @@ var AbapConnection = class {
       // `cfg.password ?? ""` — safe only because we pass an object (not a URL
       // string) as arg 1: AdtHTTP's/ADTClient's own guards are
       // `(password || !isString(baseURLOrClient))`, and `!isString(object)` is
-      // already true, so an empty password satisfies them. Cookie mode
-      // (`cfg.sessionCookie`) supplies the real credential at the guard seam
-      // (`http-guard.ts`'s `injectedCookies`) instead.
+      // already true, so an empty password satisfies them. Every non-password
+      // mode supplies its real credential at the guard seam instead, never
+      // here: a cookie is merged in at step 2c, a bearer (static ABAP_TOKEN or
+      // an OAuth access token) is attached at step 2d, and in certificate mode
+      // the credential IS the TLS handshake itself — step 2e additionally
+      // strips any `Authorization` header abap-adt-api might have set, so no
+      // Basic-auth attempt (empty password or otherwise) ever reaches the
+      // wire in any of these four modes.
       cfg.password ?? "",
       cfg.sendClientParam ? cfg.client : "",
       cfg.language,
@@ -92317,7 +92967,7 @@ var AbapConnection = class {
           "This is an abapsmith bug, not a SAP one, and NOT an authentication failure: the user lock counter was never touched. Do not treat it as a 401. Find the path that kept logging on outside a budgeted request()."
         );
       }
-      const verdict = latchedByThisAttempt ? credentialsRejectedVerdict(trip?.status ?? 401) : classifyConnectFailure(e);
+      const verdict = latchedByThisAttempt ? credentialsRejectedVerdict(trip?.status ?? 401, this.cfg.authMethod) : classifyConnectFailure(e, this.cfg.authMethod);
       throw new AbapError(
         verdict.code,
         `Could not connect to ${stripUrlCredentials(this.cfg.url)}: ${latchedByThisAttempt && trip ? trip.message : describeUnknownError(e)}`,
@@ -99657,7 +100307,7 @@ async function runReport(conn, reportName, gate, parameters = []) {
 }
 
 // src/version.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 function readPackageVersion(raw) {
   if (typeof raw !== "object" || raw === null || !("version" in raw) || typeof raw.version !== "string") {
     throw new Error(
@@ -99667,13 +100317,13 @@ function readPackageVersion(raw) {
   return raw.version;
 }
 var packageJson = JSON.parse(
-  readFileSync3(new URL("../package.json", import.meta.url), "utf8")
+  readFileSync4(new URL("../package.json", import.meta.url), "utf8")
 );
 var SERVER_VERSION = readPackageVersion(packageJson);
 
 // src/adt/fluid/registry.ts
 import * as path6 from "node:path";
-import { readFileSync as readFileSync4 } from "node:fs";
+import { readFileSync as readFileSync5 } from "node:fs";
 var REGISTRY_VERSION = 1;
 var REGISTRY_FILE = "registry.json";
 function fluidRegistryPath(cfg) {
@@ -99716,7 +100366,7 @@ function readRegistryFile(registryPath) {
       hardenFileModeSync(registryPath);
     } catch {
     }
-    return coerceFile(JSON.parse(readFileSync4(registryPath, "utf8")));
+    return coerceFile(JSON.parse(readFileSync5(registryPath, "utf8")));
   } catch {
     return void 0;
   }
@@ -135665,6 +136315,8 @@ function stripSchemaKeyOnConnect(mcp) {
     return rawConnect(transport);
   });
 }
+var V2_REMOVAL_RELEASE = "0.6.0";
+var V2_DEPRECATION_SENTENCE = `ABAP_TOOL_SURFACE=v2 is DEPRECATED and will be REMOVED in ${V2_REMOVAL_RELEASE}. The surface is frozen: no new tool routes and no defect fixes land on it. Move to v1 by unsetting ABAP_TOOL_SURFACE.`;
 function packageScopeSentence(readOnly, allowPackages) {
   if (readOnly) {
     return "ABAP_ALLOW_PACKAGES unset allows every customer package, a list allows only those, and an empty value refuses every write.";
@@ -135681,7 +136333,7 @@ function instructionsFor(toolSurface, abapMode, readOnly, allowPackages, fluidAv
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   if (toolSurface === "v2") {
-    return `Access to an SAP ABAP system over ADT, via 6 tools. EXPERIMENTAL SURFACE \u2014 not supported for production use; known defects are not being fixed while it holds this status. Prefer the v1 surface for anything that matters. Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
+    return "Access to an SAP ABAP system over ADT, via 6 tools. " + V2_DEPRECATION_SENTENCE + ` Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
   }
   return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "");
 }
@@ -136013,7 +136665,7 @@ function createServer(cfg, opts) {
       );
       if (cfg.toolSurface === "v2") {
         warn(
-          "[abapsmith] ABAP_TOOL_SURFACE=v2 \u2014 EXPERIMENTAL, NOT SUPPORTED FOR PRODUCTION USE. Known v2 defects will not be fixed while v2 holds this status. v1 is the supported surface \u2014 see doc/TOOL-SURFACE-V2/README.md."
+          `[abapsmith] ${V2_DEPRECATION_SENTENCE} Four v1 tools (abap_data_preview, abap_open_url, abap_dumps, abap_ui) never had a v2 route, and every tool added since widened the gap \u2014 see doc/TOOL-SURFACE-V2/README.md and the CHANGELOG.`
         );
       }
       warn(

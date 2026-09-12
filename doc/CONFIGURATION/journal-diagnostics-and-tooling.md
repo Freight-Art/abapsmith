@@ -68,13 +68,11 @@ A per-call `verify` field on `abap_write` can raise a single call to
 
 | Variable | Default | Effect |
 |---|---|---|
-| `ABAP_TOOL_SURFACE` | `v1` | `v1` (the full individual-tool registrar set) or `v2` (six consolidated tools, far fewer schema tokens). Orthogonal to `ABAP_MODE`: this decides which tools are advertised, the mode decides what they may do. |
+| `ABAP_TOOL_SURFACE` | `v1` | `v1` (the full individual-tool registrar set) is the only supported value. `v2` (six consolidated tools, far fewer schema tokens) is deprecated and will be removed in 0.6.0 (issue #76) — see `doc/TOOL-SURFACE-V2/README.md`. Orthogonal to `ABAP_MODE`: this decides which tools are advertised, the mode decides what they may do. |
 
-**`v2` is experimental and is not supported for production use.** It exists
-for trying the consolidated surface out — exploration, low-stakes,
-non-production sessions — not for anything you depend on. Known v2 defects
-are **not being fixed** while v2 holds this status — see
-`doc/TOOL-SURFACE-V2/README.md` for details. `v1` is the supported surface and the
-recommended default. There is no `both` value: `v2`'s consolidated tools
-reuse `v1` tool names verbatim, so registering both surfaces in one process
-throws at startup.
+**`v2` is deprecated and will be removed in 0.6.0 (issue #76).** It still
+works in this release, but the surface is frozen — no new tool routes, no
+defect fixes — see `doc/TOOL-SURFACE-V2/README.md` for details. `v1` is the
+only supported surface and the recommended default. There is no `both`
+value: `v2`'s consolidated tools reuse `v1` tool names verbatim, so
+registering both surfaces in one process throws at startup.

@@ -99,6 +99,10 @@ ABAP_SID=A4H
 ABAP_MODE=read          # read (default) | edit | admin
 ```
 
+`ABAP_PASSWORD` is one of five mutually exclusive credential methods — the others are a session
+cookie, an X.509 client certificate, a static bearer token, and OAuth 2.0 client credentials; see
+[doc/CONFIGURATION/connection.md](doc/CONFIGURATION/connection.md#authentication) for all five.
+
 `ABAP_MODE` is the single permission knob. `read` is an absolute ceiling that no other variable
 lifts. `edit` allows write, activate and run. `admin` adds transport release, transport and
 cascade delete, and SAP-original enhancement targets. Three capabilities sit outside the ladder
@@ -130,10 +134,11 @@ For clients other than Claude Code, which the plugin install above already wires
 }
 ```
 
-`ABAP_PASSWORD` is deliberately absent from that block: keep it in the `.env` the client's
-working directory supplies, so the secret never lands in a JSON file that is easy to commit or
-sync alongside the rest of an editor config. Start on `ABAP_MODE=read` and opt into `edit` once
-you intend to write.
+`ABAP_PASSWORD` — and, in whichever other credential method is in play, `ABAP_TOKEN`,
+`ABAP_OAUTH_CLIENT_SECRET`, `ABAP_SERVICE_KEY`, and `ABAP_CLIENT_KEY_PASSPHRASE` — are deliberately
+absent from that block: keep them in the `.env` the client's working directory supplies, so a
+secret never lands in a JSON file that is easy to commit or sync alongside the rest of an editor
+config. Start on `ABAP_MODE=read` and opt into `edit` once you intend to write.
 
 ## Documentation
 
