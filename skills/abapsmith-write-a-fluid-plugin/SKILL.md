@@ -57,38 +57,12 @@ framework expects, which is not standard ABAP:
   when `rc` is non-zero; an `execute` action's database changes persist only with the request's
   implicit commit. Do not claim otherwise in a manifest description.
 
-ABAP that a class writer or the syntax check does not reject, and that then fails anyway — each
-of these cost a round in practice:
+## 4. Syntax-check a scratch copy before the class is finished
 
-- No comment line outside `METHOD … ENDMETHOD` or the DEFINITION part. A full-line separator
-  comment between methods makes ADT refuse the whole class: `OO_SOURCE_BASED 12`, "unknown
-  comments which can't be stored", with no line number.
-- Formal parameters of your own helpers: `TYPE clike` (or `csequence`) for anything that may
-  receive a DDIC character field, then copy into a local `TYPE string` inside the method.
-  `TYPE string` on a formal refuses a `C(10)` actual; `TYPE i` refuses an `N(6)` actual — assign
-  numeric DDIC values to a local `TYPE i` first. Pass-by-`VALUE(…)` does not change this.
-- `CALL FUNCTION` actuals: declare each as `TYPE <table>-<field>` of the formal's DDIC type
-  (`abap_read` the function module, or select `FUPARAREF`). A mismatch activates cleanly and
-  dumps at run time as `CX_SY_DYN_CALL_ILLEGAL_TYPE`, inside your `err` frame.
-- `SELECT … INTO CORRESPONDING FIELDS OF TABLE` whenever the select list is not in the target
-  structure's order. Positional `INTO TABLE` gives silently shifted or empty fields.
-- Character tests (`CO`, `CN`, `strlen`) on `STRING` locals after `CONDENSE … NO-GAPS`, never on
-  a fixed-length `C(n)` field — trailing blanks make the condition always false.
-- APIs keyed by (object, sub-object): enumerate the sub-objects from the read API and loop; the
-  blank sub-object does not cover the rest.
-
-## 4. Check the class on the system before it is finished
-
-Plugins deploy only through the server, so syntax-check a scratch copy yourself: replace the
-class name with `ZCL_<SOMETHING>_CHK`, `abap_write` it into `$TMP`, `abap_activate`, fix, repeat.
-Do this after the first method, not after the last — a 1400-line first activation produced eight
-errors of two kinds. Test one hypothesis per round. If ADT rejects the write, delete the scratch
-class and recreate it. Delete it before handing off. Call the SAP tools one at a time; the ADT
-session is exclusive and parallel calls time out.
-
-Then read the class once as a reviewer before you hand it off: dead branches, fixed-length
-traps, assumptions that a blank key covers all rows. A syntax check finds none of these, and in
-practice this review found more bugs than the activation did.
+Plugins deploy only through the server, so check the source yourself: rename the class to
+`ZCL_<SOMETHING>_CHK`, `abap_write` it into `$TMP`, `abap_activate`, fix, repeat — after the first
+method, not after the last. Delete the scratch class before handing off. The ABAP traps that
+pass this check and fail at run time are in `abapsmith-write-abap-source`.
 
 ## 5. Self-check against the loader before handing off
 
@@ -127,16 +101,9 @@ Read-only mode or a productive system disables the fluid API entirely, plugins i
    into `$ABAPSMITH_FLUID_API`, then runs. A `mutate` call also needs `confirm: "<id>.<action>"`.
 3. `abap_fluid(op="verify", tool="<id>")` — what is actually on the system.
 
-Exercise every action, including one state variant per mutate action (an object with and without
-a package entry, an interval used and unused): the two bugs a clean activation hid in practice
-were a runtime dump and a silently empty field, and one of them was skipped by the first fixture.
-Take argument names from `op="describe"`, never from memory of similar tools. If a fixture needs
-an SAP API with untyped parameters, `core.call_fm` refuses it; use a throwaway
-`IF_OO_ADT_CLASSRUN` class in `$TMP`.
-
 Any source change after the restart needs another restart: `op="repair"` re-deploys the loaded
-version only. Batch every fix from one verify round, syntax-check them as in step 4, then ask for
-one restart.
+version only. Batch every fix from one verify round, syntax-check them as in step 4, then ask
+for one restart.
 
 `FLUID_PLUGINS_DISABLED` means the path is set but consent is off. `FLUID_ACTION_FAILED` is
 your own `err` frame; the text is what you passed.

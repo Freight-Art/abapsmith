@@ -135,6 +135,21 @@ between them. Enhancement objects can never be undone via `abap_journal
 mode=undo`, even with `force: true`, so there is no safety net for a
 mis-shaped rewrite the way there is for other object types.
 
+## Source that saves and activates, then fails anyway
+
+- A comment line outside `METHOD … ENDMETHOD` or the DEFINITION part makes ADT refuse the
+  whole class: `OO_SOURCE_BASED 12`, *"unknown comments which can't be stored"*, no line number.
+- `TYPE string` on a formal parameter refuses a `C(10)` actual; `TYPE i` refuses an `N(6)`.
+  Declare helper formals `TYPE clike` (`N(n)` is character-like too) and copy into a `string`
+  or `i` local inside the method. `VALUE(…)` changes the passing mode, not the rule.
+- `CALL FUNCTION` actuals are not checked against the module's DDIC types at activation. A
+  mismatch dumps at run time as `CX_SY_DYN_CALL_ILLEGAL_TYPE`; declare each actual as
+  `TYPE <table>-<field>` of the formal's type (`abap_read` the module or select `FUPARAREF`).
+- Positional `SELECT … INTO TABLE` with a select list in a different order than the target
+  structure gives shifted or empty fields, silently. Use `INTO CORRESPONDING FIELDS OF TABLE`.
+- `CO` / `CN` / `strlen` on a fixed-length `C(n)` field count the trailing blanks; do character
+  tests on a `STRING` local after `CONDENSE … NO-GAPS`.
+
 ## Verify
 
 Activation returns 200 even on failure — check `chkl:messages` for `type: "E"`,
