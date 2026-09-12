@@ -12,6 +12,91 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-09-12
+
+### Fixed
+
+- `abap_img_edit` now discloses the maintenance-view checks it cannot run.
+  The tool writes rows with a plain `MODIFY`/`DELETE` on the base table, so
+  the view's event routines (for `TB003`, `V_TB003_CHECK_DEFAULT` and
+  `V_TB003_RESET_DFLT`, which SM30 runs to enforce `STND_ROLECAT`) never
+  execute. Every preview and armed response now carries a
+  `--- CHECKS NOT RUN ---` section naming the root maintenance views over the
+  table, their registered TVIMF event routines, the written fields' check
+  tables and domains, and any written value that is outside a domain's fixed
+  values (reported as "SM30 would have rejected this input; this tool does
+  not", not refused). When nothing is registered the section says so and
+  that only DDIC typing was enforced. Write semantics, arguments and the
+  confirmation gate are unchanged (issue #62).
+
+## [0.5.4] - 2026-09-12
+
+### Fixed
+
+- On the v1 surface a read-only server (`ABAP_MODE=read`, or the legacy
+  `ABAP_ALLOW_WRITE` unset) no longer hides its write-gated tools, so a caller
+  no longer gets an MCP "Tool not found" for `abap_write`, `abap_run`,
+  `abap_test`, `abap_atc`, `abap_quick_fix`, `abap_ui`, `abap_fpm_read`,
+  `abap_img_edit`, `abap_bopf_test`, `abap_bopf_edit`, `abap_bopf_delete`,
+  `abap_transport_release` or `abap_fluid`. Each is registered as a locked
+  stub: empty schema, a description ending `LOCKED on this server: …`, and a
+  handler that returns a structured `READ_ONLY` refusal naming the current mode
+  and the lowest mode that unlocks the tool (`details.requiresMode`), with no
+  connection behind it so nothing reaches the SAP system. The v1 instructions
+  mention the count. v2 is unchanged; `abap_data_preview` with
+  `ABAP_ALLOW_DATA_PREVIEW` off stays absent because that is a flag, not a mode
+  (issue #63).
+
+## [0.5.3] - 2026-09-12
+
+### Fixed
+
+- `abap_transport operation=removeObject` refused by CTS (`CTS_DUPLICATE_ENTRY`)
+  left its `transport-remove-object` journal entry `pending` forever, so
+  `abap_journal mode=list` reported it as STRANDED although nothing on the
+  request had changed. A refusal whose ABAP transcript names no removed E071
+  row now settles the entry as `failed` (description suffixed `— refused,
+  nothing was removed`); a lost response or a failure after a removed row still
+  stays `pending`. New `abap_journal mode=reconcile entry=<id>
+  outcome=succeeded|failed reason=…` (v2: `abap_do action=journal_reconcile`)
+  closes a stale `pending` entry by hand with one appended patch line, refuses
+  anything already settled, takes no `object` fallback and makes no network
+  call; `list` shows a `reconciled` flag and `show` prints the reconciliation
+  (issue #66).
+
+## [0.5.2] - 2026-09-12
+
+### Fixed
+
+- `abap_read` no longer refuses a function module named without its group
+  (`{"type":"FUGR/FF","object":"BUP_ROLES_GET_ALL"}` → `BAD_INPUT … needs its
+  function group`). The exact-name lookup sent `objectType=FUGR`, which selects
+  function groups, so the module was never found and the group in its URI never
+  seen. Parented types (`FUGR/FF`, `FUGR/I`) now search untyped, filter the rows
+  back to the requested type, take the group from the URI and resolve when
+  exactly one group matches; several groups refuse naming each candidate, none
+  refuse explaining that generated modules (`ENQUEUE_*` …) are not indexed and
+  need the group named. `abap_search` renders a `group` column between `name`
+  and `package` whenever a row has a parent; searches without one keep their
+  four columns. The FUGR/FF search-blind wording in write verification no
+  longer claims modules are not indexed at all (issue #64).
+
+## [0.5.1] - 2026-09-12
+
+### Changed
+
+- Skills, from building the shipped `nr` plugin with an orchestrator and subagents:
+  `abapsmith-write-a-fluid-plugin` gains the body-class commit rule, a scratch-class
+  syntax-check step, and the one-restart-per-fix-round rule for `op=repair`;
+  `abapsmith-write-abap-source` gains the ABAP traps that activate cleanly and fail at run
+  time (comments outside methods, `TYPE string`/`TYPE i` formals, untyped `CALL FUNCTION`
+  actuals, positional `INTO TABLE`, character tests on `C(n)`) and is split by object type:
+  `SKILL.md` keeps what applies to every source object and points at `classes.md`,
+  `function-modules.md`, `programs.md` and `enhancements.md` in the same directory, so a
+  reader loads only the file for the object being written. The skill tests
+  (`test/skills-example-shapes.test.ts`, `test/skills-tool-surface.test.ts`) now scan those
+  sibling files too.
+
 ## [0.5.0] - 2026-09-12
 
 ### Added

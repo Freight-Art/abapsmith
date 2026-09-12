@@ -29,6 +29,7 @@ import { registerActivateTools } from "./tools/activate.js";
 import { createLiveDebugToolDeps, shutdownDebugTools } from "./tools/debug.js";
 import { registerDebugTools } from "./tools/debug-register.js";
 import { registerJournalTools } from "./tools/journal.js";
+import { lockedToolsFor, registerLockedTools } from "./tools/locked.js";
 import { registerOpenUrlTools } from "./tools/open-url.js";
 import { registerReadTools } from "./tools/read.js";
 import { registerRunTools } from "./tools/run.js";
@@ -275,6 +276,11 @@ export function instructionsFor(
   // existing 4-arg calls keep compiling. Only the v1 branch reads it — v2
   // never registers `abap_fluid`.
   fluidAvailable = false,
+  // Same reasoning as `fluidAvailable` above: optional and defaulted so
+  // existing shorter-arity calls keep compiling. Only the v1 branch reads
+  // it — v2 answers mode refusals structurally via `abap_do`'s `minMode`,
+  // so it never has locked stubs to mention.
+  lockedToolCount = 0,
 ): string {
   // Under ABAP_MODE, ABAP_ALLOW_WRITE is never read; say what actually governs.
   const writeGate =
@@ -321,6 +327,11 @@ export function instructionsFor(
     (fluidAvailable
       ? " abap_fluid deploys and runs small generated ABAP tools inside " +
         "$ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)."
+      : "") +
+    (lockedToolCount > 0
+      ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level ` +
+        "(abap_write among them) — each one's description says what unlocks it, and calling " +
+        "one returns a refusal without touching the SAP system."
       : "")
   );
 }
@@ -421,6 +432,10 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
   // replacement for, the runtime checks `safety` performs per call. See
   // `resolveStaticCapabilities`'s doc comment in src/config.ts.
   const toolCapabilities = resolveStaticCapabilities(cfg);
+  // Computed before `new McpServer(...)` below: `instructionsFor` needs the
+  // count for its locked-tools sentence, and the v1 branch further down
+  // reuses this same array to register the stubs themselves.
+  const lockedTools = lockedToolsFor(cfg);
   const transport = new SessionTransport({
     allowTransports: cfg.allowTransports,
     whoami: () => cfg.user,
@@ -458,6 +473,7 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
         cfg.readOnly,
         cfg.allowPackages,
         toolCapabilities.canUseFluidApi,
+        lockedTools.length,
       ),
     },
   );
@@ -719,6 +735,15 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
         toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS),
       });
     }
+    // Refusal-only stubs closing the "Tool abap_write not found" gap from
+    // issue #63: on a read-only v1 server, `abap_write` and friends were
+    // never registered at all, so a caller got an MCP "tool not found"
+    // error indistinguishable from a typo, with no hint that raising
+    // ABAP_MODE is the fix. These stubs take no pool/cfg-write/safety
+    // dependency — only `cfg.abapMode` and `errorResult` — so they cannot
+    // reach SAP no matter what a caller passes; `[]` on any non-read-only
+    // or v2 server, so this is a no-op there.
+    registerLockedTools(mcp, { cfg, errorResult, tools: lockedTools });
   } else {
     // The six v2 consolidated tools. `abapMode` falls back, fail-closed, to
     // `"read"` for a missing/unrecognized ABAP_MODE, when on legacy per-flag config

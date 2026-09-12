@@ -121,8 +121,8 @@ can be switched off without losing the configured path.
 ## Read-only disables the whole feature
 
 Every op — including `list`, `describe`, `status` and `verify` — refuses
-with `FLUID_API_DISABLED` when abapsmith is read-only, in any of five
-senses:
+with `FLUID_API_DISABLED` when the real, registered `abap_fluid` runs
+read-only, in any of five senses:
 
 | # | Condition | Field |
 |---|---|---|
@@ -131,6 +131,25 @@ senses:
 | 3 | productive system | `gate.config.productive === true` or `gate.config.systemRole === "productive"` |
 | 4 | write-lockout latch engaged | `gate.config.writesLockedOut === true` |
 | 5 | role probe never answered | the same latch, distinguished by `roleProbeFailure` |
+
+Conditions 1 and 2 are known statically, before any request is served, so
+on the **v1** surface they never actually reach this refusal path: they
+instead decide, at registration time, whether `abap_fluid` is the real
+tool at all. When `ABAP_FLUID_API` is on (default) and the server is
+read-only for one of these two reasons, `abap_fluid` is registered as a
+mode-locked refusal stub instead of the real tool (`src/tools/locked.ts`,
+issue #63) — every call gets a fixed `READ_ONLY` refusal naming the mode
+that would unlock it, not `FLUID_API_DISABLED`, and the stub does not
+distinguish `list`/`describe`/`status`/`verify`/`run` at all, since it
+takes no arguments. Conditions 3-5 are different in kind: they are
+runtime discoveries that only exist after `connect()` has run its role
+probe, so they cannot be resolved at registration time either way — for
+those, the real tool *is* registered (assuming `ABAP_FLUID_API` is on and
+neither condition 1 nor 2 holds), and it is this per-op `dispatch()` check
+that returns the `FLUID_API_DISABLED` this section describes. See
+`doc/TOOLS/availability-and-capabilities.md`'s case 4 for the stub, and
+`doc/TOOLS/abap-fluid.md`'s "Availability" for how the two combine on one
+tool name.
 
 There is no `ABAP_READ_ONLY` environment variable. It does not exist in
 this codebase. The read-only state is derived from `ABAP_ALLOW_WRITE` and

@@ -264,11 +264,15 @@ describe("DEVC/K create bridge — post-create repository-search verification wo
     expect(outcome.status).toBe("confirmed-absent");
   });
 
-  // Mirror-image control: FUGR/FF IS search-blind (the repository search
-  // does not index function modules by name at all), so the same zero-hit
-  // fake must still downgrade to indeterminate for it — proving the DEVC/K
-  // assertion above is about DEVC/K specifically, not about the fake
-  // returning nothing useful.
+  // Mirror-image control: FUGR/FF IS search-blind, but not because the search
+  // can't find function modules by name at all — an ordinary one IS found by
+  // exact untyped name (capture 846-i64-quicksearch-fm-untyped). A generated
+  // one is not indexed at all: ENQUEUE_E_TABLE searches empty (capture
+  // 850-i64-quicksearch-generated-fm-missing) while reading it back returns
+  // 200 (capture 851-i64-fmodule-generated-read-200). So a zero-hit for
+  // FUGR/FF still proves nothing and must downgrade to indeterminate — proving
+  // the DEVC/K assertion above is about DEVC/K specifically, not about the
+  // fake returning nothing useful.
   it("control: FUGR/FF stays indeterminate on the same zero-hit fake", async () => {
     const { conn } = await connected(searchMiss);
 

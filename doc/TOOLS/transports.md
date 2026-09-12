@@ -64,6 +64,20 @@ one row remains for the object, then retry `removeObject`; or release the
 request (irreversible) — neither is something abapsmith can verify will
 succeed under a lock. See `doc/LIMITATIONS/not-implemented-and-unproven.md`.
 
+Journalling follows what the ABAP transcript actually proves. `removeObject`
+is journalled as `transport-remove-object`; a refusal from
+the ABAP side like `CTS_DUPLICATE_ENTRY` that removed nothing is now recorded
+straight away with outcome `failed` (description suffixed `— refused,
+nothing was removed`), not left `pending` — the transcript names no removed
+E071 row, so there is nothing to be unsure about. (A `NOT_FOUND` for an
+object that is not on the request comes from the pre-check, before any
+journal entry is opened, so it records nothing at all.) Only a removal that
+touched at least one row before failing partway through the loop, or a call
+whose response was lost entirely (dropped connection, HTTP failure — the
+ABAP may have run and answered into thin air), stays `pending` for a human
+to resolve with `abap_journal mode=reconcile` once the real outcome is
+known — see [doc/JOURNAL/undo-and-recovery.md](../JOURNAL/undo-and-recovery.md#pending-entries-stranded-and-reconcile).
+
 Example (dry-run delete):
 
 ```json
@@ -143,11 +157,17 @@ fallback `requestedStatus` uses.
 Release a transport request. Irreversible — a released request cannot be
 recalled and its changes leave this system.
 
-**Availability**: case 1 — registered only when `canReleaseTransport`
+**Availability**: the real, functional tool needs `canReleaseTransport`
 (`ABAP_MODE=admin` by default, or `edit` mode with the explicit override
 `ABAP_ALLOW_TRANSPORT_RELEASE=true`; legacy path: that same var plus
-`ABAP_ALLOW_WRITE=true`). Split into its own tool deliberately, so the one
-irreversible verb is not reachable by enum-fuzzing `abap_transport`.
+`ABAP_ALLOW_WRITE=true`). Without it, a read-only v1 server registers a
+mode-locked refusal stub under the same name instead of skipping
+registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md));
+its remediation names `ABAP_MODE=admin` specifically, not `edit`, since
+`edit` alone still would not grant release. Split into its own tool
+deliberately, so the one irreversible verb is not reachable by
+enum-fuzzing `abap_transport`.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|

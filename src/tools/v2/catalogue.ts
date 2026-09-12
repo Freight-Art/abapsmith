@@ -80,6 +80,14 @@ export const ABAP_DO_ACTIONS: readonly ActionEntry[] = [
     args: "(none — object is the entry id)",
   },
   {
+    action: "journal_reconcile",
+    group: "journal",
+    minMode: "edit",
+    v1: 'abap_journal({mode:"reconcile"})',
+    summary: "Close a stranded `pending` journal entry with a stated outcome and reason.",
+    args: "outcome (succeeded|failed), reason — object is the entry id",
+  },
+  {
     action: "undo",
     group: "journal",
     minMode: "edit",

@@ -17,17 +17,42 @@ per-capability env var can still widen or narrow each one individually (see
 | Transport release / delete | no | default: no | default: yes |
 | Enhancements | no | default: customer-owned targets | default: customer + SAP-original |
 
-Capability is enforced at two places, and which one applies depends on the tool:
+Capability is enforced at up to three places, and which one applies depends
+on the tool and, for the v1 surface, on whether the server is read-only end
+to end:
 
 - **Not registered at all.** A tool with no ungated mode is skipped outright
-  when the capability is missing — `abap_write`, `abap_run`, `abap_test`,
-  `abap_fpm_read`, `abap_bopf_test`, `abap_atc` and `abap_ui` without
-  `canWrite`;
-  `abap_transport_release` without release capability; `abap_bopf_edit` and
-  `abap_bopf_delete` without write capability; `abap_data_preview` without its
-  flag. It is absent from `tools/list`, so there is no schema for a model to
+  when the capability is missing and (on v1) no locked stub stands in for
+  it — today that means `abap_data_preview` without `ABAP_ALLOW_DATA_PREVIEW`,
+  and `abap_fluid` when `ABAP_FLUID_API=false` regardless of mode. Neither
+  appears in `tools/list`, so there is no schema for a model to
   discover and argue with, it costs no context, and it cannot be called by
   mistake.
+- **Registered as a locked stub (v1 only).** On a v1 server that is
+  read-only end to end (`cfg.readOnly === true`), the mutating tools that
+  would otherwise fall into the bullet above instead get a refusal-only
+  stub under their real name: `abap_write`, `abap_run`, `abap_test`,
+  `abap_atc`, `abap_quick_fix`, `abap_ui`, `abap_fpm_read`,
+  `abap_img_edit`, `abap_bopf_test`, `abap_bopf_edit`, `abap_bopf_delete`,
+  `abap_transport_release`, and `abap_fluid` (while `ABAP_FLUID_API` stays
+  on). Each stub lists with an empty schema and a description that says
+  it is LOCKED, why, and which `ABAP_MODE` unlocks it; calling it returns a
+  structured `READ_ONLY` refusal naming the required mode and the missing
+  capabilities, and nothing else. **The safety outcome does not change**:
+  the stub's handler is not a thinner version of the real one — it holds
+  no connection, session-pool slot, or `SafetyGate` reference at all, so
+  there is no code path from it to the SAP system, exactly as when the
+  tool was absent. Only what a read-only server can *tell* a caller about
+  these tools changed; what it can *do* did not. Before this
+  (`src/tools/locked.ts`, issue #63), calling one of these on a read-only
+  v1 server got `MCP error -32602: Tool <name> not found` —
+  indistinguishable from a typo'd name, with no hint that raising
+  `ABAP_MODE` was the fix. `abap_data_preview` is deliberately excluded
+  from this mechanism: its gate is the out-of-band `ABAP_ALLOW_DATA_PREVIEW`
+  flag, not a mode ceiling, so it stays in the bullet above instead. The v2
+  surface has no equivalent of this bullet: `abap_do`'s `minMode` already
+  answers "what would unlock this" structurally per action, and `abap_write`
+  stays genuinely absent from v2's `tools/list` under `read` mode.
 - **Registered, gated per call.** A tool with a genuinely ungated read mode is
   always listed, and its mutating modes are refused at the point of use:
   `abap_transport` (list/show/check/users are reads), `abap_bopf` (pure read),

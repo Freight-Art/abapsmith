@@ -6,6 +6,7 @@ import {
   IMG_CATALOG,
   IMG_NODE_TYPES,
   IMG_TREE_TEXT_PROBE,
+  MAINTENANCE_EVENT_DOMAIN,
   lowConfidenceTables,
 } from "../src/adt/img-catalog.js";
 import * as imgCatalogModule from "../src/adt/img-catalog.js";
@@ -219,6 +220,75 @@ describe("IMG_CATALOG — pinned against live discovery", () => {
   it("IMG_TREE_TEXT_PROBE is the documented prefix and carries no GUID", () => {
     expect(IMG_TREE_TEXT_PROBE).toBe("SAP Customizing Implementation");
     expect(HEX32.test(IMG_TREE_TEXT_PROBE)).toBe(false);
+  });
+
+  // --------------------------------------------------- issue #62: checks ---
+
+  it("ddicField (DD03L): gained checkTable/domainName under CHECKTABLE/DOMNAME, high confidence", () => {
+    const e = IMG_CATALOG.ddicField;
+    expect(e.table).toBe("DD03L");
+    expect(keys(e, "checkTable", "domainName")).toEqual(["CHECKTABLE", "DOMNAME"]);
+    expect(e.confidence).toBe("high");
+  });
+
+  it("domainValue (DD07L): position/valueLow/valueHigh/appendValue/activeState field names", () => {
+    const e = IMG_CATALOG.domainValue;
+    expect(e.table).toBe("DD07L");
+    expect(keys(e, "domain", "position", "valueLow", "valueHigh", "appendValue", "activeState")).toEqual([
+      "DOMNAME",
+      "VALPOS",
+      "DOMVALUE_L",
+      "DOMVALUE_H",
+      "APPVAL",
+      "AS4LOCAL",
+    ]);
+    expect(e.confidence).toBe("high");
+  });
+
+  it("domainValue note: a domain with no rows is not an error, and a non-blank DOMVALUE_H means a range", () => {
+    const note = IMG_CATALOG.domainValue.note ?? "";
+    expect(note.toLowerCase()).toContain("no fixed values");
+    expect(note).toContain("not an error");
+    expect(note).toContain("DOMVALUE_H");
+    expect(note.toUpperCase()).toContain("RANGE");
+  });
+
+  it("domainValueText (DD07T): domain/position/valueLow/language/text/activeState field names", () => {
+    const e = IMG_CATALOG.domainValueText;
+    expect(e.table).toBe("DD07T");
+    expect(keys(e, "domain", "position", "valueLow", "language", "text", "activeState")).toEqual([
+      "DOMNAME",
+      "VALPOS",
+      "DOMVALUE_L",
+      "DDLANGUAGE",
+      "DDTEXT",
+      "AS4LOCAL",
+    ]);
+    expect(e.confidence).toBe("high");
+  });
+
+  it("viewMaintenanceEvent (TVIMF): view/event/formName field names, no activeState/client field", () => {
+    const e = IMG_CATALOG.viewMaintenanceEvent;
+    expect(e.table).toBe("TVIMF");
+    expect(keys(e, "view", "event", "formName")).toEqual(["TABNAME", "EVENT", "FORMNAME"]);
+    // TVIMF genuinely has only these three columns — no client field and no AS4LOCAL/active-state
+    // field to filter on, unlike almost every other entry in this catalog.
+    expect(Object.keys(e.fields)).toEqual(["view", "event", "formName"]);
+    expect(e.fields as Record<string, string>).not.toHaveProperty("activeState");
+    expect(e.fields as Record<string, string>).not.toHaveProperty("client");
+    expect(Object.values(e.fields)).not.toContain("AS4LOCAL");
+    expect(Object.values(e.fields)).not.toContain("MANDT");
+    expect(e.confidence).toBe("high");
+  });
+
+  it("viewMaintenanceEvent note: documents the missing client/AS4LOCAL columns explicitly", () => {
+    const note = IMG_CATALOG.viewMaintenanceEvent.note ?? "";
+    expect(note.toLowerCase()).toContain("no client column");
+    expect(note).toContain("AS4LOCAL");
+  });
+
+  it("MAINTENANCE_EVENT_DOMAIN is the DD07L/DD07T domain for TVIMF-EVENT codes", () => {
+    expect(MAINTENANCE_EVENT_DOMAIN).toBe("MAINTEVENT");
   });
 
   it("no exported value anywhere in the module contains a 32-hex-char GUID", () => {
