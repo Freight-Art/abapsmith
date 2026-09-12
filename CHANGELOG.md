@@ -12,6 +12,26 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-09-12
+
+### Fixed
+
+- `abap_write` no longer lets a named `corr_nr` be overridden in silence.
+  When CTS already records the object in a different request, the transport
+  resolver still imposes that request (it is the only one CTS accepts), but it
+  now carries the caller's number out, and `mode=delete` is refused before any
+  lock is taken: `TRANSPORT_ERROR` with `details.reason
+  "CORR_NR_NOT_HONOURED"`, `details.stage "preflight"`, `details.lockCorrNr`
+  naming the recording request and `details.deleted: false`. The DEVC/K
+  package-delete bridge and enhancement deletes go through the same check. A
+  write (create or edit) in the same situation is not refused, because the
+  caller can move the object with `abap_transport removeObject` and retry, but
+  its header reports `corr_nr_honoured: false` and the note names both
+  numbers instead of asserting that the caller's number "is the number this
+  write sent". The delete dry run predicts the refusal. Docs no longer claim
+  that create-then-delete reliably produces duplicate E071 rows, which did
+  not reproduce live (issue #65).
+
 ## [0.5.6] - 2026-09-12
 
 ### Fixed
