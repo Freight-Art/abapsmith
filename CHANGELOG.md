@@ -12,8 +12,16 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-12
+
 ### Added
 
+- New operator-installable fluid plugin `fluid-plugins/nr`: SAP number ranges (SNRO) — `list`,
+  `describe`, `create`, `set_interval`, `get_next`, `delete` over the standard `NUMBER_RANGE_*`
+  function modules. Enable it with `ABAP_FLUID_PLUGINS=<repo>/fluid-plugins` plus
+  `ABAP_ALLOW_FLUID_PLUGINS`, `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` and `ABAP_ALLOW_FLUID_CALL_FM`.
+  Written by an opus orchestrator with sonnet subagents against the new skill and verified
+  end to end on an A4H system.
 - New skill `abapsmith-write-a-fluid-plugin`: the runtime contract, the argument-scanner and
   static-review limits, and the operator's enable-and-restart step — the facts a model cannot
   derive from ABAP knowledge alone when asked to add a fluid tool.
