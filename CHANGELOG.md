@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-12
+
 ### Changed
 
 - Skills, from building the shipped `nr` plugin with an orchestrator and subagents:
