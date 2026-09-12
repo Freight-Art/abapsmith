@@ -1,16 +1,19 @@
 /**
  * ATC (ABAP Test Cockpit) request building — pure functions, no socket.
  *
- * Derived from `abap-adt-api`'s ATC client (`atc.js`, v8.4.1) — the only
- * written-down description of this wire protocol available here. No byte in
- * this module has been observed against a live SAP system on this branch;
- * see the git history for full rationale. Where this
- * copies the library it copies exactly, including whitespace.
+ * Originally derived from `abap-adt-api`'s ATC client (`atc.js`, v8.4.1) —
+ * the only written-down description of this wire protocol available when
+ * this module was first written. Issue #78 landed eight REAL captures from
+ * an A4H appliance (`test/fixtures/live-captured/886`…`893`) that confirm or
+ * correct that derivation in several places; each function below says which
+ * capture backs it and which parts of the library-derived shape are still
+ * unobserved guesses.
  *
  * ATC has no "check and answer" endpoint — a *worklist* (persistent
  * server-side row) is filled by a *run*, in three requests:
  *   1. `POST /atc/worklists?checkVariant={variant}` → worklist id. Creates
- *      persistent server state; there is no delete (see `src/adt/atc.ts`).
+ *      persistent server state; deleting it answers 405 on this release, see
+ *      {@link buildWorklistDeleteUrl}.
  *   2. `POST /atc/runs?worklistId={id}` + `<atc:run>` body → ack + timestamp.
  *   3. `GET  /atc/worklists/{id}?timestamp=&usedObjectSet=…` → findings.
  *
@@ -133,51 +136,215 @@ export function buildWorklistReadUrl(
   return `${ATC_WORKLISTS_PATH}/${encodeURIComponent(worklistId)}?${params.toString()}`;
 }
 
+/**
+ * `DELETE /sap/bc/adt/atc/worklists/{id}`. Always `application/xml` — this
+ * request carries no worklist-specific document, so the worklist accept
+ * headers used for GET/POST don't apply.
+ */
+export const ATC_WORKLIST_DELETE_ACCEPT = "application/xml";
+
+/**
+ * `DELETE /sap/bc/adt/atc/worklists/{id}`.
+ *
+ * On A4H this answers 405 `ExceptionMethodNotSupported`, "Resource
+ * controller does not support method DELETE" (capture
+ * `891-i78-worklist-delete-405`) — ATC worklists cannot be deleted on this
+ * release. This builder exists anyway so the attempt is made and the
+ * refusal reported honestly to the caller, rather than this client silently
+ * pretending a worklist can be cleaned up; a release that does support
+ * DELETE here would simply work through the same call.
+ *
+ * There is deliberately NO builder for the `?action=deleteFindings` action
+ * ADT discovery advertises on the worklist resource
+ * (`rel="http://www.sap.com/adt/atc/relations/actions/deleteFindings"`):
+ * capture `892-i78-worklist-action-deletefindings-noop` shows it answers 200
+ * with a zero-byte body and leaves the worklist's findings unchanged.
+ * `CL_SATC_ADT_RES_WORKLIST->post` returns immediately for a URI carrying a
+ * worklist id, and the `lcl_handler_delete_findings` implementation in its
+ * CCIMP include is commented out in its entirety on this release — the
+ * advertised action is a no-op, not a cleanup. Calling it would be
+ * pretending to clean up.
+ */
+export function buildWorklistDeleteUrl(worklistId: string): string {
+  assertWorklistId(worklistId);
+  return `${ATC_WORKLISTS_PATH}/${encodeURIComponent(worklistId)}`;
+}
+
+// ---------------------------------------------------------- check variants ---
+
+/** SCI/ATC check variant object type, as used in the repository quickSearch. */
+export const ATC_CHECK_VARIANT_TYPE = "CHKV";
+
+/** `Accept` header for the check-variant quickSearch — a plain repository search response. */
+export const ATC_CHECK_VARIANT_SEARCH_ACCEPT = "application/xml";
+
+/** Default `maxResults` for {@link buildCheckVariantSearchUrl}, matching what capture `886` was taken with. */
+export const ATC_CHECK_VARIANT_DEFAULT_MAX = 200;
+
+/**
+ * `GET /sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=*&maxResults={n}&objectType=CHKV`.
+ *
+ * There is no usable `/sap/bc/adt/atc/checkvariants` collection to list from
+ * on this release — a GET on it answers 400 `uriMappingError`. The
+ * repository quickSearch is how a client actually enumerates check
+ * variants; capture `886-i78-checkvariants-quicksearch` records this exact
+ * URL (parameter order included) answering 200 with all 19 variants on that
+ * appliance as `adtcore:objectReference` rows.
+ *
+ * A caller-supplied check variant MUST be validated against this list before
+ * use: `POST /sap/bc/adt/atc/worklists?checkVariant=<nonsense>` answers 200
+ * and creates a real worklist for a variant that does not exist (observed
+ * live) — the server does not reject an unknown variant name at worklist
+ * creation, so this client has to.
+ *
+ * `maxResults` is clamped to [1, 500], mirroring how {@link clampMaxVerdicts}
+ * documents its own clamping.
+ */
+export function buildCheckVariantSearchUrl(maxResults?: number): string {
+  let n = ATC_CHECK_VARIANT_DEFAULT_MAX;
+  if (maxResults !== undefined && Number.isFinite(maxResults)) {
+    n = Math.trunc(maxResults);
+    if (n < 1) n = 1;
+    if (n > 500) n = 500;
+  }
+  const params = new URLSearchParams();
+  params.set("operation", "quickSearch");
+  params.set("query", "*");
+  params.set("maxResults", String(n));
+  params.set("objectType", ATC_CHECK_VARIANT_TYPE);
+  return `/sap/bc/adt/repository/informationsystem/search?${params.toString()}`;
+}
+
 // --------------------------------------------------------------- run body ---
 
 /**
- * The `<atc:run>` request body.
- *
- * Byte-for-byte the library's template (`atc.js:235-246`), incl. TAB
- * indentation and no trailing newline; written with explicit `\t`/`\n` so
- * reformatting this file can't silently change what goes on the wire.
- *
- * Emits exactly one `objectSet`/`objectReference` even though the schema
- * allows several — an unobserved multi-object body is a guess that would
- * start server-side work on N objects; not the place to guess.
+ * Upper bound on distinct object references a single {@link buildAtcRunBody}
+ * call will accept. Not a documented server limit — a cost cap based on what
+ * has actually been observed: a single package reference over 77 classes
+ * took 134 s to run on A4H, and this client's default HTTP timeout
+ * (`ABAP_TIMEOUT_MS`, `src/config.ts`, default 60 000 ms) is well under that
+ * per-object rate for a large set. An object set without a bound is a
+ * request that starts real server-side work and then cannot come back
+ * before the client gives up on it — refusing an oversized set up front is
+ * cheaper than timing out mid-run with a worklist left behind that nothing
+ * here can delete (see {@link buildWorklistDeleteUrl}).
  */
-export function buildAtcRunBody(objectUri: string, maxVerdicts: number): string {
-  if (typeof objectUri !== "string" || objectUri.trim() === "") {
+export const ATC_MAX_RUN_TARGETS = 50;
+
+/**
+ * The `<atc:run>` request body: one inclusive `objectSet` carrying one
+ * `adtcore:objectReference` per distinct object URI.
+ *
+ * The single-reference shape is byte-for-byte `abap-adt-api`'s template
+ * (`atc.js:235-246`), incl. TAB indentation and no trailing newline; written
+ * with explicit `\t`/`\n` so reformatting this file can't silently change
+ * what goes on the wire.
+ *
+ * The multi-reference shape is no longer a guess: capture
+ * `887-i78-run-two-packages` records a request body A4H answered 200 to for
+ * one inclusive `objectSet` carrying TWO `adtcore:objectReference` package
+ * URIs — proof that a single object set accepts several references, and
+ * that a PACKAGE reference (`/sap/bc/adt/packages/<name>`, see
+ * {@link packageObjectUri}) is accepted by this synchronous run body even
+ * though the `SATC_RUN_REQ` simple transformation behind it has no package
+ * field. `buildAtcRunBody([pkg1, pkg2], 100)` for the two URIs in that
+ * capture reproduces its `requestBody` byte-for-byte (see
+ * `test/atc-query.test.ts`).
+ *
+ * Still NOT observed, and not attempted here: an `exclusive` object set, the
+ * `<options>` element (its simple transformation emits attributes onto a
+ * single element, so it is effectively unusable as a general option carrier),
+ * and `itemSets`.
+ */
+export function buildAtcRunBody(objectUris: readonly string[], maxVerdicts: number): string {
+  if (!Array.isArray(objectUris) || objectUris.length === 0) {
     throw new AbapError(
       "BAD_INPUT",
-      "An ATC run needs an object URI to check.",
-      { objectUri },
-      "Resolve the object first; the run body carries its ADT URI, not its name.",
+      "An ATC run needs at least one object URI to check.",
+      { objectUris },
+      "Resolve the object(s) first; the run body carries their ADT URIs, not their names.",
     );
   }
-  if (objectUri.includes('"') || objectUri.includes("<") || objectUri.includes("&")) {
-    // Library interpolates this unescaped into an XML attribute; refuse
-    // rather than add escaping the server may not accept.
+  for (const objectUri of objectUris) {
+    if (typeof objectUri !== "string" || objectUri.trim() === "") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "An ATC run needs an object URI to check.",
+        { objectUri },
+        "Resolve the object first; the run body carries its ADT URI, not its name.",
+      );
+    }
+    if (objectUri.includes('"') || objectUri.includes("<") || objectUri.includes("&")) {
+      // Library interpolates this unescaped into an XML attribute; refuse
+      // rather than add escaping the server may not accept.
+      throw new AbapError(
+        "BAD_INPUT",
+        "That object URI contains characters that cannot go into the ATC run request.",
+        { objectUri },
+        "ADT object URIs are plain paths. Pass the object by name and let this server resolve it.",
+      );
+    }
+  }
+  // De-duplicate exact duplicates, preserving first-seen order: sending the
+  // same reference twice would make the server check the same object twice
+  // for no gain.
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const objectUri of objectUris) {
+    if (seen.has(objectUri)) continue;
+    seen.add(objectUri);
+    deduped.push(objectUri);
+  }
+  if (deduped.length > ATC_MAX_RUN_TARGETS) {
     throw new AbapError(
       "BAD_INPUT",
-      "That object URI contains characters that cannot go into the ATC run request.",
-      { objectUri },
-      "ADT object URIs are plain paths. Pass the object by name and let this server resolve it.",
+      `An ATC run against ${deduped.length} distinct objects exceeds the ${ATC_MAX_RUN_TARGETS}-object cap this client enforces.`,
+      { objectCount: deduped.length, cap: ATC_MAX_RUN_TARGETS },
+      `Split the run into batches of at most ${ATC_MAX_RUN_TARGETS} objects. ` +
+        "A single package reference over 77 classes took 134 s on A4H; an unbounded " +
+        "object set risks a request this client's HTTP timeout cannot wait out.",
     );
   }
   const verdicts = clampMaxVerdicts(maxVerdicts);
+  const references = deduped
+    .map((uri) => `\t\t\t\t<adtcore:objectReference adtcore:uri="${uri}"/>\n`)
+    .join("");
   return (
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     `<atc:run maximumVerdicts="${verdicts}" xmlns:atc="http://www.sap.com/adt/atc">\n` +
     '\t<objectSets xmlns:adtcore="http://www.sap.com/adt/core">\n' +
     '\t\t<objectSet kind="inclusive">\n' +
     "\t\t\t<adtcore:objectReferences>\n" +
-    `\t\t\t\t<adtcore:objectReference adtcore:uri="${objectUri}"/>\n` +
+    references +
     "\t\t\t</adtcore:objectReferences>\n" +
     "\t\t</objectSet>\n" +
     "\t</objectSets>\n" +
     "</atc:run>"
   );
+}
+
+/**
+ * An ADT object reference for a whole package, as accepted by
+ * {@link buildAtcRunBody}'s `objectSet`.
+ *
+ * Observed forms: `/sap/bc/adt/packages/z_flight_ref_prep` (capture
+ * `887-i78-run-two-packages`) and `/sap/bc/adt/packages/%24abapsmith_fluid_api`
+ * for the package named `$ABAPSMITH_FLUID_API` (a live run of 677 findings
+ * over that package during this issue's investigation). Both confirm ADT
+ * uses the LOWER-CASE object name in these URIs, not the upper-case name a
+ * repository search or worklist finding shows for the same package.
+ */
+export function packageObjectUri(packageName: string): string {
+  const trimmed = typeof packageName === "string" ? packageName.trim() : "";
+  if (trimmed === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "An ATC run against a package needs the package's name.",
+      { packageName },
+      "Pass the package name, e.g. Z_MY_PACKAGE or $TMP.",
+    );
+  }
+  return `/sap/bc/adt/packages/${encodeURIComponent(trimmed.toLowerCase())}`;
 }
 
 /** Bounds `maximumVerdicts` into [1, {@link ATC_MAX_VERDICTS}]. */

@@ -261,6 +261,18 @@ function scanForHandRolledTruncation(): Offense[] {
 
 const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
   {
+    file: "src/adt/atc.ts",
+    contains: "names.slice(0, ATC_NAME_DISPLAY_MAX)",
+    reason:
+      "namesLabel (issue #78): the cut list is always suffixed with `… [truncated, <shown> of <total> shown]`, so the omission and the exact count are disclosed in the same string.",
+  },
+  {
+    file: "src/tools/atc.ts",
+    contains: "labels.slice(0, ATC_OBJECTS_LABEL_MAX)",
+    reason:
+      "atcObjectsLabel (issue #78): the header keeps the exact object count and marks the cut with `… [truncated, <shown> of <total> shown]`; the full list is rendered per object below the header.",
+  },
+  {
     file: "src/tools/test.ts",
     contains: "matches.slice(0, COVERAGE_FOCUS_CAP)",
     reason:

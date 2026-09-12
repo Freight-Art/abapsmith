@@ -28,10 +28,14 @@ standalone probe class, but the reference system runs a released bundle
 that predates this feature, so the MCP tool call itself is covered only by
 tests against a fake fluid runtime.
 
-ATC exists (`abap_atc`) but only as run-and-collect. Exemption proposals,
-exemption requests, contact-person lookup and check documentation are
-deliberately absent: an agent that can request an ATC exemption is an agent
-that can silence a finding instead of fixing it.
+ATC (`abap_atc`) runs and collects: one object, several objects in one call,
+or a whole package (optionally with its subpackages, expanded client-side).
+It also lists check variants and attempts to delete a worklist by id — a
+real DELETE, refused with HTTP 405 on this SAP release, not a client-side
+choice never to try. Exemption proposals, exemption requests, contact-person
+lookup and check documentation are deliberately absent: an agent that can
+request an ATC exemption is an agent that can silence a finding instead of
+fixing it. There is still no variant create.
 
 **Removing one locked object entry from a transport request — implemented,
 guarded against CTS's own duplicate-entry refusal; unlocking one without
@@ -150,23 +154,51 @@ exist and may work, but have not been exercised against a real system.
   target-system errors — is untested.
 - **`abap_transport` `addUser` and `setOwner`** have unit tests but no captured
   wire behaviour from a live system.
-- **`abap_atc` is partially proven, not "the whole of it is unproven."** A
-  live run against A4H (`$TMP` PROG `ZMCP_ATC_PROBE2`, captured 2026-08-01
-  during abap_atc's live verification and kept as
+- **`abap_atc` is now proven well beyond the single-object case, not just
+  "partially proven."** The original live run against A4H (`$TMP` PROG
+  `ZMCP_ATC_PROBE2`, captured 2026-08-01, kept as
   `test/fixtures/live-captured/438-atc2-run.xml` and
-  `439-atc2-worklist-read.xml`) exercised the real wire protocol and
-  confirmed several things that used to be pure inference: the run POST
-  really is **synchronous** (the captured response came back after ~13s with
-  full results embedded, no polling involved); `worklistId` /
-  `worklistTimestamp` and `<info>` really are child elements, not attributes;
-  and the worklist read's finding/object attribute names match the parser.
-  That same capture is also live proof of a duplicate-note defect: the
-  server's run acknowledgement literally contains two byte-identical
-  `<info>` nodes (`type=FINDING_STATS`, `description=0,1,0`), independent
-  of whether any fix for it has been verified. `doc/TOOLS/abap-atc.md` lists precisely which parts are now grounded in
-  that capture and which remain inferred — the attribute-shape `<info>`
-  variant this parser also accepts has still never been observed live, and
-  neither has `objectSetIsComplete`'s absence, a DELETE endpoint, or
-  behaviour on an object type other than PROG.
+  `439-atc2-worklist-read.xml`) confirmed the run POST really is
+  **synchronous** (the captured response came back after ~13s with full
+  results embedded, no polling involved); `worklistId` / `worklistTimestamp`
+  and `<info>` really are child elements, not attributes; and the worklist
+  read's finding/object attribute names match the parser. That same capture
+  is also live proof of a duplicate-note defect: the server's run
+  acknowledgement literally contains two byte-identical `<info>` nodes
+  (`type=FINDING_STATS`, `description=0,1,0`).
+
+  Eight further captures against the same appliance (2026-09-12, issue #78,
+  `852`–`859`) settled most of what was previously unproven: a run against
+  more than one package in a single request (`853`, two package references
+  in one `objectSet`, 23s); a worklist read after several runs have
+  accumulated, including three persisted `PACKAGE`-kind object sets and a
+  worklist element with no `timestamp` attribute at all (`854`/`855`); a
+  genuine zero-findings clean read (`855`, a TABL target, HTTP 200); a
+  second check variant producing a genuinely different result set for the
+  same object (`856`, 5 findings versus 7); check-variant discovery and
+  validation via repository quickSearch (`852`, all 19 real variant names on
+  this appliance); and, most operationally important, **both worklist-delete
+  paths are now settled, not merely un-attempted**: a real `DELETE` on a
+  worklist answers 405 `ExceptionMethodNotSupported` (`857`), and the
+  advertised `?action=deleteFindings` action is a confirmed no-op traced to
+  a commented-out server-side handler, not just a black-box 200 (`858`).
+  `859` also confirms this system's ATC customizing names a default check
+  variant, which `op=variants` now surfaces. `doc/TOOLS/abap-atc.md` lists
+  precisely which parts are now grounded in these ten captures and which
+  remain inferred — the attribute-shape `<info>` variant this parser also
+  accepts has still never been observed live, nor has `objectSetIsComplete`
+  ever been observed flipping to `false` (a run sent with
+  `maximumVerdicts="100"` was observed coming back with 677 findings and
+  `objectSetIsComplete` still `"true"`, so `max_findings` is not honored as
+  a cap on this release), server-side subpackage expansion (A4H has no
+  customer package with subpackages to exercise it against), a true
+  `quickfixes` flag (every one observed so far reads false), a successful
+  worklist delete on a release that supports DELETE. Object types observed
+  live now include PROG, CLAS, INTF, a zero-findings TABL, and a DDLS view
+  that produced one error-severity finding (the last three as uncaptured
+  observations, not fixtures); a bad object name was also observed
+  live — HTTP 200 with an empty worklist, not an ADT error. Still unproven:
+  behaviour on a function group target, or an authorization failure
+  mid-run.
 - **The debugger is single-session.** One reserved debug lease, one live
   session. Concurrent debugging from two agents is not supported and not tested.

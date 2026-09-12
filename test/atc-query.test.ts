@@ -1,46 +1,65 @@
 /**
  * `src/adt/atc-query.ts` — ATC request building.
  *
- * ## Everything in this file is SYNTHETIC. Read this before trusting it.
+ * ## Most of this file was SYNTHETIC. Issue #78 changed that.
  *
- * There are no captured ATC responses in this repo and none in `abap-adt-api`
- * either (its `restcalls/*.http` recordings contain zero ATC requests, and its
- * ATC tests are live-only with no recorded XML). Nothing below was replayed
- * from a real system, and no assertion here is evidence that SAP accepts what
- * this module sends.
+ * Until issue #78 there were no captured ATC responses in this repo and none
+ * in `abap-adt-api` either (its `restcalls/*.http` recordings contain zero
+ * ATC requests, and its ATC tests are live-only with no recorded XML), so
+ * this module was built by copying `abap-adt-api` v8.4.1's ATC client
+ * (`node_modules/abap-adt-api/build/api/atc.js`) and nothing here was
+ * evidence that SAP accepts what it sends.
  *
- * What these tests DO establish is agreement with the one written-down
- * description of this protocol that exists: `abap-adt-api` v8.4.1's ATC client
- * (`node_modules/abap-adt-api/build/api/atc.js`). Several tests below quote its
- * template literally and assert byte equality, which is the strongest check
- * available offline — it will fail loudly if someone "tidies" the run body.
- *
- * A live run would confirm or refute: that the server accepts the run body at
- * all, that `timestamp` round-trips through `Date` without loss, that
- * `usedObjectSet` scoping behaves as the library's own test implies, and
- * whether an unencoded variant name was ever load-bearing.
+ * Issue #78 landed eight REAL captures from an A4H appliance under
+ * `test/fixtures/live-captured/` (`886`…`893`, each with a `.meta.json`
+ * sidecar recording the exact request and response). Several tests below now
+ * assert byte equality against those recordings rather than against the
+ * library's template alone — that is the strongest check available offline,
+ * and it is no longer just "agrees with a client nobody has seen accepted".
+ * What is still genuinely synthetic is called out at the point it's used
+ * (single-object run bodies below `libraryRunBody`, which nothing here
+ * separately confirms beyond the library's own template).
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
+  ATC_CHECK_VARIANT_DEFAULT_MAX,
+  ATC_CHECK_VARIANT_SEARCH_ACCEPT,
+  ATC_CHECK_VARIANT_TYPE,
   ATC_CUSTOMIZING_PATH,
   ATC_DEFAULT_MAX_VERDICTS,
   ATC_LAST_RUN_KIND,
+  ATC_MAX_RUN_TARGETS,
   ATC_MAX_VERDICTS,
   ATC_RUNS_PATH,
+  ATC_WORKLIST_DELETE_ACCEPT,
   ATC_WORKLISTS_PATH,
   assertVariantName,
   assertWorklistId,
   atcTimestampSeconds,
   buildAtcRunBody,
+  buildCheckVariantSearchUrl,
   buildRunUrl,
   buildWorklistCreateUrl,
+  buildWorklistDeleteUrl,
   buildWorklistReadUrl,
   clampMaxVerdicts,
   lastRunObjectSet,
+  packageObjectUri,
   parseAtcLocation,
   priorityLabel,
 } from "../src/adt/atc-query.js";
 import { isAbapError } from "../src/adt/errors.js";
+
+const LIVE_FIXTURES = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "fixtures",
+  "live-captured",
+);
+const readLiveMeta = (name: string): Record<string, unknown> =>
+  JSON.parse(readFileSync(join(LIVE_FIXTURES, name), "utf8")) as Record<string, unknown>;
 
 /**
  * The run body template exactly as `abap-adt-api@8.4.1` builds it
@@ -83,13 +102,13 @@ describe("paths", () => {
 });
 
 describe("the run body", () => {
-  it("is byte-identical to the library's template", () => {
+  it("is byte-identical to the library's template for a single object", () => {
     const uri = "/sap/bc/adt/oo/classes/zcl_order/source/main";
-    expect(buildAtcRunBody(uri, 100)).toBe(libraryRunBody(uri, 100));
+    expect(buildAtcRunBody([uri], 100)).toBe(libraryRunBody(uri, 100));
   });
 
   it("keeps the literal tab indentation", () => {
-    const body = buildAtcRunBody("/sap/bc/adt/programs/programs/zprog/source/main", 25);
+    const body = buildAtcRunBody(["/sap/bc/adt/programs/programs/zprog/source/main"], 25);
     expect(body).toContain("\n\t<objectSets");
     expect(body).toContain("\n\t\t<objectSet ");
     expect(body).toContain("\n\t\t\t\t<adtcore:objectReference ");
@@ -98,38 +117,127 @@ describe("the run body", () => {
   });
 
   it("has no trailing newline, matching the template", () => {
-    expect(buildAtcRunBody("/x", 1).endsWith("</atc:run>")).toBe(true);
+    expect(buildAtcRunBody(["/x"], 1).endsWith("</atc:run>")).toBe(true);
   });
 
-  it("carries exactly one objectSet and one objectReference", () => {
-    const body = buildAtcRunBody("/sap/bc/adt/oo/classes/zcl_a/source/main", 100);
+  it("carries exactly one objectSet and one objectReference for a single object", () => {
+    const body = buildAtcRunBody(["/sap/bc/adt/oo/classes/zcl_a/source/main"], 100);
     expect(body.match(/<objectSet /g)).toHaveLength(1);
     expect(body.match(/<adtcore:objectReference /g)).toHaveLength(1);
   });
 
   it("substitutes the clamped verdict count, not the requested one", () => {
-    expect(buildAtcRunBody("/x", 99_999)).toContain(
+    expect(buildAtcRunBody(["/x"], 99_999)).toContain(
       `maximumVerdicts="${ATC_MAX_VERDICTS}"`,
     );
-    expect(buildAtcRunBody("/x", 0)).toContain('maximumVerdicts="1"');
+    expect(buildAtcRunBody(["/x"], 0)).toContain('maximumVerdicts="1"');
   });
 
   it("refuses a URI that would break out of the XML attribute", () => {
     // The library interpolates this unescaped. Rather than add escaping nobody
     // has seen a server accept, refuse — no legitimate ADT URI contains these.
     for (const bad of ['/x"/>', "/x<y", "/x&y"]) {
-      expect(() => buildAtcRunBody(bad, 100)).toThrowError();
+      expect(() => buildAtcRunBody([bad], 100)).toThrowError();
       try {
-        buildAtcRunBody(bad, 100);
+        buildAtcRunBody([bad], 100);
       } catch (e) {
         expect(isAbapError(e) && e.code).toBe("BAD_INPUT");
       }
     }
   });
 
-  it("refuses an empty object URI rather than running against nothing", () => {
-    expect(() => buildAtcRunBody("", 100)).toThrowError();
-    expect(() => buildAtcRunBody("   ", 100)).toThrowError();
+  it("refuses a blank entry rather than running against nothing", () => {
+    expect(() => buildAtcRunBody([""], 100)).toThrowError();
+    expect(() => buildAtcRunBody(["   "], 100)).toThrowError();
+    expect(() => buildAtcRunBody(["/valid", "   "], 100)).toThrowError();
+  });
+
+  it("refuses an empty array", () => {
+    expect(() => buildAtcRunBody([], 100)).toThrowError();
+    try {
+      buildAtcRunBody([], 100);
+    } catch (e) {
+      expect(isAbapError(e) && e.code).toBe("BAD_INPUT");
+    }
+  });
+
+  it("is byte-identical to capture 887's recorded request body for two package references", () => {
+    // test/fixtures/live-captured/887-i78-run-two-packages.meta.json: a REAL
+    // A4H capture of the two-package run. If buildAtcRunBody's shape for
+    // several object references ever drifts from what the server actually
+    // accepted, this fails.
+    const meta = readLiveMeta("887-i78-run-two-packages.meta.json");
+    expect(meta.capturedBy).toMatch(/REAL wire recording/);
+    const recordedBody = meta.requestBody as string;
+    const uris = [
+      "/sap/bc/adt/packages/z_flight_ref_prep",
+      "/sap/bc/adt/packages/z_upg_badi_impl",
+    ];
+    expect(buildAtcRunBody(uris, 100)).toBe(recordedBody);
+  });
+
+  it("emits one objectReference per distinct URI, inside a single objectSet", () => {
+    const body = buildAtcRunBody(["/sap/bc/adt/packages/z_a", "/sap/bc/adt/packages/z_b"], 100);
+    expect(body.match(/<objectSet /g)).toHaveLength(1);
+    expect(body.match(/<adtcore:objectReference /g)).toHaveLength(2);
+    expect(body).toContain('<adtcore:objectReference adtcore:uri="/sap/bc/adt/packages/z_a"/>');
+    expect(body).toContain('<adtcore:objectReference adtcore:uri="/sap/bc/adt/packages/z_b"/>');
+  });
+
+  it("de-duplicates exact duplicates, preserving first-seen order", () => {
+    const body = buildAtcRunBody(
+      ["/sap/bc/adt/packages/z_a", "/sap/bc/adt/packages/z_b", "/sap/bc/adt/packages/z_a"],
+      100,
+    );
+    expect(body.match(/<adtcore:objectReference /g)).toHaveLength(2);
+    const firstA = body.indexOf("z_a");
+    const firstB = body.indexOf("z_b");
+    expect(firstA).toBeLessThan(firstB);
+  });
+
+  it("refuses a de-duplicated count over ATC_MAX_RUN_TARGETS", () => {
+    const uris = Array.from({ length: ATC_MAX_RUN_TARGETS + 1 }, (_, i) => `/sap/bc/adt/packages/z_${i}`);
+    expect(() => buildAtcRunBody(uris, 100)).toThrowError();
+    try {
+      buildAtcRunBody(uris, 100);
+    } catch (e) {
+      expect(isAbapError(e) && e.code).toBe("BAD_INPUT");
+    }
+    // Exactly the cap is fine.
+    const atCap = uris.slice(0, ATC_MAX_RUN_TARGETS);
+    expect(() => buildAtcRunBody(atCap, 100)).not.toThrow();
+  });
+
+  it("the cap does not count duplicates", () => {
+    // ATC_MAX_RUN_TARGETS + 5 copies of the same URI de-duplicate to 1, well under the cap.
+    const uris = Array.from({ length: ATC_MAX_RUN_TARGETS + 5 }, () => "/sap/bc/adt/packages/z_same");
+    expect(() => buildAtcRunBody(uris, 100)).not.toThrow();
+  });
+});
+
+describe("packageObjectUri", () => {
+  it("builds the package object reference URI for a plain name", () => {
+    expect(packageObjectUri("Z_FLIGHT_REF_PREP")).toBe(
+      "/sap/bc/adt/packages/z_flight_ref_prep",
+    );
+  });
+
+  it("lower-cases and percent-encodes a $-prefixed package name", () => {
+    // Observed form for $ABAPSMITH_FLUID_API.
+    expect(packageObjectUri("$ABAPSMITH_FLUID_API")).toBe(
+      "/sap/bc/adt/packages/%24abapsmith_fluid_api",
+    );
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(packageObjectUri("  z_upg_badi_impl  ")).toBe(
+      "/sap/bc/adt/packages/z_upg_badi_impl",
+    );
+  });
+
+  it("refuses an empty package name", () => {
+    expect(() => packageObjectUri("")).toThrowError();
+    expect(() => packageObjectUri("   ")).toThrowError();
   });
 });
 
@@ -199,6 +307,55 @@ describe("URL building", () => {
   it("omits an empty usedObjectSet", () => {
     expect(buildWorklistReadUrl("0A1B", { usedObjectSet: "" })).not.toContain(
       "usedObjectSet",
+    );
+  });
+
+  it("builds the worklist delete URL under the same collection as read/create", () => {
+    expect(buildWorklistDeleteUrl("0A1B2C3D")).toBe(
+      "/sap/bc/adt/atc/worklists/0A1B2C3D",
+    );
+    expect(ATC_WORKLIST_DELETE_ACCEPT).toBe("application/xml");
+  });
+
+  it("validates the worklist id before building a delete URL", () => {
+    expect(() => buildWorklistDeleteUrl("abc?x=1")).toThrowError();
+    try {
+      buildWorklistDeleteUrl("abc?x=1");
+    } catch (e) {
+      expect(isAbapError(e) && e.code).toBe("ADT_ERROR");
+    }
+  });
+});
+
+describe("buildCheckVariantSearchUrl", () => {
+  it("equals capture 886's recorded requestUrl for the default maxResults", () => {
+    // test/fixtures/live-captured/886-i78-checkvariants-quicksearch.meta.json:
+    // a REAL A4H capture of the repository quickSearch listing all 19 check
+    // variants. Parameter order is load-bearing here — it's copied verbatim.
+    const meta = readLiveMeta("886-i78-checkvariants-quicksearch.meta.json");
+    expect(meta.capturedBy).toMatch(/REAL wire recording/);
+    expect(buildCheckVariantSearchUrl()).toBe(meta.requestUrl as string);
+    expect(buildCheckVariantSearchUrl()).toContain(
+      `maxResults=${ATC_CHECK_VARIANT_DEFAULT_MAX}`,
+    );
+    expect(ATC_CHECK_VARIANT_TYPE).toBe("CHKV");
+    expect(ATC_CHECK_VARIANT_SEARCH_ACCEPT).toBe("application/xml");
+  });
+
+  it("clamps maxResults to [1, 500]", () => {
+    expect(buildCheckVariantSearchUrl(0)).toContain("maxResults=1");
+    expect(buildCheckVariantSearchUrl(-5)).toContain("maxResults=1");
+    expect(buildCheckVariantSearchUrl(501)).toContain("maxResults=500");
+    expect(buildCheckVariantSearchUrl(500)).toContain("maxResults=500");
+    expect(buildCheckVariantSearchUrl(50)).toContain("maxResults=50");
+  });
+
+  it("falls back to the default for non-finite input", () => {
+    expect(buildCheckVariantSearchUrl(Number.NaN)).toContain(
+      `maxResults=${ATC_CHECK_VARIANT_DEFAULT_MAX}`,
+    );
+    expect(buildCheckVariantSearchUrl(undefined)).toContain(
+      `maxResults=${ATC_CHECK_VARIANT_DEFAULT_MAX}`,
     );
   });
 });

@@ -6,7 +6,7 @@
 | Breakpoints | yes | yes | no | yes | n/a | live | Armed only as part of starting a session, deleted only when it ends, and only ones this session created. No standalone list or remove. `skipCount` is accepted by the server and not enforced, so expect a stop on every hit. |
 | ABAP Unit | yes | yes | yes | n/a | yes | live | Runs existing tests: PASSED/FAILED/NO TESTS RAN/UNKNOWN, never collapsing "nothing ran" into a pass — see the outcome breakdown below. Test classes are created and updated through `abap_write` (`include="testclasses"`), not through `abap_test` itself; verified live end to end — write, activate, run, read-back — against SAP A4H, 2026-09-12. A single class include cannot be deleted on its own (ADT has no such verb), only emptied by writing new content over it. There is no activate verb for the include itself: `abap_activate` on the owning class activates `testclasses` along with it, confirmed live, SAP A4H, 2026-09-12. |
 | ABAP Unit coverage | n/a | yes | n/a | n/a | n/a | mixed | Opt-in (`coverage: true` on `abap_test`), scoped with `coverage_for`. The wire protocol — coverage negotiation on the run, the covered-objects roster, the coverage query, an untouched object's zero-summary response with no per-node breakdown — is `live` (SAP A4H, 2026-09-12; `test/fixtures/live-captured/852`–`856-i75-*`). abapsmith's own report rendering is now `live` too, end to end: `abap_test { object: "ZCL_I75_UNDO", type: "CLAS/OC", coverage: true }` against SAP A4H, 2026-09-12, returned outcome PASSED, tests 1, passed 1, the header `coverage: statement 2/2 (100%), branch 1/1 (100%), procedure 1/1 (100%)` line, a `COVERAGE` section with a class row and a per-method row for `DOUBLE`, and an `ALSO TOUCHED` list of 15 framework objects plus a `… and 19 more (truncated)` line — so the focus set, the header ratio line, the per-class/per-method table, and `ALSO TOUCHED` with its cap are confirmed as rendered MCP tool output, not just wire protocol. Still `tests`-only, exercised only against the live-captured fixtures, not yet observed live as rendered output: the `UNCOVERED METHODS` section, the `not measured by this run` / `not touched by this run` / `not queried` wordings, and `coverage_for` naming an object other than the one under test. See [execute-and-test.md](../TOOLS/execute-and-test.md). |
-| ATC | partial | yes | no | no | n/a | mixed | A run creates a server-side worklist as a side effect; there is no worklist delete, no variant create, and exemption management is deliberately absent. |
+| ATC | partial | yes | no | partial | n/a | mixed | A run creates a server-side worklist as a side effect; there is no variant create, and exemption management is deliberately absent. Worklist delete IS attempted (both directly and via `auto_cleanup`) but this release's server refuses every attempt with HTTP 405, so the worklist persists — a caching strategy limits the litter. |
 | Quick fixes | no | yes | yes | no | yes | mixed | Position-driven only, not finding-driven — the ATC route was tried and rejected. Deterministic proposals only; a parameterized one is refused `BAD_INPUT`. Listing is gated as a write because it posts the whole object source. |
 | Runtime dumps | n/a | yes | n/a | no | n/a | live | Read-only feed with a residence window that cannot be widened. The variables chapter is absent from the schema unless an operator enables it. |
 | Object activation | n/a | n/a | n/a | n/a | yes | live | Check-only and activate modes, single and batched. There is no deactivate in ADT, which is why activation can never be undone. |
@@ -46,16 +46,33 @@
   "test methods came back carrying XML the parser cannot grade" path
   (`unknown > 0`) has still never been observed live and remains built
   entirely from hand-written hypothetical documents.
-- **ATC.** The run acknowledgement is live-captured, and from it the
-  following are confirmed: the run POST is synchronous rather than polled;
-  the worklist identifier, its timestamp and the info blocks are child
-  elements rather than attributes; the used-object-set and completeness
-  flags are attributes on the worklist element; and an info block can
-  repeat. Everything beyond that single object, single variant, single run
-  is not confirmed — no DDIC object, no class, no second variant, no
-  zero-findings run, and no error path. The worklist-read capture exists in
-  the tree but is not wired into any test, so findings parsing is covered by
-  synthetic documents only.
+- **ATC.** Ten live captures back this tool; nine are replayed in tests, not
+  just narrated in docs, and the tenth records a no-op this client has no
+  code path to exercise. The first pair (2026-08-01, one object) established the
+  basics: the run POST is synchronous rather than polled; the worklist
+  identifier, its timestamp and the info blocks are child elements rather
+  than attributes; the used-object-set and completeness flags are attributes
+  on the worklist element; an info block can repeat. Eight more captures
+  (2026-09-12, issue #78) settled most of what that first pair left open: a
+  single run request accepts several object references including package
+  references, so a package or multi-object run works over the same
+  synchronous API; a worklist read can be scoped to a numeric `LAST_RUN` id,
+  and accumulates separate object sets across repeated runs rather than
+  replacing them; `worklistTimestamp` is genuinely optional on the wire; a
+  zero-findings run reads back as a clean 200, not an error; a different
+  check variant produces a genuinely different result set (5 findings versus
+  7 for the same object under two variants); check-variant discovery goes
+  through a repository quickSearch, not a dedicated ATC endpoint (that one
+  answers 400); and — the two most operationally important results — a
+  `DELETE` on a worklist is genuinely attempted and answers 405 on this
+  release, and the advertised `deleteFindings` action is a confirmed no-op
+  (traced to a commented-out server-side handler, not just observed as a
+  black box). Still unconfirmed: the attribute-shape `<info>` variant, a run
+  that actually hits `max_findings`, server-side subpackage expansion (no
+  customer package with subpackages exists on A4H to exercise it against), a
+  true `quickfixes` flag (every one observed so far reads false), a
+  successful worklist delete on a release that supports it, and behaviour on
+  an object type or error path this issue's runs did not hit.
 - **Quick fixes.** Both wire hops — the position-based evaluation POST and
   the per-proposal delta POST — are grounded in 12 live captures against a
   sandbox appliance, replayed in `test/quickfix-wire.test.ts`: URLs, media

@@ -689,10 +689,13 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       registerRunTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       registerTestTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       // `abap_atc`: inside `canWrite`, not beside `abap_dumps` — a run
-      // creates a persistent ATC worklist row (no delete in ADT's client
-      // surface) and `execute` carries the Z/Y-prefix + package-allowlist
-      // rules, so gating it any weaker risks unbounded server-side checks
-      // against SAP-standard packages. See src/adt/atc.ts.
+      // creates a persistent ATC worklist row, and this server observably
+      // REFUSES to remove it (DELETE answers 405 `ExceptionMethodNotSupported`,
+      // capture `891-i78-worklist-delete-405.xml`; the advertised
+      // `?action=deleteFindings` action is a zero-byte 200 no-op, capture 858)
+      // — and `execute` carries the Z/Y-prefix + package-allowlist rules, so
+      // gating it any weaker risks unbounded server-side checks against
+      // SAP-standard packages. See src/adt/atc.ts.
       registerAtcTools(mcp, { pool, cfg, safety, ensureConnected, errorResult });
       // Same reasoning: mode="list" POSTs the object's whole source for evaluation.
       registerQuickFixTools(mcp, { pool, cfg, safety, ensureConnected, errorResult, journal, transport });
