@@ -34102,7 +34102,7 @@ var require_tablecontents = __commonJS({
     exports2.servicePreviewUrl = exports2.parseBindingDetails = exports2.decodeQueryResult = exports2.extractBindingLinks = exports2.parseServiceBinding = exports2.TypeKinds = void 0;
     exports2.parseQueryResponse = parseQueryResponse;
     exports2.tableContents = tableContents;
-    exports2.runQuery = runQuery;
+    exports2.runQuery = runQuery2;
     exports2.bindingDetails = bindingDetails;
     var AdtException_1 = require_AdtException();
     var utilities_1 = require_utilities();
@@ -34272,7 +34272,7 @@ var require_tablecontents = __commonJS({
         return (0, exports2.decodeQueryResult)(queryResult);
       return queryResult;
     }
-    async function runQuery(h, sqlQuery, rowNumber = 100, decode3 = true) {
+    async function runQuery2(h, sqlQuery, rowNumber = 100, decode3 = true) {
       const qs = { rowNumber };
       const headers = { Accept: "application/*", "Content-Type": "text/plain" };
       const response = await h.request(`/sap/bc/adt/datapreview/freestyle`, { qs, headers, method: "POST", body: sqlQuery });
@@ -94517,6 +94517,65 @@ var Journal = class _Journal {
     return { result: { settled: true, entry: merged }, merged };
   }
   /**
+   * Close a `pending` entry by hand on an operator's say-so, WITHOUT
+   * abapsmith having observed the outcome and WITHOUT deleting anything —
+   * see `JournalEntry.reconciled`. This is how a false STRANDED entry (see
+   * `STALE_PENDING_MS`, src/tools/journal.ts) gets retired: the crash or
+   * timeout that left it `pending` is not something abapsmith can go back
+   * and watch happen, so a human states what happened instead, and that
+   * statement is recorded as a statement, never dressed up as a fact
+   * abapsmith itself witnessed.
+   *
+   * Deliberately does NOT run under `runExclusive`/the file lock, exactly
+   * like `settleInner()` above — same reasoning, kept in sync by hand so
+   * nobody "fixes" only one of them.
+   */
+  async reconcile(id, input) {
+    if (!this.enabled) return { reconciled: false, reason: "disabled" };
+    assertValidId(id);
+    if (input.outcome !== "succeeded" && input.outcome !== "failed") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Not a valid reconciled outcome: ${JSON.stringify(input.outcome)}. "pending" is the state a reconciliation LEAVES, not one it can arrive at.`,
+        { outcome: input.outcome },
+        `Pass outcome: "succeeded" or "failed".`
+      );
+    }
+    const reason = input.reason?.trim() ?? "";
+    if (!reason) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "A reconciliation must state why: the reason is the only evidence this entry will ever carry for its asserted outcome.",
+        { id },
+        "Pass a non-empty reason describing how the outcome is known."
+      );
+    }
+    const existing = (await this.readAll()).get(id);
+    if (!existing) return { reconciled: false, reason: "unknown-entry" };
+    if (existing.outcome !== "pending") {
+      return { reconciled: false, reason: "already-settled", entry: existing };
+    }
+    const actor = this.resolveActor();
+    const reconciled = {
+      at: (/* @__PURE__ */ new Date()).toISOString(),
+      reason,
+      ...actor ? { by: actor } : {}
+    };
+    const record2 = { id, outcome: input.outcome, reconciled };
+    if (input.outcome === "failed") record2.error = reason;
+    try {
+      await this.append(record2);
+    } catch (e) {
+      return {
+        reconciled: false,
+        reason: "io-error",
+        error: e.message,
+        entry: { ...existing, ...record2 }
+      };
+    }
+    return { reconciled: true, entry: { ...existing, ...record2 } };
+  }
+  /**
    * Entries still sitting at `outcome: "pending"`, newest first. Nothing
    * sweeps them, so unless something *lists* them they accumulate invisibly.
    *
@@ -96537,6 +96596,9 @@ async function resolveObject(conn, input, opts = {}) {
   const parsed = parseObjectRef(input, forced);
   const spec = forced ?? parsed.spec;
   const certain = forced !== void 0 || parsed.via === "uri" || parsed.via === "typecode" || parsed.via === "keyword" || opts.trustHint === true;
+  if (spec && certain && spec.parentPath && !parsed.parent) {
+    return resolveParented(conn, spec, parsed);
+  }
   if (spec && certain && (!spec.parentPath || parsed.parent)) {
     const packageName = await lookupPackageName(conn, parsed.name, spec.type);
     return finish(conn, spec, parsed.name, parsed, { packageName });
@@ -96581,7 +96643,8 @@ async function resolveObject(conn, input, opts = {}) {
   return finishFromSearch(conn, usable[0].spec, usable[0].r, parsed);
 }
 async function searchExact(conn, name, type) {
-  const kind = type?.split("/")[0];
+  const spec = type ? specForType(type) : void 0;
+  const kind = spec?.parentPath ? void 0 : type?.split("/")[0];
   const results = await conn.adt.searchObject(name, kind, 25);
   const { refs: repaired } = repairSearchDescriptions(results);
   const exact = repaired.filter((r) => r["adtcore:name"]?.toUpperCase() === name.toUpperCase());
@@ -96606,10 +96669,38 @@ async function existsAt(conn, uri) {
 async function lookupPackageName(conn, name, type) {
   try {
     const results = await searchExact(conn, name, type);
-    return results[0]?.["adtcore:packageName"];
+    const matching = results.find((r) => r["adtcore:type"]?.toUpperCase() === type.toUpperCase());
+    return (matching ?? results[0])?.["adtcore:packageName"];
   } catch {
     return void 0;
   }
+}
+async function resolveParented(conn, spec, parsed) {
+  const rows = await searchExact(conn, parsed.name, spec.type);
+  const withParent = rows.filter((r) => r["adtcore:type"]?.toUpperCase() === spec.type.toUpperCase()).map((r) => ({ r, parent: specFromUri(cleanUri(r["adtcore:uri"]) ?? "")?.parent })).filter((x) => x.parent !== void 0);
+  const groups = [];
+  for (const { parent } of withParent) {
+    if (!groups.includes(parent)) groups.push(parent);
+  }
+  if (groups.length === 1) {
+    const match = withParent.find((x) => x.parent === groups[0]);
+    return finishFromSearch(conn, spec, match.r, parsed);
+  }
+  if (groups.length > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${spec.label} ${parsed.name} exists in ${groups.length} function groups (${groups.join(", ")}).`,
+      { name: parsed.name, type: spec.type, groups },
+      `Name the group: "${parsed.name} in ${groups[0]}" or "${groups[0]}/${parsed.name}".`
+    );
+  }
+  const why = spec.type === "FUGR/FF" ? `it does not index generated function modules (ENQUEUE_*, and others), which exist and read fine once the group is named` : `the search does not index ${spec.label.toLowerCase()}s at all`;
+  throw new AbapError(
+    "BAD_INPUT",
+    `${spec.label} ${parsed.name} needs its function group.`,
+    { name: parsed.name, type: spec.type },
+    `The repository search found no ${spec.label.toLowerCase()} called ${parsed.name} to take the group from \u2014 ${why}. Say "${parsed.name} in ZFG" or "ZFG/${parsed.name}".`
+  );
 }
 function finishFromSearch(conn, spec, r, parsed) {
   const uri = cleanUri(r["adtcore:uri"]);
@@ -96644,7 +96735,7 @@ function finish(conn, spec, name, parsed, extra) {
       "BAD_INPUT",
       `${spec.label} ${name} needs its function group.`,
       { name, type: spec.type },
-      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO".'
+      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO". abap_search {"query":"Z_FOO","type":"FUGR/FF"} lists the owning group in its `group` column.'
     );
   }
   const uri = cleanUri(extra.uri) ?? parsed.uri ?? buildUri(spec, name, parsed.parent);
@@ -96810,7 +96901,7 @@ async function verifyViaRepositorySearch(conn, objectName, expectType) {
         return {
           status: "indeterminate",
           uri,
-          reason: `The repository search returned 0 hits for ${objectName}, but it does not index ${expectType} at all \u2014 a zero-hit is the only answer it can give for this type, present or absent, so it is not evidence. Treated as unproven rather than confirmed-absent.`
+          reason: `The repository search returned 0 hits for ${objectName}, but it does not index every ${expectType}: a generated function module is present and readable while the search reports nothing, so a zero-hit here is not evidence of absence. Treated as unproven rather than confirmed-absent.`
         };
       }
       return { status: "confirmed-absent", uri, via: "repository-search" };
@@ -105536,7 +105627,9 @@ async function performUndo(conn, journal, entry, opts) {
 
 // src/tools/journal.ts
 var journalInputSchema = {
-  mode: external_exports.enum(["list", "show", "undo"]).optional().describe("list (default): recent writes. show: one entry incl. its before-image. undo: revert one entry."),
+  mode: external_exports.enum(["list", "show", "undo", "reconcile"]).optional().describe(
+    "list (default): recent writes. show: one entry incl. its before-image. undo: revert one entry. reconcile: close a stranded pending entry with an outcome you establish and a stated reason."
+  ),
   entry: external_exports.string().optional().describe("Journal entry id from mode=list. Required for show and undo unless `object` is given."),
   object: external_exports.string().optional().describe("Filter by object name; for undo, targets that object's most recent undoable entry."),
   limit: external_exports.number().min(1).max(999999).optional().describe("mode=list: entries to return. Default 20."),
@@ -105546,12 +105639,18 @@ var journalInputSchema = {
   force: external_exports.boolean().optional().describe(
     "mode=undo: proceed even though the object changed on the server after abapsmith wrote it. This OVERWRITES whatever that other change was. Read the object first."
   ),
-  activate: external_exports.boolean().optional().describe("mode=undo: re-activate after restoring. Default true.")
+  activate: external_exports.boolean().optional().describe("mode=undo: re-activate after restoring. Default true."),
+  outcome: external_exports.enum(["succeeded", "failed"]).optional().describe(
+    "mode=reconcile: the outcome you are asserting for a `pending` entry. Required. `pending` is the state being left, so it is not offered."
+  ),
+  reason: external_exports.string().optional().describe(
+    "mode=reconcile: how you established that outcome. Required, recorded verbatim on the entry, and the only evidence it will ever carry for the asserted outcome."
+  )
 };
 var JournalInput = external_exports.object(journalInputSchema);
 var shortId = (id) => id;
 function row(e) {
-  const undo2 = e.undoneBy ? "undone" : e.undoOf ? "is-undo" : "";
+  const flags = [e.undoneBy ? "undone" : e.undoOf ? "is-undo" : void 0, e.reconciled ? "reconciled" : void 0].filter(Boolean).join(" ");
   return {
     id: shortId(e.id),
     when: e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z"),
@@ -105562,7 +105661,7 @@ function row(e) {
     capture: e.beforeCapture,
     outcome: e.outcome,
     actor: e.actor ?? "",
-    flags: undo2
+    flags
   };
 }
 var LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
@@ -105679,7 +105778,7 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
     const notes2 = [];
     if (pendingStale.length) {
       notes2.push(
-        `STRANDED: ${pendingStale.length} journal entr${pendingStale.length === 1 ? "y is" : "ies are"} still \`pending\` after more than ${Math.round(STALE_PENDING_MS / 6e4)} minutes \u2014 ${pendingStale.map((e) => `${e.id} (${e.operation} ${e.object.name})`).join(", ")}. The before-image was written and the outcome never was, which is what a crash mid-write looks like: nobody knows whether those writes landed. They are NOT usable undos \u2014 abapsmith refuses to undo a pending entry, because it cannot tell what to undo. Read each object (abap_read), compare it against abap_journal mode=show, and resolve it deliberately.`
+        `STRANDED: ${pendingStale.length} journal entr${pendingStale.length === 1 ? "y is" : "ies are"} still \`pending\` after more than ${Math.round(STALE_PENDING_MS / 6e4)} minutes \u2014 ${pendingStale.map((e) => `${e.id} (${e.operation} ${e.object.name})`).join(", ")}. The before-image was written and the outcome never was, which is what a crash mid-write looks like: nobody knows whether those writes landed. They are NOT usable undos \u2014 abapsmith refuses to undo a pending entry, because it cannot tell what to undo. Read each object (abap_read), compare it against abap_journal mode=show, and resolve it deliberately. Once you have established what actually happened to one of them, close it with abap_journal mode=reconcile entry=<id> outcome=succeeded|failed reason="\u2026" \u2014 that records your finding on the entry and deletes nothing. Entries whose live source settles the question can be classified in bulk by bin/abap-journal-reconcile.`
       );
     }
     if (pendingFresh.length) {
@@ -105708,6 +105807,110 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
       maxChars
     });
   }
+  if (mode === "reconcile") {
+    if (!input.entry) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode=reconcile needs `entry` \u2014 the id of the pending entry you are closing.",
+        {},
+        "abap_journal mode=list shows the ids, and names the stranded ones. There is no `object` fallback here: closing the wrong entry writes a false outcome into the audit trail, so reconcile insists on the exact id."
+      );
+    }
+    if (!input.outcome) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'mode=reconcile needs `outcome`: "succeeded" or "failed". `pending` is the state being left, so it is not offered as something to arrive at.',
+        { entry: input.entry },
+        'Pass outcome: "succeeded" or "failed".'
+      );
+    }
+    const reason = input.reason?.trim() ?? "";
+    if (!reason) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "mode=reconcile needs a non-empty `reason`: abapsmith did not observe this entry's outcome, so the reason is all a later reader will ever have as evidence for it.",
+        { entry: input.entry },
+        "Pass reason describing how the outcome was established."
+      );
+    }
+    const target = await j.get(input.entry);
+    if (!target) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `No journal entry ${input.entry}.`,
+        { entry: input.entry },
+        "Run abap_journal mode=list to see the ids that exist. Ids are dropped by the retention policy, so an old one may simply have aged out."
+      );
+    }
+    if (target.outcome !== "pending") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${input.entry} already reads \`${target.outcome}\` \u2014 reconcile only closes an entry whose outcome was never recorded. Overwriting an observed outcome would destroy the only observed fact this entry carries.`,
+        { entry: target.id, outcome: target.outcome },
+        "Nothing to do here: the entry already has a real outcome."
+      );
+    }
+    const res2 = await j.reconcile(target.id, { outcome: input.outcome, reason });
+    if (!res2.reconciled) {
+      if (res2.reason === "disabled") {
+        throw new AbapError(
+          "UNSUPPORTED",
+          "The write journal is disabled, so there is nothing to reconcile.",
+          { entry: target.id }
+        );
+      }
+      if (res2.reason === "unknown-entry") {
+        throw new AbapError(
+          "NOT_FOUND",
+          `${target.id} aged out of the retention window between being read and being reconciled.`,
+          { entry: target.id },
+          "Run abap_journal mode=list to see what still exists."
+        );
+      }
+      if (res2.reason === "already-settled") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${target.id} settled for real (outcome=${res2.entry?.outcome}) between being read and being reconciled \u2014 the observed outcome wins over the asserted one.`,
+          { entry: target.id, outcome: res2.entry?.outcome },
+          `Run abap_journal mode=show entry=${target.id} to see what it now says.`
+        );
+      }
+      throw new AbapError(
+        "ADT_ERROR",
+        `Could not write the reconciliation for ${target.id}: ${res2.error}. Nothing was written \u2014 the entry still reads \`pending\`.`,
+        { entry: target.id, error: res2.error },
+        "Retry mode=reconcile with the same outcome and reason."
+      );
+    }
+    const notes2 = [`Recorded reason: ${reason}`];
+    notes2.push(
+      "This changed the LOCAL journal only \u2014 nothing was sent to the system, no SAP object and no transport request was touched, and nothing was deleted: the before-image and every earlier line for this entry are still on disk."
+    );
+    notes2.push(
+      "The outcome is now recorded as an ASSERTION, not an observation: the entry carries `reconciled` with the reason and (when known) who stated it, so a later reader can tell it apart from an outcome abapsmith itself watched happen."
+    );
+    if (res2.entry.outcome === "succeeded") {
+      notes2.push(
+        "The entry is now terminal, so mode=undo will no longer refuse it for being `pending` \u2014 undo replays the before-image, so only assert `succeeded` when it is established that the write landed."
+      );
+    }
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        mode: "reconcile",
+        entry: res2.entry.id,
+        operation: res2.entry.operation,
+        object: `${res2.entry.object.type} ${res2.entry.object.name}`,
+        was: "pending",
+        outcome: res2.entry.outcome,
+        by: res2.entry.reconciled?.by,
+        at: res2.entry.reconciled?.at
+      },
+      notes: notes2,
+      hints: [`abap_journal mode=show entry=${res2.entry.id}`],
+      maxChars
+    });
+  }
   const entry = await pickEntry(j, input, mode);
   if (mode === "show") {
     const before = await j.beforeImage(entry);
@@ -105730,6 +105933,11 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
     if (entry.outcome === "pending") {
       notes2.push(
         "THIS IS NOT A USABLE UNDO. The entry is still `pending`: abapsmith wrote the before-image and then never recorded an outcome, so it does not know whether the write reached the server at all. Undo refuses pending entries rather than guess which state to put the object back into. Read the object (abap_read) and compare it with the images above to find out what actually happened."
+      );
+    }
+    if (entry.reconciled) {
+      notes2.push(
+        `This entry's outcome was RECONCILED BY HAND (at ${entry.reconciled.at}` + (entry.reconciled.by ? `, by ${entry.reconciled.by}` : "") + `), because: ${entry.reconciled.reason}. abapsmith did not observe that outcome; it is a stated finding, and the entry stayed \`pending\` until someone stated it.`
       );
     }
     notes2.push(
@@ -105757,6 +105965,7 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
         beforeCapture: entry.beforeCapture,
         beforeKind: entry.beforeKind,
         outcome: entry.outcome,
+        reconciled: entry.reconciled?.at,
         error: entry.error,
         beforeEtag: entry.before?.etag,
         beforeServerEtag: entry.before?.serverEtag,
@@ -105888,7 +106097,7 @@ function registerJournalTools(mcp, deps) {
   mcp.registerTool(
     "abap_journal",
     {
-      description: "History and undo for writes abapsmith made. mode=list: recent writes with entry ids. mode=show: one entry with its before-image. mode=undo: revert it \u2014 refuses on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write for details.",
+      description: "History and undo for writes abapsmith made. mode=list: recent writes with entry ids. mode=show: one entry with its before-image. mode=undo: revert it \u2014 refuses on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write for details. mode=reconcile: close a stranded `pending` entry with a stated outcome and reason \u2014 journal bookkeeping only, nothing is sent to SAP.",
       inputSchema: journalInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -105922,6 +106131,141 @@ function registerJournalTools(mcp, deps) {
       }
     }
   );
+}
+
+// src/tools/locked.ts
+var MODE_LOCKED_TOOLS = [
+  {
+    name: "abap_write",
+    needs: ["allowWrite"],
+    summary: "Create, change or delete an ABAP object: save/check/activate."
+  },
+  {
+    name: "abap_run",
+    needs: ["allowWrite"],
+    summary: "Execute an IF_OO_ADT_CLASSRUN class or report and capture its output."
+  },
+  {
+    name: "abap_test",
+    needs: ["allowWrite"],
+    summary: "Run ABAP Unit tests and report each method's verdict."
+  },
+  {
+    name: "abap_atc",
+    needs: ["allowWrite"],
+    summary: "Run ABAP Test Cockpit static analysis on an object."
+  },
+  {
+    name: "abap_quick_fix",
+    needs: ["allowWrite"],
+    summary: "List and apply ADT quick fixes at one source position."
+  },
+  {
+    name: "abap_ui",
+    needs: ["allowWrite"],
+    summary: "Drive classic SAP dynpro screens via batch input: read one screen, or run a scripted transaction."
+  },
+  {
+    name: "abap_fpm_read",
+    needs: ["allowWrite"],
+    summary: "Read SAP FPM/FBI screen configurations; every call deploys a throwaway bridge class."
+  },
+  {
+    name: "abap_img_edit",
+    needs: ["allowWrite"],
+    summary: "Preview and write IMG/customizing table rows."
+  },
+  {
+    name: "abap_bopf_test",
+    needs: ["allowWrite"],
+    summary: "Run a BOPF business object end to end, writing real rows."
+  },
+  {
+    name: "abap_bopf_edit",
+    needs: ["allowWrite"],
+    summary: "Make one design-time edit to a BOPF business object, or create one."
+  },
+  {
+    name: "abap_bopf_delete",
+    needs: ["allowWrite"],
+    summary: "Delete a BOPF business object."
+  },
+  {
+    name: "abap_transport_release",
+    needs: ["allowWrite", "allowTransportRelease"],
+    summary: "Release one CTS transport request \u2014 irreversible."
+  },
+  {
+    name: "abap_fluid",
+    needs: ["allowWrite"],
+    summary: "Deploy and run small generated ABAP tools inside $ABAPSMITH_FLUID_API.",
+    // Mirrors `resolveStaticCapabilities`'s `canUseFluidApi` gate
+    // (`cfg.fluidApi && !cfg.readOnly && cfg.abapMode !== "read"`) for the
+    // `fluidApi` slice of it: `Config["fluidApi"]` (via `boolishRejectDefaultTrue`
+    // in src/config.ts) is always a resolved `boolean`, defaulting to `true`,
+    // never `undefined` — so the precondition is a plain truthiness check,
+    // not an `undefined` check.
+    availableWhen: (cfg) => cfg.fluidApi
+  }
+];
+function lockedToolsFor(cfg) {
+  if (cfg.toolSurface !== "v1" || cfg.readOnly !== true) return [];
+  return MODE_LOCKED_TOOLS.filter((tool) => tool.availableWhen === void 0 || tool.availableWhen(cfg));
+}
+function lockedToolRequiresMode(tool) {
+  return lowestModeSatisfying(
+    (caps) => tool.needs.every((c) => capabilityGranted(caps, c))
+  );
+}
+function lockedToolExplanation(tool, abapMode) {
+  if (tool.needs.length === 1) {
+    const need = tool.needs[0];
+    if (need === void 0) {
+      throw new AbapError("INTERNAL_GATE_MISUSE", `${tool.name} declares no capability needs.`, {
+        tool: tool.name
+      });
+    }
+    const { cause, remediation } = explainDeniedCapability(need, abapMode);
+    return { cause, remediation };
+  }
+  return explainDeniedCapabilities(tool.needs, abapMode);
+}
+function lockedToolRefusal(tool, abapMode) {
+  const { cause, remediation } = lockedToolExplanation(tool, abapMode);
+  const message = `${tool.name} is registered but locked at this permission level. ${cause} Nothing was sent to the SAP system.`;
+  return new AbapError(
+    "READ_ONLY",
+    message,
+    {
+      tool: tool.name,
+      locked: true,
+      abapMode: abapMode ?? null,
+      requiresMode: lockedToolRequiresMode(tool) ?? null,
+      capabilities: [...tool.needs]
+    },
+    remediation
+  );
+}
+function lockedToolDescription(tool, abapMode) {
+  const { cause, remediation } = lockedToolExplanation(tool, abapMode);
+  return `${tool.summary} LOCKED on this server: ${cause} ${remediation} Calling it returns a refusal and sends nothing to the SAP system.`;
+}
+function registerLockedTools(mcp, deps) {
+  for (const tool of deps.tools) {
+    mcp.registerTool(
+      tool.name,
+      {
+        description: lockedToolDescription(tool, deps.cfg.abapMode),
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
+        }
+      },
+      async () => deps.errorResult(lockedToolRefusal(tool, deps.cfg.abapMode))
+    );
+  }
 }
 
 // src/tools/open-url.ts
@@ -107434,6 +107778,14 @@ function registerTestTools(mcp, deps) {
 // src/tools/search.ts
 var DESCRIPTION_COL_WIDE = 70;
 var DESCRIPTION_COL_NARROW = 60;
+function groupFromUri(uri) {
+  if (!uri) return "";
+  try {
+    return specFromUri(uri)?.parent ?? "";
+  } catch {
+    return "";
+  }
+}
 var KNOWN_TYPES = [...new Set(TYPES.flatMap((t) => [t.kind, t.type]))].sort();
 var KNOWN_TYPE_GROUPS = new Set(TYPES.map((t) => t.type.split("/")[0]));
 function assertKnownType(type) {
@@ -107514,10 +107866,13 @@ async function searchObjects(conn, query, type, max, maxChars) {
   const rows = capped.map((r) => ({
     type: r["adtcore:type"] ?? "",
     name: r["adtcore:name"] ?? "",
+    group: groupFromUri(r["adtcore:uri"]),
     package: r["adtcore:packageName"] ?? "",
     description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_WIDE)
   }));
-  const body = rows.length ? [textTable(rows, ["type", "name", "package", "description"]), capLine, windowLine].filter((line) => line !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
+  const hasGroup = rows.some((r) => r.group !== "");
+  const columns = hasGroup ? ["type", "name", "group", "package", "description"] : ["type", "name", "package", "description"];
+  const body = rows.length ? [textTable(rows, columns), capLine, windowLine].filter((line) => line !== void 0).join("\n") : droppedByFilter > 0 ? windowFull ? `(no ${wanted} matches among the ${results.length} hit(s) the server returned at max=${fetchMax} \u2014 see the note above; this is NOT proof that none exist)` : `(no ${wanted} matches among the ${results.length} hit(s) the server returned for "${query}" \u2014 the fetch window (max=${fetchMax}) was not full, so that is every object of any type matching this pattern)` : "(no matches)";
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -107538,7 +107893,12 @@ async function searchObjects(conn, query, type, max, maxChars) {
     notes,
     // abap_search has no offset/paging parameter — `max` is the only lever, so
     // the hint must not promise one.
-    hints: ["Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200)."],
+    hints: [
+      "Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200).",
+      ...hasGroup ? [
+        "`group` is the function group a FUGR row lives in \u2014 `package` is the module's own package, not its group."
+      ] : []
+    ],
     maxChars
   });
 }
@@ -110882,6 +111242,7 @@ function registerWriteTools(mcp, deps) {
 }
 
 // src/adt/transport-entry-remove.ts
+var TREN_ROW_RE = /^ZMCP-TREN-ROW (\S+) (\S+) (\S+)/;
 async function removeTransportEntryViaBridge(conn, gate, params, proof) {
   void proof;
   const trkorr = assertTrkorr(params.trkorr, "removeTransportEntry");
@@ -110938,10 +111299,16 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
       holder = holderMatch[1];
       continue;
     }
-    const rowMatch = trimmed.match(/^ZMCP-TREN-ROW (\S+) (\S+) (\S+)/);
+    const rowMatch = trimmed.match(TREN_ROW_RE);
     if (rowMatch) removed.push({ pgmid: rowMatch[1], object: rowMatch[2], name: rowMatch[3] });
   }
   return { run: run2, transcript, holder, removed };
+}
+function removalTouchedNothing(e) {
+  if (!(e instanceof AbapError)) return false;
+  const raw = e.details.raw;
+  if (typeof raw !== "string") return false;
+  return !raw.split("\n").some((line) => TREN_ROW_RE.test(line.trim()));
 }
 
 // src/tools/transport.ts
@@ -110984,6 +111351,18 @@ function fmtStatus(status, text3) {
   const t = (text3 ?? "").trim();
   return t === "" || t.toLowerCase() === status ? base : `${base} \u2014 ${t}`;
 }
+var TASK_TYPE_NAMES = {
+  S: "development/correction",
+  R: "repair",
+  Q: "customizing task",
+  X: "unclassified task"
+};
+function fmtTaskType(h) {
+  const raw = (h.kindRaw ?? "").trim();
+  if (raw === "") return "(none)";
+  const gloss = TASK_TYPE_NAMES[raw.toUpperCase()];
+  return gloss ? `${raw} (${gloss})` : raw;
+}
 function objectRows(objects) {
   return objects.map((o) => ({
     pgmid: o.pgmid,
@@ -111019,7 +111398,8 @@ function subjectHeader(s, answered) {
   return {
     requested: s.asked,
     answeredAbout: s.answered,
-    requestedStatus: own ? fmtStatus(own.status, own.statusText) : "not known"
+    requestedStatus: own ? fmtStatus(own.status, own.statusText) : "not known",
+    requestedType: own ? fmtTaskType(own) : "not known"
   };
 }
 function subjectNotes(s, answered) {
@@ -111033,9 +111413,46 @@ function subjectNotes(s, answered) {
   );
   return notes;
 }
-function createdThisSession(ownership, s) {
+function createdByThisProcess(ownership, s) {
   if (!ownership) return void 0;
   return ownership.createdThisSession(s.answered) || ownership.createdThisSession(s.asked);
+}
+async function findTransportCreate(j, s) {
+  const key = systemKey({ sid: j.cfg.sid, url: j.cfg.url, client: j.cfg.client });
+  const numbers = s.asked === s.answered ? [s.answered] : [s.answered, s.asked];
+  for (const n of numbers) {
+    const hit = (await j.journal.list({ object: n, operation: "transport-create" })).find(
+      (e) => e.systemKey === key && e.outcome !== "failed"
+    );
+    if (hit) return hit;
+  }
+  return void 0;
+}
+async function resolveCreatedBy(ownership, journal, s) {
+  if (!ownership) return { kind: "not-checked" };
+  if (createdByThisProcess(ownership, s)) return { kind: "this-process" };
+  if (!journal) return { kind: "unknown", why: "no journal was supplied to this call" };
+  if (!journal.journal.enabled) return { kind: "unknown", why: "the journal is off" };
+  try {
+    const entry = await findTransportCreate(journal, s);
+    return entry ? { kind: "journal", entry } : { kind: "no", sid: journal.cfg.sid };
+  } catch {
+    return { kind: "unknown", why: "the journal could not be read" };
+  }
+}
+function createdByField(c) {
+  switch (c.kind) {
+    case "this-process":
+      return "yes (this server process)";
+    case "journal":
+      return `yes (journal entry ${c.entry.id})`;
+    case "no":
+      return `no (not this process; no journal entry on ${c.sid})`;
+    case "unknown":
+      return `unknown \u2014 ${c.why}`;
+    case "not-checked":
+      return void 0;
+  }
 }
 var RELEASE_MESSAGE_NOTES = {
   "TR/768": "the request was already released before this call",
@@ -111185,7 +111602,7 @@ async function abapTransport(conn, input, maxChars, gate, journal, ownership) {
     case "list":
       return await opList(conn, input, maxChars, gate, journal);
     case "show":
-      return await opShow(conn, input, maxChars, ownership);
+      return await opShow(conn, input, maxChars, journal, ownership);
     case "check":
       return await opCheck(conn, input, maxChars);
     case "users":
@@ -111277,11 +111694,11 @@ async function opList(conn, input, maxChars, gate, journal) {
   }
   return buildResponse({ header, sections, notes, maxChars });
 }
-async function opShow(conn, input, maxChars, ownership) {
+async function opShow(conn, input, maxChars, journal, ownership) {
   const trkorr = normTrkorr(input.transport, "show");
   const r = await trShow(conn, trkorr);
   const subject = subjectOf(trkorr, r);
-  const owned = createdThisSession(ownership, subject);
+  const created = await resolveCreatedBy(ownership, journal, subject);
   const sections = [];
   if (r.tasks.length) {
     sections.push({
@@ -111289,12 +111706,13 @@ async function opShow(conn, input, maxChars, ownership) {
       content: textTable(
         r.tasks.map((t) => ({
           task: t.trkorr,
+          type: fmtTaskType(t),
           status: t.status,
           owner: t.owner,
           objects: String(t.objects.length),
           description: t.description
         })),
-        ["task", "status", "owner", "objects", "description"]
+        ["task", "type", "status", "owner", "objects", "description"]
       )
     });
   }
@@ -111314,9 +111732,17 @@ async function opShow(conn, input, maxChars, ownership) {
       notes.push(`${trkorr} is itself already released \u2014 it can no longer be changed.`);
     }
   }
-  if (owned === false) {
+  if (created.kind === "journal") {
     notes.push(
-      `${r.trkorr} was NOT created by this session \u2014 it was already open when this session started, so it may hold objects from earlier work.`
+      `${r.trkorr} was created by abapsmith earlier \u2014 journal entry ${created.entry.id} records a transport-create for it on this system \u2014 but NOT by this server process. The release guard counts only this process, so releasing it still needs confirm_unowned: "${r.trkorr}".`
+    );
+  } else if (created.kind === "no") {
+    notes.push(
+      `${r.trkorr} was NOT created by abapsmith: this server process did not create it, and this system's journal holds no transport-create entry for it. It was already open, so it may hold objects from earlier work.`
+    );
+  } else if (created.kind === "unknown") {
+    notes.push(
+      `${r.trkorr} was not created by this server process, and ${created.why} \u2014 so abapsmith cannot tell whether an earlier process created it. It may hold objects from earlier work.`
     );
   }
   return buildResponse({
@@ -111326,7 +111752,7 @@ async function opShow(conn, input, maxChars, ownership) {
       kind: r.kind,
       status: fmtStatus(r.status, r.statusText),
       owner: r.owner,
-      createdThisSession: owned === void 0 ? void 0 : owned ? "yes" : "no",
+      createdByAbapsmith: createdByField(created),
       description: r.description,
       target: fmtTarget(r),
       client: r.client,
@@ -111732,18 +112158,19 @@ async function opRemoveObject(conn, input, maxChars, gate, journal) {
   try {
     res = await removeTransportEntryViaBridge(conn, gate, { trkorr: holder.trkorr, objectName }, proof);
   } catch (e) {
+    const touchedNothing = removalTouchedNothing(e);
     await recordMutation(
       journal,
       {
         operation: "transport-remove-object",
         trkorr: holder.trkorr,
-        description: `removeObject ${objectName} from ${holder.trkorr}`,
+        description: touchedNothing ? `removeObject ${objectName} from ${holder.trkorr} \u2014 refused, nothing was removed` : `removeObject ${objectName} from ${holder.trkorr}`,
         existedBefore: true,
         beforeCapture: "captured",
         beforeSource: removeObjectBeforeImage(holder),
         tool: "abap_transport removeObject"
       },
-      { kind: "unproven", reason: e.message }
+      touchedNothing ? { kind: "failed", reason: `Refused, nothing was removed: ${e.message}` } : { kind: "unproven", reason: e.message }
     );
     throw enrichRemovalRefusal(e, objectOnSystem);
   }
@@ -111973,7 +112400,7 @@ async function abapTransportRelease(conn, input, maxChars, gate, journal, owners
     });
   }
   const armed = input.confirm !== void 0;
-  if (!armed) return await releaseDryRun(conn, trkorr, ceiling, maxChars, ownership);
+  if (!armed) return await releaseDryRun(conn, trkorr, ceiling, maxChars, journal, ownership);
   assertCeiling(gate, "release", "release");
   const releaseProof = authorizeCeiling(gate, "transport", { release: true });
   const before = await trShow(conn, trkorr);
@@ -111996,13 +112423,13 @@ async function abapTransportRelease(conn, input, maxChars, gate, journal, owners
       maxChars
     });
   }
-  const owned = createdThisSession(ownership, subject);
+  const owned = createdByThisProcess(ownership, subject);
   if (owned === false && input.confirm_unowned === void 0) {
     const carried = unionedObjects(before);
     const held = carried.length === 0 ? "It holds no objects." : `It holds ${carried.length} object(s) this release would carry: ${carried.map((o) => `${o.pgmid} ${o.type} ${o.name}`).join(", ")}.`;
     throw new AbapError(
       "BAD_INPUT",
-      `${trkorr} was not created by this session \u2014 it was already open when this session started, so releasing it also transports whatever earlier work left in it, and a release is irreversible. ${held} To release it anyway, call again with confirm_unowned: "${trkorr}"`,
+      `${trkorr} was not created by this abapsmith server process \u2014 it was already open when this process started, so releasing it also transports whatever earlier work left in it, and a release is irreversible. ${held} To release it anyway, call again with confirm_unowned: "${trkorr}"`,
       {
         transport: trkorr,
         owner: before.owner,
@@ -112115,10 +112542,10 @@ function releaseAfterImage(res, subject, verdict) {
   }
   return lines.join("\n") + "\n";
 }
-async function releaseDryRun(conn, trkorr, ceiling, maxChars, ownership) {
+async function releaseDryRun(conn, trkorr, ceiling, maxChars, journal, ownership) {
   const r = await trShow(conn, trkorr);
   const subject = subjectOf(trkorr, r);
-  const owned = createdThisSession(ownership, subject);
+  const created = await resolveCreatedBy(ownership, journal, subject);
   const objects = unionedObjects(r);
   const openTasks = r.tasks.filter((t) => t.status !== "released");
   const referencing = openTasks.filter((t) => t.trkorr !== trkorr);
@@ -112131,11 +112558,12 @@ async function releaseDryRun(conn, trkorr, ceiling, maxChars, ownership) {
       content: textTable(
         r.tasks.map((t) => ({
           task: t.trkorr,
+          type: fmtTaskType(t),
           status: t.status,
           owner: t.owner,
           objects: String(t.objects.length)
         })),
-        ["task", "status", "owner", "objects"]
+        ["task", "type", "status", "owner", "objects"]
       )
     });
   }
@@ -112167,9 +112595,17 @@ async function releaseDryRun(conn, trkorr, ceiling, maxChars, ownership) {
       `${emptyOpenTasks.length} task(s) are still modifiable but hold no objects (${emptyOpenTasks.map((t) => t.trkorr).join(", ")}). Observed on A4H: a release with an empty task still open went through and the request ended Released \u2014 an empty task is not the TR/732 case, so this is not a blocker. If a release does abort on TR/732 anyway, release that task first and retry.`
     );
   }
-  if (owned === false) {
+  if (created.kind === "journal") {
     notes.push(
-      `${r.trkorr} was NOT created by this session \u2014 releasing it would also transport whatever earlier work left in it. abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
+      `${r.trkorr} was created by abapsmith earlier (journal entry ${created.entry.id}), but not by this server process \u2014 the release guard counts only this process, so abap_transport_release will still refuse unless you also pass confirm_unowned: "${trkorr}".`
+    );
+  } else if (created.kind === "no") {
+    notes.push(
+      `${r.trkorr} was NOT created by abapsmith (not by this server process, and no transport-create entry for it in this system's journal) \u2014 releasing it would also transport whatever earlier work left in it. abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
+    );
+  } else if (created.kind === "unknown") {
+    notes.push(
+      `${r.trkorr} was not created by this server process, and ${created.why} \u2014 so abapsmith cannot tell whether an earlier process created it. Releasing it would also transport whatever earlier work left in it; abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
     );
   }
   return buildResponse({
@@ -112179,7 +112615,7 @@ async function releaseDryRun(conn, trkorr, ceiling, maxChars, ownership) {
       mode: "dry run",
       status: fmtStatus(r.status, r.statusText),
       owner: r.owner,
-      createdThisSession: owned === void 0 ? void 0 : owned ? "yes" : "no",
+      createdByAbapsmith: createdByField(created),
       description: r.description,
       target: fmtTarget(r),
       tasks: r.tasks.length,
@@ -119359,6 +119795,7 @@ function registerFpmTools(mcp, deps) {
 
 // src/adt/img-catalog.ts
 var MEASURED_NOTE = "measured 2026-09-05";
+var MEASURED_NOTE_CHECKS = "measured 2026-09-12";
 var IMG_CATALOG = Object.freeze({
   ddicTable: Object.freeze({
     table: "DD02L",
@@ -119393,7 +119830,9 @@ var IMG_CATALOG = Object.freeze({
       dataElement: "ROLLNAME",
       dataType: "DATATYPE",
       length: "LENG",
-      activeState: "AS4LOCAL"
+      activeState: "AS4LOCAL",
+      checkTable: "CHECKTABLE",
+      domainName: "DOMNAME"
     }),
     confidence: "high"
   }),
@@ -119638,6 +120077,42 @@ var IMG_CATALOG = Object.freeze({
     }),
     confidence: "high",
     note: MEASURED_NOTE + ": ID is the tree's GUID, not a mnemonic \u2014 WHERE id IN ('SIMG','SIMG_ALL','IMG','CUST') returned 0 rows (TTREET has no text rows for those ids either), so the reference IMG has to be found by title text in TNODEIMGT rather than by a well-known id. TTREE's own column literally named TREE_ID is blank on every row seen (filtering on tree_id IN (...) with real tree ids returned 0 rows; filtering the same tree by id = '<guid>' found it immediately, with TREE_ID blank in the returned row) \u2014 a tree's identity lives in TTREE.ID, and TREE_ID must never be used as a join key or lookup column."
+  }),
+  domainValue: Object.freeze({
+    table: "DD07L",
+    fields: Object.freeze({
+      domain: "DOMNAME",
+      position: "VALPOS",
+      valueLow: "DOMVALUE_L",
+      valueHigh: "DOMVALUE_H",
+      appendValue: "APPVAL",
+      activeState: "AS4LOCAL"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS + ": a domain with no fixed values simply has no rows here \u2014 that is not an error condition. A non-blank DOMVALUE_H means the row describes a RANGE of values, not a single fixed value, and must not be compared against a written value the same way a single-value row is."
+  }),
+  domainValueText: Object.freeze({
+    table: "DD07T",
+    fields: Object.freeze({
+      domain: "DOMNAME",
+      position: "VALPOS",
+      valueLow: "DOMVALUE_L",
+      language: "DDLANGUAGE",
+      text: "DDTEXT",
+      activeState: "AS4LOCAL"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS
+  }),
+  viewMaintenanceEvent: Object.freeze({
+    table: "TVIMF",
+    fields: Object.freeze({
+      view: "TABNAME",
+      event: "EVENT",
+      formName: "FORMNAME"
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS + ": TVIMF has only these three columns \u2014 no client column and no AS4LOCAL column, so a query over it must not filter on an active-version flag the way most other catalog tables here do. TABNAME holds the maintenance view name (e.g. V_TB003), not the base table it maintains. EVENT is drawn from domain MAINTEVENT (see MAINTENANCE_EVENT_DOMAIN below)."
   })
 });
 var IMG_CATALOG_VERIFIED = true;
@@ -119648,6 +120123,7 @@ function lowConfidenceTables() {
 var IMG_ACTIVITY_REF_TYPE = "COBJ";
 var IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
 var IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"]);
+var MAINTENANCE_EVENT_DOMAIN = "MAINTEVENT";
 
 // src/adt/datapreview.ts
 var PLAIN_NAME_RE = /^[A-Z][A-Z0-9_]{0,29}$/;
@@ -120030,6 +120506,13 @@ function buildTableFieldsQuery(tableNames) {
   const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
   return buildSelect(cols.join(", "), tbl("ddicField"), where2, `${table}, ${fld("ddicField", "position")}`);
 }
+function buildTableFieldChecksQuery(tableNames) {
+  const table = fld("ddicField", "table");
+  const activeState = fld("ddicField", "activeState");
+  const cols = ["table", "field", "position", "checkTable", "domainName"].map((c) => fld("ddicField", c));
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(table, tableNames, "tableNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl("ddicField"), where2, `${table}, ${fld("ddicField", "position")}`);
+}
 function buildTableTextsQuery(tableNames, language) {
   const table = fld("ddicTableText", "table");
   const activeState = fld("ddicTableText", "activeState");
@@ -120069,6 +120552,18 @@ function buildViewBaseTablesQuery(viewNames) {
   const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(view, viewNames, "viewNames", assertEntityName)];
   return buildSelect(`${view}, ${table}, ${position}`, tbl("viewBaseTable"), where2, `${view}, ${position}`);
 }
+function buildViewsOverTableQuery(tableNames) {
+  const view = fld("viewBaseTable", "view");
+  const activeState = fld("viewBaseTable", "activeState");
+  const table = fld("viewBaseTable", "table");
+  const position = fld("viewBaseTable", "position");
+  const where2 = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${position} = ${sqlLiteral("0001")}`,
+    inClause(table, tableNames, "tableNames", assertEntityName)
+  ];
+  return buildSelect(`${view}, ${table}, ${position}`, tbl("viewBaseTable"), where2, view);
+}
 function buildViewFieldsQuery(viewNames) {
   const view = fld("viewField", "view");
   const activeState = fld("viewField", "activeState");
@@ -120090,6 +120585,33 @@ function buildTransactionTextsQuery(tcodes, language) {
     inClause(tcode, tcodes, "tcodes", assertTransactionCode2)
   ];
   return buildSelect(`${tcode}, ${text3}`, tbl("transactionText"), where2);
+}
+function buildViewMaintenanceEventsQuery(viewNames) {
+  const view = fld("viewMaintenanceEvent", "view");
+  const event = fld("viewMaintenanceEvent", "event");
+  const formName = fld("viewMaintenanceEvent", "formName");
+  const where2 = [inClause(view, viewNames, "viewNames", assertEntityName)];
+  return buildSelect(`${view}, ${event}, ${formName}`, tbl("viewMaintenanceEvent"), where2, `${view}, ${event}`);
+}
+function buildDomainFixedValuesQuery(domainNames) {
+  const domain2 = fld("domainValue", "domain");
+  const activeState = fld("domainValue", "activeState");
+  const cols = ["domain", "position", "valueLow", "valueHigh", "appendValue"].map((c) => fld("domainValue", c));
+  const where2 = [`${activeState} = ${sqlLiteral("A")}`, inClause(domain2, domainNames, "domainNames", assertEntityName)];
+  return buildSelect(cols.join(", "), tbl("domainValue"), where2, `${domain2}, ${fld("domainValue", "position")}`);
+}
+function buildDomainValueTextsQuery(domainNames, language) {
+  const domain2 = fld("domainValueText", "domain");
+  const activeState = fld("domainValueText", "activeState");
+  const lang = fld("domainValueText", "language");
+  const valueLow = fld("domainValueText", "valueLow");
+  const text3 = fld("domainValueText", "text");
+  const where2 = [
+    `${activeState} = ${sqlLiteral("A")}`,
+    `${lang} = ${sqlLiteral(assertImgLanguage(language))}`,
+    inClause(domain2, domainNames, "domainNames", assertEntityName)
+  ];
+  return buildSelect(`${domain2}, ${valueLow}, ${text3}`, tbl("domainValueText"), where2, `${domain2}, ${valueLow}`);
 }
 function buildTreeRootProbeQuery(language) {
   const treeId = fld("imgTreeNodeText", "treeId");
@@ -122157,6 +122679,210 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
   return { allowed: true, notes };
 }
 
+// src/adt/img-checks.ts
+function tbl3(key) {
+  return IMG_CATALOG[key].table;
+}
+function fld3(key, field) {
+  const fields = IMG_CATALOG[key].fields;
+  return fields[field];
+}
+var IMG_CHECKS_ROW_CAP = 200;
+var TVIMF_LOOKUP_MAX = 20;
+async function runQuery(conn, ctx, sql) {
+  const resp = await conn.dataPreviewFreestyle(sql, IMG_CHECKS_ROW_CAP);
+  ctx.statementsIssued++;
+  return toRecordSet(resp.body);
+}
+function serverNotes2(rs) {
+  return rs.messages.map((m) => `[server] ${m.text}${m.severity ? ` (${m.severity})` : ""}`);
+}
+function mapRows(rs, queryLabel, notes, fn) {
+  const out = [];
+  let skipped = 0;
+  for (const r of rs.records) {
+    const v = fn(r);
+    if (v === void 0) {
+      skipped++;
+      continue;
+    }
+    out.push(v);
+  }
+  if (skipped > 0) {
+    notes.push(`${queryLabel} returned ${skipped} row(s) with an unusable shape (an expected column was missing) \u2014 they were skipped.`);
+  }
+  return out;
+}
+function collectWrittenFields(rows, clientField, checkValues) {
+  const clientUpper = clientField.trim().toUpperCase();
+  const writtenFields = [];
+  const writtenSeen = /* @__PURE__ */ new Set();
+  const valueFields = [];
+  const valueSeen = /* @__PURE__ */ new Set();
+  const addWritten = (name) => {
+    const u = name.toUpperCase();
+    if (u === clientUpper) return;
+    if (!writtenSeen.has(u)) {
+      writtenSeen.add(u);
+      writtenFields.push(u);
+    }
+  };
+  const addValue = (name) => {
+    const u = name.toUpperCase();
+    if (u === clientUpper) return;
+    if (!valueSeen.has(u)) {
+      valueSeen.add(u);
+      valueFields.push(u);
+    }
+  };
+  for (const row2 of rows) {
+    for (const k of Object.keys(row2.key)) addWritten(k);
+    if (checkValues && row2.values) {
+      for (const k of Object.keys(row2.values)) {
+        addWritten(k);
+        addValue(k);
+      }
+    }
+  }
+  return { writtenFields, valueFields };
+}
+function readWrittenValue(row2, field) {
+  if (!row2.values) return void 0;
+  for (const [k, v] of Object.entries(row2.values)) {
+    if (k.toUpperCase() === field) return v;
+  }
+  return void 0;
+}
+async function readImgChecks(conn, q) {
+  const started = Date.now();
+  const ctx = { statementsIssued: 0 };
+  const notes = [];
+  const { writtenFields, valueFields } = collectWrittenFields(q.rows, q.clientField, q.checkValues);
+  const viewsRs = await runQuery(conn, ctx, buildViewsOverTableQuery([q.table]));
+  notes.push(...serverNotes2(viewsRs));
+  const candidateViews = mapRows(viewsRs, tbl3("viewBaseTable"), notes, (r) => r[fld3("viewBaseTable", "view")]);
+  const lookupOrder = [q.view, q.table, ...candidateViews];
+  const seen = /* @__PURE__ */ new Set();
+  const lookupSet = [];
+  for (const raw of lookupOrder) {
+    const v = raw.trim().toUpperCase();
+    if (v === "" || seen.has(v)) continue;
+    seen.add(v);
+    lookupSet.push(v);
+  }
+  const truncated = lookupSet.length > TVIMF_LOOKUP_MAX;
+  const views = truncated ? lookupSet.slice(0, TVIMF_LOOKUP_MAX) : lookupSet;
+  if (truncated) {
+    notes.push(
+      `The ${tbl3("viewMaintenanceEvent")} lookup covers ${views.length} of ${lookupSet.length} candidate view/table names \u2014 the rest were dropped.`
+    );
+  }
+  let events = [];
+  if (views.length > 0) {
+    const eventsRs = await runQuery(conn, ctx, buildViewMaintenanceEventsQuery(views));
+    notes.push(...serverNotes2(eventsRs));
+    events = mapRows(eventsRs, tbl3("viewMaintenanceEvent"), notes, (r) => {
+      const view = r[fld3("viewMaintenanceEvent", "view")];
+      const event = r[fld3("viewMaintenanceEvent", "event")];
+      const formName = r[fld3("viewMaintenanceEvent", "formName")];
+      if (view === void 0 || event === void 0 || formName === void 0) return void 0;
+      return { view, event, formName, description: "" };
+    });
+  }
+  if (events.length > 0) {
+    const codeToText = /* @__PURE__ */ new Map();
+    const textsRs = await runQuery(conn, ctx, buildDomainValueTextsQuery([MAINTENANCE_EVENT_DOMAIN], q.language));
+    notes.push(...serverNotes2(textsRs));
+    mapRows(textsRs, tbl3("domainValueText"), notes, (r) => {
+      const code = r[fld3("domainValueText", "valueLow")];
+      const text3 = r[fld3("domainValueText", "text")];
+      if (code === void 0 || text3 === void 0) return void 0;
+      codeToText.set(code, text3);
+      return true;
+    });
+    const missingCodes = /* @__PURE__ */ new Set();
+    events = events.map((e) => {
+      const description = codeToText.get(e.event);
+      if (description === void 0) missingCodes.add(e.event);
+      return { ...e, description: description ?? "" };
+    });
+    for (const code of missingCodes) {
+      notes.push(`No ${tbl3("domainValueText")} text for maintenance event code "${code}" (domain ${MAINTENANCE_EVENT_DOMAIN}, language "${q.language}").`);
+    }
+  }
+  const checkTables = [];
+  const domainByField = /* @__PURE__ */ new Map();
+  const fieldChecksRs = await runQuery(conn, ctx, buildTableFieldChecksQuery([q.table]));
+  notes.push(...serverNotes2(fieldChecksRs));
+  const fieldInfo = /* @__PURE__ */ new Map();
+  mapRows(fieldChecksRs, tbl3("ddicField"), notes, (r) => {
+    const field = r[fld3("ddicField", "field")];
+    const checkTable = r[fld3("ddicField", "checkTable")];
+    const domain2 = r[fld3("ddicField", "domainName")];
+    if (field === void 0 || checkTable === void 0 || domain2 === void 0) return void 0;
+    fieldInfo.set(field.toUpperCase(), { checkTable, domain: domain2 });
+    return true;
+  });
+  for (const field of writtenFields) {
+    const info = fieldInfo.get(field);
+    if (info === void 0) continue;
+    if (info.checkTable.trim() !== "") checkTables.push({ field, checkTable: info.checkTable.trim() });
+    if (info.domain.trim() !== "") domainByField.set(field, info.domain.trim());
+  }
+  const fixedValueFindings = [];
+  const valueFieldsWithDomain = valueFields.filter((f) => domainByField.has(f));
+  if (q.checkValues && valueFieldsWithDomain.length > 0) {
+    const domains = [...new Set(valueFieldsWithDomain.map((f) => domainByField.get(f)))];
+    const domainRowsMap = /* @__PURE__ */ new Map();
+    const domainValuesRs = await runQuery(conn, ctx, buildDomainFixedValuesQuery(domains));
+    notes.push(...serverNotes2(domainValuesRs));
+    mapRows(domainValuesRs, tbl3("domainValue"), notes, (r) => {
+      const domain2 = r[fld3("domainValue", "domain")];
+      const valueLow = r[fld3("domainValue", "valueLow")];
+      const valueHigh = r[fld3("domainValue", "valueHigh")];
+      if (domain2 === void 0 || valueLow === void 0 || valueHigh === void 0) return void 0;
+      const list5 = domainRowsMap.get(domain2);
+      if (list5) list5.push({ valueLow, valueHigh });
+      else domainRowsMap.set(domain2, [{ valueLow, valueHigh }]);
+      return true;
+    });
+    for (const field of valueFieldsWithDomain) {
+      const domain2 = domainByField.get(field);
+      const domainRows = domainRowsMap.get(domain2);
+      if (domainRows === void 0 || domainRows.length === 0) continue;
+      const isRange = domainRows.some((r) => r.valueHigh.trim() !== "");
+      if (isRange) {
+        notes.push(
+          `Field "${field}"'s domain "${domain2}" defines a value range (${tbl3("domainValue")}.${fld3("domainValue", "valueHigh")} is set on at least one row) \u2014 its written value was not checked against fixed values.`
+        );
+        continue;
+      }
+      const allowed = domainRows.map((r) => r.valueLow);
+      const emitted = /* @__PURE__ */ new Set();
+      for (const row2 of q.rows) {
+        const raw = readWrittenValue(row2, field);
+        if (raw === void 0) continue;
+        const trimmed = raw.trim();
+        if (trimmed === "") continue;
+        if (allowed.some((a) => a.trim().toUpperCase() === trimmed.toUpperCase())) continue;
+        if (emitted.has(trimmed)) continue;
+        emitted.add(trimmed);
+        fixedValueFindings.push({ field, domain: domain2, value: trimmed, allowed });
+      }
+    }
+  }
+  return {
+    table: q.table,
+    views,
+    events,
+    checkTables,
+    fixedValueFindings,
+    notes,
+    statementsIssued: ctx.statementsIssued,
+    durationMs: Date.now() - started
+  };
+}
+
 // src/tools/img-edit.ts
 var imgEditRowSchema = external_exports.object({
   key: external_exports.record(external_exports.string(), external_exports.string()).describe("Key field name -> value, one entry per key_fields."),
@@ -122528,6 +123254,88 @@ function evaluateReal(args, mode, probe3, safety) {
   }
   return verdict;
 }
+async function readChecksSafely(deps, args, mode) {
+  try {
+    return await deps.pool.withRead(
+      "abap_img_edit",
+      (conn) => readImgChecks(conn, {
+        table: args.table,
+        view: args.view,
+        clientField: args.clientField,
+        language: args.language,
+        checkValues: mode !== "delete",
+        rows: args.rows
+      })
+    );
+  } catch (e) {
+    return { failure: truncateText(e.message, MESSAGE_EXCERPT_MAX) };
+  }
+}
+function checksSection(checks) {
+  const parts = [
+    "This tool writes the base table directly. The maintenance dialog's own check logic does not run \u2014 below is what SM30 would have run for this data."
+  ];
+  if ("failure" in checks) {
+    parts.push(
+      `The check metadata could not be read (${checks.failure}), so nothing can be said about which checks SM30 would have run.`
+    );
+    return parts.join("\n\n");
+  }
+  const blocks = [];
+  if (checks.events.length) {
+    const rows = checks.events.map((e) => ({ view: e.view, event: e.event, when: e.description, routine: e.formName }));
+    blocks.push(
+      "Maintenance event routines registered in TVIMF (SM30 calls these; this tool does not):\n" + textTable(rows, ["view", "event", "when", "routine"])
+    );
+  }
+  if (checks.checkTables.length) {
+    const rows = checks.checkTables.map((c) => ({ field: c.field, check_table: c.checkTable }));
+    blocks.push(
+      "Check tables for the fields this call writes (foreign keys not verified):\n" + textTable(rows, ["field", "check_table"])
+    );
+  }
+  if (checks.fixedValueFindings.length) {
+    const rows = checks.fixedValueFindings.map((f) => ({
+      field: f.field,
+      domain: f.domain,
+      value: f.value === "" ? "''" : f.value,
+      allowed: f.allowed.join(", ")
+    }));
+    blocks.push(
+      "Written values that are not fixed values of their domain:\n" + textTable(rows, ["field", "domain", "value", "allowed"])
+    );
+  }
+  if (blocks.length === 0) {
+    parts.push(
+      "No maintenance event routines, check tables or domain fixed values were found for the fields this call writes \u2014 only DDIC typing was enforced here."
+    );
+  } else {
+    parts.push(...blocks);
+  }
+  if (checks.notes.length) {
+    parts.push(`Notes from the check-metadata read:
+${checks.notes.join("\n")}`);
+  }
+  return parts.join("\n\n");
+}
+function checksNotesFor(checks) {
+  if ("failure" in checks) return [];
+  const notes = [];
+  for (const f of checks.fixedValueFindings) {
+    notes.push(
+      `Field ${f.field}: value "${f.value}" is not one of domain ${f.domain}'s fixed values (${f.allowed.join(", ")}). SM30 would have rejected this input; this tool does not.`
+    );
+  }
+  if (checks.events.length) {
+    const formNames = checks.events.map((e) => e.formName);
+    const shownNames = formNames.length > 5 ? [...formNames.slice(0, 5), "..."] : formNames;
+    const viewsWithEvents = [...new Set(checks.events.map((e) => e.view))];
+    notes.push(
+      `${checks.events.length} maintenance event routine(s) registered for ${viewsWithEvents.join(", ")} will not run: ${shownNames.join(", ")}. See CHECKS NOT RUN.`
+    );
+  }
+  return notes;
+}
 function groupByRow(values) {
   const out = /* @__PURE__ */ new Map();
   for (const v of values) {
@@ -122583,14 +123391,16 @@ function renderResolvedSection(r, args) {
 function transportEntryPreview(args, table) {
   return `An armed upsert/delete would record ${args.rows.length} row(s) on transport object TABU ${table.table}, master ${args.masterType} ${args.view}. The actual E071K TABKEY value is computed server-side at apply time (see img-write-bridge.ts's ctsRecordFragment) and is not reproduced here \u2014 this line only names what kind of entry would be filed, not its bytes.`;
 }
-function renderPreview(args, probe3, notes, maxChars) {
+function renderPreview(args, probe3, notes, checks, maxChars) {
   const table = policyTableFromProbe(args, probe3);
   const filteredNotes = notes.filter((n) => n !== SM30_BYPASS_NOTE);
   const t = probe3.transcript;
   if (t.errors.length) filteredNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) filteredNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
+  filteredNotes.push(...checksNotesFor(checks));
   const sections = [
     { title: "CURRENT ROWS", content: currentRowsTable(args, probe3) },
+    { title: "CHECKS NOT RUN", content: checksSection(checks) },
     { title: "TRANSPORT ENTRY (DESCRIPTIVE ONLY)", content: transportEntryPreview(args, table) }
   ];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
@@ -122731,12 +123541,13 @@ function armedDeleteRowsTable(args, apply) {
   }));
   return textTable(rows, ["row", "key", "change", "changed", "result"]);
 }
-function renderArmed(mode, args, apply, notes, journalNote, maxChars) {
+function renderArmed(mode, args, apply, notes, checks, journalNote, maxChars) {
   const t = apply.transcript;
   const finalNotes = [...notes];
   if (journalNote) finalNotes.push(journalNote);
   if (t.errors.length) finalNotes.push(`The bridge reported ${t.errors.length} error line(s): ${t.errors.join("; ")}`);
   if (t.droppedLines) finalNotes.push(`${t.droppedLines} transcript line(s) were not recognised by the parser.`);
+  finalNotes.push(...checksNotesFor(checks));
   if (mode === "delete") {
     const deleteSummaries = rowDeleteSummaries(args.rows, t);
     const absentRows = deleteSummaries.reduce((acc, s, i) => {
@@ -122773,6 +123584,7 @@ ${textTable(trkeyRows, ["row", "tabkey", "trkorr", "recorded_order", "recorded_t
     }
   ] : [];
   if (args.resolution) sections.unshift({ title: "RESOLVED", content: renderResolvedSection(args.resolution, args) });
+  sections.push({ title: "CHECKS NOT RUN", content: checksSection(checks) });
   return buildResponse({
     header: {
       mode,
@@ -122946,8 +123758,9 @@ async function runProbeAndApply(deps, mode, args, opts) {
   const planOp = mode === "preview" ? "upsert" : mode;
   const applyPlan = buildApplyPlan(args, planOp, table);
   validateApplyPlan(applyPlan);
+  const checks = await readChecksSafely(deps, args, mode);
   if (mode === "preview") {
-    return ok14(renderPreview(args, probe3, verdict.notes, deps.cfg.maxResponseChars));
+    return ok14(renderPreview(args, probe3, verdict.notes, checks, deps.cfg.maxResponseChars));
   }
   deps.safety.assert(
     "write",
@@ -122971,7 +123784,7 @@ async function runProbeAndApply(deps, mode, args, opts) {
       reasons: failure.reasons
     });
   }
-  return ok14(renderArmed(mode, args, apply, verdict.notes, journalNote, deps.cfg.maxResponseChars));
+  return ok14(renderArmed(mode, args, apply, verdict.notes, checks, journalNote, deps.cfg.maxResponseChars));
 }
 async function runRowEditMode(deps, mode, input) {
   rejectForMode2(mode, "description", input.description);
@@ -131127,6 +131940,14 @@ var ABAP_DO_ACTIONS = [
     args: "(none \u2014 object is the entry id)"
   },
   {
+    action: "journal_reconcile",
+    group: "journal",
+    minMode: "edit",
+    v1: 'abap_journal({mode:"reconcile"})',
+    summary: "Close a stranded `pending` journal entry with a stated outcome and reason.",
+    args: "outcome (succeeded|failed), reason \u2014 object is the entry id"
+  },
+  {
     action: "undo",
     group: "journal",
     minMode: "edit",
@@ -131700,9 +132521,18 @@ var show = async (ctx, deps) => {
     { tool: "abap_do", args: { action: "undo", object: input.entry }, why: "Undo this entry, restoring the before-image." }
   ]);
 };
+var reconcile = async (ctx, deps) => {
+  const args = withField(withObject(ctx.args, "entry", ctx.object), "mode", "reconcile");
+  const input = parseV1(JournalInput, args);
+  const res = await abapJournal(deps.pool.primary(), input, deps.cfg.maxResponseChars, deps.journal, deps.safety);
+  return doOk(res.text, [
+    { tool: "abap_do", args: { action: "journal_list" }, why: "Confirm the entry no longer reads as stranded." }
+  ]);
+};
 var JOURNAL_HANDLERS = /* @__PURE__ */ new Map([
   ["journal_list", list3],
-  ["journal_show", show]
+  ["journal_show", show],
+  ["journal_reconcile", reconcile]
 ]);
 
 // src/tools/v2/handlers/do/transports.ts
@@ -133245,13 +134075,13 @@ function packageScopeSentence(readOnly, allowPackages) {
   }
   return `ABAP_ALLOW_PACKAGES is [${allowPackages.join(", ")}] here, so only those packages are writable; unset allows every customer package, and an empty value refuses every write.`;
 }
-function instructionsFor(toolSurface, abapMode, readOnly, allowPackages, fluidAvailable = false) {
+function instructionsFor(toolSurface, abapMode, readOnly, allowPackages, fluidAvailable = false, lockedToolCount = 0) {
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   if (toolSurface === "v2") {
     return `Access to an SAP ABAP system over ADT, via 6 tools. EXPERIMENTAL SURFACE \u2014 not supported for production use; known defects are not being fixed while it holds this status. Prefer the v1 surface for anything that matters. Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
   }
-  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "");
+  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "");
 }
 function describeStartupProbeFailure(e) {
   if (isAbapError(e)) return { code: e.code, message: e.message, hint: e.hint };
@@ -133308,6 +134138,7 @@ function createServer(cfg, opts) {
     abapMode: cfg.abapMode
   });
   const toolCapabilities = resolveStaticCapabilities(cfg);
+  const lockedTools = lockedToolsFor(cfg);
   const transport = new SessionTransport({
     allowTransports: cfg.allowTransports,
     whoami: () => cfg.user,
@@ -133335,7 +134166,8 @@ function createServer(cfg, opts) {
         cfg.abapMode,
         cfg.readOnly,
         cfg.allowPackages,
-        toolCapabilities.canUseFluidApi
+        toolCapabilities.canUseFluidApi,
+        lockedTools.length
       )
     }
   );
@@ -133469,6 +134301,7 @@ function createServer(cfg, opts) {
         toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
       });
     }
+    registerLockedTools(mcp, { cfg, errorResult, tools: lockedTools });
   } else {
     const v2Mode = cfg.abapMode ?? "read";
     registerV2Tools(mcp, {

@@ -354,6 +354,80 @@ describe("abap_transport operation: show", () => {
     ).rejects.toMatchObject({ code: "BAD_INPUT", message: expect.stringContaining('"transport"') });
     expect(calls).toHaveLength(0);
   });
+
+  // -------------------------------------------------------------------------
+  // TASKS table `type` column (issue #67): `tm:type` rendered via `fmtTaskType`
+  // — spelled out as sent, except a one-letter TRFUNCTION value is glossed.
+  // -------------------------------------------------------------------------
+
+  it("the TASKS table carries a type column, and A4HK900118 reads its spelled-out tm:type verbatim", async () => {
+    // Ground truth asserted first, the way the D-23 tests in this file do: this
+    // fixture's task really does carry a spelled-out tm:type, not a letter.
+    const fixture = loadCtsFixture("transport-details-with-objects");
+    expect(fixture.body).toContain('tm:number="A4HK900118"');
+    expect(fixture.body).toContain('tm:type="Development/Correction"');
+
+    const { conn } = fakeCtsConnection([fixture]);
+    const res = await abapTransport(
+      conn,
+      transportInput({ operation: "show", transport: "A4HK900117" }),
+      MAX_CHARS,
+    );
+
+    expect(res.text).toMatch(/^task +type +status +owner +objects +description$/m);
+    const row = res.text.split("\n").find((line) => line.includes("A4HK900118"));
+    expect(row).toContain("Development/Correction");
+  });
+
+  it("a task's Unclassified tm:type renders unchanged", async () => {
+    const fixture = loadCtsFixture("transport-details-empty-request");
+    expect(fixture.body).toContain('tm:type="Unclassified"');
+
+    const { conn } = fakeCtsConnection([fixture]);
+    const res = await abapTransport(
+      conn,
+      transportInput({ operation: "show", transport: "A4HK900121" }),
+      MAX_CHARS,
+    );
+
+    const row = res.text.split("\n").find((line) => line.includes("A4HK900122"));
+    expect(row).toContain("Unclassified");
+  });
+
+  it("a one-letter TRFUNCTION value is glossed inline — this is what lets a caller confirm the taskType `abap_img_edit create_request` reports (e.g. Q) without a second tool call", async () => {
+    // `transport-details-with-objects` really does carry the spelled-out form;
+    // rewrite that single occurrence to the one-letter wire form `Q` (customizing
+    // task) and replay it, rather than inventing a shape with no fixture behind it.
+    const real = loadCtsFixture("transport-details-with-objects");
+    expect(real.body).toContain('tm:type="Development/Correction"');
+    const letterBody = real.body.replace('tm:type="Development/Correction"', 'tm:type="Q"');
+    expect(letterBody).not.toBe(real.body);
+
+    const { conn } = fakeCtsConnection([{ status: real.meta.status, body: letterBody }]);
+    const res = await abapTransport(
+      conn,
+      transportInput({ operation: "show", transport: "A4HK900117" }),
+      MAX_CHARS,
+    );
+
+    const row = res.text.split("\n").find((line) => line.includes("A4HK900118"));
+    expect(row).toContain("Q (customizing task)");
+  });
+
+  it("substitution: the header's requestedType reflects the named TASK's own tm:type, not the parent's", async () => {
+    const fixture = loadCtsFixture("transport-details-task-resolves-to-parent");
+    expect(fixture.body).toContain('tm:number="A4HK900132"');
+    expect(fixture.body).toContain('tm:type="Development/Correction"');
+
+    const { conn } = fakeCtsConnection([fixture]);
+    const res = await abapTransport(
+      conn,
+      transportInput({ operation: "show", transport: "A4HK900132" }),
+      MAX_CHARS,
+    );
+
+    expect(res.text).toMatch(/^requestedType: Development\/Correction$/m);
+  });
 });
 
 // ---------------------------------------------------------------------------

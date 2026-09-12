@@ -5,14 +5,23 @@
  *
  * ## 1. The registration gate
  *
- * `abap_atc` registers only when the server can write. That is stricter than
- * "static analysis is a read" intuition suggests, and the reason is in the
- * header of `src/adt/atc.ts`: running ATC **creates a persistent worklist row
- * on the server**, and `execute` is the operation that carries the Z/Y-prefix
- * and package-allowlist rules. A read-only deployment has said it will not
- * leave state behind, so it does not get this tool — not even a refusing
- * version of it, because a tool that is present and refusing still advertises a
- * capability the deployment does not have.
+ * The REAL `abap_atc` (six documented parameters, a `withRead` slot, an
+ * actual ATC run) registers only when the server can write. That is stricter
+ * than "static analysis is a read" intuition suggests, and the reason is in
+ * the header of `src/adt/atc.ts`: running ATC **creates a persistent
+ * worklist row on the server**, and `execute` is the operation that carries
+ * the Z/Y-prefix and package-allowlist rules.
+ *
+ * A read-only deployment does NOT simply lose the tool, though — as of issue
+ * #63 it gets a mode-locked refusal STUB registered under the same name
+ * (`src/tools/locked.ts`), with an empty input schema and a description that
+ * says outright that it is locked and what unlocks it. The old assumption
+ * that "present and refusing still advertises a capability the deployment
+ * does not have" turned out to be the wrong tradeoff in practice: the prior
+ * behavior (registering nothing at all) made a call to `abap_atc` on a
+ * read-only server indistinguishable from a typo'd tool name — `MCP error
+ * -32602: Tool abap_atc not found` either way. Discoverability of the LOCKED
+ * state, with a self-explaining reason, now wins over hiding the name.
  *
  * That gate is asserted in BOTH directions against the REAL server over an
  * in-memory MCP transport, which is the only thing that can answer "what does
@@ -97,12 +106,66 @@ async function listedTools(config: Config): Promise<Tool[]> {
   return tools;
 }
 
+/**
+ * Like {@link listedTools}, but leaves the `Client` open and returns it too —
+ * for tests (issue #63's locked-stub gate) that need to both inspect
+ * `tools/list` AND call a tool over the same in-memory connection. Callers
+ * own the returned client and must `close()` it.
+ */
+async function connectedTools(config: Config): Promise<{ tools: Tool[]; client: Client }> {
+  const srv: AbapsmithServer = createServer(config, {
+    httpClient: routeSystemRoleProbe(new ForbiddenClient() as unknown as HttpClient, {
+      answer: "nonproductive",
+    }),
+    log: () => {},
+    breaker: new AuthCircuitBreaker(),
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test", version: "0.0.0" });
+  await Promise.all([client.connect(clientTransport), srv.mcp.connect(serverTransport)]);
+  const { tools } = await client.listTools();
+  return { tools, client };
+}
+
 // ------------------------------------------------------- registration gate ---
 
 describe("abap_atc registration gate", () => {
-  it("is NOT advertised by a read-only server", async () => {
-    const tools = await listedTools(cfg({ readOnly: true }));
-    expect(tools.map((t) => t.name)).not.toContain("abap_atc");
+  it("is advertised as a locked refusal stub, not the real tool, on a read-only server (issue #63)", async () => {
+    // `cfg({ readOnly: true })` is the LEGACY branch, not `ABAP_MODE=read`:
+    // `cfg()` spreads `over` on top of a plain `ConfigSchema.parse()` result,
+    // and `abapMode`/`capabilities` are never produced by that schema at all
+    // (see the `Config` type's doc comment in src/config.ts — they're bolted
+    // on only by `loadConfig()`'s env-driven resolution). So this config's
+    // `abapMode` is `undefined`, and the stub's remediation must name the
+    // legacy env var (`ABAP_ALLOW_WRITE`), not `ABAP_MODE=edit`.
+    const { tools, client } = await connectedTools(cfg({ readOnly: true }));
+    try {
+      const atc = tools.find((t) => t.name === "abap_atc");
+      expect(atc, "abap_atc missing from a read-only server's tool list").toBeDefined();
+
+      // No inputSchema at all (an empty-object schema) is what distinguishes
+      // the stub from the real tool, whose schema has six properties (see
+      // "advertises exactly the six documented parameters" above).
+      const properties = (atc?.inputSchema as { properties?: Record<string, unknown> } | undefined)
+        ?.properties;
+      expect(properties === undefined || Object.keys(properties).length === 0).toBe(true);
+      expect(atc?.description ?? "").toContain("LOCKED");
+
+      // Calling it must refuse structurally, not attempt a network round trip
+      // (the ForbiddenClient wired into connectedTools would throw on any
+      // HTTP request) — a stub handler holds no pool/connection dependency.
+      const res = await client.callTool({ name: "abap_atc", arguments: { object: "ZCL_X" } });
+      expect(res.isError).toBe(true);
+      const part = res.content[0];
+      if (!part || part.type !== "text") throw new Error("expected a text content part");
+      const payload = JSON.parse(part.text) as { error?: string; message?: string; hint?: string };
+      expect(payload.error).toBe("READ_ONLY");
+      expect(payload.message ?? "").toContain("abap_atc");
+      expect(payload.message ?? "").toContain("Nothing was sent to the SAP system.");
+      expect(payload.hint ?? "").toContain("ABAP_ALLOW_WRITE=true");
+    } finally {
+      await client.close();
+    }
   });
 
   it("is advertised once the server can write", async () => {
@@ -110,12 +173,26 @@ describe("abap_atc registration gate", () => {
     expect(tools.map((t) => t.name)).toContain("abap_atc");
   });
 
-  it("nothing in a read-only server's tool list mentions ATC", async () => {
-    // The stronger form of the gate: a read-only deployment should not learn
-    // from the tool list that ATC exists here at all, or it will ask for it.
+  it("a read-only server's tool list DOES mention ATC — as a self-explaining locked stub (issue #63)", async () => {
+    // Reversed on purpose. The old assertion here (`blob` must not match
+    // /\bATC\b/) encoded the pre-#63 belief that a read-only deployment
+    // should not even learn ATC exists, or "it will ask for it". Issue #63
+    // is exactly the rejection of that: hiding the tool made a legitimate
+    // call indistinguishable from a typo ("Tool abap_atc not found" either
+    // way), so the fix registers a locked stub under the real name instead.
+    // Do NOT restore the old "must not mention ATC" assertion — the stub's
+    // whole point is that the tool list explains, unprompted, why abap_atc
+    // is here but refuses.
     const tools = await listedTools(cfg({ readOnly: true }));
-    const blob = JSON.stringify(tools);
-    expect(blob).not.toMatch(/\bATC\b/);
+    const atc = tools.find((t) => t.name === "abap_atc");
+    expect(atc, "abap_atc missing from a read-only server's tool list").toBeDefined();
+    const description = atc?.description ?? "";
+    expect(description).toMatch(/ATC|ABAP Test Cockpit/);
+    expect(description).toContain("LOCKED");
+    // Names the legacy remediation flag for this (abapMode-less) config —
+    // see the previous test's comment for why it's this flag and not
+    // ABAP_MODE=edit.
+    expect(description).toContain("ABAP_ALLOW_WRITE=true");
   });
 
   it("advertises exactly the six documented parameters, all but one optional", async () => {

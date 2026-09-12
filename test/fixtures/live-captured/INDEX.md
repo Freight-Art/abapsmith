@@ -593,3 +593,19 @@ Numeric values are zero-padded on the wire: `<dtel:shortFieldLength>07</dtel:sho
 Caveat: the `*FieldMaxLength` values in this capture are 10/20/40/55, but that is a single object.
 One data element does not establish those as system-wide constants rather than values specific to
 `S_CARR_ID`.
+
+## 2026-09-12 — quickSearch `objectType=FUGR` vs. function modules (846-851)
+
+Same A4H appliance, issue #64. Six captures pin down what quickSearch's `objectType` filter
+actually matches for a `FUGR/FF` function module. `846`, untyped `query=BUP_ROLES_GET_ALL`, finds
+the module as a single `FUGR/FF` row and carries its owning function group nowhere except
+`adtcore:uri` (`/sap/bc/adt/functions/groups/buda/fmodules/bup_roles_get_all`) — `packageName` on
+that row is `S_BUPA_GENERAL`, the module's own package, not `BUDA`. `847`, the same query with
+`objectType=FUGR`, comes back **empty**: `FUGR` alone matches function groups, not modules filed
+under one. `848`, `objectType=FUGR/FF`, does find the module, but the row loses
+`adtcore:description` (it keeps `packageName`). `849` confirms the `objectType=FUGR` read: querying
+`BUDA` (the group itself) with `objectType=FUGR` finds it, as `FUGR/F`. `850` and `851` show a
+second, unrelated gap: `850` searches `ENQUEUE_E_TABLE` untyped and gets nothing, while `851` reads
+that same module directly at `/sap/bc/adt/functions/groups/etable/fmodules/enqueue_e_table` and
+gets a plain `200` with full metadata — quickSearch does not index generated function modules at
+all, so its silence is not evidence the object is missing.

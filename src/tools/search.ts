@@ -10,7 +10,7 @@ import { AbapError } from "../adt/errors.js";
 import { resolveObject } from "../adt/resolve.js";
 import { repairSearchDescriptions } from "../adt/search-descriptions.js";
 import { buildResponse, textTable, type BuiltResponse } from "../compact.js";
-import { specForKeyword, specForType, TYPES } from "../adt/types.js";
+import { specForKeyword, specForType, specFromUri, TYPES } from "../adt/types.js";
 import { truncateForDisplay } from "../truncate.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
@@ -18,6 +18,23 @@ import type { SafetyGate } from "../safety.js";
 
 const DESCRIPTION_COL_WIDE = 70;
 const DESCRIPTION_COL_NARROW = 60;
+
+/**
+ * The container a row's ADT URI names — the function group for FUGR/FF and
+ * FUGR/I rows. The search result carries it nowhere else: `packageName` is the
+ * module's package (S_BUPA_GENERAL for BUP_ROLES_GET_ALL), not its group
+ * (BUDA), so without this a FUGR/FF hit named no way to address the object.
+ */
+function groupFromUri(uri: string | undefined): string {
+  if (!uri) return "";
+  try {
+    return specFromUri(uri)?.parent ?? "";
+  } catch {
+    // specFromUri throws on an unreadable class-include URI. A rendering
+    // column must not turn that into a failed search.
+    return "";
+  }
+}
 
 /** Every bare kind and full type code the registry knows: "CLAS" and "CLAS/OC". */
 const KNOWN_TYPES: string[] = [...new Set(TYPES.flatMap((t) => [t.kind, t.type]))].sort();
@@ -185,12 +202,20 @@ async function searchObjects(
   const rows = capped.map((r) => ({
     type: r["adtcore:type"] ?? "",
     name: r["adtcore:name"] ?? "",
+    group: groupFromUri(r["adtcore:uri"]),
     package: r["adtcore:packageName"] ?? "",
     description: truncateForDisplay(r["adtcore:description"] ?? "", DESCRIPTION_COL_WIDE),
   }));
 
+  // The `group` column only appears when at least one displayed row has one,
+  // so an ordinary (non-parented) search renders exactly as it did before.
+  const hasGroup = rows.some((r) => r.group !== "");
+  const columns = hasGroup
+    ? ["type", "name", "group", "package", "description"]
+    : ["type", "name", "package", "description"];
+
   const body = rows.length
-    ? [textTable(rows, ["type", "name", "package", "description"]), capLine, windowLine]
+    ? [textTable(rows, columns), capLine, windowLine]
         .filter((line): line is string => line !== undefined)
         .join("\n")
     : droppedByFilter > 0
@@ -222,7 +247,14 @@ async function searchObjects(
     notes,
     // abap_search has no offset/paging parameter — `max` is the only lever, so
     // the hint must not promise one.
-    hints: ["Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200)."],
+    hints: [
+      "Narrow the pattern or set `type` to reduce the result set, or raise `max` (<=200).",
+      ...(hasGroup
+        ? [
+            "`group` is the function group a FUGR row lives in — `package` is the module's own package, not its group.",
+          ]
+        : []),
+    ],
     maxChars,
   });
 }

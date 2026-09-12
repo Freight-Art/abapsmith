@@ -19,6 +19,22 @@
   remedy, and SE19 is SAPGUI.
 - **No search-help (SHLP/DH) write.** No dedicated ADT collection exists — not
   gated, not broken, simply absent from the server's own routing table.
+- **`abap_img_edit` still writes past the maintenance view's own check
+  logic, but now says what it wrote past.** A customizing row is applied
+  with a plain `MODIFY`/`DELETE` on the resolved base table, not through
+  the view's generated table-maintenance function module, so the
+  foreign-key checks, fixed-value checks, and maintenance-event routines
+  SM30 would run on that data never run here — a row SM30 would refuse can
+  still go in. `preview`, `upsert`, and `delete` responses now carry a
+  `CHECKS NOT RUN` section naming what was skipped for that write: the
+  `TVIMF` maintenance event routines registered for the relevant views,
+  the check tables of the fields being written, and any value that isn't
+  one of its domain's fixed values — see `doc/TOOLS/abap-img-edit.md` for
+  what it lists and its deliberate gaps. That section is a read-only DDIC
+  lookup, not a second check: it changes what a caller can see before
+  arming the call, not what the tool will do. It still never refuses a row
+  on the grounds it lists, and it still does not run the view's
+  maintenance function module or `VIEW_MAINTENANCE_CALL`.
 - **`VIEW/DV` cannot be read back or changed once created; a package is
   deletable, but only while empty.** `VIEW/DV` (classic/DDIC view) is
   created through a generated `IF_OO_ADT_CLASSRUN` bridge (`RS_CORR_INSERT`

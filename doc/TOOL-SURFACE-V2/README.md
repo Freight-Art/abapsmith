@@ -16,10 +16,17 @@ active per process — no value registers both, since v2 reuses several v1
 tool names and dual registration would fail at startup with a
 duplicate-tool error.
 
-v1 is 22 narrow tools, one per operation (a few gated behind capability flags
-— `abap_transport_release` needs release capability granted, `abap_ui`,
-`abap_data_preview` and the write-shaped tools need write mode). v2
-consolidates the same functionality into six:
+v1 is 22 narrow tools, one per operation. Most of that count is stable
+across `ABAP_MODE`: `abap_transport_release`, `abap_ui`, and the
+write-shaped tools (`abap_write`, `abap_run`, `abap_test`, `abap_atc`,
+`abap_quick_fix`, `abap_fpm_read`, `abap_img_edit`, `abap_bopf_test`,
+`abap_bopf_edit`, `abap_bopf_delete`) are always listed — without write
+mode they register as mode-locked refusal stubs rather than being absent
+(see `doc/TOOLS/availability-and-capabilities.md`'s case 4). Only
+`abap_data_preview` is registration-gated by its own out-of-band flag
+(`ABAP_ALLOW_DATA_PREVIEW`, independent of mode) and genuinely disappears
+from `tools/list` without it. v2 consolidates the same functionality into
+six:
 
 | Tool | Purpose |
 |---|---|
@@ -47,7 +54,7 @@ consolidates the same functionality into six:
 | `abap_activate` | `abap_do` (`activate`, `check`) |
 | `abap_run` | `abap_do` (`run`) |
 | `abap_test` | `abap_do` (`test`) |
-| `abap_journal` | `abap_do` (`journal_list`, `journal_show`, `undo`) |
+| `abap_journal` | `abap_do` (`journal_list`, `journal_show`, `undo`, `journal_reconcile`) |
 | `abap_transport` | `abap_do` (`transport_list`, `transport_show`, `transport_check`, `transport_users`, `transport_create`, `transport_add_user`, `transport_set_owner`, `transport_delete`) |
 | `abap_transport_release` | `abap_do` (`transport_release`) |
 | `abap_enh` | `abap_do` (`enh_write_description`, `enh_create_spot`, `enh_add_badi_def`, `enh_add_filter_def`, `enh_create_impl`, `enh_set_filter_values`, `enh_exercise`, `enh_discover_hook_anchors`, `enh_create_hook`) |

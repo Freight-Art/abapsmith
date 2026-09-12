@@ -2316,12 +2316,16 @@ describe("tool surface", () => {
   });
 
   /**
-   * Registration-time tool filtering. A read-only server must never even
-   * ADVERTISE the mutating tools in `tools/list` — not just refuse them at
-   * call time (that refusal is `SafetyGate`'s job, proven separately by the
-   * "safety gate refuses writes before the network" suite above). This is
-   * defense-in-depth on top of that: a smaller advertised surface is a
-   * smaller surface an LLM can be tricked into reaching for.
+   * Registration-time tool filtering. A read-only server used to never even
+   * ADVERTISE the mutating tools in `tools/list`. Since issue #63, it still
+   * doesn't advertise the REAL tool — but it now advertises a locked
+   * refusal STUB under the same name (`src/tools/locked.ts`), so a caller
+   * gets a self-explaining `READ_ONLY` refusal instead of an MCP "tool not
+   * found" indistinguishable from a typo. Call-time refusal is still
+   * `SafetyGate`'s job for the real tool on a writable server (proven
+   * separately by the "safety gate refuses writes before the network" suite
+   * above) — this suite is about what a read-only server advertises, and in
+   * what shape.
    */
   describe("registration-time filtering", () => {
     const MUTATING_TOOLS = [
@@ -2359,16 +2363,28 @@ describe("tool surface", () => {
       "abap_img",
     ];
 
-    it("excludes every mutating tool from tools/list on a read-only server", async () => {
+    it("stubs every mutating tool as a locked refusal (not a real tool) on a read-only server (issue #63)", async () => {
       const h = await harness(cfg()); // read-only default
       const { tools } = await h.client.listTools();
-      const names = new Set(tools.map((t) => t.name));
+      const byName = new Map(tools.map((t) => [t.name, t]));
 
       for (const name of MUTATING_TOOLS) {
-        expect(names.has(name), `read-only tools/list unexpectedly advertises ${name}`).toBe(false);
+        const tool = byName.get(name);
+        // The name is now PRESENT — that's the fix for issue #63 (a caller
+        // gets a locked refusal, not an MCP "tool not found" indistinguishable
+        // from a typo) — but it must be the STUB, not the real tool: stubs
+        // register with no `inputSchema` at all (empty-object schema; see
+        // `registerLockedTools`'s doc comment in src/tools/locked.ts), while
+        // every real mutating tool's schema has properties.
+        expect(tool, `read-only tools/list is missing locked stub ${name}`).toBeDefined();
+        const properties = (tool!.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties;
+        expect(
+          properties === undefined || Object.keys(properties).length === 0,
+          `${name} has a non-empty input schema on a read-only server — it looks like the REAL tool leaked through, not a locked stub`,
+        ).toBe(true);
       }
       for (const name of ALWAYS_REGISTERED) {
-        expect(names.has(name), `read-only tools/list is missing always-on tool ${name}`).toBe(true);
+        expect(byName.has(name), `read-only tools/list is missing always-on tool ${name}`).toBe(true);
       }
     });
 
@@ -2382,13 +2398,21 @@ describe("tool surface", () => {
       }
     });
 
-    it("registers strictly fewer tools, and a strictly smaller tools/list, when read-only", async () => {
+    it("registers a strictly smaller tools/list by bytes when read-only (issue #63: counts are no longer smaller)", async () => {
       const readOnly = await harness(cfg());
       const open = await harness(openCfg());
       const readOnlyTools = (await readOnly.client.listTools()).tools;
       const openTools = (await open.client.listTools()).tools;
 
-      expect(readOnlyTools.length).toBeLessThan(openTools.length);
+      // This used to also assert `readOnlyTools.length < openTools.length`.
+      // That's gone on purpose: every mutating tool is now ALWAYS advertised
+      // by name (either as the real tool or as a locked refusal stub — see
+      // `src/tools/locked.ts`), so the read-only and fully-open tools/list
+      // now have the SAME COUNT by design. Equal counts are the point, not
+      // a regression — don't reintroduce a `.length` comparison here. The
+      // stubs are still far cheaper to describe than the real schemas
+      // (empty `inputSchema`, one short description each), so the byte
+      // total remains strictly smaller.
       const size = (t: unknown) => JSON.stringify(t).length;
       expect(size(readOnlyTools)).toBeLessThan(size(openTools));
     });

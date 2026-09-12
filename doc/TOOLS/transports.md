@@ -66,22 +66,110 @@ one row remains for the object, then retry `removeObject`; or release the
 request (irreversible) — neither is something abapsmith can verify will
 succeed under a lock. See `doc/LIMITATIONS/not-implemented-and-unproven.md`.
 
+Journalling follows what the ABAP transcript actually proves. `removeObject`
+is journalled as `transport-remove-object`; a refusal from
+the ABAP side like `CTS_DUPLICATE_ENTRY` that removed nothing is now recorded
+straight away with outcome `failed` (description suffixed `— refused,
+nothing was removed`), not left `pending` — the transcript names no removed
+E071 row, so there is nothing to be unsure about. (A `NOT_FOUND` for an
+object that is not on the request comes from the pre-check, before any
+journal entry is opened, so it records nothing at all.) Only a removal that
+touched at least one row before failing partway through the loop, or a call
+whose response was lost entirely (dropped connection, HTTP failure — the
+ABAP may have run and answered into thin air), stays `pending` for a human
+to resolve with `abap_journal mode=reconcile` once the real outcome is
+known — see [doc/JOURNAL/undo-and-recovery.md](../JOURNAL/undo-and-recovery.md#pending-entries-stranded-and-reconcile).
+
 Example (dry-run delete):
 
 ```json
 { "operation": "delete", "transport": "A4HK900123" }
 ```
 
+### `createdByAbapsmith`
+
+`operation=show`, and the `abap_transport_release` dry run, report a
+`createdByAbapsmith` header field instead of the old `createdThisSession:
+yes|no`. It is resolved in this order:
+
+- No session-ownership record was given to the call — the field is
+  omitted entirely. Unchanged from before: the check is opt-in, and a
+  direct caller that supplies none gets no claim at all.
+- This server process created the request, per its own in-memory record —
+  `yes (this server process)`.
+- Otherwise the write journal is read for a `transport-create` entry
+  filed under the request number — or, when the call named a task number
+  that CTS resolved to its parent, under either that task number or the
+  parent's — whose `systemKey` matches the connected system and whose
+  outcome is not `failed`:
+  - Found — `yes (journal entry <id>)`.
+  - Journal on, nothing found — `no (not this process; no journal entry
+    on <SID>)`.
+  - Journal off (`ABAP_JOURNAL=off`) — `unknown — the journal is off`.
+  - Journal unreadable — `unknown — the journal could not be read`.
+  - No journal supplied to the call — `unknown — no journal was supplied
+    to this call`.
+
+This matters because the old note came from process memory alone: a host
+that starts a fresh server per call, or any restart, reported every
+request abapsmith itself had created as one it did not create. The
+journal outlives the process; the in-memory record does not.
+
+Journal evidence does not change what `abap_transport_release`'s
+ownership gate checks: the `BAD_INPUT` refusal that demands
+`confirm_unowned` still counts only requests created by the running
+server process. A request with journal evidence but no in-process record
+is reported as `yes (journal entry ...)` and still needs
+`confirm_unowned` to be released — both the `show` note and the dry-run
+note say so. That split is deliberate: reporting can rely on a record
+written earlier, but an irreversible act asks the caller to confirm in
+the process that performs it.
+
+Two things deliberately do not count as evidence: a `transport-create`
+entry with no `systemKey` (journal directories are namespaced per SID
+only, so an entry that does not name its box cannot prove it is this
+one), and a `failed` `transport-create` entry (it records a create that
+did not land).
+
+### Task type
+
+The `TASKS` table on `operation=show`, and on the release dry run's own
+`TASKS` table, gains a `type` column: the raw `tm:type` exactly as CTS
+sent it. A details response usually spells it out
+(`Development/Correction`, `Unclassified`); the one-letter TRFUNCTION
+form is glossed inline instead — `S (development/correction)`, `R
+(repair)`, `Q (customizing task)`, `X (unclassified task)`. An empty
+value reads `(none)`. No mapping from the spelled-out form back to a
+letter is attempted, because the server's exact wording per type is not
+established here.
+
+This is what lets `abap_img_edit create_request`'s `taskType: Q` be
+checked afterward: until now, `show`'s task list carried number, owner
+and status only, with no way to confirm the type of the task that was
+created.
+
+When the caller names a task number, CTS answers about its parent
+request, and the substitution header (`requested` / `answeredAbout` /
+`requestedStatus`) now also carries `requestedType`, the named task's own
+type — `not known` when the task is not among the parsed tasks, the same
+fallback `requestedStatus` uses.
+
 ## abap_transport_release
 
 Release a transport request. Irreversible — a released request cannot be
 recalled and its changes leave this system.
 
-**Availability**: case 1 — registered only when `canReleaseTransport`
+**Availability**: the real, functional tool needs `canReleaseTransport`
 (`ABAP_MODE=admin` by default, or `edit` mode with the explicit override
 `ABAP_ALLOW_TRANSPORT_RELEASE=true`; legacy path: that same var plus
-`ABAP_ALLOW_WRITE=true`). Split into its own tool deliberately, so the one
-irreversible verb is not reachable by enum-fuzzing `abap_transport`.
+`ABAP_ALLOW_WRITE=true`). Without it, a read-only v1 server registers a
+mode-locked refusal stub under the same name instead of skipping
+registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md));
+its remediation names `ABAP_MODE=admin` specifically, not `edit`, since
+`edit` alone still would not grant release. Split into its own tool
+deliberately, so the one irreversible verb is not reachable by
+enum-fuzzing `abap_transport`.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|

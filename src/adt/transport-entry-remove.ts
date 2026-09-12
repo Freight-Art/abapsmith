@@ -24,6 +24,9 @@ import { runClassicAction } from "./classic-call.js";
 import { assertEnhIdentifier } from "./enhancement-templates.js";
 import { assertTrkorr, type TransportCeilingProof } from "./transports.js";
 
+/** One E071 row the ABAP reports having ALREADY deleted — see `transportPart` (src/adt/fluid/builtin/classic/abap-transport.ts) step 5. */
+const TREN_ROW_RE = /^ZMCP-TREN-ROW (\S+) (\S+) (\S+)/;
+
 export interface TransportEntryRemoveParams {
   /** The request or task believed to hold the entry; the ABAP falls back to its tasks. */
   trkorr: string;
@@ -128,9 +131,37 @@ export async function removeTransportEntryViaBridge(
       holder = holderMatch[1]!;
       continue;
     }
-    const rowMatch = trimmed.match(/^ZMCP-TREN-ROW (\S+) (\S+) (\S+)/);
+    const rowMatch = trimmed.match(TREN_ROW_RE);
     if (rowMatch) removed.push({ pgmid: rowMatch[1]!, object: rowMatch[2]!, name: rowMatch[3]! });
   }
 
   return { run, transcript, holder, removed };
+}
+
+/**
+ * Does `e` carry POSITIVE evidence that CTS removed nothing at all?
+ *
+ * This decides whether a caller may record a DEFINITE `failed` journal
+ * verdict for a clean refusal, instead of leaving the entry `pending` (which
+ * `abap_journal mode=list` then flags STRANDED — telling the operator nobody
+ * knows whether the write landed, which is false when nothing did). Getting
+ * this wrong in the "nothing happened" direction is the worse mistake, so it
+ * is shaped to require proof, not to default to it:
+ *
+ *  - Not an `AbapError`, or its `details.raw` is missing/not a string: no
+ *    transcript to read at all. This is exactly the shape of a dropped
+ *    connection — the ABAP may have run and answered into thin air. "No
+ *    evidence" must never be read as "nothing happened".
+ *  - `raw` names at least one removed row (`TREN_ROW_RE` matches a line):
+ *    CTS WAS touched even though the operation then failed later in the
+ *    loop — also unproven, not a clean refusal.
+ *  - Otherwise — an `AbapError` with a transcript that names no removed
+ *    row — is the one case that is actually proven clean: CTS refused
+ *    before removing anything (e.g. `CTS_DUPLICATE_ENTRY`, `NOT_FOUND`).
+ */
+export function removalTouchedNothing(e: unknown): boolean {
+  if (!(e instanceof AbapError)) return false;
+  const raw = e.details.raw;
+  if (typeof raw !== "string") return false;
+  return !raw.split("\n").some((line) => TREN_ROW_RE.test(line.trim()));
 }

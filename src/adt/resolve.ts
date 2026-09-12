@@ -384,6 +384,12 @@ export async function resolveObject(
     parsed.via === "keyword" ||
     opts.trustHint === true;
 
+  // A parented type with no group in the ref: the group is recoverable from
+  // the search row's URI, so look it up rather than refusing outright.
+  if (spec && certain && spec.parentPath && !parsed.parent) {
+    return resolveParented(conn, spec, parsed);
+  }
+
   if (spec && certain && (!spec.parentPath || parsed.parent)) {
     // Type-certain still doesn't mean package-certain: no ref shape encodes packageName, so
     // it's looked up separately (else SafetyGate saw undefined and denied every such ref).
@@ -457,7 +463,14 @@ export async function searchExact(
   name: string,
   type?: string,
 ): Promise<SearchResult[]> {
-  const kind = type?.split("/")[0];
+  // A nested type cannot be narrowed server-side: `objectType=FUGR` matches
+  // function GROUPS only — it comes back empty for a function module the same
+  // query finds untyped (captures 847-i64-quicksearch-fm-objecttype-fugr and
+  // 846-i64-quicksearch-fm-untyped) — and `objectType=FUGR/I` matches nothing
+  // at all. Asking untyped is what makes a function module findable; callers
+  // filter the extra types out on `adtcore:type` themselves.
+  const spec = type ? specForType(type) : undefined;
+  const kind = spec?.parentPath ? undefined : type?.split("/")[0];
   const results = await conn.adt.searchObject(name, kind, 25);
   // Repaired over the whole group before filtering by name — filtering first
   // would leave nothing to repair.
@@ -507,10 +520,68 @@ async function lookupPackageName(
 ): Promise<string | undefined> {
   try {
     const results = await searchExact(conn, name, type);
-    return results[0]?.["adtcore:packageName"];
+    // searchExact now asks untyped for a parented type (see its comment), so
+    // results[0] may be a same-named object of a different type; prefer the
+    // row that actually matches before falling back to the first hit.
+    const matching = results.find((r) => r["adtcore:type"]?.toUpperCase() === type.toUpperCase());
+    return (matching ?? results[0])?.["adtcore:packageName"];
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Resolve a function module / function-group include that was named without
+ * its group.
+ *
+ * The group is in neither the name nor `adtcore:packageName` — the package of
+ * BUP_ROLES_GET_ALL is S_BUPA_GENERAL while its group is BUDA — so it is taken
+ * from `adtcore:uri`, the only field that carries it. `searchExact` asks
+ * untyped for these types (see its comment), so the rows are filtered back to
+ * `spec` here: without that, a same-named object of another type could be
+ * substituted for the one the caller asked for.
+ */
+async function resolveParented(
+  conn: AbapConnection,
+  spec: TypeSpec,
+  parsed: ParsedRef,
+): Promise<ResolvedObject> {
+  const rows = await searchExact(conn, parsed.name, spec.type);
+
+  const withParent = rows
+    .filter((r) => r["adtcore:type"]?.toUpperCase() === spec.type.toUpperCase())
+    .map((r) => ({ r, parent: specFromUri(cleanUri(r["adtcore:uri"]) ?? "")?.parent }))
+    .filter((x): x is { r: SearchResult; parent: string } => x.parent !== undefined);
+
+  const groups: string[] = [];
+  for (const { parent } of withParent) {
+    if (!groups.includes(parent)) groups.push(parent);
+  }
+
+  if (groups.length === 1) {
+    const match = withParent.find((x) => x.parent === groups[0])!;
+    return finishFromSearch(conn, spec, match.r, parsed);
+  }
+
+  if (groups.length > 1) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${spec.label} ${parsed.name} exists in ${groups.length} function groups (${groups.join(", ")}).`,
+      { name: parsed.name, type: spec.type, groups },
+      `Name the group: "${parsed.name} in ${groups[0]}" or "${groups[0]}/${parsed.name}".`,
+    );
+  }
+
+  const why =
+    spec.type === "FUGR/FF"
+      ? `it does not index generated function modules (ENQUEUE_*, and others), which exist and read fine once the group is named`
+      : `the search does not index ${spec.label.toLowerCase()}s at all`;
+  throw new AbapError(
+    "BAD_INPUT",
+    `${spec.label} ${parsed.name} needs its function group.`,
+    { name: parsed.name, type: spec.type },
+    `The repository search found no ${spec.label.toLowerCase()} called ${parsed.name} to take the group from — ${why}. Say "${parsed.name} in ZFG" or "ZFG/${parsed.name}".`,
+  );
 }
 
 function finishFromSearch(
@@ -590,7 +661,8 @@ function finish(
       "BAD_INPUT",
       `${spec.label} ${name} needs its function group.`,
       { name, type: spec.type },
-      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO".',
+      'Say e.g. "function module Z_FOO in ZFG" or "ZFG/Z_FOO". abap_search {"query":"Z_FOO","type":"FUGR/FF"} ' +
+        "lists the owning group in its `group` column.",
     );
   }
   const uri = cleanUri(extra.uri) ?? parsed.uri ?? buildUri(spec, name, parsed.parent);

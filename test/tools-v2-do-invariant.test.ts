@@ -16,9 +16,9 @@ describe("abap_do dispatch table <-> catalogue keyset equality", () => {
   const catalogueActions = new Set(ABAP_DO_ACTIONS.map((e) => e.action));
   const handlerActions = new Set(DO_HANDLERS.keys());
 
-  it("has exactly 52 catalogue actions", () => {
-    expect(ABAP_DO_ACTIONS.length).toBe(52);
-    expect(catalogueActions.size).toBe(52);
+  it("has exactly 53 catalogue actions", () => {
+    expect(ABAP_DO_ACTIONS.length).toBe(53);
+    expect(catalogueActions.size).toBe(53);
   });
 
   it("every catalogue action has a handler", () => {

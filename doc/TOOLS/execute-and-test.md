@@ -8,7 +8,12 @@ Running and unit-testing ABAP objects. For static analysis, see
 Execute a class (via `IF_OO_ADT_CLASSRUN`) or a report, headlessly, and
 capture its output.
 
-**Availability**: case 1 — registered only when `canWrite`.
+**Availability**: the real, functional tool needs `canWrite`. Without it,
+a read-only v1 server registers a mode-locked refusal stub under the same
+name instead of skipping registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed with an empty schema, refuses every call `READ_ONLY` without
+reaching SAP.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
@@ -48,7 +53,12 @@ Example:
 
 Run ABAP Unit tests for an object and report pass/fail with messages.
 
-**Availability**: case 1 — registered only when `canWrite`.
+**Availability**: the real, functional tool needs `canWrite`. Without it,
+a read-only v1 server registers a mode-locked refusal stub under the same
+name instead of skipping registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed with an empty schema, refuses every call `READ_ONLY` without
+reaching SAP.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|

@@ -5,9 +5,13 @@
 Read FPM/FBI (Floorplan Manager) configuration: find configs, or read one's
 node tree / full UIBB hierarchy / enqueue locks.
 
-**Availability**: case 1 — registered only when `canWrite`. Every mode
+**Availability**: the real, functional tool needs `canWrite`. Every mode
 deploys ABAP in order to read, so the tool needs write capability just to
-register/function, even though nothing it does changes business data. What
+function, even though nothing it does changes business data — but without
+`canWrite`, a read-only v1 server registers a mode-locked refusal stub
+under the same name rather than skipping registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)).
+What
 it deploys differs by mode: `find`/`outline`/`app` run through the fluid API
 (`ZCL_ZMCP_FLUID_FPM` plus a content-addressed invoker in
 `$ABAPSMITH_FLUID_API`, both reused across calls), while `locks` still
@@ -71,9 +75,13 @@ compact mode does not rescue an unnarrowed query — narrow with
 Drive classic dynpro screens via batch input: read a screen's fields/flow
 logic/GUI status, or run a scripted transaction.
 
-**Availability**: case 1 — registered only when `canWrite`. `mode=press`
-additionally needs `ABAP_MODE=admin` **and** `ABAP_ALLOW_UI_PRESS=true`,
-checked at call time (not at registration). `mode=screen` dispatches
+**Availability**: the real, functional tool needs `canWrite`; without it,
+a read-only v1 server registers a mode-locked refusal stub under the same
+name instead of skipping registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)).
+`mode=press` additionally needs `ABAP_MODE=admin` **and**
+`ABAP_ALLOW_UI_PRESS=true`, checked at call time (not at registration).
+`mode=screen` dispatches
 through the fluid API's `ui` tool (static body class `ZCL_ZMCP_FLUID_UI`,
 action `screen`, plus a content-addressed invoker); `mode=press` still
 deploys a per-call generated bridge class. Both are gated on the same

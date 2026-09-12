@@ -20,6 +20,7 @@ export interface CatalogTable {
 }
 
 const MEASURED_NOTE = "measured 2026-09-05";
+const MEASURED_NOTE_CHECKS = "measured 2026-09-12";
 
 export const IMG_CATALOG = Object.freeze({
   ddicTable: Object.freeze({
@@ -56,6 +57,8 @@ export const IMG_CATALOG = Object.freeze({
       dataType: "DATATYPE",
       length: "LENG",
       activeState: "AS4LOCAL",
+      checkTable: "CHECKTABLE",
+      domainName: "DOMNAME",
     }),
     confidence: "high",
   }),
@@ -335,6 +338,51 @@ export const IMG_CATALOG = Object.freeze({
       "'<guid>' found it immediately, with TREE_ID blank in the returned row) — a tree's identity " +
       "lives in TTREE.ID, and TREE_ID must never be used as a join key or lookup column.",
   }),
+  domainValue: Object.freeze({
+    table: "DD07L",
+    fields: Object.freeze({
+      domain: "DOMNAME",
+      position: "VALPOS",
+      valueLow: "DOMVALUE_L",
+      valueHigh: "DOMVALUE_H",
+      appendValue: "APPVAL",
+      activeState: "AS4LOCAL",
+    }),
+    confidence: "high",
+    note:
+      MEASURED_NOTE_CHECKS +
+      ": a domain with no fixed values simply has no rows here — that is not an error condition. " +
+      "A non-blank DOMVALUE_H means the row describes a RANGE of values, not a single fixed value, " +
+      "and must not be compared against a written value the same way a single-value row is.",
+  }),
+  domainValueText: Object.freeze({
+    table: "DD07T",
+    fields: Object.freeze({
+      domain: "DOMNAME",
+      position: "VALPOS",
+      valueLow: "DOMVALUE_L",
+      language: "DDLANGUAGE",
+      text: "DDTEXT",
+      activeState: "AS4LOCAL",
+    }),
+    confidence: "high",
+    note: MEASURED_NOTE_CHECKS,
+  }),
+  viewMaintenanceEvent: Object.freeze({
+    table: "TVIMF",
+    fields: Object.freeze({
+      view: "TABNAME",
+      event: "EVENT",
+      formName: "FORMNAME",
+    }),
+    confidence: "high",
+    note:
+      MEASURED_NOTE_CHECKS +
+      ": TVIMF has only these three columns — no client column and no AS4LOCAL column, so a query " +
+      "over it must not filter on an active-version flag the way most other catalog tables here do. " +
+      "TABNAME holds the maintenance view name (e.g. V_TB003), not the base table it maintains. " +
+      "EVENT is drawn from domain MAINTEVENT (see MAINTENANCE_EVENT_DOMAIN below).",
+  }),
 } satisfies Record<string, CatalogTable>);
 
 export type ImgCatalogKey = keyof typeof IMG_CATALOG;
@@ -372,3 +420,6 @@ export const IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
 
 /** TNODEIMG.NODE_TYPE values seen: IMG0 chapter, IMG activity leaf, REF mount of another tree. */
 export const IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"] as const);
+
+/** Domain whose fixed values name TVIMF-EVENT's codes ("01" = "Before saving the data in the database"). */
+export const MAINTENANCE_EVENT_DOMAIN = "MAINTEVENT";

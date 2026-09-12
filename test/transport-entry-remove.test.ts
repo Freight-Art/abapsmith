@@ -30,9 +30,10 @@ import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { SafetyGate } from "../src/safety.js";
 import { ConfigSchema } from "../src/config.js";
-import { isAbapError, type AbapError } from "../src/adt/errors.js";
+import { AbapError, isAbapError } from "../src/adt/errors.js";
 import { DDIC_ERR_PREFIX } from "../src/adt/ddic-transcript.js";
 import {
+  removalTouchedNothing,
   removeTransportEntryViaBridge,
   type TransportEntryRemoveParams,
 } from "../src/adt/transport-entry-remove.js";
@@ -834,7 +835,13 @@ describe("abap_transport removeObject — journalling", () => {
     expect(blob).not.toContain(WBTYPE);
   });
 
-  it("a thrown bridge error still journals under the resolved holder, stays pending, and warns", async () => {
+  // Pins the NEW behaviour: a "no entry for" refusal produces a transcript
+  // with no ZMCP-TREN-ROW line, so `removalTouchedNothing()` proves CTS
+  // removed nothing and the entry settles `failed` instead of being left
+  // `pending` (the OLD behaviour this test used to pin — every thrown bridge
+  // error stayed `pending` and was flagged STRANDED by `abap_journal
+  // mode=list`, a false alarm for the common case of a clean CTS refusal).
+  it("a refusal that removed nothing journals under the resolved holder and settles failed", async () => {
     const fake = classicFake({
       action: "remove_transport_entry",
       lines: () => [`ZMCP-TREN-HOLDER ${HOLDER}`, `${DDIC_ERR_PREFIX} no entry for ${OBJECT} on ${HOLDER} or its tasks`],
@@ -845,11 +852,91 @@ describe("abap_transport removeObject — journalling", () => {
     const input = transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR });
 
     const err = await catchErr(abapTransport(conn, input, MAX_CHARS, gate, deps()));
-    expect(err.code).toBe("NOT_FOUND");
+    expect(err.code).toBe("NOT_FOUND"); // enrichRemovalRefusal still throws it unchanged
+
+    const entry = await only();
+    expect(entry.outcome).toBe("failed");
+    expect(entry.corrNr).toBe(HOLDER); // holder resolution must not regress
+    expect(entry.error).toContain("Refused, nothing was removed");
+    expect(entry.object.description).toContain("refused, nothing was removed");
+    expect(warn.mock.calls.some((c) => String(c[0]).includes("stays `pending` on purpose"))).toBe(false);
+  });
+
+  // The exact live scenario from the issue: CTS refuses a removeObject
+  // because the request holds two or more E071 rows for the same object.
+  // No row was ever removed, so this also settles `failed`.
+  it("a CTS_DUPLICATE_ENTRY refusal also settles failed", async () => {
+    const errLine = `duplicate E071 entries for ${PGMID} ${OBJTYPE} ${OBJECT} on ${HOLDER}: 2 rows at AS4POS 0001,0002`;
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`ZMCP-TREN-HOLDER ${HOLDER}`, `${DDIC_ERR_PREFIX} ${errLine}`],
+    });
+    const combined = combine(trShowRoute(), quickSearchRoute("empty"), fake.route);
+    const { conn } = await connected(combined);
+    const gate = bridgeAdminGate();
+    const input = transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR });
+
+    const err = await catchErr(abapTransport(conn, input, MAX_CHARS, gate, deps()));
+    expect(err.code).toBe("CTS_DUPLICATE_ENTRY");
+
+    const entry = await only();
+    expect(entry.outcome).toBe("failed");
+    expect(warn.mock.calls.some((c) => String(c[0]).includes("stays `pending` on purpose"))).toBe(false);
+  });
+
+  // A failure AFTER a row was already removed proves CTS WAS touched, so
+  // "nothing happened" is not provable — the entry must stay `pending` (aka
+  // `unproven`) rather than be asserted `failed`, exactly as before this
+  // change. Emits a transcript missing TREN-GONE (see section 6) so it
+  // surfaces as the generic CHECK_FAILED rather than a named refusal.
+  it("a failure after a row was removed still stays pending/unproven", async () => {
+    const fake = classicFake({
+      action: "remove_transport_entry",
+      lines: () => [`ZMCP-TREN-HOLDER ${HOLDER}`, `ZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}`, "TREN-REMOVED"],
+    });
+    const combined = combine(trShowRoute(), quickSearchRoute("empty"), fake.route);
+    const { conn } = await connected(combined);
+    const gate = bridgeAdminGate();
+    const input = transportInput({ operation: "removeObject", transport: TRKORR, object: OBJECT, confirm: TRKORR });
+
+    const err = await catchErr(abapTransport(conn, input, MAX_CHARS, gate, deps()));
+    expect(err.code).toBe("CHECK_FAILED");
 
     const entry = await only();
     expect(entry.outcome).toBe("pending");
-    expect(entry.corrNr).toBe(HOLDER);
     expect(warn.mock.calls.some((c) => String(c[0]).includes("stays `pending` on purpose"))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// removalTouchedNothing() — direct unit tests
+// ---------------------------------------------------------------------------
+
+describe("removalTouchedNothing()", () => {
+  // Absence of a transcript is absence of evidence, not evidence of absence:
+  // a plain Error and an AbapError with no `details.raw` at all could equally
+  // be a dropped connection where the ABAP ran and answered into thin air, so
+  // neither may be read as "nothing was removed".
+  it("a plain Error is not proof anything was untouched", () => {
+    expect(removalTouchedNothing(new Error("boom"))).toBe(false);
+  });
+
+  it("an AbapError with no details.raw is not proof anything was untouched", () => {
+    const e = new AbapError("CHECK_FAILED", "boom", {});
+    expect(removalTouchedNothing(e)).toBe(false);
+  });
+
+  it("an AbapError whose raw names a ZMCP-TREN-ROW line is not untouched — the loop died partway", () => {
+    const e = new AbapError("CHECK_FAILED", "boom", {
+      raw: `ZMCP-TREN-HOLDER ${HOLDER}\nZMCP-TREN-ROW ${PGMID} ${OBJTYPE} ${OBJECT}\nTREN-REMOVED`,
+    });
+    expect(removalTouchedNothing(e)).toBe(false);
+  });
+
+  it("an AbapError whose raw has other lines but no row line is proven untouched", () => {
+    const e = new AbapError("NOT_FOUND", "boom", {
+      raw: `${DDIC_ERR_PREFIX} no entry for ${OBJECT} on ${HOLDER} or its tasks`,
+    });
+    expect(removalTouchedNothing(e)).toBe(true);
   });
 });

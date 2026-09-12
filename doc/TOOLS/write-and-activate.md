@@ -5,7 +5,12 @@
 Create, change or delete (`mode=delete`) an ABAP object: saves,
 syntax-checks, activates. Locking is handled for you.
 
-**Availability**: case 1 — registered only when `canWrite`.
+**Availability**: the real, functional tool needs `canWrite`. Without it,
+a read-only v1 server registers a mode-locked refusal stub under the same
+name instead of skipping registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed with an empty schema, refuses every call `READ_ONLY` without
+reaching SAP.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
@@ -299,7 +304,8 @@ unknown outcome; the journal's `pending | succeeded | failed` model has no
 value for "done, outcome unproven", so that entry is deliberately left
 `pending` and a warning is written to stderr instead of recording something
 the call did not establish — the same convention `abap_transport_release`
-uses. Re-read the object to see its state, and settle the entry by hand. An
+uses. Re-read the object to see its state, then settle the entry by hand with
+`abap_journal mode=reconcile` once its outcome is established. An
 object in a chunk that was never sent at all, because an earlier chunk
 failed first, settles `failed`, with an error saying so.
 

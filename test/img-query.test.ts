@@ -24,16 +24,21 @@ import {
   buildActivityObjectsQuery,
   buildActivityTitleSearchQuery,
   buildActivityTitlesQuery,
+  buildDomainFixedValuesQuery,
+  buildDomainValueTextsQuery,
   buildObjectHeadersQuery,
   buildObjectTablesQuery,
   buildObjectTextsQuery,
   buildTableDeliveryClassQuery,
   buildNodeRefsQuery,
   buildNodesByRefObjectQuery,
+  buildTableFieldChecksQuery,
   buildTableFieldsQuery,
   buildTableTextsQuery,
   buildTransactionsQuery,
   buildTransactionTextsQuery,
+  buildViewMaintenanceEventsQuery,
+  buildViewsOverTableQuery,
   buildSelect,
   buildTreeChildrenQuery,
   buildTreeDirectoryQuery,
@@ -320,6 +325,54 @@ describe("SQL builders — exact strings", () => {
     expect(guidLike.test("PARENT1")).toBe(false);
     expect(guidLike.test("NODE1")).toBe(false);
   });
+
+  // ------------------------------------------------- issue #62: checks ---
+
+  it("buildTableFieldChecksQuery: DD03L CHECKTABLE/DOMNAME columns, active version only, ordered by table then position", () => {
+    expect(buildTableFieldChecksQuery(["TB003"])).toBe(
+      "SELECT TABNAME, FIELDNAME, POSITION, CHECKTABLE, DOMNAME\nFROM DD03L\nWHERE AS4LOCAL = 'A'\n" +
+        "  AND TABNAME IN ('TB003')\nORDER BY TABNAME, POSITION",
+    );
+  });
+
+  it("buildViewsOverTableQuery: filters TABPOS = '0001' and AS4LOCAL = 'A', ordered by view", () => {
+    expect(buildViewsOverTableQuery(["TB003"])).toBe(
+      "SELECT VIEWNAME, TABNAME, TABPOS\nFROM DD26S\nWHERE AS4LOCAL = 'A'\n" +
+        "  AND TABPOS = '0001'\n  AND TABNAME IN ('TB003')\nORDER BY VIEWNAME",
+    );
+  });
+
+  it("buildViewMaintenanceEventsQuery: TVIMF columns, ordered by view then event, no AS4LOCAL predicate", () => {
+    const sql = buildViewMaintenanceEventsQuery(["V_TB003"]);
+    expect(sql).toBe("SELECT TABNAME, EVENT, FORMNAME\nFROM TVIMF\nWHERE TABNAME IN ('V_TB003')\nORDER BY TABNAME, EVENT");
+    // TVIMF has no client/active-version column (see img-catalog.ts's viewMaintenanceEvent note) —
+    // this builder must never filter on one.
+    expect(sql).not.toContain("AS4LOCAL");
+  });
+
+  it("buildViewMaintenanceEventsQuery: multiple view names", () => {
+    expect(buildViewMaintenanceEventsQuery(["V_TB003", "H_TB003", "IBPROLE"])).toBe(
+      "SELECT TABNAME, EVENT, FORMNAME\nFROM TVIMF\nWHERE TABNAME IN ('V_TB003', 'H_TB003', 'IBPROLE')\nORDER BY TABNAME, EVENT",
+    );
+  });
+
+  it("buildDomainFixedValuesQuery: DD07L columns, active version only, ordered by domain then position", () => {
+    expect(buildDomainFixedValuesQuery(["XFELD"])).toBe(
+      "SELECT DOMNAME, VALPOS, DOMVALUE_L, DOMVALUE_H, APPVAL\nFROM DD07L\nWHERE AS4LOCAL = 'A'\n" +
+        "  AND DOMNAME IN ('XFELD')\nORDER BY DOMNAME, VALPOS",
+    );
+  });
+
+  it("buildDomainValueTextsQuery: DD07T columns, language predicate, active version only, ordered by domain then value", () => {
+    expect(buildDomainValueTextsQuery(["MAINTEVENT"], "E")).toBe(
+      "SELECT DOMNAME, DOMVALUE_L, DDTEXT\nFROM DD07T\nWHERE AS4LOCAL = 'A'\n" +
+        "  AND DDLANGUAGE = 'E'\n  AND DOMNAME IN ('MAINTEVENT')\nORDER BY DOMNAME, DOMVALUE_L",
+    );
+  });
+
+  it("buildDomainValueTextsQuery: refuses a malformed language the same way every other text builder does", () => {
+    expectBadInput(() => buildDomainValueTextsQuery(["MAINTEVENT"], "ENG"));
+  });
 });
 
 // ------------------------------------------------------- sweep properties ---
@@ -351,6 +404,11 @@ function noJoinBuilderOutputs(): { name: string; sql: string }[] {
     { name: "buildViewFieldsQuery", sql: buildViewFieldsQuery(["V_T001"]) },
     { name: "buildTransactionsQuery", sql: buildTransactionsQuery(["SE38", "SM30"]) },
     { name: "buildTransactionTextsQuery", sql: buildTransactionTextsQuery(["SE38", "SM30"], "E") },
+    { name: "buildTableFieldChecksQuery", sql: buildTableFieldChecksQuery(["TB003"]) },
+    { name: "buildViewsOverTableQuery", sql: buildViewsOverTableQuery(["TB003"]) },
+    { name: "buildViewMaintenanceEventsQuery", sql: buildViewMaintenanceEventsQuery(["V_TB003"]) },
+    { name: "buildDomainFixedValuesQuery", sql: buildDomainFixedValuesQuery(["XFELD"]) },
+    { name: "buildDomainValueTextsQuery", sql: buildDomainValueTextsQuery(["MAINTEVENT"], "E") },
     // Worst case for line-length: the 50-value cap, at the longest permitted entity name (30 chars).
     {
       name: "buildObjectHeadersQuery (max IN list, max-length names)",
