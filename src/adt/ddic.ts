@@ -10,11 +10,13 @@
  * the git history.
  */
 import { XMLParser } from "fast-xml-parser";
+import type { Node as AdtRepositoryNode } from "abap-adt-api";
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
 import type { ResolvedObject } from "./resolve.js";
 import { isNotFoundError, translateAdtError, type ErrorContext } from "./session.js";
 import { textTable } from "../compact.js";
+import { readTableIndexes, renderIndexSection } from "./index-read.js";
 
 export interface DdicRender {
   /** The pseudo-DDL body, safe to hand to the model. */
@@ -26,6 +28,13 @@ export interface DdicRender {
   notes: string[];
   /** Raw content the etag is computed over. */
   hashInput: string;
+  /**
+   * Overrides the label `src/tools/read.ts` prints above the paged `ddl`
+   * body (default "PSEUDO-DDL"). Set to "OBJECTS" by `readPackage` — a
+   * package listing is not DDL and calling it that would be actively
+   * misleading. Every other renderer leaves this unset.
+   */
+  bodyLabel?: string;
 }
 
 // DDIC descriptors are character data on the wire. Without `parseTagValue:
@@ -782,13 +791,25 @@ function parseDataElementXml(
   };
 }
 
+/** Options threaded into a package-shaped ({@link readPackage}) read. Ignored by every other DDIC kind. */
+export interface DdicReadOptions {
+  /** Restrict a package listing to these ADT type codes, e.g. ["CLAS", "DDLS"]. */
+  readonly types?: readonly string[];
+  /** How many package levels to list. 1 = this package only (default). Capped at {@link MAX_PACKAGE_DEPTH}. */
+  readonly depth?: number;
+}
+
 /** Read a DDIC object and render it as pseudo-DDL. Never returns raw XML. */
-export async function readDdic(conn: AbapConnection, obj: ResolvedObject): Promise<DdicRender> {
+export async function readDdic(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  opts: DdicReadOptions = {},
+): Promise<DdicRender> {
   switch (ddicStrategy(obj.kind)) {
     case "source":
       return readTableLike(conn, obj);
     case "package":
-      return readPackage(conn, obj);
+      return readPackage(conn, obj, opts);
     case "xml":
       switch (obj.kind.toUpperCase()) {
         case "DTEL":
@@ -822,11 +843,46 @@ async function readTableLike(conn: AbapConnection, obj: ResolvedObject): Promise
     });
     const parsed = parseDdl(body);
     const digest = renderDdlDigest(parsed);
+    const sections = [...digest.sections];
+    const meta: Record<string, string | number | undefined> = { ...digest.meta };
+    const notes: string[] = [];
+
+    // #86: a TABL/DT read appends a secondary-index section here, AFTER the
+    // field list digest.sections already carries. Placed after, not before,
+    // because a secondary index is defined OVER a table's fields — it reads
+    // as a continuation of the field list, not a header-level fact that
+    // should precede it. Tables only (obj.kind === "TABL"): a STRU structure
+    // is not stored, so it has no secondary index to report. This costs two
+    // extra freestyle SELECTs per table read (DD12V then DD17S — see
+    // src/adt/index-read.ts), on top of the /source/main GET above.
+    //
+    // Non-fatal by design: a table's field list is still a complete, correct
+    // answer even when the index catalog can't be reached, so a failed
+    // re-read here must not fail the whole read — it is caught and turned
+    // into a note instead, one that explicitly says "not read", never "none".
+    if (obj.kind === "TABL") {
+      try {
+        const { indexes, notes: indexNotes } = await readTableIndexes(conn, obj.name);
+        sections.push(renderIndexSection(indexes));
+        notes.push(...indexNotes);
+        // Recorded only on a successful read — an absent field here is honest
+        // ("not read"); a `0` would falsely claim the table has no index.
+        meta.indexes = indexes.length;
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        notes.push(
+          `Secondary index catalog (DD12V/DD17S) could not be read for ${obj.name} (${reason}). ` +
+            `This is NOT evidence the table has no secondary index — it means the index section is ` +
+            `simply missing from this response, not that "none" was confirmed.`,
+        );
+      }
+    }
+
     return {
       ddl: body.replace(/\r\n/g, "\n").trimEnd(),
-      sections: digest.sections,
-      meta: digest.meta,
-      notes: [],
+      sections,
+      meta,
+      notes,
       hashInput: body,
     };
   } catch (e) {
@@ -839,67 +895,396 @@ async function readTableLike(conn: AbapConnection, obj: ResolvedObject): Promise
   }
   try {
     const { body } = await conn.get(obj.uri, { headers: { Accept: "application/*" } });
+    // #86: the index section is intentionally NOT added on this fallback path.
+    // renderTableXmlFallback is a pure sync renderer (no `conn`, no `obj.kind`)
+    // that other callers/tests construct a DdicRender from directly; threading
+    // an async catalog read and a TABL/STRU distinction through it is not a
+    // clean fit for what is already a degraded-fidelity path. A release old
+    // enough to need this fallback (TABL/STRU XML-only, no /source/main) is
+    // not the common case this issue targets.
     return renderTableXmlFallback(body, obj.name, sourceFailure);
   } catch (e) {
     throw classifyDdicFailure(e, ctx);
   }
 }
 
-/** Reads a package via the repository node structure endpoint (POST /repository/nodestructure?parent_type=DEVC/K). Used to be UNSUPPORTED. */
-async function readPackage(conn: AbapConnection, obj: ResolvedObject): Promise<DdicRender> {
+/** Package listing depth cap (issue #74's `depth` option). Each level beyond the first costs one nodestructure round trip per sub-package found at the level above — an unbounded depth turns one abap_read into an unbounded fan-out. */
+const MAX_PACKAGE_DEPTH = 3;
+
+/**
+ * Total nodestructure round trips a single `readPackage` call may spend
+ * EXPANDING sub-packages (i.e. beyond the mandatory level-1 fetch of the
+ * package the caller actually asked for). Independent of `MAX_PACKAGE_DEPTH`:
+ * a package with hundreds of direct sub-packages can exhaust this at depth 2
+ * long before depth itself would stop anything. When it bites, the affected
+ * sub-packages are named in a note (`test/no-silent-truncation.test.ts`
+ * fails an unmarked cap by design) — they are NOT hidden, just not expanded.
+ */
+const MAX_PACKAGE_EXPANSIONS = 25;
+
+interface PackageHeaderView {
+  description?: string;
+  responsible?: string;
+  masterLanguage?: string;
+  changedAt?: string;
+  packageType?: string;
+  superPackage?: string;
+  /** `pak:applicationComponent/@pak:name`, or its `@pak:description` when name is empty — see parsePackageHeaderXml. */
+  applicationComponent?: string;
+  softwareComponent?: string;
+  transportLayer?: string;
+}
+
+/**
+ * Parse a package header descriptor (`GET /sap/bc/adt/packages/<name>`,
+ * `pak:package` root). Field provenance, all confirmed live on A4H
+ * 2026-09-12 (captures 856 SABP_UNIT_CORE_RUNTIME, 857 Z_BADI_CHECK):
+ * `adtcore:description/responsible/masterLanguage/changedAt` on the root,
+ * `pak:attributes/@pak:packageType`, `pak:superPackage/@adtcore:name`,
+ * `pak:applicationComponent/@pak:name` (+`@pak:description`),
+ * `pak:transport/pak:softwareComponent/@pak:name`,
+ * `pak:transport/pak:transportLayer/@pak:name`.
+ */
+function parsePackageHeaderXml(body: string): PackageHeaderView {
+  const doc = xml.parse(body) as Record<string, any>;
+  const root = doc.package ?? {};
+  const attrs = root.attributes ?? {};
+  const appComp = root.applicationComponent ?? {};
+  const transport = root.transport ?? {};
+
+  return {
+    description: xmlAttr(root, "description"),
+    responsible: xmlAttr(root, "responsible"),
+    masterLanguage: xmlAttr(root, "masterLanguage"),
+    changedAt: xmlAttr(root, "changedAt"),
+    packageType: xmlAttr(attrs, "packageType"),
+    // <pak:superPackage/> on a customer package (857) is present but carries
+    // NO attributes at all — fast-xml-parser renders an attribute-free
+    // self-closing element as "" (a string), and xmlAttr's typeof-object
+    // guard already returns undefined for a non-object node. That IS "no
+    // super package", not a parse failure — do not special-case it further.
+    superPackage: xmlAttr(root.superPackage, "name"),
+    // Name is legitimately "" when no application component is assigned
+    // (857: pak:name="" pak:description="No application component
+    // assigned"). Falling back to the description avoids rendering a blank
+    // field that looks like a missed parse.
+    applicationComponent: xmlAttr(appComp, "name") || xmlAttr(appComp, "description"),
+    softwareComponent: xmlAttr(transport.softwareComponent, "name"),
+    transportLayer: xmlAttr(transport.transportLayer, "name"),
+  };
+}
+
+/**
+ * Fetch and parse the package header. Best-effort: `readPackage` renders the
+ * node listing regardless of whether this succeeds — a header failure (any
+ * status, any parse problem) must never turn a working listing into a hard
+ * error, only into a note naming the fields that are now unknown.
+ *
+ * Accept "any media type" (a wildcard-over-wildcard Accept header) —
+ * live-verified on A4H 2026-09-12 (captures 856, 857). The vendor media type
+ * this endpoint's response body actually reports
+ * (`application/vnd.sap.adt.packages.v2+xml`) is NOT what the request
+ * should ask for: asking for `application/vnd.sap.adt.packages.v1+xml,
+ * application/xml` answers `406 ExceptionResourceNotAcceptable`. The
+ * wildcard Accept is the only one observed to work here — this is not
+ * laziness, do not "tighten" it to a specific media type without a fresh
+ * live capture.
+ */
+async function fetchPackageHeader(
+  conn: AbapConnection,
+  ctx: ErrorContext,
+): Promise<{ header?: PackageHeaderView; failure?: string }> {
+  let body: string;
+  try {
+    ({ body } = await conn.get(ctx.uri!, { headers: { Accept: "*/*" } }));
+  } catch (e) {
+    const err = classifyDdicFailure(e, ctx);
+    return { failure: `${err.code} — ${err.message}` };
+  }
+  try {
+    return { header: parsePackageHeaderXml(body) };
+  } catch (e) {
+    return {
+      failure: `header response did not parse as expected (${e instanceof Error ? e.message : String(e)})`,
+    };
+  }
+}
+
+/**
+ * `nodeContents` for one package, tolerant of the zero-byte-200 shape a
+ * package with no contents answers on this system — live-verified A4H
+ * 2026-09-12, captures 852/854/877-881: an empty package is HTTP 200 with a
+ * ZERO-BYTE body, not an empty XML document and not a 404. A same-session
+ * control (SABP_UNIT_ADT through this identical code path, capture 880)
+ * returned 10245 bytes, and a no-request-body variant (capture 881) answers
+ * identically — this is a real, repeatable server behaviour, not a fluke of
+ * one request shape.
+ *
+ * `abap-adt-api`'s own `nodeContents` already treats a falsy response body
+ * as "no nodes" without throwing (`parsePackageResponse`'s `if (data)`
+ * guard), so in practice the catch below is not reached for the empty-body
+ * case today. It stays as a second line of defence: only a failure
+ * `classifyDdicFailure` can pin to an actual numeric HTTP status (a response
+ * that really reached the ABAP handler, even a 401/403/500) is a genuine
+ * transport/auth failure and is re-thrown. Anything else — concretely, a
+ * plain JS exception thrown by the vendor library's own XML parsing, which
+ * never carries a status because it never went through `AdtHTTP`'s
+ * HTTP-error path (see `adtExceptionInfo`'s `hasShape` check in
+ * session.ts) — lands as "no nodes", the same outcome as the zero-byte-200
+ * case it is indistinguishable from at this boundary.
+ */
+async function fetchPackageNodes(
+  conn: AbapConnection,
+  packageName: string,
+  ctx: ErrorContext,
+): Promise<readonly AdtRepositoryNode[]> {
+  try {
+    const result = await conn.adt.nodeContents("DEVC/K", packageName);
+    return result?.nodes ?? [];
+  } catch (e) {
+    const classified = classifyDdicFailure(e, ctx);
+    if (typeof classified.details.status === "number") throw classified;
+    return [];
+  }
+}
+
+/** Trim + upper-case caller-supplied `types` entries once, up front. */
+function normalizedTypeFilters(types: readonly string[] | undefined): string[] {
+  return (types ?? []).map((t) => t.trim().toUpperCase()).filter(Boolean);
+}
+
+/** A filter entry matches a row when it equals the row's full type code (`CLAS/OC`) OR the part before the slash (`CLAS`), case-insensitively — both already normalised by `normalizedTypeFilters`. */
+function rowMatchesTypeFilters(rowType: string, filters: readonly string[]): boolean {
+  if (!filters.length) return true;
+  const full = rowType.toUpperCase();
+  const prefix = full.split("/")[0] ?? full;
+  return filters.some((f) => f === full || f === prefix);
+}
+
+interface PackageObjectRow {
+  /** The package this row was actually listed under (its immediate parent) — not necessarily the package the caller named, once `depth` > 1. */
+  packageName: string;
+  type: string;
+  name: string;
+  description: string;
+}
+
+/**
+ * Reads a package via the repository node structure endpoint (POST
+ * /repository/nodestructure?parent_type=DEVC/K), plus its own header (GET
+ * /sap/bc/adt/packages/<name>). Used to be UNSUPPORTED; issue #74 adds the
+ * header, per-type object counts, and the `types`/`depth` options.
+ */
+async function readPackage(
+  conn: AbapConnection,
+  obj: ResolvedObject,
+  opts: DdicReadOptions,
+): Promise<DdicRender> {
   const ctx: ErrorContext = {
     operation: "read package",
     uri: obj.uri,
     name: obj.name,
     type: obj.type,
   };
-  let nodes;
-  try {
-    nodes = (await conn.adt.nodeContents("DEVC/K", obj.name)).nodes ?? [];
-  } catch (e) {
-    throw classifyDdicFailure(e, ctx);
+
+  const depth = opts.depth ?? 1;
+  if (!Number.isInteger(depth) || depth < 1 || depth > MAX_PACKAGE_DEPTH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `depth must be an integer between 1 and ${MAX_PACKAGE_DEPTH}, got ${JSON.stringify(opts.depth)}. ` +
+        `Each level beyond the first costs one nodestructure round trip per sub-package found at the ` +
+        `level above, so depth is capped rather than left open-ended.`,
+      { depth: opts.depth, maxDepth: MAX_PACKAGE_DEPTH },
+      `Use a depth between 1 and ${MAX_PACKAGE_DEPTH}, or read a sub-package directly: ` +
+        `abap_read {"object":"<SUBPACKAGE>","type":"DEVC/K"}.`,
+    );
+  }
+  const typeFilters = normalizedTypeFilters(opts.types);
+
+  // Breadth-first over sub-packages, one nodestructure call per package per
+  // level. Level 1 is always `obj.name` itself — that call is the mandatory
+  // cost of reading this package at all and does NOT count against
+  // MAX_PACKAGE_EXPANSIONS; only descending further does.
+  const allRows: PackageObjectRow[] = [];
+  const emptyPackages: string[] = [];
+  const notExpanded: string[] = [];
+  let directSubPackages: Array<{ name: string; description: string }> = [];
+  let expansions = 0;
+
+  let frontier: string[] = [obj.name];
+  for (let level = 1; level <= depth && frontier.length > 0; level++) {
+    const nextFrontier: string[] = [];
+    for (const packageName of frontier) {
+      if (level > 1) {
+        if (expansions >= MAX_PACKAGE_EXPANSIONS) {
+          notExpanded.push(packageName);
+          continue;
+        }
+        expansions++;
+      }
+
+      const nodeCtx: ErrorContext = {
+        operation: "read package",
+        uri: `/sap/bc/adt/packages/${packageName.toLowerCase()}`,
+        name: packageName,
+        type: "DEVC/K",
+      };
+      const nodes = await fetchPackageNodes(conn, packageName, nodeCtx);
+      if (nodes.length === 0) emptyPackages.push(packageName);
+
+      // Folder nodes (DEVC/P, DEVC/I, DEVC/N, DEVC/XS, DEVC/KI, DEVC/OC,
+      // DEVC/VT, …) come back with an empty OBJECT_NAME and OBJECT_URI —
+      // dropped by the `n.OBJECT_NAME` filter below. A REAL sub-package is
+      // specifically `DEVC/K` (matched exactly, not `startsWith("DEVC")` —
+      // that older check was only ever correct because this same
+      // empty-name filter ran first and removed every other DEVC/* folder
+      // row; matching the prefix again here would silently let a future
+      // reordering resurrect them as false sub-packages).
+      const rows: PackageObjectRow[] = nodes
+        .filter((n) => n.OBJECT_NAME)
+        .map((n) => ({
+          packageName,
+          type: n.OBJECT_TYPE ?? "",
+          name: n.OBJECT_NAME ?? "",
+          description: (n.DESCRIPTION ?? "").replace(/\s+/g, " ").trim(),
+        }));
+      allRows.push(...rows);
+
+      const subs = rows.filter((r) => r.type.toUpperCase() === "DEVC/K");
+      if (packageName === obj.name) {
+        // withShortDescriptions=true still leaves sub-package DESCRIPTION
+        // empty on the wire — captured as-is, called out in a note below.
+        directSubPackages = subs.map((s) => ({ name: s.name, description: s.description }));
+      }
+      for (const s of subs) nextFrontier.push(s.name);
+    }
+    frontier = nextFrontier;
   }
 
-  const rows = nodes
-    .filter((n) => n.OBJECT_NAME)
-    .map((n) => ({
-      type: n.OBJECT_TYPE ?? "",
-      name: n.OBJECT_NAME ?? "",
-      description: (n.DESCRIPTION ?? "").replace(/\s+/g, " ").trim(),
-    }));
+  const matchedFilters = new Set(
+    typeFilters.filter((f) => allRows.some((r) => rowMatchesTypeFilters(r.type, [f]))),
+  );
+  const unmatchedFilters = typeFilters.filter((f) => !matchedFilters.has(f));
+  const filteredRows = typeFilters.length
+    ? allRows.filter((r) => rowMatchesTypeFilters(r.type, typeFilters))
+    : allRows;
+  // Sort by type then name (never by package) so paging in src/tools/read.ts
+  // is stable across calls regardless of which sub-package a row came from.
+  const sortedRows = [...filteredRows].sort(
+    (a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name),
+  );
 
   const byType = new Map<string, number>();
-  for (const r of rows) byType.set(r.type, (byType.get(r.type) ?? 0) + 1);
-  const subPackages = rows.filter((r) => r.type.toUpperCase().startsWith("DEVC"));
+  for (const r of sortedRows) byType.set(r.type, (byType.get(r.type) ?? 0) + 1);
 
-  const ddl = rows.length
-    ? textTable(rows, ["type", "name", "description"])
-    : `-- package ${obj.name}: the ADT node structure returned no objects. This is what the ` +
-      `server sent, not a rendering failure.`;
+  const columns = depth > 1 ? ["package", "type", "name", "description"] : ["type", "name", "description"];
+  const ddl = sortedRows.length
+    ? textTable(
+        sortedRows.map((r) => ({
+          package: r.packageName,
+          type: r.type,
+          name: r.name,
+          description: r.description,
+        })),
+        columns,
+      )
+    : `-- package ${obj.name}: the ADT node structure returned no objects` +
+      (typeFilters.length ? ` matching types ${typeFilters.join(", ")}` : "") +
+      `. This is what the server sent, not a rendering failure.`;
+
+  const sections: Array<{ title: string; content: string }> = [];
+  if (byType.size) {
+    sections.push({
+      title: "OBJECTS BY TYPE",
+      content: textTable(
+        [...byType.entries()]
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([type, objects]) => ({ type, objects: String(objects) })),
+        ["type", "objects"],
+      ),
+    });
+  }
+  if (directSubPackages.length) {
+    sections.push({
+      title: "SUB-PACKAGES",
+      content: textTable(directSubPackages, ["name", "description"]),
+    });
+  }
+
+  const { header, failure: headerFailure } = await fetchPackageHeader(conn, ctx);
+
+  const notes: string[] = [];
+  if (emptyPackages.length) {
+    notes.push(
+      (emptyPackages.length === 1 && emptyPackages[0] === obj.name
+        ? `Package ${obj.name} has no contents`
+        : `${emptyPackages.length} package(s) had no contents (${emptyPackages.join(", ")})`) +
+        ` — the ADT node structure endpoint answers HTTP 200 with a ZERO-BYTE body for this, not a ` +
+        `404 or an empty document (live-verified). This is a genuinely empty package, not a ` +
+        `truncated or failed read.`,
+    );
+  }
+  if (headerFailure) {
+    notes.push(
+      `Package header could not be read (${headerFailure}). package_type, description, ` +
+        `super_package, software_component, transport_layer, application_component and ` +
+        `responsible are UNKNOWN here, NOT confirmed absent — the node listing below is otherwise ` +
+        `unaffected.`,
+    );
+  }
+  if (unmatchedFilters.length) {
+    notes.push(
+      `types filter matched zero rows for: ${unmatchedFilters.join(", ")}. This does NOT mean the ` +
+        `package has none of these — it may equally mean the type code was mistyped. Compare against ` +
+        `an unfiltered read of this package, or abap_search, before concluding either way.`,
+    );
+  }
+  if (notExpanded.length) {
+    notes.push(
+      `Reached MAX_PACKAGE_EXPANSIONS (${MAX_PACKAGE_EXPANSIONS}) nodestructure round trips before ` +
+        `depth ${depth} finished expanding every sub-package. NOT expanded: ` +
+        notExpanded.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") +
+        `.`,
+    );
+  }
+  if (directSubPackages.length) {
+    notes.push(
+      "Sub-package DESCRIPTION is empty on the wire even with withShortDescriptions=true — this is " +
+        "what the ADT node structure endpoint sends, not a rendering gap.",
+    );
+  }
+  notes.push(
+    `A package is not a DDIC object: OBJECTS below is its node contents (expanded up to depth ` +
+      `${depth}), not pseudo-DDL.`,
+  );
+  notes.push(
+    `Open a row with abap_read {"object":"<name>","type":"<type>"}. PARENT_NAME is empty on every ` +
+      `row at package level, so none of these need parenting to open. A FUGR/F row is a function ` +
+      `group; one of its modules is read as abap_read {"object":"<GROUP>/<MODULE>","type":"FUGR/FF"}. ` +
+      `This is naming guidance, not a claim about what shape a function group takes at package level ` +
+      `— none of the committed nodestructure captures (test/fixtures/live-captured/852, 853, 855) ` +
+      `contain a FUGR row of either kind, so that shape is not itself evidenced here.`,
+  );
 
   return {
     ddl,
-    sections: byType.size
-      ? [
-          {
-            title: "OBJECTS BY TYPE",
-            content: textTable(
-              [...byType.entries()].sort().map(([type, count]) => ({ type, count: String(count) })),
-              ["type", "count"],
-            ),
-          },
-        ]
-      : [],
-    meta: { objects: rows.length, subPackages: subPackages.length || undefined },
-    notes: [
-      "A package is not a DDIC object: this is its direct node contents, not pseudo-DDL.",
-      ...(subPackages.length
-        ? [
-            `${subPackages.length} sub-package(s) are listed but NOT expanded — their contents ` +
-              `are not included here. Read each sub-package to see them.`,
-          ]
-        : []),
-    ],
+    sections,
+    bodyLabel: "OBJECTS",
+    meta: {
+      package_type: header?.packageType,
+      description: header?.description,
+      super_package: header?.superPackage,
+      software_component: header?.softwareComponent,
+      transport_layer: header?.transportLayer,
+      application_component: header?.applicationComponent,
+      responsible: header?.responsible,
+      objects: sortedRows.length,
+      objects_before_filter: typeFilters.length ? allRows.length : undefined,
+      sub_packages: directSubPackages.length || undefined,
+      types: typeFilters.length ? typeFilters.join(", ") : undefined,
+      depth,
+    },
+    notes,
     hashInput: ddl,
   };
 }

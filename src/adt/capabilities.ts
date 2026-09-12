@@ -305,6 +305,19 @@ export interface TypeCapabilities {
    * `assertNoConflictingCapabilities()` below.
    */
   unsupported?: { reason: string; alternative?: string };
+  /**
+   * This type has no ADT resource to resolve a URI against, but abapsmith can
+   * render it read-only from catalog tables over the data-preview endpoint.
+   * `abap_read` dispatches on the explicit `type` hint before `resolveObject`
+   * runs, so these codes are readable even though `resolveObject` still
+   * (correctly) refuses them — there is nothing for it to resolve.
+   */
+  readonly catalogRead?: {
+    /** Which catalog tables the render is assembled from, for the docs and the refusal text. */
+    readonly from: string;
+    /** How the caller names the object, e.g. `ZTAB/Z01` for a parented index. */
+    readonly nameForm: string;
+  };
 }
 
 /**
@@ -1188,12 +1201,12 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     label: "Authorization object",
     unsupported: {
       reason:
-        "Authorization objects have no ADT-writable collection on this release: no discovery " +
-        "collection is advertised for them (aps/iam/suso, security/authorizationobjects and " +
-        "ddic/authorizationobjects all 404), and the vendor-table-derived creation path " +
-        "(aps/iam/suso, from abap-adt-api's CreatableTypes) 404s outright too — there is no " +
-        "writable ADT collection to target, live-verified, not merely undocumented. The only " +
-        "route that answers a GET at all is the generic VIT bridge " +
+        "Authorization objects have no ADT resource to WRITE through, and none to resolve a URI " +
+        "against, on this release: no discovery collection is advertised for them (aps/iam/suso, " +
+        "security/authorizationobjects and ddic/authorizationobjects all 404), and the " +
+        "vendor-table-derived creation path (aps/iam/suso, from abap-adt-api's CreatableTypes) " +
+        "404s outright too — there is no writable ADT collection to target, live-verified, not " +
+        "merely undocumented. The only route that answers a GET at all is the generic VIT bridge " +
         "(vit/wb/object_type/susob/object_name/{NAME}), and it returns a basic-properties stub " +
         "only — name, description, language, responsible, package — with no field list and no " +
         "permission values, so it is not a usable read of the object's actual content, the same " +
@@ -1206,8 +1219,14 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "write-feasibility-by-Allow-header could not be checked. Verified live against the " +
         "real objects S_TCODE and S_DEVELOP plus a name guaranteed not to exist.",
       alternative:
-        "Authorization objects can only be created and edited in SU21, a SAPGUI transaction " +
-        "outside abapsmith's reach. There is no ABAP-code equivalent to fall back on.",
+        'abap_read {"object":"<NAME>","type":"SUSO/B"} renders the object read-only from the ' +
+        "authorization catalog (TOBJ/TOBJT/TOBCT/TACTZ/TACTT/AUTHX/DD04L/DD07V) — see " +
+        "`catalogRead` below. SU21, a SAPGUI transaction outside abapsmith's reach, is the only " +
+        "way to EDIT one; there is no ABAP-code equivalent to fall back on for that direction.",
+    },
+    catalogRead: {
+      from: "TOBJ, TOBJT, TOBCT, TACTZ, TACTT, AUTHX, DD04L, DD07V",
+      nameForm: "the authorization object name, e.g. S_TABU_NAM",
     },
   },
   // Not in types.ts — see the module doc. Type code chosen deliberately:
@@ -1322,6 +1341,10 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "them away or orphaned them is unverified, not confirmed-absent — there is no ADT " +
         "resource for TABL/DI to check with, and abap_data_preview was confirmed live to " +
         "carry no WHERE filter, so a targeted DD12V check was not practical.",
+    },
+    catalogRead: {
+      from: "DD12V, DD17S",
+      nameForm: "<TABLE>/<INDEX>, the same parented form the create takes, e.g. ZTAB/Z01",
     },
   },
 };
@@ -1490,12 +1513,15 @@ export const ABAP_WRITE_TYPES: readonly string[] = codesWith(
 
 /**
  * Types `abap_read`'s `resolveObject` refuses outright on an explicit type
- * hint, before any network call — the `unsupported` entries plus the three
+ * hint, before any network call — the `unsupported` entries plus the
  * bridge-only-create types with no ADT-readable collection (`VIEW/DV`,
- * `TRAN/T`, `TABL/DI`). Mirrors the check in `src/adt/resolve.ts`.
+ * `TRAN/T`, `TABL/DI`), MINUS the types that carry `catalogRead`: those have
+ * no ADT resource either, but `abap_read` dispatches them to a catalog-table
+ * render before `resolveObject` ever runs, so they are readable in practice
+ * (`SUSO/B`, `TABL/DI`). Mirrors the check in `src/adt/resolve.ts`.
  */
 export const NON_READABLE_TYPES: readonly string[] = codesWith(
-  (c) => c.unsupported !== undefined || (c.bridgeCreate !== undefined && c.create === undefined),
+  (c) => c.catalogRead === undefined && (c.unsupported !== undefined || (c.bridgeCreate !== undefined && c.create === undefined)),
 );
 
 /**
@@ -1601,6 +1627,13 @@ export function assertRegistryCoversTypes(types: readonly TypeSpec[] = TYPES): v
  * REQUIRED on `CreateCapability` (see that field's own doc), so the one
  * failure mode a check here would exist to catch — a `create` entry with no
  * stated evidence — is already impossible to compile.
+ *
+ * Also deliberately has no rule against `catalogRead` alongside `unsupported`
+ * or `bridgeCreate`: `catalogRead` is a READ capability describing a render
+ * `abap_read` assembles from catalog tables, not a write route, so it never
+ * contradicts either — `SUSO/B` (`unsupported` + `catalogRead`) and
+ * `TABL/DI` (`bridgeCreate`/`bridgeDelete` + `catalogRead`) are both
+ * intentional.
  */
 export function assertNoConflictingCapabilities(): void {
   for (const code of CODES) {

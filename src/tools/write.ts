@@ -42,6 +42,7 @@ import {
   deleteSecondaryIndexViaBridge,
   resolveIndexOwner,
 } from "../adt/index-create.js";
+import { readTableIndexes, type SecondaryIndexInfo } from "../adt/index-read.js";
 import { createPackageViaBridge, tdevcDiscrepancies } from "../adt/package-create.js";
 import type { RunResult } from "../adt/run.js";
 import { serverPackage } from "../adt/resolved-package.js";
@@ -558,6 +559,37 @@ function deleteJournalNote(
     `A journal entry was recorded as ${entryId} for the audit trail, but no source was captured ` +
     `for ${type} ${name} (beforeCapture="${capture}") — abap_journal mode=undo CANNOT restore it ` +
     "from this entry; this deletion is effectively irreversible."
+  );
+}
+
+/**
+ * Issue #86: a `TABL/DT` delete's response note naming the secondary
+ * indexes that went with it. `indexes`/`readFailure` come from a catalog
+ * read taken BEFORE the delete ran (see `abapWrite`'s delete branch) — by
+ * the time this note is built the table (and, with it, its DD12V/DD17S
+ * rows) may already be gone, so there is no "read after" to fall back to
+ * here; whatever was captured beforehand is all there will ever be.
+ */
+function tableDeleteIndexNote(
+  tableName: string,
+  indexes: readonly SecondaryIndexInfo[] | undefined,
+  readFailure: string | undefined,
+): string {
+  if (indexes === undefined) {
+    return (
+      `This table's secondary indexes could not be listed before the delete (${readFailure}) — ` +
+      "whether it had any, and what they covered, is UNKNOWN here, not confirmed as none."
+    );
+  }
+  if (indexes.length === 0) {
+    return `${tableName} had no secondary index (DD12V read before the delete returned zero rows).`;
+  }
+  const list = indexes
+    .map((i) => `${i.id} (${i.fields.length ? i.fields.join(", ") : "no fields on record"})`)
+    .join("; ");
+  return (
+    `${tableName} had ${indexes.length} secondary index${indexes.length === 1 ? "" : "es"}, defined over ` +
+    `its fields, and ${indexes.length === 1 ? "it goes" : "they go"} with the table: ${list}.`
   );
 }
 
@@ -1412,6 +1444,24 @@ export async function abapWrite(
         maxChars,
       });
     }
+    // Issue #86: a base TABLE's secondary indexes have no ADT resource of
+    // their own (see src/adt/index-create.ts's header) and are not captured
+    // by the before-image the journal takes below — deleting the table
+    // takes them with it with nothing anywhere recording what they were.
+    // Read them now, BEFORE the delete: reading after would just see the
+    // rows already gone (or the table itself gone, if it's a real DDIC
+    // drop). TABL/DT only — a STRU has no index, and TABL/DI's own delete
+    // path (abapDeleteIndexViaBridge below) is a single index, not a table.
+    let preDeleteIndexes: readonly SecondaryIndexInfo[] | undefined;
+    let preDeleteIndexesFailure: string | undefined;
+    if (authorized.target.type === "TABL/DT") {
+      try {
+        preDeleteIndexes = (await readTableIndexes(conn, authorized.target.name)).indexes;
+      } catch (e) {
+        preDeleteIndexesFailure = e instanceof Error ? e.message : String(e);
+      }
+    }
+
     // `withJournalledMutation` (src/journal.ts) fires `begin()` from INSIDE
     // `deleteObject`'s call chain (entry lands on disk before the DELETE
     // goes out), captures the id, and patches the entry to `failed` on throw.
@@ -1544,6 +1594,9 @@ export async function abapWrite(
                 "Check for yourself with abap_read on the object (a NOT_FOUND confirms it is gone) or " +
                 `abap_search for "${res.target.name}".`,
             ]
+          : []),
+        ...(res.target.type === "TABL/DT"
+          ? [tableDeleteIndexNote(res.target.name, preDeleteIndexes, preDeleteIndexesFailure)]
           : []),
       ],
       maxChars,
@@ -3887,13 +3940,19 @@ async function abapDeleteViaBridge(
  * `abap_journal mode=undo` hit that invariant instead of a clean refusal.
  * Reversal is `abap_write { mode: "delete", type: "TABL/DI" }`, never undo.
  *
- * `verified` is always `false`: there is no ADT resource of any kind to read
- * an index back from (this type's REGISTRY entry, `src/adt/capabilities.ts`,
- * has no route at all). `INDEX-ACTIVE`/`INDEX-FIELDS` in the transcript come
- * from the generated bridge fragment's own post-`COMMIT WORK` `SELECT
- * COUNT( * )` on DD12V/DD17S inside the same classrun execution, not a
- * second, independent confirmation — so this never calls `verifyObjectCreated`
- * or `verifyViaVitBridge`.
+ * There is no ADT resource of any kind to read an index back from through
+ * REST (this type's REGISTRY entry, `src/adt/capabilities.ts`, has no route
+ * at all), so this never calls `verifyObjectCreated` or `verifyViaVitBridge`.
+ * Instead, `createSecondaryIndex` (`src/adt/index-create.ts`) re-reads DD12V
+ * and DD17S directly through `verifySecondaryIndex` after the bridge
+ * returns, and `verified` here carries that verdict's own `verified` flag —
+ * a real boolean, not a constant. `INDEX-ACTIVE`/`INDEX-FIELDS` in the
+ * transcript remain the generated bridge fragment's own post-`COMMIT WORK`
+ * `SELECT COUNT( * )` on DD12V/DD17S inside the same classrun execution, but
+ * they are no longer the only evidence: the catalog re-read is a second,
+ * independent confirmation, and `createSecondaryIndex` itself throws (via
+ * `assertCreateVerdictAgrees`) if that re-read disagrees with the bridge's
+ * claim of success.
  */
 async function abapCreateIndexViaBridge(
   conn: AbapConnection,
@@ -4006,7 +4065,9 @@ async function abapCreateIndexViaBridge(
       package: owner.packageName.name,
       mode: "create-bridge",
       created: true,
-      verified: false,
+      verified: created.verdict.verified,
+      index_present: created.verdict.present,
+      index_active: created.verdict.active,
       detail,
       bridge_class: CLASSIC_BODY_CLASS,
       markers: created.transcript.tags.join(" "),
@@ -4016,12 +4077,15 @@ async function abapCreateIndexViaBridge(
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ` +
         `ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
-      "NOT independently verified: a secondary index has no ADT resource of its own to read back " +
-        "from (see this type's REGISTRY entry in src/adt/capabilities.ts). The INDEX-ACTIVE and " +
-        "INDEX-FIELDS markers above come from the generated bridge's own post-COMMIT WORK SELECT " +
-        "COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, " +
-        "independent read — abapsmith still reports created:true, trusting that transcript, but " +
-        "verified is always false here.",
+      created.verdict.verified
+        ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ` +
+          `${created.verdict.statement}`
+        : `NOT independently verified: the post-create catalog re-read did not run (${created.verdict.reason ?? "reason unknown"}). ` +
+          "abapsmith reports created:true based only on the bridge's own transcript (the INDEX-ACTIVE " +
+          "and INDEX-FIELDS markers above, from its post-COMMIT WORK SELECT COUNT( * ) on DD12V and " +
+          "DD17S inside that same classrun execution) — that is all that is known here.",
+      `To read the index back independently at any time: abap_read {"object":"${baseTable}/${target.name}",` +
+        `"type":"TABL/DI"}.`,
       "NOT journalled: an index create has no undo path (src/adt/undo.ts recognises no TABL/DI " +
         "shape and would throw on one). To reverse this, delete the index with a fresh " +
         'abap_write { mode: "delete", type: "TABL/DI" } call, not abap_journal mode=undo.',
@@ -4051,9 +4115,18 @@ async function abapCreateIndexViaBridge(
  * `resolveIndexOwner` reads the base table's real package once, and a
  * caller-supplied `package` is only ever checked for agreement.
  *
- * `verified` is always `false` — see {@link abapCreateIndexViaBridge}'s doc
- * comment: there is no ADT resource to read an index back from, so this
- * never calls `verifyObjectDeleted`.
+ * There is no ADT resource to read an index back from through REST, so this
+ * never calls `verifyObjectDeleted` — see {@link abapCreateIndexViaBridge}'s
+ * doc comment. Instead, `deleteSecondaryIndexViaBridge`
+ * (`src/adt/index-create.ts`) re-reads DD12V/DD17S directly through
+ * `verifySecondaryIndex` after the bridge returns, and `verified` here
+ * carries that verdict's own `verified` flag. Unlike the create side, a
+ * verdict disagreement on delete is never thrown from
+ * `deleteSecondaryIndexViaBridge` — it is only carried out as `verdict` for
+ * this function to report, since a delete that the bridge reports as done
+ * but the catalog still shows present is still better surfaced as a
+ * (loudly caveated) response than as a thrown error after the DDIC change
+ * may already have happened.
  */
 async function abapDeleteIndexViaBridge(
   conn: AbapConnection,
@@ -4151,7 +4224,9 @@ async function abapDeleteIndexViaBridge(
       package: owner.packageName.name,
       mode: "delete-bridge",
       deleted: true,
-      verified: false,
+      verified: deleted.verdict.verified,
+      index_present: deleted.verdict.present,
+      index_active: deleted.verdict.active,
       bridge_class: CLASSIC_BODY_CLASS,
       markers: deleted.transcript.tags.join(" "),
       journal: "off (not journalled — see notes)",
@@ -4160,25 +4235,17 @@ async function abapDeleteIndexViaBridge(
       `Deleted by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ` +
         `ADT REST — ${type} has no writable ADT collection at all (see this type's REGISTRY entry ` +
         "in src/adt/capabilities.ts).",
-      "NOT independently verified: a secondary index has no ADT resource of its own to read back " +
-        "from. The INDEX-GONE marker above comes from the generated bridge's own post-COMMIT WORK " +
-        "SELECT COUNT( * ) on DD12V and DD17S inside this same classrun execution, not a second, " +
-        "independent read — abapsmith still reports deleted:true, trusting that transcript, but " +
-        "verified is always false here.",
+      deleted.verdict.verified
+        ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ` +
+          `${deleted.verdict.statement}`
+        : `NOT independently verified: the post-delete catalog re-read did not run (${deleted.verdict.reason ?? "reason unknown"}). ` +
+          "abapsmith reports deleted:true based only on the bridge's own transcript (the INDEX-GONE " +
+          "marker above, from its post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside that " +
+          "same classrun execution) — that is all that is known here.",
+      `To confirm independently at any time: abap_read {"object":"${baseTable}/${target.name}",` +
+        `"type":"TABL/DI"} — it should now report the index absent.`,
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot " +
         "restore this index. To bring it back, create it again with a fresh abap_write call.",
-      ...(deleted.transcript.tags.includes("INDEX-DELETED-ACTFAILED")
-        ? [
-            "ACTFAILED: DD_INDEX_INTERFACE itself reported ACTFAILED = 'X' for this delete, but the " +
-              "bridge's post-COMMIT WORK re-read of DD12V (both unfiltered and AS4LOCAL = 'A') and " +
-              "DD17S found no rows left for this index, so abapsmith reports deleted:true anyway. " +
-              "This was observed live on 2026-09-05 and its cause is not established — it may mean " +
-              "the database-level index drop or the table's re-activation failed rather than the " +
-              "dictionary removal itself. If the table's runtime behaviour looks wrong, check it in " +
-              "SE11/SE14 rather than assuming the delete was clean; abapsmith performs no further " +
-              "check on this path.",
-          ]
-        : []),
     ],
     maxChars,
   });

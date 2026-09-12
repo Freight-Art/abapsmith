@@ -80,7 +80,7 @@ import { buildUri, specForType } from "../src/adt/types.js";
 import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
 import { FLUID_PACKAGE, resetFluidPackageMemo } from "../src/adt/fluid/package.js";
 import { canonicalArgsJson } from "../src/adt/fluid/invoke.js";
-import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
+import { routeSystemRoleProbe, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
 
 // ---------------------------------------------------------------------------
@@ -1110,5 +1110,177 @@ describe("resolveIndexOwner — reads the base table's real package, never trust
     const err = await catchErr(resolveIndexOwner(conn, BASE_TABLE));
     expect(err.code).toBe("SAFETY_DENIED");
     expect(err.details.reason).toBe("PACKAGE_UNKNOWN");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 16 — issue #86: the independent DD12V/DD17S re-read verdict, on top of the
+// bridge's own transcript. `createSecondaryIndex`/`deleteSecondaryIndexViaBridge`
+// each run one more, genuinely independent `dataPreviewFreestyle` read
+// (`verifySecondaryIndex`, `src/adt/index-read.ts`) right after the fluid
+// bridge itself reports success — routed here over the SAME `FakeAdt` the
+// bridge deploy/invoke traffic already uses (`/sap/bc/adt/datapreview/
+// freestyle`), distinguished by which catalog table the generated SQL names.
+// None of the tests above this section ever routes this request at all — it
+// falls through as "unrouted" (`FakeAdt` throws), which `verifySecondaryIndex`
+// swallows into `verified: false` and neither `assertCreateVerdictAgrees` nor
+// `deleteSecondaryIndexViaBridge` treats as fatal — so the "happy path" tests
+// above pass without ever actually confirming the independent re-read agreed.
+// These tests close that gap: they route DD12V/DD17S explicitly, to a
+// deliberately chosen answer, and check `verdict` — which the tests above
+// never inspect at all.
+// ---------------------------------------------------------------------------
+
+function indexColumnXml(name: string, values: readonly string[]): string {
+  const data = values.map((v) => `<dataPreview:data>${v}</dataPreview:data>`).join("");
+  return (
+    `<dataPreview:columns><dataPreview:metadata dataPreview:name="${name}" dataPreview:type="C" dataPreview:keyAttribute="false"/>` +
+    `<dataPreview:dataSet>${data}</dataPreview:dataSet></dataPreview:columns>`
+  );
+}
+
+function indexTableBody(cols: Record<string, readonly string[]>): string {
+  const names = Object.keys(cols);
+  const colsXml = names.map((n) => indexColumnXml(n, cols[n]!)).join("");
+  return (
+    '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview">' +
+    `${colsXml}</dataPreview:tableData>`
+  );
+}
+
+function indexEmptyBody(): string {
+  return '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview"></dataPreview:tableData>';
+}
+
+/** DD12V/DD17S rows describing Z01 on BASE_TABLE as present, in the given AS4LOCAL activation state. */
+function dd12vRow(activation: "A" | "I"): string {
+  return indexTableBody({
+    SQLTAB: [BASE_TABLE],
+    INDEXNAME: ["Z01"],
+    DDLANGUAGE: ["E"],
+    UNIQUEFLAG: [""],
+    AS4LOCAL: [activation],
+    DBSTATE: ["ACT"],
+    DDTEXT: ["probe idx"],
+  });
+}
+
+function dd17sRow(): string {
+  return indexTableBody({
+    SQLTAB: [BASE_TABLE],
+    INDEXNAME: ["Z01"],
+    POSITION: ["0001"],
+    FIELDNAME: ["CARRIER"],
+  });
+}
+
+/**
+ * `connected()` above wraps its fake in `routeSystemRoleProbe`, which
+ * intercepts EVERY `/sap/bc/adt/datapreview/freestyle` POST by URL alone
+ * (see `isSystemRoleProbe` in `test/helpers/system-role-fake.ts`) and always
+ * answers with the T000 probe body — fine for every test above this section,
+ * none of which issues a second freestyle call, but wrong here: `issue #86`'s
+ * independent re-read (`verifySecondaryIndex`) is a SECOND freestyle caller,
+ * and the blanket proxy would swallow it too, answering DD12V/DD17S queries
+ * with T000's columns instead (confirmed live while drafting this — the
+ * re-read failed with "expected column INDEXNAME is missing (columns
+ * present: MANDT, CCCATEGORY, CCCORACTIV)", T000's own columns). So this
+ * connects WITHOUT that proxy and answers the system-role probe itself, by
+ * body content (the fixed, code-controlled `T000_QUERY` from
+ * `src/adt/system-role.ts`), before falling through to DD12V/DD17S routing.
+ */
+async function connectedWithCatalogReread(
+  fake: ReturnType<typeof classicFake>,
+  catalog: { dd12v: string; dd17s: string } | "unrouted",
+): Promise<{ conn: AbapConnection; adt: FakeAdt }> {
+  const route: Route = (o) => {
+    const bridge = fake.route(o);
+    if (bridge) return bridge;
+    if (o.url.includes("/sap/bc/adt/datapreview/freestyle")) {
+      const sql = String(o.body ?? "").toLowerCase();
+      if (sql.includes("from t000")) return resp(200, T000_NONPRODUCTIVE, { "content-type": "application/xml" });
+      if (catalog !== "unrouted") {
+        if (sql.includes("dd12v")) return resp(200, catalog.dd12v, { "content-type": "application/xml" });
+        if (sql.includes("dd17s")) return resp(200, catalog.dd17s, { "content-type": "application/xml" });
+      }
+    }
+    return undefined;
+  };
+  const adt = new FakeAdt((r) => baseRoute(r) ?? route(r));
+  const conn = new AbapConnection(cfg(), { httpClient: adt, log: () => {}, breaker: new AuthCircuitBreaker() });
+  await conn.connect();
+  adt.calls.length = 0;
+  return { conn, adt };
+}
+
+describe("createSecondaryIndex — the independent catalog re-read AGREES (present, active)", () => {
+  it("verdict.verified/present/active are all true, and neither run.output nor verdict.statement ever mentions ACTFAILED", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connectedWithCatalogReread(fake, { dd12v: dd12vRow("A"), dd17s: dd17sRow() });
+
+    const { run, verdict } = await createSecondaryIndex(conn, allowingGate(), INDEX);
+    expect(verdict.verified).toBe(true);
+    expect(verdict.present).toBe(true);
+    expect(verdict.active).toBe(true);
+    expect(run.output).not.toContain("ACTFAILED");
+    expect(verdict.statement).not.toContain("ACTFAILED");
+  });
+});
+
+describe("createSecondaryIndex — the independent catalog re-read DISAGREES with the bridge's own transcript", () => {
+  it("re-read finds it inactive -> CHECK_FAILED, PARTIAL SUCCESS wording, verdict carried in details", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connectedWithCatalogReread(fake, { dd12v: dd12vRow("I"), dd17s: dd17sRow() });
+
+    const err = await catchErr(createSecondaryIndex(conn, allowingGate(), INDEX));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("PARTIAL SUCCESS, NOT A NO-OP");
+    expect(err.message).toContain("DD_INDEX_INTERFACE (action='I') created");
+    const details = err.details as { verdict?: { verified: boolean; present: boolean; active: boolean } };
+    expect(details.verdict?.verified).toBe(true);
+    expect(details.verdict?.active).toBe(false);
+  });
+
+  it("re-read finds it entirely absent -> CHECK_FAILED naming the disagreement", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connectedWithCatalogReread(fake, { dd12v: indexEmptyBody(), dd17s: indexEmptyBody() });
+
+    const err = await catchErr(createSecondaryIndex(conn, allowingGate(), INDEX));
+    expect(err.code).toBe("CHECK_FAILED");
+    expect(err.message).toContain("is absent from DD12V");
+  });
+});
+
+describe("createSecondaryIndex — the independent catalog re-read itself FAILS", () => {
+  it("an unroutable re-read never throws: it resolves with verdict.verified=false and a reason, not a CHECK_FAILED", async () => {
+    const fake = classicFake({ action: "create_index", lines: () => ["INDEX-CREATED", "INDEX-ACTIVE", "INDEX-FIELDS"] });
+    const { conn } = await connectedWithCatalogReread(fake, "unrouted");
+
+    const { verdict } = await createSecondaryIndex(conn, allowingGate(), INDEX);
+    expect(verdict.verified).toBe(false);
+    expect(verdict.reason).toBeDefined();
+    expect(verdict.statement).toContain("the DD12V/DD17S re-read itself failed");
+  });
+});
+
+describe("deleteSecondaryIndexViaBridge — a disagreeing catalog re-read is carried out, never thrown", () => {
+  it("bridge reports deleted, but DD12V still shows the row present -> resolves normally with verdict.present=true", async () => {
+    const fake = classicFake({ action: "delete_index", lines: () => ["INDEX-DELETED", "INDEX-GONE"] });
+    const { conn } = await connectedWithCatalogReread(fake, { dd12v: dd12vRow("A"), dd17s: dd17sRow() });
+
+    const { transcript, verdict } = await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
+    expect(transcript.tags).toEqual(["INDEX-DELETED", "INDEX-GONE"]);
+    expect(verdict.verified).toBe(true);
+    expect(verdict.present).toBe(true);
+    expect(verdict.statement).toContain("expected absent, but the catalog still shows it");
+  });
+
+  it("bridge and re-read agree the index is gone -> verdict.present=false", async () => {
+    const fake = classicFake({ action: "delete_index", lines: () => ["INDEX-DELETED", "INDEX-GONE"] });
+    const { conn } = await connectedWithCatalogReread(fake, { dd12v: indexEmptyBody(), dd17s: indexEmptyBody() });
+
+    const { verdict } = await deleteSecondaryIndexViaBridge(conn, allowingGate(), DELETE_INDEX);
+    expect(verdict.verified).toBe(true);
+    expect(verdict.present).toBe(false);
   });
 });

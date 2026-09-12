@@ -1,0 +1,32 @@
+{
+  "n": 871,
+  "label": "i87-tactz-s-develop",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=30&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM tactz WHERE brobj = 'S_DEVELOP'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "2414",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "384616.000000"
+  },
+  "byteLength": 2414,
+  "zeroByteBody": false,
+  "sha256": "73d39ed8cd0dfeef3e150166819eb0f755165bdb54985a3bf4b05188bc5c9bdb",
+  "utcTimestamp": "2026-09-12T13:24:56.011Z",
+  "durationMs": 497,
+  "sessionName": "A"
+}

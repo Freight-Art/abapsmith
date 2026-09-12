@@ -1,0 +1,32 @@
+{
+  "n": 856,
+  "label": "i74-package-header-sabp-unit-core-runtime",
+  "expect": null,
+  "note": "Package header: description, super package, application component, software component, transport layer.",
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/packages/sabp_unit_core_runtime?sap-client=001",
+  "requestHeaders": {
+    "Accept": "*/*",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.packages.v2+xml; charset=utf-8",
+    "content-length": "7171",
+    "sap-authenticated": "true",
+    "etag": "20221216000000001application/vnd.sap.adt.packages.v2+xmlhmwrlu24OVQ5p7sM4Sfe9A/SkGU=",
+    "last-modified": "Fri, 16 Dec 2022 00:00:00 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "195011.000000"
+  },
+  "byteLength": 7171,
+  "zeroByteBody": false,
+  "sha256": "bbdc39eb5aa141003418ab550dd3e3a3315b1451ffd906759c745c184747a4cd",
+  "utcTimestamp": "2026-09-12T13:23:43.267Z",
+  "durationMs": 318,
+  "sessionName": "A"
+}

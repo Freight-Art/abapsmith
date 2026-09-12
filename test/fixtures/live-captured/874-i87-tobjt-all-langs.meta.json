@@ -1,0 +1,32 @@
+{
+  "n": 874,
+  "label": "i87-tobjt-all-langs",
+  "expect": null,
+  "note": "TOBJT is language dependent.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=10&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM tobjt WHERE object = 'S_DEVELOP'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "1602",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "422045.000000"
+  },
+  "byteLength": 1602,
+  "zeroByteBody": false,
+  "sha256": "87322fc84912f4a692acf9e3b147c957f47003eafc0187e892fc557544568aa1",
+  "utcTimestamp": "2026-09-12T13:25:14.239Z",
+  "durationMs": 584,
+  "sessionName": "A"
+}

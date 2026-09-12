@@ -127,12 +127,17 @@ const BRIDGE_DELETE_NOTE = {
     "Round 4 then ran live (A4H 2026-09-05, $TMP): a non-unique and a unique index were each " +
     "deleted through the redeployed bridge (INDEX-DELETED-ACTFAILED / INDEX-DELETED / " +
     "INDEX-GONE), a re-delete returned NOT_FOUND, and the deployed class body read back with " +
-    "no line over 255 — delete is live-proven. ACTFAILED='X' was still set on both deletes " +
-    "that took effect, so the flag is noise, not a result. A base-table delete is " +
-    "not blocked by an index still on it (round 1); a later cleanup deleted a base table " +
-    "while its indexes' DD12V rows may still have existed, and whether the delete cascaded " +
-    "them away or left them orphaned is unverified — abap_data_preview has no WHERE filter, " +
-    "so a targeted check was not practical.",
+    "no line over 255 — delete is live-proven. ACTFAILED is no longer surfaced to the caller " +
+    "at all, for either create or delete: the response instead carries a definitive `verified` " +
+    "boolean plus `index_present`/`index_active` from a fresh post-write DD12V/DD17S re-read " +
+    "(src/adt/index-read.ts's verifySecondaryIndex), and a re-read that itself fails to run is " +
+    "reported as not verified, with a reason, never inferred from ACTFAILED. A base-table " +
+    "delete is not blocked by an index still on it (round 1); abap_write's TABL/DT delete now " +
+    "reads the table's indexes immediately before deleting it and reports what it found, so the " +
+    "cascade-or-orphan question is answered from that pre-delete state rather than left to an " +
+    "unfiltered abap_data_preview check. The index is also independently readable at any time: " +
+    'abap_read {"object":"<TABLE>/<INDEX>","type":"TABL/DI"} renders it from the same two ' +
+    "catalog tables.",
 };
 
 /** Buckets every type in the given REGISTRY and renders the generated block. Exported so tests can inspect the bucketing directly instead of re-deriving it from REGISTRY by hand. */
@@ -164,8 +169,14 @@ export async function buildCapabilityTable(registry) {
       bridgeRefused: Boolean(cap.bridgeCreate?.createRefused),
       bridgeDel: Boolean(cap.bridgeDelete),
       outOfRegistry: type in OUT_OF_REGISTRY_CREATE,
-      // Mirrors NON_READABLE_TYPES's predicate in src/adt/capabilities.ts.
-      nonReadable: Boolean(cap.unsupported) || (cap.bridgeCreate !== undefined && cap.create === undefined),
+      // Mirrors NON_READABLE_TYPES's predicate in src/adt/capabilities.ts:
+      // a `catalogRead` type has no ADT resource either, but abap_read
+      // dispatches it to a catalog-table render before resolveObject ever
+      // runs, so it does not belong in this bucket.
+      nonReadable:
+        cap.catalogRead === undefined &&
+        (Boolean(cap.unsupported) || (cap.bridgeCreate !== undefined && cap.create === undefined)),
+      catalogRead: Boolean(cap.catalogRead),
     };
   });
 
@@ -182,6 +193,7 @@ export async function buildCapabilityTable(registry) {
   const writableOnly = rest.filter((r) => r.create !== "yes" && r.write !== "—");
   const unreachable = rest.filter((r) => r.create !== "yes" && r.write === "—");
   const nonReadable = rows.filter((r) => r.nonReadable);
+  const catalogReadable = rows.filter((r) => r.catalogRead);
 
   const fmt = (list) => list.map((r) => `\`${r.type}\``).join(" ");
 
@@ -228,12 +240,16 @@ export async function buildCapabilityTable(registry) {
     `**Not reachable by any write (${unreachable.length}).** Do not probe for a write route.`,
     "",
     ...(() => {
-      const readable = unreachable.filter((r) => !r.nonReadable);
+      const readable = unreachable.filter((r) => !r.nonReadable && !r.catalogRead);
       // Registry-wide, not bucket-scoped: catches non-readable types (e.g. VIEW/DV, TRAN/T)
       // that are bridge-creatable and so never land in `unreachable` at all.
       const bridgeCreatableNonReadable = nonReadable.filter((r) => r.bridge && !unreachable.includes(r));
       return [
         `- Readable, not writable (${readable.length}): ${readable.length ? fmt(readable) : "_(none)_"}`,
+        `- Readable through the catalog route, not writable (${catalogReadable.length}) — no ADT ` +
+          "resource exists for these at all; `abap_read` renders them read-only from catalog tables " +
+          `instead (\`catalogRead\`, src/adt/capabilities.ts), not an ordinary ADT read: ` +
+          `${catalogReadable.length ? fmt(catalogReadable) : "_(none)_"}.`,
         `- Not readable either (${nonReadable.length}) — \`abap_read\` refuses these before any ` +
           "network call, from an `unsupported` entry or a bridge-only create with no ADT-readable " +
           `collection (NON_READABLE_TYPES, src/adt/capabilities.ts): ${nonReadable.length ? fmt(nonReadable) : "_(none)_"}.` +
@@ -247,7 +263,10 @@ export async function buildCapabilityTable(registry) {
     END,
   ].join("\n");
 
-  return { table, buckets: { creatable, bridged, outOfRegistry, writableOnly, unreachable, nonReadable } };
+  return {
+    table,
+    buckets: { creatable, bridged, outOfRegistry, writableOnly, unreachable, nonReadable, catalogReadable },
+  };
 }
 
 /** CLI-only: loads REGISTRY from the compiled tree, since this script is plain Node and can't import the TypeScript source directly. */

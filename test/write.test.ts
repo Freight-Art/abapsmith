@@ -993,7 +993,12 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
     expect(e.code).toBe("UNSUPPORTED");
     expect(String(e.message)).toMatch(/SUSO\/B/);
     expect(String(e.message)).toMatch(/authorization object/i);
-    expect(String(e.message)).toMatch(/no ADT-writable collection/i);
+    // #87 reworded the reason to also serve the (unrelated) read-hint text
+    // resolveObject now builds from this same registry field — "no
+    // ADT-writable collection" became "no ADT resource to WRITE through,
+    // and none to resolve a URI against". The write-side refusal is
+    // otherwise unchanged: still UNSUPPORTED, still names SUSO/B.
+    expect(String(e.message)).toMatch(/no ADT resource to WRITE through/i);
     expect(String(e.hint ?? "")).toMatch(/SU21/);
   });
 

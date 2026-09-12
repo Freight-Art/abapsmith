@@ -49,11 +49,13 @@ test/cassettes/<category>/<slug>.cassette.json
 ```
 
 `category` groups cassettes by the ADT sub-API the request path belongs to
-— `debugger` (`/sap/bc/adt/debugger/...`), `classes`
-(`/sap/bc/adt/oo/classes/...`), `programs` (`/sap/bc/adt/programs/...`),
-`datapreview` (`/sap/bc/adt/datapreview/...`). A path that does not fit one
-of those four gets its own category named after its own sub-API segment
-(e.g. `classrun` for `/sap/bc/adt/oo/classrun/...`) rather than being
+— `classes` (`/sap/bc/adt/oo/classes/...`), `classrun`
+(`/sap/bc/adt/oo/classrun/...`), `datapreview`
+(`/sap/bc/adt/datapreview/...`), `debugger` (`/sap/bc/adt/debugger/...`),
+`packages` (`/sap/bc/adt/packages/...`), `programs`
+(`/sap/bc/adt/programs/...`), and `repository`
+(`/sap/bc/adt/repository/...`). A path that does not fit one of those seven
+gets its own category named after its own sub-API segment rather than being
 shoehorned into an unrelated one — extend the set deliberately, don't force
 a fit.
 

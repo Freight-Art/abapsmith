@@ -1527,11 +1527,22 @@ export class AbapConnection {
    *
    * **Invariant that matters: the caller must have assembled `sql` itself
    * from fixed identifiers and validated values. No string that reached
-   * abapsmith from a tool argument may be passed here.** The one module
-   * allowed to call this is `src/adt/img-query.ts` (the IMG catalog reader,
-   * built from `img-catalog.ts`'s frozen table/field list); `probeT000()`
+   * abapsmith from a tool argument may be passed here.** Two modules are
+   * allowed to call this, both builders that assemble SQL from fixed
+   * identifiers, never from a tool argument: `src/adt/img-query.ts` (the IMG
+   * catalog reader, built from `img-catalog.ts`'s frozen table/field list)
+   * and `src/adt/catalog-select.ts` (used by `src/adt/index-read.ts` for
+   * DD12V/DD17S and `src/adt/suso-read.ts` for
+   * TOBJ/TOBJT/TOBCT/TACTZ/TACTT/AUTHX/DD04L/DD07V). `probeT000()`
    * (`system-role.ts`) has its own separate, no-retry route to this same URL
-   * and must never be merged with this one.
+   * and must never be merged with either.
+   *
+   * A literal wider than the target column's declared width is a hard HTTP
+   * 400 on this endpoint, not an empty result — observed on A4H
+   * 2026-09-12: `SELECT * FROM tobj WHERE objct = 'Z_I87_NO_SUCH_OBJ'`
+   * answered `400 'Z_I87_NO_SUCH_OBJ' is not a valid value for C(10,0)`.
+   * Each builder validates value LENGTH, not just content, before
+   * assembling SQL.
    *
    * Same shape as `dataPreviewDdic` above: bypasses `post()`/`raw()`'s
    * `READ_ONLY` guard (a read exposed over POST), goes through `request()`

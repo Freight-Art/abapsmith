@@ -1,0 +1,32 @@
+{
+  "n": 853,
+  "label": "i74-nodestructure-sabp-unit-shared",
+  "expect": null,
+  "note": "Package whose children are sub-packages (DEVC/K with a name) plus package interfaces.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=SABP_UNIT_SHARED&withShortDescriptions=true&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.as+xml; dataname=com.sap.adt.RepositoryObjectTreeContent",
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.RepositoryObjectTreeContent",
+    "content-length": "4497",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "126734.000000"
+  },
+  "byteLength": 4497,
+  "zeroByteBody": false,
+  "sha256": "5bedc20936e6f5929cc05ba12c83f078984701e595a5a7588fd921864ac86b84",
+  "utcTimestamp": "2026-09-12T13:23:42.112Z",
+  "durationMs": 305,
+  "sessionName": "A"
+}

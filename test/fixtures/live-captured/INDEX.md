@@ -609,3 +609,104 @@ second, unrelated gap: `850` searches `ENQUEUE_E_TABLE` untyped and gets nothing
 that same module directly at `/sap/bc/adt/functions/groups/etable/fmodules/enqueue_e_table` and
 gets a plain `200` with full metadata — quickSearch does not index generated function modules at
 all, so its silence is not evidence the object is missing.
+
+## 2026-09-12 — package navigation: nodestructure and package headers (852-857, 876-883)
+
+Same A4H appliance, client `001`, issue #74. `852` (`SABP_UNIT_ADT`, 10245 B) and `853`
+(`SABP_UNIT_SHARED`, 4497 B) are `POST /sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=<NAME>&withShortDescriptions=true`
+with `Accept: application/vnd.sap.as+xml; dataname=com.sap.adt.RepositoryObjectTreeContent` and an
+empty request body. The response is a flat list of `<SEU_ADT_REPOSITORY_OBJ_NODE>` elements.
+
+Folder nodes come back with an EMPTY `<OBJECT_NAME/>` and an empty `<OBJECT_URI/>`; they carry a
+`TECH_NAME` equal to the parent package and an `OBJECT_TYPE` such as `DEVC/P`, `DEVC/I`, `DEVC/N`,
+`DEVC/XS`, `DEVC/KI`, `DEVC/OC`, `DEVC/VT`. Real sub-packages are specifically `DEVC/K` rows that DO
+have an `OBJECT_NAME` and an `OBJECT_URI` of `/sap/bc/adt/packages/<lowercase-name>`. Code that
+identifies sub-packages by `OBJECT_TYPE.startsWith("DEVC")` is only correct if it first drops the
+empty-name rows; matching `DEVC/K` exactly is the safe test. `withShortDescriptions=true` still
+leaves sub-package rows with an empty `<DESCRIPTION/>` — confirmed on `853`'s two named `DEVC/K`
+children (`SABP_UNIT_EXCEPTIONS`, `SABP_UNIT_TYPES`).
+
+`854`, `877`, `878`, `879` are the notable edge case: a package with no contents answers **HTTP 200
+with a zero-byte body**, not an empty XML document and not a 404. `880` is the control — the same
+code path against `SABP_UNIT_ADT` returned 10245 B in the same session — and `881` repeats the
+`ZLOCAL` request with no request body at all, with the same zero-byte 200. The empty response is
+genuine server behaviour, not a harness artifact.
+
+`856` and `857` are `GET /sap/bc/adt/packages/<lowercase-name>` with `Accept: */*`; both returned
+`200` with `content-type: application/vnd.sap.adt.packages.v2+xml`. A specific vendor Accept
+(`application/vnd.sap.adt.packages.v1+xml, application/xml`) answers **406 Not Acceptable**
+(`ExceptionResourceNotAcceptable`) on this endpoint; `*/*` is what actually works. The header fields
+a package listing needs are all present: `adtcore:description`, `pak:superPackage/@adtcore:name`,
+`pak:transport/pak:softwareComponent/@pak:name`, `pak:transport/pak:transportLayer/@pak:name`,
+`pak:attributes/@pak:packageType`, `pak:applicationComponent/@pak:name`. `856`
+(`SABP_UNIT_CORE_RUNTIME`) has a super package (`SABP_UNIT_CORE`) and `SAP_BASIS`/`SAP`; `857`
+(`Z_BADI_CHECK`) shows a customer package with an EMPTY `<pak:superPackage/>`, `HOME` and transport
+layer `ZLB1`.
+
+`882` and `883` are TDEVC/TADIR probes kept as evidence of what those tables hold; nothing in the
+shipped code reads them.
+
+## 2026-09-12 — secondary index catalog: DD12V and DD17S (858-860)
+
+Same A4H appliance, issue #86. All three are `POST /sap/bc/adt/datapreview/freestyle?rowNumber=50`
+with a plain-text Open-SQL SELECT as the body. `858` `SELECT * FROM dd12v WHERE sqltab =
+'BDSLORE10'` → 200, `totalRows` 4. Columns: `SQLTAB INDEXNAME AS4LOCAL AS4VERS DDLANGUAGE
+AUTHCLASS UNIQUEFLAG AS4USER AS4DATE AS4TIME ACTFLAG DBINDEX DBSTATE DBINCLEXCL DBSYSSEL1..4 DDTEXT
+ISEXTIND FULL_TEXT LANGU_COLUMN MIME_TYPE_COL MIME_TYPE LANGU_DETECTION FAST_PREPROCESS
+FUZZY_SEARCH_INDX SEARCH_ONLY UPDATE_MODE CONFIGURATION PHRASE_INDX_RATIO TEXT_ANALYSIS
+TOKEN_SEPARATORS ABAP_LANGUAGE_VERSION`. DD12V is language-dependent — it carries `DDLANGUAGE`, so
+one index yields one row per maintained language and a reader must filter or dedupe.
+
+`859` `SELECT * FROM dd17s WHERE sqltab = 'BDSLORE10'` → 200, `totalRows` 2. Columns: `SQLTAB
+INDEXNAME POSITION AS4LOCAL AS4VERS FIELDNAME DESCFLAG`. DD17S is NOT language-dependent;
+`POSITION` gives the field order within the index.
+
+`860` is the negative control: the same DD12V query against a table with no secondary index
+(`SELECT * FROM dd12v WHERE sqltab = 'TADIR'`) answers 200 with `totalRows` 0. An absent index is
+an empty result, not an error.
+
+## 2026-09-12 — authorization object catalog: TOBJ, TOBJT, TOBCT, TACTZ, TACTT, AUTHX, DD04L, DD07V (861-875)
+
+Same A4H appliance, issue #87. Same freestyle endpoint. These captures correct several guesses
+about where authorization-object metadata actually lives.
+
+`861`/`870` `SELECT * FROM tobj WHERE objct = '<OBJ>'` → columns `OBJCT FIEL1..FIEL9 FIEL0 OCLSS
+BNAME FBLOCK CONVERSION`. The ten field slots are `FIEL1`..`FIEL9` followed by **`FIEL0`**, not
+`FIEL10`. TOBJ's key column is `OBJCT`.
+
+`862`/`874` TOBJT holds the object text, and its key column is **`OBJECT`**, not `OBJCT`. Columns
+`LANGU OBJECT TTEXT`. `874` (`SELECT * FROM tobjt WHERE object = 'S_DEVELOP'`) shows more than one
+language row for `S_DEVELOP` (`totalRows` 2), so a reader must filter by language.
+
+`867` TOBCT holds the object-CLASS text: columns `LANGU OCLSS CTEXT`.
+
+`863`/`871` TACTZ lists the activities permitted for an object: columns `BROBJ ACTVT` only — no
+text.
+
+`864` TACTT holds the activity texts: columns `SPRAS ACTVT LTEXT`. Issue #87 names `TACT` for this;
+`TACT` is the plain activity list and the TEXTS are in `TACTT`.
+
+`865` is a failed request kept deliberately: `SELECT * FROM authx WHERE fiel1 = 'DICBERCLS' OR
+fiel1 = 'ACTVT'` answers **HTTP 400 `Unknown column name "FIEL1"`**. `866` (`SELECT * FROM authx`,
+`totalRows` 1380) established AUTHX's real columns: `FIELDNAME ROLLNAME CHECKTABLE EXIT_FB
+ACTVT_FLAG`. `868` then reads the four fields of `S_TABU_NAM` successfully. The authorization
+FIELD's data element and check table come from AUTHX, not from TOBJ.
+
+`869` `SELECT rollname, domname, datatype, leng FROM dd04l WHERE ...` returns 3 rows for 4
+requested data elements (`ACTIV_AUTH`, `TABNAME`, `SUSR_OBJ`, `DEVCLASS`) — a name in AUTHX's
+`ROLLNAME` is not guaranteed to exist in DD04L, so a reader must tolerate a missing row rather than
+assume one.
+
+`872` and `875` read DD07V for a domain's fixed values. DD07V has no `AS4LOCAL` column — adding
+that predicate answers **HTTP 400 `Unknown column name "AS4LOCAL"`**. Its columns are `DOMNAME
+VALPOS DDLANGUAGE DOMVALUE_L DOMVALUE_H DDTEXT DOMVAL_LD DOMVAL_HD APPVAL`. `872` (`ACTIV_AUTH`)
+returns 0 rows — a domain with no fixed values — and `875` (`AS4LOCAL`) returns 5. Rows do not come
+back ordered; a reader must sort by `VALPOS`.
+
+`873` is the other hard-won wire fact: `SELECT * FROM tobj WHERE objct = 'Z_I87_NO_SUCH_OBJ'`
+answers **HTTP 400 `'Z_I87_NO_SUCH_OBJ' is not a valid value for C(10,0)`**. A literal longer than
+the column's declared width is a hard 400 on this endpoint, not an empty result — so a
+caller-supplied object name must be length-validated client-side before it reaches the SQL.
+Re-run with the 10-character `Z_I87_NOPE`, the request captured as `873`, answers 200 with
+`totalRows` 0. The 400 attempt itself was not saved as a separate capture; only the corrected retry
+is on disk.

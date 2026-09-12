@@ -1,0 +1,40 @@
+{
+  "id": "nodestructure-empty-package-zero-byte",
+  "recordedAt": "2026-09-12T13:23:42.292Z",
+  "recordedDurationMs": 177,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/854-i74-nodestructure-empty-package.meta.json + test/fixtures/live-captured/854-i74-nodestructure-empty-package.xml",
+    "notes": "The Authorization header was redacted at capture time; the X-CSRF-Token header was redacted by the transcriber before this cassette was written. POST /sap/bc/adt/repository/nodestructure against ZAPI_ENABLEMENT, a package with no contents. The response is HTTP 200 with a genuinely zero-byte body (content-length: 0) and no content-type header \u2014 NOT an empty XML document and not a 404. A reader must treat this as a distinct, valid outcome rather than a parse failure. Confirmed as real server behaviour (not a harness artifact) by the sibling captures 877/878/879 (same shape, different empty packages) and by the control capture 880 (same code path against a non-empty package returns the full body)."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=ZAPI_ENABLEMENT&withShortDescriptions=true&sap-client=001",
+    "headers": {
+      "X-CSRF-Token": "<redacted>",
+      "Accept": "application/vnd.sap.as+xml; dataname=com.sap.adt.RepositoryObjectTreeContent",
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Authorization": "<redacted>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-length": "0",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "69911.000000"
+    },
+    "body": null
+  }
+}

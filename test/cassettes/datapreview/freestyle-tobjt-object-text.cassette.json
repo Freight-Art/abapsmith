@@ -1,0 +1,41 @@
+{
+  "id": "freestyle-tobjt-object-text",
+  "recordedAt": "2026-09-12T13:24:23.618Z",
+  "recordedDurationMs": 508,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/862-i87-tobjt-s-tabu-nam.meta.json + test/fixtures/live-captured/862-i87-tobjt-s-tabu-nam.xml",
+    "notes": "The Authorization header was redacted at capture time; the X-CSRF-Token header was redacted by the transcriber before this cassette was written. SELECT * FROM tobjt WHERE object = 'S_TABU_NAM' AND langu = 'E'. TOBJT's key column is OBJECT, not OBJCT (that is TOBJ's key) \u2014 easy to confuse given how close the names are. This capture pre-filters to one language; see the sibling capture 874 (not wired as its own cassette) for a case where the same table genuinely returns more than one language row for one object."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+    "headers": {
+      "X-CSRF-Token": "<redacted>",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+      "Content-Type": "text/plain",
+      "Authorization": "<redacted>"
+    },
+    "body": "SELECT * FROM tobjt WHERE object = 'S_TABU_NAM' AND langu = 'E'"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "content-length": "1508",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "384211.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>1</dataPreview:totalRows><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:executedQueryString>SELECT * FROM TOBJT WHERE OBJECT = 'S_TABU_NAM' AND LANGU = 'E'   INTO     TABLE @DATA(LT_RESULT)   UP TO 50  ROWS   .</dataPreview:executedQueryString><dataPreview:queryExecutionTime>4.6340000</dataPreview:queryExecutionTime><dataPreview:columns><dataPreview:metadata dataPreview:name=\"LANGU\" dataPreview:type=\"C\" dataPreview:description=\"LANGU\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>E</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"OBJECT\" dataPreview:type=\"C\" dataPreview:description=\"OBJECT\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>S_TABU_NAM</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"TTEXT\" dataPreview:type=\"C\" dataPreview:description=\"TTEXT\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>Table Access by Generic Standard Tools</dataPreview:data></dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>"
+  }
+}
