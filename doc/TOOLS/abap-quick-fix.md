@@ -5,12 +5,16 @@ offers at a cursor position — as a gated, journalled write. `mode=list`
 enumerates the proposals available at a line/column; `mode=apply` applies
 one of them by its proposal id.
 
-**Availability**: registered only when the server can write (`canWrite`,
-i.e. not read-only — see `src/config.ts`'s `StaticCapabilities`), exactly
-like `abap_atc`. A statically read-only server (`cfg.readOnly`) does not
-have this tool registered at all; see the read-only bullet under
-`## Refusals` for how a registered server can still refuse a call at
-runtime. Every call, including `mode=list`, is additionally gated as a
+**Availability**: the real, functional tool registers only when the server
+can write (`canWrite`, i.e. not read-only — see `src/config.ts`'s
+`StaticCapabilities`), exactly like `abap_atc`. A statically read-only v1
+server (`cfg.readOnly`) does not skip registering this tool, though — it
+registers a mode-locked refusal stub under the same name instead (case 4
+in [availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed with an empty schema, refuses every call `READ_ONLY` without
+touching SAP. See the read-only bullet under
+`## Refusals` for how the real tool, once registered, can still refuse a
+call at runtime for other reasons. Every call, including `mode=list`, is additionally gated as a
 `write` operation, so `ABAP_ALLOW_PACKAGES` and `ABAP_ALLOW_NAME_PREFIXES`
 apply. This is because the evaluation call behind `mode=list` is a POST
 that ships the whole object source to the server — it is not a
@@ -72,12 +76,14 @@ source, no write.
   `BAD_INPUT` before any network call.
 - **Parameterized proposal**: refused `BAD_INPUT`, naming the parameter —
   see above.
-- **Read-only server**: statically (`cfg.readOnly`), the tool is not
-  registered at all. On a registered server, `SafetyGate` can still refuse a
-  call `READ_ONLY` at runtime (productive, or unprovable non-productive —
-  `src/safety.ts`); `explainReadOnlyRefusal` in `src/tools/quickfix.ts` then
-  appends why both modes are gated as a write: `mode="list"` posts the whole
-  object source too.
+- **Read-only server**: statically (`cfg.readOnly`) on v1, the real tool is
+  not registered — a mode-locked refusal stub takes its name instead (see
+  "Availability" above), refusing every call `READ_ONLY` without a network
+  request. On a server where the real tool *is* registered, `SafetyGate`
+  can still refuse a call `READ_ONLY` at runtime (productive, or unprovable
+  non-productive — `src/safety.ts`); `explainReadOnlyRefusal` in
+  `src/tools/quickfix.ts` then appends why both modes are gated as a
+  write: `mode="list"` posts the whole object source too.
 - **Package/name-prefix gate**: `mode=list` and `mode=apply` are both gated
   as `write`, so an object outside `ABAP_ALLOW_PACKAGES` /
   `ABAP_ALLOW_NAME_PREFIXES` is refused before either hop runs.

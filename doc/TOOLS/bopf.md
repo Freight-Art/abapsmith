@@ -46,7 +46,12 @@ key; remove an embedded dependent object; or create the BO itself). A
 representative node is not created directly — see the `add_association`
 recipe below.
 
-**Availability**: case 1 — registered only when `canWrite`.
+**Availability**: the real, functional tool needs `canWrite`. Without it,
+a read-only v1 server registers a mode-locked refusal stub under the same
+name instead of skipping registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed with an empty schema, refuses every call `READ_ONLY` without
+reaching SAP.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
@@ -339,7 +344,12 @@ Example (remove a dependent-object embedding):
 
 Delete a BOPF business object, optionally cascading into its DDIC objects.
 
-**Availability**: case 1 — registered only when `canWrite`.
+**Availability**: the real, functional tool needs `canWrite`. Without it,
+a read-only v1 server registers a mode-locked refusal stub under the same
+name instead of skipping registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed with an empty schema, refuses every call `READ_ONLY` without
+reaching SAP.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
@@ -419,7 +429,12 @@ itself was gone.
 Run a BOPF business object end to end: create the given node rows, save,
 and report what came back.
 
-**Availability**: case 1 — registered only when `canWrite`.
+**Availability**: the real, functional tool needs `canWrite`. Without it,
+a read-only v1 server registers a mode-locked refusal stub under the same
+name instead of skipping registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed with an empty schema, refuses every call `READ_ONLY` without
+reaching SAP.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|

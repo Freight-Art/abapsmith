@@ -698,18 +698,57 @@ async function toolNames(config: Config): Promise<Set<string>> {
 }
 
 describe("abap_fluid — registration gating (server.ts, toolCapabilities.canUseFluidApi)", () => {
-  it("is ABSENT from tools/list on a read-only server, even with the flag on (its default)", async () => {
-    const names = await toolNames(
-      ConfigSchema.parse({
-        url: "http://sap.invalid:50000",
-        user: "U",
-        password: "p",
-        sid: "A4H",
-        client: "001",
-        // readOnly defaults to true — deliberately not overridden here.
-      }),
-    );
-    expect(names.has("abap_fluid")).toBe(false);
+  it("is a locked refusal stub on a read-only server, not the real tool, even with the flag on (its default) (issue #63)", async () => {
+    // `fluidApi` defaults to `true` (src/config.ts's `boolishRejectDefaultTrue`),
+    // so this config satisfies `abap_fluid`'s `availableWhen` in
+    // src/tools/locked.ts, and it is stubbed rather than omitted. It used
+    // to be silently absent from tools/list here; since issue #63, every
+    // mutating tool is advertised by name even when read-only, either as
+    // the real tool or — like this one — as a locked refusal stub.
+    const config = ConfigSchema.parse({
+      url: "http://sap.invalid:50000",
+      user: "U",
+      password: "p",
+      sid: "A4H",
+      client: "001",
+      // readOnly defaults to true — deliberately not overridden here.
+    });
+    const srv: AbapsmithServer = createServer(config, {
+      httpClient: routeSystemRoleProbe(new ForbiddenClient() as unknown as HttpClient, { answer: "nonproductive" }),
+      log: () => {},
+      breaker: new AuthCircuitBreaker(),
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test", version: "0.0.0" });
+    await Promise.all([client.connect(clientTransport), srv.mcp.connect(serverTransport)]);
+
+    const { tools } = await client.listTools();
+    const tool = tools.find((t) => t.name === "abap_fluid");
+    expect(tool, "abap_fluid is missing from read-only tools/list").toBeDefined();
+    // Stubs register with NO inputSchema at all (empty-object schema; see
+    // `registerLockedTools`'s doc comment in src/tools/locked.ts) — unlike
+    // the real abap_fluid tool's schema, which always has properties.
+    const properties = (tool!.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties;
+    expect(
+      properties === undefined || Object.keys(properties).length === 0,
+      "abap_fluid has a non-empty input schema on a read-only server — the REAL tool leaked through, not a locked stub",
+    ).toBe(true);
+
+    // Calling it — with args a real abap_fluid call would need — refuses
+    // instead of running anything, and touches no network (ForbiddenClient
+    // above would throw).
+    const res = await client.callTool({ name: "abap_fluid", arguments: { op: "run", tool: "demo" } });
+    const payload = errorPayload(res as CallToolResult);
+    expect(payload.error).toBe("READ_ONLY");
+    expect(String(payload.message)).toContain("abap_fluid");
+    // This config is built via `ConfigSchema.parse()` directly, without an
+    // `abapMode` — the legacy path (no `ABAP_MODE` env var set), so the
+    // remediation names the legacy allow-flag, not `ABAP_MODE=edit` (that
+    // form only appears once a config actually carries an `abapMode`;
+    // see `test/mode-locked-tools.test.ts` for that case).
+    expect(String(payload.hint)).toContain("ABAP_ALLOW_WRITE=true");
+
+    await client.close();
   });
 
   it("is ABSENT from tools/list on a writable server once ABAP_FLUID_API is explicitly off", async () => {

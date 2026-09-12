@@ -7,14 +7,22 @@ living in one package, `$ABAPSMITH_FLUID_API`. Governed by `ABAP_FLUID_API`
 how it is built; this file is the wire contract for the one MCP tool that
 exposes it.
 
-**Availability**: registered only when the fluid API is statically
-available — `ABAP_FLUID_API` on, and the system is not read-only
-(`ABAP_MODE` not `read`, `ABAP_ALLOW_WRITE` on). A read-only or
-not-yet-write-capable server does not have this tool at all. Even after
-registration, every network op still refuses with `FLUID_API_DISABLED` if
-the system later proves productive, the write lockout trips, or the
+**Availability**: the real, fully-functional tool registers only when the
+fluid API is statically available — `ABAP_FLUID_API` on, and the system is
+not read-only (`ABAP_MODE` not `read`, `ABAP_ALLOW_WRITE` on). With
+`ABAP_FLUID_API` off, `abap_fluid` is absent from `tools/list` entirely,
+regardless of mode. A read-only or not-yet-write-capable v1 server is
+different: as long as `ABAP_FLUID_API` stays on, `abap_fluid` is still
+listed, but as a mode-locked refusal stub under the same name (no
+parameters, LOCKED in its description, refuses every call `READ_ONLY`
+without making any network request) rather than being absent — see
+`doc/TOOLS/availability-and-capabilities.md`'s case 4. Once the real tool
+*is* registered, every network op still refuses with `FLUID_API_DISABLED`
+if the system later proves productive, the write lockout trips, or the
 system-role probe never answers — see `doc/FLUID-API/README.md`'s
-"Read-only disables the whole feature" for the full list of senses.
+"Read-only disables the whole feature" for the full list of senses; those
+are runtime discoveries the locked stub above never needed, since it never
+attempts a connection at all.
 
 ## The tool description is generated
 
@@ -45,10 +53,21 @@ first loaded tool when one exists, otherwise a pointer at
 the one place a misconfigured plugin directory is never silently invisible.
 Useful as a first call to see what is loaded before naming a `tool`.
 
-The flag/read-only gate still applies before any of this: with
-`ABAP_FLUID_API` off, or the system otherwise read-only, the empty call
-returns the ordinary `FLUID_API_DISABLED` refusal, not the info block — see
-"Read-only disables the whole feature" in `doc/FLUID-API/README.md`.
+This is all about the real, registered tool. With `ABAP_FLUID_API` off,
+there is no `abap_fluid` to call at all. On a v1 server that is read-only
+for a mode reason (`ABAP_MODE=read`, or legacy read-only config) with
+`ABAP_FLUID_API` still on, `abap_fluid` names the mode-locked stub instead
+(see "Availability" above): an empty call `{}` gets the same fixed
+`READ_ONLY` refusal as any other call, not the info block and not
+`FLUID_API_DISABLED` — the stub does not branch on its arguments at all.
+Only once the real tool is registered (write-capable session) does an
+empty call's flag/read-only gate look like the ordinary
+`FLUID_API_DISABLED` refusal described in "Read-only disables the whole
+feature" in `doc/FLUID-API/README.md` — reachable there for the ceilings
+discovered only after `connect()` (productive system, write lockout,
+failed role probe), since the mode/flag ceilings that page also lists are
+already excluded by registration or replaced by the stub before a call is
+ever dispatched.
 
 ```json
 {}

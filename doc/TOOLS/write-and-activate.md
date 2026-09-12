@@ -5,7 +5,12 @@
 Create, change or delete (`mode=delete`) an ABAP object: saves,
 syntax-checks, activates. Locking is handled for you.
 
-**Availability**: case 1 — registered only when `canWrite`.
+**Availability**: the real, functional tool needs `canWrite`. Without it,
+a read-only v1 server registers a mode-locked refusal stub under the same
+name instead of skipping registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed with an empty schema, refuses every call `READ_ONLY` without
+reaching SAP.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
