@@ -76669,10 +76669,17 @@ var ConfigSchema = external_exports.object({
    * Do not default this to v2 or drop v1 — a live paired A/B measured v2 at
    * +6.6% more expensive and +142% more tool errors than v1 for
    * statistically identical successful work, despite a genuine −87.6%
-   * schema-size cut. v2 is EXPERIMENTAL and NOT supported for production;
-   * known defects are intentionally not being fixed while
-   * it holds that status. Full measurement, reasoning, and the bar for
+   * schema-size cut. Full measurement, reasoning, and the bar for
    * revisiting this default: see the git history.
+   *
+   * As of this release, `"v2"` is DEPRECATED and scheduled for removal in
+   * 0.6.0 (issue #76; keep in sync with `V2_REMOVAL_RELEASE` in
+   * src/server.ts). The surface is frozen: no new tool routes and no defect
+   * fixes land on it. Setting `ABAP_TOOL_SURFACE=v2` logs a deprecation
+   * warning at startup and puts the same sentence in the server
+   * `instructions` (both driven by `V2_DEPRECATION_SENTENCE` in
+   * src/server.ts, so the operator-facing and model-facing wording cannot
+   * drift apart).
    *
    * Deliberately no `"both"` value: v2 reuses v1's tool names verbatim, so
    * registering both surfaces throws "Tool abap_read is already registered"
@@ -135665,6 +135672,8 @@ function stripSchemaKeyOnConnect(mcp) {
     return rawConnect(transport);
   });
 }
+var V2_REMOVAL_RELEASE = "0.6.0";
+var V2_DEPRECATION_SENTENCE = `ABAP_TOOL_SURFACE=v2 is DEPRECATED and will be REMOVED in ${V2_REMOVAL_RELEASE}. The surface is frozen: no new tool routes and no defect fixes land on it. Move to v1 by unsetting ABAP_TOOL_SURFACE.`;
 function packageScopeSentence(readOnly, allowPackages) {
   if (readOnly) {
     return "ABAP_ALLOW_PACKAGES unset allows every customer package, a list allows only those, and an empty value refuses every write.";
@@ -135681,7 +135690,7 @@ function instructionsFor(toolSurface, abapMode, readOnly, allowPackages, fluidAv
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   if (toolSurface === "v2") {
-    return `Access to an SAP ABAP system over ADT, via 6 tools. EXPERIMENTAL SURFACE \u2014 not supported for production use; known defects are not being fixed while it holds this status. Prefer the v1 surface for anything that matters. Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
+    return "Access to an SAP ABAP system over ADT, via 6 tools. " + V2_DEPRECATION_SENTENCE + ` Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
   }
   return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "");
 }
@@ -136013,7 +136022,7 @@ function createServer(cfg, opts) {
       );
       if (cfg.toolSurface === "v2") {
         warn(
-          "[abapsmith] ABAP_TOOL_SURFACE=v2 \u2014 EXPERIMENTAL, NOT SUPPORTED FOR PRODUCTION USE. Known v2 defects will not be fixed while v2 holds this status. v1 is the supported surface \u2014 see doc/TOOL-SURFACE-V2/README.md."
+          `[abapsmith] ${V2_DEPRECATION_SENTENCE} Four v1 tools (abap_data_preview, abap_open_url, abap_dumps, abap_ui) never had a v2 route, and every tool added since widened the gap \u2014 see doc/TOOL-SURFACE-V2/README.md and the CHANGELOG.`
         );
       }
       warn(
