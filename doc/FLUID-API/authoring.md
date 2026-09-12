@@ -167,7 +167,10 @@ loads.
 
 The repository ships `test/fixtures/fluid-plugins/hello/` as a worked,
 loadable example, and `test/fixtures/fluid-plugins/bad-namespace/` as
-an example of a plugin the loader refuses.
+an example of a plugin the loader refuses. `fluid-plugins/nr/` is a
+full-size, production-shaped plugin (SAP number ranges, six actions,
+read/mutate/execute categories, declared `targets`) that can be enabled
+as-is by pointing `ABAP_FLUID_PLUGINS` at `<repo>/fluid-plugins`.
 
 ## A `mutate` action
 

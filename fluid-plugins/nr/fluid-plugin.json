@@ -1,0 +1,222 @@
+{
+  "contract": "1.0",
+  "id": "nr",
+  "title": "Number ranges (SNRO)",
+  "description": "Reads and maintains SNRO number range objects, their intervals, and draws next numbers.",
+  "objects": [
+    { "name": "ZCL_ZMCP_X_NR", "type": "CLAS/OC", "description": "fluid: number range objects and intervals",
+      "source": { "file": "abap/zcl_zmcp_x_nr.abap" } }
+  ],
+  "entry": "ZCL_ZMCP_X_NR",
+  "actions": [
+    {
+      "name": "list",
+      "category": "read",
+      "description": "Lists number range objects matching a name pattern ('*' any chars, '+' one char). Reads texts in the given language, or the logon language by default. max_rows caps the result (0 or absent = no limit).",
+      "input": {
+        "type": "object",
+        "properties": {
+          "pattern": { "type": "string", "maxLength": 10, "description": "Object-name pattern; '*' matches any chars, '+' matches one char. Default '*'." },
+          "language": { "type": "string", "maxLength": 1, "description": "Text language key. Default: logon language." },
+          "max_rows": { "type": "string", "maxLength": 6, "description": "Row limit, as an integer written in text. 0 or absent means no limit." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["count", "objects"],
+        "properties": {
+          "count": { "type": "integer", "description": "Number of objects returned." },
+          "objects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "object": { "type": "string" },
+                "text": { "type": "string" },
+                "text_short": { "type": "string" },
+                "domain": { "type": "string" },
+                "percentage": { "type": "string" },
+                "buffer": { "type": "string" },
+                "buffer_size": { "type": "string" },
+                "subobject_element": { "type": "string" },
+                "year_dependent": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "describe",
+      "category": "read",
+      "description": "Reads one number range object's definition and its list of intervals.",
+      "input": {
+        "type": "object",
+        "required": ["object"],
+        "properties": {
+          "object": { "type": "string", "maxLength": 10, "description": "Number range object name." },
+          "language": { "type": "string", "maxLength": 1, "description": "Text language key. Default: logon language." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["object", "text", "domain", "package", "year_dependent", "interval_count", "intervals"],
+        "properties": {
+          "object": { "type": "string" },
+          "text": { "type": "string" },
+          "text_short": { "type": "string" },
+          "domain": { "type": "string" },
+          "percentage": { "type": "string" },
+          "buffer": { "type": "string" },
+          "buffer_size": { "type": "string" },
+          "subobject_element": { "type": "string" },
+          "year_dependent": { "type": "boolean" },
+          "package": { "type": "string" },
+          "interval_count": { "type": "integer" },
+          "intervals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subobject": { "type": "string" },
+                "nrrangenr": { "type": "string" },
+                "toyear": { "type": "string" },
+                "fromnumber": { "type": "string" },
+                "tonumber": { "type": "string" },
+                "nrlevel": { "type": "string" },
+                "external": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create",
+      "category": "mutate",
+      "description": "Creates a number range object via NUMBER_RANGE_OBJECT_UPDATE and NUMBER_RANGE_OBJECT_CLOSE (no direct table writes). Registers a TADIR R3TR NROB entry in the given package, and records it on corr_nr when the package is transportable; pass corr_nr \"\" for a $ package. text_short defaults to the first 20 chars of text, percentage to 10, buffer_size to 10; buffer_off true means no buffering, otherwise main-memory buffering.",
+      "input": {
+        "type": "object",
+        "required": ["object", "text", "domain", "package", "corr_nr"],
+        "properties": {
+          "object": { "type": "string", "maxLength": 10, "description": "Number range object name to create." },
+          "text": { "type": "string", "maxLength": 60, "description": "Object description text." },
+          "domain": { "type": "string", "maxLength": 30, "description": "Number-length domain, e.g. CHAR10 or NUMC10." },
+          "package": { "type": "string", "maxLength": 30, "description": "Development package." },
+          "corr_nr": { "type": "string", "maxLength": 20, "description": "Transport request. Pass \"\" for a $ package." },
+          "text_short": { "type": "string", "maxLength": 20, "description": "Short text. Default: first 20 chars of text." },
+          "percentage": { "type": "string", "maxLength": 5, "description": "Warning percentage. Default 10." },
+          "buffer_off": { "type": "boolean", "description": "True disables buffering. Default: main-memory buffering." },
+          "buffer_size": { "type": "string", "maxLength": 8, "description": "Numbers held in buffer. Default 10." },
+          "year_dependent": { "type": "boolean", "description": "Whether intervals reset per year." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["object", "created", "package", "transport", "warnings"],
+        "properties": {
+          "object": { "type": "string" },
+          "created": { "type": "boolean" },
+          "package": { "type": "string" },
+          "transport": { "type": "string" },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "targets": { "object": "/object", "package": "/package", "transport": "/corr_nr" }
+    },
+    {
+      "name": "set_interval",
+      "category": "mutate",
+      "description": "Creates or changes one number-range interval under the number-range lock, via NUMBER_RANGE_INTERVAL_LIST, NUMBER_RANGE_INTERVAL_UPDATE and NUMBER_RANGE_UPDATE_CLOSE. mode reports whether the interval was inserted or updated. Internal (non-external) numeric bounds are zero-padded to the object's domain length. nrlevel, the current number level, is only changed when supplied. toyear defaults to \"0000\".",
+      "input": {
+        "type": "object",
+        "required": ["object", "nrrangenr", "fromnumber", "tonumber"],
+        "properties": {
+          "object": { "type": "string", "maxLength": 10, "description": "Number range object name." },
+          "nrrangenr": { "type": "string", "maxLength": 2, "description": "Interval/sub-number-range key." },
+          "fromnumber": { "type": "string", "maxLength": 20, "description": "Lower bound of the interval." },
+          "tonumber": { "type": "string", "maxLength": 20, "description": "Upper bound of the interval." },
+          "external": { "type": "boolean", "description": "True for external numbering (caller supplies numbers)." },
+          "subobject": { "type": "string", "maxLength": 6, "description": "Subobject value, if the object has one." },
+          "toyear": { "type": "string", "maxLength": 4, "description": "Fiscal/calendar year for a year-dependent object. Default \"0000\"." },
+          "nrlevel": { "type": "string", "maxLength": 20, "description": "Current number level. Only changed when supplied." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["object", "subobject", "nrrangenr", "toyear", "mode", "fromnumber", "tonumber", "nrlevel", "changed", "external", "warnings"],
+        "properties": {
+          "object": { "type": "string" },
+          "subobject": { "type": "string" },
+          "nrrangenr": { "type": "string" },
+          "toyear": { "type": "string" },
+          "mode": { "type": "string", "enum": ["insert", "update"] },
+          "fromnumber": { "type": "string" },
+          "tonumber": { "type": "string" },
+          "nrlevel": { "type": "string" },
+          "changed": { "type": "boolean" },
+          "external": { "type": "boolean" },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "targets": { "object": "/object" }
+    },
+    {
+      "name": "get_next",
+      "category": "execute",
+      "description": "Draws the next number(s) from an interval with NUMBER_GET_NEXT. This consumes numbers: the interval level advances in the number range buffer, or for an unbuffered object in NRIV, persisted when the request ends (the plugin issues no COMMIT). ignore_buffer bypasses the buffer. quantity defaults to 1.",
+      "input": {
+        "type": "object",
+        "required": ["object", "nrrangenr"],
+        "properties": {
+          "object": { "type": "string", "maxLength": 10, "description": "Number range object name." },
+          "nrrangenr": { "type": "string", "maxLength": 2, "description": "Interval/sub-number-range key." },
+          "subobject": { "type": "string", "maxLength": 6, "description": "Subobject value, if the object has one." },
+          "toyear": { "type": "string", "maxLength": 4, "description": "Fiscal/calendar year for a year-dependent object." },
+          "quantity": { "type": "string", "maxLength": 10, "description": "How many numbers to draw, as an integer written in text. Default 1." },
+          "ignore_buffer": { "type": "boolean", "description": "True reads/updates the database directly, bypassing the number range buffer." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["object", "nrrangenr", "number", "quantity", "returncode", "returncode_text"],
+        "properties": {
+          "object": { "type": "string" },
+          "nrrangenr": { "type": "string" },
+          "number": { "type": "string" },
+          "quantity": { "type": "string" },
+          "returncode": { "type": "string" },
+          "returncode_text": { "type": "string" }
+        }
+      }
+    },
+    {
+      "name": "delete",
+      "category": "mutate",
+      "description": "Deletes a number range object. Refuses if it still has intervals unless with_intervals is set; refuses if any interval is in use (number level not 0) unless force is set. Deletes intervals via the interval API, then the object via NUMBER_RANGE_OBJECT_DELETE, then cleans up the TADIR entry. package must match the object's registered package (or a $ package if it has no TADIR entry); corr_nr is required for a transportable package, \"\" otherwise.",
+      "input": {
+        "type": "object",
+        "required": ["object", "package", "corr_nr"],
+        "properties": {
+          "object": { "type": "string", "maxLength": 10, "description": "Number range object name to delete." },
+          "package": { "type": "string", "maxLength": 30, "description": "Must match the object's TADIR package, or a $ package if it has none." },
+          "corr_nr": { "type": "string", "maxLength": 20, "description": "Transport request. Required for a transportable package, \"\" otherwise." },
+          "with_intervals": { "type": "boolean", "description": "Also delete the object's intervals. Required if any exist." },
+          "force": { "type": "boolean", "description": "Allow deleting intervals whose number level is not 0 (already in use)." }
+        }
+      },
+      "output": {
+        "type": "object",
+        "required": ["object", "deleted", "intervals_deleted", "package", "transport"],
+        "properties": {
+          "object": { "type": "string" },
+          "deleted": { "type": "boolean" },
+          "intervals_deleted": { "type": "integer" },
+          "package": { "type": "string" },
+          "transport": { "type": "string" }
+        }
+      },
+      "targets": { "object": "/object", "package": "/package", "transport": "/corr_nr" }
+    }
+  ]
+}

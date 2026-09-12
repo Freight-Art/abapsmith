@@ -17,6 +17,9 @@ const COMMIT_WORK_DIR = join(FIXTURES, "commit-work");
 const CALL_FM_DIR = join(FIXTURES, "call-fm");
 const FOO_DIR = join(FIXTURES, "foo");
 const FOO_BAR_DIR = join(FIXTURES, "foo_bar");
+// The shipped, operator-installable plugins live outside the fixtures tree.
+const SHIPPED_PLUGINS = join(dirname(fileURLToPath(import.meta.url)), "..", "fluid-plugins");
+const NR_DIR = join(SHIPPED_PLUGINS, "nr");
 
 let dir: string;
 
@@ -577,5 +580,45 @@ describe("cross-plugin object-name conflict", () => {
     expect(refusal.id).toBe("hello");
     expect(refusal.reason).toMatch(/ZCL_ZMCP_X_HELLO/);
     expect(refusal.reason).toMatch(/sneaky/);
+  });
+});
+
+describe("shipped plugin fluid-plugins/nr", () => {
+  it("loads with every action once mutate and CALL FUNCTION are allowed", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("nr", NR_DIR)], true, true, true));
+    expect(result.refused).toEqual([]);
+    const tool = result.tools.get("nr");
+    if (!tool) throw new Error("unreachable");
+    expect(tool.origin).toBe("plugin");
+    expect(tool.manifest.actions.map((a) => a.name).sort()).toEqual([
+      "create",
+      "delete",
+      "describe",
+      "get_next",
+      "list",
+      "set_interval",
+    ]);
+    expect(tool.sources.has("ZCL_ZMCP_X_NR")).toBe(true);
+  });
+
+  it("is refused while ABAP_ALLOW_FLUID_CALL_FM is off, because it calls NUMBER_RANGE_* function modules", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("nr", NR_DIR)], true, true, false));
+    expect(result.tools.size).toBe(0);
+    expect(result.refused).toHaveLength(1);
+    expect(result.refused[0]?.code).toBe("SAFETY_DENIED");
+    expect(result.refused[0]?.rule).toBe("ABAP_ALLOW_FLUID_CALL_FM");
+    expect(result.refused[0]?.id).toBe("nr");
+  });
+
+  it("still loads with ABAP_ALLOW_FLUID_PLUGIN_MUTATE off: it mutates through function modules, not Open SQL, so the mutate gate applies per action at dispatch", async () => {
+    const result = await loadFluidTools(cfg([await isolatedRoot("nr", NR_DIR)], true, false, true));
+    expect(result.refused).toEqual([]);
+    const tool = result.tools.get("nr");
+    if (!tool) throw new Error("unreachable");
+    expect(tool.manifest.actions.filter((a) => a.category === "mutate").map((a) => a.name).sort()).toEqual([
+      "create",
+      "delete",
+      "set_interval",
+    ]);
   });
 });
