@@ -71,6 +71,7 @@ import { Journal, systemKey } from "../src/journal.js";
 import { vitBridgeUri } from "../src/adt/write-verify.js";
 import type { WriteToolDeps } from "../src/tools/write.js";
 import { errorResult } from "../src/server.js";
+import { preflight, writeGateKey } from "../src/tools/preflight.js";
 import { isEnhancementType, SafetyGate } from "../src/safety.js";
 import { SessionTransport } from "../src/adt/session-transport.js";
 import type { TrRequirement } from "../src/adt/transports.js";
@@ -6363,6 +6364,209 @@ describe("abap_write → TABL/DI delete: ACTFAILED never reaches the caller-visi
     // The ordinary tags still reach the caller — only the ACTFAILED-named one is filtered.
     expect(result.text).toMatch(/markers:.*INDEX-DELETED\b/);
     expect(result.text).toMatch(/markers:.*INDEX-GONE\b/);
+  });
+});
+
+/**
+ * issue #74: `abap_write({object:"ZTAB/Z01", type:"TABL/DI", mode:"delete"})`
+ * (and the analogous create) was refused with the generic parser error
+ * `BAD_INPUT: Could not extract an ABAP object name from "ZTAB/Z01"` before
+ * ever reaching the handler's own, already-correct `resolveIndexObjectInput`
+ * call inside `abapWrite` (above). The registrar-level gate —
+ * `preflight()`/`writeGateKey()` in `src/tools/preflight.ts`, called BEFORE
+ * `ensureConnected()` so a denied write costs zero requests — parsed the raw
+ * `object` argument with `parseObjectRef`, which only splits a `PARENT/NAME`
+ * form when the resolved `TypeSpec` carries a `parentPath`; `TABL/DI` has no
+ * `TypeSpec` at all (it has no ADT resource of its own), so the slash form
+ * always threw there, no matter what the handler itself would have done with
+ * it. This closes that hole the same way test/parented-name-slash-form.test.ts
+ * closed it for `FUGR/FF`: pure-function coverage of `preflight()`/
+ * `writeGateKey()` directly, plus an end-to-end probe through the real
+ * registered `abap_write` tool proving the slash form now reaches
+ * `pool.withWrite` (i.e. survives the gate) instead of dying in the parser.
+ */
+describe("preflight() / writeGateKey(): TABL/DI accepts the <TABLE>/<INDEX> slash form too (issue #74)", () => {
+  const TYPE = "TABL/DI";
+  const TABLE = "ZTAB";
+  const INDEX = "Z01";
+  const SLASH_FORM = `${TABLE}/${INDEX}`;
+
+  describe("preflight()", () => {
+    it("slash form alone resolves to the bare index name", () => {
+      expect(preflight({ object: SLASH_FORM, type: TYPE }).name).toBe(INDEX);
+    });
+
+    it("slash form + an agreeing base_table resolves the same way", () => {
+      expect(preflight({ object: SLASH_FORM, type: TYPE, base_table: TABLE }).name).toBe(INDEX);
+      // Case-insensitive agreement, same as resolveIndexObjectInput itself.
+      expect(preflight({ object: SLASH_FORM, type: TYPE, base_table: TABLE.toLowerCase() }).name).toBe(INDEX);
+    });
+
+    it("slash form + a disagreeing base_table is refused BAD_INPUT naming both values — not the generic parser error", () => {
+      let err: unknown;
+      try {
+        preflight({ object: SLASH_FORM, type: TYPE, base_table: "ZOTHER" });
+      } catch (e) {
+        err = e;
+      }
+      expect(isAbapError(err)).toBe(true);
+      const e = err as AbapError;
+      expect(e.code).toBe("BAD_INPUT");
+      expect(String(e.message)).not.toMatch(/Could not extract an ABAP object name/);
+      expect(String(e.message)).toContain(SLASH_FORM);
+      expect(String(e.message)).toContain("ZOTHER");
+    });
+
+    it("the bare index name + base_table form still works, unchanged", () => {
+      expect(preflight({ object: INDEX, type: TYPE, base_table: TABLE }).name).toBe(INDEX);
+    });
+
+    it("the bare index name with no base_table is refused BAD_INPUT, not the generic parser error", () => {
+      let err: unknown;
+      try {
+        preflight({ object: INDEX, type: TYPE });
+      } catch (e) {
+        err = e;
+      }
+      expect(isAbapError(err)).toBe(true);
+      expect((err as AbapError).code).toBe("BAD_INPUT");
+      expect(String((err as AbapError).message)).not.toMatch(/Could not extract an ABAP object name/);
+    });
+
+    it("is unaffected for non-index types (e.g. a bare CLAS/OC name)", () => {
+      expect(preflight({ object: "ZCL_FOO", type: "CLAS/OC" }).name).toBe("ZCL_FOO");
+    });
+  });
+
+  describe("writeGateKey()", () => {
+    it("slash form and bare-name + base_table spellings share the same gate key", () => {
+      expect(writeGateKey(SLASH_FORM, TYPE)).toBe(INDEX);
+      expect(writeGateKey(INDEX, TYPE, TABLE)).toBe(INDEX);
+    });
+
+    it("slash form + an agreeing base_table resolves to the same key", () => {
+      expect(writeGateKey(SLASH_FORM, TYPE, TABLE)).toBe(INDEX);
+    });
+
+    it("slash form + a disagreeing base_table throws BAD_INPUT naming both values", () => {
+      let err: unknown;
+      try {
+        writeGateKey(SLASH_FORM, TYPE, "ZOTHER");
+      } catch (thrown) {
+        err = thrown;
+      }
+      expect(isAbapError(err)).toBe(true);
+      expect((err as AbapError).code).toBe("BAD_INPUT");
+      expect(String((err as AbapError).message)).toContain(SLASH_FORM);
+      expect(String((err as AbapError).message)).toContain("ZOTHER");
+    });
+  });
+});
+
+/**
+ * The same issue #74 fix, exercised through the real registered `abap_write`
+ * tool over `InMemoryTransport` — a unit test on `preflight()`/`writeGateKey()`
+ * alone would have passed on the broken build (`registerWriteTools` itself
+ * never called them with `base_table` threaded through until this fix), so
+ * this closes the gap the way test/parented-name-slash-form.test.ts's own
+ * end-to-end section does for `FUGR/FF`. `deps.pool.withWrite` never calls its
+ * `fn` — it only records the gate key it was handed and how many times it was
+ * reached, which is exactly the question under test: did the slash form
+ * survive the zero-network gate instead of dying in the parser before a
+ * connection was ever opened?
+ */
+describe("registerWriteTools: TABL/DI slash form reaches pool.withWrite (issue #74)", () => {
+  const gate = new SafetyGate({ readOnly: false, allowPackages: ["*"] });
+
+  function harnessWithGateKey() {
+    let poolCalls = 0;
+    const gateKeys: Array<string | undefined> = [];
+    const deps: WriteToolDeps = {
+      pool: {
+        withWrite: async <T>(_tool: string, gateKey: string | undefined): Promise<T> => {
+          gateKeys.push(gateKey);
+          poolCalls += 1;
+          return { text: "stub: reached pool.withWrite (preflight passed)", truncated: false } as unknown as T;
+        },
+      } as never,
+      safety: gate,
+      ensureConnected: async () => {},
+      errorResult,
+      cfg: { maxResponseChars: 50_000 },
+      journal: undefined as never,
+      transport: undefined as never,
+    };
+    const server = new McpServer({ name: "tabl-di-slash-form-probe", version: "0.0.0" });
+    registerWriteTools(server, deps);
+    const call = async (args: Record<string, unknown>): Promise<string> => {
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: "tabl-di-slash-form-probe", version: "0.0.0" });
+      await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+      const res = await client.callTool({ name: "abap_write", arguments: args });
+      const first = Array.isArray(res.content) ? res.content[0] : undefined;
+      const text =
+        first && typeof first === "object" && "text" in first ? String((first as { text: unknown }).text) : "";
+      return text;
+    };
+    return { call, calls: () => poolCalls, gateKeys };
+  }
+
+  it("slash form create reaches the handler with the split names (bare index name as the gate key)", async () => {
+    const { call, calls, gateKeys } = harnessWithGateKey();
+    const text = await call({ object: "ZTAB/Z01", type: "TABL/DI", source: "" });
+    expect(text).toBe("stub: reached pool.withWrite (preflight passed)");
+    expect(calls()).toBe(1);
+    expect(gateKeys).toEqual(["Z01"]);
+  });
+
+  it("slash form delete reaches the handler the same way", async () => {
+    const { call, calls, gateKeys } = harnessWithGateKey();
+    const text = await call({ object: "ZTAB/Z01", type: "TABL/DI", mode: "delete" });
+    expect(text).toBe("stub: reached pool.withWrite (preflight passed)");
+    expect(calls()).toBe(1);
+    expect(gateKeys).toEqual(["Z01"]);
+  });
+
+  it("slash form + an agreeing base_table also reaches the handler", async () => {
+    const { call, calls, gateKeys } = harnessWithGateKey();
+    const text = await call({
+      object: "ZTAB/Z01",
+      type: "TABL/DI",
+      base_table: "ZTAB",
+      mode: "delete",
+    });
+    expect(text).toBe("stub: reached pool.withWrite (preflight passed)");
+    expect(calls()).toBe(1);
+    expect(gateKeys).toEqual(["Z01"]);
+  });
+
+  it("slash form + a disagreeing base_table is refused BAD_INPUT naming both values, and never reaches pool.withWrite", async () => {
+    const { call, calls, gateKeys } = harnessWithGateKey();
+    const text = await call({
+      object: "ZTAB/Z01",
+      type: "TABL/DI",
+      base_table: "ZOTHER",
+      mode: "delete",
+    });
+    expect(text).toMatch(/BAD_INPUT/);
+    expect(text).not.toMatch(/Could not extract an ABAP object name/);
+    expect(text).toContain("ZTAB/Z01");
+    expect(text).toContain("ZOTHER");
+    expect(calls()).toBe(0);
+    expect(gateKeys).toEqual([]);
+  });
+
+  it("the bare index name + base_table form still reaches the handler, unchanged", async () => {
+    const { call, calls, gateKeys } = harnessWithGateKey();
+    const text = await call({
+      object: "Z01",
+      type: "TABL/DI",
+      base_table: "ZTAB",
+      mode: "delete",
+    });
+    expect(text).toBe("stub: reached pool.withWrite (preflight passed)");
+    expect(calls()).toBe(1);
+    expect(gateKeys).toEqual(["Z01"]);
   });
 });
 

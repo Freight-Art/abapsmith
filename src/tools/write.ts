@@ -4309,6 +4309,7 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
           package?: string;
           mode?: string;
           affects?: EnhancedObjectRef;
+          base_table?: string;
           objects?: Array<{ object: string; type?: string; affects?: EnhancedObjectRef }>;
         };
 
@@ -4374,7 +4375,9 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
         const object = a.object;
 
         // BEFORE ensureConnected(): a denied write must never reach the wire.
-        const pf = preflight({ object, type: a.type, package: a.package });
+        // `base_table`: only meaningful for `type: "TABL/DI"` — see
+        // `preflight`'s own doc comment for why it needs it there.
+        const pf = preflight({ object, type: a.type, package: a.package, base_table: a.base_table });
         deps.safety.assert(a.mode === "delete" ? "delete" : "write", pf, {
           phase: "preflight",
           corr: { kind: "unresolved" },
@@ -4388,7 +4391,7 @@ export function registerWriteTools(mcp: McpServer, deps: WriteToolDeps): void {
         // would flag the core reading a field the registered schema doesn't declare — casting
         // to the schema-derived type means any new field the core reads must be added to
         // `writeInputSchema` to compile.
-        const res = await deps.pool.withWrite("abap_write", writeGateKey(object, a.type), (conn) =>
+        const res = await deps.pool.withWrite("abap_write", writeGateKey(object, a.type, a.base_table), (conn) =>
           abapWrite(
             conn,
             args as WriteInput,
