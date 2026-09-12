@@ -67,6 +67,26 @@ send another authenticated request.** Concretely:
   up the same latched state instead of each independently burning a logon
   attempt.
 
+### All five credential methods share the latch
+
+The reasoning above is stated in password terms because
+`login/fails_to_user_lock` is the motivating case, but the latch is not
+password-specific — it guards all five credential methods (password, cookie,
+certificate, token, OAuth) equally.
+
+The fingerprint that keys the durable, on-disk latch mixes in a fixed
+per-method discriminator — never any part of a token, secret, passphrase, or
+key. Nothing credential-derived reaches disk, not even a length. One
+deliberate consequence: two different OAuth clients configured against the
+same `ABAP_OAUTH_TOKEN_URL` and `ABAP_USER` share one latch entry, because the
+client secret is (correctly) not part of the fingerprint.
+
+OAuth mode has one extra step *before* the latch sees anything: a `401`
+triggers exactly one token refresh and one retry, and only a second `401`
+reaches the latch. This is deliberate — the latch is one-way, and an access
+token that merely aged out must never brick the process. The refresh rate is
+bounded by the token provider's own failure cooldown, not by the latch.
+
 **To clear it:** create the `auth-rearm` file beside `auth-latch.json` under
 the state directory — that admits exactly one further logon attempt, without
 restarting anything, and if the credentials are still wrong that attempt

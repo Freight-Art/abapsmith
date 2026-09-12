@@ -1,0 +1,32 @@
+{
+  "n": 875,
+  "label": "i87-dd07v-domain-with-values",
+  "expect": null,
+  "note": "DD07V rows for a domain that does have fixed values.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=8&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM dd07v WHERE domname = 'AS4LOCAL' AND ddlanguage = 'E'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "4605",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "685260.000000"
+  },
+  "byteLength": 4605,
+  "zeroByteBody": false,
+  "sha256": "8af211a6bdd261a86c8a793a213dcaae0374d72704303ccab12cd27d4fb2b212",
+  "utcTimestamp": "2026-09-12T13:25:43.795Z",
+  "durationMs": 783,
+  "sessionName": "A"
+}

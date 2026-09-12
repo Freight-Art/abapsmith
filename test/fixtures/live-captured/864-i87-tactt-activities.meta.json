@@ -1,0 +1,32 @@
+{
+  "n": 864,
+  "label": "i87-tactt-activities",
+  "expect": null,
+  "note": "Activity texts.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM tactt WHERE spras = 'E' AND actvt IN ('02','03')",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "1586",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "308942.000000"
+  },
+  "byteLength": 1586,
+  "zeroByteBody": false,
+  "sha256": "6622f89f34289084b1971ab9987a15fefb3afcaf1ede558d8433bcb5296e8894",
+  "utcTimestamp": "2026-09-12T13:24:24.449Z",
+  "durationMs": 414,
+  "sessionName": "A"
+}

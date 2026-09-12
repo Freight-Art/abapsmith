@@ -11,7 +11,7 @@
  * evidence that SAP accepts what it sends.
  *
  * Issue #78 landed eight REAL captures from an A4H appliance under
- * `test/fixtures/live-captured/` (`852`…`859`, each with a `.meta.json`
+ * `test/fixtures/live-captured/` (`886`…`893`, each with a `.meta.json`
  * sidecar recording the exact request and response). Several tests below now
  * assert byte equality against those recordings rather than against the
  * library's template alone — that is the strongest check available offline,
@@ -161,12 +161,12 @@ describe("the run body", () => {
     }
   });
 
-  it("is byte-identical to capture 853's recorded request body for two package references", () => {
-    // test/fixtures/live-captured/853-i78-run-two-packages.meta.json: a REAL
+  it("is byte-identical to capture 887's recorded request body for two package references", () => {
+    // test/fixtures/live-captured/887-i78-run-two-packages.meta.json: a REAL
     // A4H capture of the two-package run. If buildAtcRunBody's shape for
     // several object references ever drifts from what the server actually
     // accepted, this fails.
-    const meta = readLiveMeta("853-i78-run-two-packages.meta.json");
+    const meta = readLiveMeta("887-i78-run-two-packages.meta.json");
     expect(meta.capturedBy).toMatch(/REAL wire recording/);
     const recordedBody = meta.requestBody as string;
     const uris = [
@@ -328,11 +328,11 @@ describe("URL building", () => {
 });
 
 describe("buildCheckVariantSearchUrl", () => {
-  it("equals capture 852's recorded requestUrl for the default maxResults", () => {
-    // test/fixtures/live-captured/852-i78-checkvariants-quicksearch.meta.json:
+  it("equals capture 886's recorded requestUrl for the default maxResults", () => {
+    // test/fixtures/live-captured/886-i78-checkvariants-quicksearch.meta.json:
     // a REAL A4H capture of the repository quickSearch listing all 19 check
     // variants. Parameter order is load-bearing here — it's copied verbatim.
-    const meta = readLiveMeta("852-i78-checkvariants-quicksearch.meta.json");
+    const meta = readLiveMeta("886-i78-checkvariants-quicksearch.meta.json");
     expect(meta.capturedBy).toMatch(/REAL wire recording/);
     expect(buildCheckVariantSearchUrl()).toBe(meta.requestUrl as string);
     expect(buildCheckVariantSearchUrl()).toContain(

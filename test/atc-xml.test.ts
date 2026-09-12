@@ -524,9 +524,9 @@ describe("live capture: 439-atc2-worklist-read.xml (worklist, one finding)", () 
   });
 });
 
-describe("live capture: 854-i78-worklist-read-two-packages.xml (29 findings, 5 objects, 2 packages)", () => {
+describe("live capture: 888-i78-worklist-read-two-packages.xml (29 findings, 5 objects, 2 packages)", () => {
   const w = parseAtcWorklist(
-    readLiveFixture("854-i78-worklist-read-two-packages.xml"),
+    readLiveFixture("888-i78-worklist-read-two-packages.xml"),
   );
 
   it("has no root timestamp on this response", () => {
@@ -587,9 +587,9 @@ describe("live capture: 854-i78-worklist-read-two-packages.xml (29 findings, 5 o
   });
 });
 
-describe("live capture: 855-i78-worklist-read-lastrun-empty.xml (empty worklist, five object sets)", () => {
+describe("live capture: 889-i78-worklist-read-lastrun-empty.xml (empty worklist, five object sets)", () => {
   const w = parseAtcWorklist(
-    readLiveFixture("855-i78-worklist-read-lastrun-empty.xml"),
+    readLiveFixture("889-i78-worklist-read-lastrun-empty.xml"),
   );
 
   it("reads zero objects, not a failure", () => {
@@ -615,8 +615,8 @@ describe("live capture: 855-i78-worklist-read-lastrun-empty.xml (empty worklist,
   });
 });
 
-describe("live capture: 856-i78-worklist-read-variant2.xml (5 findings, one PROG object)", () => {
-  const w = parseAtcWorklist(readLiveFixture("856-i78-worklist-read-variant2.xml"));
+describe("live capture: 890-i78-worklist-read-variant2.xml (5 findings, one PROG object)", () => {
+  const w = parseAtcWorklist(readLiveFixture("890-i78-worklist-read-variant2.xml"));
 
   it("reads the one object and all 5 findings", () => {
     expect(w.objects).toHaveLength(1);
@@ -627,9 +627,9 @@ describe("live capture: 856-i78-worklist-read-variant2.xml (5 findings, one PROG
   });
 });
 
-describe("live capture: 852-i78-checkvariants-quicksearch.xml (parseCheckVariantList)", () => {
+describe("live capture: 886-i78-checkvariants-quicksearch.xml (parseCheckVariantList)", () => {
   const variants = parseCheckVariantList(
-    readLiveFixture("852-i78-checkvariants-quicksearch.xml"),
+    readLiveFixture("886-i78-checkvariants-quicksearch.xml"),
   );
 
   it("returns all 19 variants in the server's order", () => {
@@ -653,9 +653,9 @@ describe("live capture: 852-i78-checkvariants-quicksearch.xml (parseCheckVariant
   });
 
   it("filters out a row whose type is not CHKV (SYNTHETIC row appended to a real document)", () => {
-    // The real 852 capture has no non-CHKV rows — this exercises the filter
+    // The real 886 capture has no non-CHKV rows — this exercises the filter
     // that makes the result trustworthy if quickSearch is ever broadened.
-    const real = readLiveFixture("852-i78-checkvariants-quicksearch.xml");
+    const real = readLiveFixture("886-i78-checkvariants-quicksearch.xml");
     const withExtra = real.replace(
       "</adtcore:objectReferences>",
       '<adtcore:objectReference adtcore:uri="/sap/bc/adt/oo/classes/zcl_foo" ' +
@@ -683,18 +683,18 @@ describe("live capture: 852-i78-checkvariants-quicksearch.xml (parseCheckVariant
   });
 });
 
-describe("live capture: 859-i78-atc-customizing.xml (parseAtcCustomizing)", () => {
+describe("live capture: 893-i78-atc-customizing.xml (parseAtcCustomizing)", () => {
   it("reads systemCheckVariant as ZABAP_CLOUD_DEVELOPMENT", () => {
-    const c = parseAtcCustomizing(readLiveFixture("859-i78-atc-customizing.xml"));
+    const c = parseAtcCustomizing(readLiveFixture("893-i78-atc-customizing.xml"));
     expect(systemCheckVariant(c, SYSTEM_CHECK_VARIANT_PROPERTY)).toBe(
       "ZABAP_CLOUD_DEVELOPMENT",
     );
   });
 });
 
-describe("live capture: 853-i78-run-two-packages.xml (parseAtcRunAck)", () => {
+describe("live capture: 887-i78-run-two-packages.xml (parseAtcRunAck)", () => {
   it("reads the worklist id, timestamp, and both infos", () => {
-    const ack = parseAtcRunAck(readLiveFixture("853-i78-run-two-packages.xml"));
+    const ack = parseAtcRunAck(readLiveFixture("887-i78-run-two-packages.xml"));
     expect(ack.worklistId).toBe("466F46C806601FE1ABD795A0C0B5C069");
     expect(ack.timestamp).toBe("2026-09-12T15:48:31Z");
     expect(ack.infos).toEqual([

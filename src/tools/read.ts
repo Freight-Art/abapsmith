@@ -22,9 +22,11 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { AbapConnection } from "../adt/connection.js";
-import { fetchDdicXml, readDdic } from "../adt/ddic.js";
+import { fetchDdicXml, readDdic, type DdicRender } from "../adt/ddic.js";
 import { capabilitiesFor, NON_READABLE_TYPES, PROPERTIES_SHAPE_TYPES } from "../adt/capabilities.js";
 import { AbapError } from "../adt/errors.js";
+import { readAuthorizationObject, renderAuthorizationObject, SUSO_WHERE_USED_NOTE } from "../adt/suso-read.js";
+import { readSecondaryIndex, renderSecondaryIndex } from "../adt/index-read.js";
 import {
   readBadiImplementation,
   readEnhancementSpot,
@@ -68,7 +70,12 @@ export const readInputSchema = {
   type: z
     .string()
     .optional()
-    .describe(`ADT type to disambiguate. Not readable: ${NON_READABLE_TYPES.join(" ")}.`),
+    .describe(
+      "ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the " +
+        "object's DEFINITION (fields, permitted activities) from the catalog — NOT who holds it, no " +
+        "AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. " +
+        `Not readable: ${NON_READABLE_TYPES.join(" ")}.`,
+    ),
   method: z.string().optional().describe("Only this method/component."),
   outline: z.boolean().optional().describe("Component list with line ranges."),
   offset: z
@@ -117,6 +124,17 @@ export const readInputSchema = {
     .enum(CLASS_INCLUDES)
     .optional()
     .describe('Class include. "testclasses"=Unit tests. Default "main".'),
+  types: z
+    .array(z.string())
+    .optional()
+    .describe('DEVC/K only: filter package contents to these kind codes, e.g. ["CLAS","DDLS"].'),
+  depth: z
+    .number()
+    .int()
+    .min(1)
+    .max(3)
+    .optional()
+    .describe("DEVC/K only: subpackage nesting depth to list. Default 1."),
 };
 
 export const ReadInput = z.object(readInputSchema);
@@ -349,6 +367,43 @@ function renderEnhancementSpot(data: EnhancementSpotRead): { body: string; notes
  */
 function resourceEtag(canonicalBytes: string): string {
   return canonicalEtag(canonicalBytes);
+}
+
+/**
+ * Shared response assembly for every `DdicRender`-shaped read: the DDIC
+ * pseudo-DDL branch below, and the two catalog-table renders (SUSO/B,
+ * TABL/DI in `abapRead`'s dispatch, before `resolveObject` ever runs) —
+ * all three produce the same {ddl, sections, meta, notes, hashInput,
+ * bodyLabel?} shape, so they share this instead of three copies of the same
+ * etag/windowing/response-building sequence.
+ *
+ * `header` is everything the caller wants ABOVE `rendered.meta`/`etag`/
+ * `totalLines` — those three are always appended last, in that order, so
+ * every DdicRender-shaped response has the same tail regardless of caller.
+ */
+function buildDdicLikeResponse(
+  rendered: DdicRender,
+  header: Record<string, string | number | undefined>,
+  offset: number | undefined,
+  limit: number | undefined,
+  hints: string[],
+  maxChars: number,
+): BuiltResponse & { etag: string } {
+  const etag = resourceEtag(rendered.hashInput);
+  const window = sliceLines(rendered.ddl, offset ?? 1, limit);
+  const built = buildReadResponse({
+    header: { ...header, ...rendered.meta, etag, totalLines: window.total },
+    sections: rendered.sections,
+    body: window.text,
+    bodyLabel: rendered.bodyLabel ?? "PSEUDO-DDL",
+    bodyOffset: window.offset,
+    bodyTotalLines: window.total,
+    notes: rendered.notes,
+    hints,
+    pagingParam: "offset",
+    maxChars,
+  });
+  return { ...built, etag };
 }
 
 /**
@@ -1000,6 +1055,108 @@ async function readDiff(
   return { ...built, etag: NO_ETAG };
 }
 
+/**
+ * Every parameter that means nothing for a `catalogRead` type: there is no
+ * ADT resource, so no source/outline/history/raw-XML axis exists to apply
+ * them to. Refused the same way from/to/context are refused against a
+ * non-diff read — naming the parameter, not silently discarding it.
+ */
+const CATALOG_READ_IRRELEVANT_PARAMS = [
+  "method",
+  "outline",
+  "enhancements",
+  "version",
+  "view",
+  "from",
+  "to",
+  "context",
+  "include",
+  "types",
+  "depth",
+  "format",
+] as const;
+
+/**
+ * Renders SUSO/B (authorization object) and TABL/DI (table secondary index)
+ * from catalog tables — the two `catalogRead` types, dispatched by `abapRead`
+ * on the explicit `type` hint before `resolveObject` ever runs, since
+ * neither has a URI to resolve. Shares `buildDdicLikeResponse` with the DDIC
+ * branch so both produce the same response shape.
+ */
+async function readCatalogObject(
+  conn: AbapConnection,
+  input: ReadInput,
+  catalogRead: { readonly from: string; readonly nameForm: string },
+  label: string,
+  maxChars: number,
+): Promise<BuiltResponse & { etag: string }> {
+  const code = input.type!.trim().toUpperCase();
+  for (const param of CATALOG_READ_IRRELEVANT_PARAMS) {
+    if (input[param] !== undefined) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is not supported for ${label} (${code}): this type has no ADT resource, so ` +
+          `abap_read renders it directly from the catalog (${catalogRead.from}) with no source, ` +
+          "outline, history or raw-XML axis to apply it to.",
+        { type: code, param },
+        `Drop ${param}.`,
+      );
+    }
+  }
+
+  const header: Record<string, string | number | undefined> = {
+    system: conn.cfg.sid,
+    mode: "catalog",
+  };
+
+  if (code === "SUSO/B") {
+    const obj = await readAuthorizationObject(conn, input.object);
+    const rendered = renderAuthorizationObject(obj);
+    return buildDdicLikeResponse(
+      rendered,
+      { ...header, object: `${code} ${obj.name}` },
+      input.offset,
+      input.limit,
+      [SUSO_WHERE_USED_NOTE],
+      maxChars,
+    );
+  }
+
+  // TABL/DI: <TABLE>/<INDEX>, the same parented form the create takes.
+  const parts = input.object.split("/");
+  if (parts.length !== 2 || parts[0]!.trim() === "" || parts[1]!.trim() === "") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"${input.object}" is not a valid ${code} name: expected ${catalogRead.nameForm}.`,
+      { object: input.object, type: code },
+      'Name it as <TABLE>/<INDEX>, e.g. "ZTAB/Z01". Not sure of the index id? ' +
+        'abap_read {"object":"<TABLE>","type":"TABL/DT"} shows the table\'s own structure.',
+    );
+  }
+  const [table, indexId] = parts as [string, string];
+  const hint = `abap_read {"object":"${table.trim().toUpperCase()}","type":"TABL/DT"} to see the table's own structure.`;
+  const { index, notes } = await readSecondaryIndex(conn, table, indexId);
+  if (index === undefined) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `Table ${table.trim().toUpperCase()} has no secondary index ${indexId.trim().toUpperCase()} in DD12V ` +
+        "on this system — this is a definitive empty result (HTTP 200, 0 rows), not a refused read.",
+      { table: table.trim().toUpperCase(), index: indexId.trim().toUpperCase() },
+      hint,
+    );
+  }
+  const rendered = renderSecondaryIndex(index);
+  rendered.notes.push(...notes);
+  return buildDdicLikeResponse(
+    rendered,
+    { ...header, object: `${code} ${index.table}/${index.id}` },
+    input.offset,
+    input.limit,
+    [hint],
+    maxChars,
+  );
+}
+
 export async function abapRead(
   conn: AbapConnection,
   input: ReadInput,
@@ -1011,6 +1168,14 @@ export async function abapRead(
   // v2) and v2 forbids closed enums. `ccau` is SE24's name for `testclasses`
   // — a mistake a caller will actually make.
   if (input.include !== undefined) assertClassInclude(input.include, input.object);
+
+  // SUSO/B and TABL/DI have no ADT resource, so resolveObject cannot reach
+  // them (see capabilities.ts's `catalogRead`). Dispatch on the explicit type
+  // hint first: the catalog render needs the name, not a URI.
+  const catalogCap = input.type ? capabilitiesFor(input.type) : undefined;
+  if (catalogCap?.catalogRead) {
+    return readCatalogObject(conn, input, catalogCap.catalogRead, catalogCap.label, maxChars);
+  }
 
   const obj = await resolveObject(conn, input.object, input.type ? { type: input.type } : {});
 
@@ -1050,6 +1215,24 @@ export async function abapRead(
       );
     }
   }
+  // types/depth only parameterise a DEVC/K package listing; silently
+  // discarding them against any other type would be the same G-08 failure
+  // from/to/context are refused for above.
+  for (const [param, value] of [
+    ["types", input.types],
+    ["depth", input.depth],
+  ] as const) {
+    if (value !== undefined && obj.type !== "DEVC/K") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${param} is only meaningful for a DEVC/K package read; ${obj.type} ${obj.name} is not a ` +
+          "package, so this would have been an ordinary read with your parameter discarded.",
+        { type: obj.type, name: obj.name, param },
+        `Drop ${param}, or read a package instead.`,
+      );
+    }
+  }
+
   const include = assertIncludeCompatible(input, obj);
 
   // ------------------------------------------------------------------ raw ---
@@ -1163,7 +1346,7 @@ export async function abapRead(
     }
     let rendered: Awaited<ReturnType<typeof readDdic>>;
     try {
-      rendered = await readDdic(conn, obj);
+      rendered = await readDdic(conn, obj, { types: input.types, depth: input.depth });
     } catch (e) {
       // readDdic's UNSUPPORTED message only lists what IS renderable, not
       // format:"raw" (a capabilities.ts concept, kept out of ddic.ts to avoid
@@ -1194,22 +1377,14 @@ export async function abapRead(
     // without a second HTTP round-trip: readDdic's XML-only readers
     // (ddic.ts) now set `hashInput` to the same raw bytes they already
     // fetched once via `fetchDdicXml`, for every DDIC mode.
-    const etag = resourceEtag(rendered.hashInput);
-    // offset/limit window the rendered DDL, so the paging hint stays truthful.
-    const window = sliceLines(rendered.ddl, input.offset ?? 1, input.limit);
-    const built = buildReadResponse({
-      header: { ...baseHeader, ...rendered.meta, mode: "ddic", etag, totalLines: window.total },
-      sections: rendered.sections,
-      body: window.text,
-      bodyLabel: "PSEUDO-DDL",
-      bodyOffset: window.offset,
-      bodyTotalLines: window.total,
-      notes: rendered.notes,
-      hints: ["Use abap_search with mode=where_used to find consumers of this object."],
-      pagingParam: "offset",
+    return buildDdicLikeResponse(
+      rendered,
+      { ...baseHeader, mode: "ddic" },
+      input.offset,
+      input.limit,
+      ["Use abap_search with mode=where_used to find consumers of this object."],
       maxChars,
-    });
-    return { ...built, etag };
+    );
   }
 
   // -------------------------------------------------------------- source ---
@@ -1421,7 +1596,8 @@ export function registerReadTools(mcp: McpServer, deps: ReadToolDeps): void {
     {
       title: "Read ABAP object",
       description:
-        "Read an ABAP object: source or pseudo-DDL. Returns an etag. Capped ~15k tokens — " +
+        "Read an ABAP object: source, pseudo-DDL, a DEVC/K package listing (types/depth filter it), " +
+        "or (SUSO/B, TABL/DI) a read-only catalog render. Returns an etag. Capped ~15k tokens — " +
         "use outline/method/offset for large objects. Example: {\"object\":\"ZCL_FOO\",\"type\":\"CLAS/OC\"}.",
       inputSchema: readInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },

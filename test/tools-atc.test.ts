@@ -560,14 +560,14 @@ describe("abap_atc handler", () => {
 // --------------------------------------------------------- op=variants / op=delete_worklist ---
 
 describe("abap_atc op=variants and op=delete_worklist — live-captured bytes", () => {
-  it('op="variants" renders the real A4H check variant list (fixture 852), marking the system default from the real customizing read (fixture 859), with no per-object authorize call', async () => {
-    // 852-i78-checkvariants-quicksearch.xml: GET .../informationsystem/search
+  it('op="variants" renders the real A4H check variant list (fixture 886), marking the system default from the real customizing read (fixture 893), with no per-object authorize call', async () => {
+    // 886-i78-checkvariants-quicksearch.xml: GET .../informationsystem/search
     // ?operation=quickSearch&query=*&maxResults=200&objectType=CHKV, 19
-    // variants, alphabetical server order. 859-i78-atc-customizing.xml: GET
+    // variants, alphabetical server order. 893-i78-atc-customizing.xml: GET
     // .../atc/customizing, A4H's systemCheckVariant is ZABAP_CLOUD_DEVELOPMENT
-    // (a member of the 852 list). Both served byte-for-byte.
-    const variantsBody = readLiveFixture("852-i78-checkvariants-quicksearch.xml");
-    const customizingBody = readLiveFixture("859-i78-atc-customizing.xml");
+    // (a member of the 886 list). Both served byte-for-byte.
+    const variantsBody = readLiveFixture("886-i78-checkvariants-quicksearch.xml");
+    const customizingBody = readLiveFixture("893-i78-atc-customizing.xml");
     const h = harness({
       allowPackages: [],
       route: (method, url) => {
@@ -593,7 +593,7 @@ describe("abap_atc op=variants and op=delete_worklist — live-captured bytes", 
   });
 
   it('op="variants" still succeeds and lists every variant, without a DEFAULT mark, when the customizing read fails — and says why', async () => {
-    const variantsBody = readLiveFixture("852-i78-checkvariants-quicksearch.xml");
+    const variantsBody = readLiveFixture("886-i78-checkvariants-quicksearch.xml");
     const h = harness({
       allowPackages: [],
       route: (method, url) => {
@@ -618,12 +618,12 @@ describe("abap_atc op=variants and op=delete_worklist — live-captured bytes", 
     expect(part.text).toMatch(/system default could not be determined/);
   });
 
-  it('op="delete_worklist" reports the real 405 refusal (fixture 857) as a refusal, not a success', async () => {
-    // 857-i78-worklist-delete-405.xml: DELETE .../atc/worklists/<id>, status
+  it('op="delete_worklist" reports the real 405 refusal (fixture 891) as a refusal, not a success', async () => {
+    // 891-i78-worklist-delete-405.xml: DELETE .../atc/worklists/<id>, status
     // 405 ExceptionMethodNotSupported. Served with the real status; the
     // client's own classification (deleted:false, status:405) is what's
     // under test here, not classifyAtcFailure's prose.
-    const body = readLiveFixture("857-i78-worklist-delete-405.xml");
+    const body = readLiveFixture("891-i78-worklist-delete-405.xml");
     const h = harness({
       allowPackages: [],
       route: (method) => (method === "DELETE" ? { body, status: 405 } : undefined),
@@ -1013,8 +1013,8 @@ describe("renderCheckVariants", () => {
     expect(text).toMatch(/system default could not be determined.*network timeout/);
   });
 
-  it("parses and renders the real A4H check variant list (fixture 852)", () => {
-    const body = readLiveFixture("852-i78-checkvariants-quicksearch.xml");
+  it("parses and renders the real A4H check variant list (fixture 886)", () => {
+    const body = readLiveFixture("886-i78-checkvariants-quicksearch.xml");
     const variants = parseCheckVariantList(body);
     expect(variants.length).toBe(19);
     const text = renderCheckVariants(variants, 60_000).text;
@@ -1044,7 +1044,7 @@ describe("renderWorklistCleanup", () => {
 
   it("UNVERIFIED shape: reports a successful delete distinctly (no A4H server has ever accepted DELETE)", () => {
     // No capture anywhere shows ATC DELETE succeeding — A4H's release always
-    // answers 405 (see 857-i78-worklist-delete-405.xml). This exercises the
+    // answers 405 (see 891-i78-worklist-delete-405.xml). This exercises the
     // success branch of renderWorklistCleanup/AtcWorklistCleanup so the
     // shape is not entirely untested, but it cannot be verified against A4H.
     const text = renderWorklistCleanup(

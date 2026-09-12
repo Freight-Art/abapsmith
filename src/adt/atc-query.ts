@@ -4,7 +4,7 @@
  * Originally derived from `abap-adt-api`'s ATC client (`atc.js`, v8.4.1) —
  * the only written-down description of this wire protocol available when
  * this module was first written. Issue #78 landed eight REAL captures from
- * an A4H appliance (`test/fixtures/live-captured/852`…`859`) that confirm or
+ * an A4H appliance (`test/fixtures/live-captured/886`…`893`) that confirm or
  * correct that derivation in several places; each function below says which
  * capture backs it and which parts of the library-derived shape are still
  * unobserved guesses.
@@ -148,7 +148,7 @@ export const ATC_WORKLIST_DELETE_ACCEPT = "application/xml";
  *
  * On A4H this answers 405 `ExceptionMethodNotSupported`, "Resource
  * controller does not support method DELETE" (capture
- * `857-i78-worklist-delete-405`) — ATC worklists cannot be deleted on this
+ * `891-i78-worklist-delete-405`) — ATC worklists cannot be deleted on this
  * release. This builder exists anyway so the attempt is made and the
  * refusal reported honestly to the caller, rather than this client silently
  * pretending a worklist can be cleaned up; a release that does support
@@ -157,7 +157,7 @@ export const ATC_WORKLIST_DELETE_ACCEPT = "application/xml";
  * There is deliberately NO builder for the `?action=deleteFindings` action
  * ADT discovery advertises on the worklist resource
  * (`rel="http://www.sap.com/adt/atc/relations/actions/deleteFindings"`):
- * capture `858-i78-worklist-action-deletefindings-noop` shows it answers 200
+ * capture `892-i78-worklist-action-deletefindings-noop` shows it answers 200
  * with a zero-byte body and leaves the worklist's findings unchanged.
  * `CL_SATC_ADT_RES_WORKLIST->post` returns immediately for a URI carrying a
  * worklist id, and the `lcl_handler_delete_findings` implementation in its
@@ -178,7 +178,7 @@ export const ATC_CHECK_VARIANT_TYPE = "CHKV";
 /** `Accept` header for the check-variant quickSearch — a plain repository search response. */
 export const ATC_CHECK_VARIANT_SEARCH_ACCEPT = "application/xml";
 
-/** Default `maxResults` for {@link buildCheckVariantSearchUrl}, matching what capture `852` was taken with. */
+/** Default `maxResults` for {@link buildCheckVariantSearchUrl}, matching what capture `886` was taken with. */
 export const ATC_CHECK_VARIANT_DEFAULT_MAX = 200;
 
 /**
@@ -187,7 +187,7 @@ export const ATC_CHECK_VARIANT_DEFAULT_MAX = 200;
  * There is no usable `/sap/bc/adt/atc/checkvariants` collection to list from
  * on this release — a GET on it answers 400 `uriMappingError`. The
  * repository quickSearch is how a client actually enumerates check
- * variants; capture `852-i78-checkvariants-quicksearch` records this exact
+ * variants; capture `886-i78-checkvariants-quicksearch` records this exact
  * URL (parameter order included) answering 200 with all 19 variants on that
  * appliance as `adtcore:objectReference` rows.
  *
@@ -241,7 +241,7 @@ export const ATC_MAX_RUN_TARGETS = 50;
  * what goes on the wire.
  *
  * The multi-reference shape is no longer a guess: capture
- * `853-i78-run-two-packages` records a request body A4H answered 200 to for
+ * `887-i78-run-two-packages` records a request body A4H answered 200 to for
  * one inclusive `objectSet` carrying TWO `adtcore:objectReference` package
  * URIs — proof that a single object set accepts several references, and
  * that a PACKAGE reference (`/sap/bc/adt/packages/<name>`, see
@@ -328,7 +328,7 @@ export function buildAtcRunBody(objectUris: readonly string[], maxVerdicts: numb
  * {@link buildAtcRunBody}'s `objectSet`.
  *
  * Observed forms: `/sap/bc/adt/packages/z_flight_ref_prep` (capture
- * `853-i78-run-two-packages`) and `/sap/bc/adt/packages/%24abapsmith_fluid_api`
+ * `887-i78-run-two-packages`) and `/sap/bc/adt/packages/%24abapsmith_fluid_api`
  * for the package named `$ABAPSMITH_FLUID_API` (a live run of 677 findings
  * over that package during this issue's investigation). Both confirm ADT
  * uses the LOWER-CASE object name in these URIs, not the upper-case name a

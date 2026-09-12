@@ -1,0 +1,32 @@
+{
+  "n": 876,
+  "label": "i74-probe-z-packages-search",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT devclass FROM tdevc WHERE devclass LIKE 'Z%' OR devclass LIKE '$ABAPSMITH%'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "1344",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "906828.000000"
+  },
+  "byteLength": 1344,
+  "zeroByteBody": false,
+  "sha256": "51e85421bcb00f8a432bfa0203de68bc156ac912fe9998b7875d08ccea44341b",
+  "utcTimestamp": "2026-09-12T13:22:13.879Z",
+  "durationMs": 1001,
+  "sessionName": "A"
+}

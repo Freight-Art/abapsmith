@@ -14,9 +14,11 @@ import type { Config } from "../config.js";
 import { stripUrlCredentials } from "../config.js";
 // fingerprintCredentials/lookupTrippedFingerprint moved to AuthCircuitBreaker.forConfig (D1 replay) — this file no longer mints breakers.
 import type { AuthCircuitBreaker } from "./circuit-breaker.js";
-import { GuardedHttpClient, circuitOpenError } from "./http-guard.js";
+import { GuardedHttpClient, circuitOpenError, type GuardOptions } from "./http-guard.js";
 import { AbapError, describeUnknownError } from "./errors.js";
 import { classifyConnectFailure, credentialsRejectedVerdict } from "./connect-failure.js";
+import { tlsCredentialsFromConfig } from "../auth/tls-credentials.js";
+import { OAuthTokenProvider } from "./oauth.js";
 import { Discovery, type DiscoveryState } from "./discovery.js";
 import {
   discoveryCacheKey,
@@ -346,6 +348,13 @@ export class AbapConnection {
 
   private readonly guard: GuardedHttpClient;
   private readonly client: ADTClient;
+  /**
+   * OAuth access-token cache. One per connection, created only in `oauth`
+   * mode. Not shared across connections on purpose: the token is scoped to
+   * this connection's configured client, and a shared cache would outlive the
+   * config that produced it.
+   */
+  private readonly oauth: OAuthTokenProvider | undefined;
   private readonly log: (msg: string) => void;
   /**
    * THE session mutex for THIS connection's ADT session — one request in flight
@@ -367,6 +376,10 @@ export class AbapConnection {
     client: null,
     ccCategory: null,
     reason: "Not connected yet — nothing has been probed.",
+    // Nothing has been probed yet, so no tenant observation exists either;
+    // see SystemRoleDetection.tenantKind in system-role.ts (observation
+    // only, never an input to `role`).
+    tenantKind: "unknown",
   };
   /**
    * Only ever holds a definitive (productive/nonproductive) answer. NOT reset on
@@ -621,6 +634,27 @@ export class AbapConnection {
         log: this.log,
       });
 
+    this.oauth = cfg.oauth ? new OAuthTokenProvider({ settings: cfg.oauth }) : undefined;
+
+    // Exactly one of these three shapes, decided by `cfg.authMethod`. Built as
+    // a separate object and spread so that in every other mode the keys are
+    // ABSENT rather than present-and-undefined: `GuardedHttpClient`'s step 2f
+    // (the single 401 refresh-and-retry) keys off
+    // `refreshBearerToken !== undefined`, so a stray key would change dispatch
+    // for modes that must stay byte-for-byte what they were.
+    const oauthProvider = this.oauth;
+    const authOptions: Partial<GuardOptions> =
+      cfg.authMethod === "token"
+        ? { bearerToken: () => cfg.token }
+        : cfg.authMethod === "oauth" && oauthProvider !== undefined
+          ? {
+              bearerToken: () => oauthProvider.getToken(),
+              refreshBearerToken: () => oauthProvider.forceRefresh(),
+            }
+          : cfg.authMethod === "certificate"
+            ? { suppressBasicAuth: () => true }
+            : {};
+
     this.guard = new GuardedHttpClient(
       {
         baseURL: cfg.url,
@@ -646,6 +680,17 @@ export class AbapConnection {
         // config-layer guarantee (exactly one of password/sessionCookie) means
         // this is `undefined` whenever `cfg.password` is set.
         injectedCookies: () => cfg.sessionCookie,
+        // TLS policy AND client credentials in one place. Supersedes the bare
+        // `insecure` above (which stays for call sites that only care about
+        // verification): `tlsCredentialsFromConfig` is the single function
+        // `src/debug/session.ts` also calls, so the axios stack and the
+        // debugger's raw sockets cannot disagree about a client certificate
+        // the way they once disagreed about ABAP_INSECURE.
+        tls: tlsCredentialsFromConfig(cfg),
+        // Error hints only — which variable an operator must fix depends on
+        // how this server authenticates. Never affects routing.
+        authMethod: cfg.authMethod,
+        ...authOptions,
         ...(opts.httpClient ? { inner: opts.httpClient } : {}),
       },
       this.breaker,
@@ -659,9 +704,14 @@ export class AbapConnection {
       // `cfg.password ?? ""` — safe only because we pass an object (not a URL
       // string) as arg 1: AdtHTTP's/ADTClient's own guards are
       // `(password || !isString(baseURLOrClient))`, and `!isString(object)` is
-      // already true, so an empty password satisfies them. Cookie mode
-      // (`cfg.sessionCookie`) supplies the real credential at the guard seam
-      // (`http-guard.ts`'s `injectedCookies`) instead.
+      // already true, so an empty password satisfies them. Every non-password
+      // mode supplies its real credential at the guard seam instead, never
+      // here: a cookie is merged in at step 2c, a bearer (static ABAP_TOKEN or
+      // an OAuth access token) is attached at step 2d, and in certificate mode
+      // the credential IS the TLS handshake itself — step 2e additionally
+      // strips any `Authorization` header abap-adt-api might have set, so no
+      // Basic-auth attempt (empty password or otherwise) ever reaches the
+      // wire in any of these four modes.
       cfg.password ?? "",
       cfg.sendClientParam ? cfg.client : "",
       cfg.language,
@@ -1186,8 +1236,8 @@ export class AbapConnection {
       // problem. The latch's first-failure record supplies the verdict
       // instead.
       const verdict = latchedByThisAttempt
-        ? credentialsRejectedVerdict(trip?.status ?? 401)
-        : classifyConnectFailure(e);
+        ? credentialsRejectedVerdict(trip?.status ?? 401, this.cfg.authMethod)
+        : classifyConnectFailure(e, this.cfg.authMethod);
       throw new AbapError(
         verdict.code,
         `Could not connect to ${stripUrlCredentials(this.cfg.url)}: ` +
@@ -1528,19 +1578,29 @@ export class AbapConnection {
    * **Invariant that matters: the caller must have assembled `sql` itself
    * from fixed identifiers (or the server's own column metadata) and
    * validated values. No string that reached abapsmith from a tool argument
-   * may be passed here.** Two modules are permitted to call this:
+   * may be passed here.** Three modules are permitted to call this:
    *   - `src/adt/img-query.ts` (the IMG catalog reader, built from
    *     `img-catalog.ts`'s frozen table/field list);
+   *   - `src/adt/catalog-select.ts` (used by `src/adt/index-read.ts` for
+   *     DD12V/DD17S and `src/adt/suso-read.ts` for
+   *     TOBJ/TOBJT/TOBCT/TACTZ/TACTT/AUTHX/DD04L/DD07V);
    *   - `src/adt/datapreview.ts` (issue #73's structured `where`/`columns`/
    *     `order_by` filter on `abap_data_preview`), whose statement is
    *     compiled by `src/adt/datapreview-filter.ts` from a prior metadata
    *     probe's own column list, never from caller-supplied identifiers.
-   * The invariant is unchanged in substance for both: every identifier in
-   * the rendered SQL is taken from a fixed catalog or from the server's own
-   * column metadata, and every value is rendered as a typed, quoted literal
-   * — a caller-supplied SQL STRING is still never accepted from either.
+   * The invariant is unchanged in substance for all three: every identifier
+   * in the rendered SQL is taken from a fixed catalog or from the server's
+   * own column metadata, and every value is rendered as a typed, quoted
+   * literal — a caller-supplied SQL STRING is still never accepted.
    * `probeT000()` (`system-role.ts`) has its own separate, no-retry route to
    * this same URL and must never be merged with this one.
+   *
+   * A literal wider than the target column's declared width is a hard HTTP
+   * 400 on this endpoint, not an empty result — observed on A4H
+   * 2026-09-12: `SELECT * FROM tobj WHERE objct = 'Z_I87_NO_SUCH_OBJ'`
+   * answered `400 'Z_I87_NO_SUCH_OBJ' is not a valid value for C(10,0)`.
+   * Each builder validates value LENGTH, not just content, before
+   * assembling SQL.
    *
    * Same shape as `dataPreviewDdic` above: bypasses `post()`/`raw()`'s
    * `READ_ONLY` guard (a read exposed over POST), goes through `request()`

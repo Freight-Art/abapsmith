@@ -235,12 +235,12 @@ findings have been read, so a refusal never loses a run's results.
 `test/fixtures/live-captured/438-atc2-run.xml` (the run acknowledgement) and
 `439-atc2-worklist-read.xml` (the worklist read). The second, against the
 same appliance on 2026-09-12 for issue #78, added eight more captures
-(`852`–`859`) covering check-variant discovery, a two-package run, worklist
+(`886`–`893`) covering check-variant discovery, a two-package run, worklist
 reads after several runs have accumulated, a zero-findings read, a second
 check variant, and both worklist-delete paths. Nine of the ten are replayed
 in the test suite (`test/atc-xml.test.ts`, `test/atc-query.test.ts`,
 `test/atc.test.ts`, `test/tools-atc.test.ts`), not just narrated in docs;
-the tenth, `858` (the `?action=deleteFindings` no-op), is recorded as
+the tenth, `892` (the `?action=deleteFindings` no-op), is recorded as
 evidence of that no-op but has no code path to exercise it, since this
 client never calls that action — see "Worklists persist" above.
 
@@ -249,7 +249,7 @@ from library source:
 
 - the run POST really is **synchronous**: `438`'s captured response came
   back ~13s after the request with full worklist contents embedded, no
-  polling; `853`'s two-package run took 23s on a re-run, and a separate,
+  polling; `887`'s two-package run took 23s on a re-run, and a separate,
   uncaptured run of one ~77-class package took 134s;
 - `worklistId` / `worklistTimestamp` and `<info>` are child ELEMENTS, not
   attributes, on the run acknowledgement (`438`);
@@ -261,50 +261,50 @@ from library source:
 - **a single `objectSet` accepts more than one object reference, and a
   PACKAGE reference is accepted by the synchronous run body** even though
   the underlying `SATC_RUN_REQ` simple transformation has no package field
-  of its own (`853`: two package URIs in one run request, reproduced
+  of its own (`887`: two package URIs in one run request, reproduced
   byte-for-byte in `test/atc-query.test.ts`);
 - **a worklist read can be scoped by `usedObjectSet` to a numeric
   `LAST_RUN` id**, and the response's own echoed `usedObjectSet` attribute —
   not the request parameter — is what a caller should trust as authoritative
-  (`854`);
+  (`888`);
 - **a worklist accumulates object sets across runs rather than replacing
-  them**: `854` and `855` both show three accumulated `PACKAGE`-kind sets
+  them**: `888` and `889` both show three accumulated `PACKAGE`-kind sets
   registered alongside `ALL` and `LAST_RUN`, one per package ever run into
   that worklist;
 - **`worklistTimestamp` is genuinely optional on the wire**, not just
-  omittable in some encoding: `854`'s `<atcworklist:worklist>` element
+  omittable in some encoding: `888`'s `<atcworklist:worklist>` element
   carries no timestamp attribute at all;
-- **a zero-findings run reads back as a clean shape, not an error**: `855`
+- **a zero-findings run reads back as a clean shape, not an error**: `889`
   (a TABL target) returns HTTP 200 with empty `objects`/`infos` lists;
 - **a different check variant genuinely changes the result set**, not just
-  its label: `856` reads 5 findings for the same object (`PROG Z_TMP_DEL`)
+  its label: `890` reads 5 findings for the same object (`PROG Z_TMP_DEL`)
   under `ABAP_CLOUD_READINESS`; the capture's own sidecar note records 7
   findings for that same object under the system default
   `ZABAP_CLOUD_DEVELOPMENT`, an observation rather than a separate capture;
 - **the check-variant listing** comes from a repository `quickSearch`
   (`objectType=CHKV`), not a dedicated ATC collection — a plain GET on
   `/sap/bc/adt/atc/checkvariants` answers 400 `uriMappingError` on this
-  release. `852` records the exact URL (parameter order included) and all
+  release. `886` records the exact URL (parameter order included) and all
   19 real variant names/descriptions on this appliance;
 - **the server does not reject an unknown check-variant name at worklist
   creation** — `POST …/worklists?checkVariant=<nonsense>` answers 200 and
   creates a real worklist anyway, so this client validates a caller-supplied
-  variant against the `852` listing itself before ever using it (observed
-  live while producing the `852`–`859` set; this specific nonsense-variant
+  variant against the `886` listing itself before ever using it (observed
+  live while producing the `886`–`893` set; this specific nonsense-variant
   probe was not itself saved as a fixture);
 - **`DELETE` on a worklist resource answers 405**, `ExceptionMethodNotSupported`
   ("Resource controller does not support method DELETE",
-  `T100KEY-ID SADT_RESOURCE`, `T100KEY-NO 010`, `T100KEY-V1 DELETE`) — `857`.
+  `T100KEY-ID SADT_RESOURCE`, `T100KEY-NO 010`, `T100KEY-V1 DELETE`) — `891`.
   A `PUT` on the same resource also answered 405 but that attempt was not
   itself captured;
-- **the advertised `?action=deleteFindings` action is a no-op**: `858`
+- **the advertised `?action=deleteFindings` action is a no-op**: `892`
   answers 200 with a zero-byte body, and the worklist's findings are
   unchanged afterward — traced to a commented-out CCIMP handler on this
   release, not just observed as a black box;
 - **this system's ATC customizing names a default check variant**,
-  `ZABAP_CLOUD_DEVELOPMENT` — `859`, the first captured customizing
+  `ZABAP_CLOUD_DEVELOPMENT` — `893`, the first captured customizing
   document (prior parser tests for this shape were synthetic);
-- **every `quickfixes` flag observed so far reads `false`**: `854` shows 29
+- **every `quickfixes` flag observed so far reads `false`**: `888` shows 29
   findings each carrying a full `manual`/`automatic`/`pseudo`/`aiBasedQF`/
   `ai_enabled` block, every flag false — a statement about these particular
   findings on this system, not proof the flags are never true elsewhere (see
@@ -317,7 +317,7 @@ live capture exercised:
 - the four paths and their `Accept` headers, including the inconsistent
   `application/atc.worklist.v1+xml` (no `vnd.sap.`) for the worklist read;
 - the `<atc:run>` request body's shape, reproduced byte-for-byte including
-  its tab indentation (the `438` and `853` request bodies both match this).
+  its tab indentation (the `438` and `887` request bodies both match this).
 
 INFERRED, and what a further live run must settle:
 
@@ -332,7 +332,7 @@ INFERRED, and what a further live run must settle:
    through `Date`. Inherited from the library, unverified.
 4. **The check-variant name grammar this client enforces before splicing a
    name into a URL** (a leading `/` allowed, otherwise an identifier, max 30
-   characters). No observed variant name has violated it — three of `852`'s
+   characters). No observed variant name has violated it — three of `886`'s
    19 real names sit exactly at the 30-character boundary without exceeding it
    — but a legitimate longer or differently-shaped name would show up as a
    `BAD_INPUT` the server would actually have accepted. Still unverified in
@@ -359,7 +359,7 @@ INFERRED, and what a further live run must settle:
    (not capture-backed): a run over `DDLS/DF` `Z_I78_CDS`, a `$TMP` CDS view
    since deleted, returned 1 error-severity finding, and `INTF/OI` and
    `CLAS/OC` runs were also observed live (empty findings, and 8 findings
-   including a `TOOL_FAILURE` note, respectively) — `855`'s TABL target
+   including a `TOOL_FAILURE` note, respectively) — `889`'s TABL target
    remains the only captured zero-findings shape. **A bad object name has
    also been observed** (not capture-backed): the run answered HTTP 200
    with an empty worklist, not an ADT error — so the error path there is
@@ -367,7 +367,7 @@ INFERRED, and what a further live run must settle:
    function group target, an authorization failure mid-run, priority values
    outside 1/2/3, a true `quickfixes` flag, a non-empty `exemptionKind`, and
    `objectTypeId`'s presence rule (present on `439`/`800`, absent on
-   `854`/`856`, reason unknown).
+   `888`/`890`, reason unknown).
 8. **A successful worklist delete.** Every observed attempt on this release
    refuses with 405; whether `deleted: true`/`cacheCleared: true` actually
    behaves as coded on a release that supports DELETE has never been

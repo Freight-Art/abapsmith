@@ -1,0 +1,41 @@
+{
+  "id": "package-header-customer",
+  "recordedAt": "2026-09-12T13:23:43.612Z",
+  "recordedDurationMs": 344,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/857-i74-package-header-z-badi-check.meta.json + test/fixtures/live-captured/857-i74-package-header-z-badi-check.xml",
+    "notes": "The Authorization header was redacted at capture time. This cassette had no X-CSRF-Token header to redact (GET request, sent with Accept: */*). GET /sap/bc/adt/packages/z_badi_check, a customer package. <pak:superPackage/> is present but EMPTY (this package has no super package) \u2014 a reader must not assume that element is always populated. Software component HOME ('Customer Developments'), transport layer ZLB1. The adtcore:responsible / adtcore:changedBy / adtcore:createdBy attributes carry a real SAP developer username (ROSENKRANZ) from the sandbox appliance; this is ordinary wire evidence, not a credential, and was left unredacted."
+  },
+  "request": {
+    "method": "GET",
+    "path": "/sap/bc/adt/packages/z_badi_check?sap-client=001",
+    "headers": {
+      "Accept": "*/*",
+      "Authorization": "<redacted>"
+    },
+    "body": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.packages.v2+xml; charset=utf-8",
+      "content-length": "3943",
+      "sap-authenticated": "true",
+      "etag": "20120430000000001application/vnd.sap.adt.packages.v2+xmlAHnq969vyh7Un3x+YcpUJTg0PqU=",
+      "last-modified": "Mon, 30 Apr 2012 00:00:00 GMT",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "224956.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><pak:package adtcore:responsible=\"ROSENKRANZ\" adtcore:masterLanguage=\"EN\" adtcore:masterSystem=\"LB1\" adtcore:name=\"Z_BADI_CHECK\" adtcore:type=\"DEVC/K\" adtcore:changedAt=\"2012-04-30T00:00:00Z\" adtcore:version=\"active\" adtcore:createdAt=\"2012-04-30T00:00:00Z\" adtcore:changedBy=\"ROSENKRANZ\" adtcore:createdBy=\"ROSENKRANZ\" adtcore:description=\"Badi Checks during upgrade\" adtcore:descriptionTextLimit=\"60\" adtcore:language=\"EN\" xmlns:pak=\"http://www.sap.com/adt/packages\" xmlns:adtcore=\"http://www.sap.com/adt/core\"><atom:link href=\"versions\" rel=\"http://www.sap.com/adt/relations/versions\" title=\"Historic versions\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/repository/informationsystem/abaplanguageversions?uri=%2Fsap%2Fbc%2Fadt%2Fpackages%2Fz_badi_check\" rel=\"http://www.sap.com/adt/relations/informationsystem/abaplanguageversions\" type=\"application/vnd.sap.adt.nameditems.v1+xml\" title=\"Allowed ABAP language versions\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/vit/wb/object_type/devck/object_name/Z_BADI_CHECK\" rel=\"self\" type=\"application/vnd.sap.sapgui\" title=\"Representation in SAP Gui\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/packages/valuehelps/applicationcomponents\" rel=\"applicationcomponents\" type=\"application/vnd.sap.adt.nameditems.v1+xml\" title=\"Application Components Value Help\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/packages/valuehelps/softwarecomponents\" rel=\"softwarecomponents\" type=\"application/vnd.sap.adt.nameditems.v1+xml\" title=\"Software Components Value Help\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/packages/valuehelps/transportlayers\" rel=\"transportlayers\" type=\"application/vnd.sap.adt.nameditems.v1+xml\" title=\"Transport Layers Value Help\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/packages/valuehelps/translationrelevances\" rel=\"translationrelevances\" type=\"application/vnd.sap.adt.nameditems.v1+xml\" title=\"Transport Relevances Value Help\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/packages/valuehelps/abaplanguageversions\" rel=\"abaplanguageversions\" type=\"application/vnd.sap.adt.nameditems.v1+xml\" title=\"ABAP Language Version Value Help\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"/sap/bc/adt/checkruns{?reporters}\" rel=\"supportsPackageCheckActions\" type=\"application/vnd.sap.adt.checkobjects+xml\" title=\"Supports Package Check actions\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><atom:link href=\"./z_badi_check\" rel=\"http://www.sap.com/adt/relations/source\" type=\"text/html\" title=\"Landing Page (HTML)\" xmlns:atom=\"http://www.w3.org/2005/Atom\"/><adtcore:packageRef adtcore:uri=\"/sap/bc/adt/packages/z_badi_check\" adtcore:type=\"DEVC/K\" adtcore:name=\"Z_BADI_CHECK\" adtcore:description=\"Badi Checks during upgrade\"/><pak:attributes pak:packageType=\"development\" pak:isPackageTypeEditable=\"true\" pak:isAddingObjectsAllowed=\"false\" pak:isAddingObjectsAllowedEditable=\"true\" pak:isEncapsulated=\"false\" pak:isEncapsulationEditable=\"true\" pak:isEncapsulationVisible=\"true\" pak:recordChanges=\"true\" pak:isRecordChangesEditable=\"false\" pak:isSwitchVisible=\"false\" pak:languageVersion=\"\" pak:isLanguageVersionVisible=\"true\" pak:isLanguageVersionEditable=\"true\"/><pak:superPackage/><pak:applicationComponent pak:name=\"\" pak:description=\"No application component assigned\" pak:isVisible=\"false\" pak:isEditable=\"false\"/><pak:transport><pak:softwareComponent pak:name=\"HOME\" pak:description=\"Customer Developments\" pak:type=\"M\" pak:typeDescription=\"Customer developments (standard)\" pak:isVisible=\"true\" pak:isEditable=\"true\"/><pak:transportLayer pak:name=\"ZLB1\" pak:description=\"\" pak:isVisible=\"true\" pak:isEditable=\"true\"/></pak:transport><pak:useAccesses pak:isVisible=\"true\"/><pak:packageInterfaces pak:isVisible=\"true\"/><pak:subPackages/></pak:package>"
+  }
+}

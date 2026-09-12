@@ -12,11 +12,11 @@
  *
  * What issue #78 changed: `test/fixtures/live-captured/` now holds REAL A4H
  * recordings, and this file replays the ones that fit byte-for-byte —
- * `852-i78-checkvariants-quicksearch.xml` (`listCheckVariants`),
- * `857-i78-worklist-delete-405.xml` (`deleteAtcWorklist`'s actual, only
+ * `886-i78-checkvariants-quicksearch.xml` (`listCheckVariants`),
+ * `891-i78-worklist-delete-405.xml` (`deleteAtcWorklist`'s actual, only
  * OBSERVED outcome — see the module header in `src/adt/atc.ts` for why
  * DELETE is always refused on this release), and
- * `859-i78-atc-customizing.xml` (a real customizing document). A confirmed
+ * `893-i78-atc-customizing.xml` (a real customizing document). A confirmed
  * WORKING delete and a package tree with subpackages have no capture at
  * all — A4H's DELETE always answers 405, and A4H has no customer package
  * with subpackages to walk — so those two are hand-written and marked
@@ -745,14 +745,14 @@ describe("multi-object runs", () => {
   const PKG_2 = "/sap/bc/adt/packages/z_upg_badi_impl";
   const WORKLIST_853 = "466F46C806601FE1ABD795A0C0B5C069";
 
-  it("sends every URI in one run, byte-identical to capture 853, and reports the DISTINCT target count", async () => {
-    // test/fixtures/live-captured/853-i78-run-two-packages.{xml,meta.json}: a
+  it("sends every URI in one run, byte-identical to capture 887, and reports the DISTINCT target count", async () => {
+    // test/fixtures/live-captured/887-i78-run-two-packages.{xml,meta.json}: a
     // REAL A4H capture of a run over two package references. A third,
     // duplicate URI is added below to prove `targetCount` counts distinct
     // targets, not `request.objectUris.length` — the duplicate must not
     // appear twice in the body either, so the body stays byte-identical to
     // what the server actually accepted.
-    const meta = readLiveMeta("853-i78-run-two-packages.meta.json");
+    const meta = readLiveMeta("887-i78-run-two-packages.meta.json");
     expect(meta.capturedBy).toMatch(/REAL wire recording/);
     const { conn, calls } = fakeConn((method, url) => {
       if (method === "GET" && url.startsWith(ATC_CUSTOMIZING_PATH)) {
@@ -762,7 +762,7 @@ describe("multi-object runs", () => {
         return { body: WORKLIST_853 };
       }
       if (method === "POST" && url.startsWith("/sap/bc/adt/atc/runs")) {
-        return { body: readLiveFixture("853-i78-run-two-packages.xml") };
+        return { body: readLiveFixture("887-i78-run-two-packages.xml") };
       }
       return { body: worklistDoc(WORKLIST_853, { findings: false }) };
     });
@@ -791,13 +791,13 @@ describe("multi-object runs", () => {
 });
 
 describe("listCheckVariants", () => {
-  it("GETs the quickSearch URL with the library's Accept and parses capture 852's 19 real variants", async () => {
-    // test/fixtures/live-captured/852-i78-checkvariants-quicksearch.{xml,meta.json}.
-    const meta = readLiveMeta("852-i78-checkvariants-quicksearch.meta.json");
+  it("GETs the quickSearch URL with the library's Accept and parses capture 886's 19 real variants", async () => {
+    // test/fixtures/live-captured/886-i78-checkvariants-quicksearch.{xml,meta.json}.
+    const meta = readLiveMeta("886-i78-checkvariants-quicksearch.meta.json");
     expect(meta.capturedBy).toMatch(/REAL wire recording/);
     const { conn, calls } = fakeConn((method, url) => {
       if (method === "GET" && url === buildCheckVariantSearchUrl()) {
-        return { body: readLiveFixture("852-i78-checkvariants-quicksearch.xml") };
+        return { body: readLiveFixture("886-i78-checkvariants-quicksearch.xml") };
       }
       throw new Error(`unscripted request: ${method} ${url}`);
     });
@@ -813,7 +813,7 @@ describe("listCheckVariants", () => {
 
   it("caches per connection — one HTTP call for repeated listing", async () => {
     const { conn, calls } = fakeConn(() => ({
-      body: readLiveFixture("852-i78-checkvariants-quicksearch.xml"),
+      body: readLiveFixture("886-i78-checkvariants-quicksearch.xml"),
     }));
     await listCheckVariants(conn);
     await listCheckVariants(conn);
@@ -822,7 +822,7 @@ describe("listCheckVariants", () => {
 
   it("clearAtcCaches forgets the check-variant list too", async () => {
     const { conn, calls } = fakeConn(() => ({
-      body: readLiveFixture("852-i78-checkvariants-quicksearch.xml"),
+      body: readLiveFixture("886-i78-checkvariants-quicksearch.xml"),
     }));
     await listCheckVariants(conn);
     clearAtcCaches(conn);
@@ -832,15 +832,15 @@ describe("listCheckVariants", () => {
 });
 
 describe("resolveCheckVariant", () => {
-  /** Serves capture 852's real 19-variant list for every quickSearch GET. */
+  /** Serves capture 886's real 19-variant list for every quickSearch GET. */
   const listHandler: Handler = (method, url) => {
     if (method === "GET" && url === buildCheckVariantSearchUrl()) {
-      return { body: readLiveFixture("852-i78-checkvariants-quicksearch.xml") };
+      return { body: readLiveFixture("886-i78-checkvariants-quicksearch.xml") };
     }
     throw new Error(`unscripted request: ${method} ${url}`);
   };
 
-  it("matches an exact name against capture 852's real list", async () => {
+  it("matches an exact name against capture 886's real list", async () => {
     const { conn } = fakeConn(listHandler);
     expect(await resolveCheckVariant(conn, "ZABAP_CLOUD_DEVELOPMENT")).toEqual({
       name: "ZABAP_CLOUD_DEVELOPMENT",
@@ -873,17 +873,17 @@ describe("resolveCheckVariant", () => {
 });
 
 describe("deleteAtcWorklist", () => {
-  // Capture 857's own worklist id — reused here so the DELETE url matches
+  // Capture 891's own worklist id — reused here so the DELETE url matches
   // the recorded requestUrl exactly.
   const WORKLIST_857 = "466F46C806601FE1ABD7F225A1B94069";
 
-  it("reports capture 857's real 405 refusal without throwing, and KEEPS the cached id", async () => {
-    // test/fixtures/live-captured/857-i78-worklist-delete-405.{xml,meta.json}:
+  it("reports capture 891's real 405 refusal without throwing, and KEEPS the cached id", async () => {
+    // test/fixtures/live-captured/891-i78-worklist-delete-405.{xml,meta.json}:
     // DELETE on a worklist answers 405 ExceptionMethodNotSupported on A4H.
     // See src/adt/atc.ts's module header for why this is the only observed
-    // outcome and why `?action=deleteFindings` (capture 858, a no-op) is
+    // outcome and why `?action=deleteFindings` (capture 892, a no-op) is
     // never called as a substitute.
-    const meta = readLiveMeta("857-i78-worklist-delete-405.meta.json");
+    const meta = readLiveMeta("891-i78-worklist-delete-405.meta.json");
     expect(meta.capturedBy).toMatch(/REAL wire recording/);
     const { conn, calls } = fakeConn((method, url) => {
       if (method === "POST" && url.startsWith("/sap/bc/adt/atc/worklists")) {
@@ -933,11 +933,11 @@ describe("deleteAtcWorklist", () => {
     // The refusal must not evict the cached id — a later run reuses it
     // rather than littering a second undeletable worklist.
     expect(knownAtcWorklists(conn)).toEqual([WORKLIST_857]);
-    // The documented no-op action (capture 858) must never be called instead.
+    // The documented no-op action (capture 892) must never be called instead.
     expect(calls.some((c) => c.url.includes("action=deleteFindings"))).toBe(false);
   });
 
-  it("UNVERIFIED against A4H (whose DELETE always 405s — capture 857): a successful delete forgets the cached id", async () => {
+  it("UNVERIFIED against A4H (whose DELETE always 405s — capture 891): a successful delete forgets the cached id", async () => {
     const WORKLIST_ID = "SUCCESSID1";
     const { conn } = fakeConn((method, url) => {
       if (method === "POST" && url.startsWith("/sap/bc/adt/atc/worklists")) {
@@ -976,7 +976,7 @@ describe("deleteAtcWorklist", () => {
 });
 
 describe("autoCleanup", () => {
-  it("keeps the findings when cleanup is refused (A4H's real 405 — capture 857)", async () => {
+  it("keeps the findings when cleanup is refused (A4H's real 405 — capture 891)", async () => {
     const { conn, calls } = fakeConn((method, url) => {
       if (method === "GET" && url.startsWith(ATC_CUSTOMIZING_PATH)) {
         return { body: CUSTOMIZING };

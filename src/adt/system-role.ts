@@ -42,7 +42,32 @@ export interface SystemRoleDetection {
    * `inconclusive` and still fails closed either way.
    */
   readonly probeFailure?: string;
+  /**
+   * What kind of system answered, as reported by `ato/settings`'s
+   * `operationsType` attribute: `"C"` (cloud — an SAP BTP ABAP environment /
+   * steampunk tenant) or `"H"` (on-premise or hybrid). `"unknown"` whenever
+   * the attribute is absent, unrecognised, or the `ato/settings` probe failed
+   * — which is the normal case on older on-premise releases.
+   *
+   * OBSERVATION ONLY. This never feeds `role`. A cloud tenant is not
+   * automatically non-productive — most of them ARE productive — so treating
+   * this as evidence either way would open a downgrade path where the gate
+   * today has only a one-way escalation. If you are tempted to branch on this
+   * in a safety decision, don't: see doc/SAFETY/safety-gate.md.
+   *
+   * UNVERIFIED: the reference system A4H is an on-premise appliance and there
+   * is no cloud tenant to confirm the attribute's spelling or values against.
+   * The parse is deliberately defensive — anything it does not recognise is
+   * `"unknown"`, which changes nothing.
+   */
+  readonly tenantKind: TenantKind;
 }
+
+/**
+ * See `SystemRoleDetection.tenantKind`: an observation recorded alongside the
+ * role, never an input to it.
+ */
+export type TenantKind = "cloud" | "on-premise" | "unknown";
 
 /**
  * Deliberately tri-state, not boolean: `"inconclusive"` means the probe
@@ -119,6 +144,9 @@ export function classifyT000Response(
     client: logonClient,
     ccCategory,
     reason,
+    // T000 alone never observes a tenant kind — that only comes out of
+    // `ato/settings` in `escalateIfAtoSaysProductive`, which runs after this.
+    tenantKind: "unknown",
   });
 
   if (resp.status !== 200) {
@@ -186,6 +214,8 @@ export function classifyT000Response(
       client: logonClient,
       ccCategory: raw,
       reason: `T000-CCCATEGORY = "P" (production) for logon client ${logonClient}.`,
+      // Same reasoning as `no()` above: T000 doesn't observe tenant kind.
+      tenantKind: "unknown",
     };
   }
   // Allowlist by inclusion, not `cc !== "P"` exclusion: an unrecognised
@@ -201,6 +231,8 @@ export function classifyT000Response(
       client: logonClient,
       ccCategory: raw,
       reason: `T000-CCCATEGORY = "${cc}" (recognised non-productive client role) for logon client ${logonClient}.`,
+      // Same reasoning as `no()` above: T000 doesn't observe tenant kind.
+      tenantKind: "unknown",
     };
   }
   return no(
@@ -265,26 +297,46 @@ async function probeT000(
     const cause = describeUnknownError(e);
     const reason = `T000 data-preview probe failed: ${cause}`;
     if ((e as { status?: unknown }).status === 0) {
-      return { role: "inconclusive", client, ccCategory: null, reason, probeFailure: cause };
+      return { role: "inconclusive", client, ccCategory: null, reason, probeFailure: cause, tenantKind: "unknown" };
     }
-    return { role: "inconclusive", client, ccCategory: null, reason };
+    return { role: "inconclusive", client, ccCategory: null, reason, tenantKind: "unknown" };
   }
 }
 
 /**
  * One-way ratchet towards `productive`. Never downgrades: an `ato/settings`
  * that says nothing (the A4H case) leaves the T000 verdict untouched.
+ *
+ * Also reads `operationsType` out of the SAME `ato/settings` body already
+ * fetched below, and records it as `tenantKind` — a passenger, not a driver.
+ * This is purely an observation for diagnostics/logging: it is returned on
+ * every path through this function (including the pass-through when the
+ * escalation doesn't fire) but it MUST NEVER be read back into `role`,
+ * anywhere, now or later. There is no "downgrade to nonproductive because
+ * this looks like a cloud tenant" path, and there must never be one — see
+ * `TenantKind`'s doc and doc/SAFETY/safety-gate.md. Recording it here costs
+ * no extra request: it's a second attribute pulled from a response this
+ * function was already going to fetch for the productive check.
  */
 async function escalateIfAtoSaysProductive(
   probes: SystemRoleProbes,
   detection: SystemRoleDetection,
 ): Promise<SystemRoleDetection> {
+  // Role is already at its most restrictive, so the extra request is skipped
+  // entirely (as before this change) — which means `tenantKind` stays
+  // whatever `detection` already carried (in practice "unknown", since T000
+  // alone never observes it). Honest: ato/settings was never asked here.
   if (detection.role === "productive") return detection;
   try {
     const { body } = await probes.getAtoSettings(ATO_SETTINGS, { headers: { Accept: "application/*" } });
     const attr = (name: string): string | undefined =>
       new RegExp(`${name}="([^"]*)"`, "i").exec(body)?.[1];
     const isProduction = attr("isProductionSystem") ?? attr("productionSystem");
+    // Defensive parse, per TenantKind's doc: anything other than a clean "C"
+    // or "H" (case-insensitive, trimmed) is "unknown" — never guessed at.
+    const operationsType = attr("operationsType")?.trim().toUpperCase();
+    const tenantKind: TenantKind =
+      operationsType === "C" ? "cloud" : operationsType === "H" ? "on-premise" : "unknown";
     if (isAbapTrue(isProduction)) {
       return {
         role: "productive",
@@ -293,14 +345,23 @@ async function escalateIfAtoSaysProductive(
         reason:
           `ato/settings reports isProductionSystem="${isProduction}". ` +
           `(T000 probe said: ${detection.reason})`,
+        tenantKind,
       };
     }
+    // Escalation didn't fire, but the tenant observation is independent of
+    // the role decision and must survive regardless — carry it forward
+    // rather than dropping it just because this probe didn't raise `role`.
+    return { ...detection, tenantKind };
   } catch (e) {
     probes.assertBreakerClosed();
     probes.log(
       "[abapsmith] ato/settings probe failed (non-fatal — it can only escalate to " +
-        `productive): ${describeUnknownError(e)}`,
+        `productive, and can only ADD a tenantKind observation, never remove or downgrade ` +
+        `one): ${describeUnknownError(e)}`,
     );
   }
+  // Probe failed: detection returned exactly as received, tenantKind
+  // included — whatever it already was ("unknown" in every path this module
+  // constructs on its own).
   return detection;
 }

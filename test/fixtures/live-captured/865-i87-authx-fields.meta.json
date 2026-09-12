@@ -1,0 +1,32 @@
+{
+  "n": 865,
+  "label": "i87-authx-fields",
+  "expect": null,
+  "note": "AUTHX field metadata.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=5&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM authx WHERE fiel1 = 'DICBERCLS' OR fiel1 = 'ACTVT'",
+  "responseStatus": 400,
+  "responseStatusText": "Bad Request",
+  "responseHeaders": {
+    "content-type": "application/xml",
+    "content-length": "536",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "130477.000000"
+  },
+  "byteLength": 536,
+  "zeroByteBody": false,
+  "sha256": "d9ee2b480e9ffdff9f777d3a197f22da92e4434f0cc944dbcba94de4d6815988",
+  "utcTimestamp": "2026-09-12T13:24:24.702Z",
+  "durationMs": 252,
+  "sessionName": "A"
+}

@@ -24,12 +24,12 @@
  *
  *   - `DELETE /sap/bc/adt/atc/worklists/{id}` → **405**
  *     `ExceptionMethodNotSupported`, "Resource controller does not support
- *     method DELETE" (capture `857-i78-worklist-delete-405.xml`).
+ *     method DELETE" (capture `891-i78-worklist-delete-405.xml`).
  *   - `PUT` on the same resource → also 405.
  *   - The advertised `?action=deleteFindings` action (ADT discovery lists it
  *     as `rel="…/actions/deleteFindings"`) → **200 with a zero-byte body**,
  *     and the worklist's findings are unchanged afterwards (capture
- *     `858-i78-worklist-action-deletefindings-noop.xml`). Server-side,
+ *     `892-i78-worklist-action-deletefindings-noop.xml`). Server-side,
  *     `CL_SATC_ADT_RES_WORKLIST->post` returns immediately for a URI
  *     carrying a worklist id, and the `lcl_handler_delete_findings`
  *     implementation in its CCIMP include is commented out in its entirety
@@ -49,7 +49,7 @@
  * ## Timeout vs. observed package-run duration
  *
  * A synchronous run over a whole package is slow: capture
- * `853-i78-run-two-packages.xml` (two packages, 5 objects, 29 findings) took
+ * `887-i78-run-two-packages.xml` (two packages, 5 objects, 29 findings) took
  * 23 s on a re-run; a separate live run of one package
  * (`$ABAPSMITH_FLUID_API`, ~77 classes, 677 findings) took **134 s**. This
  * client's default HTTP timeout (`cfg.timeoutMs`, `src/config.ts:309`) is
@@ -371,7 +371,7 @@ export async function fetchDefaultCheckVariant(conn: AbapConnection): Promise<st
 /**
  * List every ATC check variant this system knows, cached per connection
  * (like {@link fetchDefaultCheckVariant}, one HTTP call per connection
- * lifetime). Grounded in capture `852-i78-checkvariants-quicksearch.xml`:
+ * lifetime). Grounded in capture `886-i78-checkvariants-quicksearch.xml`:
  * a repository quickSearch scoped to `objectType=CHKV`, since a direct GET
  * on `/sap/bc/adt/atc/checkvariants` answers 400 `uriMappingError` on A4H —
  * see {@link buildCheckVariantSearchUrl}.
@@ -525,7 +525,7 @@ export interface AtcWorklistCleanup {
  * refusal.
  *
  * On A4H this always answers 405 `ExceptionMethodNotSupported` (capture
- * `857-i78-worklist-delete-405.xml`) — see the module header for the full
+ * `891-i78-worklist-delete-405.xml`) — see the module header for the full
  * picture, including why the advertised `?action=deleteFindings` action is
  * deliberately never called here (it is a documented no-op, not a cleanup).
  *
@@ -881,7 +881,7 @@ function normalizePackageName(packageName: string): string {
  * `includeSubpackages` false or omitted makes NO HTTP call at all — it is
  * just name normalisation — because a single flat package (no tree walk)
  * is the common case, and every live package run this issue captured
- * (853/854) was against flat packages.
+ * (887/888) was against flat packages.
  *
  * The walk is root-first, then each level in server node order, de-duped
  * by name and cycle-guarded by the same `seen` set (a name already

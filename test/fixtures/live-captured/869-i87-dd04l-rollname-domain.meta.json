@@ -1,0 +1,32 @@
+{
+  "n": 869,
+  "label": "i87-dd04l-rollname-domain",
+  "expect": null,
+  "note": "Data element to domain.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT rollname, domname, datatype, leng FROM dd04l WHERE rollname = 'ACTIV_AUTH' OR rollname = 'TABNAME' OR rollname = 'SUSR_OBJ' OR rollname = 'DEVCLASS'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "2251",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "344903.000000"
+  },
+  "byteLength": 2251,
+  "zeroByteBody": false,
+  "sha256": "c613fbd050a7a75bb561e169ddca61aa9b267153ba64aa5403522786ef8ae957",
+  "utcTimestamp": "2026-09-12T13:24:54.952Z",
+  "durationMs": 458,
+  "sessionName": "A"
+}
