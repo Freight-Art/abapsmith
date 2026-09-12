@@ -70,8 +70,9 @@
   nothing in CTS: whatever entry the object already had on a request
   (typically from its create) survives the delete and must be removed
   separately with `abap_transport` operation `"removeObject"`, which needs
-  ABAP_MODE=admin — and which CTS refuses outright when the request already
-  holds two or more E071 rows for the object (see
+  ABAP_MODE=admin — and which CTS can refuse outright once the request
+  already holds two or more E071 rows for the object; abapsmith cannot say
+  what reliably produces that duplication (see
   `doc/LIMITATIONS/not-implemented-and-unproven.md`), leaving the entry, its
   lock, and (for `VIEW/DV`) its TADIR row in place. That is also why the
   safety gate judges these two
@@ -93,6 +94,43 @@
   / `program` field descriptions say so up front (`src/tools/write.ts`); the
   registry documents it structurally too (`BRIDGE_DELETABLE_TYPES`,
   `src/adt/capabilities.ts`).
+- **A delete is refused, pre-lock, when the `corr_nr` you name is not the
+  request that already holds the object; a write is not.** SAP's CTS
+  records a change against the request that holds the object's lock entry
+  — a second request cannot take over that entry — so naming a different
+  `corr_nr` on a delete cannot redirect where the deletion lands, only
+  whether it happens at all. `src/adt/write.ts` checks this against ADT's
+  own `transportchecks` pre-flight answer before any lock is taken: a
+  named `corr_nr` that disagrees is refused outright (`TRANSPORT_ERROR`,
+  `details.reason: CORR_NR_NOT_HONOURED`, `details.corrNr`,
+  `details.lockCorrNr`, `details.deleted: false`), with no enqueue and no
+  journal entry — a second, identical check still sits under the lock as a
+  backstop for the rarer case the pre-flight missed, and that one reports
+  the lock as released rather than never taken. Left unnamed, the delete
+  still proceeds under the request that already holds the object, reported
+  with `corr_nr_honoured: false` and both numbers named. `mode=write`/
+  `edit` (PUT) does not refuse this way at all: a transportable object can
+  only be recorded where CTS already holds it, so a write naming a
+  different `corr_nr` proceeds and is recorded there anyway, with the
+  response reporting `corr_nr_honoured: false` instead of refusing — see
+  `doc/TOOLS/write-and-activate.md` § "`mode=delete` and transport
+  requests" for the full asymmetry. Before this fix neither path refused
+  anything: observed live on A4H during v0.4.0 general verification, an
+  object created under one request was deleted with a second, empty
+  request passed as `corr_nr`, and `abap_transport show` afterwards found
+  the object's row on the creating request and nothing on the other, with
+  no error and no mention of the substitution — that run is why the
+  refusal above now exists. Splitting create and delete across two
+  requests still will not move where the deletion lands, for the same
+  reason. The `removeObject` remedy for separating the two can still be
+  refused by CTS's own duplicate-row check (`TRINT_DELETE_COMM_OBJECT_KEYS`
+  raises `w_duplicate_entry` at two or more E071 rows for the object — see
+  `doc/LIMITATIONS/not-implemented-and-unproven.md`), but abapsmith cannot
+  say what reliably produces the duplication: a create immediately
+  followed by a delete of the same object on one request, once assumed to
+  be the recipe, was tried live on A4H, 2026-09-12, and did not reproduce
+  it — the two rows had already collapsed into one, and `removeObject`
+  succeeded with `removedCount: 1`.
 - **A failed create can still leave an empty object behind, but not silently.**
   `writeObject` creates the object shell, then PUTs its content in a separate
   round trip (`src/adt/write.ts`). A rejected PUT goes through

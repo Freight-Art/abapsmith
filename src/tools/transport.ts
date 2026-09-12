@@ -86,8 +86,8 @@ export const transportInputSchema = {
         "confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object " +
         "already deleted from the system, so its request can then be deleted — if the object " +
         "still exists, its lock goes too; CTS refuses this when the request holds 2 or more " +
-        "E071 rows for that object (same PGMID+OBJECT+OBJ_NAME, e.g. a create and a delete " +
-        "both recorded under one request), leaving the request undeletable through abapsmith) " +
+        "E071 rows for that object (same PGMID+OBJECT+OBJ_NAME — legal but not reliably " +
+        "reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) " +
         "needs that same admin-only transport-delete ceiling and confirm." +
         " Required args: list/users none; show transport; check object; create " +
         "package+description; addUser/setOwner transport+user; delete transport+confirm; " +
@@ -1656,8 +1656,8 @@ const COMM_OBJECT_KEYS_HINT =
  */
 const LATE_DUPLICATE_ENTRY_HINT =
   "The request holds two or more E071 rows for this object (same PGMID+OBJECT+OBJ_NAME) — " +
-  "E071's key is TRKORR+AS4POS, not object identity, so a create and a delete of the same " +
-  "object under one request both get recorded, and TR_DELETE_COMM_OBJECT_KEYS refuses to pick " +
+  "E071's key is TRKORR+AS4POS, not object identity, so this is legal, but abapsmith cannot " +
+  "say which action produced the extra row, and TR_DELETE_COMM_OBJECT_KEYS refuses to pick " +
   "one to drop. The entry and its lock are still on the request. Every remaining route is " +
   "outside abapsmith and not guaranteed to succeed: edit the request's object list in " +
   "SE09/SE10; or release the request (irreversible).";
@@ -1681,8 +1681,8 @@ function carryOrigin(fresh: AbapError, origin: AbapError): AbapError {
  * `CTS_DUPLICATE_ENTRY` (its message and hint already name the duplicate rows — this only
  * attaches `objectOnSystem`), and a `CHECK_FAILED` that reached `TR_DELETE_COMM_OBJECT_KEYS`
  * itself, which raises the same guard (`MESSAGE e292(tr)`, rendered `msg=E TR 292`) at 2+ E071
- * rows for one PGMID+OBJECT+OBJ_NAME — E071's key is TRKORR+AS4POS, not object identity, so a
- * create and a delete of the same object under one request both get recorded. That late case is
+ * rows for one PGMID+OBJECT+OBJ_NAME — E071's key is TRKORR+AS4POS, not object identity, so
+ * duplicate rows are legal, though what produces them is not established. That late case is
  * reclassified as `CTS_DUPLICATE_ENTRY`; any other CHECK_FAILED naming the FM keeps its code and
  * gets the generic hint appended. Any other error is returned unchanged.
  */

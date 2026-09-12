@@ -712,8 +712,8 @@ const COMM_OBJECT_KEYS_HINT =
 
 const LATE_DUPLICATE_ENTRY_HINT =
   "The request holds two or more E071 rows for this object (same PGMID+OBJECT+OBJ_NAME) — " +
-  "E071's key is TRKORR+AS4POS, not object identity, so a create and a delete of the same " +
-  "object under one request both get recorded, and TR_DELETE_COMM_OBJECT_KEYS refuses to pick " +
+  "E071's key is TRKORR+AS4POS, not object identity, so this is legal, but abapsmith cannot " +
+  "say which action produced the extra row, and TR_DELETE_COMM_OBJECT_KEYS refuses to pick " +
   "one to drop. The entry and its lock are still on the request. Every remaining route is " +
   "outside abapsmith and not guaranteed to succeed: edit the request's object list in " +
   "SE09/SE10; or release the request (irreversible).";
@@ -759,7 +759,7 @@ describe("abap_transport removeObject — enrichRemovalRefusal", () => {
     expect(err.details.objectOnSystem).toBe("absent");
     expect(err.hint).toContain("TRINT_DELETE_COMM_OBJECT_KEYS counts");
     // No LATE_DUPLICATE_ENTRY_HINT text appended — passthrough branch keeps e.hint exactly.
-    expect(err.hint).not.toContain("E071's key is TRKORR+AS4POS, not object identity, so a create and a delete");
+    expect(err.hint).not.toContain("abapsmith cannot say which action produced the extra row");
   });
 
   it('a NOT_FOUND refusal ("no entry for") passes through completely untouched — no objectOnSystem, no hint added', async () => {

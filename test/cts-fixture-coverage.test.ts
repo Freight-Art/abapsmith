@@ -10,7 +10,7 @@
  * test at all by the time this file was added. This file is that missing
  * caller.
  *
- * The nine are listed below rather than deleted. They are real captured wire
+ * The seven below are listed rather than deleted. They are real captured wire
  * from the CTS reconnaissance run, several are cited as evidence elsewhere
  * (see the per-entry notes), and re-capturing them costs a live A4H session.
  * `UNEXERCISED` is a ratchet: it may shrink, never grow. The
@@ -48,9 +48,6 @@ const SELF = "cts-fixture-coverage.test.ts";
  * whose evidence currently only exists as prose.
  */
 const UNEXERCISED = [
-  // Cited by `src/adt/write.ts` as the shape of a LOCK on a transportable
-  // object.
-  "lock-transportable-object",
   // Task creation + addUser. `test/transport-tools.test.ts` covers addUser
   // with a hand-built synthetic body instead (see that file's header: "no
   // captured wire fixture"), which is precisely the gap this capture fills.

@@ -27,7 +27,7 @@ reaching SAP.
 | `activate` | boolean | no | `true` | Activate after a successful write. |
 | `verify` | boolean | no | — | Raise this one call to `verified` mode — reads the object back after a successful write. Raise-only: cannot lower a server `ABAP_VERIFY_WRITES=verified` default. |
 | `format` | boolean | no | — | Pretty-print the source before writing. |
-| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Required for a `TRAN/T` create into a transportable package; refused for one into a `$` package. A `VIEW/DV` create into a transportable package accepts it but does not require it — omit it and the resolver picks or creates a request under `ABAP_ALLOW_TRANSPORTS`; still refused for a `$` package. Also refused for a `VIEW/DV`/`TRAN/T` delete — neither delete bridge takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. |
+| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Required for a `TRAN/T` create into a transportable package; refused for one into a `$` package. A `VIEW/DV` create into a transportable package accepts it but does not require it — omit it and the resolver picks or creates a request under `ABAP_ALLOW_TRANSPORTS`; still refused for a `$` package. Also refused for a `VIEW/DV`/`TRAN/T` delete — neither delete bridge takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. For any other `mode=delete`, a named `corr_nr` that disagrees with the request CTS already records the object in is refused before anything is deleted, pre-lock — see "`mode=delete` and transport requests" below; left unnamed, the request that already holds the object wins the deletion, resolved automatically. A `mode=write`/`edit` naming a different `corr_nr` is never refused this way — the write proceeds under the request CTS already holds, reported rather than silently substituted. |
 | `software_component` | string | no | — | `DEVC/K` (package) only: `LOCAL`, or a transportable component (e.g. `HOME`) — the latter needs `corr_nr` unless the package is `$TMP`-local. |
 | `package_type` | string | no | `development` | `DEVC/K` only. |
 | `transport_layer` | string | no | — | `DEVC/K` only. |
@@ -37,6 +37,88 @@ reaching SAP.
 | `affects` | object `{name, packageName, masterSystem?, spotName?}` | no (required for `ENHO/XHH`) | — | The object this write's target enhancement binds to. |
 | `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. |
 | `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for the bridge-only creates (`VIEW/DV`, `TRAN/T`), and for `DEVC/K`. |
+
+**`mode=delete` and transport requests**: SAP records a deletion on the
+request that already holds the lock entry for the object — the request
+the ADT lock response names — not necessarily the `corr_nr` abapsmith sent
+with the `DELETE`. What happens next depends on whether `corr_nr` was named
+(by the caller's `corr_nr` argument, or pinned to one request by
+`ABAP_ALLOW_TRANSPORTS`) or left for abapsmith to resolve on its own:
+
+- **Named, and CTS already records the object in a different request**:
+  the delete is refused before anything is locked. The check runs
+  pre-lock, against ADT's own `transportchecks` pre-flight answer — the
+  same call the safety gate already makes to learn which request an object
+  belongs to — so a mismatch is caught with no enqueue taken and nothing
+  journalled. The error is `TRANSPORT_ERROR` with
+  `details.reason = "CORR_NR_NOT_HONOURED"`, `details.corrNr` set to what
+  the caller named, `details.lockCorrNr` set to the request CTS actually
+  records the object in, `details.corrNrHonoured: false`, and
+  `details.deleted: false`. The message names both requests and gives the
+  two ways forward: delete again with `details.lockCorrNr` as `corr_nr`
+  (it is then gated like any other number), or first remove the object's
+  entry from that request with `abap_transport` operation `removeObject`
+  (needs `ABAP_MODE=admin`; CTS's own duplicate-row check can still refuse
+  this once a request holds two or more E071 rows for the object, but
+  abapsmith cannot say what reliably produces that — see
+  `doc/LIMITATIONS/editing.md`). A second, identical comparison still runs
+  under the lock, as a backstop for the rarer case where the lock names a
+  request the pre-flight did not — there the lock has already been taken,
+  so the refusal message says the lock was released rather than that none
+  was taken; the outcome is the same either way, nothing deleted.
+  **This is new**: before this fix, this same situation — `corr_nr` named,
+  CTS already recording the object elsewhere — never refused at all. The
+  delete silently proceeded under the request CTS held, and the caller's
+  `corr_nr` was discarded without comment. An agent that names `corr_nr` on
+  every delete call will now see a hard `TRANSPORT_ERROR` in a case that
+  used to be a silent, unannounced success.
+- **Auto-resolved** (no `corr_nr` named; `ABAP_ALLOW_TRANSPORTS=auto` or a
+  list): the delete proceeds — nobody chose the number, so refusing helps no
+  one. The request the lock names is still re-judged against the safety
+  gate's transport allowlist before the delete goes ahead, so a change is
+  never recorded on a request the gate never saw (under the default `auto`
+  this permits any number). The response header carries
+  `corr_nr_honoured: false`, and a note names both numbers: the sent
+  `corr_nr` was not used, because the object was locked by the transport
+  request CTS actually recorded the deletion on.
+- **`dry_run` (delete or write)**: takes no lock and makes no CTS call
+  either way, so it cannot tell you which request actually holds the
+  object. When the call names a `corr_nr`, the preview note warns that a
+  real delete would refuse outright, and that a real write would instead
+  proceed and be recorded under whatever request CTS already holds the
+  object in. The `transport:` line itself stays the fixed `unresolved (dry
+  run makes no transport call)` either way.
+
+The batch delete form (`objects`) never names a `corr_nr` per object, so
+every object it deletes can only hit the auto-resolved case above; each
+object's line in the rendered `--- OBJECTS ---` body says so when it
+applies. abapsmith does not re-read either transport request to confirm
+what is actually recorded in it — the response reports what the lock and
+the `DELETE` call said, not a follow-up read.
+
+Unlike the delete, a `mode=write`/`edit` (PUT) naming a `corr_nr` other
+than the request CTS already records the object in is **not** refused —
+it is report-only. A transportable object can only be recorded in the
+request that already holds it, so the write proceeds and is recorded
+under that request rather than the one asked for, exactly as before. What
+changed is that abapsmith no longer pretends the caller's number was
+honoured: the response header carries `corr_nr_honoured: false` (the same
+key the delete's auto-resolved case uses), and a note names both
+requests, replacing the write's ordinary transport note. This is a
+deliberate asymmetry, not an oversight: a write's request assignment is a
+fact about where the object already lives, and the caller can change
+it — with `abap_transport` operation `removeObject`, then retry the
+write — while a delete's is not: deleting under a request the caller
+never asked for cannot be undone by any later call, so it is refused
+instead of reported. `transportDivergence` (`src/adt/write.ts`) is real
+and still fires, but it guards a narrower, different case than a
+caller-named `corr_nr`: the safety gate's pre-flight judged one request
+and the lock then reports a different one, i.e. the object moved between
+the two calls. It was never the check that covered a caller-named
+`corr_nr`, for write or for delete — confirmed live on A4H, 2026-09-12: an
+`edit` write naming a different `corr_nr` succeeded silently under the
+request CTS already held, with no mention of the substitution anywhere in
+the response.
 
 **Batch delete (`objects`)**: there is **no server-side batch-delete
 endpoint** — unlike `abap_activate`'s `objects`, which posts to ADT's own

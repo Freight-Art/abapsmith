@@ -2109,7 +2109,10 @@ describe("tool surface", () => {
       "Transport request. $TMP needs none. Required for a TRAN/T or TABL/DI create into a " +
         "transportable package; optional for a VIEW/DV create, which resolves one under " +
         "ABAP_ALLOW_TRANSPORTS when omitted. Refused for a $ package, and on VIEW/DV or TRAN/T " +
-        "delete. TABL/DI delete: same package-derived requirement as its create, not refused.",
+        "delete. TABL/DI delete: same package-derived requirement as its create, not refused. " +
+        "If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: " +
+        "mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused " +
+        "outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing.",
     );
     // package's TRAN/T clause states the corr_nr/package pairing rule; its
     // VIEW/DV clause instead states that a transportable one resolves its own
