@@ -54,6 +54,7 @@ import type {
   DebugVariable,
   ListenResult,
   StateId,
+  Watchpoint,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -154,6 +155,10 @@ export interface DebugSessionSnapshot {
   sessionBlockedBy?: string;
   /** Op names `terminateStep()` gave up on after `TERMINATE_STEP_DEADLINE_MS` — set only when non-empty. See `handleStop` in `src/tools/debug.ts`, which surfaces this in the tool response. */
   abandonedCleanupSteps?: string[];
+  /** Count of breakpoints this session has armed for real and still owns (see `ownedBreakpoints`) — for the tool layer's status output only, not a correctness signal. */
+  ownedBreakpointCount?: number;
+  /** Count of watchpoints this session has created and still owns (see `ownedWatchpoints`) — for the tool layer's status output only, not a correctness signal. */
+  ownedWatchpointCount?: number;
 }
 
 /**
@@ -318,6 +323,30 @@ export class DebugSession {
    */
   private readonly ownedBreakpoints: CreatedBreakpoint[] = [];
 
+  /**
+   * Every watchpoint id THIS session created, via `createWatchpoint()`. Exists so
+   * shutdown deletes exactly what this session created via targeted
+   * `DELETE /debugger/watchpoints/{id}` and nothing else — same reasoning as
+   * `ownedBreakpoints` immediately above: never assume a full-list sync/replace is
+   * safe. Cleared entry-by-entry as each delete is attempted, same drain-first
+   * discipline as `ownedBreakpoints` (see `deleteOwnedWatchpoints()`).
+   *
+   * These ids are NOT stable under every operation: `PUT /debugger/watchpoints/{id}`
+   * (modify condition/active) RETIRES the id it addresses and returns a
+   * DIFFERENT one for the same watchpoint. Observed against A4H on 2026-09-12 —
+   * `PUT .../watchpoints/1?condition=...` answered 200 with id 3, not 1; the
+   * following list showed ids 2 and 3 (1 gone), and a later create re-used the
+   * freed id 1. See `test/fixtures/live-captured/940-watchpoint-modify-condition.
+   * {meta.json,xml}`, `941-watchpoint-list-after-modify.{meta.json,xml}`, and
+   * `942-watchpoint-create-duplicate.{meta.json,xml}`. This session never
+   * modifies a watchpoint (no `modifyWatchpoint()` call exists in this file), so
+   * the ids it holds here stay valid for this session's whole lifetime — but the
+   * next person who adds a modify path MUST swap the old id for the response's
+   * new id in this array at the same time, exactly like `armBreakpointsTwoPass()`
+   * records ids from a response rather than assuming one it already sent back.
+   */
+  private readonly ownedWatchpoints: string[] = [];
+
   private terminatePromise: Promise<void> | undefined;
 
   constructor(opts: DebugSessionOptions) {
@@ -346,6 +375,8 @@ export class DebugSession {
       sessionBlockedBy: this.sessionBlockedBy,
       abandonedCleanupSteps:
         this.abandonedCleanupSteps.length > 0 ? [...this.abandonedCleanupSteps] : undefined,
+      ownedBreakpointCount: this.ownedBreakpoints.length,
+      ownedWatchpointCount: this.ownedWatchpoints.length,
     };
   }
 
@@ -412,12 +443,22 @@ export class DebugSession {
   // --- Breakpoints ----------------------------------------------------------
 
   /**
-   * Validates every breakpoint (`validationOnly="true"`) before arming any for real.
-   * If validation refuses even one, nothing is armed and the thrown `BAD_INPUT` names
-   * every refusal. The real pass is checked the same way defensively, in case SAP
-   * refuses something for real that it accepted during validation.
+   * Shared two-pass validate-then-arm machinery behind both `prepareBreakpoints()`
+   * (called pre-attach, before `armListener()`) and `addBreakpoints()` (called
+   * while stopped, additively — see its own doc comment). `opName` feeds only
+   * error messages and `noteStatefulRequest()` labels; the wire shape sent is
+   * identical either way: `scope: "external"`, this session's own
+   * `debuggingMode`/`requestUser`/`terminalId`/`ideId`, and `syncScope` always
+   * omitted so the POST can never wipe anything — see `ownedBreakpoints`'s doc
+   * comment for why that matters.
+   *
+   * Validates every breakpoint (`validationOnly="true"`) before arming any for
+   * real. If validation refuses even one, nothing is armed and the thrown
+   * `BAD_INPUT` names every refusal. The real pass is checked the same way
+   * defensively, in case SAP refuses something for real that it accepted during
+   * validation.
    */
-  async prepareBreakpoints(breakpoints: Breakpoint[]): Promise<CreatedBreakpoint[]> {
+  private async armBreakpointsTwoPass(opName: string, breakpoints: Breakpoint[]): Promise<CreatedBreakpoint[]> {
     const buildRequest = (bps: Breakpoint[]): BreakpointsRequest => ({
       debuggingMode: this.context.debuggingMode,
       requestUser: this.context.requestUser,
@@ -431,9 +472,7 @@ export class DebugSession {
     const describeRefusals = (refusals: BreakpointError[]): string =>
       refusals.map((r) => `[${r.kind}${r.clientId ? ` clientId=${r.clientId}` : ""}] ${r.errorMessage}`).join("; ");
 
-    // Load-bearing ordering: production always calls this before armListener() — do
-    // not move breakpoint preparation after arming.
-    this.noteStatefulRequest("prepareBreakpoints (validation pass)");
+    this.noteStatefulRequest(`${opName} (validation pass)`);
     const validation = await this.client.setBreakpoints(
       buildRequest(breakpoints.map((bp) => ({ ...bp, validationOnly: true }))),
     );
@@ -441,19 +480,19 @@ export class DebugSession {
     if (validationRefusals.length > 0) {
       throw new AbapError(
         "BAD_INPUT",
-        `prepareBreakpoints: ${validationRefusals.length} breakpoint(s) refused during validation: ` +
+        `${opName}: ${validationRefusals.length} breakpoint(s) refused during validation: ` +
           describeRefusals(validationRefusals),
         { refusals: validationRefusals },
       );
     }
 
-    this.noteStatefulRequest("prepareBreakpoints (arming pass)");
+    this.noteStatefulRequest(`${opName} (arming pass)`);
     const real = await this.client.setBreakpoints(buildRequest(breakpoints));
     const realRefusals = real.filter(isRefusal);
     if (realRefusals.length > 0) {
       throw new AbapError(
         "BAD_INPUT",
-        `prepareBreakpoints: ${realRefusals.length} breakpoint(s) refused when arming for real, ` +
+        `${opName}: ${realRefusals.length} breakpoint(s) refused when arming for real, ` +
           `despite passing validation: ${describeRefusals(realRefusals)}`,
         { refusals: realRefusals },
       );
@@ -464,7 +503,7 @@ export class DebugSession {
     for (const bp of created) {
       if (typeof bp.id !== "string" || bp.id.length === 0) {
         this.log(
-          `[debug-session] prepareBreakpoints: the server accepted a ${bp.kind} breakpoint but echoed no id — ` +
+          `[debug-session] ${opName}: the server accepted a ${bp.kind} breakpoint but echoed no id — ` +
             `it cannot be deleted individually at shutdown and will be left registered.`,
         );
         continue;
@@ -472,6 +511,94 @@ export class DebugSession {
       if (!this.ownedBreakpoints.some((b) => b.id === bp.id)) this.ownedBreakpoints.push(bp);
     }
     return created;
+  }
+
+  /**
+   * Validates every breakpoint (`validationOnly="true"`) before arming any for real.
+   * If validation refuses even one, nothing is armed and the thrown `BAD_INPUT` names
+   * every refusal. The real pass is checked the same way defensively, in case SAP
+   * refuses something for real that it accepted during validation.
+   *
+   * Load-bearing ordering: production always calls this before armListener() — do
+   * not move breakpoint preparation after arming.
+   */
+  async prepareBreakpoints(breakpoints: Breakpoint[]): Promise<CreatedBreakpoint[]> {
+    return this.armBreakpointsTwoPass("prepareBreakpoints", breakpoints);
+  }
+
+  /**
+   * Arms one or more additional breakpoints while the session is already stopped —
+   * e.g. after inspecting the stack, without restarting the whole debug session.
+   * Same `stateId`/status validation as the other stopped-state methods (`getStack()`,
+   * `step()`, ...) via `runStateful()`; the actual arming reuses
+   * `armBreakpointsTwoPass()`, the exact same validate-then-arm discipline
+   * `prepareBreakpoints()` uses, so the two never drift apart. Newly armed
+   * breakpoints are appended to `ownedBreakpoints`, same as `prepareBreakpoints()` —
+   * the existing shutdown path (`deleteOwnedBreakpoints()`) deletes them without
+   * caring which method armed them.
+   */
+  async addBreakpoints(stateId: StateId, breakpoints: Breakpoint[]): Promise<CreatedBreakpoint[]> {
+    if (breakpoints.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "addBreakpoints: at least one breakpoint is required.",
+        { breakpoints },
+      );
+    }
+    return this.runStateful(stateId, () => this.armBreakpointsTwoPass("addBreakpoints", breakpoints));
+  }
+
+  /**
+   * A fresh copy of every breakpoint this session currently owns (armed by
+   * `prepareBreakpoints()` or `addBreakpoints()` and not yet removed).
+   * Synchronous, issues nothing — and that is the only option available, not
+   * merely a design choice: `GET /sap/bc/adt/debugger/breakpoints` answers 200
+   * with a zero-byte body, both while breakpoints are armed and after they are
+   * cleaned up (there is no server-side read of the armed external breakpoint
+   * set at all). See `test/fixtures/live-captured/917-bp-list-while-stopped.
+   * meta.json` and `925-bp-list-after-cleanup.meta.json`. Do not "improve" this
+   * into a server round-trip — there is nothing on the wire for it to read.
+   */
+  listOwnedBreakpoints(): CreatedBreakpoint[] {
+    return [...this.ownedBreakpoints];
+  }
+
+  /**
+   * Removes one breakpoint THIS session owns via a targeted
+   * `DELETE /debugger/breakpoints/{id}` — the same call `deleteOwnedBreakpoints()`
+   * uses at shutdown — and drops it from `ownedBreakpoints`. Refuses an id this
+   * session does not own (`BAD_INPUT`, naming the ids it does own) rather than
+   * silently issuing a DELETE this session has no record of arming; that refusal
+   * never touches the network. A server `NOT_FOUND` means the breakpoint is
+   * already gone (e.g. deleted through another path) — resolved, not thrown.
+   */
+  async removeBreakpoint(stateId: StateId, id: string): Promise<void> {
+    return this.runStateful(stateId, async () => {
+      const idx = this.ownedBreakpoints.findIndex((bp) => bp.id === id);
+      if (idx === -1) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `removeBreakpoint: this session does not own a breakpoint with id "${id}". Ids owned by this session: ` +
+            `${this.ownedBreakpoints.length > 0 ? this.ownedBreakpoints.map((bp) => bp.id).join(", ") : "(none)"}.`,
+          { id, ownedIds: this.ownedBreakpoints.map((bp) => bp.id) },
+        );
+      }
+      this.noteStatefulRequest(`removeBreakpoint ${id}`);
+      try {
+        await this.client.deleteBreakpoint({
+          id,
+          scope: "external",
+          debuggingMode: this.context.debuggingMode,
+          requestUser: this.context.requestUser,
+          terminalId: this.context.terminalId,
+          ideId: this.context.ideId,
+        });
+      } catch (e) {
+        // Already gone server-side — drop it locally too, not a failure.
+        if (!(isAbapError(e) && e.code === "NOT_FOUND")) throw e;
+      }
+      this.ownedBreakpoints.splice(idx, 1);
+    });
   }
 
   /**
@@ -501,6 +628,138 @@ export class DebugSession {
             ideId: this.context.ideId,
           }),
         // Already gone (debuggee finished, or a previous partial cleanup got it).
+        (e) => isAbapError(e) && e.code === "NOT_FOUND",
+      );
+    }
+  }
+
+  // --- Watchpoints -------------------------------------------------------------
+
+  /**
+   * Creates one watchpoint while the session is stopped (the wire requires the
+   * session to be attached to a suspended debuggee — see `createWatchpoint`'s
+   * doc comment on `DebugClient`). Refuses a blank `variableName` before
+   * touching the network. `stateId`/status validated the same way as every
+   * other stopped-state method, via `runStateful()`.
+   *
+   * Every row `createWatchpoint()` echoes back is recorded as newly created by
+   * THIS call — a create response is a per-call echo of only the new
+   * watchpoint(s), never the session's full list. Observed against a live A4H
+   * system on 2026-09-12: with watchpoint 1 already armed on `LV_TOTAL`, a
+   * second `POST .../watchpoints?variableName=LV_ZERO` answered with exactly
+   * one row (id 2), while the immediately following `GET /debugger/watchpoints`
+   * answered with both rows. See
+   * `test/fixtures/live-captured/936-watchpoint-create-first.{meta.json,xml}`,
+   * `937-watchpoint-create-second.{meta.json,xml}`, and
+   * `938-watchpoint-list-two.{meta.json,xml}`. This confirms
+   * `createWatchpoint()` can never hand back a pre-existing watchpoint (another
+   * session's or Eclipse's) for this method to wrongly claim ownership of.
+   */
+  async addWatchpoint(stateId: StateId, params: { variableName: string; condition?: string }): Promise<Watchpoint[]> {
+    if (!params.variableName || params.variableName.trim().length === 0) {
+      throw new AbapError("BAD_INPUT", "addWatchpoint: variableName must not be blank.", { params });
+    }
+    return this.runStateful(stateId, async () => {
+      this.noteStatefulRequest("addWatchpoint");
+      const result = await this.client.createWatchpoint(params);
+      for (const wp of result) {
+        if (typeof wp.id === "string" && wp.id.length > 0 && !this.ownedWatchpoints.includes(wp.id)) {
+          this.ownedWatchpoints.push(wp.id);
+        }
+      }
+      return result;
+    });
+  }
+
+  /** Lists every watchpoint visible on this session (not filtered to this session's own — see `readWatchpoints()` for that). Same `stateId`/status validation as the other stopped-state methods. */
+  async listWatchpoints(stateId: StateId): Promise<Watchpoint[]> {
+    return this.runStateful(stateId, () => {
+      this.noteStatefulRequest("listWatchpoints");
+      return this.client.listWatchpoints();
+    });
+  }
+
+  /**
+   * Removes one watchpoint THIS session owns via a targeted
+   * `DELETE /debugger/watchpoints/{id}` and drops it from `ownedWatchpoints`.
+   * Refuses an id this session does not own (`BAD_INPUT`, naming the ids it
+   * does own), the same way `removeBreakpoint()` does. A server `NOT_FOUND`
+   * means it is already gone (the debuggee it belonged to may have finished) —
+   * resolved, not thrown.
+   */
+  async removeWatchpoint(stateId: StateId, id: string): Promise<void> {
+    return this.runStateful(stateId, async () => {
+      const idx = this.ownedWatchpoints.indexOf(id);
+      if (idx === -1) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `removeWatchpoint: this session does not own a watchpoint with id "${id}". Ids owned by this session: ` +
+            `${this.ownedWatchpoints.length > 0 ? this.ownedWatchpoints.join(", ") : "(none)"}.`,
+          { id, ownedIds: [...this.ownedWatchpoints] },
+        );
+      }
+      this.noteStatefulRequest(`removeWatchpoint ${id}`);
+      try {
+        await this.client.deleteWatchpoint(id);
+      } catch (e) {
+        if (!(isAbapError(e) && e.code === "NOT_FOUND")) throw e;
+      }
+      this.ownedWatchpoints.splice(idx, 1);
+    });
+  }
+
+  /**
+   * Plain read of this session's own watchpoints, with NO `stateId` — meant for
+   * the tool layer to call right after a stop, to read `oldValue`/`currentValue`
+   * off a watchpoint that may just have fired. How a watchpoint hit is (or
+   * isn't) reported inside an attach/step response's `reachedBreakpoints` is
+   * unverified against the wire — that gap is exactly why the tool layer is
+   * expected to read the watchpoint list separately after a stop instead of
+   * relying on a reached-breakpoint row naming it.
+   *
+   * Issues nothing and returns `[]` when this session owns no watchpoints, so
+   * calling this costs nothing when the feature is unused. Otherwise reads the
+   * full session-visible list (`GET /debugger/watchpoints`) and filters to the
+   * ids this session created — same ownership scoping as everywhere else in
+   * this file, so a caller here never sees another session's or Eclipse's rows.
+   */
+  async readWatchpoints(): Promise<Watchpoint[]> {
+    if (this.ownedWatchpoints.length === 0) return [];
+    this.noteStatefulRequest("readWatchpoints");
+    const all = await this.client.listWatchpoints();
+    return all.filter((wp) => this.ownedWatchpoints.includes(wp.id));
+  }
+
+  /**
+   * Deletes ONLY the watchpoints this session created — same drain-first,
+   * NOT_FOUND-tolerant, `terminateStep()`-wrapped discipline as
+   * `deleteOwnedBreakpoints()`, and for the same reason: this must never guess
+   * at or touch a watchpoint this session did not create. A watchpoint belongs
+   * to the debuggee, not the ADT session, so it may already be gone once the
+   * debuggee finished on its own — `NOT_FOUND` there is expected, not a
+   * failure, and must never make cleanup throw.
+   *
+   * NOT_FOUND-tolerance here is load-bearing for a second, more concrete reason
+   * than "already gone": watchpoint ids are small reused integers, not opaque
+   * tokens (`1`, `2`, `3`, ...), and both a delete and a modify free the id they
+   * addressed for reuse by the next create — see `ownedWatchpoints`'s doc
+   * comment and `940`-`942` in `test/fixtures/live-captured/`. A stale id held
+   * past that point does not merely 404; it can in principle address a
+   * DIFFERENT, newer watchpoint that reused the same small integer. This is a
+   * real hazard, bounded only by this session holding the debuggee exclusively
+   * for the entire lifetime of the ids it records — nothing else (Eclipse, a
+   * concurrent session) may create or modify a watchpoint on the same debuggee
+   * while this session still holds an id for it.
+   */
+  private async deleteOwnedWatchpoints(): Promise<void> {
+    if (this.ownedWatchpoints.length === 0) return;
+    // Drained first so a second terminate() cannot re-issue deletes for handled ids.
+    const owned = this.ownedWatchpoints.splice(0, this.ownedWatchpoints.length);
+    this.noteStatefulRequest("shutdown deleting this session's own watchpoints");
+    for (const id of owned) {
+      await this.terminateStep(
+        `deleting this session's watchpoint ${id}`,
+        () => this.client.deleteWatchpoint(id),
         (e) => isAbapError(e) && e.code === "NOT_FOUND",
       );
     }
@@ -819,6 +1078,9 @@ export class DebugSession {
       isTerminationPossible: true,
       actions: [],
       reachedBreakpoints: [],
+      // Placeholder, not evidence of nothing reached — this recovery path has no
+      // wire data to say either way (see the log line above).
+      reachedWatchpoints: [],
     };
   }
 
@@ -1295,6 +1557,11 @@ export class DebugSession {
           isDoubleAttachError,
         );
       }
+      // Watchpoints belong to the debuggee, not the ADT session — delete this
+      // session's own ones BEFORE terminateDebuggee() tears down the very
+      // debuggee state their deletion needs. See `deleteOwnedWatchpoints()`.
+      await this.deleteOwnedWatchpoints();
+
       // NOT_CONNECTED here just means "already gone" — not worth a scary log. The
       // success-shaped HTTP 500 terminateDebuggee() returns is unwrapped by the
       // client, so it never reaches this error path.

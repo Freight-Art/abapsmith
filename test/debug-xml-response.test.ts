@@ -35,6 +35,7 @@ import {
   parseStackResponse,
   parseStepResponse,
   parseVariablesResponse,
+  parseWatchpointsResponse,
   xBool,
 } from "../src/debug/xml-response.js";
 import { isTruncated } from "../src/truncate.js";
@@ -1080,6 +1081,188 @@ describe("parseBreakpointsResponse", () => {
   });
 });
 
+describe("parseWatchpointsResponse", () => {
+  it("parses a list of two watchpoints with every attribute, child element, oldValue/currentValue", () => {
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<dbg:watchpoints xmlns:dbg="http://www.sap.com/adt/debugger">
+  <watchpoint id="WP1" variableName="LV_TOTAL" kind="local" active="true" expired="false" procedure="ZFOO">
+    <condition>LV_TOTAL &gt; 100</condition>
+    <oldVariable>LV_TOTAL</oldVariable>
+    <currentVariable>LV_TOTAL</currentVariable>
+    <oldValue>50</oldValue>
+    <currentValue>150</currentValue>
+    <atomLink/>
+    <templateLinks/>
+  </watchpoint>
+  <watchpoint id="WP2" variableName="GV_COUNT" kind="system_global" active="false" expired="true" procedure="ZBAR">
+    <condition></condition>
+    <oldVariable>GV_COUNT</oldVariable>
+    <currentVariable>GV_COUNT</currentVariable>
+    <oldValue>0</oldValue>
+    <currentValue>1</currentValue>
+  </watchpoint>
+</dbg:watchpoints>`;
+    const result = parseWatchpointsResponse(xml);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      id: "WP1",
+      variableName: "LV_TOTAL",
+      kind: "local",
+      active: true,
+      expired: false,
+      procedure: "ZFOO",
+      condition: "LV_TOTAL > 100",
+      oldVariable: "LV_TOTAL",
+      currentVariable: "LV_TOTAL",
+      oldValue: "50",
+      currentValue: "150",
+    });
+    expect(result[1]).toMatchObject({
+      id: "WP2",
+      variableName: "GV_COUNT",
+      kind: "system_global",
+      active: false,
+      expired: true,
+      oldValue: "0",
+      currentValue: "1",
+    });
+  });
+
+  it("maps active/expired to real booleans, not the strings \"true\"/\"false\"", () => {
+    const xml = `<dbg:watchpoints xmlns:dbg="http://www.sap.com/adt/debugger">
+  <watchpoint id="WP1" variableName="X" active="false" expired="true"/>
+</dbg:watchpoints>`;
+    const [row] = parseWatchpointsResponse(xml);
+    expect(row?.active).toBe(false);
+    expect(row?.expired).toBe(true);
+    expect(typeof row?.active).toBe("boolean");
+    expect(typeof row?.expired).toBe("boolean");
+  });
+
+  it("tolerates a kind value outside the four documented ones instead of throwing", () => {
+    const xml = `<dbg:watchpoints xmlns:dbg="http://www.sap.com/adt/debugger">
+  <watchpoint id="WP1" variableName="X" kind="some_future_kind"/>
+</dbg:watchpoints>`;
+    const [row] = parseWatchpointsResponse(xml);
+    expect(row?.kind).toBe("some_future_kind");
+  });
+
+  it("keeps an <invalid> oldValue/currentValue string as-is, not converted or dropped", () => {
+    const xml = `<dbg:watchpoints xmlns:dbg="http://www.sap.com/adt/debugger">
+  <watchpoint id="WP1" variableName="X">
+    <oldValue>&lt;invalid&gt;</oldValue>
+    <currentValue>&lt;invalid&gt;</currentValue>
+  </watchpoint>
+</dbg:watchpoints>`;
+    const [row] = parseWatchpointsResponse(xml);
+    expect(row?.oldValue).toBe("<invalid>");
+    expect(row?.currentValue).toBe("<invalid>");
+  });
+
+  it("parses a zero-byte body as an empty list, not an error", () => {
+    expect(parseWatchpointsResponse("")).toEqual([]);
+  });
+
+  it("parses a self-closing <dbg:watchpoints/> root as an empty list", () => {
+    expect(parseWatchpointsResponse(`<dbg:watchpoints xmlns:dbg="http://www.sap.com/adt/debugger"/>`)).toEqual([]);
+  });
+
+  it("parses a whitespace-only body as an empty list", () => {
+    expect(parseWatchpointsResponse("   \n\t  ")).toEqual([]);
+  });
+
+  // SPECULATIVE TOLERANCE, not an observed shape: both create (911, 937) and modify (940) are now
+  // confirmed to answer with the <dbg:watchpoints> list root, never a bare <watchpoint> root. This
+  // parser keeps tolerating the bare form anyway as defensive parsing for a hypothetical future/
+  // different call path — see parseWatchpointsResponse's doc comment in xml-response.ts.
+  it("tolerates a bare single <watchpoint> root (never observed on the wire, kept as defensive parsing) as a one-element result", () => {
+    const xml = `<dbg:watchpoint xmlns:dbg="http://www.sap.com/adt/debugger" id="WP1" variableName="LV_TOTAL" kind="local" active="true">
+  <condition>LV_TOTAL &gt; 100</condition>
+</dbg:watchpoint>`;
+    const result = parseWatchpointsResponse(xml);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ id: "WP1", variableName: "LV_TOTAL", kind: "local", active: true, condition: "LV_TOTAL > 100" });
+  });
+
+  it("a <watchpoint> row missing its mandatory id throws DebugXmlParseError instead of defaulting to id: \"\"", () => {
+    const xml = `<dbg:watchpoints xmlns:dbg="http://www.sap.com/adt/debugger">
+  <watchpoint variableName="LV_TOTAL"/>
+</dbg:watchpoints>`;
+    expect(() => parseWatchpointsResponse(xml)).toThrow(DebugXmlParseError);
+  });
+
+  it("throws DebugXmlParseError on a wrong root element (neither watchpoints nor watchpoint)", () => {
+    expect(() => parseWatchpointsResponse("<dbg:attach/>")).toThrow(DebugXmlParseError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LIVE BYTES: watchpoints — every assertion below reads a byte the 2026-09-12
+// A4H capture actually sent (test/fixtures/live-captured/), via the `live()`
+// loader defined near the top of this file. Nothing here is hand-authored.
+// ---------------------------------------------------------------------------
+describe("LIVE BYTES: watchpoints", () => {
+  it("911-watchpoint-create-lv-total.xml: POST response parses every field, INCLUDING the trailing sign-column space", () => {
+    const [row] = parseWatchpointsResponse(live("911-watchpoint-create-lv-total.xml"));
+    // The trailing space in oldValue/currentValue is the ABAP `I` sign column, not padding to
+    // strip — `trimValues: false` is load-bearing (see the parser config comment above). Asserted
+    // explicitly so nobody "cleans up" the config later and silently corrupts this.
+    expect(row).toMatchObject({
+      id: "1",
+      variableName: "LV_TOTAL",
+      kind: "local",
+      active: true,
+      expired: false,
+      procedure: "IF_OO_ADT_CLASSRUN~MAIN",
+      condition: "",
+      oldValue: "0 ",
+      currentValue: "0 ",
+    });
+  });
+
+  it("914-watchpoint-list-after-hit.xml: GET after the hit shows the byte-diff — only currentValue moved", () => {
+    const [row] = parseWatchpointsResponse(live("914-watchpoint-list-after-hit.xml"));
+    expect(row?.oldValue).toBe("0 ");
+    expect(row?.currentValue).toBe("1 ");
+  });
+
+  it("937/938: a create response echoes ONLY the row just created, never an already-armed sibling", () => {
+    // 937 was captured with watchpoint 1 (LV_TOTAL) already armed, then POST ?variableName=LV_ZERO
+    // created watchpoint 2 — the create response carries just that one row. 938's GET immediately
+    // after lists both. This is the fact that makes it safe to treat createWatchpoint's return
+    // value as "just this call's watchpoint" without diffing it against a prior list.
+    const created = parseWatchpointsResponse(live("937-watchpoint-create-second.xml"));
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ id: "2", variableName: "LV_ZERO" });
+
+    const listed = parseWatchpointsResponse(live("938-watchpoint-list-two.xml"));
+    expect(listed).toHaveLength(2);
+    expect(listed.map((w) => w.id).sort()).toEqual(["1", "2"]);
+  });
+
+  it("940-watchpoint-modify-condition.xml: PUT response can renumber the id it was addressed by", () => {
+    // PUT .../watchpoints/1?condition=LV_TOTAL%20%3E%203&active=true came back id="3", not id="1"
+    // — a watchpoint id is only valid until the next modify of that watchpoint. &gt; decodes to >.
+    const [row] = parseWatchpointsResponse(live("940-watchpoint-modify-condition.xml"));
+    expect(row).toMatchObject({ id: "3", variableName: "LV_TOTAL", condition: "LV_TOTAL > 3", active: true });
+  });
+
+  it("913-step-continue-to-watchpoint-hit.xml: parseStepResponse reports the reduced hit row, and no reachedBreakpoints", () => {
+    const result = parseStepResponse(live("913-step-continue-to-watchpoint-hit.xml"));
+    expect(result.reachedWatchpoints).toEqual([{ id: "1", variableName: "LV_TOTAL", expired: false, currentValue: "1 " }]);
+    expect(result.reachedBreakpoints).toEqual([]);
+  });
+
+  it("908-attach-i89.xml: parseAttachResponse reports [] for reachedWatchpoints when the stop was a line breakpoint", () => {
+    // This attach's reachedBreakpoints IS populated (a line breakpoint) — reachedWatchpoints being
+    // [] here proves absence-is-normal, not that attach can never carry a hit watchpoint; see
+    // DebugAttachResult.reachedWatchpoints's doc comment in types.ts.
+    const result = parseAttachResponse(live("908-attach-i89.xml"));
+    expect(result.reachedWatchpoints).toEqual([]);
+    expect(result.reachedBreakpoints).toHaveLength(1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // The RAW-BODY path (long-poll) must classify the same live-captured envelope
 // identically to the abap-adt-api path — one condition, two transports.
@@ -1578,9 +1761,17 @@ describe("LIVE BYTES: getVariables omits unresolvable rows silently (indexVariab
 // ---------------------------------------------------------------------------
 
 describe("LIVE BYTES: STPDA_DEBUGGEE booleans are the literal strings 'true'/'false', never 'X'", () => {
-  const DEBUGGEE_CAPTURES = ["015-listener-hit.xml", "099-np-listener-hit.xml", "220-np-listener-hit.xml"];
+  // 906 and 933 are the listener long-poll answers from the issue #89 watchpoint capture runs
+  // (two separate sessions, hence two files) — same STPDA_DEBUGGEE shape as the original three.
+  const DEBUGGEE_CAPTURES = [
+    "015-listener-hit.xml",
+    "099-np-listener-hit.xml",
+    "220-np-listener-hit.xml",
+    "906-listener-hit-i89.xml",
+    "933-listener-hit-run2.xml",
+  ];
 
-  it("corpus guard: exactly these three captures carry a STPDA_DEBUGGEE listener answer", () => {
+  it("corpus guard: exactly these five captures carry a STPDA_DEBUGGEE listener answer", () => {
     const found = readdirSync(LIVE_DIR)
       .filter((f) => f.endsWith(".xml"))
       .filter((f) => live(f).includes("<STPDA_DEBUGGEE>"))

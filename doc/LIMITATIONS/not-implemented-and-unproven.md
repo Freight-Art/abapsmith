@@ -168,5 +168,27 @@ exist and may work, but have not been exercised against a real system.
   variant this parser also accepts has still never been observed live, and
   neither has `objectSetIsComplete`'s absence, a DELETE endpoint, or
   behaviour on an object type other than PROG.
-- **The debugger is single-session.** One reserved debug lease, one live
-  session. Concurrent debugging from two agents is not supported and not tested.
+- **The debugger's own concurrency cap is now configurable, but SAP's
+  per-user exclusivity is not something abapsmith can raise.**
+  `ABAP_DEBUG_SESSIONS` (default 1, hard-fails outside `1..4`) lets one
+  `abapsmith` process hold more than one concurrent debug lease locally,
+  capped from below by `ABAP_DEBUG_DIA_BUDGET` — see
+  [doc/CONFIGURATION](../CONFIGURATION/concurrency-and-activation.md). That
+  only widens this client's own ceiling. SAP allows exactly one active debug
+  listener per SAP user on a system: a second `POST
+  .../debugger/listeners` for the same user is refused with
+  `409`/`conflictDetected` (T100 `SY 530`, "Another session already exists
+  with global debugging scope for user X"), even when the refused request
+  carries a different `terminalId` from the holder's — verified live against
+  A4H, `test/cassettes/debugger/listener-conflict-409.cassette.json`. So
+  raising `ABAP_DEBUG_SESSIONS` above 1 for a single-`ABAP_USER` deployment
+  does not enable two concurrent debug sessions; it only moves the refusal
+  from this client (a local `SessionBusyError`) to SAP itself (the `409`
+  above) once the second lane's listener actually arms. A second lane only
+  has a chance of working when it authenticates as a genuinely different
+  `ABAP_USER` (two `abapsmith` processes, two different users), which has
+  not been demonstrated on this appliance; or once a terminal-scoped
+  debugging mode (`debuggingMode: "terminal"`) is proven functional — that
+  mode is modelled in this repo but has never been shown to work. Concurrent
+  debugging from two agents sharing one SAP user is therefore still not
+  possible today, regardless of client-side configuration.

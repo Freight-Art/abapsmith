@@ -27,7 +27,9 @@
  * Roles: "read" (no enqueue, no ABAP execution — dead-slot replay is unconditional here),
  * "write" (LOCK -> modify -> UNLOCK, serialised per object URI via `ObjectGate`; also carries
  * `abap_run`/`abap_test`, which take a slot but no object gate), "debug" (long poll lease,
- * capped at `DEBUG_CONCURRENCY`, never queues).
+ * capped at `resolveDebugSessionLimit(cfg)` — `min(cfg.debugSessions, floor(cfg.debugDiaBudget /
+ * DIA_COST_PER_DEBUG_SESSION))`, floored at 1; `DEBUG_CONCURRENCY = 1` is what it falls back to
+ * when `debugSessions` is unset — never queues, regardless of the limit).
  *
  * Idle eviction runs at release/checkout, never on a timer; the pinned primary slot is exempt.
  */
@@ -105,8 +107,10 @@ export interface SessionPool {
   ): Promise<T>;
   /**
    * Reserve a slot for the debugger long poll. Caller owns the returned lease and must
-   * `release()` it. Never queues. Throws `UNSUPPORTED` when `cfg.debugDiaBudget` is below
-   * `DIA_COST_PER_DEBUG_SESSION`.
+   * `release()` it. Never queues, at any lane count. Throws `UNSUPPORTED` when
+   * `cfg.debugDiaBudget` is below `DIA_COST_PER_DEBUG_SESSION` — see
+   * {@link resolveDebugSessionLimit} for how many CONCURRENT leases this can hand out before a
+   * further call is refused instead.
    */
   reserveDebug(op: string): Promise<PoolSlot>;
   /**
@@ -191,7 +195,14 @@ export interface SessionPoolOptions {
 /** Same default as `SessionLock`'s queue bound — one vocabulary, one number. */
 export const DEFAULT_POOL_MAX_QUEUE = 8;
 
-/** Concurrent debug leases. Fixed at 1 — a second concurrent long poll is a bug, not a tuning opportunity. */
+/**
+ * Concurrent debug leases when `cfg.debugSessions` is unset. Historically the hard-coded value
+ * of `roleLimit("debug")`; now the DEFAULT that {@link resolveDebugSessionLimit} falls back to,
+ * kept exported and at `1` so nothing importing it as a constant (tests included) breaks. Not a
+ * "second concurrent long poll is a bug" statement anymore — see `resolveDebugSessionLimit` for
+ * what actually governs the limit and why raising it past 1 does not, by itself, buy a second
+ * concurrent session against one SAP user.
+ */
 export const DEBUG_CONCURRENCY = 1;
 
 /**
@@ -200,8 +211,50 @@ export const DEBUG_CONCURRENCY = 1;
  * A local a-priori ceiling, never a probe — runtime DIA occupancy is unobservable on this
  * appliance (`/sap/bc/adt/runtime/workprocesses` 405s; `TH_USER_INFO.act_sessions` under-reported
  * live). See archive for the measurement detail.
+ *
+ * This is the REAL ceiling on concurrent debug lanes, not `cfg.debugSessions` — two sessions
+ * pin `2 × DIA_COST_PER_DEBUG_SESSION` = 4 dialog work processes, whether or not the target
+ * system, or SAP's own per-user listener exclusivity, actually has room for that (see
+ * `resolveDebugSessionLimit`).
  */
 export const DIA_COST_PER_DEBUG_SESSION = 2;
+
+/**
+ * How many concurrent debug leases `roleLimit("debug")` grants — `cfg.debugSessions`
+ * (`ABAP_DEBUG_SESSIONS`, default 1) capped by what the DIA budget can actually pay for:
+ * `floor(cfg.debugDiaBudget / DIA_COST_PER_DEBUG_SESSION)`, floored at 1.
+ *
+ * The budget, not `debugSessions`, is the real ceiling — raising `debugSessions` alone (e.g. to
+ * 2) with the shipped `debugDiaBudget: 2` still returns 1, since `floor(2/2) = 1`. Flooring the
+ * whole expression at 1 rather than letting it reach 0 is deliberate: a budget genuinely too low
+ * to run even ONE session is `reserveDebug`'s `UNSUPPORTED` floor check's job (unchanged below),
+ * not a second, differently-worded refusal from this function — this only ever narrows the
+ * CONCURRENCY cap, never decides whether debugging is possible at all.
+ *
+ * Client-side only. Even a limit of 2 here does not make two concurrent sessions POSSIBLE for
+ * one SAP user: measured wire evidence
+ * (`test/cassettes/debugger/listener-conflict-409.cassette.json`) shows SAP answering a second
+ * `POST .../debugger/listeners` for the same user with `409`/`conflictDetected` (T100 `SY 530`,
+ * "Another session already exists with global debugging scope for user X") even when the
+ * refused request carried a DIFFERENT `terminalId` from the holder's — SAP's exclusivity here is
+ * per SAP USER, not per identity. Two lanes only have a chance of both working when they
+ * authenticate as two DIFFERENT SAP users (two abapsmith processes with different `ABAP_USER`),
+ * or once a terminal-scoped debugging mode is proven functional (`debuggingMode: "terminal"` is
+ * modelled in this repo but has never been demonstrated to work). Raising `debugSessions` above
+ * 1 for a single-user deployment only moves the refusal from this client (a `SessionBusyError`)
+ * to SAP itself (the 409 above) once the second lane's listener is actually armed.
+ */
+export function resolveDebugSessionLimit(cfg: Pick<Config, "debugSessions" | "debugDiaBudget">): number {
+  // `cfg.debugSessions` is schema-validated (1-4) on every path that goes through
+  // `loadConfig`/`ConfigSchema.parse`, but this file's own tests build a `Config` by hand (see
+  // `test/pool.test.ts`'s `Sizing` double) and may omit it — treated exactly like "unset",
+  // i.e. `DEBUG_CONCURRENCY`, so a fixture written before this setting existed keeps behaving
+  // exactly as it did.
+  const requestedSessions =
+    Number.isInteger(cfg.debugSessions) && cfg.debugSessions > 0 ? cfg.debugSessions : DEBUG_CONCURRENCY;
+  const budgetCeiling = Math.floor(cfg.debugDiaBudget / DIA_COST_PER_DEBUG_SESSION);
+  return Math.max(1, Math.min(requestedSessions, budgetCeiling));
+}
 
 // ---------------------------------------------------------------------------
 // Internals
@@ -715,8 +768,11 @@ export class AdtSessionPool implements SessionPool {
   }
 
   async reserveDebug(op: string): Promise<PoolSlot> {
-    // A floor check, not a multiplier: `roleLimit("debug")` stays fixed at DEBUG_CONCURRENCY=1
-    // on purpose — `floor(budget / cost)` would let a raised budget buy concurrent debug leases.
+    // A floor check, not the concurrency cap: this only decides whether debugging is POSSIBLE
+    // at all (budget too low to run even one session). The cap on how many concurrent leases
+    // this can hand out is `roleLimit("debug")`, i.e. `resolveDebugSessionLimit(this.cfg)` —
+    // kept as a second, unrelated calculation on purpose, so this refusal's wording ("debugging
+    // is disabled") never has to also describe "debugging is capped below what you asked for".
     if (this.cfg.debugDiaBudget < DIA_COST_PER_DEBUG_SESSION) {
       throw new AbapError(
         "UNSUPPORTED",
@@ -768,7 +824,7 @@ export class AdtSessionPool implements SessionPool {
   // ------------------------------------------------------------ acquisition ---
 
   private roleLimit(role: SlotRole): number {
-    if (role === "debug") return DEBUG_CONCURRENCY;
+    if (role === "debug") return resolveDebugSessionLimit(this.cfg);
     return role === "write" ? this.cfg.writeConcurrency : this.cfg.readConcurrency;
   }
 

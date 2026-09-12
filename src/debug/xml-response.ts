@@ -31,6 +31,7 @@ import type {
   DebugAttachResult,
   DebugMetaType,
   DebugReachedBreakpoint,
+  DebugReachedWatchpoint,
   DebugSessionState,
   DebugSettings,
   DebugStack,
@@ -43,6 +44,7 @@ import type {
   IsConflict,
   IsNoSessionAttached,
   IsSessionExpired,
+  Watchpoint,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -353,6 +355,33 @@ function parseReachedBreakpoints(root: Record<string, unknown>): DebugReachedBre
   return toArray<Row>((node as Record<string, unknown>).breakpoint).map(parseReachedBreakpoint);
 }
 
+/**
+ * A `<reachedWatchpoints><watchpoint>` row — the reduced hit shape (`id`/`expired`/`variableName`
+ * attributes plus a `<currentValue>` child), NOT the full `Watchpoint` row (no `kind`, `active`,
+ * `procedure`, `oldValue`). Source:
+ * `test/fixtures/live-captured/913-step-continue-to-watchpoint-hit.xml`, captured 2026-09-12.
+ */
+function parseReachedWatchpoint(row: Row): DebugReachedWatchpoint {
+  return {
+    id: str(row.id),
+    variableName: str(row.variableName),
+    expired: dbgBool(row.expired),
+    currentValue: str(row.currentValue),
+  };
+}
+
+/**
+ * Shared by `parseAttachResponse` and `parseStepResponse`, mirroring `parseReachedBreakpoints`.
+ * Absence is normal, not an error: `908-attach-i89.xml` has no `<reachedWatchpoints>` at all
+ * (that attach's stop was a line breakpoint) and parses to `[]` here, same as a self-closing tag
+ * would.
+ */
+function parseReachedWatchpoints(root: Record<string, unknown>): DebugReachedWatchpoint[] {
+  const node = root.reachedWatchpoints;
+  if (typeof node !== "object" || node === null) return []; // covers both absent and `""` (self-closing)
+  return toArray<Row>((node as Record<string, unknown>).watchpoint).map(parseReachedWatchpoint);
+}
+
 function parseActions(root: Record<string, unknown>): DebugAction[] {
   const node = root.actions as Record<string, unknown> | undefined;
   return toArray<Row>(node?.action).map(parseDebugAction);
@@ -390,6 +419,7 @@ export function parseAttachResponse(xmlText: string): DebugAttachResult {
     ...parseSessionStateAttrs(root),
     actions: parseActions(root),
     reachedBreakpoints: parseReachedBreakpoints(root),
+    reachedWatchpoints: parseReachedWatchpoints(root),
   };
 }
 
@@ -441,6 +471,7 @@ export function parseStepResponse(xmlText: string): DebugStepResult {
     ...parseSessionStateAttrs(root),
     actions: parseActions(root),
     reachedBreakpoints: parseReachedBreakpoints(root),
+    reachedWatchpoints: parseReachedWatchpoints(root),
     isDebuggeeChanged: dbgBool(root.isDebuggeeChanged),
     settings,
   };
@@ -544,6 +575,84 @@ export function parseBreakpointsResponse(xmlText: string): Array<CreatedBreakpoi
         return { ...common, kind: "line", uri: str(row.uri) };
     }
   });
+}
+
+/**
+ * A `<watchpoint>` row into `Watchpoint`. `id` is mandatory on the wire — a row missing it is
+ * malformed, not "no watchpoint", so this throws rather than defaulting to `id: ""` the way
+ * `parseBreakpointsResponse` defaults a missing `kind`; a caller silently getting an empty-id
+ * watchpoint back could act on the wrong one.
+ */
+function parseWatchpointRow(row: Row, xmlText: string): Watchpoint {
+  const id = row.id?.trim();
+  if (!id) {
+    throw new DebugXmlParseError(
+      "parseWatchpointsResponse: <watchpoint> row is missing its mandatory id attribute",
+      xmlText,
+    );
+  }
+  return {
+    id,
+    variableName: str(row.variableName),
+    kind: row.kind,
+    active: row.active === undefined ? undefined : dbgBool(row.active),
+    expired: row.expired === undefined ? undefined : dbgBool(row.expired),
+    procedure: row.procedure,
+    condition: row.condition,
+    oldVariable: row.oldVariable,
+    currentVariable: row.currentVariable,
+    oldValue: row.oldValue,
+    currentValue: row.currentValue,
+  };
+}
+
+/**
+ * The watchpoint response: `GET .../watchpoints` (the full list), `GET .../watchpoints/{id}` (one
+ * row), `POST .../watchpoints` (create) and `PUT .../watchpoints/{id}` (modify). ALL FOUR are now
+ * observed to answer with the same shape: a `<dbg:watchpoints>` list root with `<watchpoint>`
+ * children carrying `oldValue`/`currentValue`. Source: `CL_TPDA_ADT_RES_WATCHPOINTS` and XSLT
+ * `TPDA_ADT_DEBUGGER_WP`, read live off A4H, 2026-09-12; POST confirmed by
+ * `test/fixtures/live-captured/911-watchpoint-create-lv-total.xml` and PUT by
+ * `test/fixtures/live-captured/940-watchpoint-modify-condition.xml`.
+ *
+ * **A create/modify response is a PER-CALL ECHO, not a full-list echo.** With watchpoint 1 already
+ * armed, `POST ?variableName=LV_ZERO` answered with exactly one row (the new watchpoint, id 2) —
+ * never anybody else's watchpoint — while the immediately-following `GET .../watchpoints` listed
+ * both. Confirmed by `test/fixtures/live-captured/937-watchpoint-create-second.xml` against
+ * `938-watchpoint-list-two.xml`. This is what makes it safe for a caller to treat a create/modify
+ * response as "just this one watchpoint" rather than needing to diff it against a prior list.
+ *
+ * This also tolerates a bare single `<watchpoint>` (or, after `removeNSPrefix`, `<dbg:watchpoint>`)
+ * root as a one-element result. That branch is SPECULATIVE TOLERANCE, not a shape anything is known
+ * to send: neither POST nor PUT was ever observed using it on this release (A4H, 2026-09-12) — both
+ * use the `<dbg:watchpoints>` list root instead. Kept only as defensive parsing in case a future
+ * release or a different call path answers that way; do not read its presence as evidence the
+ * server ever actually does.
+ *
+ * **Empty results are normal.** A self-closing `<dbg:watchpoints/>` list root parses to `[]`, the
+ * same convention as `parseBreakpointsResponse`.
+ */
+export function parseWatchpointsResponse(xmlText: string): Watchpoint[] {
+  if (isEmptyBody(xmlText)) return [];
+  const parsed = parser.parse(xmlText) as Record<string, unknown>;
+  const rootNode = parsed.watchpoints;
+  // `""` is the self-closing `<dbg:watchpoints/>` — present, valid, zero watchpoints.
+  if (typeof rootNode === "string" && rootNode.trim() === "") return [];
+  if (rootNode && typeof rootNode === "object") {
+    const rows = toArray<Row>((rootNode as Record<string, unknown>).watchpoint);
+    return rows.map((row) => parseWatchpointRow(row, xmlText));
+  }
+  // No <watchpoints> list root — fall back to a bare single <watchpoint> root (see doc comment
+  // above: this branch is unverified against the wire).
+  const bareNode = parsed.watchpoint;
+  if (typeof bareNode === "string" && bareNode.trim() === "") return [];
+  if (bareNode && typeof bareNode === "object") {
+    return [parseWatchpointRow(bareNode as Row, xmlText)];
+  }
+  throw new DebugXmlParseError(
+    "parseWatchpointsResponse: expected root <dbg:watchpoints> or a bare <watchpoint> element",
+    xmlText,
+  );
 }
 
 // ---------------------------------------------------------------------------

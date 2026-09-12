@@ -198,6 +198,11 @@ function classify(opts: DebugRequestOptions): string {
   if (path.includes("/debugger/breakpoints")) {
     return body?.includes('validationOnly="true"') ? "setBreakpoints:validate" : "setBreakpoints:real";
   }
+  if (path.includes("/debugger/watchpoints")) {
+    if (method === "POST") return "createWatchpoint";
+    if (method === "DELETE") return "deleteWatchpoint";
+    return "listWatchpoints";
+  }
   if (path.includes("/debugger/stack")) return "getStack";
   const methodParam = /[?&]method=([^&]+)/.exec(path)?.[1];
   if (methodParam === "attach") return "attach";

@@ -51,6 +51,8 @@ import {
   isComplex,
   renderDrill,
   renderEmptyBodyTrap,
+  renderInline,
+  renderScalar,
   renderStackSection,
   renderSurvey,
   validatePath,
@@ -61,12 +63,20 @@ import { alignRequestedVariables, DebugXmlParseError } from "../debug/xml-respon
 import { readBadiImplementation, readEnhancementSpot, readSourceCodePlugin } from "../adt/enhancement.js";
 import type {
   Breakpoint,
+  CreatedBreakpoint,
   DebugStack,
   DebugStepKind,
   DebugVariable,
   StateId,
+  Watchpoint,
 } from "../debug/types.js";
 import { abapRun, type RunInput } from "./run.js";
+// B2 (issue #89): multi-lane debug sessions. `resolveDebugSessionLimit` reads
+// ABAP_DEBUG_SESSIONS/ABAP_DEBUG_DIA_BUDGET (src/adt/pool.js, owned by a
+// sibling in-flight change) to decide how many concurrent `DebugSession`s
+// this PROCESS will hold; `DebugArmLock` is one-per-lane below.
+import { resolveDebugSessionLimit } from "../adt/pool.js";
+import type { DebugArmLock } from "../debug/arm-lock.js";
 
 // ---------------------------------------------------------------------------
 // Dependency injection seam — makes this file offline-testable without a real
@@ -121,6 +131,15 @@ export interface DebugToolDeps {
       log?: (msg: string) => void;
       target?: SafetyTarget;
       sessionLease?: DebugSessionLease;
+      /**
+       * Which concurrent-session slot (0-based) this session occupies —
+       * selects both the per-lane `DebugArmLock` and
+       * `resolveDebugIdentity(cfg, lane)`'s (terminalId, ideId) pair.
+       * Optional and defaulting to 0 so every existing test double/call site
+       * that never heard of lanes keeps building lane 0 — byte-identical to
+       * the pre-B2 single-session behaviour.
+       */
+      lane?: number;
     },
   ): DebugSession;
   /** Produce a second, independent, already-CONNECTED AbapConnection for firing the trigger. */
@@ -608,20 +627,53 @@ const exceptionBreakpointSchema = z.object({
   exceptionClass: z.string().describe("Exception class to break on, e.g. CX_SY_ZERODIVIDE."),
 });
 
+// D5 continued: `statement`/`msgTy` are free-text, not enums, on purpose —
+// the legal `statement` values are a ~27kB server-enumerated list served at
+// `GET /debugger/breakpoints/statements` and `msgTy` is one of a handful of
+// single letters, but both are validated by SAP itself when the breakpoint
+// is armed, and this module has no committed capture of either list to
+// mirror client-side. A bad value is refused by SAP, not silently accepted.
+// Descriptions kept short per the comment above `breakpointConditionFields`:
+// a 4-member discriminatedUnion inlines every member's description 4 times.
+const statementBreakpointSchema = z.object({
+  ...breakpointConditionFields,
+  kind: z.literal("statement"),
+  statement: z.string().describe("ABAP statement keyword to break on, e.g. RAISE. SAP validates it."),
+});
+
+const messageBreakpointSchema = z.object({
+  ...breakpointConditionFields,
+  kind: z.literal("message"),
+  msgId: z.string().describe("Message class, e.g. 00."),
+  // String, not number: leading zeros (e.g. "001") are significant and must survive.
+  msgNo: z.string().describe("Message number, e.g. 001."),
+  msgTy: z.string().describe("Message type letter, e.g. E."),
+});
+
 export const debugInputSchema = {
   action: z
-    .enum(["start", "step", "stack", "frame", "keepalive", "stop", "status"])
+    .enum(["start", "step", "stack", "frame", "breakpoints", "watch", "keepalive", "stop", "status"])
     .describe(
       "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame " +
-        "needs stateId+frame. keepalive/stop/status need nothing.",
+        "needs stateId+frame. breakpoints needs stateId (op add/remove) or nothing (op list, " +
+        "default). watch needs stateId+variable (op add, default when variable given) or " +
+        "stateId+id (op remove) or stateId (op list). keepalive/stop/status need nothing.",
     ),
   breakpoints: z
-    .array(z.discriminatedUnion("kind", [lineBreakpointSchema, exceptionBreakpointSchema]))
+    .array(
+      z.discriminatedUnion("kind", [
+        lineBreakpointSchema,
+        exceptionBreakpointSchema,
+        statementBreakpointSchema,
+        messageBreakpointSchema,
+      ]),
+    )
     .optional()
     .describe(
-      "≥1 entry, required for action=\"start\"; kinds may mix and are validated against SAP " +
-        "before arming. Both kinds take optional condition (ABAP expression, suspend only " +
-        'when true) and skipCount (sent to SAP, NOT enforced — use step:"continue").',
+      "≥1 entry, required for action=\"start\" and for action=\"breakpoints\" op=\"add\"; kinds " +
+        "(line/exception/statement/message) may mix and are validated against SAP before arming. " +
+        "All kinds take optional condition (ABAP expression, suspend only when true) and " +
+        'skipCount (sent to SAP, NOT enforced — use step:"continue").',
     ),
   run: z
     .object({
@@ -663,6 +715,27 @@ export const debugInputSchema = {
       "1-based stackPosition from the last STACK section. Read-only.",
     )
     .optional(),
+  // Shared between action="breakpoints" and action="watch" — meaning depends
+  // on which. breakpoints: defaults to "list". watch: defaults to "add" when
+  // "variable" is given, else "list".
+  op: z
+    .enum(["list", "add", "remove"])
+    .optional()
+    .describe(
+      'action="breakpoints"/"watch" only. breakpoints defaults to "list"; watch defaults to ' +
+        '"add" when "variable" is set, else "list".',
+    ),
+  id: z
+    .string()
+    .optional()
+    .describe('action="breakpoints"/"watch" op="remove" only — the id to remove.'),
+  variable: z
+    .string()
+    .optional()
+    .describe(
+      'action="watch" only — variable path to watch, same syntax abap_debug_value accepts. ' +
+        'Presence selects op="add".',
+    ),
   confirm: z
     .string()
     .optional()
@@ -680,6 +753,21 @@ export const debugInputSchema = {
     .describe(
       "stop only — force-terminates a debuggee left attached by an unclean exit (the " +
         "\"Debuggee already attached\" error's escape hatch).",
+    ),
+  // Top-level and named identically to the per-breakpoint `condition` field
+  // above, but distinct: that one nests inside a `breakpoints[]` entry and
+  // conditions a LINE/EXCEPTION/STATEMENT/MESSAGE breakpoint; this one is a
+  // sibling of `variable` and conditions a WATCHPOINT (action="watch" only)
+  // — different key paths, so the two never collide on the wire.
+  condition: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .optional()
+    .describe(
+      'action="watch" op="add" only — ABAP expression; the watchpoint only suspends when it ' +
+        "evaluates true.",
     ),
 };
 
@@ -1077,7 +1165,14 @@ async function handleStart(
     const breakpoints: Breakpoint[] = [];
     for (const bp of input.breakpoints) {
       if (bp.skipCount !== undefined && bp.skipCount > 0) {
-        const where = bp.kind === "line" ? `${bp.object}:${bp.line}` : bp.exceptionClass;
+        const where =
+          bp.kind === "line"
+            ? `${bp.object}:${bp.line}`
+            : bp.kind === "exception"
+              ? bp.exceptionClass
+              : bp.kind === "statement"
+                ? bp.statement
+                : `${bp.msgId} ${bp.msgTy}${bp.msgNo}`;
         skipCountWarnings.push(
           `skipCount:${bp.skipCount} on ${where} was sent to SAP but is NOT enforced by this ADT ` +
             "debugger backend (live-verified on A4H) — expect a suspend on EVERY hit, " +
@@ -1146,13 +1241,36 @@ async function handleStart(
           ...(bp.condition !== undefined ? { condition: bp.condition } : {}),
           ...(bp.skipCount !== undefined ? { skipCount: bp.skipCount } : {}),
         });
-      } else {
+      } else if (bp.kind === "exception") {
         // An exception breakpoint names a class to WATCH, not modify — gating
         // it against the exception class's own name would deny every standard
         // CX_* for no safety gain, so the session-level (run target) check covers it.
         breakpoints.push({
           kind: "exception",
           exceptionClass: bp.exceptionClass,
+          ...(bp.condition !== undefined ? { condition: bp.condition } : {}),
+          ...(bp.skipCount !== undefined ? { skipCount: bp.skipCount } : {}),
+        });
+      } else if (bp.kind === "statement") {
+        // Same reasoning as exception above: a statement breakpoint names no
+        // object (it's a keyword, e.g. RAISE, that fires anywhere it occurs),
+        // so there is nothing to resolve or gate more tightly than the run
+        // target already covers. Stays `preflight` — never narrows `gateTarget`.
+        breakpoints.push({
+          kind: "statement",
+          statement: bp.statement,
+          ...(bp.condition !== undefined ? { condition: bp.condition } : {}),
+          ...(bp.skipCount !== undefined ? { skipCount: bp.skipCount } : {}),
+        });
+      } else {
+        // Message breakpoints (kind "message") likewise name no object —
+        // just a message class/number/type SAP raises anywhere — so treated
+        // identically to exception/statement above.
+        breakpoints.push({
+          kind: "message",
+          msgId: bp.msgId,
+          msgNo: bp.msgNo,
+          msgTy: bp.msgTy,
           ...(bp.condition !== undefined ? { condition: bp.condition } : {}),
           ...(bp.skipCount !== undefined ? { skipCount: bp.skipCount } : {}),
         });
@@ -1364,7 +1482,39 @@ async function handleStep(
             `separately counted stop.`,
         ]
       : [];
-  return composeStopOutput(run, "step", result.stack, result.stateId, maxChars, revisitNotes);
+  // D-watch: `session.readWatchpoints()`'s own doc comment says it is "meant
+  // for the tool layer to call right after a stop" with no `stateId` of its
+  // own — and `noteStatefulRequest`'s head-of-line-blocking rule only bites a
+  // stateful request issued while a LISTENER long-poll is outstanding
+  // (between `armListener()` and attach). A step has already completed by
+  // this point — there is no outstanding listener to block behind — so this
+  // extra read is safe here. Best-effort only: a failure here must not lose
+  // the step's own result, so it degrades to "old value not available"
+  // rather than throwing.
+  const watchpointNotes: string[] = [];
+  if (result.step.reachedWatchpoints.length > 0) {
+    let byId: Map<string, Watchpoint> | undefined;
+    try {
+      const owned = await run.session.readWatchpoints();
+      byId = new Map(owned.map((wp) => [wp.id, wp]));
+    } catch {
+      byId = undefined;
+    }
+    for (const hit of result.step.reachedWatchpoints) {
+      const old = byId?.get(hit.id)?.oldValue;
+      watchpointNotes.push(
+        `Stopped on watchpoint ${hit.id} (${hit.variableName}): now ${renderWatchValue(hit.currentValue)}` +
+          (old !== undefined
+            ? `, was ${renderWatchValue(old)} (read back from the watchpoint resource after the stop)`
+            : `. Old value not available from this step's own data — call ` +
+              'abap_debug({action:"watch", op:"list"}) to check.'),
+      );
+    }
+  }
+  return composeStopOutput(run, "step", result.stack, result.stateId, maxChars, [
+    ...revisitNotes,
+    ...watchpointNotes,
+  ]);
 }
 
 async function handleStack(input: DebugInput, maxChars: number): Promise<BuiltResponse> {
@@ -1487,6 +1637,332 @@ async function handleKeepalive(
       status: snapshot.status,
       stateId: snapshot.stateId,
       debugSessionId: snapshot.debugSessionId,
+    },
+    maxChars: clampMaxChars(maxChars),
+  });
+}
+
+/** One line describing a server-echoed breakpoint for the `breakpoints` action's list/add output. */
+function describeBreakpoint(bp: CreatedBreakpoint): string {
+  switch (bp.kind) {
+    case "line":
+      return bp.uri;
+    case "exception":
+      return `exception ${bp.exceptionClass}`;
+    case "statement":
+      return `statement ${bp.statement}`;
+    case "message":
+      return `message ${bp.msgId} ${bp.msgTy}${bp.msgNo}`;
+  }
+}
+
+/**
+ * Map one `breakpoints[]` input entry to the wire `Breakpoint` shape for
+ * `action:"breakpoints", op:"add"`. Deliberately simpler than `handleStart`'s
+ * per-kind loop: it does not narrow `gateTarget` (there is nothing to narrow
+ * — the session's target was fixed once at `start`, and `assertSessionWrite`
+ * re-asserts exactly that captured target/phase for every follow-up write,
+ * the same way `step`/`keepalive` already do) and it does not special-case
+ * the BOPF "no source" error `handleStart` gives a friendlier message for —
+ * a plain `resolveObject` failure surfaces as-is here instead.
+ */
+async function mapInputBreakpointForAdd(
+  bp: NonNullable<DebugInput["breakpoints"]>[number],
+  conn: AbapConnection,
+  deps: DebugToolDeps,
+  resolvedCache: Map<string, ResolvedObject>,
+): Promise<Breakpoint> {
+  if (bp.kind === "line") {
+    const key = bp.object.toUpperCase();
+    let resolved = resolvedCache.get(key);
+    if (!resolved) {
+      resolved = await deps.resolveObject(conn, bp.object);
+      resolvedCache.set(key, resolved);
+    }
+    const baseUri = resolved.sourceUri ?? resolved.uri;
+    if (!baseUri) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${bp.object} has no source URI to attach a line breakpoint to.`,
+        { object: bp.object },
+      );
+    }
+    return {
+      kind: "line",
+      uri: `${baseUri}#start=${bp.line}`,
+      ...(bp.condition !== undefined ? { condition: bp.condition } : {}),
+      ...(bp.skipCount !== undefined ? { skipCount: bp.skipCount } : {}),
+    };
+  }
+  if (bp.kind === "exception") {
+    return {
+      kind: "exception",
+      exceptionClass: bp.exceptionClass,
+      ...(bp.condition !== undefined ? { condition: bp.condition } : {}),
+      ...(bp.skipCount !== undefined ? { skipCount: bp.skipCount } : {}),
+    };
+  }
+  if (bp.kind === "statement") {
+    return {
+      kind: "statement",
+      statement: bp.statement,
+      ...(bp.condition !== undefined ? { condition: bp.condition } : {}),
+      ...(bp.skipCount !== undefined ? { skipCount: bp.skipCount } : {}),
+    };
+  }
+  return {
+    kind: "message",
+    msgId: bp.msgId,
+    msgNo: bp.msgNo,
+    msgTy: bp.msgTy,
+    ...(bp.condition !== undefined ? { condition: bp.condition } : {}),
+    ...(bp.skipCount !== undefined ? { skipCount: bp.skipCount } : {}),
+  };
+}
+
+/**
+ * `action:"breakpoints"` — list/add/remove against the session's OWN armed
+ * breakpoints. Requires an active session with `stateId` given, same as
+ * `stack`/`frame` — there is no ADT endpoint that reads back what's actually
+ * armed while stopped (live-verified: see
+ * test/fixtures/live-captured/917-bp-list-while-stopped.meta.json and
+ * 925-bp-list-after-cleanup.meta.json), so `op:"list"` can only ever report
+ * this session's own in-memory record, never confirm the server's live state.
+ */
+async function handleBreakpoints(
+  conn: AbapConnection,
+  input: DebugInput,
+  maxChars: number,
+  deps: DebugToolDeps,
+  gate: SafetyGate,
+): Promise<BuiltResponse> {
+  if (!currentRun) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).',
+    );
+  }
+  const run = currentRun;
+  const op = input.op ?? "list";
+  if (!input.stateId) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_debug({action:"breakpoints", op:"${op}"}) requires "stateId" — same as stack/frame, ` +
+        "to confirm which stop this call addresses.",
+    );
+  }
+
+  if (op === "list") {
+    const owned = run.session.listOwnedBreakpoints();
+    return buildResponse({
+      header: {
+        action: "breakpoints",
+        op: "list",
+        status: run.session.snapshot.status,
+        stateId: input.stateId,
+        count: owned.length,
+      },
+      sections: [
+        {
+          title: "BREAKPOINTS",
+          content: owned.length
+            ? owned.map((bp) => `${bp.id}\t${describeBreakpoint(bp)}`).join("\n")
+            : "(none owned by this session)",
+        },
+      ],
+      notes: [
+        "This lists only breakpoints THIS session armed (in-memory) — ADT has no server-side read " +
+          "of what is actually armed while stopped (live-verified — see the two captures cited in " +
+          "this handler's doc comment). If SAP silently dropped or renumbered one, this will not " +
+          "show it.",
+      ],
+      maxChars: clampMaxChars(maxChars),
+    });
+  }
+
+  if (op === "add") {
+    if (!input.breakpoints || input.breakpoints.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        'abap_debug({action:"breakpoints", op:"add"}) requires a non-empty "breakpoints" array.',
+      );
+    }
+    assertSessionWrite(gate, run);
+    const resolvedCache = new Map<string, ResolvedObject>();
+    const toArm: Breakpoint[] = [];
+    for (const bp of input.breakpoints) {
+      toArm.push(await mapInputBreakpointForAdd(bp, conn, deps, resolvedCache));
+    }
+    const created = await run.session.addBreakpoints(input.stateId, toArm);
+    return buildResponse({
+      header: {
+        action: "breakpoints",
+        op: "add",
+        status: run.session.snapshot.status,
+        stateId: input.stateId,
+        count: created.length,
+      },
+      sections: [
+        { title: "BREAKPOINTS", content: created.map((bp) => `${bp.id}\t${describeBreakpoint(bp)}`).join("\n") },
+      ],
+      notes: [
+        "Ids are server-assigned and unpredictable — do not guess one from a prior session or a " +
+          'pattern (live example: a breakpoint set at "#start=11" came back tagged ' +
+          '"INCLUDE=...CM001.LINE_NR=5"). Use the id printed above for a later op:"remove".',
+      ],
+      maxChars: clampMaxChars(maxChars),
+    });
+  }
+
+  // op === "remove"
+  if (!input.id) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"breakpoints", op:"remove"}) requires "id".');
+  }
+  assertSessionWrite(gate, run);
+  await run.session.removeBreakpoint(input.stateId, input.id);
+  return buildResponse({
+    header: {
+      action: "breakpoints",
+      op: "remove",
+      status: run.session.snapshot.status,
+      stateId: input.stateId,
+      id: input.id,
+    },
+    maxChars: clampMaxChars(maxChars),
+  });
+}
+
+/**
+ * Render a watchpoint's raw `oldValue`/`currentValue` through the same
+ * truncation-marking convention real variables use (`renderScalar`), even
+ * though the watchpoint wire rows (`Watchpoint`/`DebugReachedWatchpoint` in
+ * types.ts) carry no `isValueIncomplete` flag at all — so this always passes
+ * `isValueIncomplete: false`. That's an honest "the wire never told us this
+ * was cut short", not a claim that it wasn't.
+ */
+function renderWatchValue(raw: string): string {
+  return renderScalar({
+    id: "",
+    name: "",
+    declaredTypeName: "",
+    actualTypeName: "",
+    kind: "",
+    instantiationKind: "",
+    accessKind: "",
+    metaType: "unknown",
+    parameterKind: "",
+    value: raw,
+    hexValue: "",
+    readOnly: true,
+    technicalType: "",
+    length: raw.length,
+    tableBody: "",
+    isValueIncomplete: false,
+    isException: false,
+    inheritanceLevel: 0,
+    inheritanceClass: "",
+  });
+}
+
+/**
+ * `action:"watch"` — add/list/remove watchpoints on the session's OWN
+ * watchpoints. `op` defaults to `"add"` when `variable` is given, else
+ * `"list"`. `op:"list"` uses `readWatchpoints()` (this session's own rows,
+ * session-wide — no `stateId` needed by the underlying call, but required on
+ * input anyway for the same reason `stack`/`frame` require it: confirming
+ * which stop this call addresses).
+ */
+async function handleWatch(input: DebugInput, maxChars: number, gate: SafetyGate): Promise<BuiltResponse> {
+  if (!currentRun) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'No active debug session. Start one with abap_debug({action:"start", ...}).',
+    );
+  }
+  const run = currentRun;
+  const op = input.op ?? (input.variable !== undefined ? "add" : "list");
+  if (!input.stateId) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `abap_debug({action:"watch", op:"${op}"}) requires "stateId" — same as stack/frame, to ` +
+        "confirm which stop this call addresses.",
+    );
+  }
+
+  if (op === "add") {
+    if (!input.variable) {
+      throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"add"}) requires "variable".');
+    }
+    assertSessionWrite(gate, run);
+    const created = await run.session.addWatchpoint(input.stateId, {
+      variableName: input.variable,
+      ...(input.condition !== undefined ? { condition: input.condition } : {}),
+    });
+    const lines = created.map(
+      (wp) =>
+        `${wp.id}\t${wp.variableName}` +
+        (wp.condition ? ` (condition: ${wp.condition})` : "") +
+        (wp.currentValue !== undefined ? ` = ${renderWatchValue(wp.currentValue)}` : ""),
+    );
+    return buildResponse({
+      header: {
+        action: "watch",
+        op: "add",
+        status: run.session.snapshot.status,
+        stateId: input.stateId,
+        count: created.length,
+      },
+      sections: [{ title: "WATCHPOINTS", content: lines.join("\n") }],
+      notes: [
+        "Watchpoint ids are not stable handles in general — a PUT that modifies a watchpoint's " +
+          "condition can retire the old id and hand back a new one (live-verified: see " +
+          "test/fixtures/live-captured/940-watchpoint-modify-condition.meta.json, " +
+          "941-watchpoint-list-after-modify.meta.json, and " +
+          "942-watchpoint-create-duplicate.meta.json). This tool never modifies a watchpoint (only " +
+          'creates/lists/removes), so within this session\'s life the id returned here stays valid ' +
+          'until you remove it with op:"remove".',
+      ],
+      maxChars: clampMaxChars(maxChars),
+    });
+  }
+
+  if (op === "list") {
+    const owned = await run.session.readWatchpoints();
+    const lines = owned.map(
+      (wp) =>
+        `${wp.id}\t${wp.variableName}` +
+        (wp.condition ? ` (condition: ${wp.condition})` : "") +
+        (wp.currentValue !== undefined ? ` = ${renderWatchValue(wp.currentValue)}` : "") +
+        (wp.oldValue !== undefined ? ` (was ${renderWatchValue(wp.oldValue)})` : ""),
+    );
+    return buildResponse({
+      header: {
+        action: "watch",
+        op: "list",
+        status: run.session.snapshot.status,
+        stateId: input.stateId,
+        count: owned.length,
+      },
+      sections: [
+        { title: "WATCHPOINTS", content: owned.length ? lines.join("\n") : "(none owned by this session)" },
+      ],
+      maxChars: clampMaxChars(maxChars),
+    });
+  }
+
+  // op === "remove"
+  if (!input.id) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"watch", op:"remove"}) requires "id".');
+  }
+  assertSessionWrite(gate, run);
+  await run.session.removeWatchpoint(input.stateId, input.id);
+  return buildResponse({
+    header: {
+      action: "watch",
+      op: "remove",
+      status: run.session.snapshot.status,
+      stateId: input.stateId,
+      id: input.id,
     },
     maxChars: clampMaxChars(maxChars),
   });
@@ -1764,6 +2240,10 @@ export async function abapDebug(
       return handleStack(input, maxChars);
     case "frame":
       return handleFrame(input, maxChars);
+    case "breakpoints":
+      return handleBreakpoints(conn, input, maxChars, deps, gate);
+    case "watch":
+      return handleWatch(input, maxChars, gate);
     case "keepalive":
       return handleKeepalive(maxChars, gate);
     case "stop":

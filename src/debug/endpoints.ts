@@ -17,12 +17,17 @@
  * code; do not tree-shake this module against its call sites. See
  * the git history for why this note exists.
  *
- * Pure functions/constants only — no HTTP, state, or I/O; only import is
- * `import type` from `./types.js`. Follows the `src/adt/discovery.ts` /
+ * Pure functions/constants only — no HTTP, state, or I/O. The only value
+ * import (as opposed to `import type`) is `AbapError`, so the watchpoint URL
+ * builders can refuse bad input with the same `BAD_INPUT` code callers
+ * already handle elsewhere, instead of a plain `Error` with no machine-
+ * readable discriminant; `../adt/errors.js` itself has no imports, so this
+ * does not create a cycle. Follows the `src/adt/discovery.ts` /
  * `src/adt/resolve.ts` house style: small named exports plus one audit table
  * (`DEBUGGER_ENDPOINTS`).
  */
-import type { DebugContext, DebugStepKind, DebuggerScope, DebuggingMode } from "./types.js";
+import type { DebugContext, DebugStepKind, DebuggerScope, DebuggingMode, CreateWatchpointRequest, ModifyWatchpointRequest } from "./types.js";
+import { AbapError } from "../adt/errors.js";
 
 // ============================================================================
 // 1. Debugging-mode / scope / sync-scope enumerations
@@ -278,6 +283,76 @@ export function deleteBreakpointUrl(params: DeleteBreakpointParams): string {
 /** Content-Type / Accept on the breakpoints POST — plain XML, not `asx:abap`. */
 export const BREAKPOINTS_CONTENT_TYPE = "application/xml";
 export const BREAKPOINTS_ACCEPT = "application/xml";
+
+// ============================================================================
+// 4b. Watchpoints — POST / GET / PUT / DELETE, all params in the query
+//     string, request body always empty
+// ============================================================================
+
+/**
+ * Router registration for `/debugger/watchpoints` (`CL_TPDA_ADT_RES_APP`,
+ * read live off A4H, 2026-09-12) mints this exact path — a sibling of
+ * `DEBUGGER_BREAKPOINTS_PATH`, not nested under it.
+ */
+export const DEBUGGER_WATCHPOINTS_PATH = `${DEBUGGER_BASE_PATH}/watchpoints`;
+
+/** `GET .../watchpoints` — every watchpoint of the attached session. No query parameters. */
+export function watchpointsUrl(): string {
+  return buildUrl(DEBUGGER_WATCHPOINTS_PATH);
+}
+
+/**
+ * `POST /sap/bc/adt/debugger/watchpoints?variableName=..&condition=..`.
+ * `CL_TPDA_ADT_RES_WATCHPOINTS` (read live off A4H, 2026-09-12) takes both
+ * parameters from the query string only — the request body is empty, unlike
+ * the breakpoints POST which carries an XML body. The server itself answers
+ * 400 for a missing/empty `variableName`, but building a malformed URL is
+ * refused here first, before a request is ever sent.
+ */
+export function createWatchpointUrl(params: CreateWatchpointRequest): string {
+  const variableName = params.variableName.trim();
+  if (!variableName) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `createWatchpointUrl requires a non-empty variableName — got ${JSON.stringify(params.variableName)}.`,
+      { variableName: params.variableName },
+    );
+  }
+  return buildUrl(DEBUGGER_WATCHPOINTS_PATH, { variableName, condition: params.condition });
+}
+
+/** `GET|DELETE .../watchpoints/{urlencoded-id}` — one watchpoint per call, no query parameters on either verb. */
+export function watchpointUrl(id: string): string {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    throw new AbapError("BAD_INPUT", `watchpointUrl requires a non-empty id — got ${JSON.stringify(id)}.`, {
+      id,
+    });
+  }
+  return buildUrl(`${DEBUGGER_WATCHPOINTS_PATH}/${encodeURIComponent(trimmed)}`);
+}
+
+/**
+ * `PUT .../watchpoints/{urlencoded-id}?condition=..&active=true|false` — same
+ * empty-body shape as the POST. Failures (bad id, condition SAP rejects) → 404
+ * per `CL_TPDA_ADT_RES_WATCHPOINTS`, read live off A4H, 2026-09-12.
+ */
+export function modifyWatchpointUrl(params: ModifyWatchpointRequest): string {
+  const id = params.id.trim();
+  if (!id) {
+    throw new AbapError("BAD_INPUT", `modifyWatchpointUrl requires a non-empty id — got ${JSON.stringify(params.id)}.`, {
+      id: params.id,
+    });
+  }
+  return buildUrl(`${DEBUGGER_WATCHPOINTS_PATH}/${encodeURIComponent(id)}`, {
+    condition: params.condition,
+    active: params.active,
+  });
+}
+
+/** Content-Type / Accept for watchpoint requests — plain XML, same `dbg:` family as breakpoints, but the POST/PUT body itself is always empty. */
+export const WATCHPOINTS_CONTENT_TYPE = "application/xml";
+export const WATCHPOINTS_ACCEPT = "application/xml";
 
 // ============================================================================
 // 5. Listeners — launch / stop / get, three DIFFERENT legal param sets on the
@@ -776,6 +851,70 @@ export const DEBUGGER_ENDPOINTS: readonly EndpointEntry[] = [
     queryParams: [],
     citation: "live-verified against A4H",
     notes: "200/0 B with no parameters on A4H. Further parameterisation UNKNOWN.",
+  },
+  {
+    name: "watchpoints.create",
+    method: "POST",
+    path: DEBUGGER_WATCHPOINTS_PATH,
+    queryParams: ["variableName", "condition"],
+    contentType: WATCHPOINTS_CONTENT_TYPE,
+    accept: WATCHPOINTS_ACCEPT,
+    citation:
+      "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12; response shape and error bodies confirmed by test/fixtures/live-captured/{910,911,936,937,942}-*.xml",
+    notes:
+      "Both params in the query string only, request body empty. Missing variableName -> 400 " +
+      '`<exc:exception>`, type "ExceptionParameterNotFound", T100 SADT_RESOURCE/017 (910). ' +
+      "Creation failure -> 404. Requires a debug session already attached to a suspended debuggee. " +
+      "Response is a <dbg:watchpoints> list root carrying ONLY the row just created, never any " +
+      "other already-armed watchpoint (937 created id 2 while id 1 was already armed; the response " +
+      "carried only id 2, confirmed against the immediately-following GET in 938). Creating a " +
+      "second watchpoint on a variable that already has one is ACCEPTED, not refused (942, 200) — " +
+      "nothing upstream may assume one watchpoint per variable.",
+  },
+  {
+    name: "watchpoints.list",
+    method: "GET",
+    path: DEBUGGER_WATCHPOINTS_PATH,
+    queryParams: [],
+    citation: "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12",
+    notes: "Every watchpoint of the attached session; each row carries oldValue/currentValue.",
+  },
+  {
+    name: "watchpoints.get",
+    method: "GET",
+    path: `${DEBUGGER_WATCHPOINTS_PATH}/{watchpointId}`,
+    queryParams: [],
+    citation:
+      "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12; 404 shape confirmed by test/fixtures/live-captured/943-watchpoint-get-unknown-id.xml",
+    notes:
+      'Unknown/absent id -> 404, observed as `<exc:exception>` type "AdtFailed" (not ' +
+      '"ExceptionResourceNotFound"), message "Cannot retrieve watchpoint data: Watchpoint not ' +
+      'found", T100 TPDA_ADT/013 (943).',
+  },
+  {
+    name: "watchpoints.modify",
+    method: "PUT",
+    path: `${DEBUGGER_WATCHPOINTS_PATH}/{watchpointId}`,
+    queryParams: ["condition", "active"],
+    contentType: WATCHPOINTS_CONTENT_TYPE,
+    accept: WATCHPOINTS_ACCEPT,
+    citation:
+      "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12; renumbering behaviour confirmed by test/fixtures/live-captured/{940,941,942}-*.xml",
+    notes:
+      "Params in the query string only, request body empty. Bad id or rejected condition -> 404. " +
+      "Response is a <dbg:watchpoints> list root carrying one row (same per-call-echo shape as " +
+      "create). THE RETURNED ROW'S id CAN DIFFER FROM THE id ADDRESSED: PUT .../watchpoints/1 " +
+      "answered with id 3, the old id 1 no longer listed, and a later create reused the freed id 1 " +
+      "(940, 941, 942) — callers must read the id off the response, not assume the request id " +
+      "still applies.",
+  },
+  {
+    name: "watchpoints.delete",
+    method: "DELETE",
+    path: `${DEBUGGER_WATCHPOINTS_PATH}/{watchpointId}`,
+    queryParams: [],
+    citation: "CL_TPDA_ADT_RES_APP router registration + CL_TPDA_ADT_RES_WATCHPOINTS + XSLT TPDA_ADT_DEBUGGER_WP, read live off A4H, 2026-09-12",
+    notes: "Unknown/absent id -> 404.",
   },
   {
     name: "listeners.launch",

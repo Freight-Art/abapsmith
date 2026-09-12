@@ -699,12 +699,44 @@ export const ConfigSchema = z.object({
    * read; exhaustion at the ceiling was never induced/measured).
    *
    * `0`/`1` disables debugging outright (the kill switch — hence
-   * `.nonnegative()` not `.positive()`). A FLOOR CHECK, not a multiplier:
-   * raising it does NOT enable a second concurrent debug session (see
-   * `DEBUG_CONCURRENCY` in `src/adt/pool.ts` — parallel debugging is
-   * closed). Deliberately no `.max()`: `7` is A4H-specific.
+   * `.nonnegative()` not `.positive()`). Raising this ALONE does not enable
+   * a second concurrent debug session: the actual concurrency cap is
+   * `resolveDebugSessionLimit(cfg)` in `src/adt/pool.ts`, which takes the
+   * smaller of `debugSessions` (below) and `floor(debugDiaBudget /
+   * DIA_COST_PER_DEBUG_SESSION)` — this field only ever raises the ceiling
+   * that `debugSessions` is capped against, it never raises the cap by
+   * itself. Deliberately no `.max()`: `7` is A4H-specific.
    */
   debugDiaBudget: z.coerce.number().int().nonnegative().default(2),
+  /**
+   * How many concurrent debug leases to grant, before the `debugDiaBudget`
+   * ceiling above is applied — see `resolveDebugSessionLimit` in
+   * `src/adt/pool.ts` for the exact formula. Default `1`, matching every
+   * abapsmith release before this setting existed (`DEBUG_CONCURRENCY` in
+   * `src/adt/pool.ts`), so leaving `ABAP_DEBUG_SESSIONS` unset reproduces
+   * today's behaviour bit-for-bit.
+   *
+   * Raising this past `1` only raises the CLIENT-side cap. It does not, by
+   * itself, make a second concurrent debug session possible: measured wire
+   * evidence (`test/cassettes/debugger/listener-conflict-409.cassette.json`)
+   * shows SAP refusing a second `POST .../debugger/listeners` for the same
+   * SAP user with `409`/`conflictDetected` (T100 `SY 530`, "Another session
+   * already exists with global debugging scope for user X") even when the
+   * refused request carried a different `terminalId` from the holder's —
+   * SAP's exclusivity at this scope is per SAP USER, not per identity. A
+   * second lane only has a chance of working when it authenticates as a
+   * DIFFERENT SAP user (a second abapsmith process with a different
+   * `ABAP_USER`), or once a terminal-scoped debugging mode
+   * (`debuggingMode: "terminal"`) is proven functional — it is modelled in
+   * this repo but has never been demonstrated to work.
+   *
+   * Hard-fails (does not clamp) outside `1..4`, mirroring `debugDiaBudget`'s
+   * validation style: a value this consequential should be loud when wrong,
+   * not silently coerced into something the operator didn't ask for.
+   * `.max(4)` is an arbitrary sanity ceiling — nothing enforces that more
+   * than a handful of debug lanes could ever be useful on one process.
+   */
+  debugSessions: z.coerce.number().int().min(1).max(4).default(1),
   /**
    * Whether the live debug deps install the cross-process debug arm lock
    * (`FileLockDebugArmLock`, `src/debug/arm-lock.ts`) or its no-op stand-in.
@@ -1364,6 +1396,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     sessionIdleMs: env.ABAP_SESSION_IDLE_MS ?? 300_000,
     sessionWaitMs: env.ABAP_SESSION_WAIT_MS ?? 10_000,
     debugDiaBudget: env.ABAP_DEBUG_DIA_BUDGET,
+    debugSessions: env.ABAP_DEBUG_SESSIONS,
     crossProcessDebugLock: env.ABAP_CROSS_PROCESS_DEBUG_LOCK,
     debugLockWaitMs: env.ABAP_DEBUG_LOCK_WAIT_MS,
     // Must stay byte-for-byte identical to
@@ -1959,6 +1992,7 @@ export function redactConfigSecrets(cfg: Config): Record<string, unknown> {
     sessionIdleMs: cfg.sessionIdleMs,
     sessionWaitMs: cfg.sessionWaitMs,
     debugDiaBudget: cfg.debugDiaBudget,
+    debugSessions: cfg.debugSessions,
     crossProcessDebugLock: cfg.crossProcessDebugLock,
     debugLockWaitMs: cfg.debugLockWaitMs,
     // Neither a secret; reported unmasked so an operator can see at a glance

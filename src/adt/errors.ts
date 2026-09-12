@@ -230,11 +230,30 @@ export type AbapErrorCode =
    * cross-process lock for this system+client+user's single debugger slot.
    * Distinct from `OBJECT_LOCKED_CROSS_PROCESS` (no ABAP object involved,
    * remediation is "stop the other debug session") and from the pool's
-   * in-process `lease-held` refusal (`DEBUG_CONCURRENCY = 1`, this-process
-   * only). Names holder pid/hostname/startedAt when known; dead-pid holders
-   * are collected automatically (src/state-dir.ts).
+   * in-process `lease-held` refusal (a `SessionBusyError`, not this type,
+   * thrown when `AdtSessionPool.reserveDebug` finds every lane the CURRENT
+   * process is configured for — `resolveDebugSessionLimit`, src/adt/pool.ts
+   * — already leased). Names holder pid/hostname/startedAt when known;
+   * dead-pid holders are collected automatically (src/state-dir.ts).
    */
   | "DEBUG_SESSION_LOCKED_CROSS_PROCESS"
+  /**
+   * Every debug lane this process is configured for
+   * (`resolveDebugSessionLimit`, src/adt/pool.ts) is already held by a lease
+   * IN THIS PROCESS — a new session cannot start until one is stopped.
+   *
+   * Three distinct refusals live at this boundary and must not be confused:
+   * this one (all of THIS process's own lanes are busy), the pool's own
+   * `SessionBusyError` (the lower-level signal this is typically surfaced
+   * from, for callers that want an `AbapError`-shaped code instead),
+   * `DEBUG_SESSION_LOCKED_CROSS_PROCESS` (a DIFFERENT process holds the
+   * cross-process file lock for a lane), and SAP's own `409`
+   * `conflictDetected` (the ADT server refusing a second global-scope
+   * listener for the same SAP user regardless of which process asked — see
+   * `test/cassettes/debugger/listener-conflict-409.cassette.json`, cited in
+   * `src/debug/identity.ts` and `src/adt/pool.ts`).
+   */
+  | "DEBUG_ALL_LEASES_BUSY"
   // ---- Debugger ----
   /**
    * `step:"jumpToLine"` refused: `ABAP_ALLOW_DEBUG_JUMP_TO_LINE` unset/false
@@ -393,6 +412,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   ENHANCEMENT_NOT_DISPATCHING: "conditional",
   OBJECT_LOCKED_CROSS_PROCESS: "conditional",
   DEBUG_SESSION_LOCKED_CROSS_PROCESS: "conditional",
+  DEBUG_ALL_LEASES_BUSY: "conditional", // resolves once a lane frees up; not fixable by a different argument, but not permanent either
   DEBUG_JUMP_DISABLED: "terminal", // the flag is off; no argument enables it
   DUMP_VARIABLES_DISABLED: "terminal", // the flag is off; no argument enables it
   INTERNAL_GATE_MISUSE: "terminal", // a call-site wiring bug, not a caller-facing decision

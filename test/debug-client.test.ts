@@ -17,7 +17,8 @@ import {
   type DebugListenIssuer,
   type DebugRequestIssuer,
 } from "../src/debug/client.js";
-import type { DebugRequestOptions, LongPollHandle } from "../src/debug/transport.js";
+import { translateDebugError, type DebugRequestOptions, type LongPollHandle } from "../src/debug/transport.js";
+import { parseAdtError } from "../src/debug/xml-response.js";
 import type { RawResponse } from "../src/debug/types.js";
 
 // ---------------------------------------------------------------------------
@@ -946,6 +947,144 @@ describe("getListener 404 discrimination", () => {
     const err = new AbapError("NOT_FOUND", "proxy 404", { path: "/sap/bc/adt/debugger/listeners" });
     const client = throwingClient(err);
     await expect(client.getListener(PARAMS)).rejects.toBe(err);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Watchpoints — one method per operation, same 404-discrimination rule as
+// getListener for getWatchpoint
+// ---------------------------------------------------------------------------
+
+const WATCHPOINTS_LIST_XML =
+  `<?xml version="1.0"?><dbg:watchpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<watchpoint id="WP1" variableName="LV_TOTAL" kind="local" active="true" expired="false">` +
+  `<condition>LV_TOTAL &gt; 100</condition><oldValue>50</oldValue><currentValue>150</currentValue>` +
+  `</watchpoint></dbg:watchpoints>`;
+
+describe("watchpoints", () => {
+  it("createWatchpoint POSTs with variableName/condition in the URL and no body, returning the PARSED result", async () => {
+    const fake = new FakeTransport([{ status: 200, headers: {}, body: WATCHPOINTS_LIST_XML }]);
+    const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
+    const result = await client.createWatchpoint({ variableName: "LV_TOTAL", condition: "LV_TOTAL > 100" });
+    expect(fake.calls[0]!.method).toBe("POST");
+    expect(fake.calls[0]!.path).toContain("/debugger/watchpoints");
+    expect(fake.calls[0]!.path).toContain(`variableName=${encodeURIComponent("LV_TOTAL")}`);
+    expect(fake.calls[0]!.body).toBeUndefined();
+    // PARSED RESULT, not just the request wiring — a parser that returned []
+    // would still pass a test that only checked fake.calls.
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe("WP1");
+    expect(result[0]!.variableName).toBe("LV_TOTAL");
+    expect(result[0]!.oldValue).toBe("50");
+    expect(result[0]!.currentValue).toBe("150");
+  });
+
+  it("listWatchpoints GETs the bare collection and returns the PARSED list", async () => {
+    const fake = new FakeTransport([{ status: 200, headers: {}, body: WATCHPOINTS_LIST_XML }]);
+    const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
+    const result = await client.listWatchpoints();
+    expect(fake.calls[0]!.method).toBe("GET");
+    expect(fake.calls[0]!.path).toBe("/sap/bc/adt/debugger/watchpoints");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe("WP1");
+  });
+
+  it("getWatchpoint GETs the single-id path and returns the first parsed row", async () => {
+    const fake = new FakeTransport([{ status: 200, headers: {}, body: WATCHPOINTS_LIST_XML }]);
+    const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
+    const result = await client.getWatchpoint("WP1");
+    expect(fake.calls[0]!.method).toBe("GET");
+    expect(fake.calls[0]!.path).toBe(`/sap/bc/adt/debugger/watchpoints/${encodeURIComponent("WP1")}`);
+    expect(result?.id).toBe("WP1");
+    expect(result?.kind).toBe("local");
+  });
+
+  it("getWatchpoint maps a genuine ADT 404 (NOT_FOUND with details.abapType) to undefined", async () => {
+    const client = throwingClient(
+      new AbapError("NOT_FOUND", "no such watchpoint", {
+        path: "/sap/bc/adt/debugger/watchpoints/WP1",
+        abapType: "ExceptionResourceNotFound",
+      }),
+    );
+    await expect(client.getWatchpoint("WP1")).resolves.toBeUndefined();
+  });
+
+  it("getWatchpoint REJECTS a bare/proxy 404 (abapType undefined) rather than reporting undefined", async () => {
+    const err = new AbapError("NOT_FOUND", "proxy 404", { path: "/sap/bc/adt/debugger/watchpoints/WP1" });
+    const client = throwingClient(err);
+    await expect(client.getWatchpoint("WP1")).rejects.toBe(err);
+  });
+
+  it("getWatchpoint maps the observed AdtFailed 404 (test/fixtures/live-captured/943-watchpoint-get-unknown-id.xml) to undefined", async () => {
+    // Exact bytes of the 943 capture: GET /watchpoints/99 -> 404 with type id="AdtFailed" and
+    // T100 key TPDA_ADT/013 -- a DIFFERENT abapType than the ExceptionResourceNotFound case above.
+    // Run the real production pipeline (parseAdtError + translateDebugError) against these bytes
+    // rather than hand-fabricating an AbapError, so the test proves the actual code path, not just
+    // the discrimination check in isolation.
+    const NOT_FOUND_943_XML =
+      '<?xml version="1.0" encoding="utf-8"?><exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">' +
+      '<namespace id="com.sap.adt"/><type id="AdtFailed"/>' +
+      "<message lang=\"EN\">Cannot retrieve watchpoint data: Watchpoint not found</message>" +
+      "<localizedMessage lang=\"EN\">Cannot retrieve watchpoint data: Watchpoint not found</localizedMessage>" +
+      "<properties><entry key=\"T100KEY-ID\">TPDA_ADT</entry><entry key=\"T100KEY-NO\">013</entry>" +
+      "<entry key=\"T100KEY-V1\">Watchpoint not found</entry></properties></exc:exception>";
+    const adtError = parseAdtError(NOT_FOUND_943_XML, 404, "/sap/bc/adt/debugger/watchpoints/99");
+    const abapError = translateDebugError(adtError);
+    expect(abapError.code).toBe("NOT_FOUND");
+    expect(abapError.details?.["abapType"]).toBe("AdtFailed");
+    const client = throwingClient(abapError);
+    await expect(client.getWatchpoint("99")).resolves.toBeUndefined();
+  });
+
+  it("modifyWatchpoint PUTs with condition/active in the URL and no body, returning the PARSED result", async () => {
+    const fake = new FakeTransport([{ status: 200, headers: {}, body: WATCHPOINTS_LIST_XML }]);
+    const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
+    const result = await client.modifyWatchpoint({ id: "WP1", condition: "LV_TOTAL > 100", active: false });
+    expect(fake.calls[0]!.method).toBe("PUT");
+    expect(fake.calls[0]!.path).toBe(
+      `/sap/bc/adt/debugger/watchpoints/WP1?condition=${encodeURIComponent("LV_TOTAL > 100")}&active=false`,
+    );
+    expect(fake.calls[0]!.body).toBeUndefined();
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe("WP1");
+  });
+
+  it("modifyWatchpoint hands back a RENUMBERED row when the server changes the id (test/fixtures/live-captured/940-watchpoint-modify-condition.xml)", async () => {
+    // Exact bytes of the 940 capture: PUT .../watchpoints/1?condition=..&active=true came back
+    // id="3", not the id="1" addressed — a watchpoint id is only valid until the next modify of
+    // that watchpoint. The caller has no way to learn "1" became "3" except via this return value.
+    const MODIFY_RESPONSE_940 =
+      '<?xml version="1.0" encoding="utf-8"?><dbg:watchpoints xmlns:dbg="http://www.sap.com/adt/debugger">' +
+      '<watchpoint id="3" variableName="LV_TOTAL" kind="local" active="true" expired="false" procedure="IF_OO_ADT_CLASSRUN~MAIN">' +
+      '<condition>LV_TOTAL &gt; 3</condition><oldVariable>{A:8*\KERNEL_WATCHPOINT_CLONE}</oldVariable>' +
+      '<currentVariable>{A:13*\KERNEL_WATCHPOINT_WPREF}</currentVariable><oldValue>0 </oldValue><currentValue>0 </currentValue>' +
+      '<atom:link href="/sap/bc/adt/debugger/watchpoints/3" rel="self" type="application/xml" title="Watchpoint for LV_TOTAL" xmlns:atom="http://www.w3.org/2005/Atom"/>' +
+      '<adtcomp:templateLinks xmlns:adtcomp="http://www.sap.com/adt/compatibility">' +
+      '<adtcomp:templateLink title="Self" rel="self" template="/sap/bc/adt/debugger/watchpoints/3"/>' +
+      '<adtcomp:templateLink title="Modify" rel="http://www.sap.com/adt/debugger/relations/modify" template="/sap/bc/adt/debugger/watchpoints/3{?condition,active}"/>' +
+      '<adtcomp:templateLink title="Delete" rel="http://www.sap.com/adt/debugger/relations/delete" template="/sap/bc/adt/debugger/watchpoints/3"/>' +
+      "</adtcomp:templateLinks></watchpoint></dbg:watchpoints>";
+    const fake = new FakeTransport([{ status: 200, headers: {}, body: MODIFY_RESPONSE_940 }]);
+    const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
+    const result = await client.modifyWatchpoint({ id: "1", condition: "LV_TOTAL > 3", active: true });
+    expect(fake.calls[0]!.path).toContain("/debugger/watchpoints/1");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe("3"); // NOT "1" — the id the request addressed
+    expect(result[0]!.condition).toBe("LV_TOTAL > 3");
+  });
+
+  it("deleteWatchpoint issues a DELETE with the encoded id in the path and resolves on 200", async () => {
+    const fake = new FakeTransport([{ status: 200, headers: {}, body: "" }]);
+    const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
+    await client.deleteWatchpoint("KIND=0.LINE_NR=5");
+    expect(fake.calls[0]!.method).toBe("DELETE");
+    expect(fake.calls[0]!.path).toBe(`/sap/bc/adt/debugger/watchpoints/${encodeURIComponent("KIND=0.LINE_NR=5")}`);
+  });
+
+  it("deleteWatchpoint resolves on a 204 with an empty body", async () => {
+    const fake = new FakeTransport([{ status: 204, headers: {}, body: "" }]);
+    const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
+    await expect(client.deleteWatchpoint("WP1")).resolves.toBeUndefined();
   });
 });
 

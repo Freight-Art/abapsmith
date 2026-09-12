@@ -29,7 +29,7 @@ import {
 } from "../src/debug/session.js";
 import { ACQUIRE_NO_SESSION_LEASE, LONGPOLL_TIMEOUT_MARGIN_MS } from "../src/debug/transport.js";
 import type { DebugRequestOptions, DebugSessionLease, LongPollHandle } from "../src/debug/transport.js";
-import type { Breakpoint, DebugContext, DebugSettings, RawResponse } from "../src/debug/types.js";
+import type { Breakpoint, DebugContext, DebugSettings, RawResponse, Watchpoint } from "../src/debug/types.js";
 import { SafetyGate } from "../src/safety.js";
 import { LIVE_CAPTURED_DIR } from "./helpers/system-role-fake.js";
 
@@ -259,14 +259,20 @@ class FakeListener implements DebugListenIssuer {
 // Session factory
 // ---------------------------------------------------------------------------
 
-function makeSession(opts: {
+/**
+ * Same session construction as `makeSession()`, but also hands back the
+ * underlying real `DebugClient` instance so a test can attach fake watchpoint
+ * methods onto it — see `withFakeWatchpointMethods()` below for why that's a
+ * separate mechanism from `FakeTransport`.
+ */
+function makeSessionWithClient(opts: {
   transport: FakeTransport;
   listener?: FakeListener;
   sessionOpts?: Partial<Omit<DebugSessionOptions, "client" | "context">>;
-}): DebugSession {
+}): { session: DebugSession; client: DebugClient } {
   const listener = opts.listener ?? new FakeListener();
   const client = new DebugClient({ transport: opts.transport, longPoll: listener });
-  return new DebugSession({
+  const session = new DebugSession({
     client,
     context: CONTEXT,
     registrationPollIntervalMs: 50,
@@ -274,6 +280,41 @@ function makeSession(opts: {
     idleTimeoutMs: 100_000,
     ...opts.sessionOpts,
   });
+  return { session, client };
+}
+
+function makeSession(opts: {
+  transport: FakeTransport;
+  listener?: FakeListener;
+  sessionOpts?: Partial<Omit<DebugSessionOptions, "client" | "context">>;
+}): DebugSession {
+  return makeSessionWithClient(opts).session;
+}
+
+/**
+ * Attaches minimal watchpoint-method stand-ins directly onto a REAL
+ * `DebugClient` instance (built from `FakeTransport` like every other test in
+ * this file). `createWatchpoint`/`listWatchpoints`/`deleteWatchpoint` are a
+ * separate, concurrent piece of `client.ts` not yet landed as of this file —
+ * the wire contract (`Watchpoint` shape, query-string-only POST/PUT) is fixed
+ * by `types.ts`/`endpoints.ts`, which HAVE landed, but the XML/JSON parsing
+ * behind these three methods has not. These tests exist to pin
+ * `DebugSession`'s OWN bookkeeping (ownership tracking, refusal messages,
+ * cleanup ordering) against that contract, not to also re-verify `client.ts`'s
+ * eventual response parsing — that belongs in `debug-client.test.ts` once the
+ * methods land. `Object.assign` (not `vi.spyOn`) is used deliberately: it
+ * attaches own-properties that shadow the (possibly still-missing) prototype
+ * methods without requiring them to already exist.
+ */
+function withFakeWatchpointMethods(
+  client: DebugClient,
+  methods: {
+    createWatchpoint?: (params: { variableName: string; condition?: string }) => Promise<Watchpoint[]>;
+    listWatchpoints?: () => Promise<Watchpoint[]>;
+    deleteWatchpoint?: (id: string) => Promise<void>;
+  },
+): DebugClient {
+  return Object.assign(client, methods);
 }
 
 /** Drains any microtask chains left dangling by a fire-and-forget `void this.terminate(...)` call (the idle timer's callback). */
@@ -2610,5 +2651,533 @@ describe("armLock — released on every path that stops listening", () => {
     await expect(session.terminate()).resolves.toBeUndefined();
     expect(session.snapshot.status).toBe("dead");
     expect(listActiveDebugSessions()).not.toContain(session);
+  });
+});
+
+// ===========================================================================
+// B1 — addBreakpoints() / listOwnedBreakpoints() / removeBreakpoint(),
+// stopped-state watchpoints (addWatchpoint / listWatchpoints /
+// removeWatchpoint / readWatchpoints)
+// ===========================================================================
+
+/** A refusal row parses to a `BreakpointError` (has `errorMessage`, no `id`) — see `parseBreakpointsResponse`. */
+const REFUSAL_XML =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="line" clientId="bad1" errorMessage="Invalid source position"/></dbg:breakpoints>`;
+
+describe("addBreakpoints()", () => {
+  it("validates then arms (two setBreakpoints calls), neither carrying syncScope, and the result is owned", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+
+    const created = await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    expect(created).toMatchObject([{ kind: "line", id: "BP1" }]);
+
+    const bpCalls = transport.callsOf("setBreakpoints");
+    expect(bpCalls).toHaveLength(2);
+    for (const call of bpCalls) {
+      expect(call.body ?? "").not.toContain("syncScope");
+    }
+    expect(bpCalls[0]!.body ?? "").toContain('validationOnly="true"');
+
+    expect(session.listOwnedBreakpoints()).toMatchObject([{ kind: "line", id: "BP1" }]);
+  });
+
+  it("an empty breakpoints array is refused before any network call, even on an idle (never-attached) session", async () => {
+    const transport = new FakeTransport({});
+    const session = makeSession({ transport });
+
+    await expect(session.addBreakpoints("whatever-stateid", [])).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain("at least one breakpoint is required");
+      return true;
+    });
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("refuses when the session has never attached (\"No active debug session state\")", async () => {
+    const transport = new FakeTransport({});
+    const session = makeSession({ transport });
+
+    await expect(
+      session.addBreakpoints("whatever-stateid", [{ kind: "line", uri: "/some/uri#start=1" }]),
+    ).rejects.toSatisfy((e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.message.includes("No active debug session state"));
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("refuses a stale stateId, naming the CURRENT one, without issuing any breakpoint call", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 16 })],
+      step: [stepOk()],
+    });
+    const session = makeSession({ transport });
+
+    const { stateId: stateId1 } = await session.attach("D1");
+    const { stateId: stateId2 } = await session.step(stateId1, "stepOver");
+    expect(stateId2).not.toBe(stateId1);
+
+    await expect(
+      session.addBreakpoints(stateId1, [{ kind: "line", uri: "/some/uri#start=1" }]),
+    ).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain(stateId2);
+      expect(e.details["currentStateId"]).toBe(stateId2);
+      expect(e.details["providedStateId"]).toBe(stateId1);
+      return true;
+    });
+    expect(transport.callsOf("setBreakpoints")).toHaveLength(0);
+  });
+
+  it("a validation refusal arms nothing (only one setBreakpoints call) and throws BAD_INPUT naming the refusal", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [() => okResponse(REFUSAL_XML)],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+
+    await expect(
+      session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/bad/uri#start=1" }]),
+    ).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain("Invalid source position");
+      return true;
+    });
+    // Only the validation pass went out — the arming pass never happened.
+    expect(transport.callsOf("setBreakpoints")).toHaveLength(1);
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("breakpoints armed via addBreakpoints() are deleted by terminate(), same as prepareBreakpoints()'s", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    await session.terminate();
+
+    const deleteCall = transport.callsOf("setBreakpoints").at(-1)!;
+    expect(deleteCall.method).toBe("DELETE");
+    expect(deleteCall.path).toContain("/debugger/breakpoints/BP1");
+  });
+});
+
+describe("listOwnedBreakpoints()", () => {
+  it("is synchronous, issues nothing, and starts empty", async () => {
+    const transport = new FakeTransport({});
+    const session = makeSession({ transport });
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("returns a fresh copy — mutating the returned array does not affect the session's own bookkeeping", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+
+    const first = session.listOwnedBreakpoints();
+    first.pop();
+    expect(session.listOwnedBreakpoints()).toHaveLength(1);
+  });
+});
+
+describe("removeBreakpoint()", () => {
+  it("refuses an id this session does not own, naming the ids it does own, without touching the network", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    const callsBefore = transport.calls.length;
+
+    await expect(session.removeBreakpoint(stateId, "NOT-OWNED")).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain("NOT-OWNED");
+      expect(e.message).toContain("BP1");
+      return true;
+    });
+    expect(transport.calls).toHaveLength(callsBefore);
+    expect(session.listOwnedBreakpoints()).toMatchObject([{ kind: "line", id: "BP1" }]);
+  });
+
+  it("deletes an owned breakpoint via a targeted DELETE and drops it from listOwnedBreakpoints()", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+
+    await session.removeBreakpoint(stateId, "BP1");
+
+    const deleteCall = transport.callsOf("setBreakpoints").at(-1)!;
+    expect(deleteCall.method).toBe("DELETE");
+    expect(deleteCall.path).toContain("/debugger/breakpoints/BP1");
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("treats a server NOT_FOUND as already-gone: resolves and drops the id locally", async () => {
+    const notFound: Thunk = () => {
+      throw new AbapError("NOT_FOUND", "breakpoint no longer exists");
+    };
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, notFound],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+
+    await expect(session.removeBreakpoint(stateId, "BP1")).resolves.toBeUndefined();
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("refuses a stale stateId, naming the CURRENT one", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 16 })],
+      setBreakpoints: [BREAKPOINTS_OK],
+      step: [stepOk()],
+    });
+    const session = makeSession({ transport });
+    const { stateId: stateId1 } = await session.attach("D1");
+    await session.addBreakpoints(stateId1, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    const { stateId: stateId2 } = await session.step(stateId1, "stepOver");
+
+    await expect(session.removeBreakpoint(stateId1, "BP1")).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.details["currentStateId"] === stateId2,
+    );
+  });
+
+  it("refuses on a session that has never attached", async () => {
+    const transport = new FakeTransport({});
+    const session = makeSession({ transport });
+    await expect(session.removeBreakpoint("whatever", "BP1")).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.message.includes("No active debug session state"),
+    );
+    expect(transport.calls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Watchpoints — `createWatchpoint`/`listWatchpoints`/`deleteWatchpoint` are a
+// separate, concurrent piece of `client.ts` not yet landed. These tests pin
+// `DebugSession`'s own bookkeeping (ownership tracking, refusal messages,
+// cleanup ordering) against the given contract via `withFakeWatchpointMethods()`
+// — a real `DebugClient` (built from `FakeTransport`/`FakeListener` as usual)
+// with just those three methods overridden directly on the instance.
+// ---------------------------------------------------------------------------
+
+const WP1: Watchpoint = { id: "WP1", variableName: "GV_COUNTER" };
+
+describe("addWatchpoint()", () => {
+  it("refuses a blank variableName before touching the network", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.reject(new Error("must not be called")),
+    });
+    const { stateId } = await session.attach("D1");
+    const callsBefore = transport.calls.length;
+
+    await expect(session.addWatchpoint(stateId, { variableName: "   " })).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.message.includes("must not be blank"),
+    );
+    expect(transport.calls).toHaveLength(callsBefore);
+  });
+
+  it("refuses when the session has never attached", async () => {
+    const transport = new FakeTransport({});
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.reject(new Error("must not be called")),
+    });
+
+    await expect(session.addWatchpoint("whatever", { variableName: "GV_COUNTER" })).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.message.includes("No active debug session state"),
+    );
+  });
+
+  it("refuses a stale stateId, naming the CURRENT one", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 16 })],
+      step: [stepOk()],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.reject(new Error("must not be called")),
+    });
+    const { stateId: stateId1 } = await session.attach("D1");
+    const { stateId: stateId2 } = await session.step(stateId1, "stepOver");
+
+    await expect(session.addWatchpoint(stateId1, { variableName: "GV_COUNTER" })).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.details["currentStateId"] === stateId2,
+    );
+  });
+
+  it("records the created id as owned, returned by listOwnedBreakpoints-equivalent readWatchpoints()", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      listWatchpoints: () => Promise.resolve([WP1]),
+    });
+    const { stateId } = await session.attach("D1");
+
+    const created = await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+    expect(created).toEqual([WP1]);
+
+    const owned = await session.readWatchpoints();
+    expect(owned).toEqual([WP1]);
+  });
+});
+
+describe("listWatchpoints()", () => {
+  it("returns the full session-visible list, unfiltered, and requires a valid stateId", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    const someoneElses: Watchpoint = { id: "WP-ECLIPSE", variableName: "GV_OTHER" };
+    withFakeWatchpointMethods(client, {
+      listWatchpoints: () => Promise.resolve([WP1, someoneElses]),
+    });
+    const { stateId } = await session.attach("D1");
+
+    await expect(session.listWatchpoints(stateId)).resolves.toEqual([WP1, someoneElses]);
+  });
+
+  it("refuses when the session has never attached", async () => {
+    const transport = new FakeTransport({});
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      listWatchpoints: () => Promise.reject(new Error("must not be called")),
+    });
+    await expect(session.listWatchpoints("whatever")).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT",
+    );
+  });
+});
+
+describe("removeWatchpoint()", () => {
+  it("refuses an id this session does not own, naming the ids it does own, without touching the network", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    let deleteCalls = 0;
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: () => {
+        deleteCalls++;
+        return Promise.resolve();
+      },
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await expect(session.removeWatchpoint(stateId, "NOT-OWNED")).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain("NOT-OWNED");
+      expect(e.message).toContain("WP1");
+      return true;
+    });
+    expect(deleteCalls).toBe(0);
+  });
+
+  it("deletes an owned watchpoint and drops it from ownership", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    const deletedIds: string[] = [];
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: (id: string) => {
+        deletedIds.push(id);
+        return Promise.resolve();
+      },
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await session.removeWatchpoint(stateId, "WP1");
+    expect(deletedIds).toEqual(["WP1"]);
+    await expect(session.readWatchpoints()).resolves.toEqual([]);
+  });
+
+  it("treats a server NOT_FOUND as already-gone: resolves and drops the id locally", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: () => Promise.reject(new AbapError("NOT_FOUND", "watchpoint no longer exists")),
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await expect(session.removeWatchpoint(stateId, "WP1")).resolves.toBeUndefined();
+    await expect(session.readWatchpoints()).resolves.toEqual([]);
+  });
+});
+
+describe("readWatchpoints()", () => {
+  it("issues nothing and returns [] when this session owns no watchpoints — the cost-free guarantee", async () => {
+    const transport = new FakeTransport({});
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      listWatchpoints: () => Promise.reject(new Error("must not be called")),
+    });
+
+    await expect(session.readWatchpoints()).resolves.toEqual([]);
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("filters the session-visible list down to only this session's own ids", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    const someoneElses: Watchpoint = { id: "WP-ECLIPSE", variableName: "GV_OTHER" };
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      listWatchpoints: () => Promise.resolve([WP1, someoneElses]),
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await expect(session.readWatchpoints()).resolves.toEqual([WP1]);
+  });
+
+  it("takes no stateId and works even after the session has moved on to a later step", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 16 })],
+      step: [stepOk()],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      listWatchpoints: () => Promise.resolve([WP1]),
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+    await session.step(stateId, "stepOver");
+
+    await expect(session.readWatchpoints()).resolves.toEqual([WP1]);
+  });
+});
+
+describe("watchpoint cleanup at shutdown", () => {
+  it("deletes owned watchpoints BEFORE terminateDebuggee() is called", async () => {
+    const order: string[] = [];
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [
+        () => {
+          order.push("terminateDebuggee");
+          return okResponse("");
+        },
+      ],
+      stopListener: [OK],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: (id: string) => {
+        order.push(`deleteWatchpoint ${id}`);
+        return Promise.resolve();
+      },
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await session.terminate();
+
+    expect(order).toEqual(["deleteWatchpoint WP1", "terminateDebuggee"]);
+    expect(session.snapshot.status).toBe("dead");
+  });
+
+  it("a session that created no watchpoint issues no watchpoint call at all on terminate()", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    let deleteCalls = 0;
+    withFakeWatchpointMethods(client, {
+      deleteWatchpoint: () => {
+        deleteCalls++;
+        return Promise.resolve();
+      },
+    });
+    await session.attach("D1");
+    await session.terminate();
+
+    expect(deleteCalls).toBe(0);
+  });
+
+  it("terminate() still finishes cleanly when watchpoint cleanup answers NOT_FOUND", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: () => Promise.reject(new AbapError("NOT_FOUND", "already gone")),
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await session.terminate();
+
+    expect(session.snapshot.status).toBe("dead");
+    expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+  });
+});
+
+describe("DebugSessionSnapshot ownership counts", () => {
+  it("surfaces ownedBreakpointCount and ownedWatchpointCount as they change", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+    });
+    expect(session.snapshot.ownedBreakpointCount).toBe(0);
+    expect(session.snapshot.ownedWatchpointCount).toBe(0);
+
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    expect(session.snapshot.ownedBreakpointCount).toBe(1);
+    expect(session.snapshot.ownedWatchpointCount).toBe(1);
   });
 });
