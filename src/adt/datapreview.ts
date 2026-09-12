@@ -1,12 +1,19 @@
 /**
  * DDIC data preview: reads rows from exactly one DDIC table or view over
- * `POST /sap/bc/adt/datapreview/ddic`. No free-form SQL surface, and no way
- * to add one — the endpoint takes a name, not a statement. The `freestyle`
- * sibling (takes an Open-SQL SELECT string) is now wired up too, but only as
- * `AbapConnection.dataPreviewFreestyle()` (`connection.ts`) — reachable only
- * from `img-query.ts`'s module-assembled SQL, never from a tool argument
- * directly. `probeT000()` (`system-role.ts`) keeps its own separate,
- * no-retry route to the same URL.
+ * `POST /sap/bc/adt/datapreview/ddic`. The `ddic` endpoint itself still only
+ * takes a name, not a statement — there is nowhere to smuggle a WHERE/JOIN
+ * into that request. What changed for issue #73 is the tool built on top of
+ * it: `previewDdicEntity` now accepts a STRUCTURED filter
+ * (`where`/`columns`/`order_by`/`distinct`, see `./datapreview-filter.js`'s
+ * `PreviewFilter`), and when one is given, compiles it HERE into an Open SQL
+ * `SELECT` sent to the `freestyle` sibling
+ * (`AbapConnection.dataPreviewFreestyle()`, `connection.ts`) — never a raw
+ * SQL string from a caller. Every identifier in that SELECT comes from the
+ * server's own column metadata (a preceding metadata probe against the same
+ * `ddic` endpoint); every value is rendered as a typed, quoted literal by
+ * `./datapreview-filter.js`. `img-query.ts` is the other module-assembled
+ * caller of `dataPreviewFreestyle()`; `probeT000()` (`system-role.ts`) keeps
+ * its own separate, no-retry route to the same URL.
  *
  * Wire behavior captured on A4H 2026-08-11 — see
  * the git history:
@@ -20,6 +27,7 @@ import { XMLParser } from "fast-xml-parser";
 import { type AbapConnection, isAbapTrue } from "./connection.js";
 import { AbapError } from "./errors.js";
 import { type ErrorContext, translateAdtError } from "./session.js";
+import { isEmptyFilter, assertFilterShape, renderPreviewSelect, type PreviewFilter } from "./datapreview-filter.js";
 
 // ------------------------------------------------------------------ names ---
 
@@ -115,6 +123,29 @@ export interface PreviewResult {
    * `parsePreviewBody`.
    */
   messages: PreviewMessage[];
+  /**
+   * The Open SQL `SELECT` abapsmith rendered and sent to the `freestyle`
+   * endpoint (`./datapreview-filter.js`'s `renderPreviewSelect`). Present
+   * only on a filtered read — an unfiltered read goes through the plain
+   * `ddic` endpoint, which takes a name, not a statement, so there is
+   * nothing to report here.
+   */
+  statement?: string;
+  /**
+   * `<dataPreview:executedQueryString>` — the server's own echo of what it
+   * actually compiled, when the response carried one. This is independent
+   * confirmation of `statement`, not a copy of it: a mismatch would mean the
+   * server rewrote or reinterpreted the sent SQL. See `parsePreviewBody`.
+   */
+  executedQueryString?: string;
+  /**
+   * True row count matching the filter, from `<dataPreview:totalRows>`.
+   * Meaningful only on the filtered (`freestyle`) path — on the plain
+   * `ddic` path this is always 0 even when rows come back (see
+   * `parsePreviewBody`'s own JSDoc), so it is only ever set here when the
+   * read went through the filtered path.
+   */
+  totalRows?: number;
 }
 
 // ----------------------------------------------------------------- parsing ---
@@ -183,6 +214,16 @@ export function parsePreviewBody(body: string): {
    * from a genuine "zero rows match" answer.
    */
   totalRows?: number;
+  /**
+   * `<dataPreview:executedQueryString>`, the server's own echo of the
+   * compiled statement (namespace prefix already stripped by the parser),
+   * e.g. captured in `test/cassettes/datapreview/datapreview-select-success.cassette.json`
+   * as `SELECT MANDT, CCCATEGORY, CCCORACTIV FROM T000   INTO     TABLE
+   * @DATA(LT_RESULT)   UP TO 20  ROWS   .`. Absent or empty stays
+   * `undefined`, never `""` — same "don't default a missing signal" rule as
+   * `totalRows` above.
+   */
+  executedQueryString?: string;
 } {
   const doc = previewXml.parse(body) as Record<string, unknown>;
   const table = (doc.tableData ?? {}) as Record<string, unknown>;
@@ -243,7 +284,23 @@ export function parsePreviewBody(body: string): {
     if (Number.isFinite(parsed)) totalRows = parsed;
   }
 
-  return { columns, rows, messages, ...(totalRows === undefined ? {} : { totalRows }) };
+  // Same shape as `totalRows` above: a direct child of `tableData`, a plain
+  // string when present, and never defaulted to `""` — an absent element is
+  // a different fact from an empty one, even though both would render the
+  // same in `""`'s place.
+  const executedQueryStringRaw = table.executedQueryString;
+  const executedQueryString =
+    typeof executedQueryStringRaw === "string" && executedQueryStringRaw.trim() !== ""
+      ? executedQueryStringRaw
+      : undefined;
+
+  return {
+    columns,
+    rows,
+    messages,
+    ...(totalRows === undefined ? {} : { totalRows }),
+    ...(executedQueryString === undefined ? {} : { executedQueryString }),
+  };
 }
 
 // ---------------------------------------------------------------- failures ---
@@ -288,18 +345,66 @@ export function classifyPreviewFailure(e: unknown, ctx: ErrorContext): AbapError
   return err;
 }
 
+/**
+ * Refines a `classifyPreviewFailure` result for the FILTERED (freestyle)
+ * path only — runs AFTER it, and only ever narrows an `ADT_ERROR` into
+ * `BAD_INPUT` for these three server messages, each measured live on A4H
+ * 2026-09-12 by compiling the rendered statements. Anything else keeps
+ * whatever `classifyPreviewFailure` already returned — this must not become
+ * a general-purpose 400 reinterpreter. `sql` is attached to `details` on
+ * every branch (including the pass-through) so the caller can see what was
+ * actually sent.
+ */
+export function classifyFilteredPreviewFailure(e: unknown, ctx: ErrorContext, sql: string): AbapError {
+  const err = classifyPreviewFailure(e, ctx);
+  if (err.code !== "ADT_ERROR") {
+    return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+  }
+
+  const message = err.message;
+  if (/client field .* cannot be specified in the where condition/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "The read is already scoped to the logon client — drop the where condition on the client field.",
+    );
+  }
+  if (/like condition can only be used with character-like fields/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "Use eq/ne/lt/le/gt/ge on a numeric field instead of like.",
+    );
+  }
+  if (/from the order by clause is missing in the select list/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "With distinct, every order_by field must also appear in columns.",
+    );
+  }
+  return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+}
+
 // ----------------------------------------------------------------- preview ---
 
 /**
- * Preview up to `maxRows` rows of one DDIC table or view.
+ * Preview up to `maxRows` rows of one DDIC table or view, optionally
+ * narrowed by a structured `filter` (issue #73) — `where`/`columns`/
+ * `order_by`/`distinct`, never raw SQL text from a caller.
  *
  * Validation happens before any request is issued — an invalid name must cost
  * zero HTTP calls, because the name is the injection surface and a
- * rejected one has nothing safe to send.
+ * rejected one has nothing safe to send. Same rule extends to `filter`:
+ * `assertFilterShape` runs before any wire call, so a bad operator or an
+ * over-long list costs zero requests too.
  */
 export async function previewDdicEntity(
   conn: AbapConnection,
-  input: { table: string; maxRows: number },
+  input: { table: string; maxRows: number; filter?: PreviewFilter },
 ): Promise<PreviewResult> {
   const table = normaliseEntityName(input.table);
   if (!isValidDdicEntityName(table)) {
@@ -308,7 +413,8 @@ export async function previewDdicEntity(
       `'${String(input.table)}' is not a valid DDIC table or view name.`,
       { table: String(input.table) },
       "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one " +
-        "named entity — it has no WHERE clause and accepts no SQL.",
+        "named entity; narrow it with the structured where/columns/order_by parameters, " +
+        "never with SQL text.",
     );
   }
 
@@ -327,31 +433,112 @@ export async function previewDdicEntity(
   }
 
   const ctx: ErrorContext = { operation: "read", name: table, type: "TABL/DT" };
-  let body: string;
+
+  // Unfiltered path — UNCHANGED from before issue #73. Existing tests pin
+  // this exact call sequence (one `dataPreviewDdic` call, the N+1 slice,
+  // `moreRowsExist` from `rows.length > maxRows`), so nothing here may move.
+  if (isEmptyFilter(input.filter)) {
+    let body: string;
+    try {
+      // Sends `rowNumber = maxRows`; the server answers with up to maxRows + 1.
+      const resp = await conn.dataPreviewDdic(table, maxRows);
+      body = resp.body;
+    } catch (e) {
+      throw classifyPreviewFailure(e, ctx);
+    }
+
+    const { columns, rows, messages } = parsePreviewBody(body);
+    // N+1 rows back means "more exist" — the server's own signal (see file
+    // header). Operates on parsed rows; no request parameter can defeat it.
+    const moreRowsExist = rows.length > maxRows;
+
+    // In-band messages are REPORTED, never THROWN — even at severity "E": the
+    // HTTP-200 response may carry real rows alongside the message, only "I" has
+    // ever been captured (don't invent semantics for "E"), and passing the
+    // server's own text through is what fixes the false "genuinely empty
+    // result" claim — no exception is needed for that. See archive.
+    return {
+      table,
+      columns,
+      rows: moreRowsExist ? rows.slice(0, maxRows) : rows,
+      rowsRequested: maxRows,
+      moreRowsExist,
+      messages,
+    };
+  }
+
+  // Filtered path (issue #73).
+  const filter = input.filter as PreviewFilter;
+  // Zero wire cost for a bad operator/shape — checked before the metadata
+  // probe below ever fires.
+  assertFilterShape(filter);
+
+  // Metadata probe: a REAL extra request, capped at 1 row (the server
+  // actually returns up to 2, which are discarded — same N+1 fact as the
+  // unfiltered path above). Its column list is the only flattened, wire-true
+  // set available for this entity: a DDIC source read via ddic.ts misses
+  // include-flattened fields (live on A4H, TB003's source names 6 fields
+  // plus `include si_tb003aba` while the preview returns 7 columns including
+  // BPVIEW), and a DDIC source read covers no DDIC/CDS view at all, while
+  // this probe hits the same endpoint the real read will use.
+  let probeBody: string;
   try {
-    // Sends `rowNumber = maxRows`; the server answers with up to maxRows + 1.
-    const resp = await conn.dataPreviewDdic(table, maxRows);
-    body = resp.body;
+    const probeResp = await conn.dataPreviewDdic(table, 1);
+    probeBody = probeResp.body;
   } catch (e) {
     throw classifyPreviewFailure(e, ctx);
   }
+  const probe = parsePreviewBody(probeBody);
+  if (probe.columns.length === 0) {
+    const firstMessage = probe.messages[0];
+    if (firstMessage) {
+      // The entity answered but refused — e.g. a CDS view with parameters,
+      // the same in-band-message case `previewDdicEntity`'s unfiltered path
+      // reports rather than throws. Here there is no row data to report
+      // instead, so the server's own message is the whole answer.
+      throw new AbapError(
+        "ADT_ERROR",
+        `${table} answered with no columns: "${firstMessage.text}" (severity ${firstMessage.severity || "unstated"}).`,
+        { table, messages: probe.messages },
+        "This entity does not support a filtered preview the way a plain table does — see the " +
+          "server's own message above.",
+      );
+    }
+    throw new AbapError(
+      "NOT_FOUND",
+      `No DDIC table or view named ${table} exists on this system, or it has no columns to filter.`,
+      { table },
+      "Check the spelling, or look the object up first.",
+    );
+  }
 
-  const { columns, rows, messages } = parsePreviewBody(body);
-  // N+1 rows back means "more exist" — the server's own signal (see file
-  // header). Operates on parsed rows; no request parameter can defeat it.
-  const moreRowsExist = rows.length > maxRows;
+  const sql = renderPreviewSelect(table, filter, probe.columns);
 
-  // In-band messages are REPORTED, never THROWN — even at severity "E": the
-  // HTTP-200 response may carry real rows alongside the message, only "I" has
-  // ever been captured (don't invent semantics for "E"), and passing the
-  // server's own text through is what fixes the false "genuinely empty
-  // result" claim — no exception is needed for that. See archive.
+  let body: string;
+  try {
+    const resp = await conn.dataPreviewFreestyle(sql, maxRows);
+    body = resp.body;
+  } catch (e) {
+    throw classifyFilteredPreviewFailure(e, ctx, sql);
+  }
+
+  const { columns, rows, messages, totalRows, executedQueryString } = parsePreviewBody(body);
+  // The freestyle row cap (`rowNumber`) is honoured exactly — no N+1 here,
+  // unlike the ddic path above — so `rows.length > maxRows` cannot signal
+  // "more exist" the way it does there. `totalRows` (the true match count,
+  // independent of the cap) is the right signal when the server sent one;
+  // only fall back to the N+1-style comparison when it didn't.
+  const moreRowsExist = totalRows !== undefined ? totalRows > rows.length : rows.length > maxRows;
+
   return {
     table,
     columns,
-    rows: moreRowsExist ? rows.slice(0, maxRows) : rows,
+    rows,
     rowsRequested: maxRows,
     moreRowsExist,
     messages,
+    statement: sql,
+    ...(executedQueryString === undefined ? {} : { executedQueryString }),
+    ...(totalRows === undefined ? {} : { totalRows }),
   };
 }

@@ -22,11 +22,14 @@ import { describe, expect, it } from "vitest";
 
 import type { AbapConnection } from "../src/adt/connection.js";
 import {
+  classifyFilteredPreviewFailure,
   classifyPreviewFailure,
   isValidDdicEntityName,
   parsePreviewBody,
   previewDdicEntity,
+  type PreviewResult,
 } from "../src/adt/datapreview.js";
+import type { PreviewCondition, PreviewFilter } from "../src/adt/datapreview-filter.js";
 import { AbapError } from "../src/adt/errors.js";
 import { renderPreview } from "../src/tools/data-preview.js";
 import { loadAllCassettes } from "./cassettes/registry.js";
@@ -791,6 +794,513 @@ describe("classifyPreviewFailure", () => {
     const err = classifyPreviewFailure(original, ctx);
     expect(err).toBe(original);
     expect(err.code).toBe("AUTH_CIRCUIT_OPEN");
+  });
+});
+
+// ==================================================== filtered preview (issue #73) ===
+
+/**
+ * `datapreview-select-success` — a real captured `freestyle` response
+ * (2026-07-31) for `SELECT mandt, cccategory, cccoractiv FROM t000`: status
+ * 200, `totalRows` 2, columns MANDT/CCCATEGORY/CCCORACTIV, two rows, and an
+ * `executedQueryString` echo. `T000_ROWS3` (above) supplies the METADATA
+ * PROBE leg below — its 17 columns already include all three that this
+ * statement selects — so the pair reproduces a real probe+freestyle round
+ * trip with no derivation at all.
+ */
+const SELECT_SUCCESS = "datapreview-select-success";
+
+interface FilteredCall {
+  kind: "ddic" | "freestyle";
+  table?: string;
+  sql?: string;
+  rowNumber: number;
+}
+
+/**
+ * A SECOND fake connection double (`fakeConn` above is untouched and still
+ * only exposes `dataPreviewDdic`): the filtered path calls the connection
+ * TWICE — a `rowNumber=1` metadata probe, then `dataPreviewFreestyle` — and
+ * needs a distinguishable answer for each leg. `calls` is one ordered log,
+ * not two arrays, so a test can pin the exact interleaving: this is what
+ * proves the probe always precedes the freestyle call, and that a refusal
+ * after the probe cost exactly one request, never zero and never two.
+ */
+function fakeFilteredConn(opts: {
+  ddic: (table: string, rowNumber: number) => string | never;
+  freestyle: (sql: string, rowNumber: number) => string | never;
+}): { conn: AbapConnection; calls: FilteredCall[] } {
+  const calls: FilteredCall[] = [];
+  const conn = {
+    async dataPreviewDdic(table: string, rowNumber: number) {
+      calls.push({ kind: "ddic", table, rowNumber });
+      return { body: opts.ddic(table, rowNumber), status: 200, headers: {} };
+    },
+    async dataPreviewFreestyle(sql: string, rowNumber: number) {
+      calls.push({ kind: "freestyle", sql, rowNumber });
+      return { body: opts.freestyle(sql, rowNumber), status: 200, headers: {} };
+    },
+  } as unknown as AbapConnection;
+  return { conn, calls };
+}
+
+/** Probe answers with `probeCassette`, freestyle answers with `freestyleCassette` — both real captures. */
+function filteredConnServing(
+  probeCassette: string,
+  freestyleCassette: string,
+): { conn: AbapConnection; calls: FilteredCall[] } {
+  return fakeFilteredConn({
+    ddic: () => capturedBody(probeCassette),
+    freestyle: () => capturedBody(freestyleCassette),
+  });
+}
+
+describe("previewDdicEntity — filtered path: call order and rendered SQL", () => {
+  it("probes with rowNumber=1 literally, then sends the rendered SELECT with rowNumber=maxRows, in that order", async () => {
+    const { conn, calls } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    const result = await previewDdicEntity(conn, {
+      table: "T000",
+      maxRows: 20,
+      filter: { columns: ["mandt", "cccategory", "cccoractiv"] },
+    });
+
+    // Exactly two calls, in this order. The probe's rowNumber is the literal
+    // 1 — never maxRows — because it exists only to read column metadata,
+    // not rows; the freestyle call carries the real maxRows.
+    expect(calls).toEqual([
+      { kind: "ddic", table: "T000", rowNumber: 1 },
+      {
+        kind: "freestyle",
+        sql: "SELECT\n  MANDT,\n  CCCATEGORY,\n  CCCORACTIV\nFROM T000",
+        rowNumber: 20,
+      },
+    ]);
+    expect(result.statement).toBe("SELECT\n  MANDT,\n  CCCATEGORY,\n  CCCORACTIV\nFROM T000");
+  });
+});
+
+describe("previewDdicEntity — filtered path: PreviewResult fields", () => {
+  it("carries statement, executedQueryString, totalRows and the freestyle rows/columns through", async () => {
+    const { conn } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    const result = await previewDdicEntity(conn, {
+      table: "T000",
+      maxRows: 20,
+      filter: { columns: ["mandt", "cccategory", "cccoractiv"] },
+    });
+
+    expect(result.statement).toBe("SELECT\n  MANDT,\n  CCCATEGORY,\n  CCCORACTIV\nFROM T000");
+    // CAPTURED verbatim in datapreview-select-success.cassette.json.
+    expect(result.executedQueryString).toBe(
+      "SELECT MANDT, CCCATEGORY, CCCORACTIV FROM T000   INTO     TABLE @DATA(LT_RESULT)   UP TO 20  ROWS   .",
+    );
+    expect(result.totalRows).toBe(2);
+    expect(result.rows).toHaveLength(2);
+    expect(result.columns.map((c) => c.name)).toEqual(["MANDT", "CCCATEGORY", "CCCORACTIV"]);
+    expect(result.moreRowsExist).toBe(false);
+    expect(result.rowsRequested).toBe(20);
+  });
+});
+
+describe("previewDdicEntity — filtered path: where rendering", () => {
+  it("renders a where condition into the sent statement, using the server's own spelling of the field", async () => {
+    const { conn, calls } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    await previewDdicEntity(conn, {
+      table: "T000",
+      maxRows: 20,
+      filter: { where: [{ field: "mtext", op: "eq", value: "Walldorf" }] },
+    });
+    const freestyleCall = calls.find((c) => c.kind === "freestyle");
+    expect(freestyleCall?.sql).toBe("SELECT *\nFROM T000\nWHERE MTEXT = 'Walldorf'");
+  });
+
+  it("escapes an embedded apostrophe in the value actually SENT on the wire, not just in some return value", async () => {
+    const { conn, calls } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    await previewDdicEntity(conn, {
+      table: "T000",
+      maxRows: 20,
+      filter: { where: [{ field: "mtext", op: "eq", value: "O'Brien" }] },
+    });
+    const freestyleCall = calls.find((c) => c.kind === "freestyle");
+    // Asserted on the recorded outbound SQL, not on `result` — an escape bug
+    // that only showed up in a return value and not on the wire would still
+    // be a real SQL-injection-shaped defect.
+    expect(freestyleCall?.sql).toBe("SELECT *\nFROM T000\nWHERE MTEXT = 'O''Brien'");
+  });
+});
+
+describe("previewDdicEntity — filtered path does not slice (contrast with the unfiltered N+1 test above)", () => {
+  it("returns every row the freestyle response carried, even when it exceeds maxRows", async () => {
+    // Contrast with "previewDdicEntity — N+1 and the row ceiling" (above,
+    // this file): the UNFILTERED path slices to maxRows because the ddic
+    // endpoint always over-answers by exactly one row. `dataPreviewFreestyle`'s
+    // `rowNumber` is honoured exactly by the server (no N+1), so the FILTERED
+    // path must never slice — SELECT_SUCCESS carries exactly 2 real rows;
+    // requested here with maxRows=1, both must still come back.
+    const { conn } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    const result = await previewDdicEntity(conn, {
+      table: "T000",
+      maxRows: 1,
+      filter: { columns: ["mandt", "cccategory", "cccoractiv"] },
+    });
+    expect(result.rows).toHaveLength(2);
+    expect(result.rowsRequested).toBe(1);
+  });
+});
+
+describe("previewDdicEntity — filtered path: moreRowsExist follows totalRows, not the N+1 heuristic", () => {
+  it("as captured: totalRows (2) equals rows returned (2) — not more, regardless of maxRows", async () => {
+    const { conn } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    const result = await previewDdicEntity(conn, {
+      table: "T000",
+      maxRows: 1, // deliberately below rows.length, to prove maxRows plays no part here
+      filter: { columns: ["mandt", "cccategory", "cccoractiv"] },
+    });
+    expect(result.totalRows).toBe(2);
+    expect(result.rows).toHaveLength(2);
+    expect(result.moreRowsExist).toBe(false);
+  });
+
+  it("totalRows RAISED (derived: '2' -> '5' inside <dataPreview:totalRows>) reports more rows exist", () => {
+    // DERIVATION, not a new capture, and stated as such: the only byte
+    // changed from the real SELECT_SUCCESS body is the single digit inside
+    // <dataPreview:totalRows>, so the server's true "more rows match than
+    // were returned" signal can be exercised without a live query that
+    // actually has more than 2 matching rows sitting in the sandbox.
+    // Everything else — columns, rows, the executedQueryString echo — is the
+    // captured response, unedited.
+    const raised = capturedBody(SELECT_SUCCESS).replace(
+      "<dataPreview:totalRows>2</dataPreview:totalRows>",
+      "<dataPreview:totalRows>5</dataPreview:totalRows>",
+    );
+    const { conn } = fakeFilteredConn({ ddic: () => capturedBody(T000_ROWS3), freestyle: () => raised });
+    return previewDdicEntity(conn, {
+      table: "T000",
+      maxRows: 20,
+      filter: { columns: ["mandt", "cccategory", "cccoractiv"] },
+    }).then((result) => {
+      expect(result.totalRows).toBe(5);
+      expect(result.rows).toHaveLength(2);
+      expect(result.moreRowsExist).toBe(true);
+    });
+  });
+
+  it("totalRows ABSENT (derived: the element stripped) falls back to rows.length > maxRows", async () => {
+    // DERIVATION: the whole <dataPreview:totalRows>2</dataPreview:totalRows>
+    // element removed, nothing else touched — the shape parsePreviewBody
+    // must read as "the server sent no totalRows" (`undefined`), not as a
+    // parsed zero, so the fallback comparison below is what actually runs.
+    const stripped = capturedBody(SELECT_SUCCESS).replace(
+      "<dataPreview:totalRows>2</dataPreview:totalRows>",
+      "",
+    );
+    const { conn } = fakeFilteredConn({ ddic: () => capturedBody(T000_ROWS3), freestyle: () => stripped });
+    const result = await previewDdicEntity(conn, {
+      table: "T000",
+      maxRows: 1,
+      filter: { columns: ["mandt", "cccategory", "cccoractiv"] },
+    });
+    expect(result.totalRows).toBeUndefined();
+    expect(result.rows).toHaveLength(2); // still not sliced
+    expect(result.moreRowsExist).toBe(true); // fallback: 2 > maxRows(1)
+  });
+});
+
+describe("previewDdicEntity — filtered path discards the probe's own rows", () => {
+  it("returns freestyle's rows/columns, never the probe's — two genuinely different real captures prove it unambiguously", async () => {
+    // SVERS_1x1 (probe) and SELECT_SUCCESS (freestyle) are two REAL captures
+    // of entirely different entities: SVERS answers with a single column
+    // named VERSION and the value "754"; the T000 SELECT answers with
+    // MANDT/CCCATEGORY/CCCORACTIV. Because the column NAMES differ (not just
+    // the values), a probe-row leak is unambiguous and provable without
+    // derivation of either body. `distinct: true` (no where/columns/orderBy)
+    // is used as the filter so no field name has to resolve against SVERS's
+    // single VERSION column — the point of this test is discardal, not
+    // field resolution.
+    const { conn } = fakeFilteredConn({
+      ddic: () => capturedBody(SVERS_1x1),
+      freestyle: () => capturedBody(SELECT_SUCCESS),
+    });
+    const result = await previewDdicEntity(conn, {
+      table: "T000",
+      maxRows: 20,
+      filter: { distinct: true },
+    });
+    expect(result.columns.map((c) => c.name)).toEqual(["MANDT", "CCCATEGORY", "CCCORACTIV"]);
+    expect(result.columns.map((c) => c.name)).not.toContain("VERSION");
+    expect(result.rows.flat()).not.toContain("754");
+  });
+});
+
+describe("previewDdicEntity — filtered path: refusals cost calls precisely", () => {
+  it("an assertFilterShape failure (bad operator) costs ZERO calls — checked before the metadata probe", async () => {
+    const { conn, calls } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    const badFilter: PreviewFilter = {
+      where: [{ field: "MTEXT", op: "bogus" as unknown as PreviewCondition["op"], value: "x" }],
+    };
+    await expectRejectsWith(
+      previewDdicEntity(conn, { table: "T000", maxRows: 5, filter: badFilter }),
+      "BAD_INPUT",
+    );
+    expect(calls).toEqual([]);
+  });
+
+  it("a renderPreviewSelect failure (unknown column) costs exactly ONE call — the probe, never the freestyle read", async () => {
+    const { conn, calls } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    await expectRejectsWith(
+      previewDdicEntity(conn, {
+        table: "T000",
+        maxRows: 5,
+        filter: { columns: ["NOSUCHCOLUMN"] },
+      }),
+      "BAD_INPUT",
+    );
+    expect(calls).toEqual([{ kind: "ddic", table: "T000", rowNumber: 1 }]);
+  });
+});
+
+describe("previewDdicEntity — filtered path: a probe with zero columns", () => {
+  it("ADT_ERROR quoting the in-band message when the probe answers with no columns but a message", async () => {
+    const { conn, calls } = fakeFilteredConn({
+      ddic: () => capturedBody(CDS_PARAMS_MESSAGE),
+      freestyle: () => capturedBody(SELECT_SUCCESS),
+    });
+    const err = await expectRejectsWith(
+      previewDdicEntity(conn, { table: "DEMO_CDS_PARA", maxRows: 5, filter: { distinct: true } }),
+      "ADT_ERROR",
+    );
+    expect(err.message).toContain("Data preview not supported for view with parameters");
+    // The freestyle leg must never fire when there is nothing to filter.
+    expect(calls).toEqual([{ kind: "ddic", table: "DEMO_CDS_PARA", rowNumber: 1 }]);
+  });
+
+  it("NOT_FOUND when the probe answers with no columns AND no message (derived: the message element stripped)", async () => {
+    // DERIVATION: no capture under test/cassettes/datapreview/ has zero
+    // columns, zero messages AND HTTP 200 all at once (checked directly
+    // against every cassette under test/cassettes/datapreview/). The
+    // captured CDS_PARAMS_MESSAGE body with its one <dataPreview:message
+    // .../> element removed is exactly that shape; everything else (zero
+    // <dataPreview:columns>, totalRows 0) is real, unedited bytes.
+    const noMessage = capturedBody(CDS_PARAMS_MESSAGE).replace(
+      '<dataPreview:message dataPreview:text="Data preview not supported for view with parameters" dataPreview:severity="I"/>',
+      "",
+    );
+    const { conn, calls } = fakeFilteredConn({
+      ddic: () => noMessage,
+      freestyle: () => capturedBody(SELECT_SUCCESS),
+    });
+    const err = await expectRejectsWith(
+      previewDdicEntity(conn, { table: "ZZNOCOLUMNS", maxRows: 5, filter: { distinct: true } }),
+      "NOT_FOUND",
+    );
+    expect(err.message).toContain("ZZNOCOLUMNS");
+    expect(calls).toEqual([{ kind: "ddic", table: "ZZNOCOLUMNS", rowNumber: 1 }]);
+  });
+});
+
+describe("previewDdicEntity — filtered path: name/max_rows validation still costs zero calls with a filter present", () => {
+  it("an invalid table name is refused before the filter or any request is even looked at", async () => {
+    const { conn, calls } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    await expectRejectsWith(
+      previewDdicEntity(conn, { table: "T000;DROP", maxRows: 5, filter: { distinct: true } }),
+      "BAD_INPUT",
+    );
+    expect(calls).toEqual([]);
+  });
+
+  it("max_rows: 0 with a filter present is still refused, never re-defaulted, zero calls", async () => {
+    const { conn, calls } = filteredConnServing(T000_ROWS3, SELECT_SUCCESS);
+    await expectRejectsWith(
+      previewDdicEntity(conn, { table: "T000", maxRows: 0, filter: { distinct: true } }),
+      "BAD_INPUT",
+    );
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("classifyFilteredPreviewFailure", () => {
+  const ctx = { operation: "read", name: "T000", type: "TABL/DT" };
+  const sql = "SELECT *\nFROM T000\nWHERE MANDT = '001'";
+
+  // No cassette anywhere under test/cassettes/ contains any of the three
+  // messages below (checked with `grep -rl` across the whole tree). The
+  // guard conditions they narrow — a WHERE on the client field, LIKE on a
+  // numeric field, an unprojected DISTINCT+ORDER BY field — were measured
+  // live on A4H on 2026-09-12 by actually compiling the corresponding
+  // statements (see datapreview-filter.ts's own file header), not captured
+  // through this suite's cassette mechanism. So, following the existing
+  // `classifyPreviewFailure` 401/403 test's own precedent above, each error
+  // object here is directly constructed in the shape `adtExceptionInfo`
+  // (session.ts) reads (`err`/`type`/`properties` on a plain `Error`) — the
+  // envelope is synthetic, but the message text is copied verbatim from the
+  // regex/guard strings the shipped source actually matches against.
+  it("narrows the client-field guard message to BAD_INPUT, with a hint and details.sql", () => {
+    const e = Object.assign(
+      new Error(
+        'The client field "MANDT" cannot be specified in the WHERE condition. Client handling is performed by the compiler.',
+      ),
+      { err: 400, type: "ExceptionDataPreviewGeneral", properties: {} },
+    );
+    const err = classifyFilteredPreviewFailure(e, ctx, sql);
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("cannot be specified in the WHERE condition");
+    expect(err.hint ?? "").toMatch(/drop the where condition on the client field/i);
+    expect(err.details.sql).toBe(sql);
+  });
+
+  it("narrows the LIKE-on-numeric guard message to BAD_INPUT, with a hint and details.sql", () => {
+    const e = Object.assign(new Error("A LIKE condition can only be used with character-like fields."), {
+      err: 400,
+      type: "ExceptionDataPreviewGeneral",
+      properties: {},
+    });
+    const err = classifyFilteredPreviewFailure(e, ctx, sql);
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("LIKE condition can only be used with character-like fields");
+    expect(err.hint ?? "").toMatch(/numeric field instead of like/i);
+    expect(err.details.sql).toBe(sql);
+  });
+
+  it("narrows the DISTINCT+ORDER BY guard message to BAD_INPUT, with a hint and details.sql", () => {
+    const e = Object.assign(
+      new Error('The field "ROLE" from the ORDER BY clause is missing in the SELECT list.'),
+      { err: 400, type: "ExceptionDataPreviewGeneral", properties: {} },
+    );
+    const err = classifyFilteredPreviewFailure(e, ctx, sql);
+    expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("missing in the SELECT list");
+    expect(err.hint ?? "").toMatch(/every order_by field must also appear in columns/i);
+    expect(err.details.sql).toBe(sql);
+  });
+
+  it("passes a non-matching 400 through as ADT_ERROR unchanged, but still attaches details.sql", () => {
+    const e = Object.assign(new Error("Duplicate field name in SELECT list."), {
+      err: 400,
+      type: "ExceptionDataPreviewGeneral",
+      properties: {},
+    });
+    const err = classifyFilteredPreviewFailure(e, ctx, sql);
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.message).toBe("Duplicate field name in SELECT list.");
+    expect(err.details.sql).toBe(sql);
+  });
+
+  it("attaches details.sql even on a non-ADT_ERROR code (the 403 -> AUTH_FAILED refinement)", () => {
+    const e = Object.assign(new Error("No authorization to display data from table T000"), {
+      err: 403,
+      type: "ExceptionDataPreviewGeneral",
+      properties: {},
+    });
+    const err = classifyFilteredPreviewFailure(e, ctx, sql);
+    expect(err.code).toBe("AUTH_FAILED");
+    expect(err.details.sql).toBe(sql);
+  });
+});
+
+describe("renderPreview — filtered vs unfiltered rendering (issue #73)", () => {
+  const filteredResult: PreviewResult = {
+    table: "T000",
+    columns: [{ name: "MANDT", type: "C", length: 3, key: false }],
+    rows: [["000"], ["001"]],
+    rowsRequested: 20,
+    moreRowsExist: false,
+    messages: [],
+    statement: "SELECT *\nFROM T000\nWHERE MANDT = '000'",
+    executedQueryString: "SELECT MANDT FROM T000   INTO     TABLE @DATA(LT_RESULT)   UP TO 20  ROWS   .",
+    totalRows: 2,
+  };
+
+  it("the header states filtered: true and total_rows when the result carries a statement", () => {
+    const text = renderPreview(filteredResult, 20, 20_000).text;
+    expect(text).toContain("filtered: true");
+    expect(text).toContain("total_rows: 2");
+  });
+
+  it("the unfiltered path's header states filtered: false and omits total_rows entirely", () => {
+    // Reuses the captured T000_ROWS3 body — the same fixture the unfiltered
+    // N+1 describe above is built from. NOTE: `parsePreviewBody` itself parses
+    // whatever <dataPreview:totalRows> the XML carries (this ddic capture
+    // happens to say 0), but `previewDdicEntity`'s unfiltered branch (see
+    // datapreview.ts) only ever forwards `columns`/`rows`/`messages` out of
+    // that parse — `totalRows` is deliberately dropped there, since the ddic
+    // endpoint's totalRows is not a real match count (see the "totalRows is
+    // not a row count" describe above). So only those three fields are
+    // spread here, to reproduce what a real unfiltered PreviewResult looks
+    // like rather than parsePreviewBody's raw, wider shape.
+    const { columns, rows, messages } = parsePreviewBody(capturedBody(T000_ROWS3));
+    const text = renderPreview(
+      { table: "T000", columns, rows, messages, rowsRequested: 5, moreRowsExist: false },
+      5,
+      20_000,
+    ).text;
+    expect(text).toContain("filtered: false");
+    expect(text).not.toContain("total_rows:");
+  });
+
+  it("renders a STATEMENT section with the sent SQL and the server's own compiled echo, when present", () => {
+    const text = renderPreview(filteredResult, 20, 20_000).text;
+    expect(text).toContain("--- STATEMENT ---");
+    expect(text).toContain(`sent: ${filteredResult.statement}`);
+    expect(text).toContain(`server compiled: ${filteredResult.executedQueryString}`);
+  });
+
+  it("omits the STATEMENT section entirely on an unfiltered result", () => {
+    // Same reproduction as above: only the fields previewDdicEntity's
+    // unfiltered branch actually forwards.
+    const { columns, rows, messages } = parsePreviewBody(capturedBody(T000_ROWS3));
+    const text = renderPreview(
+      { table: "T000", columns, rows, messages, rowsRequested: 5, moreRowsExist: false },
+      5,
+      20_000,
+    ).text;
+    expect(text).not.toContain("STATEMENT");
+    expect(text).not.toContain("sent:");
+  });
+
+  it("an EMPTY filtered result blames the where filter, not the entity, and points at STATEMENT", () => {
+    const empty: PreviewResult = {
+      table: "T000",
+      columns: [{ name: "MANDT", type: "C", length: 3, key: false }],
+      rows: [],
+      rowsRequested: 20,
+      moreRowsExist: false,
+      messages: [],
+      statement: "SELECT *\nFROM T000\nWHERE MANDT = '999'",
+    };
+    const text = renderPreview(empty, 20, 20_000).text;
+    expect(text).toContain("EMPTY: no row in T000 matched the where filter");
+    expect(text).toContain("rendered statement is in STATEMENT above");
+    expect(text).not.toContain("was read successfully");
+  });
+
+  it("an EMPTY unfiltered result keeps the original 'read successfully' wording", () => {
+    const empty: PreviewResult = {
+      table: "ZEMPTY",
+      columns: [{ name: "X", type: "C", key: false }],
+      rows: [],
+      rowsRequested: 5,
+      moreRowsExist: false,
+      messages: [],
+    };
+    const text = renderPreview(empty, 5, 20_000).text;
+    expect(text).toContain("EMPTY: ZEMPTY exists and was read successfully");
+  });
+
+  it("the INCOMPLETE note mentions order_by/gt paging and states there is no offset parameter", () => {
+    const incomplete: PreviewResult = {
+      table: "T000",
+      columns: [{ name: "MANDT", type: "C", length: 3, key: false }],
+      rows: [["000"]],
+      rowsRequested: 1,
+      moreRowsExist: true,
+      messages: [],
+      statement: "SELECT *\nFROM T000",
+      totalRows: 5,
+    };
+    const text = renderPreview(incomplete, 1, 20_000).text;
+    expect(text).toContain("INCOMPLETE");
+    expect(text).toContain("no offset/paging parameter");
+    expect(text).toContain("adding a `gt` `where` condition");
+    expect(text).toContain("5 row(s) actually match");
   });
 });
 

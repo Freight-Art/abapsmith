@@ -62,7 +62,12 @@ import type { AbapConnection } from "../src/adt/connection.js";
 import type { SessionPool } from "../src/adt/pool.js";
 import type { PreviewResult } from "../src/adt/datapreview.js";
 import { previewDdicEntity } from "../src/adt/datapreview.js";
-import { registerDataPreviewTools, type DataPreviewToolDeps } from "../src/tools/data-preview.js";
+import { PREVIEW_OPS } from "../src/adt/datapreview-filter.js";
+import {
+  DataPreviewInput,
+  registerDataPreviewTools,
+  type DataPreviewToolDeps,
+} from "../src/tools/data-preview.js";
 import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
 
 // `previewDdicEntity` is the network. Mocked so the handler's own three steps
@@ -470,7 +475,19 @@ describe("control 2: the row ceiling", () => {
       cfg: { maxResponseChars: 60_000, dataPreviewMaxRows: 100 },
     });
     const schema = tools.get("abap_data_preview")!.config.inputSchema as Record<string, unknown>;
-    expect(Object.keys(schema).sort()).toEqual(["max_rows", "object", "table"]);
+    // Issue #73 genuinely added four schema keys (the structured filter), so
+    // this exact set legitimately grew — kept as an exact list, not a subset
+    // check, since its job is to catch an accidental `default:` or a
+    // silently added parameter.
+    expect(Object.keys(schema).sort()).toEqual([
+      "columns",
+      "distinct",
+      "max_rows",
+      "object",
+      "order_by",
+      "table",
+      "where",
+    ]);
     expect(JSON.stringify(schema)).not.toContain('"default"');
   });
 
@@ -855,6 +872,159 @@ describe("control 3: the deny-list", () => {
     // a local copy. Recorded, not fixed — see the note above.
     expect(isPreviewTableDenied("ZPA0008").denied).toBe(false);
     expect(isPreviewTableDenied("YBSEG_ARCHIVE").denied).toBe(false);
+  });
+});
+
+// ============================================================================
+// ISSUE #73 — structured filter: reaches previewDdicEntity intact, the three
+// controls above run in the same order with a filter present, an invalid
+// operator is refused before the handler runs at all, and the audit line
+// gains exactly two new fields (filtered=/total_rows=) and nothing else.
+// ============================================================================
+
+describe("issue #73 — the filter reaches previewDdicEntity, snake_case → camelCase", () => {
+  it("passes where/columns/order_by/distinct through as filter.where/columns/orderBy/distinct", async () => {
+    const h = harness({ ceiling: 100 });
+    await h.invoke({
+      table: "T000",
+      max_rows: 5,
+      where: [{ field: "mtext", op: "eq", value: "Walldorf" }],
+      columns: ["mandt", "mtext"],
+      order_by: [{ field: "mandt", direction: "desc" }],
+      distinct: true,
+    });
+    expect(previewMock.mock.calls[0]![1]).toEqual({
+      table: "T000",
+      maxRows: 5,
+      filter: {
+        where: [{ field: "mtext", op: "eq", value: "Walldorf" }],
+        columns: ["mandt", "mtext"],
+        orderBy: [{ field: "mandt", direction: "desc" }],
+        distinct: true,
+      },
+    });
+  });
+
+  it("an omitted filter field is a genuinely absent key on filter, not an explicit undefined", async () => {
+    // `toEqual` alone cannot prove this: it treats `{ columns: undefined }` as
+    // equal to `{}`. `Object.keys` is what actually distinguishes "never set"
+    // from "set to undefined" — and it is the object-spread construction in
+    // the handler (`...(a.columns === undefined ? {} : { columns: a.columns
+    // })`) that this test is really pinning.
+    const h = harness({ ceiling: 100 });
+    await h.invoke({ table: "T000", max_rows: 5, where: [{ field: "mtext", op: "eq", value: "x" }] });
+    const call = previewMock.mock.calls[0]![1] as { filter: Record<string, unknown> };
+    expect(Object.keys(call.filter).sort()).toEqual(["where"]);
+  });
+});
+
+describe("issue #73 — no filter arguments reaches previewDdicEntity in its pre-#73 shape", () => {
+  it("previewDdicEntity receives an input object with NO filter key at all — not filter: {}, not filter: undefined", async () => {
+    // The point: an unfiltered preview must be byte-identical to what
+    // previewDdicEntity received before issue #73 ({ table, maxRows }, no
+    // `filter` key whatsoever) — not merely an empty filter object, which
+    // would still be a gratuitous change to a call the issue is not supposed
+    // to touch.
+    const h = harness({ ceiling: 100 });
+    await h.invoke({ table: "T000", max_rows: 5 });
+    const call = previewMock.mock.calls[0]![1] as Record<string, unknown>;
+    expect(Object.keys(call).sort()).toEqual(["maxRows", "table"]);
+    expect(call).toEqual({ table: "T000", maxRows: 5 });
+  });
+});
+
+describe("issue #73 — gate order is unchanged when a filter is present", () => {
+  it("a denied table with a filter still costs zero reads and reports SAFETY_DENIED", async () => {
+    const h = harness({ poolIsBooby: true });
+    const err = errorPayload(
+      await h.invoke({ table: "USR02", max_rows: 5, where: [{ field: "BNAME", op: "eq", value: "X" }] }),
+    );
+    expect(err.error).toBe("SAFETY_DENIED");
+    expect(h.poolCalls).toEqual([]);
+    expect(previewMock).not.toHaveBeenCalled();
+  });
+
+  it("a productive system with a filter still costs zero reads and reports READ_ONLY", async () => {
+    const h = harness({ poolIsBooby: true, safety: openPreviewGate({ productive: true }) });
+    const err = errorPayload(await h.invoke({ table: "T000", max_rows: 5, distinct: true }));
+    expect(err.error).toBe("READ_ONLY");
+    expect(h.poolCalls).toEqual([]);
+    expect(previewMock).not.toHaveBeenCalled();
+  });
+
+  it("max_rows: 0 with a filter present is still BAD_INPUT before any read, filter or not", async () => {
+    const h = harness({ ceiling: 100 });
+    const err = errorPayload(await h.invoke({ table: "T000", max_rows: 0, columns: ["mandt"] }));
+    expect(err.error).toBe("BAD_INPUT");
+    expect(h.poolCalls).toEqual([]);
+    expect(previewMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("issue #73 — where.op is refused at the schema boundary (z.enum(PREVIEW_OPS))", () => {
+  // Same house pattern as `test/class-includes.test.ts`'s
+  // "[PENDING SIBLING MERGE] abap_write exposes `include`" describe: the
+  // exported zod object is parsed directly, with no server/transport in the
+  // loop, because the boundary being pinned is zod's own, not the handler's.
+  it("accepts every declared PREVIEW_OPS value", () => {
+    for (const op of PREVIEW_OPS) {
+      const where = op === "is_null" ? { field: "X", op } : { field: "X", op, value: op === "in" ? ["a", "b"] : "a" };
+      expect(DataPreviewInput.safeParse({ table: "T000", where: [where] }).success, op).toBe(true);
+    }
+  });
+
+  it("rejects an operator not in PREVIEW_OPS before the handler ever runs", () => {
+    const result = DataPreviewInput.safeParse({
+      table: "T000",
+      where: [{ field: "X", op: "regex", value: "a" }],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("issue #73 — audit line: filtered=/total_rows=, and no leakage of filter internals", () => {
+  it("filtered=true and total_rows=N appear when previewDdicEntity's result carries them", async () => {
+    previewMock.mockResolvedValueOnce(
+      previewResult({ statement: "SELECT * FROM T000 WHERE MANDT = '001'", totalRows: 3 }),
+    );
+    const h = harness({ ceiling: 100 });
+    await h.invoke({ table: "T000", max_rows: 5, where: [{ field: "mandt", op: "eq", value: "001" }] });
+    expect(h.audit).toHaveLength(1);
+    expect(h.audit[0]!).toContain("filtered=true");
+    expect(h.audit[0]!).toContain("total_rows=3");
+  });
+
+  it("filtered=false and total_rows is entirely absent on an unfiltered result", async () => {
+    const h = harness({ ceiling: 100 });
+    await h.invoke({ table: "T000", max_rows: 5 }); // default mock: no statement/totalRows
+    expect(h.audit[0]!).toContain("filtered=false");
+    expect(h.audit[0]!).not.toContain("total_rows=");
+  });
+
+  it("never logs the where clause's field name or value — only the fixed audit shape", async () => {
+    const h = harness({ ceiling: 100 });
+    await h.invoke({
+      table: "T000",
+      max_rows: 5,
+      where: [{ field: "MTEXT", op: "eq", value: "TOPSECRET_WALLDORF" }],
+    });
+    expect(h.audit[0]!).not.toContain("TOPSECRET_WALLDORF");
+    expect(h.audit[0]!).not.toContain("MTEXT");
+    expect(h.audit[0]!).not.toContain("where");
+  });
+});
+
+describe("issue #73 — the row-ceiling clamp still applies and is disclosed with a filter present", () => {
+  it("clamps down to the ceiling and discloses it, with the filter still forwarded intact", async () => {
+    const h = harness({ ceiling: 5 });
+    const text = okText(await h.invoke({ table: "T000", max_rows: 5000, columns: ["mandt", "mtext"] }));
+    expect(previewMock.mock.calls[0]![1]).toEqual({
+      table: "T000",
+      maxRows: 5,
+      filter: { columns: ["mandt", "mtext"] },
+    });
+    expect(text).toMatch(/CLAMPED/);
+    expect(text).toContain("5000");
   });
 });
 

@@ -46,10 +46,134 @@ under `read`).
 | `table` | string | one of table/object required | — | DDIC entity name, e.g. `"T000"` or `"/ACME/TAB"`. Must be a bare identifier, not a query. |
 | `object` | string | alias for `table` | — | Same as `table`; `table` wins if both are given. |
 | `max_rows` | number (int) | no | server ceiling | Rows to return. Clamped to the server's configured ceiling; the clamp is reported in the response. `0` is refused, never read as "unlimited." |
+| `where` | array of `{field, op, value}` | no | none — unfiltered read | Conditions are ANDed. `op` is one of `eq, ne, lt, le, gt, ge, like, in, is_null`. `value` is required for every op except `is_null` (which must omit it), and is an array only for `in`. |
+| `columns` | array of string | no | every column | Restrict the projection to these fields. |
+| `order_by` | array of `{field, direction}` | no | none | `direction` is `asc` (default) or `desc`. |
+| `distinct` | boolean | no | `false` | Adds `SELECT DISTINCT`. |
 
-There is deliberately no free-form filter/WHERE parameter anywhere on this
-tool. Requests against a deny-listed table are refused before any network
-call; deny-listed tables fall into four categories — credentials/security,
+This tool still takes no SQL text from a caller. `where`/`columns`/`order_by`
+are a structured filter, built from field names and typed values, not a
+query string — there is no way to pass a raw `WHERE` clause or expression.
+
+### Two shapes of request
+
+An **unfiltered call** (none of `where`, `columns`, `order_by`, `distinct`
+set) is unchanged from before: one POST to the `ddic` endpoint
+(`/sap/bc/adt/datapreview/ddic?ddicEntityName=…&rowNumber=N`), which returns
+N+1 rows — the extra row is the server's own signal that more rows exist,
+not an off-by-one.
+
+A **filtered call** (any of those four fields set) issues two requests.
+First, a one-row probe against the same `ddic` endpoint, used only to obtain
+the entity's authoritative column list — include-flattened, with the true
+wire type code per column; the probe's rows are discarded. Second, a
+compiled Open SQL `SELECT` against
+`/sap/bc/adt/datapreview/freestyle?rowNumber=N`, built from that column list
+plus `where`/`columns`/`order_by`/`distinct`.
+
+### Validation is against the server's column list, not the DDIC source
+
+Field names in `where`, `columns`, and `order_by` are checked against the
+column list the probe returned, not against what `abap_read` reports for the
+same entity's DDIC source. Table TB003 is the reason this matters:
+`abap_read` reports 6 fields plus an `include si_tb003aba`, while the
+preview endpoint's own column list has 7 entries, including `BPVIEW`, which
+comes from that include. Validating against the DDIC source would refuse a
+valid field — and it has no answer at all for a DDIC view or a CDS view,
+neither of which has a "source field list" in the same sense. An unknown
+field, an unknown `op`, or a malformed `value` is refused with `BAD_INPUT`.
+Cost differs: an unknown operator or a malformed shape is caught before any
+request — zero wire cost; an unknown field is only known after the probe, so
+it costs that one request.
+
+### Values are typed literals, never concatenated text
+
+Each `value` is rendered as a typed literal, chosen from the column's wire
+type code — never pasted into the statement as text:
+
+- Integer types: unquoted.
+- Packed/float types: quoted — an unquoted decimal is a syntax error on this
+  release.
+- `D` (date): accepts `YYYYMMDD` or `YYYY-MM-DD`, normalised and quoted.
+- `T` (time): accepts `HHMMSS` or `HH:MM:SS`, normalised and quoted.
+- Everything else: quoted, with an embedded single quote doubled.
+
+`= 'Walldorf''s'` compiles and returns zero rows rather than injecting
+anything into the statement — proven live, not just asserted.
+
+`like` takes an SQL pattern: `%` matches any run of characters, `_` matches
+exactly one, and `#` is the escape character (so `#%` means a literal `%`,
+not "any character then percent"). The statement is rendered with
+`ESCAPE '#'`.
+
+### Refusals decided before the wire call
+
+Three checks run before the freestyle request is issued:
+
+- `like` on a field whose wire type is not character-like — the server's own
+  message is "A LIKE condition can only be used with character-like fields."
+- `distinct: true` together with an `order_by` field that is absent from
+  `columns` — the server's wording for that shape is "is missing in the
+  SELECT list," reported by this tool before the statement is ever compiled.
+- A `where` condition on the client field — refused with the compiler's own
+  reasoning, "Client handling is performed by the compiler": the read is
+  already scoped to the logon client, so naming it again is redundant, not
+  extra-narrowing.
+
+Ordering by a column that is not in `columns` is fine as long as `distinct`
+is not set.
+
+### No offset, no paging parameter
+
+The freestyle endpoint has no offset/paging parameter, filtered or not.
+Paging is keyset only: order by a key field, and add a `gt` condition on the
+last value seen on the previous page.
+
+### What the response carries
+
+The response echoes the rendered `SELECT` it sent and, when the server
+supplies one, the server's own `executedQueryString`. On the filtered path
+only, the response also carries the server's `totalRows` — the true number
+of matching rows, independent of the `max_rows` cap.
+
+### Worked examples
+
+```json
+{
+  "table": "TB003",
+  "where": [{ "field": "ROLECATEGORY", "op": "eq", "value": "BUP001" }],
+  "columns": ["ROLE", "ROLECATEGORY"],
+  "order_by": [{ "field": "ROLE" }]
+}
+```
+
+An unknown field is refused before the freestyle request is even built:
+
+```json
+{ "table": "TB003", "where": [{ "field": "NOT_A_REAL_FIELD", "op": "eq", "value": "X" }] }
+```
+→ `BAD_INPUT`: `NOT_A_REAL_FIELD` is not a column the preview endpoint
+reports for `TB003`.
+
+### Verification status
+
+The SQL layer above — every literal-rendering rule, `LIKE … ESCAPE '#'`
+including an escaped wildcard, `IN (...)` including a list wrapped across
+lines, `IS NULL`, `SELECT DISTINCT` with and without a projection,
+multi-field `ORDER BY … ASCENDING/DESCENDING`, and the three pre-wire
+refusals — was live-verified on A4H (SAP NetWeaver AS ABAP 7.5x appliance,
+client 001) on 2026-09-12: each shape was written into a `$TMP` report and
+syntax-checked and executed through ADT. Filtering TB003 on
+`ROLECATEGORY = 'BUP001'` returned exactly one row. The filtered HTTP
+exchange through abapsmith's own code — the probe request, the freestyle
+request, and the response shape this tool actually returns to a caller — is
+**unverified**: the MCP server available for that verification run was the
+released bundle, not this branch, and no released tool exposes arbitrary
+freestyle SQL, so the round trip could not be captured as a cassette.
+
+Requests against a deny-listed table are refused before any network call —
+unchanged, and this applies to filtered and unfiltered calls alike;
+deny-listed tables fall into four categories — credentials/security,
 payroll/HR, accounting documents, and personal data. Not every DDIC entity
 kind qualifies for a preview at all: help views, structures, append
 structures, CDS table functions, abstract entities, and parameterised CDS
