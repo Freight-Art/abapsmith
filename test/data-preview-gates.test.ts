@@ -344,7 +344,12 @@ describe("control 1: off by default", () => {
   it("the tool IS present on a read-only server once the grant is on", async () => {
     const names = await toolNames(cfg({ allowDataPreview: true }));
     expect(names.has("abap_data_preview")).toBe(true);
-    expect(names.has("abap_write")).toBe(false);
+    // `abap_write` is now ALSO present here — as a locked refusal stub, not
+    // the real tool (issue #63: a read-only server advertises every
+    // mutating tool by name and refuses it explicitly, instead of silently
+    // omitting it). Unaffected by `allowDataPreview`, which this test is
+    // actually about — see `src/tools/locked.ts`.
+    expect(names.has("abap_write")).toBe(true);
   });
 });
 

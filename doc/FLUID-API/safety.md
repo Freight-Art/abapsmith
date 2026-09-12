@@ -10,7 +10,15 @@ gate would otherwise refuse — the gate is still the last word.
    Refusal: `FLUID_API_DISABLED`.
 2. **Read-only, in any of the five senses of [README.md](README.md)**,
    for every op — not only `run`. Refusal: `FLUID_API_DISABLED`, naming
-   the deciding field.
+   the deciding field. This step describes the real, registered tool. On
+   a v1 server, the two statically-known senses (`ABAP_MODE=read`, legacy
+   `readOnly`) never actually reach this step — the server instead
+   registers a mode-locked refusal stub under the `abap_fluid` name at
+   startup, which refuses every call with `READ_ONLY` instead (case 4 in
+   `doc/TOOLS/availability-and-capabilities.md`; `src/tools/locked.ts`,
+   issue #63). The other three senses (productive system, `systemRole`,
+   role-probe failure) are only known once connected, so they still reach
+   the real tool and this step's `FLUID_API_DISABLED` refusal.
 3. **Plugin?** `ABAP_ALLOW_FLUID_PLUGINS` must be on. Refusal:
    `FLUID_PLUGINS_DISABLED`.
 4. **Plugin action with `category: "mutate"`?** `ABAP_ALLOW_FLUID_PLUGIN_MUTATE`
@@ -214,7 +222,7 @@ and undo support, so nothing is double-journalled.
 
 | Code | Raised when |
 |---|---|
-| `FLUID_API_DISABLED` | `ABAP_FLUID_API` is off, or abapsmith is read-only in any of the five senses of [README.md](README.md). Carries a `reason` discriminator, `"flag"` or `"read-only"`, and the deciding `field`. |
+| `FLUID_API_DISABLED` | `ABAP_FLUID_API` is off, or abapsmith is read-only in any of the five senses of [README.md](README.md). Carries a `reason` discriminator, `"flag"` or `"read-only"`, and the deciding `field`. On a v1 server this is the real tool's refusal; if the read-only sense is one of the two known at registration time (`ABAP_MODE=read`, legacy `readOnly`), `abap_fluid` is instead the mode-locked stub and refuses with `READ_ONLY`, not this code — see [README.md](README.md). |
 | `FLUID_PLUGINS_DISABLED` | A plugin tool is invoked while `ABAP_ALLOW_FLUID_PLUGINS` is off. |
 | `FLUID_PLUGIN_MUTATE_DISABLED` | A plugin `mutate` action is invoked while `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` is off, or without the required `confirm` echo. |
 | `FLUID_OBJECT_CONFLICT` | A reserved-prefix object is found in a package that is neither the fluid package nor a legacy package (`foreign`); a redeploy still does not match after one retry; a deployed object carries a provenance marker naming a newer abapsmith version than the one running (`newer`); or, at load time, two tools (built-in or plugin) claim the same ABAP object name. |

@@ -1,0 +1,31 @@
+{
+  "n": 850,
+  "label": "i64-quicksearch-generated-fm-missing",
+  "expect": "a present, generated FM (ENQUEUE_E_TABLE) is not indexed by quickSearch at all",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=ENQUEUE_E_TABLE&maxResults=25",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "109",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "462811.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 109,
+  "zeroByteBody": false,
+  "sha256": "8bd71d71ab3d970db382497df6b579b1c03cc311f1f8d61d2762950f895f53fc",
+  "utcTimestamp": "2026-09-12T09:35:24.415Z",
+  "durationMs": 5080,
+  "sessionName": "LIVE-I64"
+}

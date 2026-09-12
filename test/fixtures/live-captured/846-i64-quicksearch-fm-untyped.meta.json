@@ -1,0 +1,31 @@
+{
+  "n": 846,
+  "label": "i64-quicksearch-fm-untyped",
+  "expect": "untyped quickSearch: the FM row carries its group in adtcore:uri",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=BUP_ROLES_GET_ALL&maxResults=25",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "378",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "211342.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 378,
+  "zeroByteBody": false,
+  "sha256": "f865a1f5e25675aa0fc06f2b1c503df0fc8a4541d49501178b302eb4ce35d61a",
+  "utcTimestamp": "2026-09-12T09:30:13.477Z",
+  "durationMs": 340,
+  "sessionName": "LIVE-I64"
+}

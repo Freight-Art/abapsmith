@@ -10,7 +10,13 @@ straight through here.
 **Availability**: unlike `abap_img`, this is a real write and needs
 ordinary write access (`ABAP_MODE=edit` or higher). It deploys generated
 helper classes to run — see "Mechanism" below — so it is gated as a write
-on that deployment, the same way any other bridge-backed tool is.
+on that deployment, the same way any other bridge-backed tool is. Without
+write access, a read-only v1 server does not skip registering
+`abap_img_edit` — it registers a mode-locked refusal stub under the same
+name instead (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed with an empty schema, refuses every call `READ_ONLY` without
+deploying anything.
 
 ## The three things to read before using this
 
