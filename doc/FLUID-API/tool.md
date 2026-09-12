@@ -76,12 +76,19 @@ about the live system to answer honestly:
   system to find out what is really there.
 
 This is also why all three remain callable-in-principle even though, in
-practice, they are refused with `FLUID_API_DISABLED` on a read-only
-connection anyway: `README.md`'s "Read-only disables the whole feature"
-explains that refusal is about the fluid API's *precondition* (it cannot
-even answer "is this deployed" honestly without being able to deploy, since
-nothing in it is guaranteed pre-installed), not about these three ops
-individually needing write access to do their own zero-network work.
+practice, the real tool refuses them with `FLUID_API_DISABLED` when the
+system later proves read-only in one of the three runtime senses (a
+productive system, a tripped write lockout, a failed role probe):
+`README.md`'s "Read-only disables the whole feature" explains that refusal
+is about the fluid API's *precondition* (it cannot even answer "is this
+deployed" honestly without being able to deploy, since nothing in it is
+guaranteed pre-installed), not about these three ops individually needing
+write access to do their own zero-network work. On a v1 server that is
+read-only for a *mode* reason instead (`ABAP_MODE=read`, or legacy
+read-only config), `abap_fluid` is the mode-locked stub described in
+`doc/TOOLS/availability-and-capabilities.md`'s case 4 rather than this
+real tool, and it refuses every op — `list`/`describe`/`status` included —
+identically with `READ_ONLY`, not `FLUID_API_DISABLED`.
 
 ## `internal` tools and the route index
 

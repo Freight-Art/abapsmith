@@ -89,11 +89,17 @@ Example (dry-run delete):
 Release a transport request. Irreversible — a released request cannot be
 recalled and its changes leave this system.
 
-**Availability**: case 1 — registered only when `canReleaseTransport`
+**Availability**: the real, functional tool needs `canReleaseTransport`
 (`ABAP_MODE=admin` by default, or `edit` mode with the explicit override
 `ABAP_ALLOW_TRANSPORT_RELEASE=true`; legacy path: that same var plus
-`ABAP_ALLOW_WRITE=true`). Split into its own tool deliberately, so the one
-irreversible verb is not reachable by enum-fuzzing `abap_transport`.
+`ABAP_ALLOW_WRITE=true`). Without it, a read-only v1 server registers a
+mode-locked refusal stub under the same name instead of skipping
+registration (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md));
+its remediation names `ABAP_MODE=admin` specifically, not `edit`, since
+`edit` alone still would not grant release. Split into its own tool
+deliberately, so the one irreversible verb is not reachable by
+enum-fuzzing `abap_transport`.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|

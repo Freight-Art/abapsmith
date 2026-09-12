@@ -3,11 +3,15 @@
 Run ABAP Test Cockpit (ATC) static analysis on one object and return the
 findings: severity, source line, which check fired, and its message.
 
-**Availability**: case 1 — registered only when `canWrite`, and gated per
-call as an `execute` operation (so `ABAP_ALLOW_PACKAGES` and
-`ABAP_ALLOW_NAME_PREFIXES` apply). A read-only server does not have this tool
-at all. See "Why an ATC run is gated as a write" below — the reason is not
-that ATC changes your code, because it does not.
+**Availability**: gated per call as an `execute` operation (so
+`ABAP_ALLOW_PACKAGES` and `ABAP_ALLOW_NAME_PREFIXES` apply) once
+`canWrite` is on. Without `canWrite`, a read-only v1 server does not run
+the real tool — instead it registers a mode-locked refusal stub under the
+same name (case 4 in
+[availability-and-capabilities.md](availability-and-capabilities.md)):
+still listed, empty schema, refuses every call `READ_ONLY` without
+reaching SAP. See "Why an ATC run is gated as a write" below — the reason
+is not that ATC changes your code, because it does not.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|

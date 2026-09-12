@@ -12,6 +12,24 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-09-12
+
+### Fixed
+
+- On the v1 surface a read-only server (`ABAP_MODE=read`, or the legacy
+  `ABAP_ALLOW_WRITE` unset) no longer hides its write-gated tools, so a caller
+  no longer gets an MCP "Tool not found" for `abap_write`, `abap_run`,
+  `abap_test`, `abap_atc`, `abap_quick_fix`, `abap_ui`, `abap_fpm_read`,
+  `abap_img_edit`, `abap_bopf_test`, `abap_bopf_edit`, `abap_bopf_delete`,
+  `abap_transport_release` or `abap_fluid`. Each is registered as a locked
+  stub: empty schema, a description ending `LOCKED on this server: …`, and a
+  handler that returns a structured `READ_ONLY` refusal naming the current mode
+  and the lowest mode that unlocks the tool (`details.requiresMode`), with no
+  connection behind it so nothing reaches the SAP system. The v1 instructions
+  mention the count. v2 is unchanged; `abap_data_preview` with
+  `ABAP_ALLOW_DATA_PREVIEW` off stays absent because that is a flag, not a mode
+  (issue #63).
+
 ## [0.5.3] - 2026-09-12
 
 ### Fixed

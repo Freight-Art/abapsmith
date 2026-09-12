@@ -106133,6 +106133,141 @@ function registerJournalTools(mcp, deps) {
   );
 }
 
+// src/tools/locked.ts
+var MODE_LOCKED_TOOLS = [
+  {
+    name: "abap_write",
+    needs: ["allowWrite"],
+    summary: "Create, change or delete an ABAP object: save/check/activate."
+  },
+  {
+    name: "abap_run",
+    needs: ["allowWrite"],
+    summary: "Execute an IF_OO_ADT_CLASSRUN class or report and capture its output."
+  },
+  {
+    name: "abap_test",
+    needs: ["allowWrite"],
+    summary: "Run ABAP Unit tests and report each method's verdict."
+  },
+  {
+    name: "abap_atc",
+    needs: ["allowWrite"],
+    summary: "Run ABAP Test Cockpit static analysis on an object."
+  },
+  {
+    name: "abap_quick_fix",
+    needs: ["allowWrite"],
+    summary: "List and apply ADT quick fixes at one source position."
+  },
+  {
+    name: "abap_ui",
+    needs: ["allowWrite"],
+    summary: "Drive classic SAP dynpro screens via batch input: read one screen, or run a scripted transaction."
+  },
+  {
+    name: "abap_fpm_read",
+    needs: ["allowWrite"],
+    summary: "Read SAP FPM/FBI screen configurations; every call deploys a throwaway bridge class."
+  },
+  {
+    name: "abap_img_edit",
+    needs: ["allowWrite"],
+    summary: "Preview and write IMG/customizing table rows."
+  },
+  {
+    name: "abap_bopf_test",
+    needs: ["allowWrite"],
+    summary: "Run a BOPF business object end to end, writing real rows."
+  },
+  {
+    name: "abap_bopf_edit",
+    needs: ["allowWrite"],
+    summary: "Make one design-time edit to a BOPF business object, or create one."
+  },
+  {
+    name: "abap_bopf_delete",
+    needs: ["allowWrite"],
+    summary: "Delete a BOPF business object."
+  },
+  {
+    name: "abap_transport_release",
+    needs: ["allowWrite", "allowTransportRelease"],
+    summary: "Release one CTS transport request \u2014 irreversible."
+  },
+  {
+    name: "abap_fluid",
+    needs: ["allowWrite"],
+    summary: "Deploy and run small generated ABAP tools inside $ABAPSMITH_FLUID_API.",
+    // Mirrors `resolveStaticCapabilities`'s `canUseFluidApi` gate
+    // (`cfg.fluidApi && !cfg.readOnly && cfg.abapMode !== "read"`) for the
+    // `fluidApi` slice of it: `Config["fluidApi"]` (via `boolishRejectDefaultTrue`
+    // in src/config.ts) is always a resolved `boolean`, defaulting to `true`,
+    // never `undefined` — so the precondition is a plain truthiness check,
+    // not an `undefined` check.
+    availableWhen: (cfg) => cfg.fluidApi
+  }
+];
+function lockedToolsFor(cfg) {
+  if (cfg.toolSurface !== "v1" || cfg.readOnly !== true) return [];
+  return MODE_LOCKED_TOOLS.filter((tool) => tool.availableWhen === void 0 || tool.availableWhen(cfg));
+}
+function lockedToolRequiresMode(tool) {
+  return lowestModeSatisfying(
+    (caps) => tool.needs.every((c) => capabilityGranted(caps, c))
+  );
+}
+function lockedToolExplanation(tool, abapMode) {
+  if (tool.needs.length === 1) {
+    const need = tool.needs[0];
+    if (need === void 0) {
+      throw new AbapError("INTERNAL_GATE_MISUSE", `${tool.name} declares no capability needs.`, {
+        tool: tool.name
+      });
+    }
+    const { cause, remediation } = explainDeniedCapability(need, abapMode);
+    return { cause, remediation };
+  }
+  return explainDeniedCapabilities(tool.needs, abapMode);
+}
+function lockedToolRefusal(tool, abapMode) {
+  const { cause, remediation } = lockedToolExplanation(tool, abapMode);
+  const message = `${tool.name} is registered but locked at this permission level. ${cause} Nothing was sent to the SAP system.`;
+  return new AbapError(
+    "READ_ONLY",
+    message,
+    {
+      tool: tool.name,
+      locked: true,
+      abapMode: abapMode ?? null,
+      requiresMode: lockedToolRequiresMode(tool) ?? null,
+      capabilities: [...tool.needs]
+    },
+    remediation
+  );
+}
+function lockedToolDescription(tool, abapMode) {
+  const { cause, remediation } = lockedToolExplanation(tool, abapMode);
+  return `${tool.summary} LOCKED on this server: ${cause} ${remediation} Calling it returns a refusal and sends nothing to the SAP system.`;
+}
+function registerLockedTools(mcp, deps) {
+  for (const tool of deps.tools) {
+    mcp.registerTool(
+      tool.name,
+      {
+        description: lockedToolDescription(tool, deps.cfg.abapMode),
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
+        }
+      },
+      async () => deps.errorResult(lockedToolRefusal(tool, deps.cfg.abapMode))
+    );
+  }
+}
+
 // src/tools/open-url.ts
 var HTML_UNSUPPORTED_KINDS = /* @__PURE__ */ new Set(["DTEL", "DOMA", "TTYP"]);
 var openUrlInputSchema = {
@@ -133495,13 +133630,13 @@ function packageScopeSentence(readOnly, allowPackages) {
   }
   return `ABAP_ALLOW_PACKAGES is [${allowPackages.join(", ")}] here, so only those packages are writable; unset allows every customer package, and an empty value refuses every write.`;
 }
-function instructionsFor(toolSurface, abapMode, readOnly, allowPackages, fluidAvailable = false) {
+function instructionsFor(toolSurface, abapMode, readOnly, allowPackages, fluidAvailable = false, lockedToolCount = 0) {
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   if (toolSurface === "v2") {
     return `Access to an SAP ABAP system over ADT, via 6 tools. EXPERIMENTAL SURFACE \u2014 not supported for production use; known defects are not being fixed while it holds this status. Prefer the v1 surface for anything that matters. Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
   }
-  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "");
+  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "");
 }
 function describeStartupProbeFailure(e) {
   if (isAbapError(e)) return { code: e.code, message: e.message, hint: e.hint };
@@ -133558,6 +133693,7 @@ function createServer(cfg, opts) {
     abapMode: cfg.abapMode
   });
   const toolCapabilities = resolveStaticCapabilities(cfg);
+  const lockedTools = lockedToolsFor(cfg);
   const transport = new SessionTransport({
     allowTransports: cfg.allowTransports,
     whoami: () => cfg.user,
@@ -133585,7 +133721,8 @@ function createServer(cfg, opts) {
         cfg.abapMode,
         cfg.readOnly,
         cfg.allowPackages,
-        toolCapabilities.canUseFluidApi
+        toolCapabilities.canUseFluidApi,
+        lockedTools.length
       )
     }
   );
@@ -133719,6 +133856,7 @@ function createServer(cfg, opts) {
         toolSet: opts.fluidToolSet ?? builtinFluidToolSet(BUILTIN_FLUID_TOOLS)
       });
     }
+    registerLockedTools(mcp, { cfg, errorResult, tools: lockedTools });
   } else {
     const v2Mode = cfg.abapMode ?? "read";
     registerV2Tools(mcp, {

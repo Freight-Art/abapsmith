@@ -103,7 +103,14 @@ disables `abap_fluid`'s registration entirely (`src/server.ts:708-719`).
 Its reach does not stop there: with `ABAP_FLUID_API=false` and an otherwise
 write-capable session —
 
-- `abap_fluid` is not registered at all;
+- `abap_fluid` is not registered at all — genuinely absent, not a locked
+  stub. (On a v1 server that is read-only for a *mode* reason instead —
+  `ABAP_MODE=read` or legacy read-only config — with `ABAP_FLUID_API` left
+  on, `abap_fluid` is not absent: it is registered as a mode-locked refusal
+  stub under its real name; see
+  [TOOLS/availability-and-capabilities.md](../TOOLS/availability-and-capabilities.md)'s
+  case 4. The two are independent gates on the same tool name — this
+  bullet is specifically about the flag being off, not about read-only.)
 - these stay registered but refuse at call time with `FLUID_API_DISABLED`:
   `abap_fpm_read`, `abap_ui` (`mode=screen` and `mode=press`),
   `abap_bopf_test`, `abap_run` report/class execution, `abap_img_edit` apply
