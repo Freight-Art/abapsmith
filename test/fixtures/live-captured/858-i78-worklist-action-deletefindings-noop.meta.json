@@ -1,0 +1,31 @@
+{
+  "n": 858,
+  "label": "i78-worklist-action-deletefindings-noop",
+  "note": "POST \u2026?action=deleteFindings, the action ADT discovery advertises as rel=\"http://www.sap.com/adt/atc/relations/actions/deleteFindings\", answers 200 with a zero-byte body and leaves the worklist's findings unchanged afterwards. Server source shows CL_SATC_ADT_RES_WORKLIST->post returns immediately when the URI carries a worklist id, and the lcl_handler_delete_findings implementation in its CCIMP include is commented out in its entirety, so the advertised action is a no-op, not a cleanup.",
+  "requestMethod": "POST",
+  "requestUrl": "/sap/bc/adt/atc/worklists/466F46C806601FE1ABD7F225A1B94069?action=deleteFindings",
+  "requestHeaders": {
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "requestBodyBytes": 0,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-length": "0",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "11260.000000",
+    "connection": "close"
+  },
+  "byteLength": 0,
+  "zeroByteBody": true,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "utcTimestamp": "2026-09-12T15:47:24.106024Z",
+  "durationMs": 180,
+  "sessionName": "I78",
+  "capturedBy": "Standalone python ADT probe (urllib + cookiejar) driven against the A4H sandbox appliance for issue #78's ATC completeness work. REAL wire recording, not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the probe's own session-management code and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host is deliberately not recorded, and neither is the sap-client parameter (001) the probe sent."
+}

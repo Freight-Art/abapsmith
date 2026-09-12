@@ -1,32 +1,34 @@
 /**
  * `src/adt/atc-xml.ts` — ATC response parsing.
  *
- * ## Every document in this file is SYNTHETIC. It is not a recording.
+ * ## Two kinds of document in this file: real captures, and synthetic doubles.
  *
- * `doc/TESTING/README.md` and `CONTRIBUTING.md` are explicit that a fixture stops
- * being a check against reality the moment it is invented, so none of the XML
- * below is presented as a capture and none of it lives under `test/fixtures/`.
- * There are no ATC captures anywhere in this repo, and none in `abap-adt-api`
- * either — its ATC tests are live-only and record nothing.
+ * Real captures now exist, under `test/fixtures/live-captured/`, recorded
+ * against an A4H appliance — see that module's docblock for which file backs
+ * which shape. Those tests are read straight off the fixture with
+ * `readFileSync` (idiom shared with `test/tools-atc.test.ts`) and assert the
+ * concrete values the server actually sent, not values chosen to be
+ * convenient.
  *
- * These documents are **doubles built to the shape `abap-adt-api` v8.4.1's ATC
- * client reads** (`build/api/atc.js`) and validates with io-ts
- * (`build/api/atc.d.ts`). That decoder is the strongest offline evidence
- * available for the attribute names: it runs on every response that library
- * parses, so a wrong required field in it would have broken its users. It is
- * still not the same thing as having seen a server's bytes.
- *
- * So what these tests prove is: **given a document of that shape, this parser
- * extracts these values.** They do not prove SAP emits that shape. What a live
- * run would settle is listed in `doc/TOOLS/abap-atc.md`; the specific unknowns exercised
- * here and flagged in-place are the `<info>` element-vs-attribute shape and
- * whether `objectSetIsComplete` is always present.
+ * The `SYNTHETIC` constants below remain useful for cases a live capture
+ * cannot cheaply produce (a document with an intentionally missing root, a
+ * one-element collection collapsing hazard forced by hand) or that no capture
+ * happens to exercise yet — each is still marked at its site, and
+ * `doc/TESTING/README.md`/`CONTRIBUTING.md`'s point stands: a fixture stops
+ * being a check against reality the moment it is invented, so these stay
+ * inline, not under `test/fixtures/`, and are never presented as captures.
+ * Originally they were built to the shape `abap-adt-api` v8.4.1's ATC client
+ * reads (`build/api/atc.js`, `build/api/atc.d.ts`); real captures now confirm
+ * most of that shape directly.
  *
  * The tests that carry real weight regardless of provenance are the ones about
  * TYPE COERCION — zero-padded ids surviving as strings, one-element collections
  * not collapsing to objects. Those are properties of `fast-xml-parser`, not of
  * SAP, and they hold whatever the server sends.
  */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   countFindings,
@@ -34,10 +36,19 @@ import {
   parseAtcCustomizing,
   parseAtcRunAck,
   parseAtcWorklist,
+  parseCheckVariantList,
   systemCheckVariant,
 } from "../src/adt/atc-xml.js";
 import { SYSTEM_CHECK_VARIANT_PROPERTY } from "../src/adt/atc-query.js";
 import { isAbapError } from "../src/adt/errors.js";
+
+const LIVE_FIXTURES = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "fixtures",
+  "live-captured",
+);
+const readLiveFixture = (name: string): string =>
+  readFileSync(join(LIVE_FIXTURES, name), "utf8");
 
 // ------------------------------------------------------- synthetic doubles ---
 
@@ -452,5 +463,246 @@ describe("countFindings", () => {
       other: 0,
       exempted: 0,
     });
+  });
+});
+
+// =========================================================== live captures ===
+// Real ADT responses from an A4H appliance, `test/fixtures/live-captured/`.
+
+describe("live capture: 439-atc2-worklist-read.xml (worklist, one finding)", () => {
+  const w = parseAtcWorklist(readLiveFixture("439-atc2-worklist-read.xml"));
+
+  it("reads the root attributes", () => {
+    expect(w.id).toBe("1A2263E0A4E31FE1A3B02FDDF4887650");
+    expect(w.timestamp).toBe("2026-08-01T08:18:09Z");
+    expect(w.usedObjectSet).toBe("99999999999999999999999999999999");
+    expect(w.objectSetIsComplete).toBe(true);
+  });
+
+  it("reads both object sets (ALL and LAST_RUN)", () => {
+    expect(w.objectSets).toEqual([
+      { name: "00000000000000000000000000000000", title: "All Objects", kind: "ALL" },
+      {
+        name: "99999999999999999999999999999999",
+        title: "Last Check Run",
+        kind: "LAST_RUN",
+      },
+    ]);
+  });
+
+  it("reads the one object and its one finding without collapsing to bare objects", () => {
+    expect(w.objects).toHaveLength(1);
+    const obj = w.objects[0]!;
+    expect(obj.name).toBe("ZMCP_ATC_PROBE2");
+    expect(obj.type).toBe("PROG");
+    expect(obj.packageName).toBe("$TMP");
+    expect(obj.author).toBe("DEVELOPER");
+    expect(obj.objectTypeId).toBe("PROG/P");
+    expect(obj.findings).toHaveLength(1);
+  });
+
+  it("reads the finding's fields, including the documentation link", () => {
+    const f = w.objects[0]!.findings[0]!;
+    expect(f.uri).toBe(
+      "/sap/bc/adt/atc/findings/itemid/1A2263E0A4E31FE1A3B030D34A99D650/index/3",
+    );
+    expect(f.priority).toBe(2);
+    expect(f.checkId).toBe("F8607CD40A0F8B30BDF8590205B306E8");
+    expect(f.checkTitle).toBe("Extended Program Check (SLIN)");
+    expect(f.messageId).toBe("0800");
+    expect(f.messageTitle).toBe("The line contains a BREAK-POINT statement.");
+    expect(f.exemptionKind).toBe("");
+    expect(f.exemptionApproval).toBe("");
+    expect(f.quickfixInfo).toBe("atc:1A2263E0A4E31FE1A3B030D34A99D650,3");
+    expect(f.documentationUri).toBe(
+      "/sap/bc/adt/documentation/atc/documents/itemid/1A2263E0A4E31FE1A3B030D34A99D650/index/3",
+    );
+  });
+
+  it("has no <quickfixes> element on this release, so quickFixes is absent", () => {
+    expect(w.objects[0]!.findings[0]!.quickFixes).toBeUndefined();
+  });
+});
+
+describe("live capture: 854-i78-worklist-read-two-packages.xml (29 findings, 5 objects, 2 packages)", () => {
+  const w = parseAtcWorklist(
+    readLiveFixture("854-i78-worklist-read-two-packages.xml"),
+  );
+
+  it("has no root timestamp on this response", () => {
+    expect(w.timestamp).toBeUndefined();
+  });
+
+  it("reads all 5 objects with their package names", () => {
+    expect(w.objects).toHaveLength(5);
+    expect(w.objects.map((o) => [o.name, o.packageName])).toEqual([
+      ["ZCL_PUBLISH_SRVB_LOCALLY", "Z_FLIGHT_REF_PREP"],
+      ["ZCL_UPG_SU_BADI_CH_MU", "Z_UPG_BADI_IMPL"],
+      ["Z_UPG_SINGLEUSE_BADI_FALLBACK", "Z_UPG_BADI_IMPL"],
+      ["Z_UPG_SINGLEUSE_BADI_CHANGE_MU", "Z_UPG_BADI_IMPL"],
+      ["Z_UPG_SINGLEUSE_BADI_FALLBACK", "Z_UPG_BADI_IMPL"],
+    ]);
+  });
+
+  it("reads a CLAS object's type without the /OC suffix", () => {
+    expect(w.objects[0]!.type).toBe("CLAS");
+  });
+
+  it("reads a finding's documentation link", () => {
+    const f = w.objects[0]!.findings[0]!;
+    expect(f.documentationUri).toBe(
+      "/sap/bc/adt/documentation/atc/documents/itemid/466F46C806601FE1ABD7F79173A2C069/index/14",
+    );
+  });
+
+  it("reads quickFixes as present but all false, with any computed false", () => {
+    for (const obj of w.objects) {
+      for (const f of obj.findings) {
+        expect(f.quickFixes).toEqual({
+          manual: false,
+          automatic: false,
+          pseudo: false,
+          aiBased: false,
+          aiEnabled: false,
+          any: false,
+        });
+        // quickfixInfo is a different claim and stays present regardless.
+        expect(f.quickfixInfo).toBeDefined();
+      }
+    }
+  });
+
+  it("flattens and counts all 29 findings across the whole document", () => {
+    const flat = flattenFindings(w);
+    expect(flat).toHaveLength(29);
+    const counts = countFindings(flat);
+    expect(counts).toEqual({
+      total: 29,
+      errors: 19,
+      warnings: 0,
+      infos: 10,
+      other: 0,
+      exempted: 0,
+    });
+  });
+});
+
+describe("live capture: 855-i78-worklist-read-lastrun-empty.xml (empty worklist, five object sets)", () => {
+  const w = parseAtcWorklist(
+    readLiveFixture("855-i78-worklist-read-lastrun-empty.xml"),
+  );
+
+  it("reads zero objects, not a failure", () => {
+    expect(w.objects).toEqual([]);
+    expect(flattenFindings(w)).toEqual([]);
+  });
+
+  it("reads all five object sets, three of them PACKAGE", () => {
+    expect(w.objectSets).toHaveLength(5);
+    const packageSets = w.objectSets.filter((s) => s.kind === "PACKAGE");
+    expect(packageSets).toHaveLength(3);
+    expect(w.objectSets.map((s) => s.kind)).toEqual([
+      "ALL",
+      "LAST_RUN",
+      "PACKAGE",
+      "PACKAGE",
+      "PACKAGE",
+    ]);
+  });
+
+  it("reports objectSetIsComplete true", () => {
+    expect(w.objectSetIsComplete).toBe(true);
+  });
+});
+
+describe("live capture: 856-i78-worklist-read-variant2.xml (5 findings, one PROG object)", () => {
+  const w = parseAtcWorklist(readLiveFixture("856-i78-worklist-read-variant2.xml"));
+
+  it("reads the one object and all 5 findings", () => {
+    expect(w.objects).toHaveLength(1);
+    const obj = w.objects[0]!;
+    expect(obj.name).toBe("Z_TMP_DEL");
+    expect(obj.type).toBe("PROG");
+    expect(obj.findings).toHaveLength(5);
+  });
+});
+
+describe("live capture: 852-i78-checkvariants-quicksearch.xml (parseCheckVariantList)", () => {
+  const variants = parseCheckVariantList(
+    readLiveFixture("852-i78-checkvariants-quicksearch.xml"),
+  );
+
+  it("returns all 19 variants in the server's order", () => {
+    expect(variants).toHaveLength(19);
+    expect(variants[0]).toEqual({
+      name: "ABAP_CLEAN_CORE_DEVELOPMENT",
+      uri: "/sap/bc/adt/atc/checkvariants/abap_clean_core_development",
+      description: "Variant for clean core development",
+      packageName: "SYCM_3TIER_MODEL",
+    });
+  });
+
+  it("includes ZABAP_CLOUD_DEVELOPMENT with its uri/description/packageName", () => {
+    const zabap = variants.find((v) => v.name === "ZABAP_CLOUD_DEVELOPMENT");
+    expect(zabap).toEqual({
+      name: "ZABAP_CLOUD_DEVELOPMENT",
+      uri: "/sap/bc/adt/atc/checkvariants/zabap_cloud_development",
+      description: "Default ATC variant for ABAP Cloud Development",
+      packageName: "$TMP",
+    });
+  });
+
+  it("filters out a row whose type is not CHKV (SYNTHETIC row appended to a real document)", () => {
+    // The real 852 capture has no non-CHKV rows — this exercises the filter
+    // that makes the result trustworthy if quickSearch is ever broadened.
+    const real = readLiveFixture("852-i78-checkvariants-quicksearch.xml");
+    const withExtra = real.replace(
+      "</adtcore:objectReferences>",
+      '<adtcore:objectReference adtcore:uri="/sap/bc/adt/oo/classes/zcl_foo" ' +
+        'adtcore:type="CLAS/OC" adtcore:name="ZCL_FOO"/></adtcore:objectReferences>',
+    );
+    const mixed = parseCheckVariantList(withExtra);
+    expect(mixed).toHaveLength(19);
+    expect(mixed.some((v) => v.name === "ZCL_FOO")).toBe(false);
+  });
+
+  it("does not throw on an empty list", () => {
+    const empty = parseCheckVariantList(
+      '<adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core"/>',
+    );
+    expect(empty).toEqual([]);
+  });
+
+  it("refuses a document with no objectReferences root", () => {
+    try {
+      parseCheckVariantList('<adtcore:somethingElse xmlns:adtcore="x"/>');
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      expect(isAbapError(e) && e.code).toBe("ADT_ERROR");
+    }
+  });
+});
+
+describe("live capture: 859-i78-atc-customizing.xml (parseAtcCustomizing)", () => {
+  it("reads systemCheckVariant as ZABAP_CLOUD_DEVELOPMENT", () => {
+    const c = parseAtcCustomizing(readLiveFixture("859-i78-atc-customizing.xml"));
+    expect(systemCheckVariant(c, SYSTEM_CHECK_VARIANT_PROPERTY)).toBe(
+      "ZABAP_CLOUD_DEVELOPMENT",
+    );
+  });
+});
+
+describe("live capture: 853-i78-run-two-packages.xml (parseAtcRunAck)", () => {
+  it("reads the worklist id, timestamp, and both infos", () => {
+    const ack = parseAtcRunAck(readLiveFixture("853-i78-run-two-packages.xml"));
+    expect(ack.worklistId).toBe("466F46C806601FE1ABD795A0C0B5C069");
+    expect(ack.timestamp).toBe("2026-09-12T15:48:31Z");
+    expect(ack.infos).toEqual([
+      {
+        type: "TOOL_FAILURE",
+        description: "Check not executable, due to missing prerequisites",
+      },
+      { type: "FINDING_STATS", description: "32,0,47" },
+    ]);
   });
 });

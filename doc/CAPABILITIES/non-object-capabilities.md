@@ -5,7 +5,7 @@
 | Debugger | n/a | yes | no | n/a | n/a | live | Breakpoints are set and cleared as part of a session; variables can be read but never written, and the frame cursor moves the read position only. |
 | Breakpoints | yes | yes | no | yes | n/a | live | Armed only as part of starting a session, deleted only when it ends, and only ones this session created. No standalone list or remove. `skipCount` is accepted by the server and not enforced, so expect a stop on every hit. |
 | ABAP Unit | n/a | yes | n/a | n/a | n/a | mixed | Runs existing tests; cannot write or delete them, and never requests coverage. See the outcome breakdown below. |
-| ATC | partial | yes | no | no | n/a | mixed | A run creates a server-side worklist as a side effect; there is no worklist delete, no variant create, and exemption management is deliberately absent. |
+| ATC | partial | yes | no | partial | n/a | mixed | A run creates a server-side worklist as a side effect; there is no variant create, and exemption management is deliberately absent. Worklist delete IS attempted (both directly and via `auto_cleanup`) but this release's server refuses every attempt with HTTP 405, so the worklist persists — a caching strategy limits the litter. |
 | Quick fixes | no | yes | yes | no | yes | mixed | Position-driven only, not finding-driven — the ATC route was tried and rejected. Deterministic proposals only; a parameterized one is refused `BAD_INPUT`. Listing is gated as a write because it posts the whole object source. |
 | Runtime dumps | n/a | yes | n/a | no | n/a | live | Read-only feed with a residence window that cannot be widened. The variables chapter is absent from the schema unless an operator enables it. |
 | Object activation | n/a | n/a | n/a | n/a | yes | live | Check-only and activate modes, single and batched. There is no deactivate in ADT, which is why activation can never be undone. |
@@ -35,16 +35,33 @@
   out of the captured failure. The unknown outcome has never been observed
   live either and is built entirely from hand-written hypothetical
   documents.
-- **ATC.** The run acknowledgement is live-captured, and from it the
-  following are confirmed: the run POST is synchronous rather than polled;
-  the worklist identifier, its timestamp and the info blocks are child
-  elements rather than attributes; the used-object-set and completeness
-  flags are attributes on the worklist element; and an info block can
-  repeat. Everything beyond that single object, single variant, single run
-  is not confirmed — no DDIC object, no class, no second variant, no
-  zero-findings run, and no error path. The worklist-read capture exists in
-  the tree but is not wired into any test, so findings parsing is covered by
-  synthetic documents only.
+- **ATC.** Ten live captures back this tool; nine are replayed in tests, not
+  just narrated in docs, and the tenth records a no-op this client has no
+  code path to exercise. The first pair (2026-08-01, one object) established the
+  basics: the run POST is synchronous rather than polled; the worklist
+  identifier, its timestamp and the info blocks are child elements rather
+  than attributes; the used-object-set and completeness flags are attributes
+  on the worklist element; an info block can repeat. Eight more captures
+  (2026-09-12, issue #78) settled most of what that first pair left open: a
+  single run request accepts several object references including package
+  references, so a package or multi-object run works over the same
+  synchronous API; a worklist read can be scoped to a numeric `LAST_RUN` id,
+  and accumulates separate object sets across repeated runs rather than
+  replacing them; `worklistTimestamp` is genuinely optional on the wire; a
+  zero-findings run reads back as a clean 200, not an error; a different
+  check variant produces a genuinely different result set (5 findings versus
+  7 for the same object under two variants); check-variant discovery goes
+  through a repository quickSearch, not a dedicated ATC endpoint (that one
+  answers 400); and — the two most operationally important results — a
+  `DELETE` on a worklist is genuinely attempted and answers 405 on this
+  release, and the advertised `deleteFindings` action is a confirmed no-op
+  (traced to a commented-out server-side handler, not just observed as a
+  black box). Still unconfirmed: the attribute-shape `<info>` variant, a run
+  that actually hits `max_findings`, server-side subpackage expansion (no
+  customer package with subpackages exists on A4H to exercise it against), a
+  true `quickfixes` flag (every one observed so far reads false), a
+  successful worklist delete on a release that supports it, and behaviour on
+  an object type or error path this issue's runs did not hit.
 - **Quick fixes.** Both wire hops — the position-based evaluation POST and
   the per-proposal delta POST — are grounded in 12 live captures against a
   sandbox appliance, replayed in `test/quickfix-wire.test.ts`: URLs, media

@@ -1,0 +1,32 @@
+{
+  "n": 854,
+  "label": "i78-worklist-read-two-packages",
+  "note": "Worklist read with usedObjectSet=99999999999999999999999999999999 (LAST_RUN) after the two-package run: 29 findings over 5 objects from 2 packages. Each object row carries adtcore:packageName and adtcore:type=\"CLAS\" with no /OC suffix and no atcfinding:objectTypeId; each finding carries a documentation atom:link, an atcfinding:quickfixes block (every flag false here) and an atcfinding:tags list. The worklist element carries no atcworklist:timestamp attribute at all.",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/atc/worklists/466F46C806601FE1ABD795A0C0B5C069?includeExemptedFindings=false&usedObjectSet=99999999999999999999999999999999",
+  "requestHeaders": {
+    "Accept": "application/atc.worklist.v1+xml"
+  },
+  "requestBody": null,
+  "requestBodyBytes": 0,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/atc.worklist.v1+xml; charset=utf-8",
+    "content-length": "43172",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "1433940.000000",
+    "connection": "close"
+  },
+  "byteLength": 43172,
+  "zeroByteBody": false,
+  "sha256": "fb9fff816a8b1212b96381ae953a5df10e9134f64c90dcb4761d1f622d75fe10",
+  "utcTimestamp": "2026-09-12T15:48:32.760381Z",
+  "durationMs": 1613,
+  "sessionName": "I78",
+  "capturedBy": "Standalone python ADT probe (urllib + cookiejar) driven against the A4H sandbox appliance for issue #78's ATC completeness work. REAL wire recording, not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the probe's own session-management code and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host is deliberately not recorded, and neither is the sap-client parameter (001) the probe sent."
+}

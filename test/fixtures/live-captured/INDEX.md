@@ -609,3 +609,67 @@ second, unrelated gap: `850` searches `ENQUEUE_E_TABLE` untyped and gets nothing
 that same module directly at `/sap/bc/adt/functions/groups/etable/fmodules/enqueue_e_table` and
 gets a plain `200` with full metadata — quickSearch does not index generated function modules at
 all, so its silence is not evidence the object is missing.
+
+## 2026-09-12 — ATC completeness: check variants, package runs, worklist delete (852-859)
+
+Same A4H appliance, client `001`, user `DEVELOPER`, issue #78. Eight captures fill in what earlier
+ATC fixtures (`438`, `439`, `800`, `801`) left open: how a client discovers check variants, whether
+a run can target more than one package, what a worklist looks like once it has accumulated several
+runs, and whether a worklist or its findings can be cleaned up server-side.
+
+`852` is a repository `quickSearch` with `objectType=CHKV`, listing all 19 ATC check variants as
+`adtcore:objectReference` rows. There is no working `/sap/bc/adt/atc/checkvariants` collection
+endpoint on this release — a plain GET on it answers 400 `uriMappingError` — so this quickSearch
+result is the only way a client can enumerate variants, and it is also the only thing a client can
+validate a requested variant name against: `POST /sap/bc/adt/atc/worklists?checkVariant=<nonsense>`
+answers 200 and creates a real worklist for a variant name that does not exist (observed separately
+while producing this set; that probe itself was not captured as a fixture).
+
+`853` is the synchronous run body (`POST /sap/bc/adt/atc/runs?worklistId=…`), and its `requestBody`
+shows a single `<objectSet kind="inclusive">` carrying **two** `adtcore:objectReference` entries,
+both package URIs. This settles that one object set accepts several object references, and that a
+PACKAGE reference is accepted by the synchronous run body even though the `SATC_RUN_REQ` simple
+transformation has no package field. This is a different, request/response API from the
+asynchronous `SATC_RUN_REQ_2` `<obj:packages includeSubpackages>` grammar, which is poll-based and
+is not exercised by any capture here.
+
+`854` reads that same worklist back with `usedObjectSet=99999999999999999999999999999999`
+(`LAST_RUN`): 29 findings over 5 objects from the 2 packages just run. Two things about the
+`usedObjectSet` query parameter and the response are worth separating: the request asked for
+`LAST_RUN` by its numeric id, and the response's own `atcworklist:usedObjectSet` attribute echoes
+that same value back — so the echo, not the request parameter, is what a caller should trust as
+authoritative when the two might otherwise appear to disagree. `854` also shows that a package run
+registers a persistent `kind="PACKAGE"` object set in the worklist's `objectSets` list alongside
+`ALL` and `LAST_RUN` — confirmed again by `855`, whose worklist carries three `PACKAGE` sets, one
+per package ever run into it, so object sets accumulate across runs rather than being replaced.
+Every finding in `854` carries an `atcfinding:quickfixes` block with `manual`, `automatic`,
+`pseudo`, `aiBasedQF` and `ai_enabled` all `false` — a statement about these particular findings on
+this system, not proof that the flags are never true elsewhere. The `atcworklist:worklist` element
+in `854` also carries no `atcworklist:timestamp` attribute at all, so that attribute is optional on
+the wire, not merely omittable in some encodings.
+
+`855` is the same kind of read after a run that found nothing (a TABL target): `atcworklist:objects`
+and `atcworklist:infos` are both empty, HTTP 200, 1223 bytes — a clean "no findings" shape rather
+than an error.
+
+`856` reads a different worklist, one created for check variant `ABAP_CLOUD_READINESS`, for the same
+object (`PROG Z_TMP_DEL`) captured elsewhere under the system default variant
+`ZABAP_CLOUD_DEVELOPMENT`: 5 findings here versus 7 there. The variant genuinely changes the result
+set; it is not a cosmetic label on an otherwise identical check run.
+
+`857` and `858` both settle that ATC worklists cannot be cleaned up once created. `857` is a `DELETE`
+on the worklist resource, answering **405** `ExceptionMethodNotSupported` — "Resource controller
+does not support method DELETE" (`T100KEY-ID SADT_RESOURCE`, `T100KEY-NO 010`, `T100KEY-V1 DELETE`).
+A `PUT` on the same resource also answers 405 but was not captured. `858` is a `POST` with
+`?action=deleteFindings`, the action ADT discovery advertises as
+`rel="http://www.sap.com/adt/atc/relations/actions/deleteFindings"`: it answers **200 with a
+zero-byte body**, and the worklist's findings are unchanged afterward. The reason is visible in the
+server source: `CL_SATC_ADT_RES_WORKLIST->post` returns immediately when the URI carries a worklist
+id, and the `lcl_handler_delete_findings` implementation in its CCIMP include is commented out in
+its entirety — the advertised action is a no-op, not a working cleanup path. Together, `857` and
+`858` mean every ATC run made against this release leaves server-side worklist state behind with no
+supported way to remove it.
+
+`859` is `GET /sap/bc/adt/atc/customizing`: the document's `systemCheckVariant` property reads
+`ZABAP_CLOUD_DEVELOPMENT` on this system. This is the first captured customizing document; the
+existing parser tests for this shape were previously synthetic.

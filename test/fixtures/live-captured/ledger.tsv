@@ -160,3 +160,11 @@ n	label	method	path	status	byteLength	durationMs
 849	i64-quicksearch-group-objecttype-fugr	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=BUDA&objectType=FUGR&maxResults=25	200	346	925
 850	i64-quicksearch-generated-fm-missing	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=ENQUEUE_E_TABLE&maxResults=25	200	109	5080
 851	i64-fmodule-generated-read-200	GET	/sap/bc/adt/functions/groups/etable/fmodules/enqueue_e_table	200	2327	1286
+852	i78-checkvariants-quicksearch	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=*&maxResults=200&objectType=CHKV	200	4884	338
+853	i78-run-two-packages	POST	/sap/bc/adt/atc/runs?worklistId=466F46C806601FE1ABD795A0C0B5C069	200	728	23389
+854	i78-worklist-read-two-packages	GET	/sap/bc/adt/atc/worklists/466F46C806601FE1ABD795A0C0B5C069?includeExemptedFindings=false&usedObjectSet=99999999999999999999999999999999	200	43172	1613
+855	i78-worklist-read-lastrun-empty	GET	/sap/bc/adt/atc/worklists/466F46C806601FE1ABD795A0C0B5C069?includeExemptedFindings=false&usedObjectSet=99999999999999999999999999999999	200	1223	429
+856	i78-worklist-read-variant2	GET	/sap/bc/adt/atc/worklists/466F46C806601FE1ABD8175DD6788069?includeExemptedFindings=false&usedObjectSet=99999999999999999999999999999999	200	7869	413
+857	i78-worklist-delete-405	DELETE	/sap/bc/adt/atc/worklists/466F46C806601FE1ABD7F225A1B94069	405	525	337
+858	i78-worklist-action-deletefindings-noop	POST	/sap/bc/adt/atc/worklists/466F46C806601FE1ABD7F225A1B94069?action=deleteFindings	200	0	180
+859	i78-atc-customizing	GET	/sap/bc/adt/atc/customizing	200	2211	146

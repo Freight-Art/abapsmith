@@ -1,0 +1,32 @@
+{
+  "n": 859,
+  "label": "i78-atc-customizing",
+  "note": "GET /sap/bc/adt/atc/customizing: systemCheckVariant is ZABAP_CLOUD_DEVELOPMENT on this system. First captured customizing document; the parser tests for it were previously synthetic.",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/atc/customizing",
+  "requestHeaders": {
+    "Accept": "application/xml, application/vnd.sap.atc.customizing-v1+xml"
+  },
+  "requestBody": null,
+  "requestBodyBytes": 0,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.atc.customizing-v1+xml; charset=utf-8",
+    "content-length": "2211",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "33964.000000",
+    "connection": "close"
+  },
+  "byteLength": 2211,
+  "zeroByteBody": false,
+  "sha256": "cbb25f6f499cf1eb3a29dcd2d346efd1ec0573a9dfb0d7a8c9936330cdb03ecb",
+  "utcTimestamp": "2026-09-12T15:48:07.751079Z",
+  "durationMs": 146,
+  "sessionName": "I78",
+  "capturedBy": "Standalone python ADT probe (urllib + cookiejar) driven against the A4H sandbox appliance for issue #78's ATC completeness work. REAL wire recording, not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the probe's own session-management code and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host is deliberately not recorded, and neither is the sap-client parameter (001) the probe sent."
+}
