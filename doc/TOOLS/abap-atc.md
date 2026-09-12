@@ -163,6 +163,18 @@ and return `deleted: true`.
   it created still exists on the server (see below) and a retry reuses it
   rather than losing the run. Raise `ABAP_TIMEOUT_MS` for package-scoped
   runs.
+- **If a run actually exceeds `ABAP_TIMEOUT_MS` before the server answers**,
+  the call fails with an `ADT_ERROR` whose message names the configured
+  `ABAP_TIMEOUT_MS=<value>` alongside the raw transport timeout, instead of
+  the bare, unclassified "timeout of N ms exceeded" this used to surface.
+  Its hint is explicit about what is and is not known: it is unknown whether
+  the run finished on the server, but the worklist it posted to persists
+  (this server cannot delete ATC worklists) and accumulates findings across
+  every run made into it, so a later call over the same scope and check
+  variant reuses that same worklist and will include anything the timed-out
+  run did manage to record. The hint suggests raising `ABAP_TIMEOUT_MS`, or
+  narrowing the scope — fewer `objects`, a `types` filter, or a smaller
+  package — so the run finishes inside the current timeout.
 - **A caller-named `variant` is used UNVALIDATED only when this client could
   not read the check-variant list to confirm it exists** — the note then
   names the variant and states the reason the list read failed (e.g. a

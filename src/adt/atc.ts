@@ -77,6 +77,7 @@
 import type { AbapConnection } from "./connection.js";
 import { AbapError } from "./errors.js";
 import { adtExceptionInfo, type ErrorContext, translateAdtError } from "./session.js";
+import { isTimeoutError } from "./source.js";
 import type { AuthorizedTarget } from "../safety.js";
 import {
   ATC_CHECK_VARIANT_SEARCH_ACCEPT,
@@ -124,6 +125,12 @@ export interface AtcErrorContext extends ErrorContext {
   readonly checkVariant?: string;
   /** The worklist in play, when one had been created. */
   readonly worklistId?: string;
+  /**
+   * `conn.cfg.timeoutMs` at the call site — named in the timeout branch's
+   * message/hint below so a caller sees the exact `ABAP_TIMEOUT_MS` value in
+   * effect, not a generic "raise the timeout" admission.
+   */
+  readonly timeoutMs?: number;
 }
 
 /**
@@ -153,6 +160,41 @@ export function classifyAtcFailure(e: unknown, ctx: AtcErrorContext): AbapError 
     ...(ctx.checkVariant === undefined ? {} : { checkVariant: ctx.checkVariant }),
     ...(ctx.worklistId === undefined ? {} : { worklistId: ctx.worklistId }),
   };
+
+  // A synchronous ATC run/read over a large scope can outrun the client's
+  // HTTP timeout before the server answers at all — no status is available
+  // (`status === undefined`) because no response ever arrived. Previously
+  // this fell through to the generic unclassified `ADT_ERROR` below,
+  // surfacing only the raw axios message ("timeout of 300000ms exceeded")
+  // with no hint — live-reproduced running op="run" package=$TMP against
+  // A4H with `ABAP_TIMEOUT_MS=300000`. What IS known, from this file's
+  // module header ("Worklists cannot be deleted on A4H" / "Timeout vs.
+  // observed package-run duration"): the worklist this run posted to
+  // already exists on the server and nothing here can delete it, worklists
+  // accumulate findings across every run ever made into them, and a later
+  // call over the same scope+variant reuses that same cached worklist id
+  // (`atcState`) rather than creating a new one — so this is not phrased as
+  // "the run keeps going" (unconfirmed: the client cannot tell whether the
+  // aborted request finished server-side), only as what is actually true.
+  if (status === undefined && isTimeoutError(e)) {
+    const timeoutLabel =
+      ctx.timeoutMs !== undefined ? `ABAP_TIMEOUT_MS=${ctx.timeoutMs}` : "ABAP_TIMEOUT_MS";
+    return new AbapError(
+      "ADT_ERROR",
+      `The ATC ${ctx.operation === "atc.run" ? "run" : "request"} over ${
+        ctx.name ?? ctx.uri ?? "the requested scope"
+      } did not answer before the configured timeout (${timeoutLabel}) elapsed: ${err.message}`,
+      { ...extra, timeout: true },
+      "No response arrived, so it is unknown whether the run finished on the server. The " +
+        "worklist this run posted to (see the accompanying worklist id, when one was already " +
+        "known) persists on the server regardless — this server cannot delete ATC worklists — " +
+        "and worklists accumulate findings across every run ever made into them, so a later call " +
+        "over the same object/objects/package and check variant reuses that same worklist rather " +
+        "than starting a fresh one and will include any findings that run did manage to record. " +
+        "Raise ABAP_TIMEOUT_MS, or narrow the scope — fewer objects, a types filter, or a smaller " +
+        "package — so the run finishes inside the current timeout.",
+    );
+  }
 
   if (status === 404) {
     return new AbapError(
@@ -292,6 +334,7 @@ export async function fetchDefaultCheckVariant(conn: AbapConnection): Promise<st
   const ctx: AtcErrorContext = {
     operation: "atc.customizing",
     uri: ATC_CUSTOMIZING_PATH,
+    timeoutMs: conn.cfg?.timeoutMs,
   };
   let body: string;
   try {
@@ -340,7 +383,7 @@ export async function listCheckVariants(
   if (state.checkVariants !== undefined) return state.checkVariants;
 
   const url = buildCheckVariantSearchUrl();
-  const ctx: AtcErrorContext = { operation: "atc.checkVariants", uri: url };
+  const ctx: AtcErrorContext = { operation: "atc.checkVariants", uri: url, timeoutMs: conn.cfg?.timeoutMs };
   let body: string;
   try {
     ({ body } = await conn.get(url, {
@@ -421,7 +464,12 @@ export async function ensureAtcWorklist(
   }
 
   const url = buildWorklistCreateUrl(checkVariant);
-  const ctx: AtcErrorContext = { operation: "atc.createWorklist", uri: url, checkVariant };
+  const ctx: AtcErrorContext = {
+    operation: "atc.createWorklist",
+    uri: url,
+    checkVariant,
+    timeoutMs: conn.cfg?.timeoutMs,
+  };
   let body: string;
   let status: number;
   try {
@@ -492,7 +540,12 @@ export async function deleteAtcWorklist(
 ): Promise<AtcWorklistCleanup> {
   assertWorklistId(worklistId);
   const url = buildWorklistDeleteUrl(worklistId);
-  const ctx: AtcErrorContext = { operation: "atc.deleteWorklist", uri: url, worklistId };
+  const ctx: AtcErrorContext = {
+    operation: "atc.deleteWorklist",
+    uri: url,
+    worklistId,
+    timeoutMs: conn.cfg?.timeoutMs,
+  };
 
   try {
     const resp = await conn.del(url, { headers: { Accept: ATC_WORKLIST_DELETE_ACCEPT } });
@@ -730,6 +783,7 @@ async function postRun(
     name: objectName,
     checkVariant,
     worklistId,
+    timeoutMs: conn.cfg?.timeoutMs,
   };
   let responseBody: string;
   try {
@@ -762,6 +816,7 @@ async function readWorklist(
     uri: url,
     checkVariant,
     worklistId,
+    timeoutMs: conn.cfg?.timeoutMs,
   };
   let body: string;
   try {
@@ -863,7 +918,11 @@ export async function expandPackageTree(
 
     const next: string[] = [];
     for (const pkg of frontier) {
-      const ctx: AtcErrorContext = { operation: "atc.packageTree", name: pkg };
+      const ctx: AtcErrorContext = {
+        operation: "atc.packageTree",
+        name: pkg,
+        timeoutMs: conn.cfg?.timeoutMs,
+      };
       let nodes;
       try {
         nodes = (await conn.adt.nodeContents("DEVC/K", pkg)).nodes ?? [];

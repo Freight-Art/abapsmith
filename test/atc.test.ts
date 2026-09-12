@@ -206,6 +206,11 @@ function fakeConn(handler: Handler): { conn: AbapConnection; calls: Call[] } {
     // Fail-open in the real `Discovery`; a no-op here so the tests exercise the
     // lifecycle rather than the probe, which `test/discovery.test.ts` owns.
     discovery: { assertSupported: () => {} },
+    // Real `AbapConnection.cfg.timeoutMs` — `classifyAtcFailure`'s timeout
+    // branch names this value (`ABAP_TIMEOUT_MS=<value>`) in its hint. A
+    // fixed, recognisable number so the "the timeout — see below" test can
+    // assert on it without hardcoding config.ts's own default.
+    cfg: { timeoutMs: 60_000 },
     get: dispatch("GET"),
     post: dispatch("POST"),
     del: dispatch("DELETE"),
@@ -543,6 +548,41 @@ describe("runAtcCheck — the four-request lifecycle", () => {
     const result = await runAtcCheck(conn, { objectUris: [OBJECT_URI] }, [authorize()]);
     expect(result.worklistId).toBe("ECHOED");
   });
+
+  // The live gap issue #78's verifier found: an ATC run over a large scope
+  // that genuinely exceeds `ABAP_TIMEOUT_MS` reached the caller as a bare,
+  // unclassified `ADT_ERROR` ("timeout of 300000ms exceeded") with no hint.
+  // End to end through `runAtcCheck` (not just `classifyAtcFailure` in
+  // isolation above) — proves the run POST's timeout actually reaches the
+  // caller through this path with `ABAP_TIMEOUT_MS` and the fake
+  // connection's own `cfg.timeoutMs` named in the message.
+  it("rethrows a run-POST timeout naming ABAP_TIMEOUT_MS instead of the bare axios message", async () => {
+    const { conn } = fakeConn((method, url) => {
+      if (method === "GET" && url.startsWith(ATC_CUSTOMIZING_PATH)) {
+        return { body: CUSTOMIZING };
+      }
+      if (method === "POST" && url.startsWith("/sap/bc/adt/atc/worklists")) {
+        return { body: "0A1B2C\n" };
+      }
+      if (method === "POST" && url.startsWith("/sap/bc/adt/atc/runs")) {
+        return { throws: { code: "ECONNABORTED", message: "timeout of 60000ms exceeded" } };
+      }
+      throw new Error(`unscripted request: ${method} ${url}`);
+    });
+    let caught: unknown;
+    try {
+      await runAtcCheck(conn, { objectUris: [OBJECT_URI] }, [authorize()]);
+    } catch (e) {
+      caught = e;
+    }
+    expect(isAbapError(caught)).toBe(true);
+    const err = caught as InstanceType<typeof AbapError>;
+    expect(err.code).toBe("ADT_ERROR");
+    // fakeConn's cfg.timeoutMs is 60_000 — see the fakeConn helper above.
+    expect(err.message).toContain("ABAP_TIMEOUT_MS=60000");
+    expect(err.hint).toMatch(/ABAP_TIMEOUT_MS/);
+    expect(err.hint).toMatch(/worklist/i);
+  });
 });
 
 describe("stale worklist id", () => {
@@ -633,6 +673,48 @@ describe("classifyAtcFailure", () => {
       { operation: "atc.run", uri: "/sap/bc/adt/atc/runs" },
     );
     expect(err.code).toBe("ADT_ERROR");
+  });
+
+  // Issue #78's gap: a live run of a large package against A4H with
+  // `ABAP_TIMEOUT_MS=300000` genuinely exceeded the timeout and surfaced as
+  // a generic, unclassified `ADT_ERROR` whose message was the raw axios text
+  // ("timeout of 300000ms exceeded") with no hint at all. This is the
+  // client-side shape axios actually throws for that: `ECONNABORTED`, no
+  // `.err`/`.status` (no response ever arrived).
+  it("names ABAP_TIMEOUT_MS and the surviving worklist on a transport timeout, not the generic unclassified ADT_ERROR", () => {
+    const err = classifyAtcFailure(
+      { code: "ECONNABORTED", message: "timeout of 300000ms exceeded" },
+      {
+        operation: "atc.run",
+        uri: "/sap/bc/adt/atc/runs/0A1B2C",
+        name: "$TMP",
+        checkVariant: "ZDEFAULT",
+        worklistId: "0A1B2C",
+        timeoutMs: 300_000,
+      },
+    );
+    expect(isAbapError(err)).toBe(true);
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.message).toContain("ABAP_TIMEOUT_MS=300000");
+    expect(err.message).toContain("timeout of 300000ms exceeded");
+    expect(err.hint).toMatch(/ABAP_TIMEOUT_MS/);
+    expect(err.hint).toMatch(/worklist/i);
+    expect(err.hint).toMatch(/narrow the scope|smaller package/i);
+    expect(err.details.timeout).toBe(true);
+    // Not marked terminal: ADT_ERROR's RETRYABILITY default is "conditional"
+    // (no claim either way), which this site does not override — a
+    // different scope or a raised timeout genuinely can succeed.
+    expect(err.retryable).not.toBe(false);
+  });
+
+  it("falls back to a generic ABAP_TIMEOUT_MS mention when no timeoutMs was recorded on the context", () => {
+    const err = classifyAtcFailure(
+      { code: "ETIMEDOUT", message: "timeout of 60000ms exceeded" },
+      { operation: "atc.worklist", uri: "/sap/bc/adt/atc/worklists/0A1B2C" },
+    );
+    expect(err.message).toContain("ABAP_TIMEOUT_MS");
+    expect(err.message).not.toMatch(/ABAP_TIMEOUT_MS=\d/);
+    expect(err.hint).toMatch(/ABAP_TIMEOUT_MS/);
   });
 });
 
