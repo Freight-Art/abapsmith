@@ -201,15 +201,17 @@ nothing about arming a write changes with this.
   incompatible`). The row now fills that
   structure (`USER` = `sy-uname`, `TYPE` = `'Q'`, the customizing task
   type), and the response carries the created task's number and its type
-  (`taskType`) alongside the request number. The sixth live verification
-  run (2026-09-06) passed `TYPE = 'Q'` and read back a task typed `'Q'`
-  — consistent with the function module honouring the value passed, but
-  not decisive: a type-`W` request's task is `'Q'` by default regardless
-  of what `TYPE` asks for, so this single observation cannot tell the
-  two apart. Only passing a different `TYPE` and reading it back would
-  settle it. The request number is reported as soon as it is known,
-  before the task check runs; a request that comes back with no task is a
-  loud warning carrying the number, not a silent loss. A call whose
+  (`taskType`) alongside the request number. That type can now be
+  confirmed independently with `abap_transport operation="show"` on the
+  request number — its `TASKS` table carries a `type` column. The sixth
+  live verification run (2026-09-06) passed `TYPE = 'Q'` and read back a
+  task typed `'Q'` — consistent with the function module honouring the
+  value passed, but not decisive: a type-`W` request's task is `'Q'` by
+  default regardless of what `TYPE` asks for, so this single observation
+  cannot tell the two apart. Only passing a different `TYPE` and reading it
+  back would settle it. The request number is reported as soon as it is
+  known, before the task check runs; a request that comes back with no task
+  is a loud warning carrying the number, not a silent loss. A call whose
   transcript carries an error line, or from which no request number can
   be parsed, is reported as an error (`CHECK_FAILED`) rather than a
   success — the response says a request may nonetheless have been

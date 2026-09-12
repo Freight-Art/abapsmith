@@ -111351,6 +111351,18 @@ function fmtStatus(status, text3) {
   const t = (text3 ?? "").trim();
   return t === "" || t.toLowerCase() === status ? base : `${base} \u2014 ${t}`;
 }
+var TASK_TYPE_NAMES = {
+  S: "development/correction",
+  R: "repair",
+  Q: "customizing task",
+  X: "unclassified task"
+};
+function fmtTaskType(h) {
+  const raw = (h.kindRaw ?? "").trim();
+  if (raw === "") return "(none)";
+  const gloss = TASK_TYPE_NAMES[raw.toUpperCase()];
+  return gloss ? `${raw} (${gloss})` : raw;
+}
 function objectRows(objects) {
   return objects.map((o) => ({
     pgmid: o.pgmid,
@@ -111386,7 +111398,8 @@ function subjectHeader(s, answered) {
   return {
     requested: s.asked,
     answeredAbout: s.answered,
-    requestedStatus: own ? fmtStatus(own.status, own.statusText) : "not known"
+    requestedStatus: own ? fmtStatus(own.status, own.statusText) : "not known",
+    requestedType: own ? fmtTaskType(own) : "not known"
   };
 }
 function subjectNotes(s, answered) {
@@ -111400,9 +111413,46 @@ function subjectNotes(s, answered) {
   );
   return notes;
 }
-function createdThisSession(ownership, s) {
+function createdByThisProcess(ownership, s) {
   if (!ownership) return void 0;
   return ownership.createdThisSession(s.answered) || ownership.createdThisSession(s.asked);
+}
+async function findTransportCreate(j, s) {
+  const key = systemKey({ sid: j.cfg.sid, url: j.cfg.url, client: j.cfg.client });
+  const numbers = s.asked === s.answered ? [s.answered] : [s.answered, s.asked];
+  for (const n of numbers) {
+    const hit = (await j.journal.list({ object: n, operation: "transport-create" })).find(
+      (e) => e.systemKey === key && e.outcome !== "failed"
+    );
+    if (hit) return hit;
+  }
+  return void 0;
+}
+async function resolveCreatedBy(ownership, journal, s) {
+  if (!ownership) return { kind: "not-checked" };
+  if (createdByThisProcess(ownership, s)) return { kind: "this-process" };
+  if (!journal) return { kind: "unknown", why: "no journal was supplied to this call" };
+  if (!journal.journal.enabled) return { kind: "unknown", why: "the journal is off" };
+  try {
+    const entry = await findTransportCreate(journal, s);
+    return entry ? { kind: "journal", entry } : { kind: "no", sid: journal.cfg.sid };
+  } catch {
+    return { kind: "unknown", why: "the journal could not be read" };
+  }
+}
+function createdByField(c) {
+  switch (c.kind) {
+    case "this-process":
+      return "yes (this server process)";
+    case "journal":
+      return `yes (journal entry ${c.entry.id})`;
+    case "no":
+      return `no (not this process; no journal entry on ${c.sid})`;
+    case "unknown":
+      return `unknown \u2014 ${c.why}`;
+    case "not-checked":
+      return void 0;
+  }
 }
 var RELEASE_MESSAGE_NOTES = {
   "TR/768": "the request was already released before this call",
@@ -111552,7 +111602,7 @@ async function abapTransport(conn, input, maxChars, gate, journal, ownership) {
     case "list":
       return await opList(conn, input, maxChars, gate, journal);
     case "show":
-      return await opShow(conn, input, maxChars, ownership);
+      return await opShow(conn, input, maxChars, journal, ownership);
     case "check":
       return await opCheck(conn, input, maxChars);
     case "users":
@@ -111644,11 +111694,11 @@ async function opList(conn, input, maxChars, gate, journal) {
   }
   return buildResponse({ header, sections, notes, maxChars });
 }
-async function opShow(conn, input, maxChars, ownership) {
+async function opShow(conn, input, maxChars, journal, ownership) {
   const trkorr = normTrkorr(input.transport, "show");
   const r = await trShow(conn, trkorr);
   const subject = subjectOf(trkorr, r);
-  const owned = createdThisSession(ownership, subject);
+  const created = await resolveCreatedBy(ownership, journal, subject);
   const sections = [];
   if (r.tasks.length) {
     sections.push({
@@ -111656,12 +111706,13 @@ async function opShow(conn, input, maxChars, ownership) {
       content: textTable(
         r.tasks.map((t) => ({
           task: t.trkorr,
+          type: fmtTaskType(t),
           status: t.status,
           owner: t.owner,
           objects: String(t.objects.length),
           description: t.description
         })),
-        ["task", "status", "owner", "objects", "description"]
+        ["task", "type", "status", "owner", "objects", "description"]
       )
     });
   }
@@ -111681,9 +111732,17 @@ async function opShow(conn, input, maxChars, ownership) {
       notes.push(`${trkorr} is itself already released \u2014 it can no longer be changed.`);
     }
   }
-  if (owned === false) {
+  if (created.kind === "journal") {
     notes.push(
-      `${r.trkorr} was NOT created by this session \u2014 it was already open when this session started, so it may hold objects from earlier work.`
+      `${r.trkorr} was created by abapsmith earlier \u2014 journal entry ${created.entry.id} records a transport-create for it on this system \u2014 but NOT by this server process. The release guard counts only this process, so releasing it still needs confirm_unowned: "${r.trkorr}".`
+    );
+  } else if (created.kind === "no") {
+    notes.push(
+      `${r.trkorr} was NOT created by abapsmith: this server process did not create it, and this system's journal holds no transport-create entry for it. It was already open, so it may hold objects from earlier work.`
+    );
+  } else if (created.kind === "unknown") {
+    notes.push(
+      `${r.trkorr} was not created by this server process, and ${created.why} \u2014 so abapsmith cannot tell whether an earlier process created it. It may hold objects from earlier work.`
     );
   }
   return buildResponse({
@@ -111693,7 +111752,7 @@ async function opShow(conn, input, maxChars, ownership) {
       kind: r.kind,
       status: fmtStatus(r.status, r.statusText),
       owner: r.owner,
-      createdThisSession: owned === void 0 ? void 0 : owned ? "yes" : "no",
+      createdByAbapsmith: createdByField(created),
       description: r.description,
       target: fmtTarget(r),
       client: r.client,
@@ -112341,7 +112400,7 @@ async function abapTransportRelease(conn, input, maxChars, gate, journal, owners
     });
   }
   const armed = input.confirm !== void 0;
-  if (!armed) return await releaseDryRun(conn, trkorr, ceiling, maxChars, ownership);
+  if (!armed) return await releaseDryRun(conn, trkorr, ceiling, maxChars, journal, ownership);
   assertCeiling(gate, "release", "release");
   const releaseProof = authorizeCeiling(gate, "transport", { release: true });
   const before = await trShow(conn, trkorr);
@@ -112364,13 +112423,13 @@ async function abapTransportRelease(conn, input, maxChars, gate, journal, owners
       maxChars
     });
   }
-  const owned = createdThisSession(ownership, subject);
+  const owned = createdByThisProcess(ownership, subject);
   if (owned === false && input.confirm_unowned === void 0) {
     const carried = unionedObjects(before);
     const held = carried.length === 0 ? "It holds no objects." : `It holds ${carried.length} object(s) this release would carry: ${carried.map((o) => `${o.pgmid} ${o.type} ${o.name}`).join(", ")}.`;
     throw new AbapError(
       "BAD_INPUT",
-      `${trkorr} was not created by this session \u2014 it was already open when this session started, so releasing it also transports whatever earlier work left in it, and a release is irreversible. ${held} To release it anyway, call again with confirm_unowned: "${trkorr}"`,
+      `${trkorr} was not created by this abapsmith server process \u2014 it was already open when this process started, so releasing it also transports whatever earlier work left in it, and a release is irreversible. ${held} To release it anyway, call again with confirm_unowned: "${trkorr}"`,
       {
         transport: trkorr,
         owner: before.owner,
@@ -112483,10 +112542,10 @@ function releaseAfterImage(res, subject, verdict) {
   }
   return lines.join("\n") + "\n";
 }
-async function releaseDryRun(conn, trkorr, ceiling, maxChars, ownership) {
+async function releaseDryRun(conn, trkorr, ceiling, maxChars, journal, ownership) {
   const r = await trShow(conn, trkorr);
   const subject = subjectOf(trkorr, r);
-  const owned = createdThisSession(ownership, subject);
+  const created = await resolveCreatedBy(ownership, journal, subject);
   const objects = unionedObjects(r);
   const openTasks = r.tasks.filter((t) => t.status !== "released");
   const referencing = openTasks.filter((t) => t.trkorr !== trkorr);
@@ -112499,11 +112558,12 @@ async function releaseDryRun(conn, trkorr, ceiling, maxChars, ownership) {
       content: textTable(
         r.tasks.map((t) => ({
           task: t.trkorr,
+          type: fmtTaskType(t),
           status: t.status,
           owner: t.owner,
           objects: String(t.objects.length)
         })),
-        ["task", "status", "owner", "objects"]
+        ["task", "type", "status", "owner", "objects"]
       )
     });
   }
@@ -112535,9 +112595,17 @@ async function releaseDryRun(conn, trkorr, ceiling, maxChars, ownership) {
       `${emptyOpenTasks.length} task(s) are still modifiable but hold no objects (${emptyOpenTasks.map((t) => t.trkorr).join(", ")}). Observed on A4H: a release with an empty task still open went through and the request ended Released \u2014 an empty task is not the TR/732 case, so this is not a blocker. If a release does abort on TR/732 anyway, release that task first and retry.`
     );
   }
-  if (owned === false) {
+  if (created.kind === "journal") {
     notes.push(
-      `${r.trkorr} was NOT created by this session \u2014 releasing it would also transport whatever earlier work left in it. abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
+      `${r.trkorr} was created by abapsmith earlier (journal entry ${created.entry.id}), but not by this server process \u2014 the release guard counts only this process, so abap_transport_release will still refuse unless you also pass confirm_unowned: "${trkorr}".`
+    );
+  } else if (created.kind === "no") {
+    notes.push(
+      `${r.trkorr} was NOT created by abapsmith (not by this server process, and no transport-create entry for it in this system's journal) \u2014 releasing it would also transport whatever earlier work left in it. abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
+    );
+  } else if (created.kind === "unknown") {
+    notes.push(
+      `${r.trkorr} was not created by this server process, and ${created.why} \u2014 so abapsmith cannot tell whether an earlier process created it. Releasing it would also transport whatever earlier work left in it; abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
     );
   }
   return buildResponse({
@@ -112547,7 +112615,7 @@ async function releaseDryRun(conn, trkorr, ceiling, maxChars, ownership) {
       mode: "dry run",
       status: fmtStatus(r.status, r.statusText),
       owner: r.owner,
-      createdThisSession: owned === void 0 ? void 0 : owned ? "yes" : "no",
+      createdByAbapsmith: createdByField(created),
       description: r.description,
       target: fmtTarget(r),
       tasks: r.tasks.length,

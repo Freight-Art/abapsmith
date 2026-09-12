@@ -1,7 +1,8 @@
 /**
  * `src/tools/transport.ts` — the session-ownership contract: the
- * `createdThisSession` header field on `show` and a release dry run, and the
- * release-time refusal for a request this session did not create.
+ * `createdByAbapsmith` header field on `show` and a release dry run, and the
+ * release-time refusal for a request this abapsmith server process did not
+ * create.
  *
  * Split out from test/transport-tools.test.ts because that file is
  * deliberately silent on ownership — every call there either omits the 6th
@@ -11,16 +12,30 @@
  * omitting one leaves the pre-existing behaviour untouched (case 3, case 10).
  * Same offline harness as that file: `fakeCtsConnection`/`loadCtsFixture`
  * against real wire fixtures, no network, no live appliance.
+ *
+ * "the journal outlives the server process (issue #67)" below adds the
+ * second evidence source: `createdByAbapsmith` doesn't only ask THIS
+ * process's in-memory `SessionTrOwner` — it also consults the on-disk
+ * journal for a `transport-create` entry filed on this system, so a caller
+ * that reconnects in a fresh process can still learn a request is one
+ * abapsmith made earlier, distinct from "this process made it".
  */
-import { describe, expect, it } from "vitest";
+import { promises as fsp } from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SafetyGate } from "../src/safety.js";
+import { Journal, systemKey, type JournalConfig } from "../src/journal.js";
 import {
   abapTransport,
   abapTransportRelease,
   type TransportInput,
+  type TransportJournalDeps,
 } from "../src/tools/transport.js";
 import type { SessionTrOwner } from "../src/adt/session-transport.js";
+import type { CtsScriptStep } from "./helpers/cts-fixtures.js";
 import {
   fakeCtsConnection,
   loadCtsFixture,
@@ -74,11 +89,11 @@ function ownershipStub(...owned: string[]): SessionTrOwner & { created: Set<stri
 }
 
 // ---------------------------------------------------------------------------
-// abap_transport operation: show — createdThisSession header + note
+// abap_transport operation: show — createdByAbapsmith header + note
 // ---------------------------------------------------------------------------
 
-describe("abap_transport operation: show — createdThisSession", () => {
-  it("an ownership stub that knows nothing renders createdThisSession: no, with the not-created-by-this-session note", async () => {
+describe("abap_transport operation: show — createdByAbapsmith", () => {
+  it("an ownership stub that knows nothing, with no journal deps, renders createdByAbapsmith: unknown — no journal was supplied to this call", async () => {
     const fixture = loadCtsFixture("transport-details-with-objects");
     const { conn } = fakeCtsConnection([fixture]);
     const ownership = ownershipStub(); // knows nothing
@@ -92,13 +107,14 @@ describe("abap_transport operation: show — createdThisSession", () => {
       ownership,
     );
 
-    expect(res.text).toMatch(/^createdThisSession: no$/m);
+    expect(res.text).toMatch(/^createdByAbapsmith: unknown — no journal was supplied to this call$/m);
     expect(res.text).toContain(
-      "A4HK900117 was NOT created by this session — it was already open when this session started",
+      "A4HK900117 was not created by this server process, and no journal was supplied to this " +
+        "call — so abapsmith cannot tell whether an earlier process created it.",
     );
   });
 
-  it("an ownership stub that knows this request renders createdThisSession: yes, with no such note", async () => {
+  it("an ownership stub that knows this request renders createdByAbapsmith: yes (this server process), with no such note", async () => {
     const fixture = loadCtsFixture("transport-details-with-objects");
     const { conn } = fakeCtsConnection([fixture]);
     const ownership = ownershipStub("A4HK900117");
@@ -112,8 +128,9 @@ describe("abap_transport operation: show — createdThisSession", () => {
       ownership,
     );
 
-    expect(res.text).toMatch(/^createdThisSession: yes$/m);
-    expect(res.text).not.toMatch(/was NOT created by this session/);
+    expect(res.text).toMatch(/^createdByAbapsmith: yes \(this server process\)$/m);
+    expect(res.text).not.toMatch(/was NOT created by abapsmith/);
+    expect(res.text).not.toMatch(/was not created by this server process/);
   });
 
   it("no ownership object at all: the header field is absent entirely (never rendered as 'no'), and no note — pre-existing direct/test callers are unaffected", async () => {
@@ -127,8 +144,8 @@ describe("abap_transport operation: show — createdThisSession", () => {
       openGate(),
     );
 
-    expect(res.text).not.toMatch(/createdThisSession/);
-    expect(res.text).not.toMatch(/was NOT created by this session/);
+    expect(res.text).not.toMatch(/createdByAbapsmith/);
+    expect(res.text).not.toMatch(/was NOT created by abapsmith/);
   });
 });
 
@@ -178,11 +195,11 @@ describe("abap_transport_release dry run: de-duped object count (regression guar
 });
 
 // ---------------------------------------------------------------------------
-// abap_transport_release dry run: createdThisSession header + note
+// abap_transport_release dry run: createdByAbapsmith header + note
 // ---------------------------------------------------------------------------
 
-describe("abap_transport_release dry run — createdThisSession", () => {
-  it("an unowned request's dry run renders createdThisSession: no and warns an armed release will refuse without confirm_unowned", async () => {
+describe("abap_transport_release dry run — createdByAbapsmith", () => {
+  it("an unowned request's dry run, with no journal deps, renders createdByAbapsmith: unknown and warns an armed release will refuse without confirm_unowned", async () => {
     const fixture = loadCtsFixture("transport-details-with-objects");
     const { conn } = fakeCtsConnection([fixture]);
     const ownership = ownershipStub(); // knows nothing
@@ -196,9 +213,11 @@ describe("abap_transport_release dry run — createdThisSession", () => {
       ownership,
     );
 
-    expect(res.text).toMatch(/^createdThisSession: no$/m);
+    expect(res.text).toMatch(/^createdByAbapsmith: unknown — no journal was supplied to this call$/m);
     expect(res.text).toContain(
-      "A4HK900117 was NOT created by this session — releasing it would also transport",
+      "A4HK900117 was not created by this server process, and no journal was supplied to this " +
+        "call — so abapsmith cannot tell whether an earlier process created it. Releasing it " +
+        "would also transport whatever earlier work left in it",
     );
     expect(res.text).toContain('confirm_unowned: "A4HK900117"');
   });
@@ -224,7 +243,7 @@ describe("abap_transport_release: the ownership gate on an armed release", () =>
     ).catch((e: unknown) => e as { code?: string; message?: string });
 
     expect(err.code).toBe("BAD_INPUT");
-    expect(err.message).toContain("A4HK900117 was not created by this session");
+    expect(err.message).toContain("A4HK900117 was not created by this abapsmith server process");
     expect(err.message).toContain('confirm_unowned: "A4HK900117"');
     // The object it would carry, so the caller can judge the override without a second call.
     expect(err.message).toContain("ZMCP_CTS_PROBE");
@@ -453,7 +472,7 @@ describe("abap_transport operation: create — ownership when a failed create is
 // ---------------------------------------------------------------------------
 
 describe("abap_transport operation: show — ownership follows subject substitution", () => {
-  it("asking about a TASK whose PARENT this session created still renders createdThisSession: yes", async () => {
+  it("asking about a TASK whose PARENT this session created still renders createdByAbapsmith: yes (this server process)", async () => {
     const fixture = loadCtsFixture("transport-details-task-resolves-to-parent");
     const { conn } = fakeCtsConnection([fixture]);
     const ownership = ownershipStub("A4HK900131"); // knows only the PARENT
@@ -468,6 +487,260 @@ describe("abap_transport operation: show — ownership follows subject substitut
     );
 
     expect(res.text).toMatch(/answeredAbout: A4HK900131/);
-    expect(res.text).toMatch(/^createdThisSession: yes$/m);
+    expect(res.text).toMatch(/^createdByAbapsmith: yes \(this server process\)$/m);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The journal outlives the server process (issue #67): `createdByAbapsmith`
+// consults the on-disk journal for a `transport-create` entry, so a caller
+// that reconnects in a fresh process can still learn abapsmith made a
+// request earlier. This is a SECOND evidence source alongside the in-memory
+// `SessionTrOwner` exercised above — every case here uses a real, on-disk
+// `Journal`, same idiom as the journalling describe block in
+// test/transport-tools.test.ts (`fsp.mkdtemp` per test, a `jcfg()` helper, a
+// `deps()` helper building `TransportJournalDeps`).
+// ---------------------------------------------------------------------------
+
+describe("the journal outlives the server process (issue #67)", () => {
+  let tmp: string;
+
+  beforeEach(async () => {
+    tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "abapsmith-tr-ownership-journal-"));
+  });
+
+  afterEach(async () => {
+    await fsp.rm(tmp, { recursive: true, force: true });
+  });
+
+  const jcfg = (dir: string, over: Partial<JournalConfig> = {}): JournalConfig => ({
+    dir,
+    enabled: true,
+    maxEntries: 200,
+    maxAgeDays: 30,
+    ...over,
+  });
+
+  const FAKE_CFG = { sid: "A4H", url: "http://a4h.example:50000", client: "001" };
+
+  const deps = (journal?: Journal, cfg = FAKE_CFG): TransportJournalDeps => ({
+    journal: journal ?? new Journal(jcfg(tmp), "A4H"),
+    cfg,
+    warn: vi.fn() as unknown as (msg: string) => void,
+  });
+
+  /**
+   * Seed a `transport-create` journal entry shaped exactly like the ones
+   * `src/tools/transport.ts`'s `opCreate` writes (see its `trRef`/`beginInput`),
+   * settled to the given outcome, without going through `abapTransport` at all
+   * — used by the cases that need a FAILED or otherwise-shaped entry no real
+   * create call would leave behind.
+   */
+  async function seedTransportCreateEntry(
+    journal: Journal,
+    trkorr: string,
+    outcome: "succeeded" | "failed",
+  ): Promise<void> {
+    const entry = await journal.begin({
+      operation: "transport-create",
+      object: {
+        name: trkorr,
+        type: "CTS/TR",
+        uri: `/sap/bc/adt/cts/transportrequests/${trkorr}`,
+        package: "",
+        description: "test",
+      },
+      existedBefore: false,
+      systemKey: systemKey(FAKE_CFG),
+      corrNr: trkorr,
+      trSource: "caller",
+      tool: "abap_transport create",
+    });
+    expect(entry, "journal.begin must actually write an entry").toBeDefined();
+    await journal.settle(
+      entry!.id,
+      outcome === "failed" ? { outcome: "failed", error: "simulated failure" } : { outcome: "succeeded" },
+    );
+  }
+
+  it("a: create (this process) then show from a FRESH process finds the journal entry (the issue's exact scenario)", async () => {
+    const createFixture = loadCtsFixture("create-transport-response"); // returns A4HK900121
+    // No captured details fixture exists for A4HK900121 (the number the create fixture
+    // returns), so the "with-objects" details fixture is replayed with every occurrence of
+    // its own request number rewritten to A4HK900121 — same real shape, different number.
+    const detailsFixture = loadCtsFixture("transport-details-with-objects");
+    const detailsStep: CtsScriptStep = {
+      status: detailsFixture.meta.status,
+      body: detailsFixture.body.replaceAll("A4HK900117", "A4HK900121"),
+    };
+    const { conn } = fakeCtsConnection([createFixture, detailsStep]);
+    const journalDeps = deps();
+    const ownershipA = ownershipStub(); // server process A
+
+    const createRes = await abapTransport(
+      conn,
+      transportInput({ operation: "create", package: "Z_FLIGHT_ADDITIONAL", description: "test" }),
+      MAX_CHARS,
+      openGate(),
+      journalDeps,
+      ownershipA,
+    );
+    expect(createRes.text).toContain("A4HK900121");
+
+    const ownershipB = ownershipStub(); // a FRESH server process — knows nothing in memory
+
+    const showRes = await abapTransport(
+      conn,
+      transportInput({ operation: "show", transport: "A4HK900121" }),
+      MAX_CHARS,
+      openGate(),
+      journalDeps,
+      ownershipB,
+    );
+
+    expect(showRes.text).toMatch(/^createdByAbapsmith: yes \(journal entry .+\)$/m);
+    expect(showRes.text).toContain("was created by abapsmith earlier");
+  });
+
+  it("b: journal enabled but holding nothing for this request renders createdByAbapsmith: no", async () => {
+    const fixture = loadCtsFixture("transport-details-with-objects");
+    const { conn } = fakeCtsConnection([fixture]);
+    const journalDeps = deps();
+    const ownership = ownershipStub();
+
+    const res = await abapTransport(
+      conn,
+      transportInput({ operation: "show", transport: "A4HK900117" }),
+      MAX_CHARS,
+      openGate(),
+      journalDeps,
+      ownership,
+    );
+
+    expect(res.text).toMatch(/^createdByAbapsmith: no \(not this process; no journal entry on A4H\)$/m);
+    expect(res.text).toContain("A4HK900117 was NOT created by abapsmith");
+  });
+
+  it("c: a journal deliberately switched off renders createdByAbapsmith: unknown — the journal is off", async () => {
+    const fixture = loadCtsFixture("transport-details-with-objects");
+    const { conn } = fakeCtsConnection([fixture]);
+    const off = new Journal(jcfg(tmp, { enabled: false }), "A4H");
+    const journalDeps = deps(off);
+    const ownership = ownershipStub();
+
+    const res = await abapTransport(
+      conn,
+      transportInput({ operation: "show", transport: "A4HK900117" }),
+      MAX_CHARS,
+      openGate(),
+      journalDeps,
+      ownership,
+    );
+
+    expect(res.text).toMatch(/^createdByAbapsmith: unknown — the journal is off$/m);
+  });
+
+  it("d: an entry recorded against a DIFFERENT system (same journal directory) does not count — journal dirs are namespaced per SID only", async () => {
+    const createFixture = loadCtsFixture("create-transport-response"); // returns A4HK900121
+    const { conn: createConn } = fakeCtsConnection([createFixture]);
+    const otherBoxCfg = { sid: "A4H", url: "http://other.example:50000", client: "002" };
+    // Same directory (`tmp`/SID "A4H") as every other case here, but a DIFFERENT
+    // url/client — same box's journal file, different system's identity.
+    const otherBoxDeps = deps(new Journal(jcfg(tmp), "A4H"), otherBoxCfg);
+    await abapTransport(
+      createConn,
+      transportInput({ operation: "create", package: "Z_FLIGHT_ADDITIONAL", description: "test" }),
+      MAX_CHARS,
+      openGate(),
+      otherBoxDeps,
+      ownershipStub(),
+    );
+
+    const detailsFixture = loadCtsFixture("transport-details-with-objects");
+    const detailsStep: CtsScriptStep = {
+      status: detailsFixture.meta.status,
+      body: detailsFixture.body.replaceAll("A4HK900117", "A4HK900121"),
+    };
+    const { conn: showConn } = fakeCtsConnection([detailsStep]);
+    const normalDeps = deps(new Journal(jcfg(tmp), "A4H")); // FAKE_CFG — this box's identity
+
+    const res = await abapTransport(
+      showConn,
+      transportInput({ operation: "show", transport: "A4HK900121" }),
+      MAX_CHARS,
+      openGate(),
+      normalDeps,
+      ownershipStub(),
+    );
+
+    expect(res.text).toMatch(/^createdByAbapsmith: no \(not this process; no journal entry on A4H\)$/m);
+  });
+
+  it("e: a FAILED transport-create entry does not count as ownership evidence", async () => {
+    const journal = new Journal(jcfg(tmp), "A4H");
+    await seedTransportCreateEntry(journal, "A4HK900117", "failed");
+
+    const fixture = loadCtsFixture("transport-details-with-objects");
+    const { conn } = fakeCtsConnection([fixture]);
+    const journalDeps = deps(journal);
+
+    const res = await abapTransport(
+      conn,
+      transportInput({ operation: "show", transport: "A4HK900117" }),
+      MAX_CHARS,
+      openGate(),
+      journalDeps,
+      ownershipStub(),
+    );
+
+    expect(res.text).toMatch(/^createdByAbapsmith: no \(not this process; no journal entry on A4H\)$/m);
+  });
+
+  it("f: a release DRY RUN reports journal evidence for a SUCCEEDED transport-create entry", async () => {
+    const journal = new Journal(jcfg(tmp), "A4H");
+    await seedTransportCreateEntry(journal, "A4HK900117", "succeeded");
+
+    const fixture = loadCtsFixture("transport-details-with-objects");
+    const { conn } = fakeCtsConnection([fixture]);
+    const journalDeps = deps(journal);
+
+    const res = await abapTransportRelease(
+      conn,
+      { transport: "A4HK900117" },
+      MAX_CHARS,
+      openGate(),
+      journalDeps,
+      ownershipStub(), // a fresh process — knows nothing in memory
+    );
+
+    expect(res.text).toMatch(/^createdByAbapsmith: yes \(journal entry .+\)$/m);
+    expect(res.text).toContain("was created by abapsmith earlier");
+    expect(res.text).toContain('confirm_unowned: "A4HK900117"');
+  });
+
+  it("g: the armed-release guard is unchanged — journal evidence alone does not let an armed release through without confirm_unowned", async () => {
+    // Same journal-evidenced request as (f): journal evidence is reported to the
+    // caller, but the irreversible act still wants the explicit override, because
+    // this SERVER PROCESS still did not create it — only an earlier one did.
+    const journal = new Journal(jcfg(tmp), "A4H");
+    await seedTransportCreateEntry(journal, "A4HK900117", "succeeded");
+
+    const fixture = loadCtsFixture("transport-details-with-objects");
+    const { conn, calls } = fakeCtsConnection([fixture]);
+    const journalDeps = deps(journal);
+
+    const err = await abapTransportRelease(
+      conn,
+      { transport: "A4HK900117", confirm: "A4HK900117" },
+      MAX_CHARS,
+      openGate(),
+      journalDeps,
+      ownershipStub(), // empty: a fresh process
+    ).catch((e: unknown) => e as { code?: string; message?: string });
+
+    expect(err.code).toBe("BAD_INPUT");
+    // The important assertion: no release POST was ever issued — only the pre-read GET.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe("GET");
   });
 });
