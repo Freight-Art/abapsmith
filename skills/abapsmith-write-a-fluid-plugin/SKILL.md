@@ -10,7 +10,7 @@ tool under `abap_fluid` with no MCP registration. You write the files, the
 operator enables them, then you verify.
 
 ```
-1 choose id/actions → 2 manifest → 3 body class → 4 self-check → 5 hand off → 6 verify
+1 choose id/actions → 2 manifest → 3 body class → 4 check on the system → 5 self-check → 6 hand off → 7 verify
 ```
 
 ## 1. Choose the id and the actions
@@ -53,8 +53,44 @@ framework expects, which is not standard ABAP:
 - Escape values you interpolate into JSON with `esc( )`. It handles only backslash, quote,
   CRLF, LF, CR and tab; strip other control characters yourself.
 - Every line ≤ 255 characters.
+- Never `COMMIT WORK` in the body. The invoker commits after a `mutate` action and rolls back
+  when `rc` is non-zero; an `execute` action's database changes persist only with the request's
+  implicit commit. Do not claim otherwise in a manifest description.
 
-## 4. Self-check against the loader before handing off
+ABAP that a class writer or the syntax check does not reject, and that then fails anyway — each
+of these cost a round in practice:
+
+- No comment line outside `METHOD … ENDMETHOD` or the DEFINITION part. A full-line separator
+  comment between methods makes ADT refuse the whole class: `OO_SOURCE_BASED 12`, "unknown
+  comments which can't be stored", with no line number.
+- Formal parameters of your own helpers: `TYPE clike` (or `csequence`) for anything that may
+  receive a DDIC character field, then copy into a local `TYPE string` inside the method.
+  `TYPE string` on a formal refuses a `C(10)` actual; `TYPE i` refuses an `N(6)` actual — assign
+  numeric DDIC values to a local `TYPE i` first. Pass-by-`VALUE(…)` does not change this.
+- `CALL FUNCTION` actuals: declare each as `TYPE <table>-<field>` of the formal's DDIC type
+  (`abap_read` the function module, or select `FUPARAREF`). A mismatch activates cleanly and
+  dumps at run time as `CX_SY_DYN_CALL_ILLEGAL_TYPE`, inside your `err` frame.
+- `SELECT … INTO CORRESPONDING FIELDS OF TABLE` whenever the select list is not in the target
+  structure's order. Positional `INTO TABLE` gives silently shifted or empty fields.
+- Character tests (`CO`, `CN`, `strlen`) on `STRING` locals after `CONDENSE … NO-GAPS`, never on
+  a fixed-length `C(n)` field — trailing blanks make the condition always false.
+- APIs keyed by (object, sub-object): enumerate the sub-objects from the read API and loop; the
+  blank sub-object does not cover the rest.
+
+## 4. Check the class on the system before it is finished
+
+Plugins deploy only through the server, so syntax-check a scratch copy yourself: replace the
+class name with `ZCL_<SOMETHING>_CHK`, `abap_write` it into `$TMP`, `abap_activate`, fix, repeat.
+Do this after the first method, not after the last — a 1400-line first activation produced eight
+errors of two kinds. Test one hypothesis per round. If ADT rejects the write, delete the scratch
+class and recreate it. Delete it before handing off. Call the SAP tools one at a time; the ADT
+session is exclusive and parallel calls time out.
+
+Then read the class once as a reviewer before you hand it off: dead branches, fixed-length
+traps, assumptions that a blank key covers all rows. A syntax check finds none of these, and in
+practice this review found more bugs than the activation did.
+
+## 5. Self-check against the loader before handing off
 
 The loader refuses the whole plugin, naming the file and line, on any of these:
 
@@ -65,9 +101,9 @@ The loader refuses the whole plugin, naming the file and line, on any of these:
 - An object name colliding with one another loaded tool already claims (`FLUID_OBJECT_CONFLICT`).
 - A `source.file` that resolves outside the plugin directory.
 
-Note which of the two flags the plugin needs; step 5 must ask for them.
+Note which of the two flags the plugin needs; step 6 must ask for them.
 
-## 5. Hand off to the operator — you cannot enable it
+## 6. Hand off to the operator — you cannot enable it
 
 Plugins load **once at server startup**, never mid-session. Tell the user to set these in the
 MCP server's env and restart it:
@@ -76,13 +112,13 @@ MCP server's env and restart it:
 |---|---|
 | `ABAP_FLUID_PLUGINS` | comma-separated absolute roots; each subdirectory with a `fluid-plugin.json` is one plugin |
 | `ABAP_ALLOW_FLUID_PLUGINS` | `true` — consent to run the ABAP there; the path alone is not consent |
-| `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` | `true` only if step 4 found a DB write or commit |
-| `ABAP_ALLOW_FLUID_CALL_FM` | `true` only if step 4 found `CALL FUNCTION` |
+| `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` | `true` if step 5 found a DB write or commit, or any action is `mutate` (the gate checks it per call) |
+| `ABAP_ALLOW_FLUID_CALL_FM` | `true` only if step 5 found `CALL FUNCTION` |
 
 `abap_fluid` exists on the default v1 surface only; v2 (`abap_do`) has no fluid entry point.
 Read-only mode or a productive system disables the fluid API entirely, plugins included.
 
-## 6. Verify after the restart
+## 7. Verify after the restart
 
 1. `abap_fluid(op="list")` — the id is present. If not, the same output lists it under
    `refused[]` with path, error code and reason. Then `op="describe", tool="<id>"` to confirm
@@ -90,6 +126,17 @@ Read-only mode or a productive system disables the fluid API entirely, plugins i
 2. `abap_fluid(tool="<id>", action="<read action>", args={…})` — first call deploys the objects
    into `$ABAPSMITH_FLUID_API`, then runs. A `mutate` call also needs `confirm: "<id>.<action>"`.
 3. `abap_fluid(op="verify", tool="<id>")` — what is actually on the system.
+
+Exercise every action, including one state variant per mutate action (an object with and without
+a package entry, an interval used and unused): the two bugs a clean activation hid in practice
+were a runtime dump and a silently empty field, and one of them was skipped by the first fixture.
+Take argument names from `op="describe"`, never from memory of similar tools. If a fixture needs
+an SAP API with untyped parameters, `core.call_fm` refuses it; use a throwaway
+`IF_OO_ADT_CLASSRUN` class in `$TMP`.
+
+Any source change after the restart needs another restart: `op="repair"` re-deploys the loaded
+version only. Batch every fix from one verify round, syntax-check them as in step 4, then ask for
+one restart.
 
 `FLUID_PLUGINS_DISABLED` means the path is set but consent is off. `FLUID_ACTION_FAILED` is
 your own `err` frame; the text is what you passed.

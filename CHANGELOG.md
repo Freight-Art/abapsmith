@@ -12,6 +12,15 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Changed
+
+- `abapsmith-write-a-fluid-plugin` skill: adds the lessons from building the shipped `nr` plugin
+  with an orchestrator and subagents — ABAP that the syntax check accepts and that fails anyway
+  (comments outside methods, `TYPE string`/`TYPE i` formals, untyped `CALL FUNCTION` actuals,
+  positional `INTO TABLE`, character tests on `C(n)`), a scratch-class syntax-check step before
+  the class is finished, and a verify section that plans state variants and one restart per
+  fix round.
+
 ## [0.5.0] - 2026-09-12
 
 ### Added
