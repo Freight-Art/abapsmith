@@ -12,6 +12,26 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-09-12
+
+### Fixed
+
+- `abap_transport show` and the `abap_transport_release` dry run now answer
+  "did abapsmith create this request?" from durable evidence instead of the
+  running process's memory. The header field is `createdByAbapsmith`: `yes
+  (this server process)` when this process minted it, otherwise `yes (journal
+  entry <id>)` when the journal holds a successful `transport-create` entry for
+  the number on the connected system, `no (not this process; no journal entry
+  on <SID>)` when it does not, and `unknown — …` when the journal is off or
+  unreadable. This also covers requests from `abap_img_edit create_request`,
+  which journal but never registered in-process ownership. The armed-release
+  gate is unchanged: `confirm_unowned` still counts only requests created by
+  the running process, and both notes say so. The TASKS table gains a `type`
+  column (the raw `tm:type` CTS sends, one-letter TRFUNCTION values glossed),
+  and a task-number lookup reports `requestedType` next to `requestedStatus`,
+  so the `taskType` that `create_request` reports can be confirmed
+  (issue #67).
+
 ## [0.5.5] - 2026-09-12
 
 ### Fixed
