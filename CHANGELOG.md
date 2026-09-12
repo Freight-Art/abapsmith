@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-12
+
 ### Added
 
 - New operator-installable fluid plugin `fluid-plugins/nr`: SAP number ranges (SNRO) — `list`,
