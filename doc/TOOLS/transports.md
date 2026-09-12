@@ -70,6 +70,74 @@ Example (dry-run delete):
 { "operation": "delete", "transport": "A4HK900123" }
 ```
 
+### `createdByAbapsmith`
+
+`operation=show`, and the `abap_transport_release` dry run, report a
+`createdByAbapsmith` header field instead of the old `createdThisSession:
+yes|no`. It is resolved in this order:
+
+- No session-ownership record was given to the call — the field is
+  omitted entirely. Unchanged from before: the check is opt-in, and a
+  direct caller that supplies none gets no claim at all.
+- This server process created the request, per its own in-memory record —
+  `yes (this server process)`.
+- Otherwise the write journal is read for a `transport-create` entry
+  filed under the request number — or, when the call named a task number
+  that CTS resolved to its parent, under either that task number or the
+  parent's — whose `systemKey` matches the connected system and whose
+  outcome is not `failed`:
+  - Found — `yes (journal entry <id>)`.
+  - Journal on, nothing found — `no (not this process; no journal entry
+    on <SID>)`.
+  - Journal off (`ABAP_JOURNAL=off`) — `unknown — the journal is off`.
+  - Journal unreadable — `unknown — the journal could not be read`.
+  - No journal supplied to the call — `unknown — no journal was supplied
+    to this call`.
+
+This matters because the old note came from process memory alone: a host
+that starts a fresh server per call, or any restart, reported every
+request abapsmith itself had created as one it did not create. The
+journal outlives the process; the in-memory record does not.
+
+Journal evidence does not change what `abap_transport_release`'s
+ownership gate checks: the `BAD_INPUT` refusal that demands
+`confirm_unowned` still counts only requests created by the running
+server process. A request with journal evidence but no in-process record
+is reported as `yes (journal entry ...)` and still needs
+`confirm_unowned` to be released — both the `show` note and the dry-run
+note say so. That split is deliberate: reporting can rely on a record
+written earlier, but an irreversible act asks the caller to confirm in
+the process that performs it.
+
+Two things deliberately do not count as evidence: a `transport-create`
+entry with no `systemKey` (journal directories are namespaced per SID
+only, so an entry that does not name its box cannot prove it is this
+one), and a `failed` `transport-create` entry (it records a create that
+did not land).
+
+### Task type
+
+The `TASKS` table on `operation=show`, and on the release dry run's own
+`TASKS` table, gains a `type` column: the raw `tm:type` exactly as CTS
+sent it. A details response usually spells it out
+(`Development/Correction`, `Unclassified`); the one-letter TRFUNCTION
+form is glossed inline instead — `S (development/correction)`, `R
+(repair)`, `Q (customizing task)`, `X (unclassified task)`. An empty
+value reads `(none)`. No mapping from the spelled-out form back to a
+letter is attempted, because the server's exact wording per type is not
+established here.
+
+This is what lets `abap_img_edit create_request`'s `taskType: Q` be
+checked afterward: until now, `show`'s task list carried number, owner
+and status only, with no way to confirm the type of the task that was
+created.
+
+When the caller names a task number, CTS answers about its parent
+request, and the substitution header (`requested` / `answeredAbout` /
+`requestedStatus`) now also carries `requestedType`, the named task's own
+type — `not known` when the task is not among the parsed tasks, the same
+fallback `requestedStatus` uses.
+
 ## abap_transport_release
 
 Release a transport request. Irreversible — a released request cannot be
