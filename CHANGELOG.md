@@ -12,6 +12,35 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.10] - 2026-09-12
+
+### Deprecated
+
+- The `v2` tool surface (`ABAP_TOOL_SURFACE=v2`) is deprecated and will be
+  removed in 0.6.0. Selecting it now logs one warning line at startup and
+  states the removal release in the server instructions; the surface is
+  frozen. `v1` is the only supported value. (issue #76)
+
+### Added
+
+- Four diagnostic skills: `abapsmith-debug-a-failing-run`,
+  `abapsmith-run-tests-and-fix`, `abapsmith-check-code-quality` and
+  `abapsmith-explore-a-package`, each with the tool sequence, the refusals
+  to expect and a transcript from a live system. `abapsmith-orient` routes
+  to all four. (issue #92)
+
+## [0.5.9] - 2026-09-12
+
+### Added
+
+- `abap_search mode=source` searches source text across the repository in one
+  call: literal or regex `query`, scope by `packages` (with
+  `include_subpackages`), `objects` pattern and `types`, `case_sensitive`,
+  `include_comments`, `max`. Hits carry object, include and include-local line
+  number; truncation is marked with honest object and hit counts. Backed by a
+  new built-in fluid tool `scan` (deployed on first use, kernel `FIND PCRE`),
+  so it needs the fluid API and a writable mode. (issue #72)
+
 ## [0.5.8] - 2026-09-12
 
 ### Added
