@@ -81,7 +81,9 @@ preview endpoint's own column list has 7 entries, including `BPVIEW`, which
 comes from that include. Validating against the DDIC source would refuse a
 valid field — and it has no answer at all for a DDIC view or a CDS view,
 neither of which has a "source field list" in the same sense. An unknown
-field, an unknown `op`, or a malformed `value` is refused with `BAD_INPUT`.
+field or a malformed `value` is refused with `BAD_INPUT`. An unknown `op` never
+reaches the tool: the input schema lists the accepted operators as an enum, so
+the MCP client sees a schema validation error naming them (observed live).
 Cost differs: an unknown operator or a malformed shape is caught before any
 request — zero wire cost; an unknown field is only known after the probe, so
 it costs that one request.
