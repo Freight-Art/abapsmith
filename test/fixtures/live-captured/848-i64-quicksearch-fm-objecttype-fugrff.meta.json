@@ -1,0 +1,31 @@
+{
+  "n": 848,
+  "label": "i64-quicksearch-fm-objecttype-fugrff",
+  "expect": "objectType=FUGR/FF matches the FM but drops adtcore:description",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=BUP_ROLES_GET_ALL&objectType=FUGR%2FFF&maxResults=25",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "329",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "319850.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 329,
+  "zeroByteBody": false,
+  "sha256": "01125c8896a44cbb77d7f3f164597b923f21ab3015436de14a16510c6e3a6044",
+  "utcTimestamp": "2026-09-12T09:30:14.205Z",
+  "durationMs": 389,
+  "sessionName": "LIVE-I64"
+}

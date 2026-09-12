@@ -12,6 +12,23 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-12
+
+### Fixed
+
+- `abap_read` no longer refuses a function module named without its group
+  (`{"type":"FUGR/FF","object":"BUP_ROLES_GET_ALL"}` → `BAD_INPUT … needs its
+  function group`). The exact-name lookup sent `objectType=FUGR`, which selects
+  function groups, so the module was never found and the group in its URI never
+  seen. Parented types (`FUGR/FF`, `FUGR/I`) now search untyped, filter the rows
+  back to the requested type, take the group from the URI and resolve when
+  exactly one group matches; several groups refuse naming each candidate, none
+  refuse explaining that generated modules (`ENQUEUE_*` …) are not indexed and
+  need the group named. `abap_search` renders a `group` column between `name`
+  and `package` whenever a row has a parent; searches without one keep their
+  four columns. The FUGR/FF search-blind wording in write verification no
+  longer claims modules are not indexed at all (issue #64).
+
 ## [0.5.1] - 2026-09-12
 
 ### Changed

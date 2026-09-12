@@ -1,0 +1,31 @@
+{
+  "n": 849,
+  "label": "i64-quicksearch-group-objecttype-fugr",
+  "expect": "objectType=FUGR does match the function group BUDA itself",
+  "note": null,
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=BUDA&objectType=FUGR&maxResults=25",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Accept": "application/*"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-length": "346",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "859713.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 346,
+  "zeroByteBody": false,
+  "sha256": "ecc948e8dd09fcfc763942c0266d4e073c0c9c67f08166fcf8a4b4e5589f7a72",
+  "utcTimestamp": "2026-09-12T09:30:15.131Z",
+  "durationMs": 925,
+  "sessionName": "LIVE-I64"
+}
