@@ -35096,7 +35096,7 @@ var require_tracetypes = __commonJS({
       return { parentLink, dbaccesses, tables };
     };
     exports2.parseTraceDbAccess = parseTraceDbAccess;
-    var parseCount = (count) => {
+    var parseCount2 = (count) => {
       if ((0, utilities_1.isNumber)(count))
         return count;
       const [base, exp] = count.split("E").map(utilities_1.toInt);
@@ -35120,7 +35120,7 @@ var require_tracetypes = __commonJS({
           proceduralNetTime
         };
       });
-      const count = parseCount(raw["@_count"]);
+      const count = parseCount2(raw["@_count"]);
       return { ...(0, utilities_1.typedNodeAttr)(raw), count, parentLink, statements };
     };
     exports2.parseTraceStatements = parseTraceStatements;
@@ -43690,6 +43690,9 @@ var RETRYABILITY = {
   CIRCUIT_OPEN_TRANSIENT: "conditional",
   AUTH_FAILED: "terminal",
   // trips the circuit breaker; retrying risks locking a shared account
+  AUTH_EXPIRED: "terminal",
+  // renewing the token is an operator action outside the call; no argument fixes it
+  AUTH_TOKEN_REFRESH_FAILED: "conditional",
   SYSTEM_UNAVAILABLE: "conditional",
   CONNECT_FAILED: "conditional",
   NOT_CONNECTED: "conditional",
@@ -45450,7 +45453,12 @@ var DEFAULT_FAILURE_THRESHOLD = 3;
 var AUTH_REARM_BASE_COOLDOWN_MS = 15 * 6e4;
 var AUTH_REARM_MAX_COOLDOWN_MS = 4 * 60 * 6e4;
 var AUTH_REARM_POLL_MS = 1e3;
-var NO_PASSWORD_CREDENTIAL_DISCRIMINATOR = " session-cookie-auth";
+var CREDENTIAL_DISCRIMINATORS = {
+  cookie: " session-cookie-auth",
+  certificate: " client-certificate-auth",
+  token: " bearer-token-auth",
+  oauth: " oauth-client-credentials-auth"
+};
 function asResponseLike(input) {
   return isResponseLike(input) ? input : void 0;
 }
@@ -45545,7 +45553,7 @@ var AuthCircuitBreaker = class _AuthCircuitBreaker {
     const fingerprint = fingerprintCredentials(
       cfg.url,
       cfg.user,
-      cfg.password ?? NO_PASSWORD_CREDENTIAL_DISCRIMINATOR
+      cfg.authMethod === "password" ? cfg.password ?? "" : CREDENTIAL_DISCRIMINATORS[cfg.authMethod]
     );
     const prior = lookupTrippedFingerprint(fingerprint);
     if (prior) {
@@ -66540,13 +66548,665 @@ var runSources = /* @__PURE__ */ new Map([
   ["ZCL_ZMCP_FLUID_RUN", RUN_SOURCE]
 ]);
 
-// src/adt/fluid/builtin/ui.ts
+// src/adt/fluid/builtin/scan.ts
+var SCAN_TOOL_ID = "scan";
+var SCAN_ACTION = "source";
+var SCAN_ENTRY_CLASS = "ZCL_ZMCP_FLUID_SCAN";
 var RUNTIME_SOURCE7 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
 if (RUNTIME_SOURCE7 === void 0) {
   throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var RUNTIME_OBJECT7 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
 if (RUNTIME_OBJECT7 === void 0) {
+  throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var SCAN_SOURCE = `CLASS zcl_zmcp_fluid_scan DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    CLASS-METHODS run
+      IMPORTING
+        iv_action TYPE string
+        iv_json   TYPE string.
+
+  PRIVATE SECTION.
+    CLASS-DATA gv_trunc    TYPE string.
+    CLASS-DATA gv_query    TYPE string.
+    CLASS-DATA gv_regex    TYPE abap_bool.
+    CLASS-DATA gv_case     TYPE abap_bool.
+    CLASS-DATA gv_comments TYPE abap_bool.
+    CLASS-DATA gv_max_hits TYPE i.
+    CLASS-DATA gv_pattern  TYPE string.
+
+    CLASS-METHODS source.
+
+    CLASS-METHODS num
+      IMPORTING
+        iv_path         TYPE string
+      RETURNING
+        VALUE(rv_value) TYPE i.
+
+    CLASS-METHODS code_part
+      IMPORTING
+        iv_line        TYPE string
+      RETURNING
+        VALUE(rv_text) TYPE string.
+
+    CLASS-METHODS esc_like
+      IMPORTING
+        iv_raw         TYPE string
+      RETURNING
+        VALUE(rv_pat)  TYPE string.
+
+    CLASS-METHODS fugr_includes
+      IMPORTING
+        iv_group       TYPE string
+      RETURNING
+        VALUE(rt_inc)  TYPE string_table.
+
+    CLASS-METHODS scan_lines
+      IMPORTING
+        iv_otype TYPE string
+        iv_oname TYPE string
+        iv_inc   TYPE string
+        it_src   TYPE string_table
+      CHANGING
+        cv_stop  TYPE abap_bool
+        cv_hits  TYPE i.
+
+ENDCLASS.
+
+
+CLASS zcl_zmcp_fluid_scan IMPLEMENTATION.
+
+  METHOD run.
+    zcl_zmcp_fluid_rt=>begin( iv_id = 'scan' iv_action = iv_action ).
+
+    TRY.
+        zcl_zmcp_fluid_rt=>scan( iv_json ).
+        CASE iv_action.
+          WHEN 'source'.
+            source( ).
+          WHEN OTHERS.
+            zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
+              iv_text = |unknown action "{ iv_action }"| ).
+        ENDCASE.
+      CATCH cx_root INTO DATA(lx_err).
+        zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = iv_action iv_text = lx_err->get_text( ) ).
+    ENDTRY.
+
+    IF zcl_zmcp_fluid_rt=>failed( ) = abap_true.
+      zcl_zmcp_fluid_rt=>end( iv_rc = 1 ).
+    ELSE.
+      zcl_zmcp_fluid_rt=>end( iv_rc = 0 iv_truncated = boolc( gv_trunc IS NOT INITIAL ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD num.
+    DATA(lv_raw) = zcl_zmcp_fluid_rt=>s( iv_path ).
+    TRY.
+        rv_value = lv_raw.
+      CATCH cx_root.
+        CLEAR rv_value.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD code_part.
+    CLEAR rv_text.
+    IF iv_line IS INITIAL.
+      RETURN.
+    ENDIF.
+    IF iv_line(1) = '*'.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_len) = strlen( iv_line ).
+    DATA(lv_i) = 0.
+    WHILE lv_i < lv_len AND iv_line+lv_i(1) = ' '.
+      lv_i = lv_i + 1.
+    ENDWHILE.
+    IF lv_i < lv_len AND iv_line+lv_i(1) = '"'.
+      RETURN.
+    ENDIF.
+
+    " Walks the line looking for a comment-starting '"' outside a string
+    " literal, toggling an "inside literal" flag on every unqualified '.
+    " Approximation: a '"' inside a |...| string template is read here as a
+    " comment start, same blind spot as elsewhere in this codebase's
+    " lightweight ABAP source heuristics.
+    DATA(lv_inside) = abap_false.
+    DATA(lv_cut) = lv_len.
+    DATA(lv_j) = 0.
+    WHILE lv_j < lv_len.
+      DATA(lv_ch) = iv_line+lv_j(1).
+      IF lv_ch = ''''.
+        IF lv_inside = abap_true.
+          lv_inside = abap_false.
+        ELSE.
+          lv_inside = abap_true.
+        ENDIF.
+      ELSEIF lv_ch = '"' AND lv_inside = abap_false.
+        lv_cut = lv_j.
+        EXIT.
+      ENDIF.
+      lv_j = lv_j + 1.
+    ENDWHILE.
+    rv_text = substring( val = iv_line len = lv_cut ).
+  ENDMETHOD.
+
+  METHOD esc_like.
+    rv_pat = iv_raw.
+    REPLACE ALL OCCURRENCES OF '#' IN rv_pat WITH '##'.
+    REPLACE ALL OCCURRENCES OF '_' IN rv_pat WITH '#_'.
+    REPLACE ALL OCCURRENCES OF '%' IN rv_pat WITH '#%'.
+  ENDMETHOD.
+
+  METHOD fugr_includes.
+    " Live-verified on A4H: group /DMO/TRAVEL_UPDATE_TASK has includes
+    " /DMO/LTRAVEL_UPDATE_TASK$01, ...TOP, ...U01 and main program
+    " /DMO/SAPLTRAVEL_UPDATE_TASK - for a namespaced group the namespace
+    " comes first, before the L/SAPL marker, not after it.
+    CLEAR rt_inc.
+    DATA lv_ns TYPE string.
+    DATA lv_rest TYPE string.
+    CLEAR: lv_ns, lv_rest.
+    lv_rest = iv_group.
+
+    IF iv_group IS NOT INITIAL AND iv_group(1) = '/'.
+      DATA(lv_nsoff) = find( val = iv_group sub = '/' off = 1 ).
+      IF lv_nsoff >= 0.
+        lv_ns   = substring( val = iv_group len = lv_nsoff + 1 ).
+        lv_rest = substring( val = iv_group off = lv_nsoff + 1 ).
+      ENDIF.
+    ENDIF.
+
+    DATA(lv_lprefix)   = lv_ns && 'L' && lv_rest.
+    DATA(lv_saplname)  = lv_ns && 'SAPL' && lv_rest.
+    DATA(lv_pat)       = esc_like( lv_lprefix ) && '%'.
+    DATA(lv_group_pat) = esc_like( iv_group ) && '%'.
+
+    " Prefix over-match guard: L<this group>% also matches a sibling group
+    " whose name extends this one (e.g. group ZFG's "LZFG%" also matches
+    " ZFGX's includes). When more than one FUGR object shares this prefix,
+    " accept only prognames whose remainder is exactly 3 characters (TOP,
+    " UXX, U01, $01, F01, ...) - the shape every generated include name has.
+    " Trade-off, stated plainly: under the strict rule, a hand-made include
+    " with a longer name on a group that has a prefix-sharing sibling is not
+    " scanned.
+    DATA(lv_sibling_count) = 0.
+    SELECT COUNT( * ) FROM tadir
+      WHERE pgmid = 'R3TR' AND object = 'FUGR' AND obj_name LIKE @lv_group_pat ESCAPE '#'
+      INTO @lv_sibling_count.
+
+    SELECT progname FROM reposrc
+      WHERE progname LIKE @lv_pat ESCAPE '#' AND r3state = 'A'
+      INTO TABLE @DATA(lt_fpg).
+
+    DATA(lv_prefix_len) = strlen( lv_lprefix ).
+    LOOP AT lt_fpg INTO DATA(ls_fpg).
+      DATA(lv_pname) = |{ ls_fpg-progname }|.
+      IF lv_sibling_count > 1.
+        DATA(lv_remainder_len) = strlen( lv_pname ) - lv_prefix_len.
+        IF lv_remainder_len = 3.
+          APPEND lv_pname TO rt_inc.
+        ENDIF.
+      ELSE.
+        APPEND lv_pname TO rt_inc.
+      ENDIF.
+    ENDLOOP.
+
+    " The main program is added separately; step 7 (READ REPORT) skips it
+    " when it has no source of its own.
+    APPEND lv_saplname TO rt_inc.
+  ENDMETHOD.
+
+  METHOD scan_lines.
+    DATA lv_no TYPE i.
+    DATA lv_off TYPE i.
+    CLEAR: lv_no, lv_off.
+
+    LOOP AT it_src INTO DATA(lv_line).
+      lv_no = sy-tabix.
+      DATA(lv_text) = lv_line.
+      IF gv_comments = abap_false AND iv_otype <> 'DDLS'.
+        lv_text = code_part( lv_line ).
+        IF lv_text IS INITIAL.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+
+      DATA(lv_hit) = abap_false.
+      IF gv_regex = abap_true.
+        IF gv_case = abap_true.
+          FIND PCRE gv_pattern IN lv_text MATCH OFFSET lv_off.
+        ELSE.
+          FIND PCRE gv_pattern IN lv_text IGNORING CASE MATCH OFFSET lv_off.
+        ENDIF.
+        IF sy-subrc = 0.
+          lv_hit = abap_true.
+        ENDIF.
+      ELSE.
+        " find( case = ... ) only accepts a constant, not a variable (live
+        " syntax check on A4H: "GV_CASE is not a constant"), so the two
+        " cases are spelled out.
+        IF gv_case = abap_true.
+          lv_off = find( val = lv_text sub = gv_query case = abap_true ).
+        ELSE.
+          lv_off = find( val = lv_text sub = gv_query case = abap_false ).
+        ENDIF.
+        IF lv_off >= 0.
+          lv_hit = abap_true.
+        ENDIF.
+      ENDIF.
+
+      IF lv_hit = abap_true.
+        cv_hits = cv_hits + 1.
+        DATA(lv_no_s) = |{ lv_no }|.
+        zcl_zmcp_fluid_rt=>out(
+          |\\{"kind":"hit","obj_type":"{ zcl_zmcp_fluid_rt=>esc( iv_otype ) }",| &&
+          |"obj_name":"{ zcl_zmcp_fluid_rt=>esc( iv_oname ) }",| &&
+          |"include":"{ zcl_zmcp_fluid_rt=>esc( iv_inc ) }",| &&
+          |"line":{ lv_no_s },| &&
+          |"text":"{ zcl_zmcp_fluid_rt=>esc( lv_line ) }"\\}| ).
+        IF cv_hits >= gv_max_hits.
+          gv_trunc = 'hits'.
+          cv_stop = abap_true.
+          EXIT.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD source.
+    DATA(lv_query)    = zcl_zmcp_fluid_rt=>s( 'query' ).
+    DATA(lv_regex)    = zcl_zmcp_fluid_rt=>b( 'regex' ).
+    DATA(lv_case)     = zcl_zmcp_fluid_rt=>b( 'case_sensitive' ).
+    DATA(lv_comments) = zcl_zmcp_fluid_rt=>b( 'include_comments' ).
+    DATA(lv_inc_sub)  = zcl_zmcp_fluid_rt=>b( 'include_subpackages' ).
+    DATA(lv_objects)  = zcl_zmcp_fluid_rt=>s( 'objects' ).
+    DATA(lv_max_hits)    = num( 'max_hits' ).
+    DATA(lv_max_objects) = num( 'max_objects' ).
+
+    IF lv_query IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'query is required' ).
+      RETURN.
+    ENDIF.
+    IF lv_max_hits <= 0.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = 'max_hits must be greater than zero' ).
+      RETURN.
+    ENDIF.
+    IF lv_max_objects <= 0.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+        iv_text = 'max_objects must be greater than zero' ).
+      RETURN.
+    ENDIF.
+
+    IF lv_regex = abap_true.
+      TRY.
+          " ABAP's FIND PCRE compiles with the extended (x) flag ON by
+          " default - live-verified on A4H: pattern 'FUNCTION B' does NOT
+          " match 'FUNCTION BRF_...', while '(?-x)FUNCTION B' does. Under x,
+          " literal spaces are ignored and '#' starts a pattern comment, so
+          " every caller pattern is prefixed with (?-x) to get the ordinary
+          " PCRE the caller expects. A caller who wants extended mode can
+          " still ask for it with a leading (?x).
+          gv_pattern = |(?-x){ lv_query }|.
+          FIND PCRE gv_pattern IN 'x'.
+        CATCH cx_root INTO DATA(lx_pcre).
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |invalid regex pattern "{ lv_query }": { lx_pcre->get_text( ) }| ).
+          RETURN.
+      ENDTRY.
+    ENDIF.
+
+    " types: empty list means all five.
+    DATA lt_type_r TYPE RANGE OF tadir-object.
+    CLEAR lt_type_r.
+    DATA(lv_ntypes) = zcl_zmcp_fluid_rt=>n( 'types' ).
+    IF lv_ntypes = 0.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'PROG' ) TO lt_type_r.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'CLAS' ) TO lt_type_r.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'INTF' ) TO lt_type_r.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'FUGR' ) TO lt_type_r.
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = 'DDLS' ) TO lt_type_r.
+    ELSE.
+      DO lv_ntypes TIMES.
+        DATA(lv_ti_s) = |{ sy-index - 1 }|.
+        DATA(lv_type) = to_upper( zcl_zmcp_fluid_rt=>s( |types/{ lv_ti_s }| ) ).
+        IF lv_type <> 'PROG' AND lv_type <> 'CLAS' AND lv_type <> 'INTF' AND lv_type <> 'FUGR' AND lv_type <> 'DDLS'.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |unknown type "{ lv_type }" - expected PROG, CLAS, INTF, FUGR or DDLS| ).
+          RETURN.
+        ENDIF.
+        APPEND VALUE #( sign = 'I' option = 'EQ' low = lv_type ) TO lt_type_r.
+      ENDDO.
+    ENDIF.
+
+    " packages, with optional transitive subpackage expansion over
+    " TDEVC-PARENTCL (live-verified: TDEVC-PARENTCL = 'SABP_DEMOS' returns
+    " SABAP_DEMOS_CDS_FLIGHT, SABAP_DEMOS_SQL_CHESS).
+    TYPES: BEGIN OF ty_pkg,
+             devclass TYPE tdevc-devclass,
+           END OF ty_pkg.
+    DATA lt_seen     TYPE STANDARD TABLE OF ty_pkg WITH EMPTY KEY.
+    DATA lt_current  TYPE STANDARD TABLE OF ty_pkg WITH EMPTY KEY.
+    DATA lt_children TYPE STANDARD TABLE OF ty_pkg WITH EMPTY KEY.
+    CLEAR: lt_seen, lt_current, lt_children.
+
+    DATA(lv_npkg) = zcl_zmcp_fluid_rt=>n( 'packages' ).
+    DO lv_npkg TIMES.
+      DATA(lv_pi_s) = |{ sy-index - 1 }|.
+      APPEND VALUE ty_pkg( devclass = zcl_zmcp_fluid_rt=>s( |packages/{ lv_pi_s }| ) ) TO lt_seen.
+    ENDDO.
+    DATA(lv_has_pkg) = xsdbool( lt_seen IS NOT INITIAL ).
+
+    IF lv_inc_sub = abap_true AND lt_seen IS NOT INITIAL.
+      lt_current = lt_seen.
+      DO.
+        IF lt_current IS INITIAL.
+          EXIT.
+        ENDIF.
+        " Guard against an empty driver table before FOR ALL ENTRIES - an
+        " empty lt_current is already excluded by the check just above, kept
+        " here too since the loop reassigns lt_current every iteration.
+        CLEAR lt_children.
+        SELECT devclass FROM tdevc
+          FOR ALL ENTRIES IN @lt_current
+          WHERE parentcl = @lt_current-devclass
+          INTO TABLE @lt_children.
+        CLEAR lt_current.
+        LOOP AT lt_children INTO DATA(ls_child).
+          READ TABLE lt_seen WITH KEY devclass = ls_child-devclass TRANSPORTING NO FIELDS.
+          IF sy-subrc <> 0.
+            APPEND ls_child TO lt_seen.
+            APPEND ls_child TO lt_current.
+          ENDIF.
+        ENDLOOP.
+      ENDDO.
+    ENDIF.
+
+    DATA lt_pkg_r TYPE RANGE OF tadir-devclass.
+    CLEAR lt_pkg_r.
+    LOOP AT lt_seen INTO DATA(ls_seen).
+      APPEND VALUE #( sign = 'I' option = 'EQ' low = ls_seen-devclass ) TO lt_pkg_r.
+    ENDLOOP.
+
+    " object-name scope: '*' -> '%', escaped the same way builtin/fpm.ts's
+    " find action escapes its query pattern.
+    DATA(lv_has_obj) = xsdbool( lv_objects IS NOT INITIAL ).
+    DATA(lv_objpat) = lv_objects.
+    IF lv_has_obj = abap_true.
+      lv_objpat = esc_like( lv_objpat ).
+      REPLACE ALL OCCURRENCES OF '*' IN lv_objpat WITH '%'.
+    ENDIF.
+
+    " Scope query: total first, honestly, then the fetch capped at
+    " max_objects + 1 so the ceiling is detected without reading a scope
+    " that may be far larger than the caller's ceiling.
+    DATA(lv_total) = 0.
+    SELECT COUNT( * ) FROM tadir
+      WHERE pgmid = 'R3TR' AND object IN @lt_type_r AND delflag = @abap_false
+        AND ( @lv_has_pkg = @abap_false OR devclass IN @lt_pkg_r )
+        AND ( @lv_has_obj = @abap_false OR obj_name LIKE @lv_objpat ESCAPE '#' )
+      INTO @lv_total.
+
+    DATA(lv_fetch) = lv_max_objects + 1.
+    TYPES: BEGIN OF ty_obj,
+             object   TYPE tadir-object,
+             obj_name TYPE tadir-obj_name,
+           END OF ty_obj.
+    DATA lt_obj TYPE STANDARD TABLE OF ty_obj WITH EMPTY KEY.
+    CLEAR lt_obj.
+    SELECT object, obj_name FROM tadir
+      WHERE pgmid = 'R3TR' AND object IN @lt_type_r AND delflag = @abap_false
+        AND ( @lv_has_pkg = @abap_false OR devclass IN @lt_pkg_r )
+        AND ( @lv_has_obj = @abap_false OR obj_name LIKE @lv_objpat ESCAPE '#' )
+      ORDER BY object, obj_name
+      INTO TABLE @lt_obj
+      UP TO @lv_fetch ROWS.
+
+    IF lines( lt_obj ) > lv_max_objects.
+      DATA(lv_from_idx) = lv_max_objects + 1.
+      DELETE lt_obj FROM lv_from_idx.
+      gv_trunc = 'objects'.
+    ENDIF.
+
+    gv_query    = lv_query.
+    gv_regex    = lv_regex.
+    gv_case     = lv_case.
+    gv_comments = lv_comments.
+    gv_max_hits = lv_max_hits.
+
+    DATA(lv_stop)              = abap_false.
+    DATA(lv_hits)              = 0.
+    DATA(lv_objects_scanned)   = 0.
+    DATA(lv_includes_scanned)  = 0.
+    DATA(lv_includes_skipped)  = 0.
+
+    LOOP AT lt_obj INTO DATA(ls_obj).
+      IF lv_stop = abap_true.
+        EXIT.
+      ENDIF.
+      lv_objects_scanned = lv_objects_scanned + 1.
+
+      DATA(lv_otype) = |{ ls_obj-object }|.
+      DATA(lv_oname) = |{ ls_obj-obj_name }|.
+
+      IF lv_otype = 'DDLS'.
+        " No include for a DDLS/CDS source - it is scanned as itself, and
+        " always matched in full: CDS comments are not ABAP comments, so
+        " code_part()'s heuristic does not apply to this branch.
+        DATA(lv_ddl) = ||.
+        SELECT SINGLE source FROM ddddlsrc WHERE ddlname = @lv_oname AND as4local = 'A' INTO @lv_ddl.
+        IF sy-subrc <> 0.
+          lv_includes_skipped = lv_includes_skipped + 1.
+          CONTINUE.
+        ENDIF.
+        " An inline @DATA(...) target is a syntax error on SPLIT ... INTO
+        " TABLE (hit live) - lt_ddl_src must be declared beforehand.
+        DATA lt_ddl_src TYPE TABLE OF string.
+        CLEAR lt_ddl_src.
+        " DDDDLSRC stores CRLF line ends (live-verified on A4H: splitting
+        " on newline alone leaves a trailing CR on every hit text).
+        REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf
+          IN lv_ddl WITH cl_abap_char_utilities=>newline.
+        SPLIT lv_ddl AT cl_abap_char_utilities=>newline INTO TABLE lt_ddl_src.
+        lv_includes_scanned = lv_includes_scanned + 1.
+        scan_lines(
+          EXPORTING
+            iv_otype = lv_otype
+            iv_oname = lv_oname
+            iv_inc   = lv_oname
+            it_src   = lt_ddl_src
+          CHANGING
+            cv_stop  = lv_stop
+            cv_hits  = lv_hits ).
+        CONTINUE.
+      ENDIF.
+
+      DATA lt_inc TYPE string_table.
+      CLEAR lt_inc.
+      CASE lv_otype.
+        WHEN 'PROG'.
+          APPEND lv_oname TO lt_inc.
+        WHEN 'CLAS'.
+          TRY.
+              " get_all_class_includes takes SEOCLSNAME (C(30)), not a
+              " string - live syntax check on A4H rejects lv_oname here.
+              DATA lv_clsname TYPE seoclsname.
+              lv_clsname = lv_oname.
+              DATA(lt_all) = cl_oo_classname_service=>get_all_class_includes( lv_clsname ).
+              LOOP AT lt_all INTO DATA(lv_ci).
+                APPEND lv_ci TO lt_inc.
+              ENDLOOP.
+            CATCH cx_root.
+              " No includes could be resolved for this class; it contributes
+              " zero includes rather than failing the whole scan.
+          ENDTRY.
+        WHEN 'INTF'.
+          DATA(lv_ipat) = esc_like( |{ lv_oname WIDTH = 30 PAD = '=' }| ) && '%'.
+          SELECT progname FROM reposrc
+            WHERE progname LIKE @lv_ipat ESCAPE '#' AND r3state = 'A'
+            INTO TABLE @DATA(lt_ipg).
+          LOOP AT lt_ipg INTO DATA(ls_ipg).
+            APPEND |{ ls_ipg-progname }| TO lt_inc.
+          ENDLOOP.
+        WHEN 'FUGR'.
+          lt_inc = fugr_includes( lv_oname ).
+      ENDCASE.
+
+      LOOP AT lt_inc INTO DATA(lv_incname).
+        IF lv_stop = abap_true.
+          EXIT.
+        ENDIF.
+        DATA lt_src TYPE TABLE OF string.
+        CLEAR lt_src.
+        " READ REPORT needs a character-like flat field, not a STRING
+        " (live syntax check on A4H).
+        DATA lv_prog TYPE progname.
+        lv_prog = lv_incname.
+        READ REPORT lv_prog INTO lt_src.
+        IF sy-subrc <> 0.
+          lv_includes_skipped = lv_includes_skipped + 1.
+          CONTINUE.
+        ENDIF.
+        lv_includes_scanned = lv_includes_scanned + 1.
+        scan_lines(
+          EXPORTING
+            iv_otype = lv_otype
+            iv_oname = lv_oname
+            iv_inc   = lv_incname
+            it_src   = lt_src
+          CHANGING
+            cv_stop  = lv_stop
+            cv_hits  = lv_hits ).
+      ENDLOOP.
+    ENDLOOP.
+
+    DATA(lv_total_s)          = |{ lv_total }|.
+    DATA(lv_scanned_s)        = |{ lv_objects_scanned }|.
+    DATA(lv_inc_scanned_s)    = |{ lv_includes_scanned }|.
+    DATA(lv_inc_skipped_s)    = |{ lv_includes_skipped }|.
+    DATA(lv_hits_s)           = |{ lv_hits }|.
+    zcl_zmcp_fluid_rt=>out(
+      |\\{"kind":"summary","objects_total":{ lv_total_s },| &&
+      |"objects_scanned":{ lv_scanned_s },| &&
+      |"includes_scanned":{ lv_inc_scanned_s },| &&
+      |"includes_skipped":{ lv_inc_skipped_s },| &&
+      |"hits":{ lv_hits_s },| &&
+      |"truncated":"{ zcl_zmcp_fluid_rt=>esc( gv_trunc ) }"\\}| ).
+  ENDMETHOD.
+
+ENDCLASS.
+`;
+var scanManifest = {
+  contract: FLUID_CONTRACT,
+  id: "scan",
+  title: "Source scan",
+  description: "Scans ABAP source text of the objects in a named scope, line by line.",
+  objects: [
+    {
+      name: FLUID_RUNTIME_CLASS,
+      type: "CLAS/OC",
+      description: RUNTIME_OBJECT7.description,
+      source: { text: RUNTIME_SOURCE7 }
+    },
+    {
+      name: SCAN_ENTRY_CLASS,
+      type: "CLAS/OC",
+      description: "fluid: line-wise source scan over a package/name scope",
+      source: { text: SCAN_SOURCE }
+    }
+  ],
+  entry: SCAN_ENTRY_CLASS,
+  actions: [
+    {
+      name: SCAN_ACTION,
+      category: "read",
+      description: "Reads each object's source line by line and returns the lines that match.",
+      input: {
+        type: "object",
+        required: ["query", "max_hits", "max_objects"],
+        properties: {
+          query: {
+            type: "string",
+            maxLength: 255,
+            description: "Literal substring, or a PCRE pattern when regex is true."
+          },
+          regex: { type: "boolean", description: "Treat query as a PCRE pattern instead of a literal substring." },
+          case_sensitive: { type: "boolean", description: "Default false." },
+          include_comments: { type: "boolean", description: "Also match comment text. Default false." },
+          packages: {
+            type: "array",
+            items: { type: "string", maxLength: 30 },
+            description: "Package scope (TADIR-DEVCLASS)."
+          },
+          include_subpackages: {
+            type: "boolean",
+            description: "Walk TDEVC-PARENTCL down from each named package."
+          },
+          objects: {
+            type: "string",
+            maxLength: 40,
+            description: "Object-name scope, '*' wildcard. Combined with packages by AND."
+          },
+          types: {
+            type: "array",
+            items: { type: "string", maxLength: 4 },
+            description: "TADIR object types: PROG CLAS INTF FUGR DDLS. Omit for all five."
+          },
+          max_hits: {
+            type: "integer",
+            minimum: 1,
+            description: "Scanning stops at this many hits and the result says so."
+          },
+          max_objects: {
+            type: "integer",
+            minimum: 1,
+            description: "Object ceiling; the result reports how many objects the scope really holds."
+          }
+        }
+      },
+      output: {
+        type: "array",
+        description: 'One kind="hit" row per matching line, then exactly one final kind="summary" row.',
+        items: {
+          type: "object",
+          required: ["kind"],
+          properties: {
+            kind: { type: "string" },
+            obj_type: { type: "string" },
+            obj_name: { type: "string" },
+            include: { type: "string" },
+            line: { type: "integer" },
+            text: { type: "string" },
+            objects_total: { type: "integer" },
+            objects_scanned: { type: "integer" },
+            includes_scanned: { type: "integer" },
+            includes_skipped: { type: "integer" },
+            hits: { type: "integer" },
+            truncated: { type: "string" }
+          }
+        }
+      }
+    }
+  ]
+};
+var scanSources = /* @__PURE__ */ new Map([
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE7],
+  [SCAN_ENTRY_CLASS, SCAN_SOURCE]
+]);
+
+// src/adt/fluid/builtin/ui.ts
+var RUNTIME_SOURCE8 = fluidRuntimeSources.get(FLUID_RUNTIME_CLASS);
+if (RUNTIME_SOURCE8 === void 0) {
+  throw new Error(`fluidRuntimeSources has no entry for ${FLUID_RUNTIME_CLASS}`);
+}
+var RUNTIME_OBJECT8 = fluidRuntimeManifest.objects.find((o) => o.name === FLUID_RUNTIME_CLASS);
+if (RUNTIME_OBJECT8 === void 0) {
   throw new Error(`fluidRuntimeManifest has no entry for ${FLUID_RUNTIME_CLASS}`);
 }
 var UI_SOURCE = `CLASS zcl_zmcp_fluid_ui DEFINITION
@@ -66929,8 +67589,8 @@ var uiManifest = {
       name: FLUID_RUNTIME_CLASS,
       type: "CLAS/OC",
       // same live object as the rt tool's; derived so the two descriptions can't drift apart
-      description: RUNTIME_OBJECT7.description,
-      source: { text: RUNTIME_SOURCE7 }
+      description: RUNTIME_OBJECT8.description,
+      source: { text: RUNTIME_SOURCE8 }
     },
     {
       name: "ZCL_ZMCP_FLUID_UI",
@@ -67061,7 +67721,7 @@ var uiManifest = {
   ]
 };
 var uiSources = /* @__PURE__ */ new Map([
-  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE7],
+  [FLUID_RUNTIME_CLASS, RUNTIME_SOURCE8],
   ["ZCL_ZMCP_FLUID_UI", UI_SOURCE]
 ]);
 
@@ -67074,6 +67734,7 @@ var BUILTIN_FLUID_TOOLS = [
   { manifest: imgManifest, sources: imgSources },
   { manifest: fluidRuntimeManifest, sources: fluidRuntimeSources },
   { manifest: runManifest, sources: runSources },
+  { manifest: scanManifest, sources: scanSources },
   { manifest: uiManifest, sources: uiSources }
 ];
 
@@ -67513,6 +68174,7 @@ async function loadFluidTools(cfg, builtins) {
 
 // src/config.ts
 var import_dotenv = __toESM(require_main(), 1);
+import { readFileSync as readFileSync3 } from "node:fs";
 
 // node_modules/fast-xml-parser/src/util.js
 var nameStartChar = ":A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD";
@@ -72317,6 +72979,131 @@ async function trRelease(conn, trkorr, proof) {
   };
 }
 
+// src/auth/client-cert.ts
+function readNamedFile(envVar, path8, readFile2) {
+  try {
+    return { ok: true, buf: readFile2(path8) };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, issue: `${envVar} (${path8}) could not be read: ${msg}.` };
+  }
+}
+function isPfxPath(path8) {
+  const lower = path8.toLowerCase();
+  return lower.endsWith(".pfx") || lower.endsWith(".p12");
+}
+function loadClientCertMaterial(spec, readFile2) {
+  const { certPath, keyPath, passphrase } = spec;
+  if (isPfxPath(certPath)) {
+    if (keyPath !== void 0) {
+      return {
+        issue: `ABAP_CLIENT_KEY is set but ABAP_CLIENT_CERT points at a PKCS#12 file (${certPath}) \u2014 a PFX already contains the private key. Unset ABAP_CLIENT_KEY.`
+      };
+    }
+    const pfxRead = readNamedFile("ABAP_CLIENT_CERT", certPath, readFile2);
+    if (!pfxRead.ok) return { issue: pfxRead.issue };
+    return {
+      material: {
+        pfx: pfxRead.buf,
+        ...passphrase !== void 0 ? { passphrase } : {},
+        kind: "pfx",
+        certPath
+      }
+    };
+  }
+  const certRead = readNamedFile("ABAP_CLIENT_CERT", certPath, readFile2);
+  if (!certRead.ok) return { issue: certRead.issue };
+  const certText = certRead.buf.toString("utf8");
+  if (!certText.includes("-----BEGIN")) {
+    return {
+      issue: `ABAP_CLIENT_CERT (${certPath}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM certificate, or at a .pfx/.p12 for PKCS#12.`
+    };
+  }
+  if (keyPath !== void 0) {
+    const keyRead = readNamedFile("ABAP_CLIENT_KEY", keyPath, readFile2);
+    if (!keyRead.ok) return { issue: keyRead.issue };
+    return {
+      material: {
+        cert: certRead.buf,
+        key: keyRead.buf,
+        ...passphrase !== void 0 ? { passphrase } : {},
+        kind: "pem",
+        certPath,
+        keyPath
+      }
+    };
+  }
+  if (!certText.includes("PRIVATE KEY-----")) {
+    return {
+      issue: `ABAP_CLIENT_CERT (${certPath}) is a PEM certificate with no private key in it and ABAP_CLIENT_KEY is not set \u2014 set ABAP_CLIENT_KEY to the PEM private-key file, or point ABAP_CLIENT_CERT at a PKCS#12 (.pfx/.p12) file that contains both.`
+    };
+  }
+  return {
+    material: {
+      cert: certRead.buf,
+      key: certRead.buf,
+      ...passphrase !== void 0 ? { passphrase } : {},
+      kind: "pem",
+      certPath
+    }
+  };
+}
+function loadCaBundle(path8, readFile2) {
+  const read = readNamedFile("ABAP_CA_CERT", path8, readFile2);
+  if (!read.ok) return { issue: read.issue };
+  if (!read.buf.toString("utf8").includes("-----BEGIN")) {
+    return {
+      issue: `ABAP_CA_CERT (${path8}) does not look like a PEM file (no "-----BEGIN" line). Point it at a PEM CA certificate or bundle.`
+    };
+  }
+  return { bundle: { pem: read.buf, path: path8 } };
+}
+
+// src/auth/service-key.ts
+function joinFieldNames(names) {
+  if (names.length <= 1) return names.join("");
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+function parseServiceKey(path8, raw) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { issue: `ABAP_SERVICE_KEY (${path8}) is not valid JSON: ${msg}.` };
+  }
+  const uaa = parsed?.uaa;
+  const clientId = typeof uaa?.clientid === "string" ? uaa.clientid : void 0;
+  const clientSecret = typeof uaa?.clientsecret === "string" ? uaa.clientsecret : void 0;
+  const uaaUrl = typeof uaa?.url === "string" ? uaa.url : void 0;
+  const missing = [
+    ...clientId === void 0 ? ["uaa.clientid"] : [],
+    ...clientSecret === void 0 ? ["uaa.clientsecret"] : [],
+    ...uaaUrl === void 0 ? ["uaa.url"] : []
+  ];
+  if (missing.length > 0) {
+    return {
+      issue: `ABAP_SERVICE_KEY (${path8}) is missing ${joinFieldNames(missing)} \u2014 this does not look like an SAP BTP ABAP-environment service key.`
+    };
+  }
+  if (clientId === void 0 || clientSecret === void 0 || uaaUrl === void 0) {
+    return { issue: `ABAP_SERVICE_KEY (${path8}) is missing required uaa fields.` };
+  }
+  const tokenUrl = uaaUrl.endsWith("/oauth/token") ? uaaUrl : `${uaaUrl.replace(/\/+$/, "")}/oauth/token`;
+  const scope = typeof uaa?.scope === "string" && uaa.scope.length > 0 ? uaa.scope : void 0;
+  return {
+    settings: {
+      tokenUrl,
+      clientId,
+      clientSecret,
+      ...scope !== void 0 ? { scope } : {},
+      source: "service-key",
+      serviceKeyPath: path8
+    }
+  };
+}
+
 // src/mode.ts
 var ENHANCE_TARGETS_VALUES = ["none", "customer", "sap"];
 function parseAbapMode(raw) {
@@ -74264,7 +75051,7 @@ var REGISTRY = {
     bridgeDelete: {
       adtRest: "Same finding as bridgeCreate: no writable or readable index collection exists under a table.",
       via: "DD_INDEX_INTERFACE (function group SDBT), ACTION='D', called from the fluid `classic` tool's `delete_index` action, body class ZCL_ZMCP_FLUID_CLASSIC. Success is proven by re-reading DD12V/DD17S after COMMIT WORK, not by a clean FM return alone. See src/adt/index-create.ts and src/adt/ddic-bridge.ts. The bridge's own DD12V pre-check is proven live, A4H 2026-09-05: a delete aimed at a nonexistent index returned NOT_FOUND correctly, before ever calling the FM. Round 1's defect \u2014 the generated ABAP omitted DD_INDEX_INTERFACE's mandatory TABLES parameter INDEX_FIELDS \u2014 is fixed and deployed: confirmed live, A4H 2026-09-05, the class body of the bridge that was then ZCL_ZMCP_DDIC_DINDX now carries the TABLES clause. Round 2 (same date) found a second defect: ACTION='D' reports ACTFAILED='X' even when the delete already took effect \u2014 the failure message's own DD12V read showed zero rows for the pair, and an immediate re-delete returned NOT_FOUND. The fragment treated ACTFAILED as fatal and returned before COMMIT WORK, so a real delete was reported CHECK_FAILED and never recorded. The fix written for round 2 \u2014 commit regardless, re-read DD12V (unfiltered and AS4LOCAL='A') and DD17S, and report success (tagging the transcript INDEX-DELETED-ACTFAILED) only when all three come back empty \u2014 never ran: round 3 found its own added ACTFAILED note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every TABL/DI delete failed the class-source PUT itself (ADT_ERROR / TooLongLine, SEDI_ADT15, line 65 of the then-ZCL_ZMCP_DDIC_DINDX bridge) before DD_INDEX_INTERFACE was ever called \u2014 the bridge class was never refreshed and stayed on its round-2 body. The ACTFAILED-tolerant read-back above had therefore never executed live before round 4. Round 4 fixes the generator two ways: this fragment's two long messages are now built up in a string variable across several short source lines and written once, so no generated line can exceed 255 for any legal name; and ddicBridgeSource \u2014 the single point every bridge class body is assembled through \u2014 now throws CHECK_FAILED before returning if any line exceeds 255, naming the line and its length, so this defect class cannot reach the server again from any bridge. Round 4 then ran live on A4H 2026-09-05, $TMP: the non-unique Z01 and the unique-with-client-field Z02 were each deleted with INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE, a re-delete of Z02 returned NOT_FOUND from the DD12V pre-check, and the deployed then-ZCL_ZMCP_DDIC_DINDX body read back with the new read-back variable and no line over 255. So the ACTFAILED-tolerant read-back is live-proven; ACTFAILED='X' was set on both deletes while all three read-backs came back empty, so what the flag itself means is still not established, only that it does not mean the rows survived.",
-      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and abap_data_preview was confirmed live to carry no WHERE filter, so a targeted DD12V check was not practical."
+      limits: "The bridge deletes any index it finds in DD12V for the given table by name \u2014 it checks only DD12V/indexname, not provenance, so this is not restricted to indexes the bridge itself created. Deleting the BASE TABLE is not itself blocked by an index still on it \u2014 live-proven on A4H 2026-09-05, the table delete succeeded with an index in place \u2014 but abapsmith cannot confirm the index went with it: no ADT resource can read an index back, per adtRest above, so a table delete's effect on its indexes is unverifiable either way. Same package rule as bridgeCreate: the base table's package, never the caller's. Unlike the VIEW/DV and TRAN/T deletes, which refuse a caller's corr_nr outright, a TABL/DI DELETE takes the same transport pair the create does \u2014 a `$` package sets NO_TRANSP_REQUEST='X' and refuses corr_nr, a transportable package REQUIRES corr_nr as TRANSPORT_NUMBER \u2014 because DD_INDEX_INTERFACE with ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own DD12V/DD17S rows may still have existed; whether the base-table delete cascaded them away or orphaned them is unverified, not confirmed-absent \u2014 there is no ADT resource for TABL/DI to check with, and at the time abap_data_preview carried no WHERE filter, so a targeted DD12V check was not practical. It now takes a structured filter (issue #73), so such a check is possible, but this round's outcome was never re-checked and stays unverified."
     }
   }
 };
@@ -75779,6 +76566,24 @@ var ConfigSchema = external_exports.object({
    */
   sessionCookie: external_exports.custom().optional(),
   /**
+   * Which of the five mutually exclusive credential methods resolved.
+   * `loadConfig` always passes an explicit value. The schema default exists
+   * for the OTHER entry point — hand-built `ConfigSchema.parse({...})` calls
+   * (tests, and any caller assembling a Config directly) predate this field,
+   * and `"password"` is the only default that keeps their behaviour identical
+   * to what it was before five methods existed. The parsed type stays
+   * non-optional, so every consumer can read it unconditionally.
+   */
+  authMethod: external_exports.custom().default("password"),
+  /** X.509 client-certificate material (ABAP_CLIENT_CERT/_KEY/_KEY_PASSPHRASE). Loaded off disk by `loadClientCertMaterial`; key material and passphrase are secret. */
+  clientCert: external_exports.custom().optional(),
+  /** CA bundle for verifying the SERVER certificate (ABAP_CA_CERT). Not a credential and not tied to an auth method — usable in all five, and independent of ABAP_INSECURE. */
+  caCert: external_exports.custom().optional(),
+  /** Static bearer token (ABAP_TOKEN). As sensitive as ABAP_PASSWORD. */
+  token: external_exports.string().min(1).optional(),
+  /** OAuth 2.0 client-credentials settings (ABAP_OAUTH_* or ABAP_SERVICE_KEY). `clientSecret` is as sensitive as ABAP_PASSWORD. */
+  oauth: external_exports.custom().optional(),
+  /**
    * Logon client — documentation only by default; see `sendClientParam`.
    * Appending `?sap-client=` breaks login on some systems (observed on A4H).
    */
@@ -76016,10 +76821,17 @@ var ConfigSchema = external_exports.object({
    * Do not default this to v2 or drop v1 — a live paired A/B measured v2 at
    * +6.6% more expensive and +142% more tool errors than v1 for
    * statistically identical successful work, despite a genuine −87.6%
-   * schema-size cut. v2 is EXPERIMENTAL and NOT supported for production;
-   * known defects are intentionally not being fixed while
-   * it holds that status. Full measurement, reasoning, and the bar for
+   * schema-size cut. Full measurement, reasoning, and the bar for
    * revisiting this default: see the git history.
+   *
+   * As of this release, `"v2"` is DEPRECATED and scheduled for removal in
+   * 0.6.0 (issue #76; keep in sync with `V2_REMOVAL_RELEASE` in
+   * src/server.ts). The surface is frozen: no new tool routes and no defect
+   * fixes land on it. Setting `ABAP_TOOL_SURFACE=v2` logs a deprecation
+   * warning at startup and puts the same sentence in the server
+   * `instructions` (both driven by `V2_DEPRECATION_SENTENCE` in
+   * src/server.ts, so the operator-facing and model-facing wording cannot
+   * drift apart).
    *
    * Deliberately no `"both"` value: v2 reuses v1's tool names verbatim, so
    * registering both surfaces throws "Tool abap_read is already registered"
@@ -76294,6 +77106,7 @@ function loadConfig(opts = {}) {
   if (!opts.skipDotenv) loadEnvFile();
   const env = opts.env ?? process.env;
   const warn = opts.warn ?? ((m) => process.stderr.write(m + "\n"));
+  const readFile2 = opts.readFile ?? ((p) => readFileSync3(p));
   for (const name of Object.keys(env).filter((k) => k.startsWith("ABAP_ALLOW_") && !RECOGNISED_ABAP_ALLOW_ENV_VARS.includes(k)).sort()) {
     warn(
       `[abapsmith] WARNING: ${name} is not a setting this server reads \u2014 it is most likely a typo of one of the recognised ABAP_ALLOW_* flags (see doc/CONFIGURATION/permissions-and-allowlists.md) and has no effect.`
@@ -76337,6 +77150,18 @@ function loadConfig(opts = {}) {
   const passwordIsSet = env.ABAP_PASSWORD !== void 0 && env.ABAP_PASSWORD.trim() !== "";
   const rawSessionCookie = env.ABAP_SESSION_COOKIE;
   const sessionCookieIsSet = rawSessionCookie !== void 0 && rawSessionCookie.trim() !== "";
+  const nonBlank = (v) => v !== void 0 && v.trim() !== "" ? v : void 0;
+  const clientCertPath = nonBlank(env.ABAP_CLIENT_CERT);
+  const clientKeyPath = nonBlank(env.ABAP_CLIENT_KEY);
+  const clientKeyPassphrase = nonBlank(env.ABAP_CLIENT_KEY_PASSPHRASE);
+  const tokenValue = nonBlank(env.ABAP_TOKEN);
+  const serviceKeyPath = nonBlank(env.ABAP_SERVICE_KEY);
+  const oauthTokenUrl = nonBlank(env.ABAP_OAUTH_TOKEN_URL);
+  const oauthClientId = nonBlank(env.ABAP_OAUTH_CLIENT_ID);
+  const oauthClientSecret = nonBlank(env.ABAP_OAUTH_CLIENT_SECRET);
+  const oauthScope = nonBlank(env.ABAP_OAUTH_SCOPE);
+  const oauthExplicitIsSet = oauthTokenUrl !== void 0 || oauthClientId !== void 0 || oauthClientSecret !== void 0;
+  const oauthIsSet = serviceKeyPath !== void 0 || oauthExplicitIsSet;
   let sessionCookie;
   let credentialIssue;
   if (sessionCookieIsSet) {
@@ -76347,11 +77172,100 @@ function loadConfig(opts = {}) {
       sessionCookie = parsedCookie;
     }
   }
+  if (credentialIssue === void 0 && clientCertPath === void 0) {
+    const orphanNames = [
+      ...clientKeyPath !== void 0 ? ["ABAP_CLIENT_KEY"] : [],
+      ...clientKeyPassphrase !== void 0 ? ["ABAP_CLIENT_KEY_PASSPHRASE"] : []
+    ];
+    if (orphanNames.length > 0) {
+      credentialIssue = `${orphanNames.join(" / ")} is set but ABAP_CLIENT_CERT is not \u2014 set ABAP_CLIENT_CERT to the certificate (PEM) or PKCS#12 file.`;
+    }
+  }
+  const configuredMethods = [];
+  if (passwordIsSet) configuredMethods.push({ method: "password", label: "ABAP_PASSWORD" });
+  if (sessionCookieIsSet) configuredMethods.push({ method: "cookie", label: "ABAP_SESSION_COOKIE" });
+  if (clientCertPath !== void 0) {
+    configuredMethods.push({ method: "certificate", label: "ABAP_CLIENT_CERT" });
+  }
+  if (tokenValue !== void 0) configuredMethods.push({ method: "token", label: "ABAP_TOKEN" });
+  if (oauthIsSet) {
+    configuredMethods.push({ method: "oauth", label: "ABAP_OAUTH_* / ABAP_SERVICE_KEY" });
+  }
   if (credentialIssue === void 0) {
-    if (passwordIsSet && sessionCookie !== void 0) {
-      credentialIssue = "both ABAP_PASSWORD and ABAP_SESSION_COOKIE are set \u2014 refusing to start rather than silently choosing one. Unset whichever one is not intended.";
-    } else if (!passwordIsSet && sessionCookie === void 0) {
-      credentialIssue = "no credential configured \u2014 set exactly one of ABAP_PASSWORD or ABAP_SESSION_COOKIE.";
+    if (configuredMethods.length > 1) {
+      credentialIssue = `more than one credential is configured (${configuredMethods.map((m) => m.label).join(" and ")}) \u2014 refusing to start rather than silently choosing one. Unset whichever one is not intended.`;
+    } else if (configuredMethods.length === 0) {
+      credentialIssue = "no credential configured \u2014 set exactly one of ABAP_PASSWORD, ABAP_SESSION_COOKIE, ABAP_CLIENT_CERT, ABAP_TOKEN, or the ABAP_OAUTH_* group (ABAP_OAUTH_TOKEN_URL + ABAP_OAUTH_CLIENT_ID + ABAP_OAUTH_CLIENT_SECRET, or ABAP_SERVICE_KEY).";
+    }
+  }
+  const resolvedMethod = credentialIssue === void 0 && configuredMethods.length === 1 ? configuredMethods[0] : void 0;
+  const authMethod = resolvedMethod?.method ?? "password";
+  let clientCert;
+  if (resolvedMethod?.method === "certificate" && clientCertPath !== void 0) {
+    const { material, issue: issue3 } = loadClientCertMaterial(
+      {
+        certPath: clientCertPath,
+        ...clientKeyPath !== void 0 ? { keyPath: clientKeyPath } : {},
+        ...clientKeyPassphrase !== void 0 ? { passphrase: clientKeyPassphrase } : {}
+      },
+      readFile2
+    );
+    if (issue3 !== void 0) credentialIssue = issue3;
+    else clientCert = material;
+  }
+  let oauth;
+  if (resolvedMethod?.method === "oauth") {
+    if (serviceKeyPath !== void 0 && oauthExplicitIsSet) {
+      credentialIssue = "both ABAP_SERVICE_KEY and explicit ABAP_OAUTH_* variables are set \u2014 refusing to start rather than silently choosing one. Unset whichever one is not intended.";
+    } else if (serviceKeyPath !== void 0) {
+      try {
+        const raw = readFile2(serviceKeyPath).toString("utf8");
+        const { settings, issue: issue3 } = parseServiceKey(serviceKeyPath, raw);
+        if (issue3 !== void 0) {
+          credentialIssue = issue3;
+        } else if (settings !== void 0) {
+          oauth = oauthScope !== void 0 ? { ...settings, scope: oauthScope } : settings;
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        credentialIssue = `ABAP_SERVICE_KEY (${serviceKeyPath}) could not be read: ${msg}.`;
+      }
+    } else if (oauthTokenUrl === void 0 || oauthClientId === void 0 || oauthClientSecret === void 0) {
+      const missing = [
+        ...oauthTokenUrl === void 0 ? ["ABAP_OAUTH_TOKEN_URL"] : [],
+        ...oauthClientId === void 0 ? ["ABAP_OAUTH_CLIENT_ID"] : [],
+        ...oauthClientSecret === void 0 ? ["ABAP_OAUTH_CLIENT_SECRET"] : []
+      ];
+      credentialIssue = `OAuth client-credentials configuration is incomplete \u2014 ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not set. Set ABAP_OAUTH_TOKEN_URL, ABAP_OAUTH_CLIENT_ID and ABAP_OAUTH_CLIENT_SECRET, or point ABAP_SERVICE_KEY at a BTP service-key JSON instead.`;
+    } else {
+      let validUrl;
+      try {
+        const u = new URL(oauthTokenUrl);
+        validUrl = u.protocol === "http:" || u.protocol === "https:";
+      } catch {
+        validUrl = false;
+      }
+      if (!validUrl) {
+        credentialIssue = "ABAP_OAUTH_TOKEN_URL is not a valid absolute URL.";
+      } else {
+        oauth = {
+          tokenUrl: oauthTokenUrl,
+          clientId: oauthClientId,
+          clientSecret: oauthClientSecret,
+          ...oauthScope !== void 0 ? { scope: oauthScope } : {},
+          source: "env"
+        };
+      }
+    }
+  }
+  const caCertPath = nonBlank(env.ABAP_CA_CERT);
+  let caCert;
+  if (caCertPath !== void 0) {
+    const { bundle, issue: issue3 } = loadCaBundle(caCertPath, readFile2);
+    if (issue3 !== void 0) {
+      credentialIssue = credentialIssue !== void 0 ? `${credentialIssue}; ${issue3}` : issue3;
+    } else {
+      caCert = bundle;
     }
   }
   const allowDataPreview = boolFromEnv(env.ABAP_ALLOW_DATA_PREVIEW);
@@ -76394,6 +77308,11 @@ function loadConfig(opts = {}) {
     // speaks for a missing/blank password now.
     password: passwordIsSet ? env.ABAP_PASSWORD : void 0,
     sessionCookie,
+    authMethod,
+    clientCert,
+    caCert,
+    token: tokenValue,
+    oauth,
     client: env.ABAP_CLIENT ?? "",
     sendClientParam: env.ABAP_SEND_CLIENT_PARAM,
     sid: env.ABAP_SID || "UNKNOWN",
@@ -76511,6 +77430,26 @@ ${[...zodIssues, ...modeIssues, ...enhanceTargetsIssues, ...credentialIssues].jo
   if (cfg.insecure) {
     warn(
       "[abapsmith] WARNING: ABAP_INSECURE=true \u2014 TLS certificate verification is DISABLED. Credentials are exposed to anyone who can intercept the connection. Prefer NODE_EXTRA_CA_CERTS with your corporate CA bundle."
+    );
+    if (cfg.caCert !== void 0) {
+      warn(
+        "[abapsmith] WARNING: ABAP_CA_CERT is set but ABAP_INSECURE=true turns certificate verification off entirely, so the CA bundle is never consulted. Unset ABAP_INSECURE to make ABAP_CA_CERT take effect."
+      );
+    }
+  }
+  if (cfg.authMethod === "certificate") {
+    warn(
+      "[abapsmith] NOTE: ABAP_USER is not sent for logon in client-certificate mode \u2014 the effective SAP user is whatever the certificate maps to on the system. ABAP_USER is still used for journal attribution and the debugger identity, but abapsmith does NOT verify that mapping. If the certificate maps to a different user than ABAP_USER names, journal entries and the debugger identity will say ABAP_USER while the system attributes the actual work to the certificate's user \u2014 set ABAP_USER to match the certificate's mapped user yourself."
+    );
+  }
+  if (oauthScope !== void 0 && !oauthIsSet) {
+    warn(
+      "[abapsmith] NOTE: ABAP_OAUTH_SCOPE is set but no OAuth client-credentials configuration is \u2014 it has no effect on its own."
+    );
+  }
+  if (cfg.authMethod === "token") {
+    warn(
+      "[abapsmith] NOTE: ABAP_TOKEN is a static bearer token: it is never refreshed. When it expires the server reports AUTH_EXPIRED and you must renew ABAP_TOKEN and restart."
     );
   }
   if (/^http:\/\//i.test(cfg.url)) {
@@ -76663,6 +77602,26 @@ function redactConfigSecrets(cfg) {
     password: cfg.password ? "***" : "(not set)",
     sessionCookie: cfg.sessionCookie ? "***" : "(not set)",
     sessionCookieNames: cfg.sessionCookie ? [...cfg.sessionCookie.keys()] : void 0,
+    authMethod: cfg.authMethod,
+    clientCert: cfg.clientCert ? {
+      kind: cfg.clientCert.kind,
+      certPath: cfg.clientCert.certPath,
+      keyPath: cfg.clientCert.keyPath ?? "(not set)",
+      passphrase: cfg.clientCert.passphrase ? "***" : "(not set)"
+    } : "(not set)",
+    caCert: cfg.caCert ? cfg.caCert.path : "(not set)",
+    token: cfg.token ? "***" : "(not set)",
+    oauth: cfg.oauth ? {
+      tokenUrl: stripUrlCredentials(cfg.oauth.tokenUrl),
+      // A BTP `clientid` is only meaningful paired with its secret, so
+      // redacting it too keeps the rule "nothing from a credential ever
+      // reaches the config dump" absolute rather than case-by-case.
+      clientId: "***",
+      clientSecret: "***",
+      scope: cfg.oauth.scope ?? "(not set)",
+      source: cfg.oauth.source,
+      serviceKeyPath: cfg.oauth.serviceKeyPath ?? "(not set)"
+    } : "(not set)",
     client: cfg.client || "(not sent)",
     sid: cfg.sid,
     insecure: cfg.insecure,
@@ -76750,6 +77709,14 @@ function mergeInjectedCookies(jarHeader, injected) {
     if (held === void 0 || held === "") merged.set(name, value);
   }
   return [...merged].map(([name, value]) => `${name}=${value}`).join("; ");
+}
+function stripAuthorizationHeader(headers) {
+  if (!headers) return headers;
+  const out = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== "authorization") out[key] = value;
+  }
+  return out;
 }
 var NOOP_RELEASE = () => {
 };
@@ -76951,8 +77918,43 @@ function transientOpenError(breaker) {
     `The SAP system is struggling or unreachable. This is NOT a credentials problem and needs no restart \u2014 the breaker probes automatically ${waitMs !== void 0 ? `in ~${waitMs} ms` : "after the cooldown"} and closes again on the first successful response. Retry after that.`
   );
 }
-function buildInsecureHttpsAgent(insecure) {
-  return insecure ? new https.Agent({ rejectUnauthorized: false }) : void 0;
+function buildHttpsAgent(tls) {
+  const options = {};
+  let hasOption = false;
+  if (tls?.insecure) {
+    options.rejectUnauthorized = false;
+    hasOption = true;
+  }
+  if (tls?.ca) {
+    options.ca = tls.ca;
+    hasOption = true;
+  }
+  if (tls?.cert) {
+    options.cert = tls.cert;
+    hasOption = true;
+  }
+  if (tls?.key) {
+    options.key = tls.key;
+    hasOption = true;
+  }
+  if (tls?.pfx) {
+    options.pfx = tls.pfx;
+    hasOption = true;
+  }
+  if (tls?.passphrase !== void 0) {
+    options.passphrase = tls.passphrase;
+    hasOption = true;
+  }
+  return hasOption ? new https.Agent(options) : void 0;
+}
+async function postFormUrlEncoded(url2, body) {
+  const res = await fetch(url2, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: body.toString()
+  });
+  const text3 = await res.text();
+  return { status: res.status, body: text3 };
 }
 var GuardedHttpClient = class {
   breaker;
@@ -76962,6 +77964,8 @@ var GuardedHttpClient = class {
   requestCount = 0;
   /** Number of requests refused locally because the breaker was open. */
   blockedCount = 0;
+  /** Number of requests re-sent once after a 401 with a refreshed bearer. */
+  refreshRetryCount = 0;
   /**
    * `breaker` IS REQUIRED — it used to default to `new AuthCircuitBreaker()`,
    * which silently gated nothing shared (own private breaker/budget) while
@@ -76970,7 +77974,7 @@ var GuardedHttpClient = class {
   constructor(opts, breaker) {
     this.opts = opts;
     this.breaker = breaker;
-    const httpsAgent = buildInsecureHttpsAgent(opts.insecure);
+    const httpsAgent = buildHttpsAgent(this.opts.tls ?? { insecure: opts.insecure });
     this.inner = opts.inner ?? new import_AxiosHttpClient.AxiosHttpClient(opts.baseURL, {
       timeout: opts.timeout ?? DEFAULT_HTTP_TIMEOUT_MS,
       ...httpsAgent ? { httpsAgent } : {}
@@ -77044,14 +78048,63 @@ var GuardedHttpClient = class {
       opts.headers = headers;
       delete opts.auth;
     }
+    const bearer = this.opts.bearerToken !== void 0 ? await this.opts.bearerToken() : void 0;
+    if (bearer !== void 0) {
+      opts.headers = { ...opts.headers ?? {}, Authorization: `Bearer ${bearer}` };
+      delete opts.auth;
+    } else if (this.opts.suppressBasicAuth?.() === true) {
+      opts.headers = stripAuthorizationHeader(opts.headers);
+      delete opts.auth;
+    }
     this.opts.onRequest?.(opts);
+    if (this.opts.refreshBearerToken === void 0) {
+      return this.settle(await this.sendRaw(opts), opts, isProbe);
+    }
+    const first = await this.sendRaw(opts);
+    const status = first.response?.status ?? first.carried?.status;
+    if (status === 401) {
+      const fresh = await this.opts.refreshBearerToken();
+      if (fresh !== void 0) {
+        const retry = {
+          ...opts,
+          headers: { ...stripAuthorizationHeader(opts.headers), Authorization: `Bearer ${fresh}` }
+        };
+        delete retry.auth;
+        this.refreshRetryCount++;
+        this.opts.onRequest?.(retry);
+        return this.settle(await this.sendRaw(retry), retry, isProbe);
+      }
+    }
+    return this.settle(first, opts, isProbe);
+  }
+  /**
+   * ONLY the network call and the exception/`.response` split — nothing that
+   * touches the breaker, `onResponse`, or throws. Split out of `dispatch()` so
+   * the OAuth 401 retry (step 2f) can send TWICE while `settle()` runs its
+   * full post-processing (including `breaker.inspect()`, which is what would
+   * latch a merely-expired token) only on whichever attempt is final.
+   */
+  async sendRaw(opts) {
     this.requestCount++;
-    let response;
     try {
-      response = await this.inner.request(opts);
+      const response = await this.inner.request(opts);
+      return { response };
     } catch (e) {
+      return { error: e, carried: e?.response };
+    }
+  }
+  /**
+   * Everything downstream of `sendRaw()` — EXACTLY the post-processing
+   * `dispatch()` used to run inline, moved rather than rewritten. Distinguish
+   * success/failure via `"error" in outcome`, not `outcome.error !==
+   * undefined`: a thrown value of `undefined` must still take the failure
+   * path, matching what a bare `try/catch` around `sendRaw()`'s call would do.
+   */
+  settle(outcome, opts, isProbe) {
+    if ("error" in outcome) {
+      const e = outcome.error;
       captureErrorBody("http-guard", opts.url, e);
-      const carried = e?.response;
+      const carried = outcome.carried;
       if (carried) {
         this.breaker.inspect(carried, opts.url);
       } else {
@@ -77070,6 +78123,7 @@ var GuardedHttpClient = class {
       if (this.breaker.isTripped) throw circuitOpenError(this.breaker);
       throw e;
     }
+    const response = outcome.response;
     this.opts.onResponse?.(opts, response);
     this.breaker.inspect(response, opts.url);
     if (isProbe && this.breaker.status().probeInFlight) {
@@ -77079,6 +78133,18 @@ var GuardedHttpClient = class {
     return response;
   }
 };
+
+// src/auth/tls-credentials.ts
+function tlsCredentialsFromConfig(cfg) {
+  return {
+    ...cfg.insecure !== void 0 ? { insecure: cfg.insecure } : {},
+    ...cfg.caCert?.pem !== void 0 ? { ca: cfg.caCert.pem } : {},
+    ...cfg.clientCert?.cert !== void 0 ? { cert: cfg.clientCert.cert } : {},
+    ...cfg.clientCert?.key !== void 0 ? { key: cfg.clientCert.key } : {},
+    ...cfg.clientCert?.pfx !== void 0 ? { pfx: cfg.clientCert.pfx } : {},
+    ...cfg.clientCert?.passphrase !== void 0 ? { passphrase: cfg.clientCert.passphrase } : {}
+  };
+}
 
 // src/debug/client.ts
 import { createHash as createHash3, randomUUID } from "node:crypto";
@@ -78819,21 +79885,40 @@ function createRawHttpRequestFn(opts = {}) {
       return;
     }
     const transport = proxyPlan?.transport ?? (isHttps ? https3 : http2);
-    const insecureOverride = isHttps && httpsAgent?.options.rejectUnauthorized === false ? { rejectUnauthorized: false } : {};
+    const agentTlsOptions = isHttps ? httpsAgent?.options : void 0;
+    const tlsOverride = {
+      // Preserves today's behaviour exactly: only an explicit `false` is
+      // copied, never `true`/`undefined` (Node's own default already
+      // verifies).
+      ...agentTlsOptions?.rejectUnauthorized === false ? { rejectUnauthorized: false } : {},
+      ...agentTlsOptions?.ca !== void 0 ? { ca: agentTlsOptions.ca } : {},
+      ...agentTlsOptions?.cert !== void 0 ? { cert: agentTlsOptions.cert } : {},
+      ...agentTlsOptions?.key !== void 0 ? { key: agentTlsOptions.key } : {},
+      ...agentTlsOptions?.pfx !== void 0 ? { pfx: agentTlsOptions.pfx } : {},
+      ...agentTlsOptions?.passphrase !== void 0 ? { passphrase: agentTlsOptions.passphrase } : {}
+    };
     let options;
     if (proxyPlan && isHttps) {
       options = {
         method: req.method,
         headers: req.headers,
         agent: proxyPlan.agent,
-        ...insecureOverride
+        ...tlsOverride
       };
     } else if (proxyPlan) {
       options = req.longPoll ? { method: req.method, ...proxyPlan.options, agent: false } : { method: req.method, ...proxyPlan.options };
     } else {
-      options = req.longPoll ? { method: req.method, headers: req.headers, agent: false, ...insecureOverride } : {
+      options = req.longPoll ? { method: req.method, headers: req.headers, agent: false, ...tlsOverride } : {
         method: req.method,
         headers: req.headers,
+        // The real shared agent, not `tlsOverride` — it already carries
+        // every TLS option (including the client certificate), and
+        // reusing it here (rather than rebuilding a throwaway one) is
+        // what makes this branch safe to pool. Left asymmetric with the
+        // long-poll/proxy branches above deliberately: those use
+        // `agent: false`/a fresh per-request agent and so need
+        // `tlsOverride` to avoid losing the credential; this one never
+        // does.
         ...isHttps && httpsAgent ? { agent: httpsAgent } : {}
       };
     }
@@ -80317,7 +81402,7 @@ function createDebugClientForConnection(conn, opts) {
     }
     return jar;
   };
-  const httpsAgent = buildInsecureHttpsAgent(conn.cfg.insecure);
+  const httpsAgent = buildHttpsAgent(tlsCredentialsFromConfig(conn.cfg));
   const longPoll = new DebugLongPollClient({
     baseUrl: conn.cfg.url,
     breaker: conn.breaker,
@@ -90010,6 +91095,34 @@ function findStatus(e) {
   return void 0;
 }
 var AUTH_HINT = "Credentials were rejected by the ABAP system and were NOT retried (repeated logon attempts lock the SAP user; login/fails_to_user_lock defaults to 5). Fix ABAP_USER / ABAP_PASSWORD.";
+var REJECTED_CREDENTIAL_PREAMBLE = "Credentials were rejected and were NOT retried (repeated logon attempts lock the SAP user; login/fails_to_user_lock defaults to 5). ";
+function rejectedCredential(method) {
+  switch (method) {
+    case "cookie":
+      return {
+        code: "AUTH_FAILED",
+        hint: REJECTED_CREDENTIAL_PREAMBLE + "The session cookie in ABAP_SESSION_COOKIE was rejected \u2014 it has most likely expired. Obtain a fresh cookie and restart the server."
+      };
+    case "certificate":
+      return {
+        code: "AUTH_FAILED",
+        hint: REJECTED_CREDENTIAL_PREAMBLE + "The client certificate in ABAP_CLIENT_CERT was rejected by the ABAP system. Check that the certificate is not expired, that it is mapped to a user in transaction EXTID_DN / table USREXTID on this system, and that the ICF service accepts certificate logon."
+      };
+    case "token":
+      return {
+        code: "AUTH_EXPIRED",
+        hint: REJECTED_CREDENTIAL_PREAMBLE + "The bearer token in ABAP_TOKEN was rejected \u2014 it has most likely expired. ABAP_TOKEN is static and is never refreshed: renew it and restart the server."
+      };
+    case "oauth":
+      return {
+        code: "AUTH_EXPIRED",
+        hint: REJECTED_CREDENTIAL_PREAMBLE + "The OAuth access token was rejected even after one refresh. Check that the client in ABAP_OAUTH_CLIENT_ID (or ABAP_SERVICE_KEY) is still authorised on this tenant and that its scopes cover ADT."
+      };
+    case "password":
+    case void 0:
+      return { code: "AUTH_FAILED", hint: AUTH_HINT };
+  }
+}
 function systemDownHint(status) {
   return `The ABAP system answered (HTTP ${status}) but is down or overloaded and is refusing everyone \u2014 no credential was rejected, so do NOT change the password. Retrying will not help until the system recovers; check it with the Basis team, SM21, or the appliance console.`;
 }
@@ -90020,10 +91133,11 @@ function tlsHint(code) {
   return `The TLS handshake to the host failed (${code}) \u2014 this says nothing about the credentials. Check the server certificate, or ABAP_INSECURE if this is a self-signed/internal-CA sandbox.`;
 }
 var UNCLASSIFIED_HINT = "The cause of this connect failure could not be classified. Credentials were NOT retried. Both reachability and credentials are candidates \u2014 check ABAP_URL/DNS/VPN as well as ABAP_USER/ABAP_PASSWORD.";
-function credentialsRejectedVerdict(status) {
-  return { code: "AUTH_FAILED", reason: "credentials-rejected", status, hint: AUTH_HINT };
+function credentialsRejectedVerdict(status, method) {
+  const { code, hint } = rejectedCredential(method);
+  return { code, reason: "credentials-rejected", status, hint };
 }
-function classifyConnectFailure(e) {
+function classifyConnectFailure(e, method) {
   const transport = findTransportCode(e);
   if (transport && isTlsCode(transport)) {
     return { code: "CONNECT_FAILED", reason: "tls", transport, hint: tlsHint(transport) };
@@ -90038,7 +91152,8 @@ function classifyConnectFailure(e) {
   }
   const status = findStatus(e);
   if (status === 401 || status === 403) {
-    return { code: "AUTH_FAILED", reason: "credentials-rejected", status, transport, hint: AUTH_HINT };
+    const { code, hint } = rejectedCredential(method);
+    return { code, reason: "credentials-rejected", status, transport, hint };
   }
   if (status !== void 0 && status >= 500 && status <= 599) {
     return {
@@ -90051,6 +91166,150 @@ function classifyConnectFailure(e) {
   }
   return { code: "ADT_ERROR", reason: "connect-failed", status, transport, hint: UNCLASSIFIED_HINT };
 }
+
+// src/adt/oauth.ts
+var DEFAULT_REFRESH_SKEW_MS = 6e4;
+var DEFAULT_FAILURE_COOLDOWN_MS = 3e4;
+var ASSUMED_EXPIRES_IN_SECONDS = 3600;
+var defaultFetchToken = postFormUrlEncoded;
+var OAuthTokenProvider = class {
+  settings;
+  fetchToken;
+  now;
+  refreshSkewMs;
+  failureCooldownMs;
+  safeTokenUrl;
+  cached;
+  inFlight;
+  lastFailure;
+  constructor(opts) {
+    this.settings = opts.settings;
+    this.fetchToken = opts.fetchToken ?? defaultFetchToken;
+    this.now = opts.now ?? (() => Date.now());
+    this.refreshSkewMs = typeof opts.refreshSkewMs === "number" && opts.refreshSkewMs >= 0 ? opts.refreshSkewMs : DEFAULT_REFRESH_SKEW_MS;
+    this.failureCooldownMs = typeof opts.failureCooldownMs === "number" && opts.failureCooldownMs >= 0 ? opts.failureCooldownMs : DEFAULT_FAILURE_COOLDOWN_MS;
+    this.safeTokenUrl = stripUrlCredentials(this.settings.tokenUrl);
+  }
+  /**
+   * Returns a currently-valid access token, minting or refreshing one as
+   * needed. Concurrent callers during a refresh share the single in-flight
+   * request rather than each firing their own.
+   */
+  async getToken() {
+    const cached2 = this.cached;
+    if (cached2 && cached2.expiresAtMs - this.refreshSkewMs > this.now()) {
+      return cached2.token;
+    }
+    return this.refresh();
+  }
+  /**
+   * Discards any cached token and forces a fresh network round trip. Used by
+   * `GuardedHttpClient` exactly once per request, after a bearer draws a 401
+   * (see step 2f in `http-guard.ts`) — a merely-expired token should not
+   * trip the auth latch.
+   */
+  async forceRefresh() {
+    this.cached = void 0;
+    return this.refresh();
+  }
+  /** Diagnostic snapshot. Never includes the token or client secret. */
+  status() {
+    const cached2 = this.cached;
+    const inCooldown = this.inCooldownNow();
+    const result = {
+      hasToken: cached2 !== void 0,
+      inCooldown
+    };
+    if (cached2) {
+      result.expiresInMs = Math.max(0, cached2.expiresAtMs - this.now());
+    }
+    if (this.lastFailure) {
+      result.lastFailure = this.lastFailure.message;
+    }
+    return result;
+  }
+  inCooldownNow() {
+    const failure = this.lastFailure;
+    if (!failure) return false;
+    return this.now() < failure.atMs + this.failureCooldownMs;
+  }
+  refresh() {
+    if (this.inFlight) return this.inFlight;
+    if (this.inCooldownNow()) {
+      throw this.cooldownError();
+    }
+    const attempt = this.performRefresh().finally(() => {
+      this.inFlight = void 0;
+    });
+    this.inFlight = attempt;
+    return attempt;
+  }
+  async performRefresh() {
+    const body = new URLSearchParams();
+    body.set("grant_type", "client_credentials");
+    body.set("client_id", this.settings.clientId);
+    body.set("client_secret", this.settings.clientSecret);
+    if (this.settings.scope) body.set("scope", this.settings.scope);
+    let status;
+    let text3;
+    try {
+      const res = await this.fetchToken(this.settings.tokenUrl, body);
+      status = res.status;
+      text3 = res.body;
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+      throw this.refreshFailedError(void 0, `network error contacting the token endpoint: ${reason}`);
+    }
+    if (status !== 200) {
+      throw this.refreshFailedError(status);
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(text3);
+    } catch {
+      throw this.refreshFailedError(status, "the token endpoint's response was not valid JSON");
+    }
+    const token = parsed?.access_token;
+    if (typeof token !== "string" || token.length === 0) {
+      throw this.refreshFailedError(status, "the token endpoint's response had no access_token");
+    }
+    const rawExpiresIn = parsed.expires_in;
+    const expiresInSeconds = typeof rawExpiresIn === "number" && Number.isFinite(rawExpiresIn) && rawExpiresIn > 0 ? rawExpiresIn : ASSUMED_EXPIRES_IN_SECONDS;
+    this.lastFailure = void 0;
+    this.cached = { token, expiresAtMs: this.now() + expiresInSeconds * 1e3 };
+    return token;
+  }
+  /**
+   * Builds the structured `AUTH_TOKEN_REFRESH_FAILED` error and records the
+   * failure for the cooldown window. `details` carries only the redacted URL
+   * and, when known, the HTTP status — never the response body, which could
+   * echo back request parameters (including the client secret, on some
+   * misconfigured servers).
+   */
+  refreshFailedError(status, extra) {
+    const statusPart = status !== void 0 ? `HTTP ${status}` : "no response";
+    const message = extra ? `OAuth token refresh against ${this.safeTokenUrl} failed: ${extra} (${statusPart}).` : `OAuth token refresh against ${this.safeTokenUrl} failed (${statusPart}).`;
+    const details = { tokenUrl: this.safeTokenUrl };
+    if (status !== void 0) details.status = status;
+    const hint = this.remedyHint();
+    this.lastFailure = { message, atMs: this.now() };
+    return new AbapError("AUTH_TOKEN_REFRESH_FAILED", message, details, hint);
+  }
+  /**
+   * Thrown when a call arrives while a prior failure's cooldown is still in
+   * effect — no network attempt is made, and the cooldown clock is not
+   * restarted (only a real attempt, successful or not, moves `lastFailure`).
+   */
+  cooldownError() {
+    const message = `OAuth token refresh against ${this.safeTokenUrl} is in cooldown after a recent failure.`;
+    const details = { tokenUrl: this.safeTokenUrl };
+    return new AbapError("AUTH_TOKEN_REFRESH_FAILED", message, details, this.remedyHint());
+  }
+  remedyHint() {
+    const cooldownSeconds = Math.round(this.failureCooldownMs / 1e3);
+    return `Verify ABAP_OAUTH_CLIENT_ID/ABAP_OAUTH_CLIENT_SECRET (or the service key) and that the token endpoint is reachable. Another attempt will not be made for ${cooldownSeconds}s.`;
+  }
+};
 
 // src/adt/discovery.ts
 var FEATURE_HREFS = {
@@ -90867,7 +92126,10 @@ function classifyT000Response(resp, logonClient) {
     role: "inconclusive",
     client: logonClient,
     ccCategory,
-    reason
+    reason,
+    // T000 alone never observes a tenant kind — that only comes out of
+    // `ato/settings` in `escalateIfAtoSaysProductive`, which runs after this.
+    tenantKind: "unknown"
   });
   if (resp.status !== 200) {
     const snippet = truncateText((resp.body ?? "").replace(/\s+/g, " ").trim(), MESSAGE_EXCERPT_MAX);
@@ -90921,7 +92183,9 @@ function classifyT000Response(resp, logonClient) {
       role: "productive",
       client: logonClient,
       ccCategory: raw,
-      reason: `T000-CCCATEGORY = "P" (production) for logon client ${logonClient}.`
+      reason: `T000-CCCATEGORY = "P" (production) for logon client ${logonClient}.`,
+      // Same reasoning as `no()` above: T000 doesn't observe tenant kind.
+      tenantKind: "unknown"
     };
   }
   if (["T", "C", "D", "E", "S"].includes(cc)) {
@@ -90929,7 +92193,9 @@ function classifyT000Response(resp, logonClient) {
       role: "nonproductive",
       client: logonClient,
       ccCategory: raw,
-      reason: `T000-CCCATEGORY = "${cc}" (recognised non-productive client role) for logon client ${logonClient}.`
+      reason: `T000-CCCATEGORY = "${cc}" (recognised non-productive client role) for logon client ${logonClient}.`,
+      // Same reasoning as `no()` above: T000 doesn't observe tenant kind.
+      tenantKind: "unknown"
     };
   }
   return no(
@@ -90955,9 +92221,9 @@ async function probeT000(probes, cfg) {
     const cause = describeUnknownError(e);
     const reason = `T000 data-preview probe failed: ${cause}`;
     if (e.status === 0) {
-      return { role: "inconclusive", client, ccCategory: null, reason, probeFailure: cause };
+      return { role: "inconclusive", client, ccCategory: null, reason, probeFailure: cause, tenantKind: "unknown" };
     }
-    return { role: "inconclusive", client, ccCategory: null, reason };
+    return { role: "inconclusive", client, ccCategory: null, reason, tenantKind: "unknown" };
   }
 }
 async function escalateIfAtoSaysProductive(probes, detection) {
@@ -90966,18 +92232,22 @@ async function escalateIfAtoSaysProductive(probes, detection) {
     const { body } = await probes.getAtoSettings(ATO_SETTINGS, { headers: { Accept: "application/*" } });
     const attr9 = (name) => new RegExp(`${name}="([^"]*)"`, "i").exec(body)?.[1];
     const isProduction = attr9("isProductionSystem") ?? attr9("productionSystem");
+    const operationsType = attr9("operationsType")?.trim().toUpperCase();
+    const tenantKind = operationsType === "C" ? "cloud" : operationsType === "H" ? "on-premise" : "unknown";
     if (isAbapTrue(isProduction)) {
       return {
         role: "productive",
         client: detection.client,
         ccCategory: detection.ccCategory,
-        reason: `ato/settings reports isProductionSystem="${isProduction}". (T000 probe said: ${detection.reason})`
+        reason: `ato/settings reports isProductionSystem="${isProduction}". (T000 probe said: ${detection.reason})`,
+        tenantKind
       };
     }
+    return { ...detection, tenantKind };
   } catch (e) {
     probes.assertBreakerClosed();
     probes.log(
-      `[abapsmith] ato/settings probe failed (non-fatal \u2014 it can only escalate to productive): ${describeUnknownError(e)}`
+      `[abapsmith] ato/settings probe failed (non-fatal \u2014 it can only escalate to productive, and can only ADD a tenantKind observation, never remove or downgrade one): ${describeUnknownError(e)}`
     );
   }
   return detection;
@@ -91072,6 +92342,13 @@ var AbapConnection = class {
   discovery;
   guard;
   client;
+  /**
+   * OAuth access-token cache. One per connection, created only in `oauth`
+   * mode. Not shared across connections on purpose: the token is scoped to
+   * this connection's configured client, and a shared cache would outlive the
+   * config that produced it.
+   */
+  oauth;
   log;
   /**
    * THE session mutex for THIS connection's ADT session — one request in flight
@@ -91091,7 +92368,11 @@ var AbapConnection = class {
     role: "inconclusive",
     client: null,
     ccCategory: null,
-    reason: "Not connected yet \u2014 nothing has been probed."
+    reason: "Not connected yet \u2014 nothing has been probed.",
+    // Nothing has been probed yet, so no tenant observation exists either;
+    // see SystemRoleDetection.tenantKind in system-role.ts (observation
+    // only, never an input to `role`).
+    tenantKind: "unknown"
   };
   /**
    * Only ever holds a definitive (productive/nonproductive) answer. NOT reset on
@@ -91323,6 +92604,12 @@ var AbapConnection = class {
       waitTimeoutMs: cfg.sessionWaitMs + cfg.timeoutMs,
       log: this.log
     });
+    this.oauth = cfg.oauth ? new OAuthTokenProvider({ settings: cfg.oauth }) : void 0;
+    const oauthProvider = this.oauth;
+    const authOptions = cfg.authMethod === "token" ? { bearerToken: () => cfg.token } : cfg.authMethod === "oauth" && oauthProvider !== void 0 ? {
+      bearerToken: () => oauthProvider.getToken(),
+      refreshBearerToken: () => oauthProvider.forceRefresh()
+    } : cfg.authMethod === "certificate" ? { suppressBasicAuth: () => true } : {};
     this.guard = new GuardedHttpClient(
       {
         baseURL: cfg.url,
@@ -91348,6 +92635,17 @@ var AbapConnection = class {
         // config-layer guarantee (exactly one of password/sessionCookie) means
         // this is `undefined` whenever `cfg.password` is set.
         injectedCookies: () => cfg.sessionCookie,
+        // TLS policy AND client credentials in one place. Supersedes the bare
+        // `insecure` above (which stays for call sites that only care about
+        // verification): `tlsCredentialsFromConfig` is the single function
+        // `src/debug/session.ts` also calls, so the axios stack and the
+        // debugger's raw sockets cannot disagree about a client certificate
+        // the way they once disagreed about ABAP_INSECURE.
+        tls: tlsCredentialsFromConfig(cfg),
+        // Error hints only — which variable an operator must fix depends on
+        // how this server authenticates. Never affects routing.
+        authMethod: cfg.authMethod,
+        ...authOptions,
         ...opts.httpClient ? { inner: opts.httpClient } : {}
       },
       this.breaker
@@ -91358,9 +92656,14 @@ var AbapConnection = class {
       // `cfg.password ?? ""` — safe only because we pass an object (not a URL
       // string) as arg 1: AdtHTTP's/ADTClient's own guards are
       // `(password || !isString(baseURLOrClient))`, and `!isString(object)` is
-      // already true, so an empty password satisfies them. Cookie mode
-      // (`cfg.sessionCookie`) supplies the real credential at the guard seam
-      // (`http-guard.ts`'s `injectedCookies`) instead.
+      // already true, so an empty password satisfies them. Every non-password
+      // mode supplies its real credential at the guard seam instead, never
+      // here: a cookie is merged in at step 2c, a bearer (static ABAP_TOKEN or
+      // an OAuth access token) is attached at step 2d, and in certificate mode
+      // the credential IS the TLS handshake itself — step 2e additionally
+      // strips any `Authorization` header abap-adt-api might have set, so no
+      // Basic-auth attempt (empty password or otherwise) ever reaches the
+      // wire in any of these four modes.
       cfg.password ?? "",
       cfg.sendClientParam ? cfg.client : "",
       cfg.language,
@@ -91664,7 +92967,7 @@ var AbapConnection = class {
           "This is an abapsmith bug, not a SAP one, and NOT an authentication failure: the user lock counter was never touched. Do not treat it as a 401. Find the path that kept logging on outside a budgeted request()."
         );
       }
-      const verdict = latchedByThisAttempt ? credentialsRejectedVerdict(trip?.status ?? 401) : classifyConnectFailure(e);
+      const verdict = latchedByThisAttempt ? credentialsRejectedVerdict(trip?.status ?? 401, this.cfg.authMethod) : classifyConnectFailure(e, this.cfg.authMethod);
       throw new AbapError(
         verdict.code,
         `Could not connect to ${stripUrlCredentials(this.cfg.url)}: ${latchedByThisAttempt && trip ? trip.message : describeUnknownError(e)}`,
@@ -91877,12 +93180,21 @@ var AbapConnection = class {
    * body, not a bare entity name.
    *
    * **Invariant that matters: the caller must have assembled `sql` itself
-   * from fixed identifiers and validated values. No string that reached
-   * abapsmith from a tool argument may be passed here.** The one module
-   * allowed to call this is `src/adt/img-query.ts` (the IMG catalog reader,
-   * built from `img-catalog.ts`'s frozen table/field list); `probeT000()`
-   * (`system-role.ts`) has its own separate, no-retry route to this same URL
-   * and must never be merged with this one.
+   * from fixed identifiers (or the server's own column metadata) and
+   * validated values. No string that reached abapsmith from a tool argument
+   * may be passed here.** Two modules are permitted to call this:
+   *   - `src/adt/img-query.ts` (the IMG catalog reader, built from
+   *     `img-catalog.ts`'s frozen table/field list);
+   *   - `src/adt/datapreview.ts` (issue #73's structured `where`/`columns`/
+   *     `order_by` filter on `abap_data_preview`), whose statement is
+   *     compiled by `src/adt/datapreview-filter.ts` from a prior metadata
+   *     probe's own column list, never from caller-supplied identifiers.
+   * The invariant is unchanged in substance for both: every identifier in
+   * the rendered SQL is taken from a fixed catalog or from the server's own
+   * column metadata, and every value is rendered as a typed, quoted literal
+   * — a caller-supplied SQL STRING is still never accepted from either.
+   * `probeT000()` (`system-role.ts`) has its own separate, no-retry route to
+   * this same URL and must never be merged with this one.
    *
    * Same shape as `dataPreviewDdic` above: bypasses `post()`/`raw()`'s
    * `READ_ONLY` guard (a read exposed over POST), goes through `request()`
@@ -97679,19 +98991,19 @@ function parseFqlQuery(text3) {
   let i = 0;
   const peek = () => tokens[i];
   let failure;
-  const fail3 = (message, token) => {
+  const fail4 = (message, token) => {
     failure ??= token ? `${message} at offset ${token.pos}` : message;
     return void 0;
   };
   const parseNode = (depth) => {
-    if (depth > 64) return fail3("the query nests too deeply to parse");
+    if (depth > 64) return fail4("the query nests too deeply to parse");
     const head = peek();
-    if (!head) return fail3("unexpected end of query; expected an operator or `and`/`or`");
-    if (head.kind !== "word") return fail3(`unexpected '${head.kind}'`, head);
+    if (!head) return fail4("unexpected end of query; expected an operator or `and`/`or`");
+    if (head.kind !== "word") return fail4(`unexpected '${head.kind}'`, head);
     i += 1;
     const open = peek();
     if (!open || open.kind !== "(") {
-      return fail3(`expected '(' after '${head.text}'`, open ?? head);
+      return fail4(`expected '(' after '${head.text}'`, open ?? head);
     }
     i += 1;
     const lower = head.text.toLowerCase();
@@ -97707,7 +99019,7 @@ function parseFqlQuery(text3) {
         if (!child4) return void 0;
         children.push(child4);
         const next = peek();
-        if (!next) return fail3(`unclosed '${head.text} (' \u2014 expected ')'`);
+        if (!next) return fail4(`unclosed '${head.text} (' \u2014 expected ')'`);
         if (next.kind === ",") {
           i += 1;
           continue;
@@ -97716,23 +99028,23 @@ function parseFqlQuery(text3) {
           i += 1;
           return { kind: "junction", junction: lower, children };
         }
-        return fail3(`expected ',' or ')'`, next);
+        return fail4(`expected ',' or ')'`, next);
       }
     }
     const attrToken = peek();
     if (!attrToken || attrToken.kind !== "word") {
-      return fail3(`expected an attribute name after '${head.text} ('`, attrToken);
+      return fail4(`expected an attribute name after '${head.text} ('`, attrToken);
     }
     i += 1;
     const operands = [];
     for (; ; ) {
       const next = peek();
-      if (!next) return fail3(`unclosed '${head.text} (' \u2014 expected ')'`);
+      if (!next) return fail4(`unclosed '${head.text} (' \u2014 expected ')'`);
       if (next.kind === ")") {
         i += 1;
         break;
       }
-      if (next.kind !== ",") return fail3(`expected ',' or ')'`, next);
+      if (next.kind !== ",") return fail4(`expected ',' or ')'`, next);
       i += 1;
       const parts = [];
       for (; ; ) {
@@ -98995,7 +100307,7 @@ async function runReport(conn, reportName, gate, parameters = []) {
 }
 
 // src/version.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 function readPackageVersion(raw) {
   if (typeof raw !== "object" || raw === null || !("version" in raw) || typeof raw.version !== "string") {
     throw new Error(
@@ -99005,13 +100317,13 @@ function readPackageVersion(raw) {
   return raw.version;
 }
 var packageJson = JSON.parse(
-  readFileSync3(new URL("../package.json", import.meta.url), "utf8")
+  readFileSync4(new URL("../package.json", import.meta.url), "utf8")
 );
 var SERVER_VERSION = readPackageVersion(packageJson);
 
 // src/adt/fluid/registry.ts
 import * as path6 from "node:path";
-import { readFileSync as readFileSync4 } from "node:fs";
+import { readFileSync as readFileSync5 } from "node:fs";
 var REGISTRY_VERSION = 1;
 var REGISTRY_FILE = "registry.json";
 function fluidRegistryPath(cfg) {
@@ -99054,7 +100366,7 @@ function readRegistryFile(registryPath) {
       hardenFileModeSync(registryPath);
     } catch {
     }
-    return coerceFile(JSON.parse(readFileSync4(registryPath, "utf8")));
+    return coerceFile(JSON.parse(readFileSync5(registryPath, "utf8")));
   } catch {
     return void 0;
   }
@@ -100335,6 +101647,9 @@ function contentUri(t) {
 function subInclude(t) {
   return t.include !== void 0 && t.include !== "main" ? t.include : void 0;
 }
+var CLASS_SUB_INCLUDES = CLASS_INCLUDES.filter(
+  (i) => i !== "main"
+);
 function targetLabel(t) {
   const inc = subInclude(t);
   return inc ? `the ${inc} include of ${t.spec.label} ${t.name}` : `${t.spec.label} ${t.name}`;
@@ -101332,13 +102647,15 @@ async function writeObject(conn, target, opts) {
   const preflight2 = await preflightCorr(conn, t, opts, created ? "I" : "U", "write");
   const emitBeforeImage = async (source) => {
     if (!opts.onBeforeImage) return;
+    const sub = subInclude(t);
     await opts.onBeforeImage({
       source,
-      existed: t.exists,
+      existed: sub ? source !== void 0 : t.exists,
       sourceReadable: true,
       target: t,
       // See BeforeImage.include — an entry missing which document `source` came from replays into /source/main.
-      ...subInclude(t) ? { include: t.include } : {},
+      ...sub ? { include: t.include } : {},
+      ...sub && source === void 0 ? { absenceConfirmed: true } : {},
       ...preflight2?.kind === "transport" ? { corrNr: preflight2.corrNr } : {}
     });
   };
@@ -101976,11 +103293,20 @@ async function deleteObject(conn, target, opts = { onBeforeImage: NO_JOURNAL }) 
     }
     previousSource = fresh.source;
     if (opts.onBeforeImage) {
+      const includes = t.type === "CLAS/OC" && opts.onBeforeImage !== NO_JOURNAL ? await Promise.all(
+        CLASS_SUB_INCLUDES.map(async (include) => {
+          const sourceUri = classIncludeUri(t.uri, include);
+          const r = await readCurrentSourceResult(conn, { ...t, include, sourceUri });
+          if (!r.ok) return { include, sourceUri, existed: false, capture: "failed" };
+          return r.source === void 0 ? { include, sourceUri, existed: false, capture: "confirmed-absent" } : { include, sourceUri, existed: true, source: r.source, capture: "captured" };
+        })
+      ) : void 0;
       await opts.onBeforeImage({
         source: previousSource,
         existed: t.exists,
         sourceReadable: true,
         target: t,
+        ...includes ? { includes } : {},
         ...preflight2?.kind === "transport" ? { corrNr: preflight2.corrNr } : {}
       });
     }
@@ -105021,15 +106347,19 @@ function enhancementUndoBlocked(type, op, name) {
   return `Undo of enhancement objects is refused outright \u2014 ${type} ${name} will not be touched. Three things the live A4H session found make this unsafe even in principle, not merely as a policy choice: a create attempt the server cleanly REFUSED still left a permanently undeletable phantom object behind ("ExceptionResourceDeletionFailure ... cannot be created without a package", no TADIR entry, unreadable via the ABAP API either); a delete the server reported as succeeded (ADT 200) still left TADIR and E071 rows behind indefinitely, so a 404 afterwards is never proof of removal; and on a landscape with \`tp\` misconfigured, a transportable create could not be deleted through ADT at all \u2014 the request and the package were both permanently stuck. Given that, "undo" for an enhancement \u2014 recreating one that was deleted, or deleting one that was created \u2014 is not an operation abapsmith can perform and then trust the result of. Reverse this deliberately through the ABAP enhancement UI (SE18/SE19/SE80), with the residue risk above in view.`;
 }
 function entryClassInclude(entry) {
-  const uri = entry.object.sourceUri;
+  return classIncludeFromSourceUri(entry.object.sourceUri);
+}
+function classIncludeFromSourceUri(uri) {
   if (uri === void 0) return void 0;
   const inc = specFromUri(uri)?.include;
   return inc !== void 0 && inc !== "main" ? inc : void 0;
 }
-function classIncludeBlocker(entry) {
+function classIncludeActionBlocker(entry, action) {
   const include = entryClassInclude(entry);
   if (!include) return void 0;
-  return `This entry records a write to the ${include} include of class ${entry.object.name} (${entry.object.sourceUri}), not to the class's main source. abapsmith restores a before-image through the ordinary write path, which addresses /source/main \u2014 so replaying this entry would write ${entry.object.name}'s ${include} include OVER its class body, destroying the real source and reporting it as a successful undo. That is refused rather than attempted. Nothing was changed. Restore the include by hand: read the recorded before-image (abap_journal mode=show), then write it back with abap_write using include="${include}". Include-aware undo is a known follow-up, not yet implemented.`;
+  if (action !== "delete" && action !== "recreate") return void 0;
+  const verb = action === "delete" ? "DELETE" : "RE-CREATE";
+  return `Undoing this entry would ${verb} the ${include} include of class ${entry.object.name}, and ADT has no operation that deletes or re-creates one include of a class on its own \u2014 deleteObject sends DELETE {classUri}, which would destroy ${entry.object.name}'s main source and all of its other includes too, not just this one. That is refused rather than attempted. Nothing was changed. To empty a class include, write a single comment line to it (e.g. \`*"* no local test classes\`) \u2014 abapsmith does not send an empty document, and there is no ADT verb that deletes an include on its own. Do that with abap_write include="${include}". This refusal cannot be overridden with force=true.`;
 }
 function packageRecreateBlocker(entry) {
   if (entry.operation !== "delete" || !isPackageType(entry.object.type)) return void 0;
@@ -105096,27 +106426,38 @@ function systemMismatchBlocker(entry, live) {
   if (recorded === connected) return void 0;
   return `This journal entry was recorded on SID ${entry.system || "(none)"} but abapsmith is connected to SID ${live.sid} (journal directory's system: ${live.journalSystem}). The entry predates system-key recording, so this is the WEAKER, SID-only check \u2014 it cannot even tell two hosts apart that share a SID, and it still says these are not the same system. Replaying the entry here would write one system's source onto another's object. This refusal cannot be overridden.`;
 }
-var CLASS_SUB_INCLUDES = CLASS_INCLUDES.filter((i) => i !== "main");
+var CLASS_SUB_INCLUDES2 = CLASS_INCLUDES.filter((i) => i !== "main");
 var INCLUDE_LABELS = {
   definitions: "definitions (CCDEF \u2014 local class/type definitions)",
   implementations: "implementations (CCIMP \u2014 local class implementations)",
   macros: "macros (CCMAC)",
   testclasses: "testclasses (CCAU \u2014 local test classes)"
 };
-var describeIncludes = () => CLASS_SUB_INCLUDES.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
+var describeIncludes = () => CLASS_SUB_INCLUDES2.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
+var describeSome = (incs) => incs.map((i) => INCLUDE_LABELS[i] ?? i).join(", ");
 function isClassEntry(entry) {
   return specForType(entry.object.type)?.kind === "CLAS";
+}
+function recordedClassIncludes(entry) {
+  const recorded = (entry.parts ?? []).filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+  return new Set(recorded);
 }
 function partialClassRestore(entry, action) {
   if (action !== "restore" && action !== "recreate") return void 0;
   if (!isClassEntry(entry)) return void 0;
+  if (entryClassInclude(entry)) return void 0;
+  const recorded = recordedClassIncludes(entry);
+  const unrestored = CLASS_SUB_INCLUDES2.filter((i) => !recorded.has(i));
+  if (unrestored.length === 0) return void 0;
+  const allMissing = unrestored.length === CLASS_SUB_INCLUDES2.length;
   return {
-    unrestored: [...CLASS_SUB_INCLUDES],
-    reason: action === "recreate" ? `Only the main include of class ${entry.object.name} was ever recorded, so only the main include is recreated. NOT restored: ${describeIncludes()}. The class that comes back is not the class that was deleted.` : `Only the main include of class ${entry.object.name} is covered by this undo. Its ${describeIncludes()} were never recorded, are not restored, and are not checked for drift \u2014 changes made there by anybody are invisible to abapsmith.`
+    unrestored,
+    reason: action === "recreate" ? allMissing ? `Only the main include of class ${entry.object.name} was ever recorded, so only the main include is recreated. NOT restored: ${describeIncludes()}. The class that comes back is not the class that was deleted.` : `${entry.object.name}'s main include plus its ${describeSome([...recorded])} ${recorded.size === 1 ? "is" : "are"} recorded and will be recreated. Its ${describeSome(unrestored)} ${unrestored.length === 1 ? "was" : "were"} not \u2014 the read that would have captured ${unrestored.length === 1 ? "it" : "them"} failed, so recreating it now would leave that gap silently.` : `Only the main include of class ${entry.object.name} is covered by this undo. Its ${describeIncludes()} were never recorded, are not restored, and are not checked for drift \u2014 changes made there by anybody are invisible to abapsmith.`
   };
 }
 function classRecreateBlocker(entry, partial2) {
-  return `${entry.object.name} is a CLASS, and abapsmith only ever recorded its MAIN include (/oo/classes/\u2026/source/main). Recreating it from the journal would produce a class that LOOKS intact and is not: its ` + describeIncludes() + ` were never captured and would come back EMPTY \u2014 every local helper and every unit test the deleted class had would be silently missing. Unrestored includes: ${partial2.unrestored.join(", ")}. If a main-include-only restore is genuinely what you want, repeat with force=true; the result will be reported as PARTIAL and you will have to put the local and test includes back by hand.`;
+  const recorded = CLASS_SUB_INCLUDES2.length - partial2.unrestored.length;
+  return `${entry.object.name} is a CLASS. ` + (recorded > 0 ? `abapsmith recorded its main include and ${recorded} of its ${CLASS_SUB_INCLUDES2.length} local includes when it was deleted, but the read for its ${describeSome(partial2.unrestored)} ${partial2.unrestored.length === 1 ? "did" : "each did"} not resolve` : "abapsmith only ever recorded its MAIN include (/oo/classes/\u2026/source/main)") + ". Recreating it from the journal would produce a class that LOOKS intact and is not: its " + describeSome(partial2.unrestored) + ` would come back EMPTY \u2014 any local helper or unit test held only there would be silently missing. Unrestored includes: ${partial2.unrestored.join(", ")}. If a partial restore is genuinely what you want, repeat with force=true; the result will be reported as PARTIAL and you will have to put the missing includes back by hand.`;
 }
 function plannedAction(entry) {
   if (entry.operation === "delete") return "recreate";
@@ -105277,7 +106618,8 @@ async function planUndo(conn, journal, entry) {
   const action = plannedAction(entry);
   const restoreSource = action === "delete" ? void 0 : await journal.beforeImage(entry);
   const transportWarning = await releasedTransportWarning(journal, entry);
-  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeBlocker(entry) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry);
+  const include = entryClassInclude(entry);
+  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeActionBlocker(entry, action) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry);
   if (localBlocker) {
     return {
       entry,
@@ -105308,7 +106650,8 @@ async function planUndo(conn, journal, entry) {
       name: entry.object.name,
       type: entry.object.type,
       packageName: entry.object.package,
-      ...entry.object.description ? { description: entry.object.description } : {}
+      ...entry.object.description ? { description: entry.object.description } : {},
+      ...include ? { include } : {}
     });
   }
   if (action !== "delete" && restoreSource === void 0) {
@@ -105565,6 +106908,8 @@ async function performUndo(conn, journal, entry, opts) {
   let check4;
   let checkUnavailable;
   let deleteUnverified;
+  const restoredIncludes = [];
+  const skippedIncludes = [];
   const liveKey = liveSystem(conn, journal).key;
   const captureFor = (img) => {
     if (img.source !== void 0) return "captured";
@@ -105694,6 +107039,77 @@ async function performUndo(conn, journal, entry, opts) {
         throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
       }
     }
+    const includeParts = (entry.parts ?? []).filter(
+      (p) => classIncludeFromSourceUri(p.object.sourceUri) !== void 0
+    );
+    for (const part of includeParts) {
+      const inc = classIncludeFromSourceUri(part.object.sourceUri);
+      if (part.beforeCapture === "confirmed-absent") {
+        continue;
+      }
+      if (part.beforeCapture !== "captured") {
+        skippedIncludes.push({
+          include: inc,
+          reason: `its before-image was never captured (beforeCapture="${part.beforeCapture}")`
+        });
+        continue;
+      }
+      const incSource = await journal.beforeImage({ ...entry, before: part.before });
+      if (incSource === void 0) {
+        skippedIncludes.push({
+          include: inc,
+          reason: "its recorded before-image blob is missing on disk (pruned by the retention policy, or the journal directory was cleaned)"
+        });
+        continue;
+      }
+      try {
+        const incTarget = await resolveWriteTarget(conn, {
+          name: entry.object.name,
+          type: entry.object.type,
+          packageName: entry.object.package,
+          ...entry.object.description ? { description: entry.object.description } : {},
+          include: inc
+        });
+        const incAuthorized = opts.assertAllowed(plan.action, incTarget);
+        await writeObject(conn, incAuthorized, {
+          source: incSource,
+          onBeforeImage: NO_JOURNAL,
+          ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {}
+        });
+        restoredIncludes.push(inc);
+      } catch (e) {
+        await settle({
+          outcome: "succeeded",
+          ...written.normalisedSource ? { afterSource: written.normalisedSource } : {},
+          ...written.transport.corrNr ? { corrNr: written.transport.corrNr } : {},
+          activation: {
+            attempted: Boolean(activation),
+            ...activation ? { activated: activation.activated } : {}
+          }
+        });
+        const notAttempted = includeParts.slice(includeParts.indexOf(part) + 1).map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+        throw new AbapError(
+          "CHECK_FAILED",
+          `abap_journal mode=undo of entry ${entry.id}: ${entry.object.name}'s main source WAS restored${activation ? activation.activated ? " and activated" : ", but activation did not complete" : ""}, but writing its recorded ${INCLUDE_LABELS[inc] ?? inc} back failed: ${e instanceof Error ? e.message : String(e)}. ${restoredIncludes.length ? `Already restored: ${restoredIncludes.join(", ")}. ` : "Nothing else was restored yet. "}Not attempted: ${notAttempted.length ? notAttempted.join(", ") : "none"}.`,
+          {
+            entry: entry.id,
+            object: entry.object.name,
+            restoredIncludes: [...restoredIncludes],
+            failedInclude: inc,
+            notAttempted,
+            ...undoEntryId !== void 0 ? { undoEntryId } : {}
+          },
+          "This undo's own journal entry is marked done \u2014 the class's main body is back. Write the failed include (and any listed as not attempted) by hand with abap_write, using the source shown by abap_journal mode=show for this entry."
+        );
+      }
+    }
+    if (restoredIncludes.length > 0 && (opts.activate ?? true)) {
+      try {
+        activation = await activateObject(conn, written.target);
+      } catch (e) {
+        throw discloseUndoActivationFailure(e, written.target, entry, undoEntryId);
+      }
+    }
     await settle({
       outcome: "succeeded",
       ...written.normalisedSource ? { afterSource: written.normalisedSource } : {},
@@ -105720,6 +107136,8 @@ async function performUndo(conn, journal, entry, opts) {
     ...checkUnavailable ? { checkUnavailable } : {},
     ...deleteUnverified ? { deleteUnverified } : {},
     ...activation ? { activation } : {},
+    ...restoredIncludes.length ? { restoredIncludes } : {},
+    ...skippedIncludes.length ? { skippedIncludes } : {},
     forced: Boolean(opts.force)
   };
 }
@@ -105765,15 +107183,27 @@ function row(e) {
 }
 var LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
 var LIST_COLUMNS_WITH_ACTOR = LIST_COLUMNS.flatMap((c) => c === "flags" ? ["actor", "flags"] : c);
+function includeFromSourceUri(uri) {
+  if (uri === void 0) return void 0;
+  const inc = specFromUri(uri)?.include;
+  return inc !== void 0 && inc !== "main" ? inc : void 0;
+}
+function entrySubInclude(e) {
+  return includeFromSourceUri(e.object.sourceUri);
+}
 function partRow(p) {
   return {
     object: `${p.object.type} ${p.object.name}`,
     package: p.object.package,
+    // A class-delete's four parts are all the same object/type/package — without
+    // naming the include, the ALSO TOUCHED rows are indistinguishable from each other.
+    include: includeFromSourceUri(p.object.sourceUri) ?? "-",
     existed: p.existedBefore ? "yes" : "no",
-    capture: p.beforeCapture
+    capture: p.beforeCapture,
+    bytes: p.before?.bytes !== void 0 ? String(p.before.bytes) : "-"
   };
 }
-var PART_COLUMNS = ["object", "existed", "capture"];
+var PART_COLUMNS = ["object", "include", "existed", "capture", "bytes"];
 var PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => c === "object" ? ["object", "package"] : c);
 function undoHint(e) {
   if (e.operation === "transport-release") {
@@ -105789,17 +107219,30 @@ function undoHint(e) {
   }
   const action = plannedAction(e);
   if (action === "delete") {
+    const includeRefusal = classIncludeActionBlocker(e, action);
+    if (includeRefusal) return `undo would DELETE this object, and WILL BE REFUSED: ${includeRefusal}`;
     const refusal = deleteEvidenceBlocker(e);
     return refusal ? `undo would DELETE this object, and WILL BE REFUSED: ${refusal}` : "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
   }
   if (action === "recreate") {
+    const includeRefusal = classIncludeActionBlocker(e, action);
+    if (includeRefusal) return `undo would RE-CREATE this object, and WILL BE REFUSED: ${includeRefusal}`;
     const refusal = packageRecreateBlocker(e);
     return refusal ? `undo would RE-CREATE this object, and WILL BE REFUSED: ${refusal}` : "undo would RE-CREATE this object from the before-image";
   }
   return "undo would restore the previous source";
 }
 function classWarning(e) {
+  const include = entrySubInclude(e);
+  if (include) {
+    return `This entry is about class ${e.object.name}'s ${include} include ONLY, not the whole class: its main body and its other local includes are each tracked (when abapsmith wrote them) by their own separate journal entries, and undoing THIS entry touches only this one document.`;
+  }
   if (!/^CLAS/i.test(e.object.type)) return void 0;
+  if (e.parts?.length) {
+    const recorded = e.parts.filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => includeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+    const unrecorded = e.parts.filter((p) => p.beforeCapture !== "captured" && p.beforeCapture !== "confirmed-absent").map((p) => includeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+    return `${e.object.name} is a CLASS. abapsmith recorded its main include` + (recorded.length ? ` plus its ${recorded.join(", ")} include(s)` : "") + " when it was deleted. Undoing that delete recreates every include recorded here, not just the main body." + (unrecorded.length ? ` Its ${unrecorded.join(", ")} include(s) could NOT be recorded (the read at delete time failed) and will NOT come back \u2014 recreating anyway is refused unless you pass force=true, and the result is reported PARTIAL.` : "");
+  }
   return `${e.object.name} is a CLASS and abapsmith records only its MAIN include. Its local definitions (CCDEF), local implementations (CCIMP), macros (CCMAC) and local test classes (CCAU) are NOT in this journal entry: they are not restored by an undo and changes to them are not detected as drift. Undoing a class DELETE therefore brings back a class without its local helpers or its unit tests, and is refused unless you pass force=true.`;
 }
 function requireJournal(journal) {
@@ -106058,6 +107501,11 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
         when: entry.ts,
         operation: entry.operation,
         object: `${entry.object.type} ${entry.object.name}`,
+        // Present only for an entry ABOUT one class sub-include (not the
+        // main body) — see `entrySubInclude`. Absent for every other entry,
+        // including a class-delete entry whose `parts` recorded includes
+        // alongside the main body (those are listed in ALSO TOUCHED below).
+        include: entrySubInclude(entry),
         uri: entry.object.uri,
         package: entry.object.package,
         existedBefore: entry.existedBefore,
@@ -106134,7 +107582,17 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
   }
   if (res.performed && res.partial) {
     notes.push(
-      `PARTIAL \u2014 this object was NOT fully ${res.plan.action === "recreate" ? "recreated" : "restored"}. ${res.partial.reason} Unrestored includes: ${res.partial.unrestored.join(", ")}. ` + (res.plan.action === "recreate" ? `${entry.object.name} is NOT the object that was deleted: what came back is its main include and nothing else. Restore the local and test includes from SAP's own version management (SE24 \u2192 Utilities \u2192 Versions) before trusting it, and do not run its unit tests expecting them to exist.` : "Drift in those includes was neither detected nor reverted.")
+      `PARTIAL \u2014 this object was NOT fully ${res.plan.action === "recreate" ? "recreated" : "restored"}. ${res.partial.reason} Unrestored includes: ${res.partial.unrestored.join(", ")}. ` + (res.plan.action === "recreate" ? `${entry.object.name} is NOT the object that was deleted: what came back is its main include${res.restoredIncludes?.length ? ` plus its ${res.restoredIncludes.join(", ")} include(s)` : ""}, not the ${res.partial.unrestored.join(", ")} include(s) \u2014 those were never recorded and are not restored. Restore them from SAP's own version management (SE24 \u2192 Utilities \u2192 Versions) before trusting it, and do not run its unit tests expecting them to exist unless testclasses is among what came back.` : "Drift in those includes was neither detected nor reverted.")
+    );
+  }
+  if (res.performed && res.restoredIncludes?.length) {
+    notes.push(
+      `Also restored: its ${res.restoredIncludes.join(", ")} include(s) \u2014 recorded alongside the main body when the class was deleted, written back and activated together with it.`
+    );
+  }
+  if (res.performed && res.skippedIncludes?.length) {
+    notes.push(
+      `NOT restored: ${res.skippedIncludes.map((s) => `its ${s.include} include (${s.reason})`).join("; ")}.`
     );
   }
   if (res.undoEntryId) {
@@ -106160,6 +107618,8 @@ ${msgs}`);
       action: res.plan.action,
       performed: res.performed,
       partial: res.partial ? `yes \u2014 ${res.partial.unrestored.join(", ")} NOT restored` : void 0,
+      restoredIncludes: res.restoredIncludes?.length ? res.restoredIncludes.join(", ") : void 0,
+      skippedIncludes: res.skippedIncludes?.length ? res.skippedIncludes.map((s) => s.include).join(", ") : void 0,
       forced: res.forced || void 0,
       driftDetected: res.plan.drift.drifted || void 0,
       newEntry: res.undoEntryId ?? (res.performed ? "NOT JOURNALLED" : void 0),
@@ -107475,13 +108935,14 @@ function registerReadTools(mcp, deps) {
 
 // src/adt/aunit.ts
 var AUNIT_TESTRUNS_URL = "/sap/bc/adt/abapunit/testruns";
+var COVERAGE_MEASUREMENT_PREFIX = "/sap/bc/adt/runtime/traces/coverage/measurements/";
 var RISK_LEVELS = ["harmless", "dangerous", "critical"];
-function buildRunConfiguration(objectUri, risk = "harmless") {
+function buildRunConfiguration(objectUri, risk = "harmless", opts = {}) {
   const on = (level) => RISK_LEVELS.indexOf(level) <= RISK_LEVELS.indexOf(risk) ? "true" : "false";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <aunit:runConfiguration xmlns:aunit="http://www.sap.com/adt/aunit">
   <external>
-    <coverage active="false"/>
+    <coverage active="${opts.coverage ? "true" : "false"}"/>
   </external>
   <options>
     <uriType value="semantic"/>
@@ -107634,6 +109095,10 @@ function parseRunResult(xml3) {
       "This is a wire-shape change, not a test failure. Do not read it as a passing run."
     );
   }
+  const externalNode = many2(root.external)[0];
+  const coverageNode = externalNode && isNode(externalNode.coverage) ? externalNode.coverage : void 0;
+  const coverageUriRaw = coverageNode ? attr2(coverageNode, "uri") : void 0;
+  const coverageUri = coverageUriRaw && coverageUriRaw.startsWith(COVERAGE_MEASUREMENT_PREFIX) ? coverageUriRaw : void 0;
   const otherAlerts = [];
   for (const a of parseAlerts(root.alerts)) otherAlerts.push({ ...a, scope: "run" });
   const programs = [];
@@ -107697,7 +109162,8 @@ function parseRunResult(xml3) {
         passed,
         failed,
         unknown: unknown2,
-        reason: noTests.title ?? 'ADT reported kind="noTestClasses": the object has no ABAP Unit test classes.'
+        reason: noTests.title ?? 'ADT reported kind="noTestClasses": the object has no ABAP Unit test classes.',
+        ...coverageUri ? { coverageUri } : {}
       };
     }
     return {
@@ -107708,11 +109174,21 @@ function parseRunResult(xml3) {
       passed,
       failed,
       unknown: unknown2,
-      reason: "The run result contained no test methods and no noTestClasses alert, so it is not known whether anything ran. This is NOT a passing run."
+      reason: "The run result contained no test methods and no noTestClasses alert, so it is not known whether anything ran. This is NOT a passing run.",
+      ...coverageUri ? { coverageUri } : {}
     };
   }
   if (failed > 0) {
-    return { outcome: "failed", programs, otherAlerts, total, passed, failed, unknown: unknown2 };
+    return {
+      outcome: "failed",
+      programs,
+      otherAlerts,
+      total,
+      passed,
+      failed,
+      unknown: unknown2,
+      ...coverageUri ? { coverageUri } : {}
+    };
   }
   if (unknown2 > 0) {
     return {
@@ -107723,17 +109199,174 @@ function parseRunResult(xml3) {
       passed,
       failed,
       unknown: unknown2,
-      reason: `${unknown2} of ${total} test method(s) carried XML this server does not recognise, so their verdict is unknown. Treat the run as UNVERIFIED, not as passing.`
+      reason: `${unknown2} of ${total} test method(s) carried XML this server does not recognise, so their verdict is unknown. Treat the run as UNVERIFIED, not as passing.`,
+      ...coverageUri ? { coverageUri } : {}
     };
   }
-  return { outcome: "passed", programs, otherAlerts, total, passed, failed, unknown: unknown2 };
+  return {
+    outcome: "passed",
+    programs,
+    otherAlerts,
+    total,
+    passed,
+    failed,
+    unknown: unknown2,
+    ...coverageUri ? { coverageUri } : {}
+  };
+}
+function coveredObjectsUrl(measurementUri) {
+  return `${measurementUri}/coveredobjects`;
+}
+function buildCoveredObjectsScope() {
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<cov:scope xmlns:cov="http://www.sap.com/adt/cov">\n  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core"/>\n  <cov:objectSelection/>\n</cov:scope>';
+}
+function parseCoveredObjects(xml3) {
+  let doc;
+  try {
+    doc = parser2.parse(xml3);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage scope is not parseable XML: ${e.message}`,
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const docNode = isNode(doc) ? doc : void 0;
+  const hasScope = docNode !== void 0 && "scope" in docNode;
+  if (!hasScope) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "ADT answered 200 but the body carries no <cov:scope> element.",
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const root = isNode(docNode.scope) ? docNode.scope : {};
+  const out = [];
+  for (const container of many2(root.coveredObjects)) {
+    for (const co of many2(container.coveredObject)) {
+      const ref2 = isNode(co.objectReference) ? co.objectReference : void 0;
+      if (!ref2) continue;
+      out.push({
+        name: attr2(ref2, "name") ?? "(unnamed object)",
+        ...attr2(ref2, "type") ? { type: attr2(ref2, "type") } : {},
+        ...attr2(ref2, "uri") ? { uri: attr2(ref2, "uri") } : {},
+        ...attr2(ref2, "packageName") ? { packageName: attr2(ref2, "packageName") } : {}
+      });
+    }
+  }
+  return out;
+}
+function buildCoverageQuery(objectUris) {
+  if (objectUris.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "buildCoverageQuery needs at least one object URI: an empty list would query the whole measurement, not the object the caller asked about."
+    );
+  }
+  const refs = objectUris.map((uri) => `        <adtcore:objectReference adtcore:uri="${escapeXmlAttribute(uri)}"/>
+`).join("");
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<cov:query xmlns:cov="http://www.sap.com/adt/cov">\n  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core">\n    <objectSet kind="inclusive">\n      <adtcore:objectReferences>\n' + refs + "      </adtcore:objectReferences>\n    </objectSet>\n  </adtcore:objectSets>\n</cov:query>";
+}
+var KNOWN_COVERAGE_TYPES = /* @__PURE__ */ new Set(["statement", "branch", "procedure"]);
+function parseCount(raw) {
+  if (raw === void 0 || !/^\d+$/.test(raw)) return void 0;
+  return parseInt(raw, 10);
+}
+function parseCoverageNode(node2) {
+  const ref2 = isNode(node2.objectReference) ? node2.objectReference : void 0;
+  const name = (ref2 ? attr2(ref2, "name") : void 0) ?? "(unnamed node)";
+  const unrecognised = [];
+  let statement;
+  let branch;
+  let procedure;
+  const coveragesContainer = isNode(node2.coverages) ? node2.coverages : void 0;
+  for (const cov of many2(coveragesContainer?.coverage)) {
+    const type = attr2(cov, "type");
+    if (type === void 0 || !KNOWN_COVERAGE_TYPES.has(type)) {
+      unrecognised.push(type ?? "coverage with no @type");
+      continue;
+    }
+    const totalRaw = attr2(cov, "total");
+    const executedRaw = attr2(cov, "executed");
+    const total = parseCount(totalRaw);
+    if (total === void 0) {
+      unrecognised.push(`${type} (unparseable total="${totalRaw ?? ""}")`);
+      continue;
+    }
+    const executed = parseCount(executedRaw);
+    if (executed === void 0) {
+      unrecognised.push(`${type} (unparseable executed="${executedRaw ?? ""}")`);
+      continue;
+    }
+    const ratio = { total, executed };
+    if (type === "statement") statement = ratio;
+    else if (type === "branch") branch = ratio;
+    else procedure = ratio;
+  }
+  const children = [];
+  const childContainer = isNode(node2.nodes) ? node2.nodes : void 0;
+  for (const child4 of many2(childContainer?.node)) children.push(parseCoverageNode(child4));
+  return {
+    name,
+    ...ref2 && attr2(ref2, "type") ? { type: attr2(ref2, "type") } : {},
+    ...ref2 && attr2(ref2, "uri") ? { uri: attr2(ref2, "uri") } : {},
+    ...ref2 && attr2(ref2, "description") ? { description: attr2(ref2, "description") } : {},
+    ...statement ? { statement } : {},
+    ...branch ? { branch } : {},
+    ...procedure ? { procedure } : {},
+    unrecognised,
+    children
+  };
+}
+function parseCoverageResult(xml3) {
+  let doc;
+  try {
+    doc = parser2.parse(xml3);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage result is not parseable XML: ${e.message}`,
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const docNode = isNode(doc) ? doc : void 0;
+  const hasResult = docNode !== void 0 && "result" in docNode;
+  if (!hasResult) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "ADT answered 200 but the body carries no <cov:result> element.",
+      { excerpt: truncateText(xml3, MESSAGE_EXCERPT_MAX) }
+    );
+  }
+  const root = isNode(docNode.result) ? docNode.result : {};
+  const topContainer = isNode(root.nodes) ? root.nodes : void 0;
+  const nodes = many2(topContainer?.node).map(parseCoverageNode);
+  return { measured: nodes.length > 0, nodes };
+}
+function findCoverageNode(result, name) {
+  const wantExact = name.toLowerCase();
+  const wantPrefix = `${wantExact} (`;
+  let exactMatch;
+  let prefixMatch;
+  const visit = (node2) => {
+    const lower = node2.name.toLowerCase();
+    if (exactMatch === void 0 && lower === wantExact) exactMatch = node2;
+    else if (prefixMatch === void 0 && lower.startsWith(wantPrefix)) prefixMatch = node2;
+    for (const child4 of node2.children) visit(child4);
+  };
+  for (const node2 of result.nodes) visit(node2);
+  return exactMatch ?? prefixMatch;
 }
 
 // src/tools/test.ts
 var testInputSchema = {
   object: external_exports.string().describe("Class, program or package to test."),
   type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC."),
-  risk_level: external_exports.enum(["harmless", "dangerous", "critical"]).optional().describe("Highest risk to run, cumulative from harmless. Default harmless.")
+  risk_level: external_exports.enum(["harmless", "dangerous", "critical"]).optional().describe("Highest risk to run, cumulative from harmless. Default harmless."),
+  coverage: external_exports.boolean().optional().describe("Also measure statement/branch/procedure coverage and report it per class and per method."),
+  coverage_for: external_exports.array(external_exports.string()).optional().describe(
+    "Objects to report coverage for. Default: the objects under test. Use this to report an object the tests exercise indirectly. Ignored unless coverage is true."
+  )
 };
 var TestInput = external_exports.object(testInputSchema);
 function renderStack(alert) {
@@ -107782,14 +109415,197 @@ function renderBody(res) {
   }
   return lines.join("\n").trim() || "(the run result contained no test methods and no alerts)";
 }
+var COVERAGE_FOCUS_CAP = 10;
+var ALSO_TOUCHED_SHOWN = 15;
+function formatRatio(label, r) {
+  if (!r) return `${label} not reported`;
+  if (r.total === 0) return `${label} n/a`;
+  return `${label} ${r.executed}/${r.total} (${Math.round(r.executed / r.total * 100)}%)`;
+}
+function renderCoverageRatios(node2) {
+  return [
+    formatRatio("statement", node2.statement),
+    formatRatio("branch", node2.branch),
+    formatRatio("procedure", node2.procedure)
+  ].join("  ");
+}
+function renderCoverageNodeLine(node2, indent) {
+  const unrecognised = node2.unrecognised.length ? `  [unrecognised coverage types: ${node2.unrecognised.join(", ")}]` : "";
+  return `${indent}${node2.name}  ${renderCoverageRatios(node2)}${unrecognised}`;
+}
+function addRatio(sum, r) {
+  if (!r) return;
+  sum.total += r.total;
+  sum.executed += r.executed;
+  sum.seen = true;
+}
+function formatRatioSum(label, s) {
+  if (!s.seen) return `${label} not reported`;
+  if (s.total === 0) return `${label} n/a`;
+  return `${label} ${s.executed}/${s.total} (${Math.round(s.executed / s.total * 100)}%)`;
+}
+async function buildCoverageSection(conn, res, obj, input, notes, hints) {
+  if (res.coverageUri === void 0) {
+    notes.push(
+      "Coverage was requested but the run result carried no measurement reference, so no coverage is reported. The PASSED/FAILED verdicts above are unaffected."
+    );
+    return void 0;
+  }
+  const coveredResp = await conn.post(coveredObjectsUrl(res.coverageUri), {
+    headers: { "Content-Type": "application/*", Accept: "application/*" },
+    body: buildCoveredObjectsScope()
+  });
+  if (coveredResp.status !== 200) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage covered-objects query for ${obj.name} answered HTTP ${coveredResp.status}.`,
+      { object: obj.name, status: coveredResp.status, url: coveredObjectsUrl(res.coverageUri) }
+    );
+  }
+  const roster = parseCoveredObjects(coveredResp.body);
+  const coverageForList = input.coverage_for ?? [];
+  const explicitScope = coverageForList.length > 0;
+  const requestedNames = explicitScope ? coverageForList : res.programs.map((p) => p.name);
+  let matches = [];
+  let notTouched = [];
+  for (const name of requestedNames) {
+    const entry = roster.find((o) => o.name.toLowerCase() === name.toLowerCase());
+    if (entry) matches.push({ requestedName: name, object: entry });
+    else notTouched.push(name);
+  }
+  if (!explicitScope && matches.length === 0) {
+    const entry = roster.find((o) => o.name.toLowerCase() === obj.name.toLowerCase());
+    matches = [{ requestedName: obj.name, object: entry ?? { name: obj.name, uri: obj.uri } }];
+    notTouched = [];
+  }
+  const toQuery = matches.slice(0, COVERAGE_FOCUS_CAP);
+  const skipped = matches.slice(COVERAGE_FOCUS_CAP);
+  if (skipped.length > 0) {
+    notes.push(
+      `Coverage focus was capped at ${COVERAGE_FOCUS_CAP} objects \u2014 querying the whole covered-objects roster timed out live against a real system. Not queried: ${skipped.map((m) => m.requestedName).join(", ")}.`
+    );
+  }
+  const queryable = toQuery.filter((m) => m.object.uri !== void 0);
+  const noUri = toQuery.filter((m) => m.object.uri === void 0);
+  let coverage;
+  if (queryable.length > 0) {
+    const focusUris = queryable.map((m) => m.object.uri).filter((u) => u !== void 0);
+    const queryResp = await conn.post(res.coverageUri, {
+      headers: { "Content-Type": "application/*", Accept: "application/*" },
+      body: buildCoverageQuery(focusUris)
+    });
+    if (queryResp.status !== 200) {
+      throw new AbapError(
+        "ADT_ERROR",
+        `Coverage measurement query for ${obj.name} answered HTTP ${queryResp.status}.`,
+        { object: obj.name, status: queryResp.status, url: res.coverageUri }
+      );
+    }
+    coverage = parseCoverageResult(queryResp.body);
+  } else if (toQuery.length > 0) {
+    notes.push(
+      `Coverage could not be queried for ${toQuery.map((m) => m.requestedName).join(", ")}: the covered-objects roster carried no URI for them.`
+    );
+  }
+  const lines = [];
+  const uncovered = [];
+  const notReported = [];
+  let anyAbsent = false;
+  const sums = {
+    statement: { total: 0, executed: 0, seen: false },
+    branch: { total: 0, executed: 0, seen: false },
+    procedure: { total: 0, executed: 0, seen: false }
+  };
+  for (const m of matches) {
+    if (skipped.includes(m)) {
+      lines.push(`${m.requestedName}  not queried (coverage focus capped at ${COVERAGE_FOCUS_CAP} objects)`);
+      continue;
+    }
+    if (noUri.includes(m)) {
+      lines.push(`${m.requestedName}  not queried (no object URI on the covered-objects roster)`);
+      continue;
+    }
+    const node2 = coverage ? findCoverageNode(coverage, m.requestedName) : void 0;
+    if (coverage?.measured && node2) {
+      lines.push(renderCoverageNodeLine(node2, ""));
+      for (const child4 of node2.children) {
+        lines.push(renderCoverageNodeLine(child4, "  "));
+        if (child4.statement) {
+          if (child4.statement.total > 0 && child4.statement.executed === 0) {
+            uncovered.push(
+              `${node2.name}->${child4.name}  (${child4.statement.executed}/${child4.statement.total} statements)`
+            );
+          }
+        } else {
+          notReported.push(`${node2.name}->${child4.name}`);
+        }
+      }
+      addRatio(sums.statement, node2.statement);
+      addRatio(sums.branch, node2.branch);
+      addRatio(sums.procedure, node2.procedure);
+    } else {
+      lines.push(`${m.requestedName}  not measured by this run`);
+      anyAbsent = true;
+    }
+  }
+  for (const name of notTouched) {
+    lines.push(`${name}  not touched by this run`);
+    anyAbsent = true;
+  }
+  if (anyAbsent) {
+    notes.push(
+      'Absence of measurement is not zero coverage: an object or method reported "not measured by this run" or "not touched by this run" was never observed by the coverage trace, which is different from having been observed and found uncovered.'
+    );
+  }
+  if (uncovered.length > 0) {
+    lines.push("", "UNCOVERED METHODS (0 of their statements ran):");
+    for (const u of uncovered) lines.push(`  ${u}`);
+    hints.push(
+      "An uncovered method ran zero of its statements. Read it with `abap_read method=\u2026` and add a test for it \u2014 the abapsmith-write-abap-unit-tests skill covers writing ABAP Unit tests."
+    );
+  }
+  if (notReported.length > 0) {
+    lines.push("", "COVERAGE NOT REPORTED FOR:");
+    for (const n of notReported) lines.push(`  ${n}`);
+  }
+  const focusNames = /* @__PURE__ */ new Set([...matches.map((m) => m.requestedName.toLowerCase()), ...notTouched.map((n) => n.toLowerCase())]);
+  const others = roster.filter((o) => !focusNames.has(o.name.toLowerCase()));
+  if (others.length > 0) {
+    lines.push("", "ALSO TOUCHED (not reported on \u2014 name one in coverage_for to measure it):");
+    for (const o of others.slice(0, ALSO_TOUCHED_SHOWN)) {
+      lines.push(`  ${o.name} (${o.type ?? "?"}, ${o.packageName ?? "?"})`);
+    }
+    if (others.length > ALSO_TOUCHED_SHOWN) {
+      lines.push(`  \u2026 and ${others.length - ALSO_TOUCHED_SHOWN} more (truncated)`);
+    }
+  }
+  const header = sums.statement.seen || sums.branch.seen || sums.procedure.seen ? [
+    formatRatioSum("statement", sums.statement),
+    formatRatioSum("branch", sums.branch),
+    formatRatioSum("procedure", sums.procedure)
+  ].join(", ") : void 0;
+  return { body: lines.join("\n"), ...header !== void 0 ? { header } : {} };
+}
 async function abapTest(conn, input, maxChars, gate) {
+  if (input.coverage_for !== void 0 && !input.coverage) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`coverage_for` was given without `coverage: true`. Coverage is only measured and reported when `coverage` is true; naming objects in `coverage_for` on their own would silently run with no coverage measured at all.",
+      { coverage: input.coverage ?? false, coverage_for: input.coverage_for },
+      "Set `coverage: true` alongside `coverage_for`."
+    );
+  }
   const obj = await resolveObject(conn, input.object, { type: input.type });
   gate.authorize("execute", { name: obj.name, packageName: obj.packageName, type: obj.type });
   const risk = input.risk_level ?? "harmless";
-  const body = buildRunConfiguration(obj.uri, risk);
+  const requestBody = buildRunConfiguration(
+    obj.uri,
+    risk,
+    input.coverage ? { coverage: true } : {}
+  );
   const resp = await conn.post(AUNIT_TESTRUNS_URL, {
     headers: { "Content-Type": "application/*", Accept: "application/*" },
-    body
+    body: requestBody
   });
   if (resp.status !== 200) {
     throw new AbapError(
@@ -107825,6 +109641,31 @@ async function abapTest(conn, input, maxChars, gate) {
     notes.push(`Run-level alert (${a.scope}): ${a.title ?? a.kind ?? "unnamed alert"}.`);
   }
   const outcomeLabel = res.outcome === "passed" ? "PASSED" : res.outcome === "failed" ? "FAILED" : res.outcome === "no-tests" ? "NO TESTS RAN (not a pass)" : "UNKNOWN (not a pass)";
+  const hints = res.outcome === "failed" ? [
+    "Line numbers are positions in the named INCLUDE (usually testclasses), not in the class main source. Read that include with abap_read."
+  ] : [];
+  let coverageBody;
+  let coverageHeader;
+  if (input.coverage) {
+    notes.push(
+      "Coverage was requested: this instruments the whole ABAP Unit session and runs slower than a plain test run."
+    );
+    try {
+      const section = await buildCoverageSection(conn, res, obj, input, notes, hints);
+      if (section) {
+        coverageBody = section.body;
+        coverageHeader = section.header;
+      }
+    } catch (e) {
+      notes.push(
+        `Coverage could not be retrieved: ${e instanceof Error ? e.message : String(e)}. The test result above is unaffected and still reflects the full run.`
+      );
+    }
+  }
+  const body = coverageBody !== void 0 ? `${renderBody(res)}
+
+COVERAGE
+${coverageBody}` : renderBody(res);
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -107835,14 +109676,13 @@ async function abapTest(conn, input, maxChars, gate) {
       passed: res.passed,
       failed: res.failed,
       // Surfaced only when non-zero — an ungraded method must never be missed.
-      unknown: res.unknown > 0 ? res.unknown : void 0
+      unknown: res.unknown > 0 ? res.unknown : void 0,
+      coverage: coverageHeader
     },
-    body: renderBody(res),
+    body,
     bodyLabel: "RESULTS",
     notes,
-    hints: res.outcome === "failed" ? [
-      "Line numbers are positions in the named INCLUDE (usually testclasses), not in the class main source. Read that include with abap_read."
-    ] : [],
+    hints,
     maxChars
   });
 }
@@ -107851,7 +109691,7 @@ function registerTestTools(mcp, deps) {
   mcp.registerTool(
     "abap_test",
     {
-      description: "Run ABAP Unit tests; reports each method's verdict. PASSED/FAILED/NO TESTS RAN/UNKNOWN \u2014 only PASSED is a pass. Needs write access, allowlisted package. Defaults to harmless-risk tests.",
+      description: "Run ABAP Unit tests; reports each method's verdict. PASSED/FAILED/NO TESTS RAN/UNKNOWN \u2014 only PASSED is a pass. Needs write access, allowlisted package. Defaults to harmless-risk tests. Opt-in coverage: coverage=true, optionally scoped with coverage_for.",
       inputSchema: testInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -107872,6 +109712,121 @@ function registerTestTools(mcp, deps) {
       }
     }
   );
+}
+
+// src/adt/source-scan.ts
+var SOURCE_SCAN_TYPES = ["PROG", "CLAS", "INTF", "FUGR", "DDLS"];
+var SOURCE_SCAN_OBJECT_CEILING = 200;
+var SCAN_TOOLS = /* @__PURE__ */ new Map([
+  [
+    SCAN_TOOL_ID,
+    {
+      manifest: scanManifest,
+      origin: "builtin",
+      sources: scanSources,
+      version: manifestVersion(scanManifest, scanSources)
+    }
+  ]
+]);
+function scanDispatchArgs(q) {
+  return {
+    query: q.query,
+    regex: q.regex,
+    case_sensitive: q.caseSensitive,
+    include_comments: q.includeComments,
+    ...q.packages.length > 0 ? { packages: q.packages } : {},
+    include_subpackages: q.includeSubpackages,
+    ...q.objects !== void 0 && q.objects !== "" ? { objects: q.objects } : {},
+    ...q.types.length > 0 ? { types: q.types } : {},
+    max_hits: q.maxHits,
+    max_objects: q.maxObjects
+  };
+}
+function fail2(reason, result) {
+  throw new AbapError(
+    "FLUID_PROTOCOL_ERROR",
+    `scan.source ${reason}`,
+    { tool: SCAN_TOOL_ID, action: SCAN_ACTION, result }
+  );
+}
+function isHitRow(r) {
+  return typeof r["obj_type"] === "string" && typeof r["obj_name"] === "string" && typeof r["include"] === "string" && typeof r["line"] === "number" && typeof r["text"] === "string";
+}
+function isSummaryRow(r) {
+  return typeof r["objects_total"] === "number" && typeof r["objects_scanned"] === "number" && typeof r["includes_scanned"] === "number" && typeof r["includes_skipped"] === "number" && typeof r["hits"] === "number" && (r["truncated"] === "" || r["truncated"] === "hits" || r["truncated"] === "objects");
+}
+function mapScanRows(rows) {
+  if (!Array.isArray(rows)) {
+    fail2("returned a result that is not an array", rows);
+  }
+  const hits = [];
+  let summary;
+  for (let i = 0; i < rows.length; i++) {
+    const row2 = rows[i];
+    if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
+      fail2(`row ${i} is not an object`, rows);
+    }
+    const r = row2;
+    if (r["kind"] !== "hit" && r["kind"] !== "summary") {
+      fail2(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
+    }
+    if (r["kind"] === "hit") {
+      if (!isHitRow(r)) {
+        fail2(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
+      }
+      if (summary !== void 0) {
+        fail2(`row ${i} is a hit row after the summary row`, rows);
+      }
+      hits.push({
+        objType: r.obj_type,
+        objName: r.obj_name,
+        include: r.include,
+        line: r.line,
+        text: r.text
+      });
+      continue;
+    }
+    if (summary !== void 0) {
+      fail2("returned more than one summary row", rows);
+    }
+    if (!isSummaryRow(r)) {
+      fail2(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+    }
+    if (i !== rows.length - 1) {
+      fail2("returned a summary row that is not the last element", rows);
+    }
+    summary = {
+      objectsTotal: r.objects_total,
+      objectsScanned: r.objects_scanned,
+      includesScanned: r.includes_scanned,
+      includesSkipped: r.includes_skipped,
+      hits: r.hits,
+      truncated: r.truncated
+    };
+  }
+  if (summary === void 0) {
+    fail2("did not return a summary row", rows);
+  }
+  return { hits, summary };
+}
+async function runSourceScan(conn, q, gate) {
+  const started = Date.now();
+  const res = await dispatch2(
+    { conn, cfg: conn.cfg, gate, tools: SCAN_TOOLS },
+    {
+      tool: SCAN_TOOL_ID,
+      action: SCAN_ACTION,
+      args: scanDispatchArgs(q),
+      // Names the MCP-facing tool/action in a FLUID_API_DISABLED refusal — see FluidRunRequest.caller's doc.
+      caller: { tool: "abap_search", action: "source" }
+    }
+  );
+  return {
+    sid: conn.cfg.sid,
+    ...mapScanRows(res.result),
+    ms: Date.now() - started,
+    truncated: res.truncated
+  };
 }
 
 // src/tools/search.ts
@@ -107900,14 +109855,23 @@ function assertKnownType(type) {
   );
 }
 var searchInputSchema = {
-  query: external_exports.string().describe("Name pattern (mode=objects) or target object (mode=where_used)."),
-  mode: external_exports.enum(["objects", "where_used"]).optional().describe('Default "objects".'),
+  query: external_exports.string().describe("Name pattern (mode=objects), target object (mode=where_used), or literal/regex text (mode=source)."),
+  mode: external_exports.enum(["objects", "where_used", "source"]).optional().describe(
+    'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code.'
+  ),
   type: external_exports.string().optional().describe(
-    `ADT type filter. One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
+    `ADT type filter (mode=objects/where_used only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`
   ),
   max: external_exports.number().int().positive().max(200).optional().describe(
-    "Default 50 rows; narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
-  )
+    "Default 50 rows (mode=objects/where_used) or 100 hits (mode=source); narrowing `query` (not lowering `max`) is what makes a broad call cheaper."
+  ),
+  packages: external_exports.array(external_exports.string()).max(20).optional().describe("mode=source: package scope (TADIR-DEVCLASS). Required unless `objects` is given."),
+  include_subpackages: external_exports.boolean().optional().describe("mode=source: also scan every package transitively under `packages` (TDEVC-PARENTCL)."),
+  objects: external_exports.string().optional().describe('mode=source: object-name pattern (wildcards `*`), e.g. "ZCL_MY_*". Alternative/addition to `packages`.'),
+  types: external_exports.array(external_exports.string()).max(10).optional().describe(`mode=source: object types to scan. One of: ${SOURCE_SCAN_TYPES.join(" ")}. Default: all five.`),
+  regex: external_exports.boolean().optional().describe("mode=source: treat `query` as a PCRE pattern instead of literal text."),
+  case_sensitive: external_exports.boolean().optional().describe("mode=source: default false."),
+  include_comments: external_exports.boolean().optional().describe("mode=source: also match inside comments (heuristic, line-local). Default false.")
 };
 var SearchInput = external_exports.object(searchInputSchema);
 async function abapSearch(conn, input, maxChars) {
@@ -108052,23 +110016,240 @@ ${capLine}` : "") : "(no references found)",
     maxChars
   });
 }
+var DEFAULT_SOURCE_MAX_HITS = 100;
+var SOURCE_ONLY_FIELDS = [
+  "packages",
+  "include_subpackages",
+  "objects",
+  "types",
+  "regex",
+  "case_sensitive",
+  "include_comments"
+];
+function assertNoSourceOnlyFields(input, mode) {
+  const passed = SOURCE_ONLY_FIELDS.filter((f) => {
+    const v = input[f];
+    return v !== void 0 && !(Array.isArray(v) && v.length === 0);
+  });
+  if (passed.length > 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `mode="${mode}" does not use ${passed.map((f) => `\`${f}\``).join(", ")} \u2014 those parameters only apply to mode="source".`,
+      { mode, fields: passed },
+      'Omit them, or set mode="source" to run a source-text scan.'
+    );
+  }
+}
+var PATTERN_CHARS = /^[A-Za-z0-9_$*/]+$/;
+function assertValidPattern(value, field) {
+  if (!PATTERN_CHARS.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `\`${field}\` "${value}" is not a valid pattern \u2014 only letters, digits, "_", "$", "/" and the "*" wildcard are meaningful here.`,
+      { field, value }
+    );
+  }
+}
+function buildSourceScanQuery(input) {
+  if (input.type !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'mode="source" does not use `type` \u2014 pass `types` instead (any of PROG, CLAS, INTF, FUGR, DDLS).',
+      { type: input.type }
+    );
+  }
+  const query = input.query.trim();
+  if (!query) {
+    throw new AbapError("BAD_INPUT", 'mode="source" requires a non-empty `query`.', {});
+  }
+  if (query.length > 255) {
+    throw new AbapError("BAD_INPUT", `\`query\` is ${query.length} characters; mode="source" allows at most 255.`, {
+      length: query.length
+    });
+  }
+  const packages = (input.packages ?? []).map((p) => p.trim()).filter((p) => p !== "");
+  packages.forEach((p) => assertValidPattern(p, "packages"));
+  const objectsRaw = input.objects?.trim();
+  const objects = objectsRaw === "" ? void 0 : objectsRaw;
+  if (objects !== void 0) assertValidPattern(objects, "objects");
+  if (packages.length === 0 && (objects === void 0 || objects === "*")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'mode="source" needs a scope: pass `packages` (one or more), `objects` (a name pattern narrower than "*"), or both.',
+      {},
+      'Try packages: ["Z_MY_PACKAGE"], or objects: "ZCL_MY_*".'
+    );
+  }
+  const typesRaw = input.types ?? [];
+  const types = [...new Set(typesRaw.map((t) => t.trim().toUpperCase()).filter((t) => t !== ""))];
+  for (const t of types) {
+    if (!SOURCE_SCAN_TYPES.includes(t)) {
+      throw new AbapError("BAD_INPUT", `\`types\` entry "${t}" is not one of: ${SOURCE_SCAN_TYPES.join(", ")}.`, {
+        type: t,
+        allowed: SOURCE_SCAN_TYPES
+      });
+    }
+  }
+  return {
+    query,
+    regex: input.regex ?? false,
+    caseSensitive: input.case_sensitive ?? false,
+    includeComments: input.include_comments ?? false,
+    packages,
+    includeSubpackages: input.include_subpackages ?? false,
+    objects,
+    types,
+    maxHits: input.max ?? DEFAULT_SOURCE_MAX_HITS,
+    maxObjects: SOURCE_SCAN_OBJECT_CEILING
+  };
+}
+var CLAS_INCLUDE_SUFFIX = [
+  ["CCDEF", "definitions"],
+  ["CCIMP", "implementations"],
+  ["CCMAC", "macros"],
+  ["CCAU", "testclasses"]
+];
+var READ_WINDOW_MARGIN = 10;
+var READ_WINDOW_LIMIT = 40;
+function readHint(hit) {
+  const off = Math.max(1, hit.line - READ_WINDOW_MARGIN);
+  switch (hit.objType) {
+    case "PROG":
+    case "FUGR":
+      return `abap_read object="${hit.include}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+    case "DDLS":
+      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+    case "INTF":
+      return `abap_read object="${hit.objName}" \u2014 interface source is a single document, no offset needed.`;
+    case "CLAS": {
+      const mapped = CLAS_INCLUDE_SUFFIX.find(([suffix]) => hit.include.endsWith(suffix));
+      if (mapped) {
+        const [, include] = mapped;
+        return `abap_read object="${hit.objName}" include="${include}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+      }
+      return `abap_read object="${hit.objName}" \u2014 the match was in include "${hit.include}" (a method or the main class source); the reported line number is include-local and does NOT transfer to an offset on the class as a whole. Use \`method="<name>"\` to narrow, or read the class outline first.`;
+    }
+    default:
+      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} \u2014 read around line ${hit.line}.`;
+  }
+}
+function scopeLabel(q) {
+  const parts = [];
+  if (q.packages.length) parts.push(`packages=${q.packages.join(",")}`);
+  if (q.objects) parts.push(`objects=${q.objects}`);
+  return parts.join(" ");
+}
+function buildSourceResponse2(q, result, maxChars) {
+  const { hits, summary } = result;
+  const rows = hits.map((h) => ({
+    type: h.objType,
+    name: h.objName,
+    include: h.include,
+    line: String(h.line),
+    text: truncateForDisplay(h.text, 120)
+  }));
+  const objectsNotScanned = summary.objectsTotal - summary.objectsScanned;
+  const truncLine = summary.truncated === "hits" ? `--- TRUNCATED --- the hit cap (max=${q.maxHits}) was reached; more matches may exist beyond the last one shown. Raise \`max\` (<=200) or narrow \`query\`/scope.` : summary.truncated === "objects" ? `--- TRUNCATED --- ${objectsNotScanned} of ${summary.objectsTotal} object(s) in scope were not scanned (object ceiling ${q.maxObjects}). Narrow \`packages\`/\`objects\`/\`types\`.` : void 0;
+  const body = [rows.length ? textTable(rows, ["type", "name", "include", "line", "text"]) : "(no matches)", truncLine].filter((s) => s !== void 0).join("\n");
+  const exampleHints = (() => {
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const h of hits) {
+      if (seen.has(h.objType)) continue;
+      seen.add(h.objType);
+      out.push(readHint(h));
+      if (out.length >= 3) break;
+    }
+    return out;
+  })();
+  return buildResponse({
+    header: {
+      system: result.sid,
+      mode: "source",
+      query: q.query,
+      regex: q.regex || void 0,
+      case_sensitive: q.caseSensitive || void 0,
+      include_comments: q.includeComments || void 0,
+      scope: scopeLabel(q) || void 0,
+      include_subpackages: q.includeSubpackages || void 0,
+      types: q.types.length ? q.types.join(",") : void 0,
+      hits: summary.hits,
+      objectsScanned: summary.objectsScanned,
+      objectsTotal: summary.objectsTotal,
+      includesScanned: summary.includesScanned,
+      includesSkipped: summary.includesSkipped || void 0,
+      truncated: summary.truncated || void 0
+    },
+    body,
+    bodyLabel: "MATCHES",
+    notes: [
+      // `notes` are ALWAYS shown (unlike `hints`, which `compact.ts`'s
+      // `buildResponse` only renders when the response is incomplete) — the
+      // concrete abap_read follow-up has to survive a response that fits
+      // fully, so it lives here, not in `hints`.
+      ...exampleHints.length > 0 ? ["Read around a hit with abap_read:", ...exampleHints] : [],
+      "Line numbers are include-local: for CLAS/FUGR hits, `line` counts from the top of the matching include (a method's own program, not the class as a whole), not from the object.",
+      ...summary.includesSkipped > 0 ? [
+        `${summary.includesSkipped} include(s) could not be read (e.g. a generated or inconsistent include) and are NOT represented in the results above \u2014 this is a gap, not proof those includes have no match.`
+      ] : [],
+      "include_comments=false strips comments with a per-line heuristic (`code_part()`), which can misjudge a line whose quote/comment state depends on the previous line. DDLS/CDS sources have no ABAP comment syntax, so they are always matched in full text regardless of include_comments.",
+      'This is a text scan, not a call graph: it finds literal/regex matches wherever they sit (strings, comments, dead code). Use mode="where_used" instead when what you actually want is real static references to one object.'
+    ],
+    hints: [
+      "Raise `max` (<=200) for more hits, or narrow `query`/`packages`/`objects`/`types` instead of widening scope."
+    ],
+    maxChars
+  });
+}
 var ok7 = (text3) => ({ content: [{ type: "text", text: text3 }] });
 function registerSearchTools(mcp, deps) {
   mcp.registerTool(
     "abap_search",
     {
       title: "Search ABAP repository",
-      description: "Find objects by name pattern (mode=objects, wildcards *) or list consumers (mode=where_used); 20+ seconds on wide fan-in \u2014 narrow by type/query first.",
+      description: "Find objects by name pattern (mode=objects, wildcards *), list consumers (mode=where_used; 20+ seconds on wide fan-in \u2014 narrow by type/query first), or scan source text line by line (mode=source, needs the fluid API and a package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true }
     },
     async (args) => {
       try {
+        const input = args;
+        const mode = input.mode ?? "objects";
+        if (mode === "source") {
+          const q = buildSourceScanQuery(input);
+          await deps.ensureConnected();
+          deps.safety.assert("read");
+          const disabled = fluidDisabledReason(deps.cfg, deps.safety);
+          if (disabled) {
+            throw dispatchDisabledError(disabled, deps.cfg, {
+              tool: SCAN_TOOL_ID,
+              action: SCAN_ACTION,
+              args: scanDispatchArgs(q),
+              caller: { tool: "abap_search", action: "source" }
+            });
+          }
+          deps.safety.assert(
+            "write",
+            {
+              name: SCAN_ENTRY_CLASS,
+              packageName: FLUID_PACKAGE,
+              type: "CLAS/OC"
+            },
+            { phase: "preflight" }
+          );
+          const res2 = await deps.pool.withWrite(
+            "abap_search",
+            SCAN_ENTRY_CLASS,
+            (conn) => runSourceScan(conn, q, deps.safety)
+          );
+          return ok7(buildSourceResponse2(q, res2, deps.cfg.maxResponseChars).text);
+        }
+        assertNoSourceOnlyFields(input, mode);
         await deps.ensureConnected();
         deps.safety.assert("read");
         const res = await deps.pool.withRead(
           "abap_search",
-          (conn) => abapSearch(conn, args, deps.cfg.maxResponseChars)
+          (conn) => abapSearch(conn, input, deps.cfg.maxResponseChars)
         );
         return ok7(res.text);
       } catch (e) {
@@ -109308,6 +111489,10 @@ function captureOf(img) {
   if (!img.sourceReadable) return "failed";
   return img.source !== void 0 ? "captured" : "failed";
 }
+function includeCaptureOf(img) {
+  if (img.source !== void 0) return "captured";
+  return img.absenceConfirmed ? "confirmed-absent" : "failed";
+}
 function deleteJournalNote(entryId, capture, type, name, kind) {
   if (capture === "captured" && kind === "package-metadata") {
     return `The package's metadata was journalled as ${entryId} before the delete \u2014 a package has no source, so that is the whole before-image, and abap_journal mode=undo will NOT re-create ${type} ${name} from it. Re-create it with abap_write type="DEVC/K" if you need it back.`;
@@ -109733,9 +111918,9 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     if (input.include !== void 0) {
       throw new AbapError(
         "BAD_INPUT",
-        `\`include\` does not apply to mode=delete: ADT cannot delete one include of a class, only the whole class. Deleting ${target.name} because you asked to delete its ${input.include} would destroy its main source and its other includes too, and that delete could not be undone \u2014 abapsmith's journal never captured the local includes.`,
+        `\`include\` does not apply to mode=delete: ADT cannot delete one include of a class, only the whole class. Deleting ${target.name} because you asked to delete its ${input.include} would destroy its main source and its other includes too.`,
         { object: target.name, include: input.include, mode: "delete" },
-        `To empty an include, WRITE it: {object, include:"${input.include}", source:"<the new, possibly empty, content>"}. To delete the whole class, drop \`include\`.`
+        `To empty an include, WRITE it: {object, include:"${input.include}", source:"<the new, possibly empty, content>"}. To delete the whole class, drop \`include\` \u2014 its includes are now recorded too, so abap_journal mode=undo on that delete restores all of them.`
       );
     }
     const authorized2 = await authorizeMutation(conn, gate, "delete", target);
@@ -109766,6 +111951,20 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
             // On begin(), not finish(): resolution is pre-flight, so the
             // request is already known — see BeforeImage.corrNr (src/adt/write.ts).
             ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
+            // A CLAS/OC delete's four local includes (src/adt/write.ts's
+            // `deleteObject`) — recorded as `parts` so undo of the whole
+            // delete can restore each one, not just the main body. Each
+            // part's `object` is the class's own ref with `sourceUri`
+            // overridden to that include's document — the class identity is
+            // the same, only the document under discussion differs.
+            ...img.includes?.length ? {
+              parts: img.includes.map((i) => ({
+                object: { ...journalRef(img.target), sourceUri: i.sourceUri },
+                existedBefore: i.existed,
+                beforeCapture: i.capture,
+                ...i.source !== void 0 ? { beforeSource: i.source } : {}
+              }))
+            } : {},
             systemKey: systemKey(conn.cfg),
             tool: "abap_write"
           };
@@ -109774,7 +111973,15 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       (onBeforeImage) => deleteObject(conn, authorized2, {
         ...trOpts,
         ...input.expect_etag ? { expectEtag: input.expect_etag } : {},
-        onBeforeImage,
+        // `withJournalledMutation` (src/journal.ts) hands back a closure
+        // that is a harmless no-op when `journal` is undefined — but it is
+        // NOT `=== NO_JOURNAL`, so `deleteObject` cannot tell from the
+        // closure alone that nothing will ever be done with a captured
+        // before-image. Passing the literal sentinel here when there is no
+        // journal to write to lets a CLAS/OC delete's four sub-include
+        // reads (src/adt/write.ts's `deleteObject`) be skipped rather than
+        // spent for nothing.
+        onBeforeImage: journal !== void 0 ? onBeforeImage : NO_JOURNAL,
         // DEVC/K runs through the classrun bridge, which needs the gate itself
         // even when no transport manager is wired.
         bridgeGate: gate
@@ -109912,7 +112119,10 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
           operation: img.existed ? "update" : "create",
           object: journalRef(img.target),
           existedBefore: img.existed,
-          beforeCapture: captureOf(img),
+          // A sub-include's absence is `confirmed-absent` evidence, not the
+          // generic `captureOf` path — see `includeCaptureOf`. Gated on
+          // `img.include` so every non-include write keeps `captureOf`.
+          beforeCapture: img.include !== void 0 ? includeCaptureOf(img) : captureOf(img),
           ...img.source !== void 0 ? { beforeSource: img.source } : {},
           // See the delete branch: begin(), since pre-flight resolution
           // already knows the request at this point.
@@ -113145,7 +115355,7 @@ var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef
 var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
 
 // src/adt/bopf-xml.ts
-function fail2(message, details = {}) {
+function fail3(message, details = {}) {
   throw new AbapError(
     "BAD_INPUT",
     `BOPF XML: ${message}`,
@@ -113176,15 +115386,15 @@ function decodeEntityAt(xml3, ampIndex) {
   for (const [entity, char] of PREDEFINED_ENTITIES) {
     if (xml3.startsWith(entity, ampIndex)) return { char, next: ampIndex + entity.length };
   }
-  fail2(
+  fail3(
     "unsupported entity reference \u2014 only the five predefined XML entities (&amp; &lt; &gt; &apos; &quot;) are accepted",
     { at: ampIndex }
   );
 }
 function scanModel(xmlText2) {
-  if (!xmlText2.startsWith("<?xml")) fail2("document does not start with an XML declaration (`<?xml ... ?>`)");
+  if (!xmlText2.startsWith("<?xml")) fail3("document does not start with an XML declaration (`<?xml ... ?>`)");
   const declEnd = xmlText2.indexOf("?>", 5);
-  if (declEnd === -1) fail2("unterminated XML declaration");
+  if (declEnd === -1) fail3("unterminated XML declaration");
   const n = xmlText2.length;
   const tokens = [];
   const stack = [];
@@ -113193,7 +115403,7 @@ function scanModel(xmlText2) {
     const c = xmlText2.charAt(i);
     if (c !== "<") {
       if (!WS.test(c)) {
-        fail2(
+        fail3(
           stack.length === 0 ? "unexpected content outside the root element" : "text content is not supported inside BOPF elements (every element here is attribute-only or container-only)",
           { at: i }
         );
@@ -113201,21 +115411,21 @@ function scanModel(xmlText2) {
       i++;
       continue;
     }
-    if (xmlText2.startsWith("<!--", i)) fail2("XML comments are not supported", { at: i });
-    if (xmlText2.startsWith("<![CDATA[", i)) fail2("CDATA sections are not supported", { at: i });
-    if (xmlText2.startsWith("<!DOCTYPE", i)) fail2("a DOCTYPE declaration is not supported", { at: i });
-    if (xmlText2.startsWith("<!", i)) fail2("unrecognized '<!' construct", { at: i });
-    if (xmlText2.startsWith("<?", i)) fail2("a processing instruction after the XML declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!--", i)) fail3("XML comments are not supported", { at: i });
+    if (xmlText2.startsWith("<![CDATA[", i)) fail3("CDATA sections are not supported", { at: i });
+    if (xmlText2.startsWith("<!DOCTYPE", i)) fail3("a DOCTYPE declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!", i)) fail3("unrecognized '<!' construct", { at: i });
+    if (xmlText2.startsWith("<?", i)) fail3("a processing instruction after the XML declaration is not supported", { at: i });
     if (xmlText2.startsWith("</", i)) {
       const name2 = matchNameAt(xmlText2, i + 2);
-      if (name2 === void 0) fail2("malformed closing tag", { at: i });
+      if (name2 === void 0) fail3("malformed closing tag", { at: i });
       let j2 = skipWs(xmlText2, i + 2 + name2.length);
-      if (xmlText2.charAt(j2) !== ">") fail2("malformed closing tag: expected '>'", { at: j2 });
+      if (xmlText2.charAt(j2) !== ">") fail3("malformed closing tag: expected '>'", { at: j2 });
       const closeEnd = j2 + 1;
       const top = stack.pop();
-      if (!top) fail2("unexpected closing tag with no matching open element", { at: i, name: name2 });
+      if (!top) fail3("unexpected closing tag with no matching open element", { at: i, name: name2 });
       if (top.name !== name2) {
-        fail2(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
+        fail3(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
       }
       tokens.push({
         kind: "container",
@@ -113231,7 +115441,7 @@ function scanModel(xmlText2) {
       continue;
     }
     const name = matchNameAt(xmlText2, i + 1);
-    if (name === void 0) fail2("malformed tag: expected an element name", { at: i });
+    if (name === void 0) fail3("malformed tag: expected an element name", { at: i });
     let j = i + 1 + name.length;
     const attrStart = j;
     const attrs = /* @__PURE__ */ new Map();
@@ -113248,23 +115458,23 @@ function scanModel(xmlText2) {
         break;
       }
       const attrName = matchNameAt(xmlText2, j);
-      if (attrName === void 0) fail2(`unexpected character inside <${name}>`, { at: j });
+      if (attrName === void 0) fail3(`unexpected character inside <${name}>`, { at: j });
       j += attrName.length;
       j = skipWs(xmlText2, j);
-      if (xmlText2.charAt(j) !== "=") fail2(`expected '=' after attribute "${attrName}"`, { at: j });
+      if (xmlText2.charAt(j) !== "=") fail3(`expected '=' after attribute "${attrName}"`, { at: j });
       j = skipWs(xmlText2, j + 1);
       const quote = xmlText2.charAt(j);
-      if (quote !== '"' && quote !== "'") fail2(`expected a quote to start the value of "${attrName}"`, { at: j });
+      if (quote !== '"' && quote !== "'") fail3(`expected a quote to start the value of "${attrName}"`, { at: j });
       j++;
       let value = "";
       for (; ; ) {
-        if (j >= n) fail2(`unterminated attribute value for "${attrName}"`, { at: j });
+        if (j >= n) fail3(`unterminated attribute value for "${attrName}"`, { at: j });
         const vc = xmlText2.charAt(j);
         if (vc === quote) {
           j++;
           break;
         }
-        if (vc === "<") fail2(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
+        if (vc === "<") fail3(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
         if (vc === "&") {
           const decoded = decodeEntityAt(xmlText2, j);
           value += decoded.char;
@@ -113274,7 +115484,7 @@ function scanModel(xmlText2) {
         value += vc;
         j++;
       }
-      if (attrs.has(attrName)) fail2(`duplicate attribute "${attrName}"`, { at: j });
+      if (attrs.has(attrName)) fail3(`duplicate attribute "${attrName}"`, { at: j });
       attrs.set(attrName, value);
     }
     if (selfClosing) {
@@ -113293,9 +115503,9 @@ function scanModel(xmlText2) {
     }
     i = j;
   }
-  if (stack.length > 0) fail2(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
+  if (stack.length > 0) fail3(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
   const roots = tokens.filter((t) => t.depth === 0);
-  if (roots.length !== 1) fail2(`document must have exactly one root element (found ${roots.length})`);
+  if (roots.length !== 1) fail3(`document must have exactly one root element (found ${roots.length})`);
   tokens.sort((a, b) => a.openStart - b.openStart);
   return tokens;
 }
@@ -113353,7 +115563,7 @@ var PLURAL_BARE = {
 };
 function insertionPoint(tokens, nodeTok, kind) {
   if (nodeTok.kind !== "container") {
-    fail2("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
+    fail3("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
   }
   const targetBare = PLURAL_BARE[kind];
   const targetIdx = NODE_CHILD_ORDER.indexOf(targetBare);
@@ -113369,19 +115579,19 @@ function insertionPoint(tokens, nodeTok, kind) {
   return insertAt;
 }
 function splice(xml3, at, text3) {
-  if (at < 0 || at > xml3.length) fail2("splice offset out of range", { at, length: xml3.length });
+  if (at < 0 || at > xml3.length) fail3("splice offset out of range", { at, length: xml3.length });
   return xml3.slice(0, at) + text3 + xml3.slice(at);
 }
 function spliceOut(xml3, range) {
   if (range.start < 0 || range.end > xml3.length || range.start > range.end) {
-    fail2("splice-out range out of bounds", { range, length: xml3.length });
+    fail3("splice-out range out of bounds", { range, length: xml3.length });
   }
   return xml3.slice(0, range.start) + xml3.slice(range.end);
 }
 function promoteToContainer(xml3, token) {
   if (token.kind === "container") return xml3;
   const tagText = xml3.slice(token.openStart, token.openEnd);
-  if (!tagText.endsWith("/>")) fail2("expected a self-closing tag ending in '/>'", { at: token.openStart });
+  if (!tagText.endsWith("/>")) fail3("expected a self-closing tag ending in '/>'", { at: token.openStart });
   const opened = tagText.slice(0, -2) + ">";
   return xml3.slice(0, token.openStart) + opened + `</${token.name}>` + xml3.slice(token.openEnd);
 }
@@ -113406,7 +115616,7 @@ function patchOpenTagAttrs(xml3, token, attrs) {
 }
 function spliceInsertChild(xml3, tokens, nodeName, kind, fragment, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail3(`node "${nodeName}" not found`, { node: nodeName });
   if (nodeTok.kind === "empty") {
     const opened = promoteToContainer(xml3, nodeTok);
     const insertAt = nodeTok.openEnd - 1;
@@ -113455,7 +115665,7 @@ function spliceSetElementRef(xml3, tokens, ownerToken, refTag, ref2, childOrder)
 }
 function spliceSetNodeRef(xml3, tokens, nodeName, refKind, ref2, opts) {
   const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail2(`node "${nodeName}" not found`, { node: nodeName });
+  if (!nodeTok) fail3(`node "${nodeName}" not found`, { node: nodeName });
   return spliceSetElementRef(xml3, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
 }
 function escapeAttrValue(v, context) {
@@ -113845,10 +116055,10 @@ function parseModel(xmlText2) {
   try {
     parsed = xmlParser2.parse(xmlText2) ?? {};
   } catch (e) {
-    fail2(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
+    fail3(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
   }
   const root = xnode2(parsed.businessObject);
-  if (!root) fail2("not a BOPF business object document (no <bo:businessObject> root element)");
+  if (!root) fail3("not a BOPF business object document (no <bo:businessObject> root element)");
   return {
     name: xattr2(root, "name") ?? "",
     type: xattr2(root, "type") ?? "",
@@ -120248,6 +122458,342 @@ var IMG_TREE_TEXT_PROBE = "SAP Customizing Implementation";
 var IMG_NODE_TYPES = Object.freeze(["IMG0", "IMG", "REF"]);
 var MAINTENANCE_EVENT_DOMAIN = "MAINTEVENT";
 
+// src/adt/datapreview-filter.ts
+var PREVIEW_OPS = ["eq", "ne", "lt", "le", "gt", "ge", "like", "in", "is_null"];
+var MAX_WHERE_CONDITIONS = 20;
+var MAX_ORDER_BY = 10;
+var MAX_COLUMNS = 100;
+var MAX_IN_VALUES = 50;
+var MAX_VALUE_LENGTH = 255;
+var PREVIEW_SQL_LINE_MAX = 255;
+var PREVIEW_OPS_LIST = PREVIEW_OPS.join(", ");
+var FREESTYLE_BANNED_WORD_RE = new RegExp(`\\b(?:${FREESTYLE_BANNED_KEYWORDS.join("|")})\\b`, "i");
+function isEmptyFilter(filter) {
+  if (filter === void 0) return true;
+  const noWhere = filter.where === void 0 || filter.where.length === 0;
+  const noColumns = filter.columns === void 0 || filter.columns.length === 0;
+  const noOrderBy = filter.orderBy === void 0 || filter.orderBy.length === 0;
+  return noWhere && noColumns && noOrderBy && filter.distinct !== true;
+}
+function isFiniteNumber(v) {
+  return typeof v === "number" && Number.isFinite(v);
+}
+function isPreviewValue(v) {
+  return typeof v === "string" || isFiniteNumber(v);
+}
+function assertNoBannedWord(value, what) {
+  const hit = FREESTYLE_BANNED_WORD_RE.exec(value);
+  if (hit) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} contains the word "${hit[0]}", which the freestyle endpoint's own banned-keyword guard refuses anywhere in the statement, even inside a quoted literal. Refusing here with a clearer message than that guard's.`,
+      { what, value, word: hit[0] }
+    );
+  }
+}
+function assertCondition(cond, index) {
+  const label = `where[${index}]`;
+  if (typeof cond.field !== "string" || cond.field.trim() === "") {
+    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: cond.field });
+  }
+  if (!PREVIEW_OPS.includes(cond.op)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label}.op "${String(cond.op)}" is not a recognised operator \u2014 accepted values are: ${PREVIEW_OPS_LIST}.`,
+      { what: `${label}.op`, value: cond.op }
+    );
+  }
+  if (cond.op === "is_null") {
+    if (cond.value !== void 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has op "is_null" but also supplies a "value" \u2014 is_null takes no value; refusing rather than silently ignoring it.`,
+        { what: `${label}.value`, value: cond.value }
+      );
+    }
+    return;
+  }
+  if (cond.op === "in") {
+    if (!Array.isArray(cond.value) || cond.value.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has op "in" but "value" is not a non-empty array.`,
+        { what: `${label}.value`, value: cond.value }
+      );
+    }
+    if (cond.value.length > MAX_IN_VALUES) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${label} has ${cond.value.length} values in its "in" list, over the ${MAX_IN_VALUES}-value cap per condition.`,
+        { what: `${label}.value`, count: cond.value.length, cap: MAX_IN_VALUES }
+      );
+    }
+    cond.value.forEach((v) => assertScalarValue(v, cond.field));
+    return;
+  }
+  if (cond.value === void 0) {
+    throw new AbapError("BAD_INPUT", `${label} (op "${cond.op}") requires a "value".`, { what: `${label}.value`, op: cond.op });
+  }
+  if (Array.isArray(cond.value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label} (op "${cond.op}") must not supply an array "value" \u2014 only "in" takes a list.`,
+      { what: `${label}.value`, op: cond.op }
+    );
+  }
+  assertScalarValue(cond.value, cond.field);
+}
+function assertScalarValue(v, field) {
+  const what = `where value for ${field}`;
+  if (!isPreviewValue(v)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} must be a string or a finite number, got ${JSON.stringify(v)}.`,
+      { field, value: v }
+    );
+  }
+  if (typeof v === "string") {
+    const checked = assertAbapText(v, what, MAX_VALUE_LENGTH);
+    assertNoBannedWord(checked, what);
+  }
+}
+function assertOrder(order, index) {
+  const label = `order_by[${index}]`;
+  if (typeof order.field !== "string" || order.field.trim() === "") {
+    throw new AbapError("BAD_INPUT", `${label}.field must be a non-empty string.`, { what: `${label}.field`, value: order.field });
+  }
+  if (order.direction !== void 0 && order.direction !== "asc" && order.direction !== "desc") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${label}.direction "${String(order.direction)}" must be "asc" or "desc" (or omitted).`,
+      { what: `${label}.direction`, value: order.direction }
+    );
+  }
+}
+function assertFilterShape(filter) {
+  const where2 = filter.where ?? [];
+  if (where2.length > MAX_WHERE_CONDITIONS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"where" has ${where2.length} conditions, over the ${MAX_WHERE_CONDITIONS}-condition cap.`,
+      { count: where2.length, cap: MAX_WHERE_CONDITIONS }
+    );
+  }
+  where2.forEach((cond, i) => assertCondition(cond, i));
+  const columns = filter.columns ?? [];
+  if (columns.length > MAX_COLUMNS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"columns" has ${columns.length} entries, over the ${MAX_COLUMNS}-column cap.`,
+      { count: columns.length, cap: MAX_COLUMNS }
+    );
+  }
+  columns.forEach((c, i) => {
+    if (typeof c !== "string" || c.trim() === "") {
+      throw new AbapError("BAD_INPUT", `columns[${i}] must be a non-empty string.`, { what: `columns[${i}]`, value: c });
+    }
+  });
+  const seenColumns = /* @__PURE__ */ new Set();
+  for (const c of columns) {
+    const key = c.toUpperCase();
+    if (seenColumns.has(key)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `"columns" names "${c}" more than once (case-insensitive) \u2014 a projection lists each column at most once.`,
+        { what: "columns", value: c }
+      );
+    }
+    seenColumns.add(key);
+  }
+  const orderBy = filter.orderBy ?? [];
+  if (orderBy.length > MAX_ORDER_BY) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `"order_by" has ${orderBy.length} entries, over the ${MAX_ORDER_BY}-entry cap.`,
+      { count: orderBy.length, cap: MAX_ORDER_BY }
+    );
+  }
+  orderBy.forEach((o, i) => assertOrder(o, i));
+}
+var NUMERIC_TYPE_CODES = /* @__PURE__ */ new Set(["P", "I", "b", "s", "8", "F", "a", "e"]);
+var INTEGER_TYPE_CODES = /* @__PURE__ */ new Set(["I", "b", "s", "8"]);
+var DECIMAL_TYPE_CODES = /* @__PURE__ */ new Set(["P", "F", "a", "e"]);
+var INTEGER_SHAPE_RE = /^-?\d+$/;
+var DECIMAL_SHAPE_RE = /^-?\d+(\.\d+)?$/;
+var DATE_SHAPE_RE = /^(\d{4})-?(\d{2})-?(\d{2})$/;
+var TIME_SHAPE_RE = /^(\d{2}):?(\d{2}):?(\d{2})$/;
+function renderLiteral(value, column, what) {
+  const type = column.type;
+  const asString = String(value);
+  if (INTEGER_TYPE_CODES.has(type)) {
+    if (!INTEGER_SHAPE_RE.test(asString)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected an integer, e.g. "300".`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return asString;
+  }
+  if (DECIMAL_TYPE_CODES.has(type)) {
+    if (!DECIMAL_SHAPE_RE.test(asString)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "${type}") \u2014 expected a decimal, e.g. "422.94". Rendered as a quoted literal \u2014 an unquoted decimal is a syntax error on this endpoint.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(asString);
+  }
+  if (type === "D") {
+    const m = DATE_SHAPE_RE.exec(asString);
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "D") \u2014 expected YYYYMMDD or YYYY-MM-DD.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
+  }
+  if (type === "T") {
+    const m = TIME_SHAPE_RE.exec(asString);
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${what}: "${asString}" is not a valid value for ${column.name} (type "T") \u2014 expected HHMMSS or HH:MM:SS.`,
+        { what, value, field: column.name, type }
+      );
+    }
+    return abapLiteral(`${m[1]}${m[2]}${m[3]}`);
+  }
+  return abapLiteral(asString);
+}
+var OP_SYMBOL = {
+  eq: "=",
+  ne: "<>",
+  lt: "<",
+  le: "<=",
+  gt: ">",
+  ge: ">="
+};
+function resolveField(field, byUpper, what) {
+  const col = byUpper.get(field.toUpperCase());
+  if (!col) {
+    const known = [...byUpper.values()].map((c) => c.name).join(", ");
+    throw new AbapError(
+      "BAD_INPUT",
+      `${what} "${field}" is not a column of this entity. Known columns: ${known}.`,
+      { what, value: field, known: [...byUpper.values()].map((c) => c.name) }
+    );
+  }
+  return { name: col.name, column: col };
+}
+function renderCondition(cond, byUpper, index, clientFieldName) {
+  const label = `where[${index}]`;
+  const { name, column } = resolveField(cond.field, byUpper, `${label}.field`);
+  if (clientFieldName !== void 0 && name.toUpperCase() === clientFieldName.toUpperCase()) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `where[${index}] refers to the client field "${name}" \u2014 the compiler refuses that: 'The client field "${name}" cannot be specified in the WHERE condition. Client handling is performed by the compiler.'`,
+      { what: `${label}.field`, field: name },
+      "The read is already scoped to the logon client \u2014 drop this condition."
+    );
+  }
+  if (cond.op === "is_null") {
+    return `${name} IS NULL`;
+  }
+  if (cond.op === "like") {
+    if (NUMERIC_TYPE_CODES.has(column.type)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `where[${index}] uses "like" on ${name}, a numeric field (type "${column.type}") \u2014 'A LIKE condition can only be used with character-like fields.'`,
+        { what: `${label}.op`, field: name, type: column.type },
+        "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
+      );
+    }
+    const pattern = assertAbapText(String(cond.value), `${label}.value`, MAX_VALUE_LENGTH);
+    const escaped = pattern.replace(/'/g, "''");
+    return `${name} LIKE '${escaped}' ESCAPE '#'`;
+  }
+  if (cond.op === "in") {
+    const values = cond.value;
+    const literals = values.map((v, i) => renderLiteral(v, column, `${label}.value[${i}]`));
+    return inPredicate(name, literals);
+  }
+  const literal2 = renderLiteral(cond.value, column, `${label}.value`);
+  return `${name} ${OP_SYMBOL[cond.op]} ${literal2}`;
+}
+var IN_LIST_ITEMS_PER_LINE = 5;
+function inPredicate(column, literals) {
+  if (literals.length <= IN_LIST_ITEMS_PER_LINE) {
+    return `${column} IN (${literals.join(", ")})`;
+  }
+  const lines = [`${column} IN (`];
+  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE) {
+    const chunk2 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE).join(", ");
+    const isLast = i + IN_LIST_ITEMS_PER_LINE >= literals.length;
+    lines.push(`  ${chunk2}${isLast ? "" : ","}`);
+  }
+  lines.push(")");
+  return lines.join("\n");
+}
+function renderPreviewSelect(table, filter, columns) {
+  assertFilterShape(filter);
+  const byUpper = /* @__PURE__ */ new Map();
+  for (const c of columns) byUpper.set(c.name.toUpperCase(), c);
+  const first = columns[0];
+  const clientFieldName = first && first.type === "C" && (first.name.toUpperCase() === "MANDT" || first.name.toUpperCase() === "CLIENT") ? first.name : void 0;
+  const where2 = filter.where ?? [];
+  const whereParts = where2.map((cond, i) => renderCondition(cond, byUpper, i, clientFieldName));
+  const rawColumns = filter.columns ?? [];
+  const resolvedColumns = rawColumns.map((c, i) => resolveField(c, byUpper, `columns[${i}]`));
+  const projected = resolvedColumns.map((r) => r.name);
+  const orderBy = filter.orderBy ?? [];
+  const resolvedOrder = orderBy.map((o, i) => ({
+    ...resolveField(o.field, byUpper, `order_by[${i}].field`),
+    direction: o.direction ?? "asc"
+  }));
+  if (filter.distinct === true && projected.length > 0 && resolvedOrder.length > 0) {
+    const projectedUpper = new Set(projected.map((p) => p.toUpperCase()));
+    resolvedOrder.forEach((o, i) => {
+      if (!projectedUpper.has(o.name.toUpperCase())) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `order_by[${i}] names "${o.name}", which is not in "columns" \u2014 with distinct: true, 'The field "${o.name}" from the ORDER BY clause is missing in the SELECT list.'`,
+          { what: `order_by[${i}].field`, field: o.name },
+          "With distinct, every order_by field must also appear in columns."
+        );
+      }
+    });
+  }
+  const selectKeyword = filter.distinct === true ? "SELECT DISTINCT" : "SELECT";
+  const selectLines = projected.length === 0 ? [`${selectKeyword} *`] : [selectKeyword, ...projected.map((name, i) => `  ${name}${i === projected.length - 1 ? "" : ","}`)];
+  const lines = [...selectLines, `FROM ${table}`];
+  whereParts.forEach((part, i) => {
+    const partLines = part.split("\n");
+    partLines.forEach((pl, j) => {
+      if (j === 0) lines.push(`${i === 0 ? "WHERE" : "  AND"} ${pl}`);
+      else lines.push(pl);
+    });
+  });
+  if (resolvedOrder.length > 0) {
+    const orderByClause = resolvedOrder.map((o) => `${o.name} ${o.direction === "desc" ? "DESCENDING" : "ASCENDING"}`).join(", ");
+    lines.push(`ORDER BY ${orderByClause}`);
+  }
+  const statement = lines.join("\n");
+  statement.split("\n").forEach((line, i) => {
+    if (line.length > PREVIEW_SQL_LINE_MAX) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Generated preview query line ${i + 1} is ${line.length} chars, over the freestyle endpoint's ${PREVIEW_SQL_LINE_MAX}-char request-body line limit \u2014 the request body wraps at that width, so a longer line would be corrupted on the wire.`,
+        { line: i + 1, length: line.length }
+      );
+    }
+  });
+  return statement;
+}
+
 // src/adt/datapreview.ts
 var PLAIN_NAME_RE = /^[A-Z][A-Z0-9_]{0,29}$/;
 var NAMESPACED_NAME_RE = /^\/[A-Z0-9_]{1,10}\/[A-Z0-9_]{1,30}$/;
@@ -120314,7 +122860,15 @@ function parsePreviewBody(body) {
     const parsed = Number.parseInt(totalRowsRaw, 10);
     if (Number.isFinite(parsed)) totalRows = parsed;
   }
-  return { columns, rows, messages, ...totalRows === void 0 ? {} : { totalRows } };
+  const executedQueryStringRaw = table.executedQueryString;
+  const executedQueryString = typeof executedQueryStringRaw === "string" && executedQueryStringRaw.trim() !== "" ? executedQueryStringRaw : void 0;
+  return {
+    columns,
+    rows,
+    messages,
+    ...totalRows === void 0 ? {} : { totalRows },
+    ...executedQueryString === void 0 ? {} : { executedQueryString }
+  };
 }
 function classifyPreviewFailure(e, ctx) {
   const err = translateAdtError(e, ctx);
@@ -120339,6 +122893,38 @@ function classifyPreviewFailure(e, ctx) {
   }
   return err;
 }
+function classifyFilteredPreviewFailure(e, ctx, sql) {
+  const err = classifyPreviewFailure(e, ctx);
+  if (err.code !== "ADT_ERROR") {
+    return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+  }
+  const message = err.message;
+  if (/client field .* cannot be specified in the where condition/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "The read is already scoped to the logon client \u2014 drop the where condition on the client field."
+    );
+  }
+  if (/like condition can only be used with character-like fields/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "Use eq/ne/lt/le/gt/ge on a numeric field instead of like."
+    );
+  }
+  if (/from the order by clause is missing in the select list/i.test(message)) {
+    return new AbapError(
+      "BAD_INPUT",
+      message,
+      { ...err.details, sql },
+      "With distinct, every order_by field must also appear in columns."
+    );
+  }
+  return new AbapError(err.code, err.message, { ...err.details, sql }, err.hint, { retryable: err.retryable });
+}
 async function previewDdicEntity(conn, input) {
   const table = normaliseEntityName(input.table);
   if (!isValidDdicEntityName(table)) {
@@ -120346,7 +122932,7 @@ async function previewDdicEntity(conn, input) {
       "BAD_INPUT",
       `'${String(input.table)}' is not a valid DDIC table or view name.`,
       { table: String(input.table) },
-      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity \u2014 it has no WHERE clause and accepts no SQL."
+      "Pass a bare name such as T000, DD02L or /ACME/TAB. This tool previews one named entity; narrow it with the structured where/columns/order_by parameters, never with SQL text."
     );
   }
   const { maxRows } = input;
@@ -120359,22 +122945,72 @@ async function previewDdicEntity(conn, input) {
     );
   }
   const ctx = { operation: "read", name: table, type: "TABL/DT" };
-  let body;
+  if (isEmptyFilter(input.filter)) {
+    let body2;
+    try {
+      const resp = await conn.dataPreviewDdic(table, maxRows);
+      body2 = resp.body;
+    } catch (e) {
+      throw classifyPreviewFailure(e, ctx);
+    }
+    const { columns: columns2, rows: rows2, messages: messages2 } = parsePreviewBody(body2);
+    const moreRowsExist2 = rows2.length > maxRows;
+    return {
+      table,
+      columns: columns2,
+      rows: moreRowsExist2 ? rows2.slice(0, maxRows) : rows2,
+      rowsRequested: maxRows,
+      moreRowsExist: moreRowsExist2,
+      messages: messages2
+    };
+  }
+  const filter = input.filter;
+  assertFilterShape(filter);
+  let probeBody;
   try {
-    const resp = await conn.dataPreviewDdic(table, maxRows);
-    body = resp.body;
+    const probeResp = await conn.dataPreviewDdic(table, 1);
+    probeBody = probeResp.body;
   } catch (e) {
     throw classifyPreviewFailure(e, ctx);
   }
-  const { columns, rows, messages } = parsePreviewBody(body);
-  const moreRowsExist = rows.length > maxRows;
+  const probe3 = parsePreviewBody(probeBody);
+  if (probe3.columns.length === 0) {
+    const firstMessage = probe3.messages[0];
+    if (firstMessage) {
+      throw new AbapError(
+        "ADT_ERROR",
+        `${table} answered with no columns: "${firstMessage.text}" (severity ${firstMessage.severity || "unstated"}).`,
+        { table, messages: probe3.messages },
+        "This entity does not support a filtered preview the way a plain table does \u2014 see the server's own message above."
+      );
+    }
+    throw new AbapError(
+      "NOT_FOUND",
+      `No DDIC table or view named ${table} exists on this system, or it has no columns to filter.`,
+      { table },
+      "Check the spelling, or look the object up first."
+    );
+  }
+  const sql = renderPreviewSelect(table, filter, probe3.columns);
+  let body;
+  try {
+    const resp = await conn.dataPreviewFreestyle(sql, maxRows);
+    body = resp.body;
+  } catch (e) {
+    throw classifyFilteredPreviewFailure(e, ctx, sql);
+  }
+  const { columns, rows, messages, totalRows, executedQueryString } = parsePreviewBody(body);
+  const moreRowsExist = totalRows !== void 0 ? totalRows > rows.length : rows.length > maxRows;
   return {
     table,
     columns,
-    rows: moreRowsExist ? rows.slice(0, maxRows) : rows,
+    rows,
     rowsRequested: maxRows,
     moreRowsExist,
-    messages
+    messages,
+    statement: sql,
+    ...executedQueryString === void 0 ? {} : { executedQueryString },
+    ...totalRows === void 0 ? {} : { totalRows }
   };
 }
 
@@ -120479,15 +123115,15 @@ function assertInList(values, what) {
   }
   return values;
 }
-var IN_LIST_ITEMS_PER_LINE = 5;
-function inPredicate(column, literals) {
-  if (literals.length <= IN_LIST_ITEMS_PER_LINE) {
+var IN_LIST_ITEMS_PER_LINE2 = 5;
+function inPredicate2(column, literals) {
+  if (literals.length <= IN_LIST_ITEMS_PER_LINE2) {
     return `${column} IN (${literals.join(", ")})`;
   }
   const lines = [`${column} IN (`];
-  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE) {
-    const chunk2 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE).join(", ");
-    const isLast = i + IN_LIST_ITEMS_PER_LINE >= literals.length;
+  for (let i = 0; i < literals.length; i += IN_LIST_ITEMS_PER_LINE2) {
+    const chunk2 = literals.slice(i, i + IN_LIST_ITEMS_PER_LINE2).join(", ");
+    const isLast = i + IN_LIST_ITEMS_PER_LINE2 >= literals.length;
     lines.push(`  ${chunk2}${isLast ? "" : ","}`);
   }
   lines.push(")");
@@ -120496,7 +123132,7 @@ function inPredicate(column, literals) {
 function inClause(column, values, what, assertValue) {
   const checked = assertInList(values, what);
   const literals = checked.map((v) => sqlLiteral(assertValue(v, what)));
-  return inPredicate(column, literals);
+  return inPredicate2(column, literals);
 }
 function afterPredicate(column, after, assertValue) {
   if (after === void 0) return void 0;
@@ -121832,7 +124468,7 @@ function nextHint(table) {
   if (table === void 0) {
     return "next: no single table resolved, so there is nothing to hand abap_data_preview.";
   }
-  return `next: read the entries with abap_data_preview {"table":"${table}"}. That tool is registered only when ABAP_ALLOW_DATA_PREVIEW=true, refuses on a system that is not proven non-productive, has no WHERE filter (it returns the first N rows of the whole table), and denies a built-in list of tables (src/safety.ts).`;
+  return `next: read the entries with abap_data_preview {"table":"${table}"}. That tool is registered only when ABAP_ALLOW_DATA_PREVIEW=true, refuses on a system that is not proven non-productive, denies a built-in list of tables (src/safety.ts), and accepts a structured \`where\` filter checked against the entity's own column list.`;
 }
 function nullableCount(n) {
   return n === null ? "" : String(n);
@@ -127191,6 +129827,31 @@ var dataPreviewInputSchema = {
   object: external_exports.string().optional().describe("Alias for table; table wins if both are given."),
   max_rows: external_exports.number().int().optional().describe(
     `Rows to return, clamped to the server's ceiling (clamp reported in the response). At least 1 \u2014 0 is refused, never read as "default".`
+  ),
+  where: external_exports.array(
+    external_exports.object({
+      field: external_exports.string().describe("DDIC field name, checked against the entity's own column list before anything is sent."),
+      op: external_exports.enum(PREVIEW_OPS).describe(
+        "Comparison operator: eq/ne/lt/le/gt/ge compare one typed value; like matches an SQL pattern (% = any run, _ = one character, # = escape character); in matches any of an array of values; is_null takes no value at all."
+      ),
+      value: external_exports.union([external_exports.string(), external_exports.number(), external_exports.array(external_exports.union([external_exports.string(), external_exports.number()]))]).optional().describe(
+        "Required for every op except is_null (which must omit it); an array only for op=in. Always rendered as a typed literal for the field's DDIC type \u2014 never concatenated as text."
+      )
+    })
+  ).optional().describe(
+    "Structured filter conditions, ANDed together (no OR, no free text). This does not widen what the technical user may read \u2014 the same S_TABU_* authorisations still apply to every row."
+  ),
+  columns: external_exports.array(external_exports.string()).optional().describe("Project only these DDIC fields, in this order, instead of every column on the entity."),
+  order_by: external_exports.array(
+    external_exports.object({
+      field: external_exports.string().describe("DDIC field name to sort by."),
+      direction: external_exports.enum(["asc", "desc"]).optional().describe('Sort direction; defaults to "asc" when omitted.')
+    })
+  ).optional().describe(
+    "Sort order, applied in array order (first field is the primary sort key). Required for keyset paging: order on a key and add a `gt`/`lt` where-condition on the last value seen."
+  ),
+  distinct: external_exports.boolean().optional().describe(
+    "Suppress duplicate rows. Requires every order_by field to also appear in columns \u2014 otherwise the sort key would not be part of what distinctness is computed over."
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
@@ -127218,6 +129879,7 @@ function renderPreview2(result, requested, maxChars) {
     });
     return rec;
   });
+  const filtered = result.statement !== void 0;
   const notes = [];
   if (result.rowsRequested < requested) {
     notes.push(
@@ -127225,8 +129887,9 @@ function renderPreview2(result, requested, maxChars) {
     );
   }
   if (result.moreRowsExist) {
+    const trueCount = result.totalRows !== void 0 && result.totalRows > result.rows.length ? ` The server reports ${result.totalRows} row(s) actually match \u2014 a firmer count than "more exist."` : "";
     notes.push(
-      `INCOMPLETE: ${result.table} holds more rows than the ${result.rowsRequested} shown. This is the first N rows in the table's own order, NOT a sample and NOT the whole table \u2014 do not conclude anything about rows you have not seen. There is no paging parameter and no WHERE clause on this tool; raise max_rows (up to the ceiling) or narrow the question another way.`
+      `INCOMPLETE: ${result.table} holds more rows than the ${result.rowsRequested} shown.${trueCount} This is the first N rows in the table's own order, NOT a sample and NOT the whole table \u2014 do not conclude anything about rows you have not seen. There is no offset/paging parameter, but you can narrow with \`where\`, project with \`columns\`, raise max_rows (up to the ceiling), or page by ordering on a key with \`order_by\` and adding a \`gt\` \`where\` condition on the last value you saw.`
     );
   }
   for (const m of result.messages) {
@@ -127237,11 +129900,22 @@ function renderPreview2(result, requested, maxChars) {
   }
   if (result.rows.length === 0) {
     notes.push(
-      result.messages.length === 0 ? `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a genuinely empty result, not a failure and not a truncation.` : (
+      result.messages.length !== 0 ? (
         // Replaces a bug where a parameterised CDS view's 200/0-col/0-row/"I" response was misread as a genuine empty table.
         `NOT READ: ${result.table} returned no rows, but that is NOT evidence it is empty. The server refused or curtailed the read in-band and said so in the message above. Do NOT conclude anything about the contents of ${result.table} from this response.`
-      )
+      ) : filtered ? `EMPTY: no row in ${result.table} matched the where filter. That is NOT evidence ${result.table} itself is empty \u2014 only that nothing satisfied the condition(s). The rendered statement is in STATEMENT above.` : `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a genuinely empty result, not a failure and not a truncation.`
     );
+  }
+  const sections = [];
+  if (result.columns.length) {
+    sections.push({ title: "COLUMNS (* = key)", content: columnSummary(result) });
+  }
+  if (filtered) {
+    const statementLines = [`sent: ${result.statement}`];
+    if (result.executedQueryString !== void 0) {
+      statementLines.push(`server compiled: ${result.executedQueryString}`);
+    }
+    sections.push({ title: "STATEMENT", content: statementLines.join("\n") });
   }
   return buildResponse({
     header: {
@@ -127249,9 +129923,11 @@ function renderPreview2(result, requested, maxChars) {
       columns: result.columns.length,
       rows_shown: result.rows.length,
       rows_requested: result.rowsRequested,
-      more_rows_exist: result.moreRowsExist
+      more_rows_exist: result.moreRowsExist,
+      filtered,
+      total_rows: result.totalRows
     },
-    sections: result.columns.length ? [{ title: "COLUMNS (* = key)", content: columnSummary(result) }] : [],
+    sections,
     body: rows.length ? textTable(rows, keys) : "(no rows)",
     bodyLabel: "ROWS",
     notes,
@@ -127265,7 +129941,7 @@ function registerDataPreviewTools(mcp, deps) {
     "abap_data_preview",
     {
       title: "Preview DDIC table data",
-      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. No WHERE/JOIN/aggregate; a name, not a statement. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused.`,
+      description: `Read rows from ONE DDIC entity: a table, database/projection view, or parameterless CDS view \u2014 not every DDIC entity kind qualifies. A name plus an optional structured filter (where/columns/order_by/distinct) \u2014 still no JOIN, no aggregate, and no SQL text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables and non-provably-nonproductive systems are refused.`,
       inputSchema: dataPreviewInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -127298,13 +129974,23 @@ function registerDataPreviewTools(mcp, deps) {
           );
         }
         const effective = Math.min(requested, ceiling);
+        const filter = {
+          ...a.where === void 0 ? {} : { where: a.where },
+          ...a.columns === void 0 ? {} : { columns: a.columns },
+          ...a.order_by === void 0 ? {} : { orderBy: a.order_by },
+          ...a.distinct === void 0 ? {} : { distinct: a.distinct }
+        };
         const result = await deps.pool.withRead(
           "abap_data_preview",
-          (conn) => previewDdicEntity(conn, { table, maxRows: effective })
+          (conn) => previewDdicEntity(conn, {
+            table,
+            maxRows: effective,
+            ...isEmptyFilter(filter) ? {} : { filter }
+          })
         );
         const res = renderPreview2(result, requested, deps.cfg.maxResponseChars);
         audit(
-          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist}`
+          `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist} filtered=${result.statement !== void 0}` + (result.totalRows === void 0 ? "" : ` total_rows=${result.totalRows}`)
         );
         return ok17(res.text);
       } catch (e) {
@@ -134186,6 +136872,8 @@ function stripSchemaKeyOnConnect(mcp) {
     return rawConnect(transport);
   });
 }
+var V2_REMOVAL_RELEASE = "0.6.0";
+var V2_DEPRECATION_SENTENCE = `ABAP_TOOL_SURFACE=v2 is DEPRECATED and will be REMOVED in ${V2_REMOVAL_RELEASE}. The surface is frozen: no new tool routes and no defect fixes land on it. Move to v1 by unsetting ABAP_TOOL_SURFACE.`;
 function packageScopeSentence(readOnly, allowPackages) {
   if (readOnly) {
     return "ABAP_ALLOW_PACKAGES unset allows every customer package, a list allows only those, and an empty value refuses every write.";
@@ -134202,7 +136890,7 @@ function instructionsFor(toolSurface, abapMode, readOnly, allowPackages, fluidAv
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   if (toolSurface === "v2") {
-    return `Access to an SAP ABAP system over ADT, via 6 tools. EXPERIMENTAL SURFACE \u2014 not supported for production use; known defects are not being fixed while it holds this status. Prefer the v1 surface for anything that matters. Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
+    return "Access to an SAP ABAP system over ADT, via 6 tools. " + V2_DEPRECATION_SENTENCE + ` Use abap_find to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete (edit= splices a unique match, method= replaces one method, source= is a full rewrite, mode="delete" removes), abap_do for everything else \u2014 activation/check, run/test, the local write journal and undo, transports, BOPF, and BAdI/enhancement actions (call abap_do({}) with no action for the live catalogue of what's unlocked at the current ABAP_MODE), and abap_debug to set breakpoints and step through execution with full variable inspection (action=start/step/stack/vars/value/keepalive/stop/status). Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write is journalled with its previous source locally first, so abap_do({action:"undo"}) can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.`;
   }
   return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (outline=true first for large classes, then method=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "");
 }
@@ -134534,7 +137222,7 @@ function createServer(cfg, opts) {
       );
       if (cfg.toolSurface === "v2") {
         warn(
-          "[abapsmith] ABAP_TOOL_SURFACE=v2 \u2014 EXPERIMENTAL, NOT SUPPORTED FOR PRODUCTION USE. Known v2 defects will not be fixed while v2 holds this status. v1 is the supported surface \u2014 see doc/TOOL-SURFACE-V2/README.md."
+          `[abapsmith] ${V2_DEPRECATION_SENTENCE} Four v1 tools (abap_data_preview, abap_open_url, abap_dumps, abap_ui) never had a v2 route, and every tool added since widened the gap \u2014 see doc/TOOL-SURFACE-V2/README.md and the CHANGELOG.`
         );
       }
       warn(

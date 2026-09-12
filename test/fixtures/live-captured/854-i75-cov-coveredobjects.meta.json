@@ -1,0 +1,31 @@
+{
+  "n": 854,
+  "label": "i75-cov-coveredobjects",
+  "expect": "every object the measured run touched, including SAP framework classes",
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/runtime/traces/coverage/measurements/466F46C806601FE1ABD81597C42FC069/coveredobjects",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Content-Type": "application/*",
+    "Accept": "application/*"
+  },
+  "requestBody": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<cov:scope xmlns:cov=\"http://www.sap.com/adt/cov\">\n  <adtcore:objectSets xmlns:adtcore=\"http://www.sap.com/adt/core\"/>\n  <cov:objectSelection/>\n</cov:scope>",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.coverage.coveredobjects.v1+xml; charset=utf-8",
+    "content-length": "705",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "87528.000000"
+  },
+  "byteLength": 5856,
+  "zeroByteBody": false,
+  "sha256": "cb4239c641e41b6fa6e3b672e8ec46300f31ebf8458b44bc6ca4ed303c58a967",
+  "utcTimestamp": "2026-09-12T15:43:19.623Z",
+  "durationMs": 241,
+  "sessionName": "A"
+}

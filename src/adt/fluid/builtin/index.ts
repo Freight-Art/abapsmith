@@ -9,6 +9,7 @@ import { enhManifest, enhSources } from "./enh.js";
 import { fpmManifest, fpmSources } from "./fpm.js";
 import { imgManifest, imgSources } from "./img.js";
 import { runManifest, runSources } from "./run.js";
+import { scanManifest, scanSources } from "./scan.js";
 import { uiManifest, uiSources } from "./ui.js";
 
 export interface BuiltinFluidTool {
@@ -24,5 +25,6 @@ export const BUILTIN_FLUID_TOOLS: readonly BuiltinFluidTool[] = [
   { manifest: imgManifest, sources: imgSources },
   { manifest: fluidRuntimeManifest, sources: fluidRuntimeSources },
   { manifest: runManifest, sources: runSources },
+  { manifest: scanManifest, sources: scanSources },
   { manifest: uiManifest, sources: uiSources },
 ];

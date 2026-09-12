@@ -12,6 +12,71 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-09-12
+
+### Added
+
+- `abap_test` reports ABAP Unit coverage on request (issue #75): `coverage: true` runs the tests with coverage measurement and adds a `coverage: statement n/m (p%), branch …, procedure …` header field, a `COVERAGE` section with per-class and per-method rows, `UNCOVERED METHODS`, `COVERAGE NOT REPORTED FOR`, and `ALSO TOUCHED` (objects the run executed but did not measure). `coverage_for` extends the measured set beyond the objects under test; without `coverage` it is `BAD_INPUT` before any request. The measured set is capped at 10 objects because a coverage query over a full roster timed out at 60 s on A4H. A coverage failure degrades to a note and never changes the run outcome. Verified live on A4H, including the `UNCOVERED METHODS` wording.
+- Deleting a class records all four includes (`definitions`, `implementations`, `macros`, `testclasses`) in the journal entry, `abap_journal mode=show` lists them with an `include` column, and `mode=undo` recreates the class with every recorded include and activates once at the end, reporting `restoredIncludes`/`skippedIncludes`; a fully recorded recreate no longer needs `force` (issue #75). Undoing a write to a sub-include restores that include, not `main`. Verified live: delete, undo, and the restored test class ran again.
+- New skill `abapsmith-write-abap-unit-tests`; the ABAP Unit capability rows are re-graded from the live evidence.
+
+### Fixed
+
+- `test/undo.test.ts`'s fake class server answered the four include URIs with an empty 200, which read as "captured, empty"; it now answers 404 so absence is distinguishable from an empty include (issue #75).
+
+## [0.5.11] - 2026-09-12
+
+### Added
+
+- Four more credential methods next to password and session cookie, exactly one of which must be configured (issue #79): client certificate (`ABAP_CLIENT_CERT` as PEM or PKCS#12, `ABAP_CLIENT_KEY`, `ABAP_CLIENT_KEY_PASSPHRASE`), static bearer token (`ABAP_TOKEN`, reported as `AUTH_EXPIRED` when rejected, never refreshed), OAuth 2.0 client credentials (`ABAP_OAUTH_TOKEN_URL`/`ABAP_OAUTH_CLIENT_ID`/`ABAP_OAUTH_CLIENT_SECRET`/`ABAP_OAUTH_SCOPE`, cached token with one 401 refresh-and-retry and a failure cooldown, `AUTH_TOKEN_REFRESH_FAILED`), and a BTP service key (`ABAP_SERVICE_KEY`) that supplies the OAuth settings. `ABAP_CA_CERT` verifies the server certificate with any method. Configuring more than one credential refuses to start. Certificate, token and OAuth logon are unit-tested against fakes and marked `unverified` in `doc/CONFIGURATION/connection.md` and `doc/LIMITATIONS/authentication.md`; A4H offers none of them. Verified live on A4H: password logon unchanged, `ABAP_TOKEN` against a basic-auth system reports `AUTH_EXPIRED` naming the variable, and both the exactly-one-of rule and an unreadable certificate path are refused at startup with the offending variable named.
+- System-role detection records `tenantKind` (`on-premise`/`cloud`/`unknown`) from the already-fetched `ato/settings` body; it never feeds the productive-system gate (issue #80). Cloud-tenant detection is unverified: no cloud tenant was available.
+
+### Fixed
+
+- The debugger's long-poll request (`agent: false`) copied only `rejectUnauthorized` off the shared TLS agent, so on a certificate-authenticated system it would have connected without the client certificate; it now carries `ca`/`cert`/`key`/`pfx`/`passphrase` on both the direct and the proxy branch, proven by a local `requestCert: true` server in `test/tls-policy-agreement.test.ts` (issue #79).
+- `src/config.ts` promised a sy-uname mismatch report that nothing implemented; the promise is removed and the gap is documented in `doc/LIMITATIONS/authentication.md` (issue #79).
+
+## [0.5.10] - 2026-09-12
+
+### Deprecated
+
+- The `v2` tool surface (`ABAP_TOOL_SURFACE=v2`) is deprecated and will be
+  removed in 0.6.0. Selecting it now logs one warning line at startup and
+  states the removal release in the server instructions; the surface is
+  frozen. `v1` is the only supported value. (issue #76)
+
+### Added
+
+- Four diagnostic skills: `abapsmith-debug-a-failing-run`,
+  `abapsmith-run-tests-and-fix`, `abapsmith-check-code-quality` and
+  `abapsmith-explore-a-package`, each with the tool sequence, the refusals
+  to expect and a transcript from a live system. `abapsmith-orient` routes
+  to all four. (issue #92)
+
+## [0.5.9] - 2026-09-12
+
+### Added
+
+- `abap_search mode=source` searches source text across the repository in one
+  call: literal or regex `query`, scope by `packages` (with
+  `include_subpackages`), `objects` pattern and `types`, `case_sensitive`,
+  `include_comments`, `max`. Hits carry object, include and include-local line
+  number; truncation is marked with honest object and hit counts. Backed by a
+  new built-in fluid tool `scan` (deployed on first use, kernel `FIND PCRE`),
+  so it needs the fluid API and a writable mode. (issue #72)
+
+## [0.5.8] - 2026-09-12
+
+### Added
+
+- `abap_data_preview` takes a structured filter: `where` (typed conditions
+  `eq`/`ne`/`gt`/`ge`/`lt`/`le`/`in`/`like`/`is_null` and friends), `columns`,
+  `order_by` and `distinct`. Fields are validated against the entity's own
+  column list (one probe request), literals are rendered by DDIC type, the
+  response carries `filtered`, `total_rows` and the statement that was sent
+  plus the server's compiled echo, and truncation explains keyset paging.
+  Unfiltered calls are byte-identical to before. (issue #73)
+
 ## [0.5.7] - 2026-09-12
 
 ### Fixed

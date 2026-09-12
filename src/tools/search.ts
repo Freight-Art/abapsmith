@@ -1,6 +1,12 @@
 /**
- * `abap_search` — objects and where-used. Source grep needs the ZMCP
- * service and has not shipped yet.
+ * `abap_search` — three modes over one input schema.
+ *  - `objects` (default): name-pattern search over the repository.
+ *  - `where_used`: static usage references for one object.
+ *  - `source`: line-wise source-text scan over a package/name scope, run
+ *    through the fluid `scan` tool (`ZCL_ZMCP_FLUID_SCAN`,
+ *    `src/adt/fluid/builtin/scan.ts`) — there is no ADT endpoint for this, so
+ *    it deploys and calls a small generated ABAP class the same way
+ *    `abap_fpm_read` does (see `src/tools/fpm.ts`).
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -15,6 +21,19 @@ import { truncateForDisplay } from "../truncate.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
 import type { SafetyGate } from "../safety.js";
+import { FLUID_PACKAGE } from "../adt/fluid/package.js";
+import { fluidDisabledReason } from "../adt/fluid/enabled.js";
+import { dispatchDisabledError } from "../adt/fluid/dispatch.js";
+import { SCAN_TOOL_ID, SCAN_ACTION, SCAN_ENTRY_CLASS } from "../adt/fluid/builtin/scan.js";
+import {
+  runSourceScan,
+  scanDispatchArgs,
+  SOURCE_SCAN_TYPES,
+  SOURCE_SCAN_OBJECT_CEILING,
+  type SourceScanHit,
+  type SourceScanQuery,
+  type SourceScanResult,
+} from "../adt/source-scan.js";
 
 const DESCRIPTION_COL_WIDE = 70;
 const DESCRIPTION_COL_NARROW = 60;
@@ -65,13 +84,19 @@ function assertKnownType(type: string): void {
 export const searchInputSchema = {
   query: z
     .string()
-    .describe('Name pattern (mode=objects) or target object (mode=where_used).'),
-  mode: z.enum(["objects", "where_used"]).optional().describe('Default "objects".'),
+    .describe("Name pattern (mode=objects), target object (mode=where_used), or literal/regex text (mode=source)."),
+  mode: z
+    .enum(["objects", "where_used", "source"])
+    .optional()
+    .describe(
+      'Default "objects". "source" scans raw source text (literal/regex, any line) and needs the fluid API; prefer "where_used" when you want real static references to one object, since a text scan also matches strings, comments and dead code.',
+    ),
   type: z
     .string()
     .optional()
     .describe(
-      `ADT type filter. One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; or a full code, e.g. "CLAS/OC".`,
+      `ADT type filter (mode=objects/where_used only). One of: ${[...KNOWN_TYPE_GROUPS].sort().join(" ")}; ` +
+        `or a full code, e.g. "CLAS/OC".`,
     ),
   max: z
     .number()
@@ -80,8 +105,33 @@ export const searchInputSchema = {
     .max(200)
     .optional()
     .describe(
-      "Default 50 rows; narrowing `query` (not lowering `max`) is what makes a broad call cheaper.",
+      "Default 50 rows (mode=objects/where_used) or 100 hits (mode=source); narrowing `query` " +
+        "(not lowering `max`) is what makes a broad call cheaper.",
     ),
+  packages: z
+    .array(z.string())
+    .max(20)
+    .optional()
+    .describe("mode=source: package scope (TADIR-DEVCLASS). Required unless `objects` is given."),
+  include_subpackages: z
+    .boolean()
+    .optional()
+    .describe("mode=source: also scan every package transitively under `packages` (TDEVC-PARENTCL)."),
+  objects: z
+    .string()
+    .optional()
+    .describe('mode=source: object-name pattern (wildcards `*`), e.g. "ZCL_MY_*". Alternative/addition to `packages`.'),
+  types: z
+    .array(z.string())
+    .max(10)
+    .optional()
+    .describe(`mode=source: object types to scan. One of: ${SOURCE_SCAN_TYPES.join(" ")}. Default: all five.`),
+  regex: z.boolean().optional().describe("mode=source: treat `query` as a PCRE pattern instead of literal text."),
+  case_sensitive: z.boolean().optional().describe("mode=source: default false."),
+  include_comments: z
+    .boolean()
+    .optional()
+    .describe("mode=source: also match inside comments (heuristic, line-local). Default false."),
 };
 
 export const SearchInput = z.object(searchInputSchema);
@@ -354,34 +404,355 @@ async function whereUsed(
   });
 }
 
+// ---------------------------------------------------------------------------
+// mode: "source" — line-wise source-text scan (fluid `scan` tool)
+// ---------------------------------------------------------------------------
+
+/** Default hit cap for mode=source, mirroring `max`'s default-50 role for the other two modes. */
+const DEFAULT_SOURCE_MAX_HITS = 100;
+
+/** Fields that only mean something for mode="source"; misuse under the other two modes is refused, not ignored. */
+const SOURCE_ONLY_FIELDS = [
+  "packages",
+  "include_subpackages",
+  "objects",
+  "types",
+  "regex",
+  "case_sensitive",
+  "include_comments",
+] as const;
+
+/**
+ * Guards the OTHER direction from `buildSourceScanQuery`'s own `type`-forbidden
+ * check: mode=objects/where_used silently ignoring a source-only field would
+ * look to a caller like the field was honoured. Kept separate from
+ * `abapSearch()` (which stays byte-identical) — this runs in the handler,
+ * around the call, not inside it.
+ */
+function assertNoSourceOnlyFields(input: SearchInput, mode: "objects" | "where_used"): void {
+  const passed = SOURCE_ONLY_FIELDS.filter((f) => {
+    const v = (input as Record<string, unknown>)[f];
+    return v !== undefined && !(Array.isArray(v) && v.length === 0);
+  });
+  if (passed.length > 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `mode="${mode}" does not use ${passed.map((f) => `\`${f}\``).join(", ")} — ` +
+        `those parameters only apply to mode="source".`,
+      { mode, fields: passed },
+      'Omit them, or set mode="source" to run a source-text scan.',
+    );
+  }
+}
+
+/** A crude but adequate check for an ABAP object-name/package wildcard pattern: `esc_like()` (scan.ts) only ever sees these characters. */
+const PATTERN_CHARS = /^[A-Za-z0-9_$*/]+$/;
+
+function assertValidPattern(value: string, field: string): void {
+  if (!PATTERN_CHARS.test(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `\`${field}\` "${value}" is not a valid pattern — only letters, digits, "_", "$", "/" and ` +
+        `the "*" wildcard are meaningful here.`,
+      { field, value },
+    );
+  }
+}
+
+/**
+ * Builds a `SourceScanQuery` from `mode="source"` input. Pure and
+ * network-free — every rejection here is a client-side mistake the fluid
+ * side would otherwise have to reject after a round trip (or, worse, after
+ * deploying `ZCL_ZMCP_FLUID_SCAN`).
+ */
+export function buildSourceScanQuery(input: SearchInput): SourceScanQuery {
+  if (input.type !== undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'mode="source" does not use `type` — pass `types` instead (any of PROG, CLAS, INTF, FUGR, DDLS).',
+      { type: input.type },
+    );
+  }
+
+  const query = input.query.trim();
+  if (!query) {
+    throw new AbapError("BAD_INPUT", 'mode="source" requires a non-empty `query`.', {});
+  }
+  if (query.length > 255) {
+    throw new AbapError("BAD_INPUT", `\`query\` is ${query.length} characters; mode="source" allows at most 255.`, {
+      length: query.length,
+    });
+  }
+
+  const packages = (input.packages ?? []).map((p) => p.trim()).filter((p) => p !== "");
+  packages.forEach((p) => assertValidPattern(p, "packages"));
+
+  const objectsRaw = input.objects?.trim();
+  const objects = objectsRaw === "" ? undefined : objectsRaw;
+  if (objects !== undefined) assertValidPattern(objects, "objects");
+
+  // No boundary at all: packages empty and objects absent/blank/"*" (a bare
+  // "*" is every object of every type in every package — not a scope).
+  if (packages.length === 0 && (objects === undefined || objects === "*")) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'mode="source" needs a scope: pass `packages` (one or more), `objects` (a name pattern ' +
+        'narrower than "*"), or both.',
+      {},
+      'Try packages: ["Z_MY_PACKAGE"], or objects: "ZCL_MY_*".',
+    );
+  }
+
+  const typesRaw = input.types ?? [];
+  const types = [...new Set(typesRaw.map((t) => t.trim().toUpperCase()).filter((t) => t !== ""))];
+  for (const t of types) {
+    if (!(SOURCE_SCAN_TYPES as readonly string[]).includes(t)) {
+      throw new AbapError("BAD_INPUT", `\`types\` entry "${t}" is not one of: ${SOURCE_SCAN_TYPES.join(", ")}.`, {
+        type: t,
+        allowed: SOURCE_SCAN_TYPES,
+      });
+    }
+  }
+
+  return {
+    query,
+    regex: input.regex ?? false,
+    caseSensitive: input.case_sensitive ?? false,
+    includeComments: input.include_comments ?? false,
+    packages,
+    includeSubpackages: input.include_subpackages ?? false,
+    objects,
+    types,
+    maxHits: input.max ?? DEFAULT_SOURCE_MAX_HITS,
+    maxObjects: SOURCE_SCAN_OBJECT_CEILING,
+  };
+}
+
+/** `include`'s ADT include name → the CC* suffix SE24/SE80 shows it as (`src/adt/undo.ts:486`). */
+const CLAS_INCLUDE_SUFFIX: ReadonlyArray<
+  readonly [string, "definitions" | "implementations" | "macros" | "testclasses"]
+> = [
+  ["CCDEF", "definitions"],
+  ["CCIMP", "implementations"],
+  ["CCMAC", "macros"],
+  ["CCAU", "testclasses"],
+];
+
+const READ_WINDOW_MARGIN = 10;
+const READ_WINDOW_LIMIT = 40;
+
+/**
+ * A concrete `abap_read` follow-up for one hit — the args differ per object
+ * type/include shape:
+ *  - PROG/FUGR: `object` is the bare include name `abap_read` resolves on
+ *    its own (verified live on A4H: `object="LBRF_FLIGHT_UTILSU01"` resolves
+ *    as FUGR/I and honours offset/limit — the unverified "<group>/<include>"
+ *    spelling is deliberately not used here).
+ *  - DDLS: the object name itself is the one document, offset/limit apply.
+ *  - INTF: one document, no offset — a class-only concept.
+ *  - CLAS: the include name's CC* suffix maps onto abap_read's `include`
+ *    enum (`CLASS_INCLUDES`); anything else is a method/main-source include,
+ *    which abap_read cannot address by that raw include name or offset —
+ *    say so instead of inventing an `include=` value outside the enum.
+ */
+function readHint(hit: SourceScanHit): string {
+  const off = Math.max(1, hit.line - READ_WINDOW_MARGIN);
+  switch (hit.objType) {
+    case "PROG":
+    case "FUGR":
+      return `abap_read object="${hit.include}" offset=${off} limit=${READ_WINDOW_LIMIT} — read around line ${hit.line}.`;
+    case "DDLS":
+      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} — read around line ${hit.line}.`;
+    case "INTF":
+      return `abap_read object="${hit.objName}" — interface source is a single document, no offset needed.`;
+    case "CLAS": {
+      const mapped = CLAS_INCLUDE_SUFFIX.find(([suffix]) => hit.include.endsWith(suffix));
+      if (mapped) {
+        const [, include] = mapped;
+        return (
+          `abap_read object="${hit.objName}" include="${include}" offset=${off} limit=${READ_WINDOW_LIMIT}` +
+          ` — read around line ${hit.line}.`
+        );
+      }
+      return (
+        `abap_read object="${hit.objName}" — the match was in include "${hit.include}" (a method or the ` +
+        "main class source); the reported line number is include-local and does NOT transfer to an " +
+        'offset on the class as a whole. Use `method="<name>"` to narrow, or read the class outline first.'
+      );
+    }
+    default:
+      return `abap_read object="${hit.objName}" offset=${off} limit=${READ_WINDOW_LIMIT} — read around line ${hit.line}.`;
+  }
+}
+
+function scopeLabel(q: SourceScanQuery): string {
+  const parts: string[] = [];
+  if (q.packages.length) parts.push(`packages=${q.packages.join(",")}`);
+  if (q.objects) parts.push(`objects=${q.objects}`);
+  return parts.join(" ");
+}
+
+export function buildSourceResponse(q: SourceScanQuery, result: SourceScanResult, maxChars: number): BuiltResponse {
+  const { hits, summary } = result;
+  const rows = hits.map((h) => ({
+    type: h.objType,
+    name: h.objName,
+    include: h.include,
+    line: String(h.line),
+    text: truncateForDisplay(h.text, 120),
+  }));
+
+  const objectsNotScanned = summary.objectsTotal - summary.objectsScanned;
+  const truncLine =
+    summary.truncated === "hits"
+      ? `--- TRUNCATED --- the hit cap (max=${q.maxHits}) was reached; more matches may exist ` +
+        `beyond the last one shown. Raise \`max\` (<=200) or narrow \`query\`/scope.`
+      : summary.truncated === "objects"
+        ? `--- TRUNCATED --- ${objectsNotScanned} of ${summary.objectsTotal} object(s) in scope were ` +
+          `not scanned (object ceiling ${q.maxObjects}). Narrow \`packages\`/\`objects\`/\`types\`.`
+        : undefined;
+
+  // `truncLine` is disclosure of a real gap in what was scanned, independent
+  // of whether anything matched — an object-ceiling cut with zero hits is
+  // still a cut, and used to be reported silently as a plain "(no matches)".
+  const body = [rows.length ? textTable(rows, ["type", "name", "include", "line", "text"]) : "(no matches)", truncLine]
+    .filter((s): s is string => s !== undefined)
+    .join("\n");
+
+  const exampleHints = (() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const h of hits) {
+      if (seen.has(h.objType)) continue;
+      seen.add(h.objType);
+      out.push(readHint(h));
+      if (out.length >= 3) break;
+    }
+    return out;
+  })();
+
+  return buildResponse({
+    header: {
+      system: result.sid,
+      mode: "source",
+      query: q.query,
+      regex: q.regex || undefined,
+      case_sensitive: q.caseSensitive || undefined,
+      include_comments: q.includeComments || undefined,
+      scope: scopeLabel(q) || undefined,
+      include_subpackages: q.includeSubpackages || undefined,
+      types: q.types.length ? q.types.join(",") : undefined,
+      hits: summary.hits,
+      objectsScanned: summary.objectsScanned,
+      objectsTotal: summary.objectsTotal,
+      includesScanned: summary.includesScanned,
+      includesSkipped: summary.includesSkipped || undefined,
+      truncated: summary.truncated || undefined,
+    },
+    body,
+    bodyLabel: "MATCHES",
+    notes: [
+      // `notes` are ALWAYS shown (unlike `hints`, which `compact.ts`'s
+      // `buildResponse` only renders when the response is incomplete) — the
+      // concrete abap_read follow-up has to survive a response that fits
+      // fully, so it lives here, not in `hints`.
+      ...(exampleHints.length > 0 ? ["Read around a hit with abap_read:", ...exampleHints] : []),
+      "Line numbers are include-local: for CLAS/FUGR hits, `line` counts from the top of the " +
+        "matching include (a method's own program, not the class as a whole), not from the object.",
+      ...(summary.includesSkipped > 0
+        ? [
+            `${summary.includesSkipped} include(s) could not be read (e.g. a generated or ` +
+              "inconsistent include) and are NOT represented in the results above — this is a " +
+              "gap, not proof those includes have no match.",
+          ]
+        : []),
+      "include_comments=false strips comments with a per-line heuristic (`code_part()`), which can " +
+        "misjudge a line whose quote/comment state depends on the previous line. DDLS/CDS sources have " +
+        "no ABAP comment syntax, so they are always matched in full text regardless of include_comments.",
+      "This is a text scan, not a call graph: it finds literal/regex matches wherever they sit " +
+        '(strings, comments, dead code). Use mode="where_used" instead when what you actually want ' +
+        "is real static references to one object.",
+    ],
+    hints: [
+      "Raise `max` (<=200) for more hits, or narrow `query`/`packages`/`objects`/`types` instead of widening scope.",
+    ],
+    maxChars,
+  });
+}
+
 export interface SearchToolDeps {
   readonly pool: SessionPool;
   readonly safety: SafetyGate;
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
-  readonly cfg: Pick<Config, "maxResponseChars">;
+  readonly cfg: Config;
 }
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
 
-/** Registers `abap_search` — a pure read tool, no write gate involved. */
+/**
+ * Registers `abap_search`. `objects`/`where_used` are pure reads (no write
+ * gate). `source` is read-SHAPED — it never changes an ABAP object the
+ * caller asked about — but it deploys/runs `ZCL_ZMCP_FLUID_SCAN` to do it, so
+ * it needs the fluid API and a write-capable session/pool slot the same way
+ * `abap_fpm_read` does (see `src/tools/fpm.ts`). The fluid-disabled check
+ * runs BEFORE the write-target safety assert, not after: on a read-only
+ * connection, `safety.assert("write", ...)` would already refuse, but with a
+ * generic write-denied message that hides the real, more specific reason
+ * (`FLUID_API_DISABLED`, which also fires for `ABAP_FLUID_API=false` on an
+ * otherwise-writable system) — checking fluid-disabled first gives the
+ * caller the reason that actually explains the refusal.
+ */
 export function registerSearchTools(mcp: McpServer, deps: SearchToolDeps): void {
   mcp.registerTool(
     "abap_search",
     {
       title: "Search ABAP repository",
       description:
-        "Find objects by name pattern (mode=objects, wildcards *) or list consumers " +
-        "(mode=where_used); 20+ seconds on wide fan-in — narrow by type/query first.",
+        "Find objects by name pattern (mode=objects, wildcards *), list consumers " +
+        "(mode=where_used; 20+ seconds on wide fan-in — narrow by type/query first), or scan " +
+        "source text line by line (mode=source, needs the fluid API and a package/objects scope).",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async (args) => {
       try {
+        const input = args as SearchInput;
+        const mode = input.mode ?? "objects";
+
+        if (mode === "source") {
+          const q = buildSourceScanQuery(input);
+          await deps.ensureConnected();
+          deps.safety.assert("read");
+          const disabled = fluidDisabledReason(deps.cfg, deps.safety);
+          if (disabled) {
+            throw dispatchDisabledError(disabled, deps.cfg, {
+              tool: SCAN_TOOL_ID,
+              action: SCAN_ACTION,
+              args: scanDispatchArgs(q),
+              caller: { tool: "abap_search", action: "source" },
+            });
+          }
+          deps.safety.assert(
+            "write",
+            {
+              name: SCAN_ENTRY_CLASS,
+              packageName: FLUID_PACKAGE,
+              type: "CLAS/OC",
+            },
+            { phase: "preflight" },
+          );
+          const res = await deps.pool.withWrite("abap_search", SCAN_ENTRY_CLASS, (conn) =>
+            runSourceScan(conn, q, deps.safety),
+          );
+          return ok(buildSourceResponse(q, res, deps.cfg.maxResponseChars).text);
+        }
+
+        assertNoSourceOnlyFields(input, mode);
         await deps.ensureConnected();
         deps.safety.assert("read");
         const res = await deps.pool.withRead("abap_search", (conn) =>
-          abapSearch(conn, args as SearchInput, deps.cfg.maxResponseChars),
+          abapSearch(conn, input, deps.cfg.maxResponseChars),
         );
         return ok(res.text);
       } catch (e) {

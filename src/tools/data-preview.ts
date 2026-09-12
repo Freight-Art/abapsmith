@@ -8,13 +8,18 @@
  * never reaches the appliance — verified live; see
  * the git history.
  *
- * No free-form SQL parameter exists here or beneath this file.
+ * No free-form SQL parameter exists in the tool's arguments — a caller can
+ * only name fields, operators and typed values. A structured filter
+ * (`where`/`columns`/`order_by`/`distinct`) IS compiled into a SELECT
+ * beneath this file, by `src/adt/datapreview-filter.ts`; that module, not
+ * this one, is what has to keep the compiled SQL server-side-safe.
  */
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { AbapError } from "../adt/errors.js";
 import { previewDdicEntity, type PreviewResult } from "../adt/datapreview.js";
+import { PREVIEW_OPS, isEmptyFilter, type PreviewFilter } from "../adt/datapreview-filter.js";
 import { buildResponse, textTable, type BuiltResponse } from "../compact.js";
 import { truncateForDisplay } from "../truncate.js";
 import type { SessionPool } from "../adt/pool.js";
@@ -28,7 +33,10 @@ const CELL_DISPLAY_WIDTH = 60;
 
 /**
  * `object` is a bare alias for `table` (handler picks whichever is set,
- * `table` wins). No third field — this tool has nowhere to put a WHERE.
+ * `table` wins). There is still no free-SQL field: `where`/`columns`/
+ * `order_by`/`distinct` are a STRUCTURED filter, checked and compiled into a
+ * SELECT server-side-safe by `src/adt/datapreview-filter.ts` — a caller
+ * never supplies or influences raw SQL text.
  *
  * `max_rows` is `.int()` but deliberately not `.positive()`: refusing `0` has
  * to be handler code (see P-32 below), not an unreachable zod branch — `0`
@@ -50,6 +58,59 @@ export const dataPreviewInputSchema = {
     .describe(
       "Rows to return, clamped to the server's ceiling (clamp reported in the response). " +
         'At least 1 — 0 is refused, never read as "default".',
+    ),
+  where: z
+    .array(
+      z.object({
+        field: z
+          .string()
+          .describe("DDIC field name, checked against the entity's own column list before anything is sent."),
+        op: z
+          .enum(PREVIEW_OPS)
+          .describe(
+            "Comparison operator: eq/ne/lt/le/gt/ge compare one typed value; like matches an SQL " +
+              "pattern (% = any run, _ = one character, # = escape character); in matches any of an " +
+              "array of values; is_null takes no value at all.",
+          ),
+        value: z
+          .union([z.string(), z.number(), z.array(z.union([z.string(), z.number()]))])
+          .optional()
+          .describe(
+            "Required for every op except is_null (which must omit it); an array only for op=in. " +
+              "Always rendered as a typed literal for the field's DDIC type — never concatenated as text.",
+          ),
+      }),
+    )
+    .optional()
+    .describe(
+      "Structured filter conditions, ANDed together (no OR, no free text). This does not widen what " +
+        "the technical user may read — the same S_TABU_* authorisations still apply to every row.",
+    ),
+  columns: z
+    .array(z.string())
+    .optional()
+    .describe("Project only these DDIC fields, in this order, instead of every column on the entity."),
+  order_by: z
+    .array(
+      z.object({
+        field: z.string().describe("DDIC field name to sort by."),
+        direction: z
+          .enum(["asc", "desc"])
+          .optional()
+          .describe('Sort direction; defaults to "asc" when omitted.'),
+      }),
+    )
+    .optional()
+    .describe(
+      "Sort order, applied in array order (first field is the primary sort key). Required for " +
+        "keyset paging: order on a key and add a `gt`/`lt` where-condition on the last value seen.",
+    ),
+  distinct: z
+    .boolean()
+    .optional()
+    .describe(
+      "Suppress duplicate rows. Requires every order_by field to also appear in columns — " +
+        "otherwise the sort key would not be part of what distinctness is computed over.",
     ),
 };
 
@@ -112,6 +173,8 @@ export function renderPreview(
     return rec;
   });
 
+  const filtered = result.statement !== undefined;
+
   const notes: string[] = [];
   if (result.rowsRequested < requested) {
     notes.push(
@@ -122,11 +185,18 @@ export function renderPreview(
     );
   }
   if (result.moreRowsExist) {
+    const trueCount =
+      result.totalRows !== undefined && result.totalRows > result.rows.length
+        ? ` The server reports ${result.totalRows} row(s) actually match — a firmer count than ` +
+          '"more exist."'
+        : "";
     notes.push(
-      `INCOMPLETE: ${result.table} holds more rows than the ${result.rowsRequested} shown. This is ` +
-        "the first N rows in the table's own order, NOT a sample and NOT the whole table — do not " +
-        "conclude anything about rows you have not seen. There is no paging parameter and no WHERE " +
-        "clause on this tool; raise max_rows (up to the ceiling) or narrow the question another way.",
+      `INCOMPLETE: ${result.table} holds more rows than the ${result.rowsRequested} shown.${trueCount} ` +
+        "This is the first N rows in the table's own order, NOT a sample and NOT the whole table — " +
+        "do not conclude anything about rows you have not seen. There is no offset/paging parameter, " +
+        "but you can narrow with `where`, project with `columns`, raise max_rows (up to the ceiling), " +
+        "or page by ordering on a key with `order_by` and adding a `gt` `where` condition on the last " +
+        "value you saw.",
     );
   }
   // Server's own words go first — the row count below is what a message can invalidate.
@@ -143,14 +213,30 @@ export function renderPreview(
 
   if (result.rows.length === 0) {
     notes.push(
-      result.messages.length === 0
-        ? `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a ` +
-            "genuinely empty result, not a failure and not a truncation."
-        : // Replaces a bug where a parameterised CDS view's 200/0-col/0-row/"I" response was misread as a genuine empty table.
+      result.messages.length !== 0
+        ? // Replaces a bug where a parameterised CDS view's 200/0-col/0-row/"I" response was misread as a genuine empty table.
           `NOT READ: ${result.table} returned no rows, but that is NOT evidence it is empty. The ` +
             "server refused or curtailed the read in-band and said so in the message above. Do NOT " +
-            `conclude anything about the contents of ${result.table} from this response.`,
+            `conclude anything about the contents of ${result.table} from this response.`
+        : filtered
+          ? `EMPTY: no row in ${result.table} matched the where filter. That is NOT evidence ` +
+            `${result.table} itself is empty — only that nothing satisfied the condition(s). The ` +
+            "rendered statement is in STATEMENT above."
+          : `EMPTY: ${result.table} exists and was read successfully, but returned no rows. That is a ` +
+            "genuinely empty result, not a failure and not a truncation.",
     );
+  }
+
+  const sections: Array<{ title: string; content: string }> = [];
+  if (result.columns.length) {
+    sections.push({ title: "COLUMNS (* = key)", content: columnSummary(result) });
+  }
+  if (filtered) {
+    const statementLines = [`sent: ${result.statement}`];
+    if (result.executedQueryString !== undefined) {
+      statementLines.push(`server compiled: ${result.executedQueryString}`);
+    }
+    sections.push({ title: "STATEMENT", content: statementLines.join("\n") });
   }
 
   return buildResponse({
@@ -160,8 +246,10 @@ export function renderPreview(
       rows_shown: result.rows.length,
       rows_requested: result.rowsRequested,
       more_rows_exist: result.moreRowsExist,
+      filtered,
+      total_rows: result.totalRows,
     },
-    sections: result.columns.length ? [{ title: "COLUMNS (* = key)", content: columnSummary(result) }] : [],
+    sections,
     body: rows.length ? textTable(rows, keys) : "(no rows)",
     bodyLabel: "ROWS",
     notes,
@@ -182,8 +270,9 @@ export function registerDataPreviewTools(mcp: McpServer, deps: DataPreviewToolDe
       title: "Preview DDIC table data",
       description:
         "Read rows from ONE DDIC entity: a table, database/projection view, or parameterless " +
-        "CDS view — not every DDIC entity kind qualifies. No WHERE/JOIN/aggregate; a name, not " +
-        `a statement. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables ` +
+        "CDS view — not every DDIC entity kind qualifies. A name plus an optional structured " +
+        "filter (where/columns/order_by/distinct) — still no JOIN, no aggregate, and no SQL " +
+        `text. Rows clamped to the ceiling (currently ${ceiling}). Deny-listed tables ` +
         "and non-provably-nonproductive systems are refused.",
       inputSchema: dataPreviewInputSchema,
       annotations: {
@@ -230,16 +319,35 @@ export function registerDataPreviewTools(mcp: McpServer, deps: DataPreviewToolDe
         }
         const effective = Math.min(requested, ceiling);
 
+        const filter: PreviewFilter = {
+          ...(a.where === undefined ? {} : { where: a.where }),
+          ...(a.columns === undefined ? {} : { columns: a.columns }),
+          ...(a.order_by === undefined ? {} : { orderBy: a.order_by }),
+          ...(a.distinct === undefined ? {} : { distinct: a.distinct }),
+        };
+
+        // Pass `filter` only when it is non-empty: with no filter parameters
+        // at all, this call must stay byte-identical to the pre-#73 shape
+        // (`{ table, maxRows }`, no `filter` key), so the unfiltered path is
+        // unchanged at the call site too, not just inside `previewDdicEntity`.
         const result = await deps.pool.withRead("abap_data_preview", (conn) =>
-          previewDdicEntity(conn, { table, maxRows: effective }),
+          previewDdicEntity(conn, {
+            table,
+            maxRows: effective,
+            ...(isEmptyFilter(filter) ? {} : { filter }),
+          }),
         );
 
         const res = renderPreview(result, requested, deps.cfg.maxResponseChars);
 
-        // Audit which table/how many rows — never the row values.
+        // Audit which table/how many rows and whether a filter was applied —
+        // never the field names, operators or values inside the filter, and
+        // never row contents.
         audit(
           `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} ` +
-            `requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist}`,
+            `requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist} ` +
+            `filtered=${result.statement !== undefined}` +
+            (result.totalRows === undefined ? "" : ` total_rows=${result.totalRows}`),
         );
 
         return ok(res.text);

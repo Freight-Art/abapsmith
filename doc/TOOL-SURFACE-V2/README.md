@@ -1,17 +1,26 @@
 # The v2 tool surface
 
-**Status: experimental. Not supported for production use.** v2 exists for
-exploration — trying the consolidated surface, low-stakes / non-production
-sessions — nothing more. Known v2 defects — an error envelope that drops
-failure detail, a search schema overclaiming free-text search, and hint
-text naming v1-only tools a v2 client cannot call — are not being fixed
-while it holds this status: fixing them would not bring v2 to parity with
-v1 (see "Why v2 stayed opt-in" below). `v1` is the supported surface and
-the recommended default for anything that matters.
+**DEPRECATED as of this release. `ABAP_TOOL_SURFACE=v2` will be REMOVED in
+0.6.0 (issue #76).** v2 still works in this release. The surface is frozen:
+no new tool routes and no defect fixes land on it. Four v1 tools never had
+a v2 route — `abap_data_preview`, `abap_open_url`, `abap_dumps`, `abap_ui`
+— and every v1 tool added since has widened that gap further, with no v2
+route of its own: `abap_atc`, `abap_quick_fix`, `abap_img`, `abap_img_edit`,
+`abap_fluid`, `abap_service`. `v1` is the surface to move to — unset
+`ABAP_TOOL_SURFACE`. A server started with `ABAP_TOOL_SURFACE=v2` now
+prints this deprecation warning on stderr at startup, and carries the same
+sentence in the MCP server `instructions`.
+
+Status: deprecated; it was never supported for production use. Known v2
+defects — an error envelope that drops failure detail, a search schema
+overclaiming free-text search, and hint text naming v1-only tools a v2
+client cannot call — are not being fixed: fixing them would not bring v2
+to parity with v1 (see "Why v2 stayed opt-in" below), and the surface is
+being removed regardless.
 
 The server ships two MCP tool surfaces. `ABAP_TOOL_SURFACE` selects which one
 a running process registers — `"v1"` (default, supported) or `"v2"`
-(experimental, opt-in, not for production). Exactly one surface is ever
+(deprecated, opt-in, removed in 0.6.0). Exactly one surface is ever
 active per process — no value registers both, since v2 reuses several v1
 tool names and dual registration would fail at startup with a
 duplicate-tool error.
@@ -91,6 +100,10 @@ Fixing only the known defects listed above would not by itself be enough to
 close that gap.
 
 ## When v2 is worth trying anyway
+
+This section explains why v2 was kept opt-in rather than removed outright —
+it is not a recommendation to adopt v2 now that it is scheduled for removal
+in 0.6.0 (issue #76).
 
 v2's trade-offs point the other way in some workload shapes: when prompt
 caching is off, unavailable, or ineffective (a smaller schema matters more

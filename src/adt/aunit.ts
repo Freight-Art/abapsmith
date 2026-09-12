@@ -21,6 +21,14 @@
  * "No tests ran" (`kind="noTestClasses"`, no `<program>` element) gets its
  * own {@link AunitOutcome} value `"no-tests"`, decided before any pass/fail
  * arithmetic — 0 failures of 0 tests verifies nothing.
+ *
+ * Coverage measurement (`<external><coverage active="true"/></external>` on
+ * the run, then `cov:scope`/`cov:query` against the measurement URI it
+ * returns) is a second, independent honesty trap: querying an object the run
+ * never touched answers 200 with a zero `<summary>` and NO `<nodes>` element,
+ * not a `<nodes>` tree full of zeros. {@link CoverageResult.measured}
+ * exists so that shape can never be reported as "0% covered". See
+ * {@link parseCoverageResult}.
  */
 import { XMLParser } from "fast-xml-parser";
 import { AbapError } from "./errors.js";
@@ -29,6 +37,14 @@ import { ECHO_LINE_MAX, MESSAGE_EXCERPT_MAX, truncateText } from "../truncate.js
 
 /** The run endpoint. Live-captured; takes `Content-Type: application/*`. */
 export const AUNIT_TESTRUNS_URL = "/sap/bc/adt/abapunit/testruns";
+
+/**
+ * Prefix of every coverage measurement URI ADT has ever handed back
+ * (`466-…` in the i75 captures). Used to sanity-check `coverageUri` before
+ * this module trusts it as something it knows how to query — a URI outside
+ * this tree is not a measurement resource, whatever else it might be.
+ */
+export const COVERAGE_MEASUREMENT_PREFIX = "/sap/bc/adt/runtime/traces/coverage/measurements/";
 
 /**
  * SAP's own risk taxonomy for a test method (`RISK LEVEL` in the test class):
@@ -122,6 +138,13 @@ export interface AunitRunResult {
   unknown: number;
   /** Always set for `no-tests` and `unknown`; the sentence a human should read. */
   reason?: string;
+  /**
+   * `<external><coverage adtcore:uri="…"/></external>` from the run result — the coverage
+   * measurement this run produced. Present only when the run asked for coverage; a run that
+   * asked and did not get one leaves this undefined, which callers must report rather than
+   * silently treat as "no coverage".
+   */
+  coverageUri?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,15 +163,26 @@ export interface AunitRunResult {
  * server-side, not rejected. If a future SAP release did reject it, the
  * failure surfaces as `noTestClasses` (reported `"no-tests"`), never a
  * silent pass. Full capture evidence archived.
+ *
+ * `opts.coverage` toggles `<coverage active="…"/>` only — every other byte is
+ * unchanged. Live-captured both ways: `852-i75-ut-testrun-allpass.meta.json`
+ * (`active="false"`) and `853-i75-ut-testrun-coverage.meta.json`
+ * (`active="true"`), which is how the run result comes to carry an
+ * `<external><coverage adtcore:uri="…"/></external>` measurement reference
+ * (see {@link AunitRunResult.coverageUri}).
  */
-export function buildRunConfiguration(objectUri: string, risk: RiskLevel = "harmless"): string {
+export function buildRunConfiguration(
+  objectUri: string,
+  risk: RiskLevel = "harmless",
+  opts: { coverage?: boolean } = {},
+): string {
   const on = (level: RiskLevel): string =>
     RISK_LEVELS.indexOf(level) <= RISK_LEVELS.indexOf(risk) ? "true" : "false";
   return (
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<aunit:runConfiguration xmlns:aunit="http://www.sap.com/adt/aunit">\n' +
     "  <external>\n" +
-    '    <coverage active="false"/>\n' +
+    `    <coverage active="${opts.coverage ? "true" : "false"}"/>\n` +
     "  </external>\n" +
     "  <options>\n" +
     '    <uriType value="semantic"/>\n' +
@@ -407,6 +441,20 @@ export function parseRunResult(xml: string): AunitRunResult {
     );
   }
 
+  // `<external><coverage adtcore:uri="…"/></external>` is the FIRST child of
+  // `runResult` when present (853-i75-ut-testrun-coverage.xml); a run that did
+  // not ask for coverage carries no `<external>` at all
+  // (852-i75-ut-testrun-allpass.xml). A URI outside
+  // `COVERAGE_MEASUREMENT_PREFIX` is not a measurement this module knows how
+  // to query, so it is dropped rather than passed through.
+  const externalNode = many(root.external)[0];
+  const coverageNode = externalNode && isNode(externalNode.coverage) ? externalNode.coverage : undefined;
+  const coverageUriRaw = coverageNode ? attr(coverageNode, "uri") : undefined;
+  const coverageUri =
+    coverageUriRaw && coverageUriRaw.startsWith(COVERAGE_MEASUREMENT_PREFIX)
+      ? coverageUriRaw
+      : undefined;
+
   const otherAlerts: AunitScopedAlert[] = [];
   for (const a of parseAlerts(root.alerts)) otherAlerts.push({ ...a, scope: "run" });
 
@@ -480,6 +528,7 @@ export function parseRunResult(xml: string): AunitRunResult {
         reason:
           noTests.title ??
           "ADT reported kind=\"noTestClasses\": the object has no ABAP Unit test classes.",
+        ...(coverageUri ? { coverageUri } : {}),
       };
     }
     return {
@@ -493,11 +542,21 @@ export function parseRunResult(xml: string): AunitRunResult {
       reason:
         "The run result contained no test methods and no noTestClasses alert, so it is not " +
         "known whether anything ran. This is NOT a passing run.",
+      ...(coverageUri ? { coverageUri } : {}),
     };
   }
 
   if (failed > 0) {
-    return { outcome: "failed", programs, otherAlerts, total, passed, failed, unknown };
+    return {
+      outcome: "failed",
+      programs,
+      otherAlerts,
+      total,
+      passed,
+      failed,
+      unknown,
+      ...(coverageUri ? { coverageUri } : {}),
+    };
   }
   if (unknown > 0) {
     return {
@@ -511,7 +570,294 @@ export function parseRunResult(xml: string): AunitRunResult {
       reason:
         `${unknown} of ${total} test method(s) carried XML this server does not recognise, so ` +
         "their verdict is unknown. Treat the run as UNVERIFIED, not as passing.",
+      ...(coverageUri ? { coverageUri } : {}),
     };
   }
-  return { outcome: "passed", programs, otherAlerts, total, passed, failed, unknown };
+  return {
+    outcome: "passed",
+    programs,
+    otherAlerts,
+    total,
+    passed,
+    failed,
+    unknown,
+    ...(coverageUri ? { coverageUri } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Coverage — `cov:scope` (coveredobjects) and `cov:query`/`cov:result`
+// ---------------------------------------------------------------------------
+
+/**
+ * A `total`/`executed` pair for one coverage type on one node. Never
+ * synthesised as `{total: 0, executed: 0}` for a type the node didn't carry
+ * — absence of the field on {@link CoverageNode} is how "not reported" is
+ * told apart from "reported zero".
+ */
+export interface CoverageRatio {
+  readonly total: number;
+  readonly executed: number;
+}
+
+/**
+ * One `<node>` of a `cov:result` tree. SAP nests these as Class-Pool node →
+ * class node → one node per method (`855-i75-cov-query-zcl-i75-probe.xml`);
+ * this module preserves that shape rather than flattening it, since a
+ * flattened tree can't tell a class's own coverage from a method's.
+ */
+export interface CoverageNode {
+  name: string;
+  type?: string;
+  uri?: string;
+  description?: string;
+  statement?: CoverageRatio;
+  branch?: CoverageRatio;
+  procedure?: CoverageRatio;
+  /** `type` values on `<coverage>` that this build does not know. Never folded into the three above. */
+  unrecognised: string[];
+  children: CoverageNode[];
+}
+
+export interface CoverageResult {
+  /**
+   * A `<nodes>` tree was present. `false` means the measurement holds NO data
+   * for the queried objects — SAP answers 200 with a zero `<summary>` and no
+   * nodes (`856-i75-cov-query-untouched.xml`), which is absence of
+   * measurement, not zero coverage. Callers must say "not measured", never
+   * "0%".
+   */
+  measured: boolean;
+  nodes: CoverageNode[];
+}
+
+export interface CoveredObject {
+  name: string;
+  type?: string;
+  uri?: string;
+  packageName?: string;
+}
+
+/** `{measurementUri}/coveredobjects` — the endpoint listing every object a run touched. */
+export function coveredObjectsUrl(measurementUri: string): string {
+  return `${measurementUri}/coveredobjects`;
+}
+
+/**
+ * Body for the `coveredobjects` POST. Byte-identical to the live capture
+ * (`854-i75-cov-coveredobjects.meta.json.requestBody`) — an empty object-set
+ * plus an empty `cov:objectSelection` asks for every object the run touched,
+ * unfiltered.
+ */
+export function buildCoveredObjectsScope(): string {
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<cov:scope xmlns:cov="http://www.sap.com/adt/cov">\n' +
+    '  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core"/>\n' +
+    "  <cov:objectSelection/>\n" +
+    "</cov:scope>"
+  );
+}
+
+/**
+ * Parse the `cov:scope` document `coveredobjects` answers with.
+ *
+ * Throws `ADT_ERROR` when the body carries no `<cov:scope>` element at all —
+ * same fail-closed contract as {@link parseRunResult} for a missing
+ * `runResult`. An empty `<cov:scope/>` with no `<cov:coveredObjects>` is a
+ * legal empty list, not an error: it parses to `""`, not absent, and falls
+ * through to a `[]` result below.
+ */
+export function parseCoveredObjects(xml: string): CoveredObject[] {
+  let doc: unknown;
+  try {
+    doc = parser.parse(xml);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage scope is not parseable XML: ${(e as Error).message}`,
+      { excerpt: truncateText(xml, MESSAGE_EXCERPT_MAX) },
+    );
+  }
+  const docNode = isNode(doc) ? doc : undefined;
+  const hasScope = docNode !== undefined && "scope" in docNode;
+  if (!hasScope) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "ADT answered 200 but the body carries no <cov:scope> element.",
+      { excerpt: truncateText(xml, MESSAGE_EXCERPT_MAX) },
+    );
+  }
+  const root: Node = isNode(docNode.scope) ? docNode.scope : {};
+
+  const out: CoveredObject[] = [];
+  for (const container of many(root.coveredObjects)) {
+    for (const co of many(container.coveredObject)) {
+      const ref = isNode(co.objectReference) ? co.objectReference : undefined;
+      if (!ref) continue;
+      out.push({
+        name: attr(ref, "name") ?? "(unnamed object)",
+        ...(attr(ref, "type") ? { type: attr(ref, "type") } : {}),
+        ...(attr(ref, "uri") ? { uri: attr(ref, "uri") } : {}),
+        ...(attr(ref, "packageName") ? { packageName: attr(ref, "packageName") } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Body for the `cov:query` POST to a measurement URI. Byte-identical, for a
+ * single URI, to the live capture
+ * (`855-i75-cov-query-zcl-i75-probe.meta.json.requestBody`); multiple URIs
+ * repeat the `<adtcore:objectReference>` line at the same indentation.
+ *
+ * Throws `BAD_INPUT` on an empty array: a query naming no objects would
+ * return the whole measurement, which is never what a caller asking for a
+ * specific object's coverage meant.
+ */
+export function buildCoverageQuery(objectUris: readonly string[]): string {
+  if (objectUris.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "buildCoverageQuery needs at least one object URI: an empty list would query the whole " +
+        "measurement, not the object the caller asked about.",
+    );
+  }
+  const refs = objectUris
+    .map((uri) => `        <adtcore:objectReference adtcore:uri="${escapeXmlAttribute(uri)}"/>\n`)
+    .join("");
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<cov:query xmlns:cov="http://www.sap.com/adt/cov">\n' +
+    '  <adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core">\n' +
+    '    <objectSet kind="inclusive">\n' +
+    "      <adtcore:objectReferences>\n" +
+    refs +
+    "      </adtcore:objectReferences>\n" +
+    "    </objectSet>\n" +
+    "  </adtcore:objectSets>\n" +
+    "</cov:query>"
+  );
+}
+
+/** `<coverage type="…">` values this module knows how to key a {@link CoverageNode} ratio on. */
+const KNOWN_COVERAGE_TYPES: ReadonlySet<string> = new Set(["statement", "branch", "procedure"]);
+
+/** Base-10 integer parse that refuses anything not made entirely of digits — never coerces to 0. */
+function parseCount(raw: string | undefined): number | undefined {
+  if (raw === undefined || !/^\d+$/.test(raw)) return undefined;
+  return parseInt(raw, 10);
+}
+
+function parseCoverageNode(node: Node): CoverageNode {
+  const ref = isNode(node.objectReference) ? node.objectReference : undefined;
+  const name = (ref ? attr(ref, "name") : undefined) ?? "(unnamed node)";
+
+  const unrecognised: string[] = [];
+  let statement: CoverageRatio | undefined;
+  let branch: CoverageRatio | undefined;
+  let procedure: CoverageRatio | undefined;
+
+  const coveragesContainer = isNode(node.coverages) ? node.coverages : undefined;
+  for (const cov of many(coveragesContainer?.coverage)) {
+    const type = attr(cov, "type");
+    if (type === undefined || !KNOWN_COVERAGE_TYPES.has(type)) {
+      unrecognised.push(type ?? "coverage with no @type");
+      continue;
+    }
+    const totalRaw = attr(cov, "total");
+    const executedRaw = attr(cov, "executed");
+    const total = parseCount(totalRaw);
+    if (total === undefined) {
+      unrecognised.push(`${type} (unparseable total="${totalRaw ?? ""}")`);
+      continue;
+    }
+    const executed = parseCount(executedRaw);
+    if (executed === undefined) {
+      unrecognised.push(`${type} (unparseable executed="${executedRaw ?? ""}")`);
+      continue;
+    }
+    const ratio: CoverageRatio = { total, executed };
+    if (type === "statement") statement = ratio;
+    else if (type === "branch") branch = ratio;
+    else procedure = ratio;
+  }
+
+  const children: CoverageNode[] = [];
+  const childContainer = isNode(node.nodes) ? node.nodes : undefined;
+  for (const child of many(childContainer?.node)) children.push(parseCoverageNode(child));
+
+  return {
+    name,
+    ...(ref && attr(ref, "type") ? { type: attr(ref, "type") } : {}),
+    ...(ref && attr(ref, "uri") ? { uri: attr(ref, "uri") } : {}),
+    ...(ref && attr(ref, "description") ? { description: attr(ref, "description") } : {}),
+    ...(statement ? { statement } : {}),
+    ...(branch ? { branch } : {}),
+    ...(procedure ? { procedure } : {}),
+    unrecognised,
+    children,
+  };
+}
+
+/**
+ * Parse a `cov:result` document from a measurement query.
+ *
+ * Throws `ADT_ERROR` when the body carries no `<cov:result>` element at all.
+ * Otherwise walks `<nodes><node>` recursively; `measured` is `false` when the
+ * queried object never ran under the measurement — SAP still answers 200,
+ * with a zero `<summary>` and NO `<nodes>` element
+ * (`856-i75-cov-query-untouched.xml`). Rendering that as "0% covered" would
+ * be a straight fabrication, so callers must check `measured` first.
+ */
+export function parseCoverageResult(xml: string): CoverageResult {
+  let doc: unknown;
+  try {
+    doc = parser.parse(xml);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `Coverage result is not parseable XML: ${(e as Error).message}`,
+      { excerpt: truncateText(xml, MESSAGE_EXCERPT_MAX) },
+    );
+  }
+  const docNode = isNode(doc) ? doc : undefined;
+  const hasResult = docNode !== undefined && "result" in docNode;
+  if (!hasResult) {
+    throw new AbapError(
+      "ADT_ERROR",
+      "ADT answered 200 but the body carries no <cov:result> element.",
+      { excerpt: truncateText(xml, MESSAGE_EXCERPT_MAX) },
+    );
+  }
+  const root: Node = isNode(docNode.result) ? docNode.result : {};
+  const topContainer = isNode(root.nodes) ? root.nodes : undefined;
+  const nodes = many(topContainer?.node).map(parseCoverageNode);
+  return { measured: nodes.length > 0, nodes };
+}
+
+/**
+ * Depth-first search for the node named `name`. Matches case-insensitively,
+ * and also matches a node named exactly `name` followed by `" ("` — SAP
+ * names the outer wrapper of a class `ZCL_I75_PROBE (Class-Pool)`
+ * (`855-i75-cov-query-zcl-i75-probe.xml`). An exact match always wins over a
+ * parenthesised one, so asking for `ZCL_I75_PROBE` finds the class node, not
+ * its Class-Pool wrapper.
+ */
+export function findCoverageNode(result: CoverageResult, name: string): CoverageNode | undefined {
+  const wantExact = name.toLowerCase();
+  const wantPrefix = `${wantExact} (`;
+  let exactMatch: CoverageNode | undefined;
+  let prefixMatch: CoverageNode | undefined;
+
+  const visit = (node: CoverageNode): void => {
+    const lower = node.name.toLowerCase();
+    if (exactMatch === undefined && lower === wantExact) exactMatch = node;
+    else if (prefixMatch === undefined && lower.startsWith(wantPrefix)) prefixMatch = node;
+    for (const child of node.children) visit(child);
+  };
+  for (const node of result.nodes) visit(node);
+
+  return exactMatch ?? prefixMatch;
 }

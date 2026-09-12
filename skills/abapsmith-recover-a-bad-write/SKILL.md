@@ -79,15 +79,28 @@ surviving a "successful" 200 delete. No flag manufactures the missing evidence.
 `force` included. Other `transport-*` entries are not auto-undone either — reverse
 them by hand through the transport actions.
 
-**Class sub-includes.** Undo has not caught up with writes.
+**Class sub-includes.**
 
-- Undoing a write to `definitions` / `implementations` / `macros` / `testclasses` is
-  **refused by name**. Replaying it would go through `/source/main` and write your
-  unit tests over the class body. Revert by hand: `journal_show` the before-image,
-  then `abap_write` it back **with the same `include=`**.
-- Undoing a class *delete* restores only `main` — the delete's before-image never
-  captured the four local includes. Refused unless `force: true`, and reported as
-  `PARTIAL` with the missing includes named, not as a clean success.
+- Undoing a write that **restores** a previous version of `definitions` /
+  `implementations` / `macros` / `testclasses` now works: it replays back onto that
+  same include, not onto `/source/main`, so it cannot overwrite the class body.
+  Confirmed live against SAP A4H, 2026-09-12, on class `ZCL_I75_UNDO`: a second
+  version of `testclasses` was written, `abap_journal mode=show` on that entry
+  reported `include: testclasses` and the include-scoped warning, `abap_journal
+  mode=undo` reported `action: restore` / `activated: true`, and `abap_read
+  { include: "testclasses" }` read back exactly the before-image bytes — the
+  read-back etag equalled the entry's `beforeEtag`
+  (`sha256:be7abc10f006180d9ffb48eafff05612`).
+- Undoing a write that would **delete or recreate** the class's own include is
+  still refused. ADT has no verb that deletes one include on its own, so there is
+  nothing for undo to replay that operation onto. The alternative is the same one
+  a fresh write uses: empty the include by writing a single comment line into it
+  with `abap_write` and the same `include=`.
+- Undoing a class *delete* now records all four local includes (`definitions`,
+  `implementations`, `macros`, `testclasses`), captured under the same lock as the
+  delete itself, so its recreate is no longer partial for that reason. It can still
+  come back `PARTIAL` and need `force: true`, but now only for whichever of the
+  four includes could not be read at delete time — not for all of them by default.
 
 ## `force` and `activate`
 

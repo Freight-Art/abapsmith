@@ -1339,8 +1339,10 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "ACTION='D' does. Round 3's cleanup deleted the base table while Z01/Z02's own " +
         "DD12V/DD17S rows may still have existed; whether the base-table delete cascaded " +
         "them away or orphaned them is unverified, not confirmed-absent — there is no ADT " +
-        "resource for TABL/DI to check with, and abap_data_preview was confirmed live to " +
-        "carry no WHERE filter, so a targeted DD12V check was not practical.",
+        "resource for TABL/DI to check with, and at the time abap_data_preview carried no WHERE " +
+        "filter, so a targeted DD12V check was not practical. It now takes a structured filter " +
+        "(issue #73), so such a check is possible, but this round's outcome was never re-checked " +
+        "and stays unverified.",
     },
     catalogRead: {
       from: "DD12V, DD17S",

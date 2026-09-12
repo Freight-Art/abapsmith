@@ -94,7 +94,7 @@ function callerAttribution(req: FluidRunRequest): { readonly tool: string; reado
 }
 
 /** Mirrors ensure.ts's module-private `fluidDisabledError`, minus tool/object context this check runs before resolving. */
-function dispatchDisabledError(
+export function dispatchDisabledError(
   reason: NonNullable<ReturnType<typeof fluidDisabledReason>>,
   cfg: Config,
   req: FluidRunRequest,

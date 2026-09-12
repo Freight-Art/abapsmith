@@ -848,7 +848,29 @@ describe("system-role probe — every connection-building suite declares its int
     // importing only vitest and `../src/config.js`. Note the same price as its
     // siblings — the mode's effect on write behaviour is asserted in
     // `test/write-verify-mode.test.ts`, which connects and is not exempt.
-    expect(exempt.length).toBeLessThanOrEqual(8);
+    //
+    // 8 → 9 when `test/config-client-cert.test.ts` landed. It covers the
+    // `ABAP_CLIENT_CERT` / `ABAP_CLIENT_KEY` / `ABAP_CLIENT_KEY_PASSPHRASE` /
+    // `ABAP_CA_CERT` parse, the five-way exactly-one-of credential resolution
+    // as it applies to certificate mode, and the `redactConfigSecrets`
+    // projection of the certificate material — paths shown, passphrase
+    // redacted — and it earns the exemption the honest way: importing only
+    // vitest and `../src/config.js`. Note the same price as its siblings —
+    // the wire behaviour of the resolved certificate, the actual TLS client
+    // certificate presented on connect, is asserted in
+    // `test/tls-policy-agreement.test.ts`, which connects and is not exempt.
+    //
+    // 9 → 10 when `test/config-bearer-oauth.test.ts` landed. It covers the
+    // `ABAP_TOKEN` and `ABAP_OAUTH_*` / `ABAP_SERVICE_KEY` parse, the same
+    // exactly-one-of resolution as it applies to token and OAuth modes, and
+    // the `redactConfigSecrets` projection of the token, client id and client
+    // secret, and it earns the exemption the honest way: importing only
+    // vitest and `../src/config.js`. Note the same price as its siblings —
+    // the wire behaviour of the resolved credential, the `Authorization`
+    // header it produces and the OAuth 401 refresh-and-retry, is asserted in
+    // `test/http-guard-auth-modes.test.ts` and `test/oauth-token-provider.test.ts`,
+    // neither of which is exempt.
+    expect(exempt.length).toBeLessThanOrEqual(10);
   });
 
   it("the allow-list has not rotted: every entry still names a real, still-offending suite", () => {

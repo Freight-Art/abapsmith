@@ -19,6 +19,7 @@ reaching SAP.
 | `source` | string | no (required unless `mode=delete`) | — | Complete new source. |
 | `edit` | object `{old_string, new_string, replace_all?}` | no | — | Apply a string replacement to the current source instead of sending a full replacement. |
 | `method` | string | no | — | Write one method's source instead of the whole class. |
+| `include` | enum `main` \| `definitions` \| `implementations` \| `macros` \| `testclasses` | no | `main` | `CLAS/OC` only — which class sub-include to write. `testclasses` is the ABAP Unit test include (CCAU). A write REPLACES the whole named include; there is no partial/patch write to an include (`edit`/`method` still target `main` only). |
 | `ddic` | object | no | — | Structured create for `DOMA/DD`/`DTEL/DE`/`TTYP/DA` only — alternative to `source` (never both). See `abapsmith-create-ddic-objects` for which fields apply to which type. |
 | `package` | string | no | `$TMP` | Package for a **new** object. Must be allowlisted. For a new `DEVC/K` this is the SUPERpackage, not a sibling — omitting it would create a ROOT package, which the safety gate refuses. |
 | `description` | string | no (required for `TRAN/T`, and for any `ddic` create) | — | Short description for a **new** object. |
@@ -56,6 +57,40 @@ agrees with the table named in `object` — abapsmith never silently
 prefers one over the other. If the two disagree, or if `object` is a bare
 index name with no `base_table` at all, the call is refused `BAD_INPUT`
 naming both values (or both accepted forms) rather than guessing.
+**Class sub-includes (`include`)**: a `CLAS/OC` has five includes ADT
+exposes — `main`, `definitions` (CCDEF), `implementations` (CCIMP),
+`macros` (CCMAC) and `testclasses` (CCAU). `include` picks which one this
+write targets; omitting it writes `main`. Writing `testclasses` — creating
+it when the class has none, or replacing it when it already does — then
+`abap_activate`-ing the class, then running `abap_test` against it, then
+reading it back with `abap_read include="testclasses"`, was verified live
+end to end against SAP A4H, 2026-09-12: create-when-absent, update-when-
+present, activation, test execution and read-back all confirmed with real
+bytes on the wire (see `test/fixtures/live-captured/` for the class used,
+`ZCL_I75_PROBE`, and the `abapsmith-write-abap-unit-tests` skill for the
+authoring shape). This is the only supported way to write ABAP Unit tests
+through this tool — there is no dedicated "create a test class" mode.
+
+A write always replaces the **entire** named include; there is no way to
+append to or patch part of an include, and no way to delete a single
+include on its own — ADT exposes no such verb, only delete-the-whole-
+class. Asking for `mode=delete` together with `include` is refused with
+`BAD_INPUT` before anything is touched, for exactly this reason: deleting
+`ZCL_FOO` because you asked to delete its `testclasses` would destroy the
+class's main source and its other includes too, and that could not be
+undone. To empty an include instead of deleting it, write it with new,
+possibly empty (or single-comment-line) content; to delete the whole
+class, drop `include` from the call.
+
+Because an include activates together with its class, a syntax error in
+`testclasses` (or any other include) blocks activation of the whole
+class, not just that include — the class's main logic stops compiling
+along with its tests. Read an include before rewriting it: since the
+write replaces the whole thing, an `abap_write` with `include` and no
+prior `abap_read` of the same include silently discards whatever was
+there before. `abap_journal mode=undo` can revert a sub-include write —
+see [journal.md](journal.md) for the current, still test-covered-only,
+state of that undo path.
 
 **`mode=delete` and transport requests**: SAP records a deletion on the
 request that already holds the lock entry for the object — the request

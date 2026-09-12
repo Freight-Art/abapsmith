@@ -25,7 +25,8 @@
  */
 import { createHash } from "node:crypto";
 import { AbapError, describeUnknownError, isAbapError } from "../adt/errors.js";
-import { buildInsecureHttpsAgent } from "../adt/http-guard.js";
+import { buildHttpsAgent } from "../adt/http-guard.js";
+import { tlsCredentialsFromConfig } from "../auth/tls-credentials.js";
 import type { AbapConnection } from "../adt/connection.js";
 import type { DebugArmLock } from "./arm-lock.js";
 import { DebugClient, type RootVariablesResult, type SetStackPositionParams } from "./client.js";
@@ -1395,11 +1396,14 @@ export function createDebugClientForConnection(conn: AbapConnection, opts: Creat
     }
     return jar;
   };
-  // The long-poll's raw node:https bypasses GuardedHttpClient, so TLS
-  // policy must be wired explicitly here — same cfg.insecure and the same
-  // buildInsecureHttpsAgent (src/adt/http-guard.ts) the ADT/axios stack uses,
-  // so the two cannot silently disagree; see test/tls-policy-agreement.test.ts.
-  const httpsAgent = buildInsecureHttpsAgent(conn.cfg.insecure);
+  // The long-poll's raw node:https bypasses GuardedHttpClient, so TLS policy
+  // must be wired explicitly here — this is no longer only about
+  // ABAP_INSECURE: the debugger's raw sockets must also present the client
+  // certificate and honour ABAP_CA_CERT, and calling the same
+  // tlsCredentialsFromConfig/buildHttpsAgent (src/auth/tls-credentials.ts,
+  // src/adt/http-guard.ts) off the same config is what stops the two stacks
+  // from drifting; see test/tls-policy-agreement.test.ts.
+  const httpsAgent = buildHttpsAgent(tlsCredentialsFromConfig(conn.cfg));
   const longPoll = new DebugLongPollClient({
     baseUrl: conn.cfg.url,
     breaker: conn.breaker,

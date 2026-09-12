@@ -24,6 +24,21 @@ authorisations. The deny-list is a supplement to the two controls that actually
 bound this feature — off by default, and the row ceiling. Do not present it to
 anyone as a security control.
 
+The structured `where`/`columns`/`order_by`/`distinct` filter on
+`abap_data_preview` does not widen this boundary. A filtered read reaches the
+same entity through the same technical user under the same `S_TABU_DIS` /
+`S_TABU_NAM` authorisations as an unfiltered one — a filter only narrows
+which rows of an already-readable entity come back, it does not unlock a
+table the user could not otherwise read. What does change is mechanism: a
+filtered read compiles an Open SQL statement instead of naming an entity by
+itself, so the safety-relevant property shifts to how that statement is
+built — every field identifier in it comes from the server's own
+column-metadata probe (see `doc/TOOLS/diagnostics.md`), and every value is
+rendered as a typed literal, never caller text pasted into the statement.
+No caller-supplied text reaches the compiled statement unescaped. The
+deny-list, the productive-system refusal, and the row ceiling all still run
+before any request goes out, filtered or not.
+
 ### Deliberate non-entries
 
 Recorded so nobody "fixes" them later:

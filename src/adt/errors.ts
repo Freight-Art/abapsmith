@@ -10,6 +10,26 @@ export type AbapErrorCode =
   | "CIRCUIT_OPEN_TRANSIENT"
   | "AUTH_FAILED"
   /**
+   * A bearer credential (`ABAP_TOKEN`, or an OAuth access token) was
+   * rejected with 401/403 and the most likely cause is expiry, not a wrong
+   * secret. Minted in `token` and `oauth` auth modes only (see
+   * `src/adt/connect-failure.ts`). Not `AUTH_FAILED`: that code's hint tells
+   * the operator to fix `ABAP_USER`/`ABAP_PASSWORD`, which are not in play
+   * here — the remedy is renewing `ABAP_TOKEN` (or the OAuth client's
+   * grant). Like `AUTH_FAILED` it is never retried in place — a rejected
+   * bearer counts against the same ICF logon path.
+   */
+  | "AUTH_EXPIRED"
+  /**
+   * The OAuth token endpoint itself refused the client-credentials request
+   * or was unreachable, so no bearer could be obtained at all. Not
+   * `AUTH_EXPIRED` (nothing was ever presented to the ABAP system) and not
+   * `CONNECT_FAILED` (that names the ABAP system's own host; this names the
+   * identity provider's). Minted only by `OAuthTokenProvider`
+   * (`src/adt/oauth.ts`).
+   */
+  | "AUTH_TOKEN_REFRESH_FAILED"
+  /**
    * 5xx from ABAP during `connect()`'s login — system down/restarting, not
    * a credential problem. Minted only by `classifyConnectFailure`
    * (`src/adt/connect-failure.ts`). Not `AUTH_FAILED` (SAP never got far
@@ -335,6 +355,8 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   AUTH_CIRCUIT_OPEN: "terminal", // circuit only clears on a server restart
   CIRCUIT_OPEN_TRANSIENT: "conditional",
   AUTH_FAILED: "terminal", // trips the circuit breaker; retrying risks locking a shared account
+  AUTH_EXPIRED: "terminal", // renewing the token is an operator action outside the call; no argument fixes it
+  AUTH_TOKEN_REFRESH_FAILED: "conditional",
   SYSTEM_UNAVAILABLE: "conditional",
   CONNECT_FAILED: "conditional",
   NOT_CONNECTED: "conditional",
