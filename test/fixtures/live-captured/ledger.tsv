@@ -154,3 +154,9 @@ n	label	method	path	status	byteLength	durationMs
 843	p5-ddic-ztmc-torder-i-source	GET	/sap/bc/adt/ddic/tables/ztmc_torder_i/source/main	200	596	301
 844	live-dtel-s-carr-id	GET	/sap/bc/adt/ddic/dataelements/s_carr_id	200-inferred	2563	1991
 845	live-doma-s-carr-id	GET	/sap/bc/adt/ddic/domains/s_carr_id	200-inferred	1780	1093
+846	i64-quicksearch-fm-untyped	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=BUP_ROLES_GET_ALL&maxResults=25	200	378	340
+847	i64-quicksearch-fm-objecttype-fugr	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=BUP_ROLES_GET_ALL&objectType=FUGR&maxResults=25	200	109	332
+848	i64-quicksearch-fm-objecttype-fugrff	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=BUP_ROLES_GET_ALL&objectType=FUGR%2FFF&maxResults=25	200	329	389
+849	i64-quicksearch-group-objecttype-fugr	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=BUDA&objectType=FUGR&maxResults=25	200	346	925
+850	i64-quicksearch-generated-fm-missing	GET	/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=ENQUEUE_E_TABLE&maxResults=25	200	109	5080
+851	i64-fmodule-generated-read-200	GET	/sap/bc/adt/functions/groups/etable/fmodules/enqueue_e_table	200	2327	1286
