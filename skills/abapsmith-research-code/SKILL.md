@@ -277,17 +277,6 @@ or anywhere else in configuration. XML decoding is verified in depth only
 for FORM/LIST UIBBs and one FBI view shape; other UIBB kinds and FBI view
 shapes are untested.
 
-## Surface note
-
-This skill's steps use v1 names throughout: `abap_search`, `abap_ui`,
-`abap_fpm_read`, `abap_bopf`, `abap_read`. On `ABAP_TOOL_SURFACE=v2` — the
-shipped default is `v1`; `v2` is deprecated and removed in 0.6.0 — the same
-ground is covered by `abap_find` (search, in place of `abap_search`) and
-`abap_do` (everything else in this skill: fcode/events tracing, BOPF
-lookups, and the debug/press escape hatches), called as actions of those two
-tools rather than as separate tool names. Check `tools/list` rather than
-assuming which surface is live.
-
 ## Not this skill
 
 A general survey of an unfamiliar package is `abapsmith-explore-a-package`.
