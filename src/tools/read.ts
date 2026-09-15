@@ -1471,6 +1471,8 @@ async function readDefinition(
     maxChars,
   });
   return { ...built, etag: NO_ETAG };
+}
+
 /**
  * Every parameter that means nothing for a `catalogRead` type: there is no
  * ADT resource, so no source/outline/history/raw-XML axis exists to apply
