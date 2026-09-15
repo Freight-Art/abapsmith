@@ -12,6 +12,18 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-15
+
+### Added
+
+- `abap_fpm_read mode=events` (#101): resolves the toolbar events of a UIBB or application configuration to the code that handles them. The response carries a `VIEWS` section (config ID, kind, feeder class, BO and node per UIBB), an `EVENTS` section (toolbar element with its `Transl` text resolved from WDY_CONFIG_COMPT, event ID, and a handler classified as `bopf`, `feeder`, `app_controller`, `standard`, `action_impl` or `unresolved`, each with the exact follow-up `abap_bopf` or `abap_read` call) and a `WIRES` section (source UIBB, target UIBB, connector class). `uibb` narrows the views and names what was skipped; every response discloses the coverage limits (app-controller override, personalisation, CBA/deltas, nothing executed). Proven live on `/BOFU/TEST_FBI_SALES_ORDER_OVP` and `/BOFU/TEST_CUSTOMER_OIF`.
+- `abap_ui mode=fcode` (#102): from a GUI-status function code to the PAI module and `CASE` branch that handles it, by `tcode` or `program`+`dynpro`, for one `fcode` or all of them. Follows ok_code aliases, several top-level `CASE`s and one remap hop (rendered as its own `via remap … at line N` row), flags `AT EXIT-COMMAND` modules, labels `CALL TRANSACTION`/`LEAVE TO TRANSACTION`, and reports modules without an ok_code `CASE` as `unresolved`. Read-only: never asks for `confirm` and does not need `ABAP_ALLOW_UI_PRESS`. Proven live on `SM30`/`UPD` (`SAPMSVMA` 0100, remap `UPD -> UPDL`) and `SE16`/`BACK`.
+- Skill `abapsmith-research-code` (#103): Procedure A (find usages: objects search → where-used → source-text search → element info → report) and Procedure B (button → code: classify the UI, then `mode=fcode` for dynpros, `mode=events` for FPM, the debugger or `abap_ui mode=press` as the last resort with the gates named). Routed from `abapsmith-orient` and listed in the plugin manifest.
+
+### Changed
+
+- The fluid FPM builtin's `read_config` not-found errors now name the configuration key (`config … type … var …`).
+
 ## [0.6.0] - 2026-09-15
 
 ### Removed
