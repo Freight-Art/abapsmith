@@ -370,10 +370,30 @@ describe("resolveFpmEvents — FBI VIEW action mapping (36-BOFU_DEMO_SO_HDR_VIEW
 
     const raw = splitEventFrames([
       rootConfig({ config_id: "ROOT_CFG", xml: rootXml }),
-      childConfig({ config_id: "/BOFU/DEMO_SO_HDR_VIEW", ref_node: "TOOLBAR", xml: FBI_VIEW_XML }),
+      childConfig({
+        config_id: "/BOFU/DEMO_SO_HDR_VIEW",
+        ref_node: "TOOLBAR",
+        component: "/BOFU/FBI_VIEW",
+        xml: FBI_VIEW_XML,
+      }),
     ]);
     const ev = resolveFpmEvents(raw);
-    expect(ev.views).toEqual(["ROOT_CFG", "/BOFU/DEMO_SO_HDR_VIEW"]);
+    // FpmViewRow per parsed config (issue #101): "kind" is the config's own
+    // COMPONENT ("" for ROOT_CFG, which names none), and the FBI view's own
+    // HEADER/<BO>/<NODE> pair (see FBI_VIEW_XML's fixture text above) comes
+    // through as bo/node — neither view names a FEEDER.
+    expect(ev.views).toEqual([
+      { configId: "ROOT_CFG", configType: "00", configVar: "", kind: "", feederClass: undefined, bo: undefined, node: undefined },
+      {
+        configId: "/BOFU/DEMO_SO_HDR_VIEW",
+        configType: "00",
+        configVar: "",
+        kind: "/BOFU/FBI_VIEW",
+        feederClass: undefined,
+        bo: "/BOFU/DEMO_SALES_ORDER",
+        node: "ROOT",
+      },
+    ]);
 
     const openHdr = byElementId(ev.events, "OPEN_HDR");
     expect(openHdr).toBeDefined();

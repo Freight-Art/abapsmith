@@ -344,6 +344,10 @@ export interface FpmEventRow {
   configId: string;
   configType: string;
   configVar: string;
+  /** `FpmViewRow.kind` for the config above — this event's own source UIBB kind, joined by config key. `""` when that view's own COMPONENT was empty. */
+  uibbKind?: string;
+  /** `FpmViewRow.feederClass` for the config above, when it names one. */
+  feederClass?: string;
   source: "toolbar" | "uibb_toolbar" | "button_row" | "fbi_action";
   elementId: string;
   /**
@@ -383,6 +387,32 @@ export interface FpmWireRow {
   primaryAttribute: string;
 }
 
+/**
+ * One config (root or referenced child) whose XML was actually parsed for
+ * this trace — the "source UIBB" doc/TOOLS/ui-and-fpm.md promises per event
+ * (issue #101: "the source UIBB (config ID, kind, feeder class)" and "each
+ * FBI view's BO and node"). `kind` is the config's own WDY_CONFIG_DATA/APPL
+ * COMPONENT column (`ParsedConfig.component`, e.g. "FPM_LIST_UIBB" /
+ * "FPM_FORM_UIBB" / "/BOFU/FBI_VIEW") — left `""` when the config's own
+ * component was empty; never invented. `feederClass` is set only when the
+ * config's own CONFIGURATION_CONTEXT names a FEEDER (`ParsedConfig.feeders`
+ * first entry); when a config names more than one, the rest are not lost —
+ * a note (see `FpmEventsResolved.notes`) records them. `bo`/`node` are set
+ * only for FBI views that pair a BO with a NODE (`ParsedConfig.boNodePairs`
+ * first entry) or, failing that, name a bare BO with no paired node
+ * (`ParsedConfig.boNames` first entry) — both left undefined when the
+ * config names neither, never the string "null".
+ */
+export interface FpmViewRow {
+  configId: string;
+  configType: string;
+  configVar: string;
+  kind: string;
+  feederClass?: string;
+  bo?: string;
+  node?: string;
+}
+
 export interface FpmEventsResolved {
   root: {
     configId: string;
@@ -394,8 +424,8 @@ export interface FpmEventsResolved {
   /** From the first APP_SPECIFIC_CC found across root+children, if any. */
   appController?: { component: string; configId: string; configType: string; configVar: string };
   wires: FpmWireRow[];
-  /** config_id of every config (root + children) whose XML was actually parsed. */
-  views: string[];
+  /** Every config (root + children) whose XML was actually parsed — the source UIBB per event, see `FpmViewRow`. */
+  views: FpmViewRow[];
   events: FpmEventRow[];
   unreadable: { configId: string; configType: string; configVar: string; error: string }[];
   skipped: { configId: string; configType: string; configVar: string }[];
@@ -1131,6 +1161,32 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
   const configsByKey = new Map<string, ParsedConfig>();
   for (const cfg of parsedConfigs) configsByKey.set(normKey(cfg.configId, cfg.configType, cfg.configVar), cfg);
 
+  // Issue #101: the doc promises "the source UIBB (config ID, kind, feeder
+  // class)" per event and "each FBI view's BO and node" — both come from
+  // fields `parseConfig` already collected onto `ParsedConfig`, just never
+  // surfaced. One `FpmViewRow` per parsed config (root + every referenced
+  // child actually read), keyed the same way `configsByKey` is so events
+  // below can join back to their own view.
+  const views: FpmViewRow[] = parsedConfigs.map((cfg) => {
+    if (cfg.feeders.length > 1) {
+      notes.push(
+        `config ${cfg.configId} names ${cfg.feeders.length} FEEDER classes (${cfg.feeders.join(", ")}) — only the first, "${cfg.feeders[0]}", is shown as this view's feeder class.`,
+      );
+    }
+    const pair = cfg.boNodePairs[0];
+    return {
+      configId: cfg.configId,
+      configType: cfg.configType,
+      configVar: cfg.configVar,
+      kind: cfg.component,
+      feederClass: cfg.feeders[0],
+      bo: pair ? pair.bo : cfg.boNames[0],
+      node: pair ? pair.node : undefined,
+    };
+  });
+  const viewsByKey = new Map<string, FpmViewRow>();
+  for (const v of views) viewsByKey.set(normKey(v.configId, v.configType, v.configVar), v);
+
   const standardEventIds = new Set(raw.fpmEvents.map((f) => f.event_id));
   const standardVerified = raw.fpmEvents.length > 0 || raw.fpmEventErrors.length > 0;
   if (!standardVerified) {
@@ -1163,6 +1219,7 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
   const events: FpmEventRow[] = [];
 
   for (const cfg of parsedConfigs) {
+    const view = viewsByKey.get(normKey(cfg.configId, cfg.configType, cfg.configVar));
     for (const btn of cfg.toolbarButtons) {
       const typeLabel = FPM_BUTTON_TYPE[btn.type] ?? (btn.type ? `${btn.type} (code not decoded)` : undefined);
       const actionIds = btn.actionIds.length ? btn.actionIds : [btn.elementId];
@@ -1177,6 +1234,8 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
           configId: cfg.configId,
           configType: cfg.configType,
           configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
           source: btn.source,
           elementId: btn.elementId || actionId,
           ...resolveRowText(cfg, btn.text, btn.textTransl),
@@ -1194,6 +1253,8 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
           configId: cfg.configId,
           configType: cfg.configType,
           configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
           source: "button_row",
           elementId: row.elementId,
           ...resolveRowText(cfg, row.text, row.textTransl),
@@ -1218,6 +1279,8 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
           configId: cfg.configId,
           configType: cfg.configType,
           configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
           source: "button_row",
           elementId: row.elementId,
           ...resolveRowText(cfg, row.text, row.textTransl),
@@ -1246,6 +1309,8 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
           configId: cfg.configId,
           configType: cfg.configType,
           configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
           source: "fbi_action",
           elementId: action.actionId,
           ...resolveRowText(cfg, action.text, action.textTransl),
@@ -1265,6 +1330,8 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
           configId: cfg.configId,
           configType: cfg.configType,
           configVar: cfg.configVar,
+          uibbKind: view?.kind,
+          feederClass: view?.feederClass,
           source: "fbi_action",
           elementId: action.actionId,
           ...resolveRowText(cfg, action.text, action.textTransl),
@@ -1276,6 +1343,8 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
         configId: cfg.configId,
         configType: cfg.configType,
         configVar: cfg.configVar,
+        uibbKind: view?.kind,
+        feederClass: view?.feederClass,
         source: "fbi_action",
         elementId: action.actionId,
         ...resolveRowText(cfg, action.text, action.textTransl),
@@ -1323,7 +1392,7 @@ export function resolveFpmEvents(raw: FpmEventsRaw): FpmEventsResolved {
     },
     appController,
     wires,
-    views: parsedConfigs.map((c) => c.configId),
+    views,
     events,
     unreadable,
     skipped,

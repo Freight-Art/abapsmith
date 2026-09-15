@@ -298,9 +298,26 @@ describe("abap_ui mode:\"fcode\"", () => {
     expect(text).toContain("WHEN ONE — lines 502-503");
     expect(text).toContain("WHEN REMAPPED — lines 508-509");
     expect(text).toContain("- line 509: PERFORM handle_remapped");
-    // The remap provenance is surfaced generically via the notes pipeline (buildResponse renders
-    // f.notes as "NOTE: ..." lines) rather than inline on the WHEN line, since the per-branch
-    // renderer (renderModuleHit) is untouched by this fix.
+    // The remap provenance is ALSO surfaced generically via the notes pipeline (buildResponse
+    // renders f.notes as "NOTE: ..." lines), in addition to the inline per-branch marker asserted
+    // in the next test.
     expect(text).toMatch(/NOTE: fcode "ONE" in module MULTI_CASE: WHEN 'ONE' remaps to 'REMAPPED' at line 503/);
+  });
+
+  it("issue #101 follow-up: prints viaRemap provenance on the remapped branch's own WHEN line, leaving the ordinary matched branch's line untouched", async () => {
+    const { conn } = await connected(fcodeMultiCasePath());
+    const journal = new Journal({ dir: "/tmp/abapsmith-ui-fcode-tool-test", enabled: false, maxEntries: 0, maxAgeDays: 0 }, "A4H");
+    const tools = registered(conn, journal);
+
+    const result = await invoke(tools, "abap_ui", { mode: "fcode", program: "SAPMSVMA", dynpro: "0100", fcode: "ONE" });
+    const text = okText(result);
+
+    // The remap-pulled branch (WHEN 'REMAPPED', reached because WHEN 'ONE' reassigns ok_code at
+    // line 503) carries its viaRemap provenance appended to its own WHEN row.
+    expect(text).toContain("WHEN REMAPPED — lines 508-509 — via remap ONE -> REMAPPED at line 503");
+    // The ordinary matched branch (WHEN 'ONE' itself, no viaRemap) is rendered byte-for-byte as
+    // before: no trailing " — via remap" text on its line.
+    const oneLine = text.split("\n").find((l) => l.includes("WHEN ONE — lines 502-503"));
+    expect(oneLine).toBe("    WHEN ONE — lines 502-503");
   });
 });

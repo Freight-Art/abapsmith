@@ -72,8 +72,15 @@ compact mode does not rescue an unnarrowed query — narrow with
 `config_id`/`component`/`package` instead.
 
 `mode: "events"` traces FPM/FBI toolbar buttons to the code that handles
-them, from saved configuration only — nothing is executed. Per event it
-reports: the source UIBB (config ID, kind, feeder class), the toolbar
+them, from saved configuration only — nothing is executed. It prints a
+VIEWS section between the header and WIRES, one row per UIBB named in the
+config, columns `config_id`, `kind`, `feeder_class`, `bo`, `node` — a blank
+cell means the configuration names nothing there, not that resolution
+failed (an application-controller config or an `FPM_TABBED_UIBB` wrapper,
+for example, carries no feeder and no BO/node). Per event it reports, as
+EVENTS table columns `config_id`, `kind`, `feeder_class`, `source`,
+`element_id`, `text`, `text_key`, `event_id`, `handler`, `detail`: the
+source UIBB (config ID, kind, feeder class), the toolbar
 element (ID, text, type — button / toggle button / button choice / link to
 action), the event ID, and the resolved handler: `bopf` (BO, plus the node
 and action it resolved against `/BOBF/OBM_NODE`/`/BOBF/ACT_LIST` when
@@ -91,8 +98,8 @@ itself), `action_impl` (the ABAP class named in an FBI action's
 `ACTION_IMPL`, used when its `ACTION_CONF` is absent or names a config that
 was never read), or `unresolved` (a reason plus the raw XML excerpt of the
 element that was not understood). It also decodes the application
-controller from the application/OVP config, the wires between UIBBs
-(source, target, connector class), and each FBI view's BO and node.
+controller from the application/OVP config and the wires between UIBBs
+(source, target, connector class).
 
 `events` discloses four coverage limits on **every** response, because none
 of them can be resolved from configuration alone: an application-controller
@@ -125,20 +132,64 @@ views, 8 events and 4 wires (source UIBB, target UIBB, connector class)
 plus the application controller class, resolving handlers as `standard`
 (floorplan-handled, naming the event) and `bopf` (BO `/BOFU/TEST_SALES_ORDER`,
 node `ITEM`, action unresolved — the two events involved, `FBI_CREATE` and
-`FBI_DELETE`, are FBI framework events per the limit above); against
-`/BOFU/TEST_CUSTOMER_OIF` it resolved `feeder` handlers naming the feeder
-classes and methods — `/BOFU/CL_FBI_CHDOC_ROOT_MUL` and
+`FBI_DELETE`, are FBI framework events per the limit above). The VIEWS
+section on that run:
+
+```
+config_id                         kind                      feeder_class                   bo                      node
+--------------------------------  ------------------------  -----------------------------  ----------------------  ----
+/BOFU/TEST_FBI_SALES_ORDER_OVP    FPM_OVP_COMPONENT
+/BOFU/WDCC_FBI_CONTROLLER_NEW     /BOFU/WDC_FBI_CONTROLLER
+/BOFU/TEST_SALES_ORDER_MAIN_FORM  FPM_FORM_UIBB             /BOFU/CL_FBI_GUIBB_FORM        /BOFU/TEST_SALES_ORDER  ROOT
+/BOFU/TEST_SALES_ORDER_ITEM_LIST  FPM_LIST_UIBB             /BOFU/CL_FBI_GUIBB_LIST        /BOFU/TEST_SALES_ORDER  ITEM
+/BOFU/TEST_SALES_ORDER_ITEM_DET   FPM_FORM_UIBB             /BOFU/CL_FBI_GUIBB_FORM
+/BOFU/TEST_SALES_ORDER_ALTKEY     FPM_FORM_UIBB             /BOFU/CL_FBI_GUIBB_ALTKEY_FDR  /BOFU/TEST_SALES_ORDER  ROOT
+/BOFU/TEST_SALES_ORDER_BOOTSTRAP  FPM_FORM_UIBB             /BOFU/CL_FBI_GUIBB_BOOTSTRAP   /BOFU/TEST_SALES_ORDER  ROOT
+```
+
+The two LIST-UIBB events carry their source UIBB's `kind`/`feeder_class`
+inline in the EVENTS row, e.g. `/BOFU/TEST_SALES_ORDER_ITEM_LIST |
+FPM_LIST_UIBB | /BOFU/CL_FBI_GUIBB_LIST | button_row |
+_CFG_BUTTON_ROW_ELEMENT_6 | (no text) | FBI_CREATE | bopf`. Against
+`/BOFU/TEST_CUSTOMER_OIF` (11 views, 2 events, 5 wires) it resolved
+`feeder` handlers naming the feeder classes and methods —
+`/BOFU/CL_FBI_CHDOC_ROOT_MUL` and
 `/BOFU/CL_FBI_CHDOC_ROOT_SINGLE`, both method
-`IF_FPM_GUIBB_FORM~PROCESS_EVENT`. Adding `uibb:
-"/BOFU/TEST_SALES_ORDER_ITEM_LIST"` to the OVP call narrows the views traced
-(7 → 2) without changing the event or wire count, because the five dropped
-views carried no events and the application/OVP root's own toolbar stays in
-the result as one of the retained views. The `WDY_CONFIG_COMPT`
+`IF_FPM_GUIBB_FORM~PROCESS_EVENT`. Its VIEWS section:
+
+```
+config_id                      kind                      feeder_class                    bo                        node
+-----------------------------  ------------------------  ------------------------------  ------------------------  ----
+/BOFU/TEST_CUSTOMER_OIF        FPM_OIF_COMPONENT
+/BOFU/TEST_CUST_ROOT_INIT      FPM_FORM_UIBB             /BOFU/CL_FBI_GUIBB_BOOTSTRAP    /BOFU/TEST_CUSTOMER       ROOT
+/BOFU/TEST_CUST_ROOT_FORM      FPM_FORM_UIBB             /BOFU/CL_FBI_GUIBB_FORM
+/BOFU/PPF_OUTPUT_ROOT          FPM_FORM_UIBB             /BOFU/CL_PPFOC_FBI_GUIBB_FORM   /BOFU/PPF_OUTPUT_CONTENT  ROOT
+/BOFU/CHANGE_DOC_ROOT_DUMMY    FPM_FORM_UIBB             /BOFU/CL_FBI_CHDOC_ROOT_MUL
+/BOFU/CHANGE_DOC_ROOT_DUMMY_2  FPM_FORM_UIBB             /BOFU/CL_FBI_CHDOC_ROOT_SINGLE
+/BOFU/PPF_OUT_CONT_TAB         FPM_TABBED_UIBB
+/BOFU/CHANGE_DOC_TAB           FPM_TABBED_UIBB
+/BOFU/CHANGE_DOC_TAB_2         FPM_TABBED_UIBB
+/BOFU/TEST_CUST_ROOT_KEY       FPM_FORM_UIBB             /BOFU/CL_FBI_GUIBB_ALTKEY_FDR   /BOFU/TEST_CUSTOMER       ROOT
+/BOFU/WDCC_FBI_CONTROLLER_NEW  /BOFU/WDC_FBI_CONTROLLER
+```
+
+The application-controller row and the three `FPM_TABBED_UIBB` wrapper rows
+above have no `feeder_class`/`bo`/`node` — those configs genuinely name none,
+which is the blank-cell case described above, not a resolution gap. Adding
+`uibb: "/BOFU/TEST_SALES_ORDER_ITEM_LIST"` to the OVP call narrows the views
+traced (7 → 2) without changing the event or wire count, because the five
+dropped views carried no events and the application/OVP root's own toolbar
+stays in the result as one of the retained views. The `WDY_CONFIG_COMPT`
 text-resolution path above is confirmed as a table lookup (see the observed
 values above), and the resolved-`text` output of `mode=events` itself is
 now confirmed end to end: on the same OVP run, all six toolbar keys above
 came back resolved in `text` with the raw key in `textKey` (e.g.
-`text: "Change"`, `textKey: 30`).
+`text: "Change"`, `textKey: 30`). A `config_id` naming no configuration at
+all fails outright: `{"mode":"events","config_id":"Z_I101_NO_SUCH_CONFIG",
+"config_type":"00"}` returned `FLUID_ACTION_FAILED` with an exception frame
+at `step: "read_config"` whose text names the config, e.g. `wdy_config_data:
+The specified configuration does not yet exist (config
+Z_I101_NO_SUCH_CONFIG type 00 var )`.
 
 Example (trace a config's toolbar events):
 
@@ -218,9 +269,10 @@ never suppresses branches found by another `CASE` in the same module. If a
 matched `WHEN` branch reassigns the OK-code field to a new literal
 (`MOVE 'X' TO <var>.` or `<var> = 'X'.`), that one hop is followed too: the
 branch(es) elsewhere in the module matching the new literal are included as
-well, each carrying a `viaRemap` field (e.g. `"UPD -> UPDL at line 128"`) and
-a matching `NOTE` line explaining why it was pulled in even though its own
-`WHEN` literal doesn't match the requested fcode. Only one hop is followed —
+well, and the renderer prints the remap on the branch row itself, e.g.
+`WHEN UPDL — lines 163-167 — via remap UPD -> UPDL at line 128`, together
+with a matching `NOTE` line explaining why it was pulled in even though its
+own `WHEN` literal doesn't match the requested fcode. Only one hop is followed —
 a remap chasing back to itself, or a second remap on the destination branch,
 is noted but not chased further. It never silently falls through.
 

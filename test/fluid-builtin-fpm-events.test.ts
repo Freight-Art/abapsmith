@@ -253,4 +253,46 @@ describe("fpmManifest / fpmSources — events action", () => {
     expect((transcript.values[1] as Record<string, unknown>).kind).toBe("text_id_error");
     expect((transcript.values[2] as Record<string, unknown>).logon_langu).toBe("E");
   });
+
+  // Issue #101's doc-vs-implementation gap: resolveFpmEvents (src/adt/
+  // fpm-events.ts) derives each FpmViewRow's "kind" directly from a "config"
+  // frame's own "component" field — no new wire shape was needed, the field
+  // already existed and round-tripped, it just was not surfaced. This test
+  // pins that: a "config" frame naming an FBI view's component (as opposed
+  // to a generic GUIBB like "FPM_LIST_UIBB"/"FPM_FORM_UIBB") still
+  // round-trips through parseFluidConsole and validates against the
+  // declared schema untouched, so resolveFpmEvents has a real value to read.
+  it('an FBI-view-shaped "component" value on a "config" frame round-trips through parseFluidConsole and the declared schema unchanged', () => {
+    const eventsAction = fpmManifest.actions.find((a) => a.name === "events");
+    expect(eventsAction).toBeDefined();
+    if (!eventsAction) return;
+
+    const fbiConfigFrame = {
+      kind: "config",
+      role: "child",
+      ref_node: "TOOLBAR",
+      config_id: "/BOFU/DEMO_SO_HDR_VIEW",
+      config_type: "00",
+      config_var: "",
+      component: "/BOFU/FBI_VIEW",
+      devclass: "$TMP",
+      xml: `<Component Name="/BOFU/FBI_VIEW"/>`,
+    };
+    const outPayload = JSON.stringify(fbiConfigFrame);
+    const beginPayload = JSON.stringify({ id: "fpm", ver: "abcd1234", action: "events", contract: "1.0" });
+    const endPayload = JSON.stringify({ rc: 0, outBytes: 0, truncated: false, ms: 4 });
+    const transcript = parseFluidConsole(
+      [`ZMCP-H>BEGIN ${beginPayload}`, `ZMCP-H>OUT ${outPayload}`, `ZMCP-H>END ${endPayload}`].join("\n"),
+    );
+    expect(transcript.errors).toEqual([]);
+    expect(transcript.values.length).toBe(1);
+
+    const itemsSchema = eventsAction.output.items;
+    expect(itemsSchema).toBeDefined();
+    if (!itemsSchema) return;
+    const schemaErrors = validateAgainstSchema(transcript.values[0], itemsSchema, "result[0]");
+    expect(schemaErrors, JSON.stringify(transcript.values[0])).toEqual([]);
+
+    expect((transcript.values[0] as Record<string, unknown>).component).toBe("/BOFU/FBI_VIEW");
+  });
 });

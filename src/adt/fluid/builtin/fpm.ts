@@ -436,7 +436,7 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         WHERE config_id = @iv_config_id AND config_type = '02' AND config_var = @iv_config_var
         INTO @lv_xc.
       IF sy-subrc <> 0.
-        ev_error = 'wdy_config_appl: no matching row for the given key'.
+        ev_error = |wdy_config_appl: no matching row for config { iv_config_id } type { iv_config_type } var { iv_config_var }|.
       ELSE.
         IF lv_xc IS NOT INITIAL.
           DATA(lo_conv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_xc ).
@@ -466,7 +466,7 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
           lv_rc_err = lx1->get_text( ).
       ENDTRY.
       IF lv_rc_err IS NOT INITIAL.
-        ev_error = lv_rc_err.
+        ev_error = |wdy_config_data: { lv_rc_err } (config { iv_config_id } type { iv_config_type } var { iv_config_var })|.
       ELSE.
         IF lv_xc2 IS NOT INITIAL.
           DATA(lo_conv2) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_xc2 ).

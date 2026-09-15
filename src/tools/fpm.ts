@@ -589,6 +589,8 @@ function buildEventsResponse(
 
   const rows = ev.events.map((e) => ({
     config_id: e.configId,
+    kind: e.uibbKind ?? "",
+    feeder_class: e.feederClass ?? "",
     source: e.source,
     element_id: e.elementId,
     text: e.text ?? "",
@@ -600,6 +602,21 @@ function buildEventsResponse(
 
   const sections: { title: string; content: string }[] = [];
   if (t.diagnostics.length) sections.push({ title: "DIAGNOSTICS", content: t.diagnostics.join("\n") });
+  if (ev.views.length) {
+    sections.push({
+      title: "VIEWS",
+      content: textTable(
+        ev.views.map((v) => ({
+          config_id: v.configId,
+          kind: v.kind,
+          feeder_class: v.feederClass ?? "",
+          bo: v.bo ?? "",
+          node: v.node ?? "",
+        })),
+        ["config_id", "kind", "feeder_class", "bo", "node"],
+      ),
+    });
+  }
   if (ev.wires.length) {
     sections.push({
       title: "WIRES",
@@ -658,7 +675,18 @@ function buildEventsResponse(
     },
     sections,
     body: rows.length
-      ? textTable(rows, ["config_id", "source", "element_id", "text", "text_key", "event_id", "handler", "detail"])
+      ? textTable(rows, [
+          "config_id",
+          "kind",
+          "feeder_class",
+          "source",
+          "element_id",
+          "text",
+          "text_key",
+          "event_id",
+          "handler",
+          "detail",
+        ])
       : "(no toolbar/button-row/fbi-action elements found)",
     bodyLabel: "EVENTS",
     notes,

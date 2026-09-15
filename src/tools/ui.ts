@@ -483,7 +483,10 @@ function renderModuleHit(hit: UiFcodeModuleHit): string {
     lines.push("    (no matching WHEN branch)");
   }
   for (const b of hit.branches) {
-    lines.push(`    WHEN ${b.literals.join(" OR ")} — lines ${b.lineFrom}-${b.lineTo}`);
+    lines.push(
+      `    WHEN ${b.literals.join(" OR ")} — lines ${b.lineFrom}-${b.lineTo}` +
+        (b.viaRemap ? ` — via remap ${b.viaRemap}` : ""),
+    );
     if (b.calls.length === 0) {
       lines.push("      (no PERFORM/CALL FUNCTION/CALL METHOD/CALL TRANSACTION/LEAVE TO TRANSACTION/SUBMIT found)");
     }

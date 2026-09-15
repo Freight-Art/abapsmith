@@ -273,8 +273,22 @@ describe("abap_fpm_read mode=events — response rendering", () => {
 
     expect(text).toContain("mode: events");
     expect(text).toContain("config_id: EVENTS_TOOL_TEST_ROOT");
-    // One TOOLBAR/BUTTON element (FPM_SAVE) → one row in the EVENTS table.
+
+    // Issue #101: doc/TOOLS/ui-and-fpm.md promises the source UIBB (config
+    // ID, kind, feeder class) — a VIEWS section, rendered BEFORE the EVENTS
+    // body, listing every parsed config with its kind/feeder_class/bo/node.
+    const viewsIdx = text.indexOf("--- VIEWS ---");
+    const eventsIdx = text.indexOf("--- EVENTS ---");
+    expect(viewsIdx, "no VIEWS section in rendered output").toBeGreaterThanOrEqual(0);
+    expect(eventsIdx, "no EVENTS section in rendered output").toBeGreaterThanOrEqual(0);
+    expect(viewsIdx).toBeLessThan(eventsIdx);
+    expect(text).toMatch(/config_id\s+kind\s+feeder_class\s+bo\s+node/);
+    expect(text).toMatch(/EVENTS_TOOL_TEST_ROOT\s+FPM_OVP_COMPONENT/);
+
+    // One TOOLBAR/BUTTON element (FPM_SAVE) → one row in the EVENTS table,
+    // carrying its own view's kind/feeder_class right after config_id.
     expect(text).toContain("--- EVENTS ---");
+    expect(text).toMatch(/config_id\s+kind\s+feeder_class\s+source\s+element_id/);
     expect(text).toContain("FPM_SAVE");
 
     // The four issue-#101 coverage-limit disclosures, verbatim — these live
@@ -424,6 +438,15 @@ describe("abap_fpm_read mode=events — bopf/feeder handler rendering (issue #10
     expect(text).toContain("bopf (/BOFU/X, ITEM, ?)");
     expect(text).toContain('follow up: abap_bopf {"mode":"show","bo":"/BOFU/X"}');
     expect(text).toContain("FBI framework event");
+
+    // Issue #101: the PARAMETER Item's NAME=BO/VALUE + NAME=NODE/VALUE pair
+    // is this config's own BO/NODE — surfaced on its VIEWS row's bo/node
+    // columns (BoNodePair, distinct from the bopf handler's own rendering
+    // above, which is derived independently by classifyHandler).
+    expect(text).toMatch(/BOPF_TOOL_TEST\s+FPM_OVP_COMPONENT\s+\/BOFU\/X\s+ITEM/);
+    // The row's own event carries this view's kind (uibbKind) right after
+    // config_id in the EVENTS table too.
+    expect(text).toMatch(/BOPF_TOOL_TEST\s+FPM_OVP_COMPONENT/);
   });
 
   it("renders a feeder handler's interface-qualified method and abap_read follow-up", async () => {
@@ -461,6 +484,12 @@ describe("abap_fpm_read mode=events — bopf/feeder handler rendering (issue #10
     expect(text).toContain(
       'follow up: abap_read {"object":"ZCL_MY_TOOL_FEEDER","method":"IF_FPM_GUIBB_LIST~PROCESS_EVENT"}',
     );
+
+    // Issue #101: this LIST UIBB's own component ("FPM_LIST_UIBB") and its
+    // CONFIGURATION_CONTEXT FEEDER both surface on its VIEWS row, and the
+    // same two values are joined onto its EVENTS row (uibbKind/feederClass)
+    // right after config_id.
+    expect(text).toMatch(/FEEDER_TOOL_TEST\s+FPM_LIST_UIBB\s+ZCL_MY_TOOL_FEEDER/);
   });
 });
 
