@@ -6,6 +6,10 @@ Checked in this order for every `run`; the first failure refuses and
 nothing is written. Steps 1-7 never widen anything the existing safety
 gate would otherwise refuse — the gate is still the last word.
 
+`core.eval` runs the same ordering as every other action, plus its own
+flag check and the static review/capability scan applied per call rather
+than once at plugin load time — see "`core.eval`'s ordering" below.
+
 1. **`ABAP_FLUID_API`** must be on, checked before any socket opens.
    Refusal: `FLUID_API_DISABLED`.
 2. **Read-only, in any of the five senses of [README.md](README.md)**,
@@ -65,6 +69,37 @@ gate would otherwise refuse — the gate is still the last word.
    These ceilings apply regardless of anything above, and the existing
    gate is still the last word.
 
+## `core.eval`'s ordering
+
+`core.eval` is a `core` action like `select`, `describe_fm` and `call_fm`,
+so it is checked at steps 1-2 and 6-8 above like any other action. Its own
+additional checks run in this order, before any ABAP is generated:
+
+1. **`ABAP_ALLOW_FLUID_EVAL`** must be on. It is off by default and is not
+   switched on by any `ABAP_MODE`, not even `admin`; it is independent of
+   `ABAP_ALLOW_FLUID_PLUGINS` and `ABAP_ALLOW_FLUID_PLUGIN_MUTATE`. While
+   it is off, `core.eval` does not appear in the fluid catalogue at all,
+   and a direct call refuses with `FLUID_EVAL_DISABLED`, naming the flag.
+2. **`confirm` must equal `"core.eval"`** on every call — there is no
+   once-per-session memory. Otherwise `BAD_INPUT`.
+3. **Shape checks on `lines` and `out`**: each `lines` entry at most
+   `FLUID_ABAP_LINE_MAX` (255) characters with no CR or LF, and each `out`
+   entry matching `^[A-Za-z_][A-Za-z0-9_]{0,29}$`. Otherwise `BAD_INPUT`,
+   naming the offending line index or value.
+4. **The static review** (`reviewFluidAbap`) runs per call over the
+   supplied `lines`, the same rules as the plugin-load-time review: any
+   finding refuses the call outright, naming the rule and the line.
+5. **The capability scan** (`scanFluidCapabilities`) runs per call over
+   the same `lines`. A database write or `COMMIT WORK`/`ROLLBACK WORK`
+   additionally requires `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` (else
+   `FLUID_PLUGIN_MUTATE_DISABLED`); any `CALL FUNCTION` additionally
+   requires `ABAP_ALLOW_FLUID_CALL_FM` (else `SAFETY_DENIED`). The
+   refusal names the statement and its line.
+
+Unlike a plugin, where the static review and capability scan run once at
+load time over the plugin's own `.abap` files, `core.eval`'s `lines` are
+caller-supplied per call, so both scans run per call instead.
+
 ## Static review is a lint, not a sandbox
 
 Offline, before the first network call. Two parts:
@@ -103,6 +138,25 @@ appearing in the server bundle. Second, and more importantly, claiming
 containment here would be false: a lint over source text cannot bound
 what a plugin does once it runs with the technical user's authorisations,
 and the docs do not pretend otherwise.
+
+## `core.eval` is a lint, not a sandbox
+
+Stated plainly, the same way as the plugin static review above: the static
+review and the capability scan reject a handful of named statements; they
+do not confine the code. The real boundary is the SAP user's
+authorisations, and `ABAP_ALLOW_FLUID_EVAL` is consent to run
+model-authored code inside that boundary, nothing narrower.
+
+What it does not do, stated honestly rather than left implicit:
+
+- It does not stop a `SELECT` against any table the connected user may
+  read — the capability scan only looks for a *write*, not a read.
+- It does not stop an `UPDATE` (or `INSERT`/`MODIFY`/`DELETE`, or `COMMIT
+  WORK`/`ROLLBACK WORK`) when `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` is also on
+  — that flag's whole purpose is to allow exactly that.
+- It does not limit runtime or memory. A snippet that loops forever or
+  allocates without bound runs exactly as any other ABAP would, under
+  whatever server-side limits the SAP system itself imposes.
 
 ## Built-ins versus plugins
 
@@ -224,13 +278,18 @@ and undo support, so nothing is double-journalled.
 |---|---|
 | `FLUID_API_DISABLED` | `ABAP_FLUID_API` is off, or abapsmith is read-only in any of the five senses of [README.md](README.md). Carries a `reason` discriminator, `"flag"` or `"read-only"`, and the deciding `field`. On a v1 server this is the real tool's refusal; if the read-only sense is one of the two known at registration time (`ABAP_MODE=read`, legacy `readOnly`), `abap_fluid` is instead the mode-locked stub and refuses with `READ_ONLY`, not this code — see [README.md](README.md). |
 | `FLUID_PLUGINS_DISABLED` | A plugin tool is invoked while `ABAP_ALLOW_FLUID_PLUGINS` is off. |
-| `FLUID_PLUGIN_MUTATE_DISABLED` | A plugin `mutate` action is invoked while `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` is off, or without the required `confirm` echo. |
+| `FLUID_PLUGIN_MUTATE_DISABLED` | A plugin `mutate` action is invoked while `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` is off, or without the required `confirm` echo; also raised by a `core.eval` call whose capability scan finds a database write or `COMMIT WORK`/`ROLLBACK WORK` while `ABAP_ALLOW_FLUID_PLUGIN_MUTATE` is off. |
+| `FLUID_EVAL_DISABLED` | Terminal. `core.eval` is called while `ABAP_ALLOW_FLUID_EVAL` is off; naming the flag. Set `ABAP_ALLOW_FLUID_EVAL` to unlock it — no `ABAP_MODE` does. |
 | `FLUID_OBJECT_CONFLICT` | A reserved-prefix object is found in a package that is neither the fluid package nor a legacy package (`foreign`); a redeploy still does not match after one retry; a deployed object carries a provenance marker naming a newer abapsmith version than the one running (`newer`); or, at load time, two tools (built-in or plugin) claim the same ABAP object name. |
 | `FLUID_MANIFEST_INVALID` | A manifest or plugin envelope fails validation — schema, contract major, id shape or uniqueness, namespace, `entry` presence, source-file resolution, or action schema. |
 | `FLUID_ACTION_FAILED` | The ABAP side reports an `ERR` frame during a call. |
 | `FLUID_PROTOCOL_ERROR` | An unparseable or malformed frame on the wire, or a generated ABAP line over 255 characters, caught offline before the first network call and naming the offending line. |
 
-All seven are terminal and never auto-retried.
+All eight are terminal and never auto-retried. `core.eval` can also refuse
+with the general-purpose `BAD_INPUT` (bad `confirm`, or a `lines`/`out`
+shape violation) and `SAFETY_DENIED` (a `CALL FUNCTION` in the snippet
+while `ABAP_ALLOW_FLUID_CALL_FM` is off) — neither is fluid-specific, so
+neither is in this table.
 
 A missing `END` is not one of these codes: it is a dump or a cut-off
 run, reported as such through the existing ABAP-dump translation, and

@@ -1170,12 +1170,13 @@ describe("config: ABAP_FLUID_API parsing (boolishRejectDefaultTrue, same shape a
   }
 });
 
-describe("config: ABAP_ALLOW_FLUID_PLUGINS / ABAP_ALLOW_FLUID_PLUGIN_MUTATE / ABAP_ALLOW_FLUID_CALL_FM", () => {
-  it("all three default to false", () => {
+describe("config: ABAP_ALLOW_FLUID_PLUGINS / ABAP_ALLOW_FLUID_PLUGIN_MUTATE / ABAP_ALLOW_FLUID_CALL_FM / ABAP_ALLOW_FLUID_EVAL", () => {
+  it("all four default to false", () => {
     const cfg = loadConfig({ env: env(), warn: () => {}, skipDotenv: true });
     expect(cfg.allowFluidPlugins).toBe(false);
     expect(cfg.allowFluidPluginMutate).toBe(false);
     expect(cfg.allowFluidCallFm).toBe(false);
+    expect(cfg.allowFluidEval).toBe(false);
   });
 
   it("each goes true when set truthy, independently of the others", () => {
@@ -1208,16 +1209,31 @@ describe("config: ABAP_ALLOW_FLUID_PLUGINS / ABAP_ALLOW_FLUID_PLUGIN_MUTATE / AB
     expect(cfg.allowFluidCallFm).toBe(true);
   });
 
-  it("setting any of the three produces no unrecognised-name warning — proof they landed in RECOGNISED_ABAP_ALLOW_ENV_VARS", () => {
+  it("setting any of the four produces no unrecognised-name warning — proof they landed in RECOGNISED_ABAP_ALLOW_ENV_VARS", () => {
     for (const name of [
       "ABAP_ALLOW_FLUID_PLUGINS",
       "ABAP_ALLOW_FLUID_PLUGIN_MUTATE",
       "ABAP_ALLOW_FLUID_CALL_FM",
+      "ABAP_ALLOW_FLUID_EVAL",
     ]) {
       const warnings: string[] = [];
       loadConfig({ env: env({ [name]: "true" }), warn: (m) => warnings.push(m), skipDotenv: true });
       expect(warnings.join("\n"), name).not.toMatch(/not a setting this server reads/);
     }
+  });
+
+  it("ABAP_ALLOW_FLUID_EVAL is not implied by ABAP_MODE=admin", () => {
+    // allowFluidEval is deliberately NOT derived from any ABAP_MODE (see the doc comment on
+    // `allowFluidEval` in ConfigSchema, src/config.ts) — unlike allowFluidPlugins/allowFluidPluginMutate/
+    // allowFluidCallFm, which also stay false here, core.eval must always be an explicit,
+    // separate opt-in, even under the otherwise-permissive admin mode.
+    const cfg = loadConfig({
+      env: env({ ABAP_MODE: "admin" }),
+      warn: () => {},
+      skipDotenv: true,
+    });
+    expect(cfg.abapMode).toBe("admin");
+    expect(cfg.allowFluidEval).toBe(false);
   });
 });
 

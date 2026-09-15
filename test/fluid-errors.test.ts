@@ -1,5 +1,5 @@
 /**
- * Pins the seven FLUID_* error codes added in src/adt/errors.ts: all terminal
+ * Pins the eight FLUID_* error codes added in src/adt/errors.ts: all terminal
  * (never auto-retried), and the deliberate no-caps decision that killed
  * FLUID_INPUT_TOO_LARGE stays dead.
  */
@@ -10,6 +10,7 @@ const FLUID_CODES = [
   "FLUID_API_DISABLED",
   "FLUID_PLUGINS_DISABLED",
   "FLUID_PLUGIN_MUTATE_DISABLED",
+  "FLUID_EVAL_DISABLED",
   "FLUID_OBJECT_CONFLICT",
   "FLUID_MANIFEST_INVALID",
   "FLUID_ACTION_FAILED",
@@ -52,6 +53,7 @@ describe("FLUID_* error codes", () => {
       [
         "FLUID_ACTION_FAILED",
         "FLUID_API_DISABLED",
+        "FLUID_EVAL_DISABLED",
         "FLUID_MANIFEST_INVALID",
         "FLUID_OBJECT_CONFLICT",
         "FLUID_PLUGINS_DISABLED",

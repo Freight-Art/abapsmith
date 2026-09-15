@@ -23,7 +23,7 @@ import {
   ensureFluidTool,
   recoverMissingFluidObject,
 } from "./ensure.js";
-import { guardCoreAction } from "./builtin/core.js";
+import { CORE_EVAL_ACTION, CORE_TOOL_ID, guardCoreAction, parseEvalArgs } from "./builtin/core.js";
 import { parseFluidConsole, type FluidBeginFrame, type FluidEndFrame, type FluidTranscript } from "./protocol.js";
 import { canonicalArgsJson, invokerName, invokerSource } from "./invoke.js";
 import { flattenScanArgs } from "./flat-args.js";
@@ -273,6 +273,80 @@ async function journalFluidMutate(
   } catch (e) {
     deps.warn?.(
       `[abapsmith] WARNING: ${req.tool}.${req.action} — journal entry ${entry.id} could not be settled (${(e as Error).message}).`,
+    );
+  }
+}
+
+/** True for exactly the one action `journalFluidEval`/the eval-invoker-source wiring below apply to. */
+function isCoreEval(req: FluidRunRequest): boolean {
+  return req.tool === CORE_TOOL_ID && req.action === CORE_EVAL_ACTION;
+}
+
+/**
+ * Journals one `core.eval` call's completion with the FULL snippet: the entire point of this
+ * entry is to be able to read back exactly what ran, and `JOURNAL_ARGS_MAX`-truncating it (the
+ * way `journalFluidMutate`'s generic `argsText` is truncated) would defeat that — so this builds
+ * its own description instead of reusing `journalFluidMutate`.
+ *
+ * Called from the same place `journalFluidMutate` is: after `assertTranscriptIdentity` has
+ * already confirmed the transcript carries no ERR frame. An eval whose caller-supplied statements
+ * throw inside their own TRY/CATCH comes back as exactly such an ERR frame (see the eval method
+ * body `invoke.ts` generates), so `assertTranscriptIdentity` throws `FLUID_ACTION_FAILED` before
+ * reaching this call — same as any other action's failure never reaching `journalFluidMutate`
+ * either. This call site therefore only ever journals a snippet that actually ran to completion.
+ */
+async function journalFluidEval(deps: FluidDeps, req: FluidRunRequest, sysKey: string): Promise<void> {
+  const journal = deps.journal;
+  if (!journal) return;
+
+  const { lines } = parseEvalArgs((req.args ?? {}) as Record<string, unknown>);
+  const object: JournalObjectRef = {
+    name: `${req.tool}.${req.action}`,
+    type: "FLUID",
+    uri: "",
+    package: FLUID_PACKAGE,
+    // Full snippet, never `truncateText`'d — see this function's own doc comment.
+    description: `fluid core eval: core.eval lines=\n${lines.join("\n")}`,
+  };
+  const beginInput: JournalBeginInput = {
+    // No dedicated `JournalOperation` exists for "ran caller code" — `"update"` is the closest of
+    // the shipped values (mirrors `journalFluidMutate`'s own choice for the same reason: this is
+    // a change to server-side state, not a create/delete/activate/transport/service action).
+    operation: "update",
+    object,
+    existedBefore: true,
+    // No before-image exists for whatever ABAP-side state the caller's own statements touched —
+    // this framework never reads one, so "captured"/"failed" would both overstate what is known.
+    beforeCapture: "unknown",
+    // No generic undo exists for arbitrary caller-supplied ABAP — there is nothing to replay it
+    // against.
+    irreversible: true,
+    systemKey: sysKey,
+    trSource: "caller",
+    tool: req.tool,
+  };
+
+  let entry;
+  try {
+    entry = await journal.begin(beginInput);
+  } catch (e) {
+    deps.warn?.(
+      `[abapsmith] WARNING: core.eval — the eval DID run but could NOT be journalled: ${(e as Error).message}.`,
+    );
+    return;
+  }
+  if (!entry) return;
+
+  try {
+    const settled = await journal.settle(entry.id, { outcome: "succeeded" });
+    if (!settled.settled) {
+      deps.warn?.(
+        `[abapsmith] WARNING: core.eval — journal entry ${entry.id} could not be settled (${settled.reason}).`,
+      );
+    }
+  } catch (e) {
+    deps.warn?.(
+      `[abapsmith] WARNING: core.eval — journal entry ${entry.id} could not be settled (${(e as Error).message}).`,
     );
   }
 }
@@ -533,6 +607,11 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
       version: tool.version,
       contract,
       commit: action.category === "mutate",
+      // `invokerClassName` above is already `invokerName(req.tool, req.action, wireArgs, contract)`
+      // — wireArgs includes `lines`/`out`, so two different eval snippets hash to two different
+      // class names on their own. Nothing extra is needed here for cache correctness; this just
+      // supplies the body that name's contents actually deploy.
+      ...(isCoreEval(req) ? { evalBody: parseEvalArgs((req.args ?? {}) as Record<string, unknown>) } : {}),
     });
 
     const deployedBridge = await deployBridge(deps.conn, deps.gate, {
@@ -691,6 +770,11 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
   // with before-images, so they are not double-journalled.
   if (action.category === "mutate" && deps.journal) {
     await journalFluidMutate(deps, req, sysKey, tool.origin);
+  } else if (isCoreEval(req) && deps.journal) {
+    // `core.eval` is category `"execute"`, not `"mutate"` (see `coreManifest` for why), so it
+    // needs its own branch here rather than falling into the one above — same reasoning as that
+    // branch (no ERR frame means whatever ran, ran for real) applies to the caller's statements.
+    await journalFluidEval(deps, req, sysKey);
   }
 
   let result: unknown;

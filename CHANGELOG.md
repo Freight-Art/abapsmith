@@ -12,6 +12,14 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-09-15
+
+### Added
+
+- `abap_ui mode="screen"` gains `layout: true` (#113): a `LAYOUT (design-time)` section rendering the dynpro's element grid as monospace text — frames as boxes with their titles, checkboxes and radio buttons as `[ ] label`, I/O fields as underscores of the field length, pushbuttons as `[ Text ]`, table controls as a labelled box with one header row of column names, tabstrips and subscreen areas as boxes — plus a fidelity note that this is the design-time layout, not the runtime rendering. Works with `program`/`dynpro` and with `tcode`; omitted or `false` leaves the response byte-identical; ignored under `mode="press"`. Renderer in `src/tools/ui-layout.ts`.
+- `abap_data_preview` gains `format` and `mask` (#115): `format="abap_value"` emits one ABAP `VALUE #( … )` literal per row group (char-like fields quoted with `'` doubled, NUMC quoted, dates as `'YYYYMMDD'`, packed values with a leading minus, every line wrapped at 255 characters); `format="test_double"` emits a paste-ready ABAP Unit fixture on `cl_osql_test_environment`; `mask` blanks the named columns in every row, an unknown column is `BAD_INPUT` listing the real ones. The audit line records the format and a masked count, never the column names. Default output is unchanged. Renderers in `src/tools/preview-fixture.ts`.
+- `abap_fluid {"tool":"core","action":"eval"}` (#118): runs a caller-supplied ABAP snippet (`lines`, each ≤ 255 characters, no line breaks) inside the fluid core class and returns the named `out` variables serialised. Off by default: needs `ABAP_ALLOW_FLUID_EVAL=1` (`ABAP_MODE=admin` alone does not enable it; the catalogue lists `eval` only when it is on) and `confirm: "core.eval"` on every call, otherwise `FLUID_EVAL_DISABLED`/`BAD_INPUT`. Every snippet passes the static review and capability scan before it runs — `DELETE FROM`, `COMMIT WORK` and other mutations are `FLUID_PLUGIN_MUTATE_DISABLED`, `CALL FUNCTION` additionally needs `ABAP_ALLOW_FLUID_CALL_FM`, `DESTINATION` is refused — and every executed evaluation is journalled with its full lines and marked irreversible. A runtime exception in the snippet is a clean `FLUID_ACTION_FAILED` with the ABAP message, never a dump.
+
 ## [0.6.3] - 2026-09-15
 
 ### Added
