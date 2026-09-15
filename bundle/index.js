@@ -112646,6 +112646,7 @@ async function handleStart(conn, input, maxChars, deps, gate) {
         { status, tracked: false },
         void 0,
         { retryable: true }
+        // transient occupancy, not an unimplemented capability — a stop clears it
       );
     }
     const free = firstFreeLane(laneLimit);
@@ -112657,6 +112658,7 @@ async function handleStart(conn, input, maxChars, deps, gate) {
         { laneLimit, status },
         'Stop an existing session first: abap_debug({action:"stop"}).',
         { retryable: true }
+        // transient occupancy: a stop on any lane frees one (issue #89)
       );
     }
     targetLane = free;
