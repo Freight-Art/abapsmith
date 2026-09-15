@@ -12,6 +12,16 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.5.18] - 2026-09-15
+
+### Added
+
+- `abap_service op="publish"` and `op="unpublish"` for OData V2 and V4 service bindings (issue #82): `runPublishJob` drives the ADT `businessservices/odatav{2,4}/(un)publishjobs` endpoints and raises `SERVICE_PUBLISH_FAILED` on a non-success job status. Publishing needs `ABAP_ALLOW_SERVICE_PUBLISH`, the `confirm` echo and a customer-namespace binding in an allowed package; it is journalled as an irreversible `service-publish`/`service-unpublish` entry written before the POST. V4 bindings resolve their `<odatav4:serviceGroup>` and the SRVB read uses media type v2. Verified live on A4H for a V2 and a V4 binding, publish and unpublish each confirmed by a follow-up read; the docs now carry that evidence instead of the earlier "unverified" wording.
+
+### Fixed
+
+- `doc/LIMITATIONS/editing.md` documents that a V2 publish leaves behind an `IWVB <binding>_VAN` vocabulary-annotation object which abapsmith cannot delete (issue #82).
+
 ## [0.5.17] - 2026-09-15
 
 ### Added
