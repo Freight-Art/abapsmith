@@ -384,6 +384,26 @@ export function createLiveDebugToolDeps(params: {
         if (caught.kind !== "debuggee") {
           // timeout/blocked/conflict: nothing reconnected in the short
           // window; `waitForDebuggee()` already released the listener.
+          //
+          // Live-reproduced 2026-09-15: this branch used to `return` here
+          // WITHOUT terminating `probe` first. `abap_debug({action:"stop",
+          // force:true})` on an idle process took ~5.5s, correctly reported
+          // "No active debug session (nothing to stop)" — and then the VERY
+          // NEXT `start` was refused outright with UNSUPPORTED ("A debug
+          // session from an earlier, unsuccessful start attempt is still
+          // registered (status \"idle\")..."). The probe `DebugSession`
+          // constructed above stays in the module registry
+          // `listActiveDebugSessions()` (and `handleStart`'s guard reads
+          // that registry) as an untracked, never-terminated "idle" session,
+          // blocking every later `start` until a `stop` happens to clear it.
+          // Same best-effort shape as the `catch` branch below — `terminate()`
+          // is memoised, so this is a no-op on any path that already called it.
+          try {
+            await probe.terminate("terminated_by_caller", "cleanup after releaseOrphanDebuggee found nothing (absent)");
+          } catch {
+            // Nothing else to report: `kind: "absent"` already means "found
+            // nothing to force-clear", and this is just probe hygiene.
+          }
           return { kind: "absent" };
         }
         await probe.attach(caught.debuggee.id);
@@ -429,6 +449,17 @@ interface DebugGateTarget {
 
 interface CurrentRun {
   session: DebugSession;
+  /**
+   * The connection the session's `DebugClient` was actually built on
+   * (`slot?.conn ?? conn` at `start` time) — NOT necessarily the `conn` a
+   * later `stop` call happens to be handed. `handleStop` must drop the
+   * stateful ABAP session on THIS connection (see
+   * `dropDebugSessionOnConnection`'s doc comment for why): "M14 — handleStart
+   * builds the debug client on the LEASED slot's connection, not the
+   * caller's" (test/debug-tools.test.ts) pins that the two can be different
+   * objects entirely.
+   */
+  sessionConn: AbapConnection;
   triggerConn: AbapConnection;
   /** D4 — the object every follow-up write on this session is gated against. */
   gateTarget: DebugGateTarget;
@@ -595,10 +626,27 @@ function raceDeadline<T>(p: Promise<T>, ms: number): Promise<T | TimedOut> {
  */
 const START_FAILURE_TRIGGER_WAIT_MS = 2_000;
 
-/** How long a failed `start` waits for `session.cleanup()` before it continues in the background (memoised). */
+/**
+ * FLOOR — how long a failed `start` waits for `session.cleanup()` before it
+ * continues in the background (memoised). Not a fixed wait any more: wherever
+ * this bounds a wait on a specific session's `terminate()`/`cleanup()`, use
+ * `Math.max(START_FAILURE_CLEANUP_WAIT_MS, session.terminateDeadlineMs + 1_000)`
+ * instead of the bare constant, so a session holding several breakpoints (each
+ * DELETE individually allowed up to `BREAKPOINT_DELETE_DEADLINE_MS` — see
+ * `src/debug/session.ts`) isn't reported as "had not returned" while its own,
+ * longer, still-legitimate deadline hasn't even elapsed yet.
+ */
 const START_FAILURE_CLEANUP_WAIT_MS = 5_000;
 
-/** How long `stop` waits for `session.terminate()` and the trigger run before dropping the session anyway. */
+/**
+ * FLOOR — how long `stop` waits for `session.terminate()` before dropping the
+ * session anyway. Same `Math.max(STOP_WAIT_MS, session.terminateDeadlineMs +
+ * 1_000)` floor rule as `START_FAILURE_CLEANUP_WAIT_MS` above applies wherever
+ * this bounds a wait on `terminate()` specifically. Every OTHER use of this
+ * constant (the `run.triggerSettled` wait, the `releaseOrphanListener` race in
+ * `clearLeakedSessions`/`handleStop`'s idle path) is unrelated to breakpoint
+ * cleanup and stays a plain, fixed 5s.
+ */
 const STOP_WAIT_MS = 5_000;
 
 /**
@@ -609,6 +657,89 @@ const STOP_WAIT_MS = 5_000;
  * so a few extra seconds for a real answer is the right default.
  */
 const FORCE_CLEAR_WAIT_MS = 15_000;
+
+/**
+ * How long `dropDebugSessionOnConnection` waits for `conn.dropSession()`
+ * before giving up on it and letting the caller move on. Named separately
+ * from the other `*_WAIT_MS` constants above because this wait guards
+ * hygiene, not an outcome the caller asked about — a slow drop must never
+ * delay `start`/`stop`'s own response by more than this.
+ */
+const DROP_DEBUG_SESSION_WAIT_MS = 3_000;
+
+/**
+ * Best-effort: drop the stateful ABAP session (the `sap-contextid`) on
+ * `conn` after a debug session that used it is finished with, so the NEXT
+ * debug `start` on this same connection attaches under a fresh ABAP session
+ * instead of a reused one.
+ *
+ * LIVE-VERIFIED 2026-09-15 against A4H (do not re-litigate; no live access
+ * from here). Inside ONE MCP server process, the FIRST `abap_debug`
+ * start->stop cycle works perfectly, and EVERY subsequent `start` fails with
+ * HTTP 500 "Debuggee already attached" -> `SESSION_DEAD` ("...does not
+ * belong to this session"). A brand-new server process is clean again for
+ * exactly one cycle. Reproduced 4x, including two byte-identical
+ * exception-breakpoint cycles separated by a 3s pause.
+ *
+ * The evidence pins this to the CONNECTION, not the SAP server: the first
+ * `stop` is completely clean (268-355ms, no abandoned cleanup steps, status
+ * "dead", deathReason "terminated_by_caller" — i.e. NOT the breakpoint-
+ * delete-timeout defect already fixed separately in src/debug/session.ts).
+ * Immediately after that clean stop, a RAW request on a FRESH HTTP
+ * connection at the SAME debug identity (terminalId/ideId) got
+ * `terminateDebuggee` -> HTTP 404 `noSessionAttached`, and a listener poll
+ * blocked the full 8s timeout and came back with a ZERO-BYTE body — i.e.
+ * server-side there is no attached AND no queued debuggee at that identity.
+ * Yet the SAME process's next `start` still got "Debuggee already
+ * attached". So SAP's debugger attachment is bound to the STATEFUL ADT
+ * session (the `sap-contextid`) the debugger calls travel on, and
+ * `terminateDebuggee` does not free that session's attachment slot for a
+ * later `attach` on the SAME `sap-contextid` — only a fresh ABAP session is
+ * clean.
+ *
+ * GUARD: skipped (logged, not enforced) when `conn` reports it is holding
+ * object locks — `dropSession()` releases every lock the session holds (see
+ * its doc comment in src/adt/connection.ts), and this helper has no
+ * business silently releasing someone else's LOCK just to fix the debugger.
+ * None of this module's three call sites can legitimately be holding a lock
+ * — nothing in `src/tools/debug.ts` ever calls into
+ * `withStatefulSession`/LOCK/PUT/activate — but the check is free
+ * (`heldLockUris()` is a synchronous, zero-request snapshot) and the
+ * alternative (assuming it forever) is exactly the kind of assumption live
+ * testing keeps disproving.
+ *
+ * Never throws — `conn.dropSession()` already logs and swallows its own
+ * failures — and never adds a user-visible note on success: this is
+ * connection hygiene, not an outcome the caller asked about.
+ */
+async function dropDebugSessionOnConnection(
+  conn: AbapConnection,
+  log: ((msg: string) => void) | undefined,
+  why: string,
+): Promise<void> {
+  const heldLocks = conn.heldLockUris();
+  if (heldLocks.length > 0) {
+    log?.(
+      `abap_debug: skipped dropSession() after ${why} — connection holds ${heldLocks.length} object ` +
+        "lock(s), and dropSession() would silently release them.",
+    );
+    return;
+  }
+  try {
+    const outcome = await raceDeadline(conn.dropSession(), DROP_DEBUG_SESSION_WAIT_MS);
+    if (outcome === TIMED_OUT) {
+      log?.(
+        `abap_debug: dropSession() after ${why} had not returned after ${DROP_DEBUG_SESSION_WAIT_MS} ms — ` +
+          "it continues in the background.",
+      );
+    }
+  } catch (e) {
+    // Defensive only — `dropSession()`'s own doc comment says it logs and
+    // swallows its failures, but this call site must stay best-effort
+    // regardless of whether that contract holds.
+    log?.(`abap_debug: dropSession() after ${why} failed (ignored): ${describeUnknownError(e)}`);
+  }
+}
 
 /**
  * Build the idempotent, never-throwing closer stored on `CurrentRun`. A
@@ -1308,9 +1439,15 @@ async function handleStart(
   // the long poll reads its cookies/CSRF from that connection. Coincide at
   // the shipped maxSessions:1; not above it.
   const slot = await deps.reserveDebugSession?.("debugger/listeners");
+  // Captured once, ahead of `createSession`, so both the success path
+  // (stored on `CurrentRun` for a later `stop` to drop) and this function's
+  // own failure-cleanup path below share the exact connection the session's
+  // `DebugClient` was actually wired to — see `sessionConn`'s doc comment on
+  // `CurrentRun`.
+  const sessionConn = slot?.conn ?? conn;
   let session: DebugSession;
   try {
-    session = deps.createSession(slot?.conn ?? conn, gate, {
+    session = deps.createSession(sessionConn, gate, {
       target: sessionTarget,
       sessionLease: slot,
       lane: targetLane,
@@ -1502,10 +1639,22 @@ async function handleStart(
     // listener/clearing breakpoints is what lets it run on and produce the
     // output we're about to ask for. Bounded so it can't hold the original
     // error hostage.
+    // Read BEFORE calling cleanup(): terminate()'s own internal steps drain the
+    // owned-breakpoint/watchpoint arrays as they issue their deletes, so reading
+    // this after cleanup() had already started could race down to 0 owned. See
+    // `terminateDeadlineMs`'s doc comment (src/debug/session.ts) for why the
+    // order matters, and `START_FAILURE_CLEANUP_WAIT_MS`'s doc comment for why
+    // this floors rather than replaces the constant.
+    const cleanupWaitMs = Math.max(START_FAILURE_CLEANUP_WAIT_MS, session.terminateDeadlineMs + 1_000);
     await raceDeadline(
       session.cleanup().catch(() => undefined),
-      START_FAILURE_CLEANUP_WAIT_MS,
+      cleanupWaitMs,
     );
+    // A failed start still attached (or attempted to attach) on `sessionConn`
+    // — drop it here too, or the NEXT `start` on this same connection inherits
+    // the live "Debuggee already attached" defect `dropDebugSessionOnConnection`
+    // documents, exactly as if this had been a clean `stop`.
+    await dropDebugSessionOnConnection(sessionConn, deps.log, "a failed start");
 
     // `currentRun` is only assigned on success, so on a failed start
     // `triggerSettled` would otherwise be discarded — surface it in the
@@ -1548,6 +1697,7 @@ async function handleStart(
   // run through the try, since the catch always rethrows.
   const run: CurrentRun = {
     session,
+    sessionConn,
     triggerConn: triggerConn!,
     triggerSettled: triggerSettled!,
     closeTriggerConn,
@@ -2178,7 +2328,11 @@ interface LeakedSessionClearResult {
  * `terminate()` never reaching `doTerminate`'s `finally`. Without `force`,
  * left tracked, same "continues in the background" contract as elsewhere.
  */
-async function clearLeakedSessions(force: boolean): Promise<LeakedSessionClearResult> {
+async function clearLeakedSessions(
+  force: boolean,
+  conn: AbapConnection,
+  log: ((msg: string) => void) | undefined,
+): Promise<LeakedSessionClearResult> {
   const tracked = new Set(activeLaneRuns().map((r) => r.session));
   const leaked = listActiveDebugSessions().filter((s) => !tracked.has(s));
   if (leaked.length === 0) return { found: 0, notes: [] };
@@ -2213,6 +2367,13 @@ async function clearLeakedSessions(force: boolean): Promise<LeakedSessionClearRe
       );
     }),
   );
+  // Once, not per-leaked-session: every leaked `DebugSession` this process
+  // could ever construct went through `handleStart` on the SAME `conn` this
+  // idle `stop` call was handed (`DebugSession` itself keeps no back-reference
+  // to the connection it was built on, so this is the only one available
+  // here) — see `dropDebugSessionOnConnection`'s doc comment for why a
+  // leaked, terminated session still needs this to unblock the next `start`.
+  await dropDebugSessionOnConnection(conn, log, "clearing leaked debug session(s)");
   return { found: leaked.length, notes };
 }
 
@@ -2239,7 +2400,7 @@ async function handleStop(
     // the orphan checks below (those cover a DIFFERENT gap: a listener/
     // debuggee left by an EARLIER PROCESS INSTANCE, with no live session
     // object at all). See `clearLeakedSessions`.
-    const leaked = await clearLeakedSessions(force);
+    const leaked = await clearLeakedSessions(force, conn, deps.log);
     // An earlier instance of this same server (crash, restart, container
     // respawn) may have armed a listener at this identity and never released
     // it. Best-effort and identity-scoped: can only find/release a listener
@@ -2318,15 +2479,24 @@ async function handleStop(
   // forever and leave the lane occupied); dropping the session has
   // finally-block semantics regardless of how they resolve.
   try {
+    // Read BEFORE calling terminate(): its own internal steps drain the
+    // owned-breakpoint/watchpoint arrays as they issue their deletes, so reading
+    // this after terminate() had already started could race down to 0 owned.
+    // See `terminateDeadlineMs`'s doc comment (src/debug/session.ts) and
+    // `STOP_WAIT_MS`'s doc comment here for why this floors rather than
+    // replaces the constant.
+    const terminateWaitMs = Math.max(STOP_WAIT_MS, run.session.terminateDeadlineMs + 1_000);
+    let terminateTimedOut = false;
     const terminated = await raceDeadline(
       run.session.terminate("terminated_by_caller").catch((e: unknown) => {
         notes.push(`Session terminate reported an error: ${describeUnknownError(e)}`);
       }),
-      STOP_WAIT_MS,
+      terminateWaitMs,
     );
     if (terminated === TIMED_OUT) {
+      terminateTimedOut = true;
       notes.push(
-        `Session terminate had not returned after ${STOP_WAIT_MS} ms — it continues in the ` +
+        `Session terminate had not returned after ${terminateWaitMs} ms — it continues in the ` +
           "background; the session was dropped here anyway.",
       );
     }
@@ -2341,8 +2511,40 @@ async function handleStop(
     // Cleanup timeouts used to be stderr-only, hiding an armed breakpoint
     // left on the server from a clean-looking `stop` response. Only added
     // when non-empty, so an ordinary stop is unchanged.
-    if (finalSnapshot.abandonedCleanupSteps?.length) {
-      notes.push(formatAbandonedCleanupNote(finalSnapshot.abandonedCleanupSteps));
+    const cleanupAbandonedSteps = finalSnapshot.abandonedCleanupSteps?.length;
+    if (cleanupAbandonedSteps) {
+      notes.push(formatAbandonedCleanupNote(finalSnapshot.abandonedCleanupSteps!));
+    }
+    // force:true, active-run sibling of the idle path's same-named block above.
+    // Only reached when cleanup did NOT come back clean — a terminate() wait
+    // that timed out, or a reported abandoned cleanup step (e.g. the exact
+    // live defect this whole change fixes: an abandoned breakpoint DELETE left
+    // running, later colliding with the next session's attach as HTTP 500
+    // "Debuggee already attached"). Never runs on a clean stop, and never runs
+    // when force is false — same explicit-only reasoning as the idle path's
+    // `releaseOrphanDebuggee` call: this terminates a possibly-still-live
+    // debuggee, so it must stay opt-in.
+    if ((terminateTimedOut || cleanupAbandonedSteps) && force && deps.releaseOrphanDebuggee) {
+      try {
+        const result = await raceDeadline(deps.releaseOrphanDebuggee(conn), FORCE_CLEAR_WAIT_MS);
+        if (result === TIMED_OUT) {
+          notes.push(
+            "Force-clear of a possibly-still-attached debuggee was requested, but the check had not " +
+              "returned in time — nothing more to report.",
+          );
+        } else if (result.kind === "released") {
+          notes.push(
+            "Force-terminated a debuggee still attached at this server's identity after cleanup did " +
+              "not confirm it was gone.",
+          );
+        } else if (result.kind === "unknown") {
+          notes.push(`Force-clear of a possibly-still-attached debuggee did not confirm success: ${result.detail}`);
+        }
+        // result.kind === "absent": cleanup's own deletes/terminate already succeeded server-side
+        // despite the local timeout/abandoned-step report — nothing left to force-clear.
+      } catch (e) {
+        notes.push(`Force-clear of a possibly-still-attached debuggee failed: ${describeUnknownError(e)}`);
+      }
     }
     return buildResponse({
       header: { action: "stop", status: finalSnapshot.status, deathReason: finalSnapshot.deathReason },
@@ -2354,6 +2556,11 @@ async function handleStop(
     // Unconditional: the run is over either way, so the trigger connection is
     // released and the registry cleared even if composing the response threw.
     run.closeTriggerConn();
+    // Runs on every branch above, including a terminate() that threw or
+    // timed out — see `dropDebugSessionOnConnection`'s doc comment for the
+    // live evidence this fixes. `run.sessionConn`, not the `conn` this call
+    // was handed: they can be different objects (see `CurrentRun.sessionConn`).
+    await dropDebugSessionOnConnection(run.sessionConn, deps.log, "stop");
     debugLanes[run.lane] = undefined;
   }
 }

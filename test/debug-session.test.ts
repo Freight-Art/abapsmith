@@ -1382,7 +1382,13 @@ describe("5.7 — abandoned cleanup steps reach the caller, not just stderr", ()
     const pending = session.terminate().then(() => {
       settled = true;
     });
-    await vi.advanceTimersByTimeAsync(1_600); // past TERMINATE_STEP_DEADLINE_MS
+    // Breakpoint DELETE is now deadlined at BREAKPOINT_DELETE_DEADLINE_MS
+    // (6000ms), NOT the shorter TERMINATE_STEP_DEADLINE_MS (1500ms) this test
+    // used to advance past — see src/debug/session.ts's doc comment on that
+    // constant for the live 2.1-2.9s measurement behind the change. One owned
+    // breakpoint also raises this session's own terminateDeadlineMs to 10_000ms
+    // (4_000 base + 1*6_000), comfortably clearing the individual step's 6_000ms.
+    await vi.advanceTimersByTimeAsync(6_100); // past BREAKPOINT_DELETE_DEADLINE_MS
     await flushMicrotasks();
 
     expect(settled).toBe(true);
@@ -1390,10 +1396,16 @@ describe("5.7 — abandoned cleanup steps reach the caller, not just stderr", ()
     expect(session.snapshot.status).toBe("dead");
 
     // stderr still gets its line (unchanged behaviour) ...
-    expect(log.some((l) => /did not return within 1500ms during cleanup/.test(l))).toBe(true);
+    expect(log.some((l) => /did not return within 6000ms during cleanup/.test(l))).toBe(true);
     // ...and now `snapshot` carries the same fact, naming the breakpoint op.
     expect(session.snapshot.abandonedCleanupSteps).toHaveLength(1);
     expect(session.snapshot.abandonedCleanupSteps?.[0]).toMatch(/breakpoint/i);
+    // Exactly one DELETE attempt — a TIMED-OUT delete is never retried (unlike a
+    // rejected one): the first request may still be running on the shared
+    // connection, so a second one would create exactly the in-flight overlap
+    // that produced the live "Debuggee already attached" defect this fixes.
+    // See `deleteOwnedBreakpoints()`'s doc comment in src/debug/session.ts.
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(1);
   });
 
   it("formatAbandonedCleanupNote turns the recorded step(s) into the exact 'stop' response line", async () => {
@@ -1423,6 +1435,279 @@ describe("5.7 — abandoned cleanup steps reach the caller, not just stderr", ()
     // Nothing to report: `handleStop` in src/tools/debug.ts only pushes a note
     // when this is non-empty, so an ordinary stop stays byte-identical.
     expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue-89 — live defect, 2026-09-15: `stop` reported "Cleanup timed out on:
+// deleting this session's breakpoint ... — may still be armed", and the next
+// `start` failed with HTTP 500 "Debuggee already attached". Root cause was
+// `TERMINATE_STEP_DEADLINE_MS=1500` governing breakpoint DELETE, which live
+// measurement shows takes 2.1-2.9s once no longer attached (raw probes
+// 2303/2115/2124ms; ledger.tsv rows 921-924: 2684/2945/2643/2603ms) — the old
+// deadline could never succeed, `settleWithin()` never aborts the abandoned
+// request, and it collided with the next session's attach. These tests cover
+// the fix: a separate, longer `BREAKPOINT_DELETE_DEADLINE_MS`, a
+// `terminateDeadlineMs` that scales with how many breakpoints/watchpoints are
+// owned, deleting breakpoints BEFORE terminateDebuggee (the fast, still-
+// attached path — ledger rows 918/951: 104ms/97ms), a narrow retry-once
+// policy for a REJECTED (not timed-out) delete, and a broadened
+// `isDoubleAttachError` that also recognizes the live error's actual shape.
+// ---------------------------------------------------------------------------
+
+/** A 4-owned-breakpoints arm response — needed only where the test cares about scaling `terminateDeadlineMs`/deleting more than one id; `BREAKPOINTS_XML` (single row) is enough everywhere else. */
+const BREAKPOINTS_4_XML =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="statement" id="BP1"/><dbg:breakpoint kind="statement" id="BP2"/>` +
+  `<dbg:breakpoint kind="statement" id="BP3"/><dbg:breakpoint kind="statement" id="BP4"/></dbg:breakpoints>`;
+
+/** A `Thunk` that resolves like a normal 200 after `ms` — models a slow-but-successful breakpoint DELETE (2.1-2.9s live), as opposed to `HANGS` (never resolves). Fake timers make the `setTimeout` inside this deterministic. */
+const delayedOk =
+  (ms: number, body = BREAKPOINTS_XML): Thunk =>
+  () =>
+    new Promise<RawResponse>((resolve) => setTimeout(() => resolve(okResponse(body)), ms)) as unknown as RawResponse;
+
+describe("issue-89 — BREAKPOINT_DELETE_DEADLINE_MS and terminateDeadlineMs scaling", () => {
+  it("a breakpoint DELETE resolving after ~2500ms completes cleanup cleanly — would have been abandoned under the old 1500ms TERMINATE_STEP_DEADLINE_MS", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, delayedOk(2_500)],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    await session.attach("D1");
+
+    let settled = false;
+    const pending = session.terminate().then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(2_600); // past the delayed DELETE, well under BREAKPOINT_DELETE_DEADLINE_MS (6000ms)
+    await flushMicrotasks();
+
+    expect(settled).toBe(true);
+    await pending;
+    expect(session.snapshot.status).toBe("dead");
+    expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(1);
+  });
+
+  it("terminateDeadlineMs is the base plus BREAKPOINT_DELETE_DEADLINE_MS per owned breakpoint, capped at TERMINATE_MAX_DEADLINE_MS", async () => {
+    // 0 owned: just the base.
+    const session0 = makeSession({ transport: new FakeTransport({}) });
+    expect(session0.terminateDeadlineMs).toBe(4_000);
+
+    // 1 owned.
+    const transport1 = new FakeTransport({ setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK] });
+    const session1 = makeSession({ transport: transport1 });
+    await session1.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    expect(session1.terminateDeadlineMs).toBe(4_000 + 1 * 6_000);
+
+    // 4 owned.
+    const transport4 = new FakeTransport({ setBreakpoints: [BREAKPOINTS_OK, () => okResponse(BREAKPOINTS_4_XML)] });
+    const session4 = makeSession({ transport: transport4 });
+    await session4.prepareBreakpoints([
+      { kind: "statement", statement: "WRITE" },
+      { kind: "statement", statement: "RAISE" },
+      { kind: "statement", statement: "CALL" },
+      { kind: "statement", statement: "MOVE" },
+    ]);
+    expect(session4.terminateDeadlineMs).toBe(4_000 + 4 * 6_000);
+
+    // Cap: 10 owned would be 4_000 + 10*6_000 = 64_000, clamped to 60_000.
+    // terminate() is never called here — no network DELETE is issued — this
+    // only pins the getter's own arithmetic against ownership bookkeeping.
+    const tenRowsXml =
+      `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+      Array.from({ length: 10 }, (_, i) => `<dbg:breakpoint kind="statement" id="BP${i}"/>`).join("") +
+      `</dbg:breakpoints>`;
+    const transportCap = new FakeTransport({ setBreakpoints: [BREAKPOINTS_OK, () => okResponse(tenRowsXml)] });
+    const sessionCap = makeSession({ transport: transportCap });
+    await sessionCap.prepareBreakpoints(
+      Array.from({ length: 10 }, (_, i) => ({ kind: "statement" as const, statement: `STMT${i}` })),
+    );
+    expect(sessionCap.terminateDeadlineMs).toBe(60_000);
+  });
+
+  it("terminate() with 4 owned breakpoints, each taking ~2500ms to delete, issues all 4 deletes and abandons none", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK, () => okResponse(BREAKPOINTS_4_XML), delayedOk(2_500)],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([
+      { kind: "statement", statement: "WRITE" },
+      { kind: "statement", statement: "RAISE" },
+      { kind: "statement", statement: "CALL" },
+      { kind: "statement", statement: "MOVE" },
+    ]);
+    expect(session.terminateDeadlineMs).toBe(28_000); // 4_000 + 4*6_000, read before terminate() drains ownership
+
+    await session.attach("D1");
+
+    let settled = false;
+    const pending = session.terminate().then(() => {
+      settled = true;
+    });
+    // deleteOwnedBreakpoints() issues its 4 DELETEs sequentially, so 4 x
+    // ~2500ms is ~10_000ms of simulated time — comfortably under this
+    // session's 28_000ms terminateDeadlineMs.
+    await vi.advanceTimersByTimeAsync(10_100);
+    await flushMicrotasks();
+
+    expect(settled).toBe(true);
+    await pending;
+    expect(session.snapshot.status).toBe("dead");
+    expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(4);
+  });
+
+  it("deletes the owned breakpoint BEFORE terminateDebuggee — the fast, still-attached path (ledger rows 918/951 vs 921-924)", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    await session.attach("D1");
+    expect(session.snapshot.status).toBe("suspended");
+
+    await session.terminate();
+
+    const deleteIdx = transport.calls.findIndex(
+      (c) => c.method === "DELETE" && c.path.includes("/debugger/breakpoints"),
+    );
+    const terminateDebuggeeIdx = transport.calls.findIndex((c) => /[?&]method=terminateDebuggee/.test(c.path));
+    expect(deleteIdx).toBeGreaterThanOrEqual(0);
+    expect(terminateDebuggeeIdx).toBeGreaterThanOrEqual(0);
+    expect(deleteIdx).toBeLessThan(terminateDebuggeeIdx);
+    // Exactly one DELETE: the trailing deleteOwnedBreakpoints() call at the end
+    // of terminationSteps() is a no-op here — ownedBreakpoints was already
+    // drained by the earlier, in-sequence call this test just verified the
+    // position of. See terminationSteps()'s comment on that trailing call.
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(1);
+  });
+
+  it("a breakpoint DELETE that REJECTS (not a timeout) with a non-NOT_FOUND error is retried once and succeeds — no abandoned step", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [
+        BREAKPOINTS_OK, // validation pass
+        BREAKPOINTS_OK, // arming pass
+        () => {
+          throw new AbapError("ADT_ERROR", "transient failure, not NOT_FOUND", { status: 500 });
+        }, // 1st delete attempt: rejects
+        BREAKPOINTS_OK, // retry: succeeds
+      ],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    await session.attach("D1");
+    await session.terminate();
+
+    expect(session.snapshot.status).toBe("dead");
+    expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+    // The retry is safe specifically BECAUSE the delete is idempotent (HTTP 200,
+    // zero-byte body, even for an id that's already gone) and the first attempt
+    // had definitely ended (rejected, not hung) — see deleteOwnedBreakpoints().
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(2);
+  });
+
+  it("a breakpoint DELETE that never settles is issued exactly ONCE — a timeout is never retried, unlike a rejection", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, HANGS],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    await session.attach("D1");
+
+    let settled = false;
+    const pending = session.terminate().then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(6_100); // past BREAKPOINT_DELETE_DEADLINE_MS
+    await flushMicrotasks();
+
+    expect(settled).toBe(true);
+    await pending;
+    // Reported so the caller finds out (this is the live defect's exact
+    // symptom) — but NOT retried: the first request may still be running on
+    // the shared connection, so retrying would just create a second one and
+    // reproduce the same overlap that caused "Debuggee already attached".
+    expect(session.snapshot.abandonedCleanupSteps).toHaveLength(1);
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(1);
+  });
+});
+
+/** The exact live error shape observed 2026-09-15: HTTP 500, `subtype:"attach"`, `abapType:"AdiFailed"`, no `subtype:"invalidDebuggee"` anywhere — not committed as a fixture file, only reproduced here from the incident report. */
+const ATTACH_ALREADY_ATTACHED_LIVE_SHAPE: Thunk = () => {
+  throw new AbapError("ADT_ERROR", "Debuggee already attached", {
+    status: 500,
+    subtype: "attach",
+    abapType: "AdiFailed",
+    bodyExcerpt: "Debuggee already attached",
+  });
+};
+
+describe("issue-89 — isDoubleAttachError also recognizes the live error shape (subtype:\"attach\"/abapType:\"AdiFailed\"), not only subtype:\"invalidDebuggee\"", () => {
+  it("attach() recovers via getStack() for the live shape, same as the subtype:invalidDebuggee shape", async () => {
+    const transport = new FakeTransport({
+      attach: [ATTACH_ALREADY_ATTACHED_LIVE_SHAPE],
+      getStack: [stackOk({ programName: "ZTEST_MCP_CRUD", line: 15 })],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+
+    const { stack, stateId } = await session.attach("D1");
+
+    expect(stack.frames[0]?.programName).toBe("ZTEST_MCP_CRUD");
+    expect(stateId).toBeTruthy();
+    expect(session.snapshot.status).toBe("suspended");
+    expect(transport.callsOf("getStack")).toHaveLength(1);
+  });
+
+  it("when the follow-up getStack() ALSO fails, SESSION_DEAD 'does not belong to this session' is still raised, unchanged", async () => {
+    const transport = new FakeTransport({
+      attach: [ATTACH_ALREADY_ATTACHED_LIVE_SHAPE],
+      getStack: [
+        () => {
+          throw new AbapError("NOT_CONNECTED", "no attached debuggee");
+        },
+      ],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+
+    await expect(session.attach("D1")).rejects.toSatisfy((e: unknown) => {
+      expect(isAbapError(e)).toBe(true);
+      expect((e as AbapError).code).toBe("SESSION_DEAD");
+      expect((e as AbapError).message).toMatch(/does not belong to this session/i);
+      return true;
+    });
   });
 });
 

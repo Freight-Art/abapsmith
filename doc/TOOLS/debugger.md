@@ -177,6 +177,31 @@ live: `test/cassettes/debugger/watchpoint-get-unknown-id-404.cassette.json`).
 }
 ```
 
+### `action="stop"` — cleanup timing and forced clearing
+
+Exception, statement, and message breakpoints are armed against the **SAP
+user**, not against the debugged object or this session — they can outlive
+the session that created them and, left behind, can catch an unrelated later
+run under the same SAP user. `stop` (and `action="breakpoints"` `op="remove"`)
+deletes only the breakpoints this session itself created; it cannot see or
+remove one created by a different session, IDE, or an earlier, uncleanly
+terminated process instance.
+
+Deleting one breakpoint (`DELETE /sap/bc/adt/debugger/breakpoints/{id}`) has
+been measured at 2.1-2.9s once the session is no longer attached to a live
+debuggee (as opposed to well under a second while still attached). `stop`
+issues one such `DELETE` per breakpoint this session armed, so it can
+legitimately take several seconds, scaling with how many breakpoints are
+still armed at the time it's called — this is normal, not a hang.
+
+If `stop`'s response reports `Cleanup timed out on: ... — may still be armed
+on the server`, the breakpoint delete(s) did not finish in time and the
+underlying request may still be in flight or the breakpoint may still be
+armed. When that happens on an active session's `stop`, calling
+`abap_debug({action: "stop", force: true})` also force-clears a debuggee left
+attached at this server's identity, on top of the ordinary cleanup — use it
+to recover before starting a new session against the same target.
+
 ### `ABAP_DEBUG_SESSIONS`
 
 `ABAP_DEBUG_SESSIONS` (default 1) sets how many concurrent debug leases
