@@ -1,0 +1,32 @@
+{
+  "n": 868,
+  "label": "i87-authx-s-tabu-nam-fields",
+  "expect": null,
+  "note": "AUTHX metadata for the fields of S_TABU_NAM and S_DEVELOP.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM authx WHERE fieldname = 'ACTVT' OR fieldname = 'TABLE' OR fieldname = 'OBJTYPE' OR fieldname = 'DEVCLASS'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "2643",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "448474.000000"
+  },
+  "byteLength": 2643,
+  "zeroByteBody": false,
+  "sha256": "88714919c8c30dcd2ac6df787f4fef69be4b015eb15d7a0e35dcb3061c281920",
+  "utcTimestamp": "2026-09-12T13:24:54.492Z",
+  "durationMs": 551,
+  "sessionName": "A"
+}

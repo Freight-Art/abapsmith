@@ -1,0 +1,32 @@
+{
+  "n": 857,
+  "label": "i74-package-header-z-badi-check",
+  "expect": null,
+  "note": "Customer package header: no super package, customer transport layer.",
+  "requestMethod": "GET",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/packages/z_badi_check?sap-client=001",
+  "requestHeaders": {
+    "Accept": "*/*",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.packages.v2+xml; charset=utf-8",
+    "content-length": "3943",
+    "sap-authenticated": "true",
+    "etag": "20120430000000001application/vnd.sap.adt.packages.v2+xmlAHnq969vyh7Un3x+YcpUJTg0PqU=",
+    "last-modified": "Mon, 30 Apr 2012 00:00:00 GMT",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "224956.000000"
+  },
+  "byteLength": 3943,
+  "zeroByteBody": false,
+  "sha256": "ba45dc7c631d9cb9858de209ad18ac95462d64042a75d6c7fe2d42d44d58aa6d",
+  "utcTimestamp": "2026-09-12T13:23:43.612Z",
+  "durationMs": 344,
+  "sessionName": "A"
+}

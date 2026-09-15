@@ -1,0 +1,32 @@
+{
+  "n": 889,
+  "label": "i78-worklist-read-lastrun-empty",
+  "note": "Same worklist read after a run that found nothing (a TABL): atcworklist:objects and atcworklist:infos are both empty, and five object sets are listed (ALL, LAST_RUN, and three kind=\"PACKAGE\" sets, one per package ever run into this worklist) \u2014 object sets accumulate across runs.",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/atc/worklists/466F46C806601FE1ABD795A0C0B5C069?includeExemptedFindings=false&usedObjectSet=99999999999999999999999999999999",
+  "requestHeaders": {
+    "Accept": "application/atc.worklist.v1+xml"
+  },
+  "requestBody": null,
+  "requestBodyBytes": 0,
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/atc.worklist.v1+xml; charset=utf-8",
+    "content-length": "1223",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "62747.000000",
+    "connection": "close"
+  },
+  "byteLength": 1223,
+  "zeroByteBody": false,
+  "sha256": "dc535641a72741f4b83a4cb65bbdab29651b65675e9f1024a6311bc8a3e9b0ff",
+  "utcTimestamp": "2026-09-12T15:47:23.173643Z",
+  "durationMs": 429,
+  "sessionName": "I78",
+  "capturedBy": "Standalone python ADT probe (urllib + cookiejar) driven against the A4H sandbox appliance for issue #78's ATC completeness work. REAL wire recording, not synthetic.",
+  "requestHeadersNote": "Only caller-supplied headers are listed. Authorization, Cookie, X-CSRF-Token and X-sap-adt-sessiontype were added by the probe's own session-management code and are deliberately not recorded.",
+  "requestUrlNote": "Path and query only; the appliance host is deliberately not recorded, and neither is the sap-client parameter (001) the probe sent."
+}

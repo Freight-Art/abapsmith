@@ -1,0 +1,41 @@
+{
+  "id": "freestyle-dd07v-fixed-values",
+  "recordedAt": "2026-09-12T13:25:43.795Z",
+  "recordedDurationMs": 783,
+  "appliance": {
+    "sid": "A4H",
+    "client": "001",
+    "kernelRelease": "777",
+    "kernelPatchLevel": "500",
+    "server": "a4hsandbox_A4H_00"
+  },
+  "source": {
+    "type": "live-capture-raw",
+    "citation": "test/fixtures/live-captured/875-i87-dd07v-domain-with-values.meta.json + test/fixtures/live-captured/875-i87-dd07v-domain-with-values.xml",
+    "notes": "The Authorization header was redacted at capture time; the X-CSRF-Token header was redacted by the transcriber before this cassette was written. SELECT * FROM dd07v WHERE domname = 'AS4LOCAL' AND ddlanguage = 'E' returns 5 rows. DD07V has no AS4LOCAL column of its own \u2014 adding an AS4LOCAL predicate to the WHERE clause (a plausible but wrong guess) answers HTTP 400 Unknown column name \"AS4LOCAL\" (not captured as its own cassette). Rows are not guaranteed to arrive already ordered; a reader must sort by VALPOS itself. Contrast with the sibling capture 872 (not wired as its own cassette), the same query shape against domain ACTIV_AUTH, which returns 0 rows \u2014 a domain can legitimately have no fixed values."
+  },
+  "request": {
+    "method": "POST",
+    "path": "/sap/bc/adt/datapreview/freestyle?rowNumber=8&sap-client=001",
+    "headers": {
+      "X-CSRF-Token": "<redacted>",
+      "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+      "Content-Type": "text/plain",
+      "Authorization": "<redacted>"
+    },
+    "body": "SELECT * FROM dd07v WHERE domname = 'AS4LOCAL' AND ddlanguage = 'E'"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+      "content-length": "4605",
+      "sap-authenticated": "true",
+      "sap-cache-control": "+0",
+      "sap-isc-uagent": "0",
+      "sap-server": "true",
+      "sap-perf-fesrec": "685260.000000"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?><dataPreview:tableData xmlns:dataPreview=\"http://www.sap.com/adt/dataPreview\"><dataPreview:totalRows>5</dataPreview:totalRows><dataPreview:isHanaAnalyticalView>false</dataPreview:isHanaAnalyticalView><dataPreview:executedQueryString>SELECT * FROM DD07V WHERE DOMNAME = 'AS4LOCAL' AND DDLANGUAGE = 'E'   INTO     TABLE @DATA(LT_RESULT)   UP TO 8  ROWS   .</dataPreview:executedQueryString><dataPreview:queryExecutionTime>58.2580000</dataPreview:queryExecutionTime><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DOMNAME\" dataPreview:type=\"C\" dataPreview:description=\"DOMNAME\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>AS4LOCAL</dataPreview:data><dataPreview:data>AS4LOCAL</dataPreview:data><dataPreview:data>AS4LOCAL</dataPreview:data><dataPreview:data>AS4LOCAL</dataPreview:data><dataPreview:data>AS4LOCAL</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"VALPOS\" dataPreview:type=\"N\" dataPreview:description=\"VALPOS\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>0001</dataPreview:data><dataPreview:data>0004</dataPreview:data><dataPreview:data>0003</dataPreview:data><dataPreview:data>0005</dataPreview:data><dataPreview:data>0002</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DDLANGUAGE\" dataPreview:type=\"C\" dataPreview:description=\"DDLANGUAGE\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>E</dataPreview:data><dataPreview:data>E</dataPreview:data><dataPreview:data>E</dataPreview:data><dataPreview:data>E</dataPreview:data><dataPreview:data>E</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DOMVALUE_L\" dataPreview:type=\"C\" dataPreview:description=\"DOMVALUE_L\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>A</dataPreview:data><dataPreview:data>S</dataPreview:data><dataPreview:data>N</dataPreview:data><dataPreview:data>T</dataPreview:data><dataPreview:data>L</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DOMVALUE_H\" dataPreview:type=\"C\" dataPreview:description=\"DOMVALUE_H\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data/></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DDTEXT\" dataPreview:type=\"C\" dataPreview:description=\"DDTEXT\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data>Entry was activated or generated in this form</dataPreview:data><dataPreview:data>Previously active entry, backup copy</dataPreview:data><dataPreview:data>Entry was edited, but not activated</dataPreview:data><dataPreview:data>Temporary version when editing</dataPreview:data><dataPreview:data>Lock entry (first N version)</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DOMVAL_LD\" dataPreview:type=\"C\" dataPreview:description=\"DOMVAL_LD\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data/></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"DOMVAL_HD\" dataPreview:type=\"C\" dataPreview:description=\"DOMVAL_HD\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data/></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"APPVAL\" dataPreview:type=\"C\" dataPreview:description=\"APPVAL\" dataPreview:keyAttribute=\"false\" dataPreview:colType=\"\" dataPreview:isKeyFigure=\"false\"/><dataPreview:dataSet><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data/><dataPreview:data/></dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>"
+  }
+}

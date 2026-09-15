@@ -222,11 +222,15 @@ export interface TypeCapabilities {
    * `write.shape: "properties"` type uses for its root-object GET/PUT/POST.
    * Absent ⇒ `application/*`.
    *
-   * Needed by `SRVB/SVB` only: a root GET with a generic `Accept:
-   * application/xml` 406s; only the fully-qualified vendor type
-   * (`application/vnd.sap.adt.businessservices.servicebinding.v1+xml`) gets
-   * `200` (live-corroborated — see that entry's own comment for scope). Read
-   * by `src/adt/write.ts` (`contentAccept`/`contentType`, `createByXml`,
+   * Needed by `SRVB/SVB` only: a root GET with `Accept: application/xml`
+   * 406s (`application/*` does answer `200`, but the vendor-specific type is
+   * more precise and is what this field pins); the version matters too —
+   * `servicebinding.v2+xml` answers `200`, `servicebinding.v1+xml` answers
+   * `406 ExceptionResourceNotAcceptable`. Verified 2026-09-15 against A4H,
+   * both by direct curl against the ADT binding endpoint and by reproducing
+   * the `v1` failure end-to-end through `abap_read` on the released server
+   * (see that entry's own comment for scope). Read by `src/adt/write.ts`
+   * (`contentAccept`/`contentType`, `createByXml`,
    * `resolveWriteTarget`'s existence GET) and `src/tools/read.ts`
    * (`fetchRawDescriptor`, threaded through to `fetchDdicXml` as an explicit
    * param rather than importing this registry into `ddic.ts`, which this
@@ -333,6 +337,19 @@ export interface TypeCapabilities {
    * `assertNoConflictingCapabilities()` below.
    */
   unsupported?: { reason: string; alternative?: string };
+  /**
+   * This type has no ADT resource to resolve a URI against, but abapsmith can
+   * render it read-only from catalog tables over the data-preview endpoint.
+   * `abap_read` dispatches on the explicit `type` hint before `resolveObject`
+   * runs, so these codes are readable even though `resolveObject` still
+   * (correctly) refuses them — there is nothing for it to resolve.
+   */
+  readonly catalogRead?: {
+    /** Which catalog tables the render is assembled from, for the docs and the refusal text. */
+    readonly from: string;
+    /** How the caller names the object, e.g. `ZTAB/Z01` for a parented index. */
+    readonly nameForm: string;
+  };
 }
 
 /**
@@ -979,9 +996,23 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
   // create-body fixture.
   //
   // `mediaType` is the one field no other properties-shape type sets (see
-  // its doc comment above) — only OData V2 exists on this release
-  // (/businessservices/bindings/bindingtypes returns exactly two ODATA/V2
-  // entries); there is no V4 to offer.
+  // its doc comment above) — `/businessservices/bindings/bindingtypes`
+  // returned exactly two ODATA/V2 entries when checked (2026-08-18), so
+  // binding CREATION through this registry has only ever been exercised
+  // for V2. That is a statement about what this registry can create, not
+  // about what the system hosts: the appliance does host V4 bindings —
+  // see `test/fixtures/live-captured/970-i82-metadata-v4.xml` — the
+  // bindingtypes endpoint itself was not re-probed on 2026-09-15.
+  //
+  // Pinned to `v2` (not `v1`): A4H's ADT discovery document advertises only
+  // `servicebinding.v2+xml` for the binding resource, and a `v1`-only
+  // Accept 406s on this release — verified 2026-09-15, both by direct curl
+  // and by reproducing the failure through `abap_read` on the released
+  // server (see the doc comment on `mediaType` above for the full detail).
+  // This value also serves as the write-path `Content-Type` (`write.ts`'s
+  // `contentType`) for create/update of a service binding; only the READ
+  // side was re-verified at `v2` in this pass — a binding create/update
+  // with the `v2` Content-Type was not re-tested this session.
   //
   // `namePrefixes` NOT overridden: no ENQU-style foreign-namespace rule, and
   // vendor CreatableTypes already gives it maxLen 26. NOT re-tested by the
@@ -997,7 +1028,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     create: { vendor: false, verified: true },
     delete: true,
     activate: true,
-    mediaType: "application/vnd.sap.adt.businessservices.servicebinding.v1+xml",
+    mediaType: "application/vnd.sap.adt.businessservices.servicebinding.v2+xml",
   },
   // Not in types.ts — see the module doc.
   "SHLP/DH": {
@@ -1346,12 +1377,12 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     label: "Authorization object",
     unsupported: {
       reason:
-        "Authorization objects have no ADT-writable collection on this release: no discovery " +
-        "collection is advertised for them (aps/iam/suso, security/authorizationobjects and " +
-        "ddic/authorizationobjects all 404), and the vendor-table-derived creation path " +
-        "(aps/iam/suso, from abap-adt-api's CreatableTypes) 404s outright too — there is no " +
-        "writable ADT collection to target, live-verified, not merely undocumented. The only " +
-        "route that answers a GET at all is the generic VIT bridge " +
+        "Authorization objects have no ADT resource to WRITE through, and none to resolve a URI " +
+        "against, on this release: no discovery collection is advertised for them (aps/iam/suso, " +
+        "security/authorizationobjects and ddic/authorizationobjects all 404), and the " +
+        "vendor-table-derived creation path (aps/iam/suso, from abap-adt-api's CreatableTypes) " +
+        "404s outright too — there is no writable ADT collection to target, live-verified, not " +
+        "merely undocumented. The only route that answers a GET at all is the generic VIT bridge " +
         "(vit/wb/object_type/susob/object_name/{NAME}), and it returns a basic-properties stub " +
         "only — name, description, language, responsible, package — with no field list and no " +
         "permission values, so it is not a usable read of the object's actual content, the same " +
@@ -1364,8 +1395,14 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "write-feasibility-by-Allow-header could not be checked. Verified live against the " +
         "real objects S_TCODE and S_DEVELOP plus a name guaranteed not to exist.",
       alternative:
-        "Authorization objects can only be created and edited in SU21, a SAPGUI transaction " +
-        "outside abapsmith's reach. There is no ABAP-code equivalent to fall back on.",
+        'abap_read {"object":"<NAME>","type":"SUSO/B"} renders the object read-only from the ' +
+        "authorization catalog (TOBJ/TOBJT/TOBCT/TACTZ/TACTT/AUTHX/DD04L/DD07V) — see " +
+        "`catalogRead` below. SU21, a SAPGUI transaction outside abapsmith's reach, is the only " +
+        "way to EDIT one; there is no ABAP-code equivalent to fall back on for that direction.",
+    },
+    catalogRead: {
+      from: "TOBJ, TOBJT, TOBCT, TACTZ, TACTT, AUTHX, DD04L, DD07V",
+      nameForm: "the authorization object name, e.g. S_TABU_NAM",
     },
   },
   // Not in types.ts — see the module doc. Type code chosen deliberately:
@@ -1483,6 +1520,10 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "filter, so a targeted DD12V check was not practical. It now takes a structured filter " +
         "(issue #73), so such a check is possible, but this round's outcome was never re-checked " +
         "and stays unverified.",
+    },
+    catalogRead: {
+      from: "DD12V, DD17S",
+      nameForm: "<TABLE>/<INDEX>, the same parented form the create takes, e.g. ZTAB/Z01",
     },
   },
 };
@@ -1653,21 +1694,33 @@ export const ABAP_WRITE_TYPES: readonly string[] = codesWith(
  * Types `abap_read`'s `resolveObject` refuses outright on an explicit type
  * hint, before any network call: the `unsupported` entries, plus bridge-only
  * -create types (`bridgeCreate` set, `create` absent) that have NO read
- * route of any kind. `SHLP/DH`, `VIEW/DV` and `TRAN/T` are bridge-only-create
- * too but are deliberately excluded from this set below: each has a
- * `types.ts` entry with `mode: "ddic"` whose `ddic-strategy.ts`
- * `ddicStrategy()` is `"catalog"` — `src/adt/catalog-query.ts`/
- * `catalog-read.ts` read them
- * through plain-text catalog SELECTs against the freestyle data-preview
- * endpoint instead of an ADT REST collection (see `resolve.ts`'s
- * `isBridgeOnlyCreateType` check for the same rule, applied the same way).
- * That leaves `TABL/DI` as the only member of the second group: it has no
- * `types.ts` entry at all — `specForType("TABL/DI")` is `undefined` — so
- * there is no read mode to check and nothing exempts it. Mirrors the check
- * in `src/adt/resolve.ts`.
+ * route of any kind. Two separate exemptions carve types back out of it,
+ * because abapsmith has two unrelated catalog-backed read routes:
+ *
+ * - `SHLP/DH`, `VIEW/DV` and `TRAN/T` are bridge-only-create but each has a
+ *   `types.ts` entry with `mode: "ddic"` whose `ddic-strategy.ts`
+ *   `ddicStrategy()` is `"catalog"` — `src/adt/catalog-query.ts`/
+ *   `catalog-read.ts` read them through plain-text catalog SELECTs against
+ *   the freestyle data-preview endpoint instead of an ADT REST collection
+ *   (see `resolve.ts`'s `isBridgeOnlyCreateType` check for the same rule,
+ *   applied the same way). Derived from the specs below, not hand-listed.
+ * - Types carrying a `catalogRead` entry (`SUSO/B`, `TABL/DI`) have no ADT
+ *   resource either, but `abap_read` dispatches them to a catalog-TABLE
+ *   render (`src/tools/read.ts`) before `resolveObject` ever runs, so they
+ *   are readable in practice. That is a different render from the `ddic`
+ *   route above — a fixed row listing, not pseudo-DDL — hence a separate
+ *   capability field rather than one unified mechanism.
+ *
+ * `TABL/DI` would otherwise be the only member of the second group (it has
+ * no `types.ts` entry at all — `specForType("TABL/DI")` is `undefined` — so
+ * there is no read mode to check and the first exemption cannot reach it);
+ * its `catalogRead` entry is what spares it. Mirrors the check in
+ * `src/adt/resolve.ts`.
  */
 export const NON_READABLE_TYPES: readonly string[] = codesWith(
-  (c) => c.unsupported !== undefined || (c.bridgeCreate !== undefined && c.create === undefined),
+  (c) =>
+    c.catalogRead === undefined &&
+    (c.unsupported !== undefined || (c.bridgeCreate !== undefined && c.create === undefined)),
 ).filter((code) => {
   // Deliberately re-derives readability from `types.ts`/`ddic-strategy.ts`
   // rather than hand-listing "SHLP/DH, VIEW/DV, TRAN/T" here, so a future
@@ -1783,6 +1836,13 @@ export function assertRegistryCoversTypes(types: readonly TypeSpec[] = TYPES): v
  * REQUIRED on `CreateCapability` (see that field's own doc), so the one
  * failure mode a check here would exist to catch — a `create` entry with no
  * stated evidence — is already impossible to compile.
+ *
+ * Also deliberately has no rule against `catalogRead` alongside `unsupported`
+ * or `bridgeCreate`: `catalogRead` is a READ capability describing a render
+ * `abap_read` assembles from catalog tables, not a write route, so it never
+ * contradicts either — `SUSO/B` (`unsupported` + `catalogRead`) and
+ * `TABL/DI` (`bridgeCreate`/`bridgeDelete` + `catalogRead`) are both
+ * intentional.
  */
 export function assertNoConflictingCapabilities(): void {
   for (const code of CODES) {

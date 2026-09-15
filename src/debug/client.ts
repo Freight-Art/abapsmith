@@ -55,6 +55,7 @@ import {
   batchUrl,
   breakpointsPostUrl,
   buildUrl,
+  createWatchpointUrl,
   deleteBreakpointUrl,
   getChildVariablesUrl,
   getStackUrl,
@@ -62,11 +63,15 @@ import {
   listenerGetUrl,
   listenerLaunchUrl,
   listenerStopUrl,
+  modifyWatchpointUrl,
   setDebuggerSettingsUrl,
   setStackPositionUrl,
   setVariableValueUrl,
   stepUrl,
   terminateDebuggeeUrl,
+  watchpointUrl,
+  watchpointsUrl,
+  WATCHPOINTS_ACCEPT,
   type AttachParams,
   type DeleteBreakpointParams,
   type ListenerGetParams,
@@ -87,6 +92,7 @@ import {
   parseStackResponse,
   parseStepResponse,
   parseVariablesResponse,
+  parseWatchpointsResponse,
 } from "./xml-response.js";
 import type { DebugRequestOptions, LongPollHandle } from "./transport.js";
 import type {
@@ -98,6 +104,7 @@ import type {
   BreakpointsRequest,
   ChildVariablesResult,
   CreatedBreakpoint,
+  CreateWatchpointRequest,
   DebugAttachResult,
   DebugSettings,
   DebugStack,
@@ -108,7 +115,9 @@ import type {
   DebugVariableHierarchy,
   ListenResult,
   ListenerConflict,
+  ModifyWatchpointRequest,
   RawResponse,
+  Watchpoint,
 } from "./types.js";
 
 // Re-exported so callers of this module don't also need a direct import from
@@ -360,13 +369,21 @@ export class DebugClient {
 
   // --- Breakpoints -----------------------------------------------------
 
+  /**
+   * `opts.debuggeeSessionIds`, when non-empty, is what makes a breakpoint change land
+   * on the SUSPENDED debuggee's very next step instead of one stop-cycle late — see
+   * `BreakpointsPostQuery.debuggeeSessionIds`'s doc comment in `endpoints.ts` for the
+   * full `notify_dbg_sess_ids` / `debuggee_reload_bps` / `DEBUGGEE_STOP kind='R'`
+   * chain. Pure pass-through: this method does not decide when to populate it — see
+   * `DebugSession.armBreakpointsTwoPass()`/`removeBreakpoint()`.
+   */
   async setBreakpoints(
     request: BreakpointsRequest,
-    opts: { checkConflict?: boolean } = {},
+    opts: { checkConflict?: boolean; debuggeeSessionIds?: readonly string[] } = {},
   ): Promise<Array<CreatedBreakpoint | BreakpointError>> {
     const raw = await this.transport.request({
       method: "POST",
-      path: breakpointsPostUrl({ checkConflict: opts.checkConflict }),
+      path: breakpointsPostUrl({ checkConflict: opts.checkConflict, debuggeeSessionIds: opts.debuggeeSessionIds }),
       headers: { "Content-Type": BREAKPOINTS_CONTENT_TYPE, Accept: BREAKPOINTS_ACCEPT },
       body: buildBreakpointsRequestXml(request),
     });
@@ -375,6 +392,81 @@ export class DebugClient {
 
   async deleteBreakpoint(params: DeleteBreakpointParams): Promise<void> {
     await this.transport.request({ method: "DELETE", path: deleteBreakpointUrl(params) });
+  }
+
+  // --- Watchpoints -------------------------------------------------------
+
+  /**
+   * `POST .../watchpoints?variableName=..&condition=..` — query string only, no XML body (unlike
+   * `setBreakpoints`, which does send one). Requires a debug session already attached to a
+   * suspended debuggee; see `createWatchpointUrl`'s doc comment in endpoints.ts for the 400/404
+   * rules. Live-confirmed the response is a PER-CALL echo — just the row created, never any other
+   * already-armed watchpoint (`test/fixtures/live-captured/937-watchpoint-create-second.xml`
+   * against `938-watchpoint-list-two.xml`) — so this returning a 1-element array is the normal
+   * case, not a truncated list.
+   */
+  async createWatchpoint(params: CreateWatchpointRequest): Promise<Watchpoint[]> {
+    const raw = await this.transport.request({
+      method: "POST",
+      path: createWatchpointUrl(params),
+      headers: { Accept: WATCHPOINTS_ACCEPT },
+    });
+    return parseWatchpointsResponse(raw.body);
+  }
+
+  async listWatchpoints(): Promise<Watchpoint[]> {
+    const raw = await this.transport.request({ method: "GET", path: watchpointsUrl(), headers: { Accept: WATCHPOINTS_ACCEPT } });
+    return parseWatchpointsResponse(raw.body);
+  }
+
+  /**
+   * Single watchpoint by id. Mirrors `getListener`'s 404 discrimination: a genuine ADT 404
+   * (`NOT_FOUND` with `details.abapType` set) means "no such watchpoint", not a transport fault —
+   * reported as `undefined` rather than thrown. Live-confirmed the unknown-id 404 body: type
+   * `"AdtFailed"` (not `"ExceptionResourceNotFound"` like the breakpoints/listener 404s), T100
+   * `TPDA_ADT`/`013`, message "Cannot retrieve watchpoint data: Watchpoint not found"
+   * (`test/fixtures/live-captured/943-watchpoint-get-unknown-id.xml`). The discrimination below
+   * keys on `abapType` being present at all, not on its specific value, so this still resolves to
+   * `undefined` rather than rejecting.
+   */
+  async getWatchpoint(id: string): Promise<Watchpoint | undefined> {
+    let raw: RawResponse;
+    try {
+      raw = await this.transport.request({ method: "GET", path: watchpointUrl(id), headers: { Accept: WATCHPOINTS_ACCEPT } });
+    } catch (e) {
+      if (isAbapError(e) && e.code === "NOT_FOUND" && e.details?.["abapType"] !== undefined) {
+        return undefined;
+      }
+      throw e;
+    }
+    return parseWatchpointsResponse(raw.body)[0];
+  }
+
+  /**
+   * `PUT .../watchpoints/{id}?condition=..&active=true|false` — same empty-body shape as create.
+   * Returns the parsed row(s) RATHER THAN `void` on purpose: a successful modify can retire the id
+   * it was addressed by and hand back a different one — `PUT .../watchpoints/1` was observed to
+   * answer with `id="3"`, with id `1` gone from the next `GET .../watchpoints` and later reused by
+   * an unrelated create (`test/fixtures/live-captured/940-watchpoint-modify-condition.xml`,
+   * `941-watchpoint-list-after-modify.xml`, `942-watchpoint-create-duplicate.xml`). The caller has
+   * no way to learn the new id except by reading this return value.
+   */
+  async modifyWatchpoint(params: ModifyWatchpointRequest): Promise<Watchpoint[]> {
+    const raw = await this.transport.request({
+      method: "PUT",
+      path: modifyWatchpointUrl(params),
+      headers: { Accept: WATCHPOINTS_ACCEPT },
+    });
+    return parseWatchpointsResponse(raw.body);
+  }
+
+  /**
+   * `DELETE .../watchpoints/{id}` answers 200 with a ZERO-BYTE body, not 204
+   * (`test/fixtures/live-captured/919-watchpoint-delete.meta.json`: `zeroByteBody: true`). This
+   * never reads `raw.body`, so either shape resolves the same way.
+   */
+  async deleteWatchpoint(id: string): Promise<void> {
+    await this.transport.request({ method: "DELETE", path: watchpointUrl(id) });
   }
 
   // --- Listeners -------------------------------------------------------

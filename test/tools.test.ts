@@ -1905,6 +1905,7 @@ describe("tool surface", () => {
       "abap_search",
       "abap_service",
       "abap_test",
+      "abap_trace",
       "abap_transport",
       "abap_transport_release",
       "abap_ui",
@@ -2279,6 +2280,7 @@ describe("tool surface", () => {
       "run.ts",
       "search.ts",
       "test.ts",
+      "trace.ts",
       "write.ts",
     ];
     const offenders: string[] = [];
@@ -2361,6 +2363,10 @@ describe("tool surface", () => {
       "abap_debug_vars",
       "abap_debug_value",
       "abap_activate",
+      // Registered unconditionally: `op="list"` and `op="read"` are reads,
+      // while `start`/`run`/`delete` are gated per-op inside the handler —
+      // the same shape as `abap_transport` just below.
+      "abap_trace",
       "abap_transport",
       "abap_journal",
       "abap_enh",

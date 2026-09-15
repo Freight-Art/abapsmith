@@ -44,7 +44,7 @@ Check here before planning any create.
 - `SHLP/DH` — builds an elementary (one interface) or collective (DD31S includes of other search helps) search help via RS_CORR_INSERT then DDIF_SHLP_PUT then DDIF_SHLP_ACTIVATE; an elementary help needs at least one import AND one export interface field, checked zero-network before dispatch. `update_search_help` REPLACES the whole definition — any field, include or assignment not passed again is removed. There is no ADT REST read or write route for a search help at all (every mutating verb 404s), but src/adt/catalog-read.ts reads one back through plain-text DD30L/DD30T/DD32S/DD31S/DD33S catalog SELECTs, so success is not proven by transcript markers alone. Proven live on A4H 2026-09-12, $TMP only: DDIF_SHLP_PUT + DDIF_SHLP_ACTIVATE returned DH107, and a catalog read-back matched what was put. A transportable package requires corr_nr; a `$` package refuses one and registers with korrnum = space — same pairing rule as VIEW/DV and TRAN/T. The transportable path has NOT itself been run live. Delete: DD_OBJ_DEL (del_state 'A' then 'N') clears DD30L, then TR_TADIR_INTERFACE clears the TADIR row — the same two-call pattern VIEW/DV's delete uses, with the same open-transport-request-lock caveat (TR_TADIR_INTERFACE's TADIR delete fails under a lock this path does not clear). Guarded by a where-used check the other two bridge deletes do not have: attached to a data element (DD04L), a table/view field (DD35L), or included by a collective search help (DD31S) refuses the delete unless the caller passes confirm_in_use — all three checked live on A4H 2026-09-12. No corr_nr is accepted. Proven live on A4H 2026-09-12, $TMP only: DD_OBJ_DEL returned DH051, TR_TADIR_INTERFACE removed the TADIR row, and a post-delete re-read proved absence (SHLP-DELETED / SHLP-GONE).
 - `VIEW/DV` — builds a single-table database view (DD25V class 'D') via RS_CORR_INSERT then DDIF_VIEW_PUT then DDIF_VIEW_ACTIVATE; no joins, no SE54 maintenance dialog. A transportable package resolves a transport request the same way a DEVC/K create does — the caller's corr_nr, or else one picked or created under ABAP_ALLOW_TRANSPORTS; a `$` package refuses a corr_nr and registers with korrnum = space instead. There is no ADT REST read route (405 on every mutating verb, empty discovery collection), but src/adt/catalog-read.ts reads DD25L/DD25T/DD26S/DD27S/TVDIR back through plain-text catalog SELECTs, so success is not proven by transcript markers alone. Proven live on A4H: 2026-09-04 into a transportable package with a corr_nr; 2026-09-05, RS_CORR_INSERT registered one in a `$` package with korrnum = space (sy-subrc 0, TADIR row), then removed by the delete bridge. Changing an EXISTING view is also supported now (`update_view`, DDIF_VIEW_PUT again — REPLACES the whole definition, so an omitted field is dropped), proven live 2026-09-12 (message D0322, field count 2 to 3). Delete: abapsmith's own create registers every view in TADIR, so the delete bridge (src/adt/view-delete.ts) always has one to act on. Proven live on A4H 2026-09-05: a bridge-created view in a `$`-prefixed package was removed cleanly, VIEW-DELETED / VIEW-GONE.
 - `TRAN/T` — creates a REPORT transaction (dynpro 1000) starting an existing program, via RPY_TRANSACTION_INSERT. Retargeting an EXISTING transaction to a different program is also supported now (`update_transaction`: RPY_TRANSACTION_DELETE then re-INSERT under one RS_CORR_INSERT registration, refused unless confirm_in_role_menu is passed when the tcode is already in a role menu; an SM01 lock is NOT checked either way, by design), proven live 2026-09-12 (message EU075, program confirmed changed on read-back). A transportable package requires corr_nr; a `$` package refuses one and registers with korrnum = space instead. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space so the registration always runs. No live create into a transportable package has been run. Delete: the bridge calls RPY_TRANSACTION_DELETE, whose parameter set was captured live on A4H 2026-09-12 (IN TRANSACTION TSTC-TCODE required, TRANSPORT_NUMBER, SUPPRESS_AUTHORITY_CHECK, SUPPRESS_CORR_INSERT, SUPPRESS_CORR_CHECK; exceptions NOT_EXCECUTED — SAP's own misspelling — and OBJECT_NOT_FOUND) — not inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, as this entry previously read. Guarded by the same where-used check as retargeting: a tcode already assigned to one or more roles' menus (AGR_TCODES) refuses the delete unless the caller passes confirm_in_role_menu; an SM01 transaction lock is NOT checked either way. Live-verified once, 2026-09-05: TRAN-DELETED / TRAN-GONE with a post-delete re-read proving absence. Whether RPY_TRANSACTION_DELETE itself calls RS_CORR_INSERT (the way RPY_TRANSACTION_INSERT does) is still unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure; no transport handling is attempted here either way.
-- `TABL/DI` — creates a secondary index on an existing table via DD_INDEX_INTERFACE (ACTION='I'); there is no ADT-readable index route at all, so success is proven only by re-reading DD12V/DD17S after COMMIT WORK. The package is the base table's, not the caller's; a transportable package requires corr_nr, a `$` package sets NO_TRANSP_REQUEST='X' and refuses one, the same rule VIEW/DV uses. Change is not supported either. Proven live on A4H 2026-09-05: a non-unique single-field index created in `$TMP`, confirmed by a post-commit DD12V/DD17S re-read. The client-field requirement for a unique index on a client-dependent table, once suspected, is now CONFIRMED live (A4H, 2026-09-05): the generated DD03L guard refuses an omitting create with BAD_INPUT before the FM runs, and an including create succeeds with all three markers. A third live round re-ran both creates the same day and got all three markers again for each — the round-3 delete-path defect below never touched create. Delete: deletes any index it finds in DD12V for the given table by name, not only ones the bridge itself created — no provenance check exists. Unlike the VIEW/DV/TRAN/T deletes, this DELETE takes the same transport pair as create — DD_INDEX_INTERFACE ACTION='D' needs it too. The DD12V pre-check is proven live (2026-09-05: NOT_FOUND for a nonexistent index). The missing mandatory INDEX_FIELDS table parameter is fixed and confirmed deployed live (2026-09-05). A second defect surfaced live: ACTION='D' reports ACTFAILED='X' even when the delete already took effect. The round-2 fix for that — commit regardless, then re-verify via a post-commit DD12V/DD17S re-read — never ran: its own added note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every delete failed the class-source PUT (ADT_ERROR / TooLongLine, SEDI_ADT15) before DD_INDEX_INTERFACE was ever called, and the deployed bridge class silently stayed on its pre-fix body. Fixed again: the fragment's long messages are now built up in a variable across short lines, and every generated bridge class body is now rejected before it is written if any line exceeds 255 characters. Round 4 then ran live (A4H 2026-09-05, $TMP): a non-unique and a unique index were each deleted through the redeployed bridge (INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE), a re-delete returned NOT_FOUND, and the deployed class body read back with no line over 255 — delete is live-proven. ACTFAILED='X' was still set on both deletes that took effect, so the flag is noise, not a result. A base-table delete is not blocked by an index still on it (round 1); a later cleanup deleted a base table while its indexes' DD12V rows may still have existed, and whether the delete cascaded them away or left them orphaned is unverified — at the time abap_data_preview carried no WHERE filter, so a targeted check was not practical. It now takes a structured filter (issue #73), so such a check is possible, but this round's outcome was never re-checked and stays unverified.
+- `TABL/DI` — creates a secondary index on an existing table via DD_INDEX_INTERFACE (ACTION='I'); there is no ADT-readable index route at all, so success is proven only by re-reading DD12V/DD17S after COMMIT WORK. The package is the base table's, not the caller's; a transportable package requires corr_nr, a `$` package sets NO_TRANSP_REQUEST='X' and refuses one, the same rule VIEW/DV uses. Change is not supported either. Proven live on A4H 2026-09-05: a non-unique single-field index created in `$TMP`, confirmed by a post-commit DD12V/DD17S re-read. The client-field requirement for a unique index on a client-dependent table, once suspected, is now CONFIRMED live (A4H, 2026-09-05): the generated DD03L guard refuses an omitting create with BAD_INPUT before the FM runs, and an including create succeeds with all three markers. A third live round re-ran both creates the same day and got all three markers again for each — the round-3 delete-path defect below never touched create. Delete: deletes any index it finds in DD12V for the given table by name, not only ones the bridge itself created — no provenance check exists. Unlike the VIEW/DV/TRAN/T deletes, this DELETE takes the same transport pair as create — DD_INDEX_INTERFACE ACTION='D' needs it too. The DD12V pre-check is proven live (2026-09-05: NOT_FOUND for a nonexistent index). The missing mandatory INDEX_FIELDS table parameter is fixed and confirmed deployed live (2026-09-05). A second defect surfaced live: ACTION='D' reports ACTFAILED='X' even when the delete already took effect. The round-2 fix for that — commit regardless, then re-verify via a post-commit DD12V/DD17S re-read — never ran: its own added note line rendered as a 272-character ABAP source line (292 at the longest legal names), over the 255-character class-source limit, so every delete failed the class-source PUT (ADT_ERROR / TooLongLine, SEDI_ADT15) before DD_INDEX_INTERFACE was ever called, and the deployed bridge class silently stayed on its pre-fix body. Fixed again: the fragment's long messages are now built up in a variable across short lines, and every generated bridge class body is now rejected before it is written if any line exceeds 255 characters. Round 4 then ran live (A4H 2026-09-05, $TMP): a non-unique and a unique index were each deleted through the redeployed bridge (INDEX-DELETED-ACTFAILED / INDEX-DELETED / INDEX-GONE), a re-delete returned NOT_FOUND, and the deployed class body read back with no line over 255 — delete is live-proven. ACTFAILED is no longer surfaced to the caller at all, for either create or delete: the response instead carries a definitive `verified` boolean plus `index_present`/`index_active` from a fresh post-write DD12V/DD17S re-read (src/adt/index-read.ts's verifySecondaryIndex), and a re-read that itself fails to run is reported as not verified, with a reason, never inferred from ACTFAILED. A base-table delete is not blocked by an index still on it (round 1); abap_write's TABL/DT delete now reads the table's indexes immediately before deleting it and reports what it found, so the cascade-or-orphan question is answered from that pre-delete state rather than left to an unfiltered abap_data_preview check. The index is also independently readable at any time: abap_read {"object":"<TABLE>/<INDEX>","type":"TABL/DI"} renders it from the same two catalog tables.
 
 **Creatable, but the create site is outside this registry (3).** No `create` field in `REGISTRY` at all — these bypass the `create.verified` gate on purpose (src/adt/capabilities.ts, ~lines 52-57). Not a classrun bridge: each has its own create call.
 
@@ -59,38 +59,53 @@ Check here before planning any create.
 **Not reachable by any write (4).** Do not probe for a write route.
 
 - Readable, not writable (0): _(none)_
-- Not readable either (5) — `abap_read` refuses these before any network call, from an `unsupported` entry or a bridge-only create with no read route of any kind (NON_READABLE_TYPES, src/adt/capabilities.ts): `PROG/PS` `PROG/PC` `PROG/PT` `SUSO/B` `TABL/DI`. Registry-wide, not just this bucket: `TABL/DI` — creatable through the bridge above, still unreadable.
+- Readable through the catalog route, not writable (2) — no ADT resource exists for these at all; `abap_read` renders them read-only from catalog tables instead (`catalogRead`, src/adt/capabilities.ts), not an ordinary ADT read: `SUSO/B` `TABL/DI`.
+- Not readable either (3) — `abap_read` refuses these before any network call, from an `unsupported` entry or a bridge-only create with no read route of any kind (NON_READABLE_TYPES, src/adt/capabilities.ts): `PROG/PS` `PROG/PC` `PROG/PT`.
 
 <!-- END generated -->
 
 The **Not reachable by any write** bucket is the write-side list: those types have no write route
 at all, so searching for a workaround wastes turns — say it is out of scope and stop. The "not
-readable either" bullet is the read-side list and registry-wide: some types in it are
-bridge-creatable.
+readable either" bullet is the read-side list and registry-wide, not bucket-scoped: it can name
+bridge-creatable types too, and today lists none of them — everything writable is also readable,
+through an ordinary ADT read, the `mode: "ddic"` catalog route (`SHLP/DH`, `VIEW/DV`, `TRAN/T`)
+or a `catalogRead` render (`TABL/DI`).
 
 ## What abap_read refuses outright
 
-`abap_read`'s schema names five types as not readable — `PROG/PS` `PROG/PC`
-`PROG/PT` `SUSO/B` `TABL/DI` (`NON_READABLE_TYPES`, `src/adt/capabilities.ts`).
+`abap_read`'s schema names three types as not readable — `PROG/PS` `PROG/PC`
+`PROG/PT` (`NON_READABLE_TYPES`, `src/adt/capabilities.ts`).
 
-`PROG/PS`, `PROG/PC`, `PROG/PT` and `SUSO/B` are not real ADT object types
-on this release — no discovery collection exists for them, so there is no
-URI to build. Menu Painter / Screen Painter / SE11-subobject territory.
-`TABL/DI` (a table's secondary index) is a real ADT concept but has no
-ADT-readable collection at all and no `types.ts` entry — `abap_write` can
-create or delete one through the fluid `classic` tool (`corr_nr` follows
-its base table's package, never the caller's), but there is no read-back:
-an index you just created cannot be read again by abapsmith, ever. For a
-readable object, use a CDS view (`DDLS/DF`) instead.
+`PROG/PS`, `PROG/PC` and `PROG/PT` are not real ADT object types on this
+release — no discovery collection exists for them, so there is no URI to
+build. Menu Painter / Screen Painter territory.
 
-`SHLP/DH`, `VIEW/DV` and `TRAN/T` are NOT in that list: `abap_read` reads
-all three. None has an ADT REST collection, but `resolveObject`
-(`src/adt/resolve.ts`) routes them through a plain-text catalog `SELECT`
-(`src/adt/catalog-read.ts`) instead of refusing, rendering a pseudo-DDL
-read for a search help, a classic view, or a transaction — see
+Five more types look the same at a glance — no `TypeSpec` or no ADT
+resource — but are NOT refused, through two different catalog routes.
+
+`SHLP/DH`, `VIEW/DV` and `TRAN/T` have no ADT REST collection either, but
+`resolveObject` (`src/adt/resolve.ts`) routes them through a plain-text
+catalog `SELECT` (`src/adt/catalog-read.ts`) instead of refusing, rendering
+a pseudo-DDL read for a search help, a classic view, or a transaction — see
 `doc/TOOLS/read-and-search.md`. `abap_write` can also create, `mode="update"`,
-and delete all three through the same fluid `classic` bridge; see
-`doc/TOOLS/write-and-activate.md` and `doc/LIMITATIONS/editing.md`.
+and delete all three through the fluid `classic` bridge (collective search
+helps included); see `doc/TOOLS/write-and-activate.md` and
+`doc/LIMITATIONS/editing.md`.
+
+`SUSO/B` and `TABL/DI` carry a `catalogRead` entry instead, and `abap_read`
+dispatches them straight to a read-only render built from DDIC catalog
+tables before `resolveObject` is ever reached.
+`abap_read {"object":"S_TABU_NAM","type":"SUSO/B"}` renders an authorization
+object's definition — its fields, data elements, check tables, fixed values
+and permitted activities — never who holds it: no `AGR_*`/`UST*` table is
+read, under any option. `SUSO/B` is read-only; `SU21` (SAPGUI) is the only
+way to edit one.
+`abap_read {"object":"<TABLE>/<INDEX>","type":"TABL/DI"}` renders one
+secondary index from `DD12V`/`DD17S`; a plain `TABL/DT` read also gains an
+`indexes` section listing every secondary index found the same way.
+`abap_write` can create and delete a `TABL/DI` through the bridge (`corr_nr`
+follows its base table's package, never the caller's). Both are read-only
+catalog renders, so both work under `ABAP_MODE=read`.
 
 ## Two write shapes
 
@@ -192,6 +207,17 @@ escape hatch; reach for it last.
 unknown-tool; `abap_data_preview` and `abap_transport_release` are also gated off by
 config even on v1.
 
+## When a task names a package, orient from it first
+
+`abap_read {"object":"<PKG>","type":"DEVC/K"}` before searching or guessing
+object names. It returns the package header plus its contents: a per-type
+object count, direct sub-packages, and the object rows themselves. Narrow a
+large package with `types` (e.g. `{"types":["CLAS","DDLS"]}`); go deeper
+with `depth` (1-3, default 1) to include sub-packages. Then read individual
+objects normally: `abap_read {"object":"<name>","type":"<type>"}` — rows
+carry no `PARENT_NAME`, so nothing needs parenting to open. See
+`doc/TOOLS/read-and-search.md`.
+
 ## Package decides reversibility
 
 - `$TMP` — no transport, no `corr_nr`. **Never reaches production.**
@@ -208,6 +234,7 @@ Default to `$TMP` unless the task says otherwise.
 | Domain, data element, table, table type | `abapsmith-create-ddic-objects` |
 | CDS + behavior + service binding | `abapsmith-create-a-rap-service` |
 | Class, interface, program, function group | `abapsmith-write-abap-source` |
+| Write or run ABAP Unit tests | `abapsmith-write-abap-unit-tests` |
 | BAdI, enhancement spot, source plug-in | `abapsmith-enhance-standard-code` |
 | BOPF business object | `abapsmith-edit-a-bopf-object` |
 | Browse IMG (SPRO) customizing structure | `abapsmith-browse-img-customizing` |

@@ -7,14 +7,23 @@ described in this folder is the object gate and the debug arm lock (see
 [object-gate-and-debug-lock.md](object-gate-and-debug-lock.md)), and neither
 one bounds session count or in-flight request count. A single `abapsmith`
 process's peak DIA demand is bounded by
-`readConcurrency + writeConcurrency + one debug lease` — 2 + 2 + 1 = 5 at the
-shipped defaults — not by how many of its `maxSessions` slots happen to
+`readConcurrency + writeConcurrency + (debug leases × 2)` — 2 + 2 + 2 = 6 at
+the shipped defaults — not by how many of its `maxSessions` slots happen to
 exist, since an idle pooled session holds no dialog work process and only a
 request in flight (or a suspended debuggee, see the debug lease row in
 [session-pool-and-cost.md](session-pool-and-cost.md#measured-numbers)) does.
-Two processes at the defaults can therefore want up to 10 dialog work
-processes between them against an appliance with `rdisp/wp_no_dia = 7`, plus
-whatever a human is doing in SE80 at the same time.
+Each debug lease pins **two** dialog work processes, not one: one for the
+suspended debuggee (measured live) and one for the trigger connection that
+fires the run — a separate, unpooled ADT session held for the same lease
+(`DIA_COST_PER_DEBUG_SESSION`, `src/adt/pool.ts`). The number of concurrent
+debug leases a process may hold is itself configurable
+(`ABAP_DEBUG_SESSIONS`, default 1, capped by `ABAP_DEBUG_DIA_BUDGET` — see
+[doc/CONFIGURATION](../CONFIGURATION/concurrency-and-activation.md)), so the
+debug term in the formula above is `resolveDebugSessionLimit(cfg) × 2`, not a
+fixed `2`. Two processes at the shipped defaults can therefore want up to 12
+dialog work processes between them against an appliance with
+`rdisp/wp_no_dia = 7`, plus whatever a human is doing in SE80 at the same
+time — and more still if either process raises `ABAP_DEBUG_SESSIONS`.
 
 **Why the failure mode is nasty.** DIA pressure does not fail closed. The
 measured row in
@@ -63,24 +72,40 @@ particular process — the per-process `sessions` read is what supplies the
 attribution that SM50 can't.
 
 **A recommendation for shared-sandbox operation.** For `M` processes sharing
-one appliance, size the per-process budget so `M × (readConcurrency +
-writeConcurrency + 1)` leaves headroom below `rdisp/wp_no_dia` for a human on
-SE80. For example, two processes against a 7-DIA appliance:
-`ABAP_READ_CONCURRENCY=1`, `ABAP_WRITE_CONCURRENCY=1`,
-`ABAP_MAX_SESSIONS=3` per process — peak demand 2 × 3 = 6, leaving one DIA of
-headroom. This is a recommendation, not a default change: **the shipped
-defaults stay 5/2/2.** The causal claim above is unproven, and every
+one appliance, size the per-process budget so
+`M × (readConcurrency + writeConcurrency + debugSessions × 2)` leaves
+headroom below `rdisp/wp_no_dia` for a human on SE80 — note the `× 2`: each
+debug lease pins two dialog work processes (the suspended debuggee and its
+separate trigger connection), not one, as the hazard note above now spells
+out. For example, two processes against a 7-DIA appliance, each at the
+shipped `ABAP_DEBUG_SESSIONS=1`: `ABAP_READ_CONCURRENCY=1`,
+`ABAP_WRITE_CONCURRENCY=1` gives a per-process peak of `1 + 1 + 1×2 = 4`; two
+such processes want 8 — one **over** a 7-DIA appliance's ceiling, with no
+further read/write trimming available once even one debug lease is enabled
+per process (both concurrency knobs are already at their floor of 1).
+Closing that last DIA means either running debugging on only one of the two
+processes at a time (`ABAP_DEBUG_DIA_BUDGET=0` disables it on the other —
+the kill switch, see [doc/CONFIGURATION](../CONFIGURATION/concurrency-and-activation.md)),
+or accepting the 1-DIA overshoot as a risk. This is a recommendation, not a
+default change: **the shipped defaults stay `ABAP_MAX_SESSIONS=5`,
+`ABAP_READ_CONCURRENCY=2`, `ABAP_WRITE_CONCURRENCY=2`,
+`ABAP_DEBUG_SESSIONS=1`.** The causal claim above is unproven, and every
 measurement in
 [session-pool-and-cost.md](session-pool-and-cost.md#measured-numbers) was
 taken against those defaults — changing them would make this file describe a
 configuration nobody ships.
 
-**Why the existing startup warning does not cover this.** `src/config.ts:1238`
-already warns when `readConcurrency + writeConcurrency + 1` exceeds
-`maxSessions` — but that is a single-process, lane-vs-pool over-subscription
-check, and at the shipped defaults it evaluates `2 + 2 + 1 = 5` against
-`maxSessions = 5` and therefore never fires. It says nothing about a second
-`abapsmith` process on the same appliance and cannot be extended to: a
-process cannot see how many sibling processes are running, or what budgets
-they were started with. This section is the only place the cross-process
+**Why the existing startup warning does not cover this.** `src/config.ts`'s
+startup validation already warns when `readConcurrency + writeConcurrency + 1`
+exceeds `maxSessions` — but that is a single-process, lane-vs-pool
+over-subscription check on POOL SLOTS (not dialog work processes), and at the
+shipped defaults it evaluates `2 + 2 + 1 = 5` against `maxSessions = 5` and
+therefore never fires. That check still hardcodes `+ 1` regardless of
+`ABAP_DEBUG_SESSIONS`: raising debug lanes above 1 grows how many pool slots
+debugging can occupy, but this warning does not grow with it, so a
+multi-lane deployment can under-provision `ABAP_MAX_SESSIONS` with no warning
+at all. It also says nothing about a second `abapsmith` process on the same
+appliance and cannot be extended to: a process cannot see how many sibling
+processes are running, or what budgets they were started with. This section
+is the only place the cross-process
 hazard is documented.

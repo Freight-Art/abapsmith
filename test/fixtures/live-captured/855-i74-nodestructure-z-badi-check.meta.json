@@ -1,0 +1,32 @@
+{
+  "n": 855,
+  "label": "i74-nodestructure-z-badi-check",
+  "expect": null,
+  "note": "Customer package with PROG and MSAG objects.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/repository/nodestructure?parent_type=DEVC%2FK&parent_name=Z_BADI_CHECK&withShortDescriptions=true&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.as+xml; dataname=com.sap.adt.RepositoryObjectTreeContent",
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.RepositoryObjectTreeContent",
+    "content-length": "5664",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "377592.000000"
+  },
+  "byteLength": 5664,
+  "zeroByteBody": false,
+  "sha256": "22bc007dc69fdfdb7a5f8227debe1ecef6e2c8c717d8a384412c256046a5dbf1",
+  "utcTimestamp": "2026-09-12T13:23:42.948Z",
+  "durationMs": 652,
+  "sessionName": "A"
+}

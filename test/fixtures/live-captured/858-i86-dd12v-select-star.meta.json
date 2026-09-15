@@ -1,0 +1,32 @@
+{
+  "n": 858,
+  "label": "i86-dd12v-select-star",
+  "expect": null,
+  "note": "DD12V index header rows for a table with two secondary indexes.",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/datapreview/freestyle?rowNumber=50&sap-client=001",
+  "requestHeaders": {
+    "X-CSRF-Token": "<redacted>",
+    "Accept": "application/vnd.sap.adt.datapreview.table.v1+xml",
+    "Content-Type": "text/plain",
+    "Authorization": "<redacted>"
+  },
+  "requestBody": "SELECT * FROM dd12v WHERE sqltab = 'BDSLORE10'",
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-type": "application/vnd.sap.adt.datapreview.table.v1+xml; charset=utf-8",
+    "content-length": "13911",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-server": "true",
+    "sap-perf-fesrec": "1552312.000000"
+  },
+  "byteLength": 13911,
+  "zeroByteBody": false,
+  "sha256": "5b5f28adce727eec3525a962bbdd8b03c444b8aca7ece93261f6f76e164f873f",
+  "utcTimestamp": "2026-09-12T13:24:05.760Z",
+  "durationMs": 1731,
+  "sessionName": "A"
+}

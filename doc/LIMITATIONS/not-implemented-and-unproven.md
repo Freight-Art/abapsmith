@@ -2,7 +2,20 @@
 
 ## Not implemented
 
-No runtime tracing, no profiling, and no package tree navigation.
+No package tree navigation.
+
+`abap_trace` now covers ABAP runtime tracing (SAT) and, on the reference
+release, SQL tracing folded into it as the `sql_trace` flag rather than as
+a standalone resource — see [doc/TOOLS/abap-trace.md](../TOOLS/abap-trace.md).
+What remains genuinely unproven: the standalone ADT SQL-trace collection at
+`/sap/bc/adt/runtime/traces/sqltraces` does not exist as a resource on the
+reference release (a GET answers "does not exist," and ADT discovery there
+does not advertise `traces.sqltraces`), so the code path for it is exercised
+only against fakes and is never called by this tool — do not read
+`sql_trace` as proof that the standalone collection works anywhere. There is
+also no profiling beyond what a trace's hit list, database-access view and
+call tree already give: no sampling profiler, no aggregate-across-runs view,
+and no way to compare two traces against each other.
 
 `abap_search mode=source` now scans source text line by line — see
 [doc/TOOLS/read-and-search.md](../TOOLS/read-and-search.md) — but it is
@@ -28,10 +41,14 @@ standalone probe class, but the reference system runs a released bundle
 that predates this feature, so the MCP tool call itself is covered only by
 tests against a fake fluid runtime.
 
-ATC exists (`abap_atc`) but only as run-and-collect. Exemption proposals,
-exemption requests, contact-person lookup and check documentation are
-deliberately absent: an agent that can request an ATC exemption is an agent
-that can silence a finding instead of fixing it.
+ATC (`abap_atc`) runs and collects: one object, several objects in one call,
+or a whole package (optionally with its subpackages, expanded client-side).
+It also lists check variants and attempts to delete a worklist by id — a
+real DELETE, refused with HTTP 405 on this SAP release, not a client-side
+choice never to try. Exemption proposals, exemption requests, contact-person
+lookup and check documentation are deliberately absent: an agent that can
+request an ATC exemption is an agent that can silence a finding instead of
+fixing it. There is still no variant create.
 
 **Removing one locked object entry from a transport request — implemented,
 guarded against CTS's own duplicate-entry refusal; unlocking one without
@@ -150,23 +167,97 @@ exist and may work, but have not been exercised against a real system.
   target-system errors — is untested.
 - **`abap_transport` `addUser` and `setOwner`** have unit tests but no captured
   wire behaviour from a live system.
-- **`abap_atc` is partially proven, not "the whole of it is unproven."** A
-  live run against A4H (`$TMP` PROG `ZMCP_ATC_PROBE2`, captured 2026-08-01
-  during abap_atc's live verification and kept as
+- **`abap_service` `op="publish"` and `op="unpublish"`** are no longer in
+  this category: both were executed against A4H (client 001,
+  `ABAP_MODE=admin`, 2026-09-15) for a V2 binding and a V4 binding, each
+  followed by a read confirming the resulting live/not-published state. The
+  V2 publish's first attempt timed out at the ADT layer (60000 ms,
+  `ADT_ERROR`); the `service-publish` journal entry had already been
+  written as pending (fail-closed, before the POST), and a re-read showed
+  the binding still unpublished, so the timed-out POST had not landed — the
+  immediate retry succeeded. See
+  [doc/TOOLS/abap-service.md](../TOOLS/abap-service.md) for the full
+  account, including the V4 run (no timeout) and the reserved-namespace
+  refusal observed on `/DMO/UI_TRAVEL_U_V2`. (The OData metadata read
+  itself was already live-verified for both V2 and V4.) The compensating
+  action recorded for a publish is an explicit `abap_service op="unpublish"`
+  call, not an undo: `abap_journal mode=undo` refuses a
+  `service-publish`/`service-unpublish` entry outright (`irreversible:
+  true`) and names that call instead of attempting to reverse it.
+- **`abap_atc` is now proven well beyond the single-object case, not just
+  "partially proven."** The original live run against A4H (`$TMP` PROG
+  `ZMCP_ATC_PROBE2`, captured 2026-08-01, kept as
   `test/fixtures/live-captured/438-atc2-run.xml` and
-  `439-atc2-worklist-read.xml`) exercised the real wire protocol and
-  confirmed several things that used to be pure inference: the run POST
-  really is **synchronous** (the captured response came back after ~13s with
-  full results embedded, no polling involved); `worklistId` /
-  `worklistTimestamp` and `<info>` really are child elements, not attributes;
-  and the worklist read's finding/object attribute names match the parser.
-  That same capture is also live proof of a duplicate-note defect: the
-  server's run acknowledgement literally contains two byte-identical
-  `<info>` nodes (`type=FINDING_STATS`, `description=0,1,0`), independent
-  of whether any fix for it has been verified. `doc/TOOLS/abap-atc.md` lists precisely which parts are now grounded in
-  that capture and which remain inferred — the attribute-shape `<info>`
-  variant this parser also accepts has still never been observed live, and
-  neither has `objectSetIsComplete`'s absence, a DELETE endpoint, or
-  behaviour on an object type other than PROG.
-- **The debugger is single-session.** One reserved debug lease, one live
-  session. Concurrent debugging from two agents is not supported and not tested.
+  `439-atc2-worklist-read.xml`) confirmed the run POST really is
+  **synchronous** (the captured response came back after ~13s with full
+  results embedded, no polling involved); `worklistId` / `worklistTimestamp`
+  and `<info>` really are child elements, not attributes; and the worklist
+  read's finding/object attribute names match the parser. That same capture
+  is also live proof of a duplicate-note defect: the server's run
+  acknowledgement literally contains two byte-identical `<info>` nodes
+  (`type=FINDING_STATS`, `description=0,1,0`).
+
+  Eight further captures against the same appliance (2026-09-12, issue #78,
+  `852`–`859`) settled most of what was previously unproven: a run against
+  more than one package in a single request (`853`, two package references
+  in one `objectSet`, 23s); a worklist read after several runs have
+  accumulated, including three persisted `PACKAGE`-kind object sets and a
+  worklist element with no `timestamp` attribute at all (`854`/`855`); a
+  genuine zero-findings clean read (`855`, a TABL target, HTTP 200); a
+  second check variant producing a genuinely different result set for the
+  same object (`856`, 5 findings versus 7); check-variant discovery and
+  validation via repository quickSearch (`852`, all 19 real variant names on
+  this appliance); and, most operationally important, **both worklist-delete
+  paths are now settled, not merely un-attempted**: a real `DELETE` on a
+  worklist answers 405 `ExceptionMethodNotSupported` (`857`), and the
+  advertised `?action=deleteFindings` action is a confirmed no-op traced to
+  a commented-out server-side handler, not just a black-box 200 (`858`).
+  `859` also confirms this system's ATC customizing names a default check
+  variant, which `op=variants` now surfaces. `doc/TOOLS/abap-atc.md` lists
+  precisely which parts are now grounded in these ten captures and which
+  remain inferred — the attribute-shape `<info>` variant this parser also
+  accepts has still never been observed live, nor has `objectSetIsComplete`
+  ever been observed flipping to `false` (a run sent with
+  `maximumVerdicts="100"` was observed coming back with 677 findings and
+  `objectSetIsComplete` still `"true"`, so `max_findings` is not honored as
+  a cap on this release), server-side subpackage expansion (A4H has no
+  customer package with subpackages to exercise it against), a true
+  `quickfixes` flag (every one observed so far reads false), a successful
+  worklist delete on a release that supports DELETE. Object types observed
+  live now include PROG, CLAS, INTF, a zero-findings TABL, and a DDLS view
+  that produced one error-severity finding (the last three as uncaptured
+  observations, not fixtures); a bad object name was also observed
+  live — HTTP 200 with an empty worklist, not an ADT error. Still unproven:
+  behaviour on a function group target, or an authorization failure
+  mid-run.
+- **The debugger's own concurrency cap is now configurable, but SAP's
+  per-user exclusivity is not something abapsmith can raise.**
+  `ABAP_DEBUG_SESSIONS` (default 1, hard-fails outside `1..4`) lets one
+  `abapsmith` process hold more than one concurrent debug lease locally,
+  capped from below by `ABAP_DEBUG_DIA_BUDGET` — see
+  [doc/CONFIGURATION](../CONFIGURATION/concurrency-and-activation.md). That
+  only widens this client's own ceiling. SAP allows exactly one active debug
+  listener per SAP user on a system: a second `POST
+  .../debugger/listeners` for the same user is refused with
+  `409`/`conflictDetected` (T100 `SY 530`, "Another session already exists
+  with global debugging scope for user X"), even when the refused request
+  carries a different `terminalId` from the holder's — verified live against
+  A4H, `test/cassettes/debugger/listener-conflict-409.cassette.json`. So
+  raising `ABAP_DEBUG_SESSIONS` above 1 for a single-`ABAP_USER` deployment
+  does not enable two concurrent debug sessions; it only moves the refusal
+  from this client (a local `SessionBusyError`) to SAP itself (the `409`
+  above) once the second lane's listener actually arms. A second lane only
+  has a chance of working when it authenticates as a genuinely different
+  `ABAP_USER` (two `abapsmith` processes, two different users), which has
+  not been demonstrated on this appliance; or once a terminal-scoped
+  debugging mode (`debuggingMode: "terminal"`) is proven functional — that
+  mode is modelled in this repo but has never been shown to work. Concurrent
+  debugging from two agents sharing one SAP user is therefore still not
+  possible today, regardless of client-side configuration.
+- **`abap_trace`'s standalone SQL-trace path.** The dedicated ADT SQL-trace
+  collection (`/sap/bc/adt/runtime/traces/sqltraces`) has code behind it in
+  this codebase but has never been run against a real system: the reference
+  release does not serve that resource at all (a GET answers "does not
+  exist," and its ADT discovery document does not advertise
+  `traces.sqltraces`). Only `sql_trace` inside the ABAP-trace parameters,
+  which feeds the `db` view of an ordinary trace, is verified live.

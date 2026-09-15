@@ -29,7 +29,7 @@ import {
 } from "../src/debug/session.js";
 import { ACQUIRE_NO_SESSION_LEASE, LONGPOLL_TIMEOUT_MARGIN_MS } from "../src/debug/transport.js";
 import type { DebugRequestOptions, DebugSessionLease, LongPollHandle } from "../src/debug/transport.js";
-import type { Breakpoint, DebugContext, DebugSettings, RawResponse } from "../src/debug/types.js";
+import type { Breakpoint, DebugContext, DebugSettings, RawResponse, Watchpoint } from "../src/debug/types.js";
 import { SafetyGate } from "../src/safety.js";
 import { LIVE_CAPTURED_DIR } from "./helpers/system-role-fake.js";
 
@@ -122,6 +122,38 @@ const BREAKPOINTS_XML =
   `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
   `<dbg:breakpoint kind="line" id="BP1"/></dbg:breakpoints>`;
 
+/**
+ * Two owned line breakpoints, mirroring the live 2026-09-15 ZCL_I89_PROBE3
+ * sequence (source lines 39 and 34) that `removeBreakpoint()`'s re-assert POST
+ * exists for — see its doc comment in `session.ts`.
+ */
+const BREAKPOINTS_XML_TWO_LINES =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="line" id="BP1" uri="/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39"/>` +
+  `<dbg:breakpoint kind="line" id="BP2" uri="/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=34"/>` +
+  `</dbg:breakpoints>`;
+
+/**
+ * A single owned line breakpoint, WITH a real `uri` (unlike `BREAKPOINTS_XML`'s
+ * uri-less row). `notifyDebuggeeOfOwnedBreakpoints()` re-serialises owned rows
+ * for its re-assert POST, and a `line` breakpoint's `uri` is mandatory on the
+ * wire (`REQUIRED_BREAKPOINT_FIELDS` in `xml-request.ts`) — an owned row
+ * missing one makes that re-serialisation throw, which the notify's
+ * best-effort try/catch then swallows without ever reaching the transport.
+ * Tests that need to observe a real notify POST must arm breakpoints whose
+ * echoed rows carry a `uri`, hence these two (same lines as
+ * `BREAKPOINTS_XML_TWO_LINES`, echoed one at a time to simulate two separate
+ * `addBreakpoints()` calls building up ownership).
+ */
+const BREAKPOINTS_LINE39_XML =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="line" id="BP1" uri="/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39"/>` +
+  `</dbg:breakpoints>`;
+const BREAKPOINTS_LINE34_XML =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="line" id="BP2" uri="/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=34"/>` +
+  `</dbg:breakpoints>`;
+
 const okResponse = (body = ""): RawResponse => ({ status: 200, headers: {}, body });
 
 // ---------------------------------------------------------------------------
@@ -200,6 +232,9 @@ const LISTENER_ABSENT: Thunk = () => {
 const LISTENER_EXISTS: Thunk = () => okResponse("");
 const OK: Thunk = () => okResponse("");
 const BREAKPOINTS_OK: Thunk = () => okResponse(BREAKPOINTS_XML);
+const BREAKPOINTS_TWO_OK: Thunk = () => okResponse(BREAKPOINTS_XML_TWO_LINES);
+const BREAKPOINTS_LINE39_OK: Thunk = () => okResponse(BREAKPOINTS_LINE39_XML);
+const BREAKPOINTS_LINE34_OK: Thunk = () => okResponse(BREAKPOINTS_LINE34_XML);
 const TERMINATE_OK: Thunk = () => okResponse("");
 /** The 500-is-success shape — see debug-client.test.ts's terminateDebuggee tests. */
 const TERMINATE_500_SUCCESS: Thunk = () => {
@@ -259,14 +294,20 @@ class FakeListener implements DebugListenIssuer {
 // Session factory
 // ---------------------------------------------------------------------------
 
-function makeSession(opts: {
+/**
+ * Same session construction as `makeSession()`, but also hands back the
+ * underlying real `DebugClient` instance so a test can attach fake watchpoint
+ * methods onto it — see `withFakeWatchpointMethods()` below for why that's a
+ * separate mechanism from `FakeTransport`.
+ */
+function makeSessionWithClient(opts: {
   transport: FakeTransport;
   listener?: FakeListener;
   sessionOpts?: Partial<Omit<DebugSessionOptions, "client" | "context">>;
-}): DebugSession {
+}): { session: DebugSession; client: DebugClient } {
   const listener = opts.listener ?? new FakeListener();
   const client = new DebugClient({ transport: opts.transport, longPoll: listener });
-  return new DebugSession({
+  const session = new DebugSession({
     client,
     context: CONTEXT,
     registrationPollIntervalMs: 50,
@@ -274,6 +315,41 @@ function makeSession(opts: {
     idleTimeoutMs: 100_000,
     ...opts.sessionOpts,
   });
+  return { session, client };
+}
+
+function makeSession(opts: {
+  transport: FakeTransport;
+  listener?: FakeListener;
+  sessionOpts?: Partial<Omit<DebugSessionOptions, "client" | "context">>;
+}): DebugSession {
+  return makeSessionWithClient(opts).session;
+}
+
+/**
+ * Attaches minimal watchpoint-method stand-ins directly onto a REAL
+ * `DebugClient` instance (built from `FakeTransport` like every other test in
+ * this file). `createWatchpoint`/`listWatchpoints`/`deleteWatchpoint` are a
+ * separate, concurrent piece of `client.ts` not yet landed as of this file —
+ * the wire contract (`Watchpoint` shape, query-string-only POST/PUT) is fixed
+ * by `types.ts`/`endpoints.ts`, which HAVE landed, but the XML/JSON parsing
+ * behind these three methods has not. These tests exist to pin
+ * `DebugSession`'s OWN bookkeeping (ownership tracking, refusal messages,
+ * cleanup ordering) against that contract, not to also re-verify `client.ts`'s
+ * eventual response parsing — that belongs in `debug-client.test.ts` once the
+ * methods land. `Object.assign` (not `vi.spyOn`) is used deliberately: it
+ * attaches own-properties that shadow the (possibly still-missing) prototype
+ * methods without requiring them to already exist.
+ */
+function withFakeWatchpointMethods(
+  client: DebugClient,
+  methods: {
+    createWatchpoint?: (params: { variableName: string; condition?: string }) => Promise<Watchpoint[]>;
+    listWatchpoints?: () => Promise<Watchpoint[]>;
+    deleteWatchpoint?: (id: string) => Promise<void>;
+  },
+): DebugClient {
+  return Object.assign(client, methods);
 }
 
 /** Drains any microtask chains left dangling by a fire-and-forget `void this.terminate(...)` call (the idle timer's callback). */
@@ -1341,7 +1417,13 @@ describe("5.7 — abandoned cleanup steps reach the caller, not just stderr", ()
     const pending = session.terminate().then(() => {
       settled = true;
     });
-    await vi.advanceTimersByTimeAsync(1_600); // past TERMINATE_STEP_DEADLINE_MS
+    // Breakpoint DELETE is now deadlined at BREAKPOINT_DELETE_DEADLINE_MS
+    // (6000ms), NOT the shorter TERMINATE_STEP_DEADLINE_MS (1500ms) this test
+    // used to advance past — see src/debug/session.ts's doc comment on that
+    // constant for the live 2.1-2.9s measurement behind the change. One owned
+    // breakpoint also raises this session's own terminateDeadlineMs to 10_000ms
+    // (4_000 base + 1*6_000), comfortably clearing the individual step's 6_000ms.
+    await vi.advanceTimersByTimeAsync(6_100); // past BREAKPOINT_DELETE_DEADLINE_MS
     await flushMicrotasks();
 
     expect(settled).toBe(true);
@@ -1349,10 +1431,16 @@ describe("5.7 — abandoned cleanup steps reach the caller, not just stderr", ()
     expect(session.snapshot.status).toBe("dead");
 
     // stderr still gets its line (unchanged behaviour) ...
-    expect(log.some((l) => /did not return within 1500ms during cleanup/.test(l))).toBe(true);
+    expect(log.some((l) => /did not return within 6000ms during cleanup/.test(l))).toBe(true);
     // ...and now `snapshot` carries the same fact, naming the breakpoint op.
     expect(session.snapshot.abandonedCleanupSteps).toHaveLength(1);
     expect(session.snapshot.abandonedCleanupSteps?.[0]).toMatch(/breakpoint/i);
+    // Exactly one DELETE attempt — a TIMED-OUT delete is never retried (unlike a
+    // rejected one): the first request may still be running on the shared
+    // connection, so a second one would create exactly the in-flight overlap
+    // that produced the live "Debuggee already attached" defect this fixes.
+    // See `deleteOwnedBreakpoints()`'s doc comment in src/debug/session.ts.
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(1);
   });
 
   it("formatAbandonedCleanupNote turns the recorded step(s) into the exact 'stop' response line", async () => {
@@ -1382,6 +1470,279 @@ describe("5.7 — abandoned cleanup steps reach the caller, not just stderr", ()
     // Nothing to report: `handleStop` in src/tools/debug.ts only pushes a note
     // when this is non-empty, so an ordinary stop stays byte-identical.
     expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue-89 — live defect, 2026-09-15: `stop` reported "Cleanup timed out on:
+// deleting this session's breakpoint ... — may still be armed", and the next
+// `start` failed with HTTP 500 "Debuggee already attached". Root cause was
+// `TERMINATE_STEP_DEADLINE_MS=1500` governing breakpoint DELETE, which live
+// measurement shows takes 2.1-2.9s once no longer attached (raw probes
+// 2303/2115/2124ms; ledger.tsv rows 921-924: 2684/2945/2643/2603ms) — the old
+// deadline could never succeed, `settleWithin()` never aborts the abandoned
+// request, and it collided with the next session's attach. These tests cover
+// the fix: a separate, longer `BREAKPOINT_DELETE_DEADLINE_MS`, a
+// `terminateDeadlineMs` that scales with how many breakpoints/watchpoints are
+// owned, deleting breakpoints BEFORE terminateDebuggee (the fast, still-
+// attached path — ledger rows 918/951: 104ms/97ms), a narrow retry-once
+// policy for a REJECTED (not timed-out) delete, and a broadened
+// `isDoubleAttachError` that also recognizes the live error's actual shape.
+// ---------------------------------------------------------------------------
+
+/** A 4-owned-breakpoints arm response — needed only where the test cares about scaling `terminateDeadlineMs`/deleting more than one id; `BREAKPOINTS_XML` (single row) is enough everywhere else. */
+const BREAKPOINTS_4_XML =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="statement" id="BP1"/><dbg:breakpoint kind="statement" id="BP2"/>` +
+  `<dbg:breakpoint kind="statement" id="BP3"/><dbg:breakpoint kind="statement" id="BP4"/></dbg:breakpoints>`;
+
+/** A `Thunk` that resolves like a normal 200 after `ms` — models a slow-but-successful breakpoint DELETE (2.1-2.9s live), as opposed to `HANGS` (never resolves). Fake timers make the `setTimeout` inside this deterministic. */
+const delayedOk =
+  (ms: number, body = BREAKPOINTS_XML): Thunk =>
+  () =>
+    new Promise<RawResponse>((resolve) => setTimeout(() => resolve(okResponse(body)), ms)) as unknown as RawResponse;
+
+describe("issue-89 — BREAKPOINT_DELETE_DEADLINE_MS and terminateDeadlineMs scaling", () => {
+  it("a breakpoint DELETE resolving after ~2500ms completes cleanup cleanly — would have been abandoned under the old 1500ms TERMINATE_STEP_DEADLINE_MS", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, delayedOk(2_500)],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    await session.attach("D1");
+
+    let settled = false;
+    const pending = session.terminate().then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(2_600); // past the delayed DELETE, well under BREAKPOINT_DELETE_DEADLINE_MS (6000ms)
+    await flushMicrotasks();
+
+    expect(settled).toBe(true);
+    await pending;
+    expect(session.snapshot.status).toBe("dead");
+    expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(1);
+  });
+
+  it("terminateDeadlineMs is the base plus BREAKPOINT_DELETE_DEADLINE_MS per owned breakpoint, capped at TERMINATE_MAX_DEADLINE_MS", async () => {
+    // 0 owned: just the base.
+    const session0 = makeSession({ transport: new FakeTransport({}) });
+    expect(session0.terminateDeadlineMs).toBe(4_000);
+
+    // 1 owned.
+    const transport1 = new FakeTransport({ setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK] });
+    const session1 = makeSession({ transport: transport1 });
+    await session1.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    expect(session1.terminateDeadlineMs).toBe(4_000 + 1 * 6_000);
+
+    // 4 owned.
+    const transport4 = new FakeTransport({ setBreakpoints: [BREAKPOINTS_OK, () => okResponse(BREAKPOINTS_4_XML)] });
+    const session4 = makeSession({ transport: transport4 });
+    await session4.prepareBreakpoints([
+      { kind: "statement", statement: "WRITE" },
+      { kind: "statement", statement: "RAISE" },
+      { kind: "statement", statement: "CALL" },
+      { kind: "statement", statement: "MOVE" },
+    ]);
+    expect(session4.terminateDeadlineMs).toBe(4_000 + 4 * 6_000);
+
+    // Cap: 10 owned would be 4_000 + 10*6_000 = 64_000, clamped to 60_000.
+    // terminate() is never called here — no network DELETE is issued — this
+    // only pins the getter's own arithmetic against ownership bookkeeping.
+    const tenRowsXml =
+      `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+      Array.from({ length: 10 }, (_, i) => `<dbg:breakpoint kind="statement" id="BP${i}"/>`).join("") +
+      `</dbg:breakpoints>`;
+    const transportCap = new FakeTransport({ setBreakpoints: [BREAKPOINTS_OK, () => okResponse(tenRowsXml)] });
+    const sessionCap = makeSession({ transport: transportCap });
+    await sessionCap.prepareBreakpoints(
+      Array.from({ length: 10 }, (_, i) => ({ kind: "statement" as const, statement: `STMT${i}` })),
+    );
+    expect(sessionCap.terminateDeadlineMs).toBe(60_000);
+  });
+
+  it("terminate() with 4 owned breakpoints, each taking ~2500ms to delete, issues all 4 deletes and abandons none", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK, () => okResponse(BREAKPOINTS_4_XML), delayedOk(2_500)],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([
+      { kind: "statement", statement: "WRITE" },
+      { kind: "statement", statement: "RAISE" },
+      { kind: "statement", statement: "CALL" },
+      { kind: "statement", statement: "MOVE" },
+    ]);
+    expect(session.terminateDeadlineMs).toBe(28_000); // 4_000 + 4*6_000, read before terminate() drains ownership
+
+    await session.attach("D1");
+
+    let settled = false;
+    const pending = session.terminate().then(() => {
+      settled = true;
+    });
+    // deleteOwnedBreakpoints() issues its 4 DELETEs sequentially, so 4 x
+    // ~2500ms is ~10_000ms of simulated time — comfortably under this
+    // session's 28_000ms terminateDeadlineMs.
+    await vi.advanceTimersByTimeAsync(10_100);
+    await flushMicrotasks();
+
+    expect(settled).toBe(true);
+    await pending;
+    expect(session.snapshot.status).toBe("dead");
+    expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(4);
+  });
+
+  it("deletes the owned breakpoint BEFORE terminateDebuggee — the fast, still-attached path (ledger rows 918/951 vs 921-924)", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    await session.attach("D1");
+    expect(session.snapshot.status).toBe("suspended");
+
+    await session.terminate();
+
+    const deleteIdx = transport.calls.findIndex(
+      (c) => c.method === "DELETE" && c.path.includes("/debugger/breakpoints"),
+    );
+    const terminateDebuggeeIdx = transport.calls.findIndex((c) => /[?&]method=terminateDebuggee/.test(c.path));
+    expect(deleteIdx).toBeGreaterThanOrEqual(0);
+    expect(terminateDebuggeeIdx).toBeGreaterThanOrEqual(0);
+    expect(deleteIdx).toBeLessThan(terminateDebuggeeIdx);
+    // Exactly one DELETE: the trailing deleteOwnedBreakpoints() call at the end
+    // of terminationSteps() is a no-op here — ownedBreakpoints was already
+    // drained by the earlier, in-sequence call this test just verified the
+    // position of. See terminationSteps()'s comment on that trailing call.
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(1);
+  });
+
+  it("a breakpoint DELETE that REJECTS (not a timeout) with a non-NOT_FOUND error is retried once and succeeds — no abandoned step", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [
+        BREAKPOINTS_OK, // validation pass
+        BREAKPOINTS_OK, // arming pass
+        () => {
+          throw new AbapError("ADT_ERROR", "transient failure, not NOT_FOUND", { status: 500 });
+        }, // 1st delete attempt: rejects
+        BREAKPOINTS_OK, // retry: succeeds
+      ],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    await session.attach("D1");
+    await session.terminate();
+
+    expect(session.snapshot.status).toBe("dead");
+    expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+    // The retry is safe specifically BECAUSE the delete is idempotent (HTTP 200,
+    // zero-byte body, even for an id that's already gone) and the first attempt
+    // had definitely ended (rejected, not hung) — see deleteOwnedBreakpoints().
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(2);
+  });
+
+  it("a breakpoint DELETE that never settles is issued exactly ONCE — a timeout is never retried, unlike a rejection", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, HANGS],
+    });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+    await session.attach("D1");
+
+    let settled = false;
+    const pending = session.terminate().then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(6_100); // past BREAKPOINT_DELETE_DEADLINE_MS
+    await flushMicrotasks();
+
+    expect(settled).toBe(true);
+    await pending;
+    // Reported so the caller finds out (this is the live defect's exact
+    // symptom) — but NOT retried: the first request may still be running on
+    // the shared connection, so retrying would just create a second one and
+    // reproduce the same overlap that caused "Debuggee already attached".
+    expect(session.snapshot.abandonedCleanupSteps).toHaveLength(1);
+    expect(transport.callsOf("setBreakpoints").filter((c) => c.method === "DELETE")).toHaveLength(1);
+  });
+});
+
+/** The exact live error shape observed 2026-09-15: HTTP 500, `subtype:"attach"`, `abapType:"AdiFailed"`, no `subtype:"invalidDebuggee"` anywhere — not committed as a fixture file, only reproduced here from the incident report. */
+const ATTACH_ALREADY_ATTACHED_LIVE_SHAPE: Thunk = () => {
+  throw new AbapError("ADT_ERROR", "Debuggee already attached", {
+    status: 500,
+    subtype: "attach",
+    abapType: "AdiFailed",
+    bodyExcerpt: "Debuggee already attached",
+  });
+};
+
+describe("issue-89 — isDoubleAttachError also recognizes the live error shape (subtype:\"attach\"/abapType:\"AdiFailed\"), not only subtype:\"invalidDebuggee\"", () => {
+  it("attach() recovers via getStack() for the live shape, same as the subtype:invalidDebuggee shape", async () => {
+    const transport = new FakeTransport({
+      attach: [ATTACH_ALREADY_ATTACHED_LIVE_SHAPE],
+      getStack: [stackOk({ programName: "ZTEST_MCP_CRUD", line: 15 })],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+
+    const { stack, stateId } = await session.attach("D1");
+
+    expect(stack.frames[0]?.programName).toBe("ZTEST_MCP_CRUD");
+    expect(stateId).toBeTruthy();
+    expect(session.snapshot.status).toBe("suspended");
+    expect(transport.callsOf("getStack")).toHaveLength(1);
+  });
+
+  it("when the follow-up getStack() ALSO fails, SESSION_DEAD 'does not belong to this session' is still raised, unchanged", async () => {
+    const transport = new FakeTransport({
+      attach: [ATTACH_ALREADY_ATTACHED_LIVE_SHAPE],
+      getStack: [
+        () => {
+          throw new AbapError("NOT_CONNECTED", "no attached debuggee");
+        },
+      ],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+
+    await expect(session.attach("D1")).rejects.toSatisfy((e: unknown) => {
+      expect(isAbapError(e)).toBe(true);
+      expect((e as AbapError).code).toBe("SESSION_DEAD");
+      expect((e as AbapError).message).toMatch(/does not belong to this session/i);
+      return true;
+    });
   });
 });
 
@@ -2610,5 +2971,713 @@ describe("armLock — released on every path that stops listening", () => {
     await expect(session.terminate()).resolves.toBeUndefined();
     expect(session.snapshot.status).toBe("dead");
     expect(listActiveDebugSessions()).not.toContain(session);
+  });
+});
+
+// ===========================================================================
+// B1 — addBreakpoints() / listOwnedBreakpoints() / removeBreakpoint(),
+// stopped-state watchpoints (addWatchpoint / listWatchpoints /
+// removeWatchpoint / readWatchpoints)
+// ===========================================================================
+
+/** A refusal row parses to a `BreakpointError` (has `errorMessage`, no `id`) — see `parseBreakpointsResponse`. */
+const REFUSAL_XML =
+  `<?xml version="1.0"?><dbg:breakpoints xmlns:dbg="http://www.sap.com/adt/debugger">` +
+  `<dbg:breakpoint kind="line" clientId="bad1" errorMessage="Invalid source position"/></dbg:breakpoints>`;
+
+describe("addBreakpoints()", () => {
+  it("validates then arms (two setBreakpoints calls), neither carrying syncScope, and the result is owned", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+
+    const created = await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    expect(created).toMatchObject([{ kind: "line", id: "BP1" }]);
+
+    const bpCalls = transport.callsOf("setBreakpoints");
+    expect(bpCalls).toHaveLength(2);
+    for (const call of bpCalls) {
+      expect(call.body ?? "").not.toContain("syncScope");
+    }
+    expect(bpCalls[0]!.body ?? "").toContain('validationOnly="true"');
+
+    expect(session.listOwnedBreakpoints()).toMatchObject([{ kind: "line", id: "BP1" }]);
+  });
+
+  it("an empty breakpoints array is refused before any network call, even on an idle (never-attached) session", async () => {
+    const transport = new FakeTransport({});
+    const session = makeSession({ transport });
+
+    await expect(session.addBreakpoints("whatever-stateid", [])).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain("at least one breakpoint is required");
+      return true;
+    });
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("refuses when the session has never attached (\"No active debug session state\")", async () => {
+    const transport = new FakeTransport({});
+    const session = makeSession({ transport });
+
+    await expect(
+      session.addBreakpoints("whatever-stateid", [{ kind: "line", uri: "/some/uri#start=1" }]),
+    ).rejects.toSatisfy((e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.message.includes("No active debug session state"));
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("refuses a stale stateId, naming the CURRENT one, without issuing any breakpoint call", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 16 })],
+      step: [stepOk()],
+    });
+    const session = makeSession({ transport });
+
+    const { stateId: stateId1 } = await session.attach("D1");
+    const { stateId: stateId2 } = await session.step(stateId1, "stepOver");
+    expect(stateId2).not.toBe(stateId1);
+
+    await expect(
+      session.addBreakpoints(stateId1, [{ kind: "line", uri: "/some/uri#start=1" }]),
+    ).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain(stateId2);
+      expect(e.details["currentStateId"]).toBe(stateId2);
+      expect(e.details["providedStateId"]).toBe(stateId1);
+      return true;
+    });
+    expect(transport.callsOf("setBreakpoints")).toHaveLength(0);
+  });
+
+  it("a validation refusal arms nothing (only one setBreakpoints call) and throws BAD_INPUT naming the refusal", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [() => okResponse(REFUSAL_XML)],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+
+    await expect(
+      session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/bad/uri#start=1" }]),
+    ).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain("Invalid source position");
+      return true;
+    });
+    // Only the validation pass went out — the arming pass never happened.
+    expect(transport.callsOf("setBreakpoints")).toHaveLength(1);
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("breakpoints armed via addBreakpoints() are deleted by terminate(), same as prepareBreakpoints()'s", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    await session.terminate();
+
+    const deleteCall = transport.callsOf("setBreakpoints").at(-1)!;
+    expect(deleteCall.method).toBe("DELETE");
+    expect(deleteCall.path).toContain("/debugger/breakpoints/BP1");
+  });
+});
+
+describe("listOwnedBreakpoints()", () => {
+  it("is synchronous, issues nothing, and starts empty", async () => {
+    const transport = new FakeTransport({});
+    const session = makeSession({ transport });
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("returns a fresh copy — mutating the returned array does not affect the session's own bookkeeping", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+
+    const first = session.listOwnedBreakpoints();
+    first.pop();
+    expect(session.listOwnedBreakpoints()).toHaveLength(1);
+  });
+});
+
+describe("removeBreakpoint()", () => {
+  it("refuses an id this session does not own, naming the ids it does own, without touching the network", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    const callsBefore = transport.calls.length;
+
+    await expect(session.removeBreakpoint(stateId, "NOT-OWNED")).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain("NOT-OWNED");
+      expect(e.message).toContain("BP1");
+      return true;
+    });
+    expect(transport.calls).toHaveLength(callsBefore);
+    expect(session.listOwnedBreakpoints()).toMatchObject([{ kind: "line", id: "BP1" }]);
+  });
+
+  it("deletes an owned breakpoint via a targeted DELETE and drops it from listOwnedBreakpoints()", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+
+    await session.removeBreakpoint(stateId, "BP1");
+
+    // Not `.at(-1)` — while attached to a suspended debuggee, removeBreakpoint()
+    // also issues a follow-up notify-only POST after the DELETE (see the
+    // "removeBreakpoint() notify POST" describe block below), so the DELETE is no
+    // longer necessarily the last "setBreakpoints"-classified call.
+    const deleteCall = transport.callsOf("setBreakpoints").find((c) => c.method === "DELETE")!;
+    expect(deleteCall).toBeDefined();
+    expect(deleteCall.path).toContain("/debugger/breakpoints/BP1");
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("treats a server NOT_FOUND as already-gone: resolves and drops the id locally", async () => {
+    const notFound: Thunk = () => {
+      throw new AbapError("NOT_FOUND", "breakpoint no longer exists");
+    };
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, notFound],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+
+    await expect(session.removeBreakpoint(stateId, "BP1")).resolves.toBeUndefined();
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("refuses a stale stateId, naming the CURRENT one", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 16 })],
+      setBreakpoints: [BREAKPOINTS_OK],
+      step: [stepOk()],
+    });
+    const session = makeSession({ transport });
+    const { stateId: stateId1 } = await session.attach("D1");
+    await session.addBreakpoints(stateId1, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    const { stateId: stateId2 } = await session.step(stateId1, "stepOver");
+
+    await expect(session.removeBreakpoint(stateId1, "BP1")).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.details["currentStateId"] === stateId2,
+    );
+  });
+
+  it("refuses on a session that has never attached", async () => {
+    const transport = new FakeTransport({});
+    const session = makeSession({ transport });
+    await expect(session.removeBreakpoint("whatever", "BP1")).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.message.includes("No active debug session state"),
+    );
+    expect(transport.calls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issue-89 — `debuggeeSessionIds` notify wiring. Without this, a breakpoint
+// add/remove issued while a debuggee is SUSPENDED only takes effect one
+// stop-cycle late: SAP only reloads breakpoints for a live debuggee via
+// `notify_dbg_sess_ids` -> `debuggee_reload_bps` -> RFC `DEBUGGEE_STOP
+// kind='R'`, and that chain is only driven by this query parameter on POST
+// (see `BreakpointsPostQuery.debuggeeSessionIds`'s doc comment in
+// `endpoints.ts`). `attachXml()` always sets `debuggeeSessionId="debuggee456"`,
+// so every session attached via `attachOk()` has a non-empty id to send.
+// ---------------------------------------------------------------------------
+
+describe("issue-89 — debuggeeSessionIds notify wiring", () => {
+  it("addBreakpoints() while suspended: validation and arming carry no debuggeeSessionIds, then a third POST notifies with the FULL owned set (pre-existing + new)", async () => {
+    const line39Uri = "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39";
+    const line34Uri = "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=34";
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      // First addBreakpoints() call (validation, arming, notify) establishes
+      // ownership of line 39 — the pre-existing breakpoint the regression is
+      // about: the live 2026-09-15 bug replaced this with the SECOND call's
+      // delta body, dropping it silently. Second call (validation, arming,
+      // notify) is the one under test, adding line 34.
+      setBreakpoints: [BREAKPOINTS_LINE39_OK, BREAKPOINTS_LINE39_OK, OK, BREAKPOINTS_LINE34_OK, BREAKPOINTS_LINE34_OK, OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: line39Uri }]);
+    const callsBeforeSecondAdd = transport.callsOf("setBreakpoints").length;
+
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: line34Uri }]);
+
+    const bpCalls = transport.callsOf("setBreakpoints").slice(callsBeforeSecondAdd);
+    expect(bpCalls).toHaveLength(3);
+    const [validationCall, armingCall, notifyCall] = bpCalls;
+    expect(validationCall!.path).not.toContain("debuggeeSessionIds");
+    expect(armingCall!.path).not.toContain("debuggeeSessionIds");
+    expect(notifyCall!.path).toContain("debuggeeSessionIds=debuggee456");
+
+    const body = notifyCall!.body ?? "";
+    expect(body).not.toContain("syncScope");
+    expect(body).not.toContain(' id="');
+    expect(body).not.toContain("validationOnly");
+    // Both the pre-existing (line 39) and the newly-added (line 34) breakpoints
+    // are present — proving the notify body is the FULL owned set, not just
+    // the delta this call happened to add (the exact live regression: a
+    // delta-shaped body silently drops every breakpoint not repeated in it).
+    expect(body).toContain(`adtcore:uri="${line39Uri}"`);
+    expect(body).toContain(`adtcore:uri="${line34Uri}"`);
+    expect(body.match(/<breakpoint /g) ?? []).toHaveLength(2);
+  });
+
+  it("prepareBreakpoints() (pre-attach, not suspended) issues only the two passes — no third notify POST", async () => {
+    const transport = new FakeTransport({ setBreakpoints: [BREAKPOINTS_OK] });
+    const session = makeSession({ transport });
+
+    await session.prepareBreakpoints([{ kind: "statement", statement: "WRITE" }]);
+
+    const bpCalls = transport.callsOf("setBreakpoints");
+    expect(bpCalls).toHaveLength(2);
+    for (const call of bpCalls) {
+      expect(call.path).not.toContain("debuggeeSessionIds");
+    }
+  });
+
+  it("removeBreakpoint() issues exactly one follow-up POST that re-asserts the still-owned breakpoints (no id, no validationOnly, no syncScope), while attached", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_TWO_OK, BREAKPOINTS_TWO_OK, OK, OK],
+    });
+    const line39Uri = "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39";
+    const line34Uri = "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=34";
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    const [, bp34] = await session.addBreakpoints(stateId, [
+      { kind: "line", uri: line39Uri },
+      { kind: "line", uri: line34Uri },
+    ]);
+    const callsBeforeRemove = transport.calls.length;
+
+    // Remove line 34 — line 39 (armed in the same stop) survives and must be
+    // re-asserted, exactly like the live ZCL_I89_PROBE3 sequence this guards.
+    await session.removeBreakpoint(stateId, bp34!.id);
+
+    const callsAfterRemove = transport.calls.slice(callsBeforeRemove);
+    expect(callsAfterRemove).toHaveLength(2);
+    const [deleteCall, notifyCall] = callsAfterRemove;
+    expect(deleteCall!.method).toBe("DELETE");
+    expect(notifyCall!.method).toBe("POST");
+    expect(notifyCall!.path).toContain("/debugger/breakpoints");
+    expect(notifyCall!.path).toContain("debuggeeSessionIds=debuggee456");
+    const body = notifyCall!.body ?? "";
+    expect(body).not.toContain("syncScope");
+    expect(body).not.toContain(' id="');
+    expect(body).not.toContain("validationOnly");
+    // The surviving breakpoint (line 39) is re-asserted...
+    expect(body).toContain(`adtcore:uri="${line39Uri}"`);
+    // ...but the removed one (line 34) is not, and there is exactly one <breakpoint> element.
+    expect(body).not.toContain(line34Uri);
+    expect(body.match(/<breakpoint /g) ?? []).toHaveLength(1);
+  });
+
+  it("removeBreakpoint() sends an empty breakpoints body in its follow-up POST when the removed breakpoint was the only one owned", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, OK, OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    const callsBeforeRemove = transport.calls.length;
+
+    await session.removeBreakpoint(stateId, "BP1");
+
+    const callsAfterRemove = transport.calls.slice(callsBeforeRemove);
+    expect(callsAfterRemove).toHaveLength(2);
+    const [deleteCall, notifyCall] = callsAfterRemove;
+    expect(deleteCall!.method).toBe("DELETE");
+    expect(notifyCall!.method).toBe("POST");
+    expect(notifyCall!.path).toContain("debuggeeSessionIds=debuggee456");
+    // Nothing left owned — the re-assert body is naturally empty, same as before.
+    expect(notifyCall!.body ?? "").not.toContain("<breakpoint ");
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("a rejecting notify POST does not fail removeBreakpoint — the removal already succeeded", async () => {
+    const notifyRejects: Thunk = () => {
+      throw new AbapError("ADT_ERROR", "notify boom");
+    };
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK, BREAKPOINTS_OK, OK, notifyRejects],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+
+    await expect(session.removeBreakpoint(stateId, "BP1")).resolves.toBeUndefined();
+    expect(session.listOwnedBreakpoints()).toEqual([]);
+  });
+
+  it("deleteOwnedBreakpoints() at shutdown issues no notify POST — one targeted DELETE per breakpoint, nothing else", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      // Real uri (unlike BREAKPOINTS_OK's) so addBreakpoints()'s own notify
+      // pass actually reaches the transport instead of being swallowed by its
+      // best-effort try/catch — otherwise this test would "pass" for the
+      // wrong reason and prove nothing about deleteOwnedBreakpoints() itself.
+      setBreakpoints: [BREAKPOINTS_LINE39_OK, BREAKPOINTS_LINE39_OK, OK, OK],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+    });
+    const session = makeSession({ transport });
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [
+      { kind: "line", uri: "/sap/bc/adt/oo/classes/zcl_i89_probe3/source/main#start=39" },
+    ]);
+
+    await session.terminate();
+
+    const bpCalls = transport.callsOf("setBreakpoints");
+    // validation pass + arming pass + addBreakpoints()'s own notify (3) +
+    // exactly one shutdown DELETE (1) = 4. deleteOwnedBreakpoints() itself
+    // contributes only the DELETE — no notify-only POST follows it.
+    expect(bpCalls).toHaveLength(4);
+    expect(bpCalls.filter((c) => c.method === "DELETE")).toHaveLength(1);
+    expect(bpCalls.filter((c) => c.method === "POST")).toHaveLength(3);
+    expect(bpCalls[bpCalls.length - 1]!.method).toBe("DELETE");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Watchpoints — `createWatchpoint`/`listWatchpoints`/`deleteWatchpoint` are a
+// separate, concurrent piece of `client.ts` not yet landed. These tests pin
+// `DebugSession`'s own bookkeeping (ownership tracking, refusal messages,
+// cleanup ordering) against the given contract via `withFakeWatchpointMethods()`
+// — a real `DebugClient` (built from `FakeTransport`/`FakeListener` as usual)
+// with just those three methods overridden directly on the instance.
+// ---------------------------------------------------------------------------
+
+const WP1: Watchpoint = { id: "WP1", variableName: "GV_COUNTER" };
+
+describe("addWatchpoint()", () => {
+  it("refuses a blank variableName before touching the network", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.reject(new Error("must not be called")),
+    });
+    const { stateId } = await session.attach("D1");
+    const callsBefore = transport.calls.length;
+
+    await expect(session.addWatchpoint(stateId, { variableName: "   " })).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.message.includes("must not be blank"),
+    );
+    expect(transport.calls).toHaveLength(callsBefore);
+  });
+
+  it("refuses when the session has never attached", async () => {
+    const transport = new FakeTransport({});
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.reject(new Error("must not be called")),
+    });
+
+    await expect(session.addWatchpoint("whatever", { variableName: "GV_COUNTER" })).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.message.includes("No active debug session state"),
+    );
+  });
+
+  it("refuses a stale stateId, naming the CURRENT one", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 16 })],
+      step: [stepOk()],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.reject(new Error("must not be called")),
+    });
+    const { stateId: stateId1 } = await session.attach("D1");
+    const { stateId: stateId2 } = await session.step(stateId1, "stepOver");
+
+    await expect(session.addWatchpoint(stateId1, { variableName: "GV_COUNTER" })).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT" && e.details["currentStateId"] === stateId2,
+    );
+  });
+
+  it("records the created id as owned, returned by listOwnedBreakpoints-equivalent readWatchpoints()", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      listWatchpoints: () => Promise.resolve([WP1]),
+    });
+    const { stateId } = await session.attach("D1");
+
+    const created = await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+    expect(created).toEqual([WP1]);
+
+    const owned = await session.readWatchpoints();
+    expect(owned).toEqual([WP1]);
+  });
+});
+
+describe("listWatchpoints()", () => {
+  it("returns the full session-visible list, unfiltered, and requires a valid stateId", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    const someoneElses: Watchpoint = { id: "WP-ECLIPSE", variableName: "GV_OTHER" };
+    withFakeWatchpointMethods(client, {
+      listWatchpoints: () => Promise.resolve([WP1, someoneElses]),
+    });
+    const { stateId } = await session.attach("D1");
+
+    await expect(session.listWatchpoints(stateId)).resolves.toEqual([WP1, someoneElses]);
+  });
+
+  it("refuses when the session has never attached", async () => {
+    const transport = new FakeTransport({});
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      listWatchpoints: () => Promise.reject(new Error("must not be called")),
+    });
+    await expect(session.listWatchpoints("whatever")).rejects.toSatisfy(
+      (e: unknown) => isAbapError(e) && e.code === "BAD_INPUT",
+    );
+  });
+});
+
+describe("removeWatchpoint()", () => {
+  it("refuses an id this session does not own, naming the ids it does own, without touching the network", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    let deleteCalls = 0;
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: () => {
+        deleteCalls++;
+        return Promise.resolve();
+      },
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await expect(session.removeWatchpoint(stateId, "NOT-OWNED")).rejects.toSatisfy((e: unknown) => {
+      if (!isAbapError(e) || e.code !== "BAD_INPUT") return false;
+      expect(e.message).toContain("NOT-OWNED");
+      expect(e.message).toContain("WP1");
+      return true;
+    });
+    expect(deleteCalls).toBe(0);
+  });
+
+  it("deletes an owned watchpoint and drops it from ownership", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    const deletedIds: string[] = [];
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: (id: string) => {
+        deletedIds.push(id);
+        return Promise.resolve();
+      },
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await session.removeWatchpoint(stateId, "WP1");
+    expect(deletedIds).toEqual(["WP1"]);
+    await expect(session.readWatchpoints()).resolves.toEqual([]);
+  });
+
+  it("treats a server NOT_FOUND as already-gone: resolves and drops the id locally", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: () => Promise.reject(new AbapError("NOT_FOUND", "watchpoint no longer exists")),
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await expect(session.removeWatchpoint(stateId, "WP1")).resolves.toBeUndefined();
+    await expect(session.readWatchpoints()).resolves.toEqual([]);
+  });
+});
+
+describe("readWatchpoints()", () => {
+  it("issues nothing and returns [] when this session owns no watchpoints — the cost-free guarantee", async () => {
+    const transport = new FakeTransport({});
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      listWatchpoints: () => Promise.reject(new Error("must not be called")),
+    });
+
+    await expect(session.readWatchpoints()).resolves.toEqual([]);
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("filters the session-visible list down to only this session's own ids", async () => {
+    const transport = new FakeTransport({ attach: [attachOk()], getStack: [stackOk()] });
+    const { session, client } = makeSessionWithClient({ transport });
+    const someoneElses: Watchpoint = { id: "WP-ECLIPSE", variableName: "GV_OTHER" };
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      listWatchpoints: () => Promise.resolve([WP1, someoneElses]),
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await expect(session.readWatchpoints()).resolves.toEqual([WP1]);
+  });
+
+  it("takes no stateId and works even after the session has moved on to a later step", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk({ line: 15 }), stackOk({ line: 16 })],
+      step: [stepOk()],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      listWatchpoints: () => Promise.resolve([WP1]),
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+    await session.step(stateId, "stepOver");
+
+    await expect(session.readWatchpoints()).resolves.toEqual([WP1]);
+  });
+});
+
+describe("watchpoint cleanup at shutdown", () => {
+  it("deletes owned watchpoints BEFORE terminateDebuggee() is called", async () => {
+    const order: string[] = [];
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [
+        () => {
+          order.push("terminateDebuggee");
+          return okResponse("");
+        },
+      ],
+      stopListener: [OK],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: (id: string) => {
+        order.push(`deleteWatchpoint ${id}`);
+        return Promise.resolve();
+      },
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await session.terminate();
+
+    expect(order).toEqual(["deleteWatchpoint WP1", "terminateDebuggee"]);
+    expect(session.snapshot.status).toBe("dead");
+  });
+
+  it("a session that created no watchpoint issues no watchpoint call at all on terminate()", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    let deleteCalls = 0;
+    withFakeWatchpointMethods(client, {
+      deleteWatchpoint: () => {
+        deleteCalls++;
+        return Promise.resolve();
+      },
+    });
+    await session.attach("D1");
+    await session.terminate();
+
+    expect(deleteCalls).toBe(0);
+  });
+
+  it("terminate() still finishes cleanly when watchpoint cleanup answers NOT_FOUND", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      terminateDebuggee: [TERMINATE_OK],
+      stopListener: [OK],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+      deleteWatchpoint: () => Promise.reject(new AbapError("NOT_FOUND", "already gone")),
+    });
+    const { stateId } = await session.attach("D1");
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    await session.terminate();
+
+    expect(session.snapshot.status).toBe("dead");
+    expect(session.snapshot.abandonedCleanupSteps).toBeUndefined();
+  });
+});
+
+describe("DebugSessionSnapshot ownership counts", () => {
+  it("surfaces ownedBreakpointCount and ownedWatchpointCount as they change", async () => {
+    const transport = new FakeTransport({
+      attach: [attachOk()],
+      getStack: [stackOk()],
+      setBreakpoints: [BREAKPOINTS_OK],
+    });
+    const { session, client } = makeSessionWithClient({ transport });
+    withFakeWatchpointMethods(client, {
+      createWatchpoint: () => Promise.resolve([WP1]),
+    });
+    expect(session.snapshot.ownedBreakpointCount).toBe(0);
+    expect(session.snapshot.ownedWatchpointCount).toBe(0);
+
+    const { stateId } = await session.attach("D1");
+    await session.addBreakpoints(stateId, [{ kind: "line", uri: "/some/uri#start=1" }]);
+    await session.addWatchpoint(stateId, { variableName: "GV_COUNTER" });
+
+    expect(session.snapshot.ownedBreakpointCount).toBe(1);
+    expect(session.snapshot.ownedWatchpointCount).toBe(1);
   });
 });

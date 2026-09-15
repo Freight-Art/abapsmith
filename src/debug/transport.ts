@@ -639,6 +639,30 @@ export const isResourceNoAccess = (err: AdtError): boolean =>
   err.abapType === RESOURCE_NO_ACCESS_TYPE;
 
 /**
+ * `cx_adt_rest_data_invalid`'s DEFAULT text (no `TEXT-xxx`/message-class
+ * override supplied at the raise site), reported by a live verification run
+ * on 2026-09-15: a `step`/`continue` issued right after breakpoints were
+ * changed under a suspended debuggee surfaced this as the ENTIRE explanation
+ * for the debugger request's failure, with `snapshot.deathDetail` carrying
+ * it verbatim into the tool response (see `explainOpaqueDeathDetail` in
+ * src/tools/debug.ts). It means SAP's ADT REST layer could not convert the
+ * PAYLOAD of the debugger request in flight — it is not a complaint about
+ * any value the caller passed, and the exception carries no further detail
+ * of its own. The run that surfaced it hit this at a point where a
+ * breakpoint change reached the debuggee one stop-cycle LATE (see
+ * `removeBreakpoint`/`armBreakpointsTwoPass` in src/debug/session.ts, fixed
+ * separately so breakpoint changes now notify the attached debuggee
+ * immediately) — by the time the request landed, the debuggee was already
+ * gone. Matched case-insensitively after trimming since this is prose, not
+ * a structural discriminator like `abapType`.
+ */
+export const ADT_REST_DATA_INVALID_TEXT = "Data is invalid and could not be converted";
+
+/** Case-insensitive, whitespace-trimmed match against `ADT_REST_DATA_INVALID_TEXT` — see its doc comment. */
+const isAdtRestDataInvalidText = (message: string | undefined): boolean =>
+  (message ?? "").trim().toLowerCase() === ADT_REST_DATA_INVALID_TEXT.toLowerCase();
+
+/**
  * T100 `EU`/`510` as this appliance renders it in EN: "User DEVELOPER is
  * currently editing ZMCP_DBG_DEMO" (test/fixtures/live-captured/
  * 095-np-activate.xml and its twin 108-np-activate-restore.xml, HTTP 403).
@@ -818,6 +842,19 @@ export function translateDebugError(err: AdtError): AbapError {
         ? { exceptionClassNames: err.exceptionClassNames }
         : {}),
     },
+    // The server's own message is kept as `message` above, unaltered — this hint only ADDS
+    // context for `cx_adt_rest_data_invalid`'s bare default text, never replaces evidence with
+    // interpretation. See `ADT_REST_DATA_INVALID_TEXT`'s doc comment for what this is and isn't.
+    isAdtRestDataInvalidText(err.message)
+      ? "This is cx_adt_rest_data_invalid's default text, raised by SAP's ADT REST layer when it " +
+        "cannot convert the payload of the debugger request in flight — it is not a complaint " +
+        "about a value you passed, and the server gives no further detail. Reported by a live " +
+        "verification run on 2026-09-15 on a step/continue issued right after breakpoints were " +
+        "changed under a suspended debuggee, at a point where that change reached the debuggee " +
+        "one stop-cycle late and the debuggee was already gone; breakpoint changes now notify the " +
+        "attached debuggee immediately, so this shape should no longer occur that way. In " +
+        "practice: the debug session is no longer there to step — start a new one."
+      : undefined,
   );
 }
 

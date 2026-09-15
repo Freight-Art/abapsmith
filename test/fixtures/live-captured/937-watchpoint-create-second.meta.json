@@ -1,0 +1,37 @@
+{
+  "n": 937,
+  "label": "watchpoint-create-second",
+  "expect": null,
+  "note": "decides whether a create response echoes only the new watchpoint or the full session list",
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/watchpoints?variableName=LV_ZERO&sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "qIDViU4xLYoK1XUrqSdTZg==",
+    "Accept": "application/xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "477",
+    "content-type": "application/xml; charset=utf-8",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "19290.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1091,
+  "zeroByteBody": false,
+  "sha256": "1aa3f89e1bbd109debe28e52745b6d78e540bc7713459c0a5ee485c6048d6de7",
+  "utcTimestamp": "2026-09-12T17:56:17.816Z",
+  "durationMs": 66,
+  "sessionName": "A",
+  "transportError": null,
+  "redactions": "appliance host -> 203.0.113.10:50000 (RFC 5737); the application-server hostname was replaced with a4hsandbox (same placeholder as the 011-051 captures); Authorization/Cookie/set-cookie stripped. sha256/byteLength are over the redacted body as stored here."
+}

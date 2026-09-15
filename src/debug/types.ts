@@ -196,6 +196,79 @@ export interface BreakpointsRequest {
 }
 
 // ---------------------------------------------------------------------------
+// Watchpoints
+// ---------------------------------------------------------------------------
+
+/**
+ * Server-reported scope of the watched variable. These four are the values
+ * `CL_TPDA_ADT_RES_WATCHPOINTS` (read live off A4H, 2026-09-12) actually
+ * emits. Widened with a plain `string` fallback so a kind added on a future
+ * release parses instead of throwing — same rationale as `Breakpoint` above
+ * modelling only the kinds the wire protocol really supports, just inverted:
+ * here an unrecognised value is data to pass through, not a bug to reject.
+ */
+export type WatchpointKind = "system_global" | "program_global" | "local" | "instance_attribute" | string;
+
+/**
+ * A watchpoint as returned by `GET /debugger/watchpoints` (or a single one by
+ * id). `oldValue`/`currentValue` are the server's own
+ * `get_quickinfo( i_max_length = 255 )` rendering, truncated at 255 chars by
+ * SAP, not by us; either reads back as the literal string `<invalid>` once
+ * data services have invalidated it. `id` is a small per-session integer
+ * string (observed `"1"` for the first watchpoint armed in a session), NOT a
+ * long composite token like a breakpoint id — confirmed by
+ * `test/fixtures/live-captured/911-watchpoint-create-lv-total.xml`.
+ *
+ * **`id` IS NOT STABLE ACROSS A MODIFY.** `PUT .../watchpoints/{id}` can — and
+ * on the one capture taken of it, DID — answer with a DIFFERENT id than the
+ * one addressed: `PUT .../watchpoints/1?condition=..` came back
+ * `<watchpoint id="3" .../>`, and the following `GET .../watchpoints` showed
+ * id `1` gone and id `3` in its place. A later create then reused the freed
+ * id `1` for an unrelated new watchpoint. So an `id` is only guaranteed valid
+ * until the next `modifyWatchpoint` call against it, and a caller MUST take
+ * the `id` off `modifyWatchpoint`'s return value rather than assuming its own
+ * request `id` still applies afterwards. Source:
+ * `test/fixtures/live-captured/940-watchpoint-modify-condition.xml`,
+ * `941-watchpoint-list-after-modify.xml`,
+ * `942-watchpoint-create-duplicate.xml`, captured 2026-09-12.
+ *
+ * Source: `CL_TPDA_ADT_RES_WATCHPOINTS` and XSLT `TPDA_ADT_DEBUGGER_WP`, read
+ * live off A4H, 2026-09-12.
+ */
+export interface Watchpoint {
+  id: string;
+  variableName: string;
+  kind?: WatchpointKind;
+  active?: boolean;
+  expired?: boolean;
+  procedure?: string;
+  condition?: string;
+  oldVariable?: string;
+  currentVariable?: string;
+  oldValue?: string;
+  currentValue?: string;
+}
+
+/**
+ * `POST /debugger/watchpoints?variableName=..&condition=..` — both go in the
+ * query string, the request body is empty. Source as above.
+ */
+export interface CreateWatchpointRequest {
+  variableName: string;
+  condition?: string;
+}
+
+/**
+ * `PUT /debugger/watchpoints/{id}?condition=..&active=true|false` — again
+ * query-string only, empty body. Source as above.
+ */
+export interface ModifyWatchpointRequest {
+  id: string;
+  condition?: string;
+  active?: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Listener / debuggee
 // ---------------------------------------------------------------------------
 
@@ -305,6 +378,23 @@ export interface DebugReachedBreakpoint {
   unresolvableConditionErrorOffset?: string;
 }
 
+/**
+ * A `<reachedWatchpoints><watchpoint>` row on a step response — the actual "watchpoint hit"
+ * signal, nested in `<dbg:step>` right after `<dbg:settings>`. Modelled SEPARATELY from
+ * `Watchpoint` rather than reusing it: the wire row genuinely carries fewer fields (no `kind`,
+ * `active`, `procedure`, `oldValue`/`oldVariable`/`currentVariable`) — just enough to say which
+ * watchpoint fired and what it now reads. The pre-hit value has to come from a follow-up
+ * `GET /debugger/watchpoints` instead (its `oldValue` there is the value before this hit).
+ * Source: `test/fixtures/live-captured/913-step-continue-to-watchpoint-hit.xml`, captured
+ * 2026-09-12.
+ */
+export interface DebugReachedWatchpoint {
+  id: string;
+  variableName: string;
+  expired: boolean;
+  currentValue: string;
+}
+
 /** Fields common to both the attach and step responses. */
 export interface DebugSessionState {
   isRfc: boolean;
@@ -331,12 +421,22 @@ export interface DebugSessionState {
 
 export interface DebugAttachResult extends DebugSessionState {
   reachedBreakpoints: DebugReachedBreakpoint[];
+  /**
+   * UNVERIFIED AGAINST THE WIRE: `test/fixtures/live-captured/908-attach-i89.xml` shows this
+   * absent (parses to `[]`) because that attach's stop was a line breakpoint, not a watchpoint —
+   * so it proves absence-is-normal, not that attach can never carry a hit watchpoint. Modelled
+   * here on the assumption the field is symmetric with `DebugStepResult.reachedWatchpoints`;
+   * confirming an attach onto an already-armed, already-hit watchpoint would settle it.
+   */
+  reachedWatchpoints: DebugReachedWatchpoint[];
 }
 
 export interface DebugStepResult extends DebugSessionState {
   isDebuggeeChanged: boolean;
   settings: DebugSettings;
   reachedBreakpoints: DebugReachedBreakpoint[];
+  /** Observed live — see `DebugReachedWatchpoint`'s doc comment for the capture. */
+  reachedWatchpoints: DebugReachedWatchpoint[];
 }
 
 // ---------------------------------------------------------------------------

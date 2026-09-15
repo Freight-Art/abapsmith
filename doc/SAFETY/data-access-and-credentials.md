@@ -60,6 +60,48 @@ Matching is upper-cased and judges two strings — the whole name and the segmen
 after the last `/`. Without the second, `/ACME/PA0008` sails past the `PA0`
 prefix and the list fails open on every namespaced copy of an infotype.
 
+## Catalog reads (SUSO/B, TABL/DI) do not go through the deny-list gate
+
+`abap_read {"object":"<NAME>","type":"SUSO/B"}` and
+`abap_read {"object":"<TABLE>/<INDEX>","type":"TABL/DI"}` read DDIC catalog
+tables — `TOBJ`, `TOBJT`, `TOBCT`, `TACTZ`, `TACTT`, `AUTHX`, `DD04L`,
+`DD07V` for `SUSO/B`; `DD12V`, `DD17S` for `TABL/DI` — through the same
+freestyle data-preview wire endpoint `abap_data_preview` uses, but neither
+calls `safety.assertDataPreview`, the gate this file describes above, and
+neither consults `ABAP_DATA_PREVIEW_DENY_TABLES`. This is deliberate, not an
+oversight, and the reasoning is not new: `src/adt/catalog-select.ts`
+(`runCatalogSelect`, the SQL builder both reads share) states it directly —
+`assertDataPreview`'s gate exists for `abap_data_preview`, which hands a
+caller-named table's first N rows straight through with no filter at all
+and denies a built-in list of tables carrying credentials, payroll and
+financial-document business data. Every table these two catalog reads touch
+is repository or authorization-CONCEPT metadata, read with a validated,
+targeted `WHERE` assembled server-side, never a caller-named table dumped
+wholesale. It is the same distinction `src/adt/img-read.ts` already draws
+for the IMG catalog (`src/tools/img.ts`'s `runImgReadTool` calls only
+`safety.assert("read")`, never `assertDataPreview`, for exactly this
+reason) — this mirrors that decision rather than inventing a new one. Both
+reads deploy nothing and write nothing, so both run under `ABAP_MODE=read`.
+
+## SUSO/B renders a definition, never who holds it
+
+`abap_read {"object":"S_TABU_NAM","type":"SUSO/B"}` renders an
+authorization object's DEFINITION from the catalog tables above — its
+class, text, fields (each with its data element and check table), fixed
+values, and permitted activities. It is not, and cannot be turned into, a
+list of who holds the object:
+
+- abapsmith never reads an `AGR_*` (role) or `UST*` (user authorization)
+  table, through this render or through any other tool. No parameter or
+  option changes this.
+- There is no write support for `SUSO/B`, and none is planned. `SU21`, a
+  SAPGUI transaction outside abapsmith's reach, is the only way to create or
+  change an authorization object.
+
+See [doc/LIMITATIONS/editing.md](../LIMITATIONS/editing.md) for the write
+side of this boundary and [doc/TOOLS/read-and-search.md](../TOOLS/read-and-search.md)
+for the read's parameters and response shape.
+
 ## Credentials and lockout
 
 - The password is never logged, never echoed in an error, and never included in

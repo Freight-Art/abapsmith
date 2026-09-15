@@ -58,11 +58,13 @@ subset named above.
 |---|---|
 | `id`, `ts`, `system`, `systemKey` | Identity and timestamp; `systemKey` (SID+host+client) is the strong identity check, `system` (SID label) the weak fallback for older entries |
 | `operation` | `create` \| `update` \| `delete` \| `activate` \| `transport-*` |
-| `object` | type, name, uri, package, description |
+| `object` | type, name, uri, package, description, `sourceUri?` |
+| `object.sourceUri` | the URI the write actually PUT to. Equal to `object.uri`'s `/source/main` for an ordinary write; set instead to that class sub-include's own URI (`definitions` / `implementations` / `macros` / `testclasses`) when `abap_write` was called with `include=`. When it names a sub-include, the entry is about that one include only, not the whole class — `abap_journal mode=show` reads it back out (`classIncludeFromSourceUri()` in `src/adt/undo.ts`, the same derivation `src/tools/journal.ts` reuses) and says which include the entry covers. |
 | `existedBefore` | whether the object existed before this write |
 | `beforeCapture` | `captured` \| `confirmed-absent` \| `failed` \| `unknown` — provenance of `existedBefore`, see [Undo semantics](undo-and-recovery.md#undo-semantics) below |
 | `beforeKind` | present only when `before` is not the object's own source — `"package-metadata"` for a package (`DEVC/K`) delete. The entry preserves the package's metadata document, and undo will not replay it. |
 | `before` / `after` | `{ etag, fingerprint, bytes, blob?, serverEtag? }` — raw etag and canonical fingerprint, both kept, for different jobs (see [Drift detection](undo-and-recovery.md#drift-detection)) |
+| `parts` | `JournalImagePart[]`, one element per additional SAP object the same logical operation touched beyond `object`/`before`/`after` — today, only a class delete's four local includes (`definitions`, `implementations`, `macros`, `testclasses`), captured under the same lock as the delete. Each part is `{ object, existedBefore, beforeCapture, before?, after? }`, scoped to that one include — its own `object.sourceUri` names which include it is, its own `beforeCapture` says whether that include's read at delete time was `captured`, `confirmed-absent`, or `failed`, and it carries its own before-image where it has one. `abap_journal mode=show` lists these under `ALSO TOUCHED`, with columns `object`, `package` (shown when any part has one), `include`, `existed`, `capture`, `bytes` — the `include` column is what makes the four rows of a class-delete entry distinguishable from each other. Absent (not `[]`) on every entry that only touched one object — every entry recorded before this field existed and the overwhelming majority since. Live-confirmed against SAP A4H, 2026-09-12, on class `ZCL_I75_UNDO`: a `mode=delete` entry carried all four parts, every one `beforeCapture: captured`, and `mode=show` named all four in the class warning. |
 | `outcome` | `pending` \| `succeeded` \| `failed` |
 | `reconciled` | `{ at, reason, by? }` — present only when a human closed the entry by hand via `abap_journal mode=reconcile` instead of abapsmith observing the outcome itself; **absent, not `null`**, otherwise. `at` is when it was recorded, `reason` is the caller's stated evidence (verbatim), `by` is who stated it when known. Marks `outcome` (and, for `failed`, `error`) as an asserted finding rather than something abapsmith watched happen. |
 | `undoOf` / `undoneBy` | links between an entry and the entry that later undid it |
@@ -155,6 +157,21 @@ before the POST, and `src/tools/enh.ts` supplies it from inside
 `withJournalledMutation`, so the entry is on disk before the wire call
 happens and a hook that throws aborts the activation unrecorded and
 therefore unperformed.
+
+A class's sub-includes (`definitions`/CCDEF, `implementations`/CCIMP,
+`macros`/CCMAC, `testclasses`/CCAU) are documents of their own, each with its
+own `sourceUri`, not part of the class's `main` source. Writing one with
+`abap_write { include: ... }` journals an entry whose `object.sourceUri`
+names that include, so its before-image covers only that include, and undo
+replays back onto the same include rather than onto `main`. Deleting the
+class captures all four sub-includes at delete time, under the same lock as
+the delete itself, and records them in `parts` (one `JournalImagePart` per
+include actually attempted) alongside the primary `object`/`before` for
+`main` — so undoing the delete recreates every include that was
+successfully read, not `main` alone. An include whose read failed at delete
+time (`beforeCapture: "failed"`) has no source to recreate it with; undoing
+that delete is refused unless `force: true`, and comes back `PARTIAL`,
+naming only that include as missing.
 
 For how these entries are undone, see [Undo, drift detection, and
 recovery](undo-and-recovery.md).

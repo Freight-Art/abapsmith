@@ -96,13 +96,21 @@ function expectedRow(code: string, cap: (typeof REGISTRY)[string]) {
           : "no";
 
   const spec = typeSpecs.get(code);
-  const read: Cap = !spec
-    ? "no"
-    : spec.mode === "source"
-      ? "yes"
-      : spec.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported"
+  // A `catalogRead` entry (src/adt/capabilities.ts) means the type has no ADT
+  // resource and therefore no `TypeSpec` — `resolveObject` could never build a
+  // URI for it — but `abap_read` dispatches on the explicit `type` hint before
+  // `resolveObject` ever runs, and sends these straight to a catalog-table
+  // render instead. That makes the type readable despite `!spec`, so it counts
+  // as `yes` here rather than falling into the no-spec "no" branch below.
+  const read: Cap = cap.catalogRead
+    ? "yes"
+    : !spec
+      ? "no"
+      : spec.mode === "source"
         ? "yes"
-        : "partial";
+        : spec.mode === "ddic" && ddicStrategy(spec.kind) !== "unsupported"
+          ? "yes"
+          : "partial";
 
   const update: "yes" | "no" = cap.write !== undefined ? "yes" : "no";
 

@@ -128,16 +128,19 @@ function unlinked(): string[] {
 }
 
 describe("CHARACTERISATION: which connection-write modules are journal-linked today", () => {
-  it("sees the same 11 connection-write modules the safety-gate contract pins", () => {
+  it("sees the same 14 connection-write modules the safety-gate contract pins", () => {
     expect(callers.map((f) => relative(SRC, f)).sort()).toEqual(
       [
         "adt/activate.ts",
         "adt/atc.ts",
         "adt/bopf.ts",
+        "adt/element-info.ts",
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",
         "adt/enhancement-write.ts",
+        "adt/odata.ts",
         "adt/quickfix.ts",
+        "adt/traces.ts",
         "adt/transports.ts",
         "adt/write.ts",
         "debug/transport.ts",
@@ -180,7 +183,16 @@ describe("CHARACTERISATION: which connection-write modules are journal-linked to
     // journals nothing; it is missing from `unlinked()` by heuristic accident,
     // not because BOPF journalling landed. See `doc/analysis/journal-completeness-audit.md`
     // (A2, A4) for the full trail.
-    expect(unlinked()).toEqual(["adt/atc.ts", "debug/transport.ts"]);
+    //
+    // `adt/element-info.ts` (issue #91) joined this list for the same reason
+    // `debug/transport.ts` is on it: its three `conn.post`s are ADT's
+    // read-only elementinfo / navigation-target / where-used lookups behind
+    // `abap_read view="definition"`, which change no repository object and
+    // have nothing a journal entry could describe. Its only importer,
+    // `src/tools/read.ts`, journals nothing either — correctly, it is a read
+    // tool. `test/journal-contract.test.ts` carries the same module in its
+    // NOT_REPOSITORY_MUTATIONS list with the full wire-level rationale.
+    expect(unlinked()).toEqual(["adt/atc.ts", "adt/element-info.ts", "debug/transport.ts"]);
   });
 });
 
@@ -190,7 +202,8 @@ describe("THE INVARIANT — pinned to the current known-bad set, not to []", () 
     // `test/journal-contract.test.ts`'s KNOWN_GAPS gives for its own, tighter
     // heuristic). Shrinks → update this list, that is the gap closing.
     // Reaching [] here is the goal, not a reason to delete the test.
-    const KNOWN_UNLINKED = ["adt/atc.ts", "debug/transport.ts"];
+    // `adt/element-info.ts` is read-only (see the characterisation block above).
+    const KNOWN_UNLINKED = ["adt/atc.ts", "adt/element-info.ts", "debug/transport.ts"];
     expect(
       unlinked(),
       "These modules issue conn.put/post/del/raw and neither they nor any module that " +

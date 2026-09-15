@@ -15,5 +15,5 @@ not their content.
 | [cds.md](cds.md) | CDS view and metadata extension support |
 | [rap.md](rap.md) | RAP: behavior definitions, service definitions and bindings, OData metadata, draft handling |
 | [fpm-fbi.md](fpm-fbi.md) | FPM/FBI configuration read support |
-| [non-object-capabilities.md](non-object-capabilities.md) | Debugger, ABAP Unit, ATC, transports, activation, journal/undo, search, data preview, UI automation |
+| [non-object-capabilities.md](non-object-capabilities.md) | Debugger, ABAP Unit, ATC, transports, activation, pretty printer, element info / definition lookup, journal/undo, search, data preview, UI automation |
 | [absent-entirely.md](absent-entirely.md) | Things a reader might expect and will not find here |

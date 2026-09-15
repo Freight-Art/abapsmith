@@ -24,6 +24,15 @@
   and a classic fluid bridge for create/update/delete
   (`src/adt/fluid/builtin/classic/abap-shlp.ts`, `abap-view.ts`, `abap-tran.ts`);
   see the entry below for what each route actually covers.
+- **A V2 `abap_service op="publish"` leaves behind an `IWVB` object
+  abapsmith cannot delete.** Confirmed live on A4H, 2026-09-15: publishing a
+  V2 service binding (`ZV82_SB`) auto-generated a vocabulary-annotation
+  object, `IWVB ZV82_SB_VAN` (version 0001), in `$TMP`. It survives both
+  `op="unpublish"` and deletion of the binding itself. `IWVB` is not a
+  writable type, so `abap_write` cannot delete it; `abap_read` reports
+  `NOT_FOUND` for it even though `abap_search` still lists it. Removing it
+  needs SAPGUI/SE80, outside abapsmith's own tool surface. The V4 publish
+  path (`ZV82_SB4`) left no such object behind.
 - **`abap_img_edit` still writes past the maintenance view's own check
   logic, but now says what it wrote past.** A customizing row is applied
   with a plain `MODIFY`/`DELETE` on the resolved base table, not through
@@ -320,20 +329,32 @@
   opens the gate — `writeObject` refuses (`UNSUPPORTED`) a create for any
   type not marked `verified: true` rather than attempting it and letting it
   fail live.
-- **No authorization-object (SUSO/B) read or write.** Confirmed by live
-  reconnaissance: `SUSO/B` is a real, registered ADT
-  object type, but no ADT collection exists for reading or writing one — the
-  only route that answers a `GET` at all is the generic VIT bridge, and it
-  returns a basic-properties stub (name/description/package) with no field
-  list and no permission values, not a usable read of the object's actual
-  content. SU21 is the only way to view or edit an authorization object.
-- **No table secondary index (TABL/DI) change or read; create and delete are
+- **No authorization-object (SUSO/B) write; ADT itself still has no read
+  route.** Confirmed by live reconnaissance: `SUSO/B` is a real, registered
+  ADT object type, but no ADT collection exists for reading or writing
+  one — the only route that answers a `GET` at all is the generic VIT
+  bridge, and it returns a basic-properties stub (name/description/package)
+  with no field list and no permission values, not a usable read of the
+  object's actual content. `abap_read {"object":"<NAME>","type":"SUSO/B"}`
+  answers reads a different way: it renders the object's DEFINITION —
+  class, text, fields, data elements, check tables, fixed values, permitted
+  activities — from eight DDIC catalog tables (`TOBJ`, `TOBJT`, `TOBCT`,
+  `TACTZ`, `TACTT`, `AUTHX`, `DD04L`, `DD07V`), not from an ADT object
+  resource, and never from an `AGR_*` or `UST*` table — this is the
+  object's definition, not a list of who holds it. See
+  [doc/SAFETY/data-access-and-credentials.md](../SAFETY/data-access-and-credentials.md)
+  for that boundary. Write is unaffected: SU21 is still the only way to
+  edit an authorization object.
+- **No table secondary index (TABL/DI) change; create and delete are
   bridge-only.** A live probe on A4H 2026-09-05 confirmed there is no ADT
   REST route for indexes at all — every route under a table 404s. Creation
   and deletion instead run through `DD_INDEX_INTERFACE` via a classrun
   bridge (see `src/adt/capabilities.ts`); the bridge cannot update an
-  existing index — drop and recreate instead — and there is no read-back
-  for `TABL/DI` through abapsmith either way. Create is live-proven and
+  existing index — drop and recreate instead. There is still no ADT
+  read-back for `TABL/DI`, but `abap_read {"object":"<TABLE>/<INDEX>","type":"TABL/DI"}`
+  now renders one from a `DD12V`/`DD17S` catalog read, and a `TABL/DT` read
+  grew an `indexes` section listing every secondary index found the same
+  way. Create is live-proven and
   unaffected by anything below: a non-unique index and a unique index that
   includes the base table's client field both succeed, an omitting create
   is refused `BAD_INPUT` before the FM runs, and a third live round the
@@ -347,22 +368,27 @@
   guard on every generated bridge class body, not just this one, and a
   fourth live round the same day deleted both a non-unique and a unique
   index through the redeployed bridge and got `NOT_FOUND` on a re-delete —
-  delete is live-proven in `$TMP`. `ACTFAILED` still comes back set on a
-  delete that took effect, so treat the flag as noise, not a result. Deleting the
-  base table is not blocked by a surviving secondary index; a later
-  cleanup deleted a base table whose indexes' catalog rows may still have
-  existed, and whether they were cascaded away or orphaned is unverified —
-  there is nothing to read back either way. At the time of that cleanup
-  (2026-09-05), `abap_data_preview` also had no way to target a specific
-  index's catalog row even if there had been something to read; that is no
-  longer the limiting factor — `abap_data_preview` now takes a structured
-  `where` filter (see `doc/TOOLS/diagnostics.md`), so a query like
-  `{"table":"DD12V","where":[{"field":"SQLTAB","op":"eq","value":"<table>"}]}`
-  is now practical. It still cannot answer this specific open question,
-  because `DD12V`/`DD17S` were never re-read after that cleanup and no
-  index name from it was recorded to look for. SE11 (the table's "Indexes"
-  button) is the only way to inspect one directly; the table itself stays
-  writable here as `TABL/DT`.
+  delete is live-proven in `$TMP`. `ACTFAILED` itself is no longer the
+  question: the create and delete bridges now run a definitive post-write
+  `DD12V`/`DD17S` re-read (`src/adt/index-read.ts`), and the response
+  reports what that re-read found — `verified` plus `index_present`/
+  `index_active` — instead of the bridge's own claim. `ACTFAILED` is not
+  surfaced to the caller at all any more, for either operation; a re-read
+  that itself fails to run is reported as "not verified" with a reason,
+  never inferred from the flag. Live-observed regression: a delete's
+  response `markers` field used to join the raw transcript tags verbatim,
+  so `INDEX-DELETED-ACTFAILED` still reached the caller there even though
+  nothing else in the response mentioned `ACTFAILED` — now filtered out of
+  `markers` too (`callerVisibleIndexTags`, `src/adt/index-create.ts`); the
+  underlying transcript still records the raw tag as evidence, it is only
+  the caller-visible field that omits it. The same re-read resolves whether a
+  base-table delete cascades its secondary indexes away or leaves them
+  orphaned: `abap_write`'s `TABL/DT` delete now reads the table's indexes
+  immediately beforehand and reports what it found in the response, rather
+  than leaving that outcome to a later, unfiltered `abap_data_preview`
+  check. SE11 (the table's "Indexes" button) remains the only way to
+  inspect one directly outside abapsmith; the table itself stays writable
+  here as `TABL/DT`.
 
 ## FPM / Web Dynpro configuration is read-only, deliberately
 

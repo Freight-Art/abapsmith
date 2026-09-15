@@ -777,13 +777,46 @@ describe("resolveObject — explicit unsupported/bridgeCreate type hints refuse 
     }
   });
 
-  it("SUSO/B's read refusal names the real ADT type code, confirms it as a registered ADT type with no readable collection, and names SU21 as the alternative", async () => {
+  /**
+   * #87 gave SUSO/B a catalog read (TOBJ/TOBJT/TOBCT/TACTZ/TACTT/AUTHX/
+   * DD04L/DD07V), rendered by `abap_read` on the explicit type hint before
+   * `resolveObject` is ever reached — but `resolveObject` itself still has
+   * no ADT resource to resolve a URI against, so it still refuses. What
+   * changed is the HINT: it used to send a caller to SU21, a transaction
+   * that cannot even read the object; it now names the real, working read
+   * route (`abap_read` with `type: "SUSO/B"`) and the catalog tables behind
+   * it, the same redirect `capabilitiesFor("SUSO/B").catalogRead` carries.
+   */
+  it("SUSO/B's read refusal still throws UNSUPPORTED and names SUSO/B, but its hint now redirects to the catalog read instead of SU21", async () => {
     const err = await resolveObject(offline, "S_TCODE", { type: "SUSO/B" }).catch((e) => e);
     expect(isAbapError(err)).toBe(true);
     expect(err.code).toBe("UNSUPPORTED");
     expect(String(err.message)).toMatch(/SUSO\/B/);
     expect(String(err.message)).toMatch(/authorization object/i);
-    expect(String(err.hint ?? "")).toMatch(/SU21/);
+    const hint = String(err.hint ?? "");
+    expect(hint).not.toMatch(/SU21/);
+    expect(hint).toMatch(/abap_read/);
+    expect(hint).toMatch(/"type":"SUSO\/B"/);
+    expect(hint).toMatch(/TOBJ/);
+    expect(hint).toMatch(/TOBJT/);
+    expect(hint).toMatch(/TACTZ/);
+    expect(hint).toMatch(/AUTHX/);
+    expect(hint).toMatch(/DD04L/);
+    expect(hint).toMatch(/DD07V/);
+  });
+
+  /**
+   * The read-hint redirect above means SU21 no longer appears on the READ
+   * refusal at all — so it needs its own pin, on the registry field
+   * `resolveWriteTarget` (src/adt/write.ts) still reads verbatim for the
+   * WRITE-side refusal. #87 explicitly corrected the sentence to say EDIT,
+   * not just "created and edited" — SU21 cannot create one from nothing any
+   * more than abapsmith's catalog read can, so the corrected wording matters.
+   */
+  it('capabilitiesFor("SUSO/B").unsupported.alternative names SU21 as how to EDIT an authorization object, not how to read one', () => {
+    const alternative = capabilitiesFor("SUSO/B")?.unsupported?.alternative ?? "";
+    expect(alternative).toMatch(/SU21/);
+    expect(alternative).toMatch(/way to EDIT one/i);
   });
 
   /**
@@ -794,17 +827,30 @@ describe("resolveObject — explicit unsupported/bridgeCreate type hints refuse 
    * zero-network "no ADT-readable collection" shape VIEW/DV and TRAN/T
    * already get, not an SE11 pointer.
    */
-  it("TABL/DI's read refusal names the real ADT type code and the generic bridge-create hint, not SE11", async () => {
+  /**
+   * #86 gave TABL/DI the same catalogRead redirect as SUSO/B, sourced from
+   * DD12V/DD17S. Before that, this hint fell back to the generic
+   * bridge-create text ("abapsmith can create this type through a generated
+   * classrun bridge ... cannot read one back") — true as far as it went, but
+   * it no longer applies once a read route exists, so the hint must now
+   * point at the catalog read and the `<TABLE>/<INDEX>` parented name form
+   * instead.
+   */
+  it("TABL/DI's read refusal names the real ADT type code, and its hint now points at the catalog read and the <TABLE>/<INDEX> name form, not the generic bridge-create hint or SE11", async () => {
     const err = await resolveObject(offline, "ZTMC_TORDER", { type: "TABL/DI" }).catch((e) => e);
     expect(isAbapError(err)).toBe(true);
     expect(err.code).toBe("UNSUPPORTED");
     expect(String(err.message)).toMatch(/TABL\/DI/);
     expect(String(err.message)).toMatch(/no ADT-readable collection/i);
-    expect(String(err.hint ?? "")).toMatch(
-      /abapsmith can create this type through a generated classrun bridge \(see abap_write\)/,
-    );
-    expect(String(err.hint ?? "")).toMatch(/cannot read one back/);
-    expect(String(err.hint ?? "")).not.toMatch(/SE11/);
+    const hint = String(err.hint ?? "");
+    expect(hint).not.toMatch(/abapsmith can create this type through a generated classrun bridge/);
+    expect(hint).not.toMatch(/cannot read one back/);
+    expect(hint).not.toMatch(/SE11/);
+    expect(hint).toMatch(/abap_read/);
+    expect(hint).toMatch(/"type":"TABL\/DI"/);
+    expect(hint).toMatch(/DD12V/);
+    expect(hint).toMatch(/DD17S/);
+    expect(hint).toMatch(/<TABLE>\/<INDEX>/);
   });
 
   it("a supported type (PROG/P) is unaffected — no false-positive refusal", async () => {

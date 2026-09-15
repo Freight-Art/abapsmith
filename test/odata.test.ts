@@ -3,14 +3,28 @@
  *
  * ## Provenance of everything asserted here
  *
- * Every fixture this suite reads is **SYNTHETIC** (see
- * `test/fixtures/odata/README.md`). No live capture exists: the appliance went
- * down before any OData work reached it, and the V4 half could never have been
- * captured from it anyway — SAP_BASIS 754 has no V4 binding type. So this
- * suite proves that the parser and the resolution chain behave as designed on
- * documents of the documented shape. It does NOT prove that a real SAP system
- * emits that shape. That distinction is already on record, along with the
- * live probe that would close the gap.
+ * Two kinds of fixture back this suite. Six are LIVE CAPTURES — byte-exact
+ * bytes taken from a real A4H appliance (SAP_BASIS 754) on 2026-09-15,
+ * driving the full binding → catalogue → `$metadata` chain for one OData V2
+ * service (`/DMO/UI_TRAVEL_U_V2`) and one OData V4 service
+ * (`/DMO/UI_TRAVEL_O4_CD`): `test/fixtures/live-captured/965-i82-service-binding-v2.xml`
+ * through `970-i82-metadata-v4.xml` (see that directory's `INDEX.md` for the
+ * capture log and each file's `.meta.json` sidecar for the exact request).
+ * The rest, under `test/fixtures/odata/` and still labelled `SYNTHETIC`
+ * inside each file, are hand-written on purpose: they exercise edge cases
+ * the six live services above do not happen to exhibit — a dangling
+ * navigation `Relationship` with no association, an external
+ * `Annotations Target=…` block resolved through a schema alias, and an
+ * absolute `serviceUrl` through a `sap.invalid` host (see
+ * `test/fixtures/odata/README.md`).
+ *
+ * An earlier version of this header claimed every fixture here was
+ * synthetic, that no live capture existed because "the appliance went
+ * down," and that A4H "has no OData V4 binding type at all." All three were
+ * wrong — the appliance answered every request in the chain above, on both
+ * versions, which is what the six captures and the
+ * "parseEdmx — live-captured documents" / "readServiceContract —
+ * live-captured chains" blocks below now prove directly.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -43,12 +57,24 @@ import { routeSystemRoleProbe } from "./helpers/system-role-fake.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): string =>
   readFileSync(join(here, "fixtures", "odata", name), "utf8");
+const liveFixture = (name: string): string =>
+  readFileSync(join(here, "fixtures", "live-captured", name), "utf8");
 
 const V2 = fixture("SYNTHETIC-v2-metadata.xml");
 const V4 = fixture("SYNTHETIC-v4-metadata.xml");
 const BINDING = fixture("SYNTHETIC-service-binding.xml");
 const BINDING_UNPUBLISHED = fixture("SYNTHETIC-service-binding-unpublished.xml");
 const CATALOGUE = fixture("SYNTHETIC-service-catalogue.xml");
+
+// Live captures, A4H (SAP_BASIS 754), 2026-09-15 — see
+// test/fixtures/live-captured/INDEX.md ("965-970") and each file's
+// .meta.json sidecar for the exact request that produced it.
+const LIVE_V2_BINDING = liveFixture("965-i82-service-binding-v2.xml");
+const LIVE_V2_CATALOGUE = liveFixture("966-i82-service-catalogue-v2.xml");
+const LIVE_V2_METADATA = liveFixture("967-i82-metadata-v2.xml");
+const LIVE_V4_BINDING = liveFixture("968-i82-service-binding-v4.xml");
+const LIVE_V4_CATALOGUE = liveFixture("969-i82-service-catalogue-v4.xml");
+const LIVE_V4_METADATA = liveFixture("970-i82-metadata-v4.xml");
 
 // =========================================================== EDMX: OData V2 ===
 
@@ -157,10 +183,14 @@ describe("parseEdmx — OData V2", () => {
 
 // =========================================================== EDMX: OData V4 ===
 //
-// INFERENCE, not verification: see the suite header. These assertions pin the
-// behaviour of the V4 branch against the CSDL specification, and nothing more.
+// A hand-written document built to the CSDL specification, dense in edge
+// cases (a non-obvious annotation alias, a bound action with no import) a
+// real service may not happen to combine in one place. That the V4 branch
+// also parses genuine SAP bytes is proven separately, below, by
+// "parseEdmx — live-captured documents" against
+// test/fixtures/live-captured/970-i82-metadata-v4.xml — not by this block.
 
-describe("parseEdmx — OData V4 (INFERENCE: unverifiable on SAP_BASIS 754)", () => {
+describe("parseEdmx — OData V4 (SYNTHETIC document)", () => {
   const c = parseEdmx(V4);
 
   it("detects V4 from the document itself", () => {
@@ -234,6 +264,92 @@ describe("parseEdmx — OData V4 (INFERENCE: unverifiable on SAP_BASIS 754)", ()
     expect(bound?.kind).toBe("action");
     // The binding parameter is kept: "bound to what" is the point of a bound action.
     expect(bound?.parameters[0]?.name).toBe("_it");
+  });
+});
+
+// ================================== EDMX: live-captured documents ===
+//
+// These are the tests whose whole point is that the parser has now met real
+// SAP bytes, not an approximation of them. 967/970 are the exact EDMX
+// responses A4H returned on 2026-09-15 for /DMO/UI_TRAVEL_U_V2 (V2, 27
+// entity sets) and /DMO/UI_TRAVEL_O4_CD (V4, 4 entity sets, 6 actions) — see
+// test/fixtures/live-captured/INDEX.md.
+
+describe("parseEdmx — live-captured documents", () => {
+  const v2 = parseEdmx(LIVE_V2_METADATA);
+  const v4 = parseEdmx(LIVE_V4_METADATA);
+
+  it("parses the real V2 $metadata: 27 entity sets, self-described as V2", () => {
+    expect(v2.version).toBe("V2");
+    expect(v2.versionEvidence).toBe("edmx-version-attribute");
+    expect(v2.namespace).toBe("cds_xdmoxtravel_u");
+    expect(v2.entitySets).toHaveLength(27);
+    // Named sets that actually appear in the response — not the full 27
+    // (fourteen of them are the SAP__* framework sets: value help,
+    // hierarchy, PDF rendering — not part of the business contract).
+    expect(v2.entitySets.map((s) => s.name)).toEqual(
+      expect.arrayContaining([
+        "Travel",
+        "Booking",
+        "BookingSupplement",
+        "TravelAgency",
+        "Airport",
+        "Airline",
+        "FlightConnection",
+        "Passenger",
+        "Flight",
+        "SupplementCategory",
+        "Supplement",
+        "TravelStatus",
+        "Country",
+        "Currency",
+      ]),
+    );
+  });
+
+  it("resolves a real entity set through findEntitySet/findEntityType and reads a real key", () => {
+    const travelSet = findEntitySet(v2, "Travel");
+    expect(travelSet?.entityType).toBe("cds_xdmoxtravel_u.TravelType");
+    const travelType = findEntityType(v2, travelSet?.entityType ?? "");
+    // Not "TravelUUID", which is what SYNTHETIC-v2-metadata.xml uses — the
+    // real service's key is spelled differently. A hand-written fixture
+    // cannot catch that kind of drift; only bytes from the wire can.
+    expect(travelType?.keys).toEqual(["TravelID"]);
+    expect(travelType?.properties).toHaveLength(18);
+  });
+
+  it("parses the real V4 $metadata: 4 entity sets, 6 bound actions, self-described as V4", () => {
+    expect(v4.version).toBe("V4");
+    expect(v4.versionEvidence).toBe("edmx-version-attribute");
+    expect(v4.entitySets.map((s) => s.name).sort()).toEqual([
+      "Booking",
+      "I_DraftAdministrativeData",
+      "I_DraftAdministrativeUser",
+      "Travel",
+    ]);
+    expect(v4.operations).toHaveLength(6);
+    expect(v4.operations.every((o) => o.kind === "action")).toBe(true);
+    expect(v4.operations.map((o) => o.name).sort()).toEqual([
+      "Activate",
+      "Discard",
+      "Edit",
+      "Prepare",
+      "Resume",
+      "Share",
+    ]);
+  });
+
+  it("carries real draft navigation — only a genuine RAP draft-enabled service has this shape", () => {
+    const travelSet = findEntitySet(v4, "Travel");
+    const travelType = findEntityType(v4, travelSet?.entityType ?? "");
+    // TravelUuid + IsActiveEntity is a RAP draft key, not something any
+    // SYNTHETIC fixture in this repo invents.
+    expect(travelType?.keys).toEqual(["TravelUuid", "IsActiveEntity"]);
+    const nav = travelType?.navigation ?? [];
+    const toDraft = nav.find((n) => n.name === "DraftAdministrativeData");
+    expect(toDraft).toMatchObject({ multiplicity: "0..1" });
+    expect(toDraft?.unresolved).toBeUndefined();
+    expect(nav.find((n) => n.name === "SiblingEntity")).toMatchObject({ multiplicity: "0..1" });
   });
 });
 
@@ -349,6 +465,7 @@ describe("normaliseBindingName", () => {
 interface FakeCall {
   url: string;
   qs?: Record<string, string>;
+  headers?: Record<string, string>;
 }
 
 /**
@@ -369,8 +486,15 @@ function fakeConn(opts: {
   const calls = opts.calls ?? [];
   return {
     discovery: { assertSupported: (): void => {} },
-    async get(url: string, o: { qs?: Record<string, string> } = {}) {
-      calls.push({ url, ...(o.qs === undefined ? {} : { qs: o.qs }) });
+    async get(
+      url: string,
+      o: { qs?: Record<string, string>; headers?: Record<string, string> } = {},
+    ) {
+      calls.push({
+        url,
+        ...(o.qs === undefined ? {} : { qs: o.qs }),
+        ...(o.headers === undefined ? {} : { headers: o.headers }),
+      });
       if (url.includes("/businessservices/bindings/")) {
         return { body: opts.binding ?? BINDING, status: 200, headers: {} };
       }
@@ -474,9 +598,12 @@ describe("readServiceContract — every failure is distinguishable", () => {
       thrown = e as AbapError;
     }
     expect(thrown?.code).toBe("SERVICE_NOT_PUBLISHED");
-    // The instruction, not just the diagnosis.
+    // The instruction, not just the diagnosis: it names the exact `abap_service`
+    // call (op="publish" with confirm echoing the binding name back) rather than
+    // just saying "not published".
     expect(thrown?.hint).toMatch(/Publish the service binding/);
-    expect(thrown?.hint).toMatch(/will NOT publish it/);
+    expect(thrown?.hint).toMatch(/"op":"publish"/);
+    expect(thrown?.hint).toMatch(/"confirm":"<NAME>"/);
     expect(thrown?.hint).toMatch(/identical error/);
     // It stopped at the binding read — no catalogue call, no runtime call.
     expect(calls).toHaveLength(1);
@@ -552,6 +679,120 @@ describe("readServiceContract — every failure is distinguishable", () => {
     }
     expect(thrown?.code).toBe("UNSUPPORTED");
     expect(thrown?.message).toContain("SQL");
+  });
+});
+
+// ============================ readServiceContract: live-captured chains ===
+//
+// End to end against the real bytes: binding (965/968) -> catalogue
+// (966/969) -> $metadata (967/970), for the V2 and V4 services captured on
+// 2026-09-15. Request shapes (URLs, query strings) are asserted against
+// what each .meta.json sidecar recorded as the actual request.
+
+describe("readServiceContract — live-captured chains (965–970)", () => {
+  it("resolves the real V2 chain: /DMO/UI_TRAVEL_U_V2 binding -> catalogue -> $metadata", async () => {
+    const calls: FakeCall[] = [];
+    const sc = await readServiceContract(
+      fakeConn({
+        binding: LIVE_V2_BINDING,
+        catalogue: LIVE_V2_CATALOGUE,
+        metadata: LIVE_V2_METADATA,
+        calls,
+      }),
+      "/DMO/UI_TRAVEL_U_V2",
+    );
+
+    // 967's own requestUrl (its .meta.json): /sap/opu/odata/DMO/UI_TRAVEL_U_V2/$metadata.
+    expect(sc.metadataPath).toBe("/sap/opu/odata/DMO/UI_TRAVEL_U_V2/$metadata");
+    expect(calls).toHaveLength(3);
+    expect(calls[0]?.url).toBe("/sap/bc/adt/businessservices/bindings/%2Fdmo%2Fui_travel_u_v2");
+    // 966's requestUrl path, minus the query string (the fake receives qs separately).
+    expect(calls[1]?.url).toBe("/sap/bc/adt/businessservices/odatav2/%2FDMO%2FUI_TRAVEL_U_V2");
+    expect(calls[1]?.qs).toEqual({
+      servicename: "/DMO/UI_TRAVEL_U_V2",
+      serviceversion: "0001",
+      srvdname: "/DMO/TRAVEL_U",
+    });
+    expect(calls[2]?.url).toBe(sc.metadataPath);
+
+    expect(sc.version).toMatchObject({ version: "V2", fromBinding: "V2", fromDocument: "V2" });
+    expect(sc.version.disagreement).toBeUndefined();
+    expect(sc.contract.entitySets).toHaveLength(27);
+  });
+
+  it("resolves the real V4 chain: /DMO/UI_TRAVEL_O4_CD binding -> catalogue -> $metadata", async () => {
+    const calls: FakeCall[] = [];
+    const sc = await readServiceContract(
+      fakeConn({
+        binding: LIVE_V4_BINDING,
+        catalogue: LIVE_V4_CATALOGUE,
+        metadata: LIVE_V4_METADATA,
+        calls,
+      }),
+      "/DMO/UI_TRAVEL_O4_CD",
+    );
+
+    // 970's own requestUrl.
+    expect(sc.metadataPath).toBe(
+      "/sap/opu/odata4/dmo/ui_travel_o4_cd/srvd/dmo/ui_travel_o4_cd/0001/$metadata",
+    );
+    expect(calls).toHaveLength(3);
+    expect(calls[0]?.url).toBe("/sap/bc/adt/businessservices/bindings/%2Fdmo%2Fui_travel_o4_cd");
+    expect(calls[1]?.url).toBe("/sap/bc/adt/businessservices/odatav4/%2FDMO%2FUI_TRAVEL_O4_CD");
+    expect(calls[1]?.qs).toEqual({
+      servicename: "/DMO/UI_TRAVEL_O4_CD",
+      serviceversion: "0001",
+      srvdname: "/DMO/UI_TRAVEL_O4_CD",
+    });
+    expect(calls[2]?.url).toBe(sc.metadataPath);
+
+    expect(sc.version).toMatchObject({ version: "V4", fromBinding: "V4", fromDocument: "V4" });
+    expect(sc.version.disagreement).toBeUndefined();
+    expect(sc.contract.entitySets).toHaveLength(4);
+    expect(sc.contract.operations).toHaveLength(6);
+  });
+
+  /**
+   * REGRESSION: before readServiceRuntimeInfo learned to fall back to
+   * odatav4:serviceGroup, `child(doc, "serviceList")` found nothing in 969
+   * (its root is serviceGroup, not serviceList) — so `list(container,
+   * "services")` was empty and this call threw SERVICE_NOT_PUBLISHED for a
+   * service that genuinely was published. Pinned here against the real
+   * catalogue bytes so a future refactor that drops the serviceGroup
+   * branch fails this test, not just a live run nobody else can reproduce.
+   */
+  it("REGRESSION: resolves a service from the V4 catalogue's serviceGroup root, not only serviceList", async () => {
+    const sc = await readServiceContract(
+      fakeConn({
+        binding: LIVE_V4_BINDING,
+        catalogue: LIVE_V4_CATALOGUE,
+        metadata: LIVE_V4_METADATA,
+      }),
+      "/DMO/UI_TRAVEL_O4_CD",
+    );
+    expect(sc.runtime.published).toBe(true);
+    expect(sc.runtime.servicePath).toBe(
+      "/sap/opu/odata4/dmo/ui_travel_o4_cd/srvd/dmo/ui_travel_o4_cd/0001/",
+    );
+  });
+
+  // v1 alone answers 406 ExceptionResourceNotAcceptable on this A4H release
+  // (verified live 2026-09-15, captures 965/968) — the two-part Accept list
+  // is not defensive padding, it is the only thing that works.
+  it("pins the v2 Accept header on the binding GET", async () => {
+    const calls: FakeCall[] = [];
+    await readServiceContract(
+      fakeConn({
+        binding: LIVE_V2_BINDING,
+        catalogue: LIVE_V2_CATALOGUE,
+        metadata: LIVE_V2_METADATA,
+        calls,
+      }),
+      "/DMO/UI_TRAVEL_U_V2",
+    );
+    expect(calls[0]?.headers?.Accept).toContain(
+      "application/vnd.sap.adt.businessservices.servicebinding.v2+xml",
+    );
   });
 });
 
@@ -725,12 +966,18 @@ describe("abap_service — tool surface", () => {
     }
   });
 
-  it("advertises itself as a read that changes nothing", async () => {
+  it("advertises the WORST-case hints — op=\"publish\" is destructive, not the default read path", async () => {
     const tool = (await listTools("read")).find((t) => t.name === "abap_service");
+    // MCP tool annotations are one fixed set per tool, not per call — there
+    // is no way to say "read-only, except when op=\"publish\"". So the
+    // honest annotation is the most dangerous thing this tool can now do
+    // (op="publish" can register an ICF node), not its default op="read"
+    // path, which still touches nothing.
     expect(tool?.annotations).toMatchObject({
-      readOnlyHint: true,
-      destructiveHint: false,
+      readOnlyHint: false,
+      destructiveHint: true,
       idempotentHint: true,
+      openWorldHint: true,
     });
   });
 
@@ -740,9 +987,28 @@ describe("abap_service — tool surface", () => {
     expect(tool?.description).toMatch(/unpublished/i);
   });
 
-  it("takes exactly three parameters, none of which selects data", () => {
-    expect(Object.keys(ServiceInput.shape).sort()).toEqual(["binding", "entity", "mode"]);
-    expect(Object.keys(serviceInputSchema)).toHaveLength(3);
+  it("takes exactly five parameters: binding, entity, mode, op and confirm", () => {
+    expect(Object.keys(ServiceInput.shape).sort()).toEqual([
+      "binding",
+      "confirm",
+      "entity",
+      "mode",
+      "op",
+    ]);
+    expect(Object.keys(serviceInputSchema)).toHaveLength(5);
+  });
+
+  // Kept as its own assertion, separate from the count above: the count can
+  // stay five while a future parameter quietly turns into a row selector
+  // (a $filter- or $top-shaped field). This is the property that actually
+  // matters — no parameter name that a caller could use to ask for entity
+  // rows rather than the contract shape.
+  it("none of the five parameters can request entity rows", () => {
+    const dataSelectingNames = ["filter", "select", "top", "skip", "expand", "orderby", "search", "count"];
+    const keys = Object.keys(ServiceInput.shape).map((k) => k.toLowerCase());
+    for (const forbidden of dataSelectingNames) {
+      expect(keys).not.toContain(forbidden);
+    }
   });
 
   /**

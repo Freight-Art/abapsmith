@@ -1,0 +1,37 @@
+{
+  "n": 933,
+  "label": "listener-hit-run2",
+  "expect": null,
+  "note": null,
+  "requestMethod": "POST",
+  "requestUrl": "http://203.0.113.10:50000/sap/bc/adt/debugger/listeners?debuggingMode=user&requestUser=DEVELOPER&terminalId=ZMCPCAPTURE000000000000000000089&ideId=ZMCPCAPTUREIDE00000000000000089&timeout=120&checkConflict=false&isNotifiedOnConflict=true&sap-client=001",
+  "requestHeaders": {
+    "Authorization": "<redacted>",
+    "Cookie": "<redacted: 4 cookies>",
+    "X-sap-adt-sessiontype": "stateful",
+    "X-CSRF-Token": "qIDViU4xLYoK1XUrqSdTZg==",
+    "Accept": "application/vnd.sap.as+xml"
+  },
+  "requestBody": null,
+  "responseStatus": 200,
+  "responseStatusText": "OK",
+  "responseHeaders": {
+    "content-encoding": "gzip",
+    "content-length": "622",
+    "content-type": "application/vnd.sap.as+xml; charset=utf-8; dataname=com.sap.adt.debugger.DebuggeesList",
+    "sap-authenticated": "true",
+    "sap-cache-control": "+0",
+    "sap-isc-uagent": "0",
+    "sap-perf-fesrec": "2240639.000000",
+    "sap-server": "true",
+    "set-cookie": "<redacted>"
+  },
+  "byteLength": 1274,
+  "zeroByteBody": false,
+  "sha256": "5ec394ae8fcbdf74bb3fac74c67c2f099d66270530442a4337b45e6964337da6",
+  "utcTimestamp": "2026-09-12T17:56:15.369Z",
+  "durationMs": 2293,
+  "sessionName": "A",
+  "transportError": null,
+  "redactions": "appliance host -> 203.0.113.10:50000 (RFC 5737); the application-server hostname was replaced with a4hsandbox (same placeholder as the 011-051 captures); Authorization/Cookie/set-cookie stripped. sha256/byteLength are over the redacted body as stored here."
+}

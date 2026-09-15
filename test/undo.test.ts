@@ -1881,14 +1881,38 @@ const CLS_V1 =
   "CLASS zcl_mcp_undo IMPLEMENTATION.\nENDCLASS.\n";
 const CLS_V2 = CLS_V1.replace("  PUBLIC SECTION.\n", "  PUBLIC SECTION.\n    METHODS run.\n");
 
-/** Same shape as `fakeServer`, for the class URIs. */
-function fakeClassServer(initial?: string) {
+const CLASS_SUB_INCLUDE_NAMES = ["definitions", "implementations", "macros", "testclasses"] as const;
+type ClassSubIncludeName = (typeof CLASS_SUB_INCLUDE_NAMES)[number];
+
+/**
+ * Same shape as `fakeServer`, for the class URIs.
+ *
+ * The four sub-include documents (`/includes/<name>`) are answered with a
+ * real 404 by default — this fake never writes them, so that is the honest
+ * server response, and `deleteObject`'s Part-C before-image read (src/adt/
+ * write.ts) now genuinely GETs all four during a CLAS/OC delete. Before this
+ * was added they fell through to the catch-all `resp(200, "", …)` below and
+ * were misread as "captured, empty string" instead of "confirmed-absent" —
+ * silently wrong evidence for every delete test built on this fake.
+ *
+ * `opts.failIncludes` simulates a read that errors rather than 404s (e.g. a
+ * transient ADT fault), for tests that need a genuinely-partial recording
+ * rather than "nothing was ever captured".
+ */
+function fakeClassServer(initial?: string, opts: { failIncludes?: readonly ClassSubIncludeName[] } = {}) {
   const state: { source?: string } = { source: initial };
+  const includeUri = (name: ClassSubIncludeName) => `${CLS_URI}/includes/${name}`;
   const route = (r: Recorded): HttpClientResponse => {
     if (r.url === CLS_SRC && r.method === "GET") {
       return state.source === undefined
         ? resp(404, NOT_FOUND_XML, OK_XML)
         : resp(200, asServer(state.source), { ...OK_TEXT, etag: `cls-${state.source.length}` });
+    }
+    for (const name of CLASS_SUB_INCLUDE_NAMES) {
+      if (r.url === includeUri(name) && r.method === "GET") {
+        if (opts.failIncludes?.includes(name)) return resp(500, "boom", OK_TEXT);
+        return resp(404, NOT_FOUND_XML, OK_XML);
+      }
     }
     if (r.url === CLS_URI && r.method === "GET") {
       return state.source === undefined ? resp(404, NOT_FOUND_XML, OK_XML) : resp(200, OBJ_XML, OK_XML);
@@ -1916,8 +1940,19 @@ const writeClass = (conn: AbapConnection, source: string, extra: Record<string, 
   abapWrite(conn, { object: CLS, type: "CLAS/OC", source, ...extra } as never, 60_000, openGate(), journal);
 
 describe("a partial class restore must not report success", () => {
-  it("refuses to recreate a deleted class by default, and says exactly what would be missing", async () => {
-    const srv = fakeClassServer(CLS_V1);
+  it("refuses to recreate a class whose testclasses read failed, and says exactly what would be missing", async () => {
+    // Before Part C, this class's delete never even attempted to read its
+    // sub-includes — "only ever recorded its MAIN include" was literally
+    // true. Now `deleteObject` DOES read all four; this test instead models
+    // the case where ONE of those reads genuinely failed (a fault, not an
+    // absence — the other three come back confirmed-absent), so the refusal
+    // and its wording still apply for a reason that can really happen,
+    // rather than one Part C already fixed. Only one include is failed
+    // (not all four) so the fake's synthetic 500s do not trip the
+    // connection's circuit breaker (opens after 3 consecutive failures) —
+    // that breaker is a real cross-cutting safety mechanism, not something
+    // this test should fight.
+    const srv = fakeClassServer(CLS_V1, { failIncludes: ["testclasses"] });
     const { conn, adt } = await connected(srv.route);
     await writeClass(conn, "", { mode: "delete" });
     expect(srv.state.source).toBeUndefined();
@@ -1928,13 +1963,7 @@ describe("a partial class restore must not report success", () => {
     expect(plan.action).toBe("recreate");
     expect(plan.undoable).toBe(false);
     expect(plan.blockerForceable).toBe(true);
-    expect(plan.partial?.unrestored).toEqual([
-      "definitions",
-      "implementations",
-      "macros",
-      "testclasses",
-    ]);
-    expect(plan.blocker).toMatch(/CCDEF/);
+    expect(plan.partial?.unrestored).toEqual(["testclasses"]);
     expect(plan.blocker).toMatch(/CCAU/);
     expect(plan.blocker).toMatch(/force=true/);
 
@@ -1947,7 +1976,9 @@ describe("a partial class restore must not report success", () => {
   });
 
   it("with force=true it recreates, and the result is loudly PARTIAL", async () => {
-    const srv = fakeClassServer(CLS_V1);
+    // Same fault-injection as above: the testclasses read failed, so there is
+    // still something genuinely unrestored for force=true to override.
+    const srv = fakeClassServer(CLS_V1, { failIncludes: ["testclasses"] });
     const { conn } = await connected(srv.route);
     await writeClass(conn, "", { mode: "delete" });
     const del = (await journal.list())[0]!;
@@ -2295,14 +2326,21 @@ describe("[EXPECTED RED until the undo half lands] an include-scoped undo must n
     expect(srv.state.main).toBe(asServer(CLS_V1));
   });
 
-  it("keeps refusing to recreate a deleted class — include support must not unlock that", async () => {
-    // Restates the existing guarantee from "a partial class restore must not
-    // report success" above, deliberately, as a tripwire: the natural way to
-    // implement include-aware undo is to teach `partialClassRestore` about
-    // includes, and the natural bug in that is to conclude "we have includes
-    // now, so a recreate is complete". It is not — nothing CAPTURES the four
-    // sub-includes on delete (out of scope here), so the refusal at
-    // src/adt/undo.ts:448-457 stays correct behaviour and stays on.
+  it("now recreates a deleted class fully once all four includes read as confirmed-absent — Part C closed this gap", async () => {
+    // This test used to be a tripwire against the natural bug in teaching
+    // `partialClassRestore` about includes: concluding "we have includes now,
+    // so a recreate is complete" while nothing actually captured them. That
+    // was true when this test was written — delete only ever recorded the
+    // main include (src/adt/undo.ts:448-457 at the time).
+    //
+    // It no longer is. `deleteObject` (src/adt/write.ts) now reads all four
+    // sub-includes before a CLAS/OC delete and records each as "captured" or
+    // "confirmed-absent" in `entry.parts`. For THIS class none of the four
+    // ever existed, so all four come back confirmed-absent, `partialClassRestore`
+    // finds nothing unrestored, and the class is fully, honestly recreatable
+    // without force=true — the tripwire's premise is exactly what Part C set
+    // out to fix. Restated here as the positive counterpart: a confirmed-absent
+    // include must never be PUT (there is nothing to write back).
     const srv = fakeClassServer(CLS_V1);
     const { conn, adt } = await connected(srv.route);
     await writeClass(conn, "", { mode: "delete" });
@@ -2311,14 +2349,17 @@ describe("[EXPECTED RED until the undo half lands] an include-scoped undo must n
     adt.calls.length = 0;
     const plan = await planUndo(conn, journal, del);
     expect(plan.action).toBe("recreate");
-    expect(plan.undoable).toBe(false);
-    expect(plan.blockerForceable).toBe(true);
-    expect(plan.partial?.unrestored).toEqual(["definitions", "implementations", "macros", "testclasses"]);
+    expect(plan.undoable).toBe(true);
+    expect(plan.partial).toBeUndefined();
 
-    const err = await catchErr(performUndo(conn, journal, del, ALLOW));
-    expect(err.code).toBe("BAD_INPUT");
-    expect(adt.verbs).not.toContain("PUT");
-    expect(srv.state.source).toBeUndefined();
+    const res = await performUndo(conn, journal, del, ALLOW);
+    expect(res.performed).toBe(true);
+    expect(res.partial).toBeUndefined();
+    expect(srv.state.source).toBe(asServer(CLS_V1));
+    expect(
+      adt.calls.filter((c) => c.method === "PUT" && c.url.includes("/includes/")),
+      "no include was ever recorded as present, so none should have been PUT back",
+    ).toEqual([]);
   });
 });
 

@@ -157,4 +157,7 @@ surfaces' action sets are not identical and drift here is easy to get wrong.
 
 A bad write you made is `abapsmith-recover-a-bad-write` (the journal, not
 ST22). A failing unit test is `abapsmith-run-tests-and-fix`. Static findings
-are `abapsmith-check-code-quality`.
+are `abapsmith-check-code-quality`. Code that runs correctly but slowly —
+no dump, no exception — is a job for `abap_trace` (SAT runtime trace), not
+this skill: it records hit-list, database-access and call-tree views of one
+scoped execution instead of stepping through it live.
