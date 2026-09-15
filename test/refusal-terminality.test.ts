@@ -440,12 +440,16 @@ describe("terminality overrides are deliberate and explained", () => {
   // from the code. The reroute deleted the bridge deploy and with it that
   // re-wrap, so every remaining site is a genuine per-site override — which is
   // why the "and 1 is a re-wrap" clause is gone rather than merely renumbered.
-  it("exactly 21 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 2 in adt/datapreview.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 1 in tools/write.ts, 1 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: all 21 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
+  // 21 became 24 with issue #89: tools/debug.ts now refuses a busy or
+  // leaked debug lane at four sites (limit-1 tracked/untracked, multi-lane
+  // leaked/all-busy), each terminal-by-code (UNSUPPORTED or
+  // DEBUG_ALL_LEASES_BUSY) but honestly retryable once a stop frees a lane.
+  it("exactly 24 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 2 in adt/datapreview.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 1 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts and 1 in debug/session.ts: all 24 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
     const { calls } = scanSrc();
     expect(
       calls.length,
       `found: ${calls.map((c) => `${c.file}:${c.line}`).join(", ")}`,
-    ).toBe(21);
+    ).toBe(24);
   });
 });
 

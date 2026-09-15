@@ -1602,7 +1602,7 @@ async function handleStart(
           "out of tracking.",
         { status, tracked: false },
         undefined,
-        { retryable: true },
+        { retryable: true }, // transient occupancy, not an unimplemented capability — a stop clears it
       );
     }
     const free = firstFreeLane(laneLimit);
@@ -1624,7 +1624,7 @@ async function handleStart(
           "work processes on the SAP appliance (see debugDiaBudget/debugSessions in src/config.ts).",
         { laneLimit, status },
         'Stop an existing session first: abap_debug({action:"stop"}).',
-        { retryable: true },
+        { retryable: true }, // transient occupancy: a stop on any lane frees one (issue #89)
       );
     }
     // Raising ABAP_DEBUG_SESSIONS only raises THIS CLIENT's own limit — it
