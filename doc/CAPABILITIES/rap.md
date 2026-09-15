@@ -6,7 +6,7 @@
 | Behavior implementation class | yes | yes | yes | yes | yes | live | An ordinary `CLAS/OC`; nothing knows it is a behavior pool. |
 | Service definition (`SRVD/SRV`) | yes | yes | yes | yes | yes | live | Ordinary source object. |
 | Service binding (`SRVB/SVB`) | yes | partial | yes | yes | yes | live | Read needs `format: "raw"`. |
-| Service publication | yes | n/a | n/a | yes | n/a | tests | Gated on `ABAP_MODE=admin` (or legacy `ABAP_ALLOW_SERVICE_PUBLISH=true`) plus a `confirm` echo of the binding name; without `confirm` the call is a dry run. `op="publish"` (Create) POSTs the ADT publish job, `op="unpublish"` (Delete) reverses it — the POST itself is unit-tested against fakes, not executed against the reference system. |
+| Service publication | yes | n/a | n/a | yes | n/a | live | Gated on `ABAP_MODE=admin` (or legacy `ABAP_ALLOW_SERVICE_PUBLISH=true`) plus a `confirm` echo of the binding name; without `confirm` the call is a dry run. `op="publish"` (Create) POSTs the ADT publish job, `op="unpublish"` (Delete) reverses it — both executed against A4H, client 001, 2026-09-15, for a V2 binding and a V4 binding, each followed by a read confirming the service's live/not-published state. |
 | OData metadata read (`abap_service`) | n/a | yes | n/a | n/a | n/a | live | Live-verified for both V2 and V4: binding → catalogue → `$metadata` captured against A4H, client 001, 2026-09-15 (fixtures 965–970). See below. |
 | Business data over the service | no | no | no | no | n/a | n/a | Structurally refused. |
 | Draft handling | no | no | no | no | no | unverified | Not implemented at all. |
@@ -50,8 +50,8 @@
   source comments and this note are corrected together; the current grades
   can be trusted.
 - `doc/TOOLS/abap-service.md` documents the publish/unpublish parameters,
-  the gate, the `confirm` echo, the dry run, the journal entries and the new
-  `SERVICE_PUBLISH_FAILED` error code.
-  `doc/LIMITATIONS/not-implemented-and-unproven.md` carries the one
-  remaining gap: the publish/unpublish POST itself has never been executed
-  against a live system.
+  the gate, the `confirm` echo, the dry run, the journal entries and the
+  `SERVICE_PUBLISH_FAILED` error code, plus the "Live evidence" paragraph
+  covering the 2026-09-15 A4H run — including the timeout-then-retry
+  observation on the V2 publish and the `IWVB` vocabulary-annotation object
+  it leaves behind (see `doc/LIMITATIONS/editing.md`).

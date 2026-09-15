@@ -165,14 +165,39 @@ A publish or unpublish that reaches the server and is refused there —
 usually an inactive binding or service definition — or that answers with
 `severity=error`, returns `SERVICE_PUBLISH_FAILED`.
 
-**Unverified.** The publish and unpublish POSTs themselves have never been
-executed against a live system: this session was not authorised to change
-the reference appliance's runtime service surface, so the publish path is
-covered by unit tests against fakes only. The endpoints are not invented —
-`odatav2/publishjobs` appears in A4H's own ADT discovery document, and
-`odatav4/publishjobs`/`unpublishjobs` are linked from A4H's live V4 catalogue
-document (fixture 969) — but the endpoint existing is not the same claim as
-the call having been made and having worked.
+**Live evidence.** Both `op="publish"` and `op="unpublish"` have been
+executed against A4H (client 001, `ABAP_MODE=admin`, 2026-09-15), for both
+OData versions: a V2 SRVB (`ZV82_SB`, over service definition `ZV82_SD`,
+over view entity `ZV82_C_CARR`) and a V4 SRVB (`ZV82_SB4`), both created
+from scratch in `$TMP` with `abap_write`. For each binding, the confirmed
+publish was followed by a read that showed the service live, and the
+confirmed unpublish was followed by a read that returned
+`SERVICE_NOT_PUBLISHED` again.
+
+The V2 publish's first attempt timed out at the ADT layer (HTTP timeout,
+60000 ms, `ADT_ERROR`) — the appliance was producing the same 60s timeout on
+unrelated calls (DDLS/SRVB activation) in that session. Because the
+`service-publish` journal entry is written *before* the POST (fail-closed,
+see above), a re-read after the timeout showed the binding still
+unpublished, so the POST had not landed; the immediate retry succeeded. This
+is the general answer to "did a timed-out publish land": the journal already
+holds a pending entry for it, and a plain `op="read"` settles whether the
+POST reached the server — retrying is safe either way, since a publish
+against an already-published binding re-asserts the same end state rather
+than accumulating (see `idempotentHint` on the tool registration).
+
+The V4 publish succeeded on the first try. Publishing `/DMO/UI_TRAVEL_U_V2`
+was tried too, to confirm the reserved-namespace refusal on a real demo
+binding: it came back `SAFETY_DENIED` before anything was posted, exactly as
+"Which bindings can actually be published" above describes.
+
+One leftover from the V2 publish is worth knowing about: the publish job
+auto-generated a vocabulary-annotation object, `IWVB ZV82_SB_VAN`, in
+`$TMP`. It survived both the unpublish and the deletion of the binding
+itself. abapsmith cannot delete it — `IWVB` is not a writable type — and
+`abap_read` reports `NOT_FOUND` for it even though `abap_search` still lists
+it; see [doc/LIMITATIONS/editing.md](../LIMITATIONS/editing.md) for the
+exact status. No such object was left behind by the V4 publish.
 
 ## V2 vs V4 is detected, not guessed
 

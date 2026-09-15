@@ -19,6 +19,15 @@
   remedy, and SE19 is SAPGUI.
 - **No search-help (SHLP/DH) write.** No dedicated ADT collection exists — not
   gated, not broken, simply absent from the server's own routing table.
+- **A V2 `abap_service op="publish"` leaves behind an `IWVB` object
+  abapsmith cannot delete.** Confirmed live on A4H, 2026-09-15: publishing a
+  V2 service binding (`ZV82_SB`) auto-generated a vocabulary-annotation
+  object, `IWVB ZV82_SB_VAN` (version 0001), in `$TMP`. It survives both
+  `op="unpublish"` and deletion of the binding itself. `IWVB` is not a
+  writable type, so `abap_write` cannot delete it; `abap_read` reports
+  `NOT_FOUND` for it even though `abap_search` still lists it. Removing it
+  needs SAPGUI/SE80, outside abapsmith's own tool surface. The V4 publish
+  path (`ZV82_SB4`) left no such object behind.
 - **`abap_img_edit` still writes past the maintenance view's own check
   logic, but now says what it wrote past.** A customizing row is applied
   with a plain `MODIFY`/`DELETE` on the resolved base table, not through

@@ -7,17 +7,24 @@
  * ## What this suite does NOT prove
  *
  * Every test here runs against a fake `AbapConnection` — no network, no live
- * appliance. The publish/unpublish POST itself (`/sap/bc/adt/businessservices/
- * odatav{2,4}/(un)publishjobs`) has NEVER been executed against a live SAP
- * system for this issue. Its request shape (path, query string, headers,
+ * appliance. This suite alone does not prove the publish/unpublish POST
+ * (`/sap/bc/adt/businessservices/odatav{2,4}/(un)publishjobs`) works against
+ * a real system; its request shape (path, query string, headers,
  * `adtcore:objectReferences` body, the V4-only `adtcore:type="SCGR"`) is
  * derived from `src/adt/odata.ts`'s own construction of it, which in turn was
  * built from the ADT client library's own implementation
  * (`node_modules/abap-adt-api/build/api/cds.js` for V2,
  * `node_modules/abap-adt-api/build/api/rapgenerator.js` for V4) and the
- * documented endpoint shape — not from a captured wire response. Nothing
- * below should be read as "verified" for the publish path; it is "matches
- * what the source builds", which is a materially weaker claim.
+ * documented endpoint shape.
+ *
+ * That live proof exists separately: `op="publish"` and `op="unpublish"`
+ * were both executed against A4H (client 001, `ABAP_MODE=admin`,
+ * 2026-09-15) for a V2 binding and a V4 binding, each confirmed by a
+ * follow-up read — see `doc/TOOLS/abap-service.md`, "Publishing and
+ * unpublishing", for the full account (including the V2 timeout-then-retry
+ * and the `IWVB` leftover). This file's fakes were not replaced with
+ * captured fixtures from that run, so it still only proves "matches what
+ * the source builds" on its own.
  *
  * The binding/catalogue/`$metadata` XML shapes reused in the "response
  * shape" tests below are hand-written, modelled on

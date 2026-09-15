@@ -70,12 +70,13 @@ Three things the descriptor must carry:
   `package` write argument is not enough for this type.
 - Name limit 26 characters.
 
-**SRVB creation has only been exercised for V2** — the XML shape above is a
-V2 descriptor. This does not mean the system lacks V4: A4H does have V4
-service bindings (e.g. `/DMO/UI_TRAVEL_O4_CD`), and `abap_service` reads V4
-metadata live (`doc/TOOLS/abap-service.md`). Creating a V4 `SRVB/SVB` from
-scratch through `abap_write` has not been tried here — copy an existing V4
-binding's XML the same way as above if you need one.
+**V4 SRVB creation from scratch works too.** The XML shape above was first
+exercised for V2; on 2026-09-15 a V4 binding (`ZV82_SB4`) was created from
+scratch through `abap_write` against A4H the same way, then published — see
+"Publishing" below. Copy an existing V4 binding's XML (`abap_search` +
+`abap_read { format: "raw" }`) the same way as for V2; the three
+requirements above (`adtcore:description`, `packageRef` inside the XML,
+26-character name limit) apply to both.
 
 ## Publishing
 
@@ -96,9 +97,15 @@ On success it returns the same contract `abap_service` always returns
 that became reachable — the service's runtime path and its `$metadata`
 path. Report that URL; do not just say "published".
 
-The publish path is unit-tested but has never been run against a live
-appliance, so the first live publish may surface something the fakes did
-not.
+Publish has been run live on A4H, 2026-09-15, for both V2 and V4 bindings,
+each confirmed by a follow-up read. It can time out at the ADT layer on a
+slow appliance (a V2 publish there hit a 60s HTTP timeout on the first
+attempt) without telling you whether the POST landed. To find out: re-read
+the binding first (`abap_service op="read"` or the automatic post-publish
+read) — a live `$metadata` means it landed, `SERVICE_NOT_PUBLISHED` means it
+did not. Either way, retrying `op="publish"` is safe: `abap_service` is
+marked idempotent, since publishing an already-published binding re-asserts
+the same end state rather than accumulating.
 
 To take it back, call `abap_service op="unpublish"` the same way — same
 gate, same `confirm` echo. There is no undo for either direction:

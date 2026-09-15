@@ -28,12 +28,15 @@
  * `capabilities.ts`; that note is left alone here (another agent owns it),
  * this file just stops repeating its claim.
  *
- * NOT verified live: the publish/unpublish job itself. Publishing registers
- * an ICF node, and the session this was captured under was not authorised
- * to change the appliance's runtime surface, so `runPublishJob` below is
- * built from the ADT discovery document, the live V4 catalogue's own
- * `publishjobs`/`unpublishjobs` links, and `abap-adt-api`'s equivalent call
- * — not from a live response.
+ * `runPublishJob` below is now live-verified too: both `publishjobs` (V2 and
+ * V4) and `unpublishjobs` were executed against A4H, 2026-09-15 — a V2
+ * binding (`ZV82_SB`) and a V4 binding (`ZV82_SB4`), each published then
+ * unpublished, each state change confirmed by a follow-up read. The V2
+ * publish's first attempt timed out at the ADT layer (60000 ms) with the
+ * journal's pending `service-publish` entry and a re-read showing the POST
+ * had not landed; the retry succeeded. See
+ * `doc/TOOLS/abap-service.md`, "Publishing and unpublishing", for the full
+ * account.
  */
 
 import { XMLParser } from "fast-xml-parser";
@@ -513,13 +516,13 @@ const STATUS_SEARCH_MAX_DEPTH = 8;
 
 /**
  * Find the node carrying the job's status fields. The V2 answer is a fixed
- * `asx:abap/asx:values/DATA` envelope (captured live); the V4 answer was
- * never observed (publishing was not exercised live — see the module
- * header), so rather than hard-code a path that might be wrong for V4, this
- * walks the parsed document depth-first, bounded, for the first node
- * carrying any of SEVERITY/SHORT_TEXT/LONG_TEXT. Whatever shape the V4
- * envelope turns out to have, this still finds it as long as the field
- * names match.
+ * `asx:abap/asx:values/DATA` envelope (captured live). The V4 publish job
+ * was run live too (A4H, 2026-09-15) and this code found its status node
+ * successfully, but the exact envelope shape was not captured as a fixture,
+ * so rather than hard-code a path this still walks the parsed document
+ * depth-first, bounded, for the first node carrying any of
+ * SEVERITY/SHORT_TEXT/LONG_TEXT — whatever shape the V4 envelope turns out
+ * to have, this still finds it as long as the field names match.
  */
 function findStatusNode(node: unknown, depth = 0): Rec | undefined {
   if (!isRec(node) || depth > STATUS_SEARCH_MAX_DEPTH) return undefined;
